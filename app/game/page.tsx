@@ -16,6 +16,7 @@ import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, BankPanel, ShrineP
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
 import FlagTrackerPanel from '@/components/FlagTrackerPanel';
+import FlagBearerPanel from '@/components/FlagBearerPanel';
 import TileHarvestStatus from '@/components/TileHarvestStatus';
 import CaveItemNotification from '@/components/CaveItemNotification';
 import ClanManagementView from '@/components/clan/ClanManagementView';
@@ -732,6 +733,38 @@ export default function GamePage() {
     }
   };
 
+  const handleFlagRelease = async () => {
+    if (!player) return;
+
+    setPanelMessage('🏳️ Releasing flag...');
+    try {
+      const response = await fetch('/api/flag/release', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
+        throw new Error(result.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setPanelMessage(`🏳️ ${result.message || 'Flag released!'}`);
+        await refreshGameState();
+        setFlagBearer(null);
+        setTimeout(() => setPanelMessage(''), 4000);
+      } else {
+        throw new Error(result.error || 'Release failed');
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Network error';
+      setPanelMessage(`❌ ${errorMsg}`);
+      setTimeout(() => setPanelMessage(''), 8000);
+    }
+  };
+
   const handleFlagTrack = (_bearer: FlagBearer) => {
     // Show flag bearer position info already visible in the tracker panel
     router.push('/profile');
@@ -1138,8 +1171,19 @@ export default function GamePage() {
               />
             </div>
 
-            {/* Flag Tracker Panel - Only show if player IS the bearer */}
+            {/* Flag Bearer Panel — Only show if player IS the bearer */}
             {flagBearer && flagBearer.username === player?.username && (
+              <div className="p-3">
+                <FlagBearerPanel
+                  flagBearer={flagBearer}
+                  onRelease={handleFlagRelease}
+                  compact={false}
+                />
+              </div>
+            )}
+
+            {/* Flag Tracker Panel — Only show if player is NOT the bearer */}
+            {flagBearer && flagBearer.username !== player?.username && (
               <div className="p-3">
                 <FlagTrackerPanel
                   playerPosition={player?.currentPosition || { x: 75, y: 75 }}
@@ -1155,7 +1199,7 @@ export default function GamePage() {
 
             {/* Shrine Status Panel */}
             <div className="p-3">
-              <ShrineStatusPanel onClick={() => setCurrentView('SHRINE')} />
+              <ShrineStatusPanel />
             </div>
 
             {/* WMD Mini Status Widget */}

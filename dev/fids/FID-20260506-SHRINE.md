@@ -6,7 +6,7 @@
 | **Date Created** | 2026-05-06 |
 | **Status** | FIXED |
 | **Priority** | HIGH |
-| **Phase** | Implementation Complete |
+| **Phase** | Implementation Complete — Pending Verification |
 
 ---
 
@@ -14,9 +14,9 @@
 
 The shrine system has two issues:
 1. **Bug:** Shrine boost activates successfully (items consumed, DB written) but never displays in the UI
-2. **Missing Feature:** No shrine status module exists in the sidebar (should be between AutoFarmPanel and WMDMiniStatus)
+2. **Missing Feature:** No shrine status module exists in the sidebar
 
-The ShrinePanel (554 lines) is the full shrine UI for activating boosts at the shrine tile. The HarvestCalculatorTab already has a shrine bonus input field that reads from `data.shrineBoosts`. But neither works because the player API doesn't fetch shrine boosts.
+Additionally, the flag tracker visibility logic needs correction, and all sidebar modules should be foldable/collapsible.
 
 ---
 
@@ -55,11 +55,6 @@ const { data: shrineBoosts } = await supabase
 ```
 
 Include in result object (after line 88):
-```typescript
-shrineBoosts: shrineBoosts || [],
-```
-
-The `mapCamelCase` spread (`...mapped`) handles player fields. The `shrineBoosts` array from Supabase will have `expires_at` and `yield_bonus` — these need to be camelCased. Since `shrineBoosts` is a separate query (not part of `mapped`), we should map each boost:
 
 ```typescript
 shrineBoosts: (shrineBoosts || []).map(b => ({
@@ -70,7 +65,7 @@ shrineBoosts: (shrineBoosts || []).map(b => ({
 })),
 ```
 
-This ensures the frontend receives `ShrineBoost[]` with correct field names matching the TypeScript interface (`tier`, `expiresAt`, `yieldBonus`).
+The `mapCamelCase` spread handles player fields. The `shrineBoosts` array needs explicit mapping since it's a separate query. This ensures the frontend receives `ShrineBoost[]` with correct field names matching the TypeScript interface (`tier`, `expiresAt`, `yieldBonus`).
 
 The `Player` type already has `shrineBoosts: ShrineBoost[]` (types/game.types.ts:374). No type changes needed.
 
@@ -79,24 +74,7 @@ The `Player` type already has `shrineBoosts: ShrineBoost[]` (types/game.types.ts
 ## Issue 2: Missing Shrine Status Module
 
 ### Context
-The sidebar structure in `app/game/page.tsx` (lines 1125-1159) — current order:
-```
-ControlsPanel
-AutoFarmPanel      ← line 1128-1138
-WMDMiniStatus      ← line 1141-1144
-FlagTrackerPanel   ← line 1146-1159
-```
-
-Desired order:
-```
-ControlsPanel
-AutoFarmPanel      ← line 1128-1138
-FlagTrackerPanel   ← move here (only visible when player IS the bearer)
-ShrineStatusPanel  ← new module
-WMDMiniStatus      ← line 1141-1144
-```
-
-The ShrineStatusPanel is a **read-only display module** — it shows the player their active shrine boosts, remaining timers, and total bonus. It does NOT handle activation. Activation only happens at the shrine tile (1,1) via the ShrinePanel.
+The sidebar needs a shrine status widget between AutoFarmPanel and WMDMiniStatus. The ShrineStatusPanel is a **read-only display module** — it shows active shrine boosts, remaining timers, and total bonus. Activation only happens at the shrine tile (1,1) via interacting with 1,1.
 
 ### Component Design
 Following the WMDMiniStatus pattern (compact status widget, fetches own data via API, 30s polling, click-to-open full panel):
@@ -108,15 +86,9 @@ interface ShrineStatusPanelProps {
 }
 ```
 
-**Data fetching:** Uses existing `/api/shrine/status` endpoint (returns `activeBoosts` and `availableItems`). Polls every 30 seconds.
+**Data fetching:** Uses existing `/api/shrine/status` endpoint. Polls every 30 seconds.
 
-**State management:**
-- `loading` state shows "Loading..." placeholder
-- `activeBoosts` array drives the 4 tier displays
-- `availableItems.length` shows tradeable item count
-- Timer countdown via `useEffect` with 1-second interval
-
-**Display layout (4 tiers + summary):**
+**Display (full mode):**
 ```
 ┌─────────────────────────────┐
 │ ⛩️ Shrine Status     [→]    │
@@ -131,57 +103,148 @@ interface ShrineStatusPanelProps {
 └─────────────────────────────┘
 ```
 
+**Display (compact mode):**
+```
+┌─────────────────────────────┐
+│ ⛩️ Shrine  2/4  +50%  [→]  │
+└─────────────────────────────┘
+```
+
 **Tier status logic:**
 - `expiresAt > now` → ✅ Active with countdown timer
-- `expiresAt <= now` but was active → ❌ Expired
+- `expiresAt <= now` → ❌ Expired
 - No record → ❌ Inactive
 
-**Styling:** Matches WMDMiniStatus pattern — `bg-gray-800 rounded-lg p-3 border border-gray-700`, hover effect, click-to-open hint text.
+**Styling:** Matches WMDMiniStatus pattern — compact, `bg-gray-800 rounded-lg p-3 border border-gray-700`, hover effect, click-to-open hint.
 
-**Click behavior:** Opens the shrine view (`setCurrentView('SHRINE')`) where the player can activate/extend boosts at the shrine tile.
+**Click behavior:** Collapse/Expand
 
-### Files to Create
+---
+
+## Issue 3: Flag Tracker Visibility Logic
+
+### Current Behavior (Wrong)
+The FlagTrackerPanel at `page.tsx:1142` currently shows when `flagBearer.username === player?.username` (when player IS the bearer). This is backwards.
+
+### Correct Behavior
+- **WHEN player IS the flag bearer:** Show compact "Flag Bearer" status module (bearer info, hold timer, controls). The bearer doesn't need to track themselves.
+- **WHEN player is NOT the flag bearer:** Show the FlagTrackerPanel so they can track and challenge the bearer.
+
+### Sidebar Layout
+
+**RIGHT SIDEBAR — When player IS flag bearer:**
+```
+[POSITION]
+[FLAG BEARER]       ← compact status (bearer info, timer, controls)
+[MOVEMENT CONTROLS]
+[AUTO FARM]
+[SHRINE STATUS]
+[WMD]
+```
+
+**RIGHT SIDEBAR — When player is NOT flag bearer:**
+```
+[POSITION]
+[MOVEMENT CONTROLS]
+[AUTO FARM]
+[FLAG TRACKER]      ← full tracker (bearer location, distance, challenge)
+[SHRINE STATUS]
+[WMD]
+```
+
+### Fix
+In `app/game/page.tsx:1142`, change the FlagTrackerPanel condition from:
+```typescript
+{flagBearer && flagBearer.username === player?.username && (
+```
+To:
+```typescript
+{flagBearer && flagBearer.username !== player?.username && (
+```
+
+And add a compact FlagBearerPanel when the player IS the bearer:
+```typescript
+{flagBearer && flagBearer.username === player?.username && (
+  <div className="p-3">
+    <FlagBearerPanel
+      flagBearer={flagBearer}
+      onRelease={handleFlagRelease}
+      compact={false}
+    />
+  </div>
+)}
+```
+
+---
+
+## Issue 4: Foldable Modules
+
+### Requirement
+All sidebar modules should be foldable/collapsible with small compact versions, EXCEPT Movement Controls which always shows full size. This applies to both left and right sidebars.
+
+### Modules to make foldable:
+
+| Module | Compact Mode Shows |
+|--------|-------------------|
+| **AutoFarmPanel** | Status icon + start/stop button only |
+| **FlagTrackerPanel** | Bearer name + distance + challenge button |
+| **FlagBearerPanel** | "🚩 Bearer" + hold timer |
+| **ShrineStatusPanel** | "⛩️ 2/4 +50%" + click to expand |
+| **WMDMiniStatus** | Icon + alert badge only |
+| **Position panel** | Coordinates only |
+
+### Implementation Pattern
+Each module gets a `compact` prop (boolean). When `true`, renders minimal info. When `false`, renders full details. Default is `false` (full mode). Players can toggle via a collapse/expand button on each module header.
+
+### State Management
+Each module manages its own collapse state internally (like FlagTrackerPanel already does with `isPanelCollapsed`). No need for parent-level state.
+
+---
+
+## Files to Create
 | # | File | Purpose |
 |---|------|---------|
-| 1 | `components/ShrineStatusPanel.tsx` | Sidebar module showing shrine boost status, timers, total bonus |
+| 1 | `components/ShrineStatusPanel.tsx` | Sidebar shrine status widget (full + compact modes) |
+| 2 | `components/FlagBearerPanel.tsx` | Compact flag bearer status (when player holds flag) |
 
-### Files to Modify
+## Files to Modify
 | # | File | Change | Line |
 |---|------|--------|------|
-| 1 | `app/api/player/route.ts` | Add shrine boosts query after inventory query | After line 58 |
-| 2 | `app/api/player/route.ts` | Add `shrineBoosts` to result object | After line 88 |
-| 3 | `app/game/page.tsx` | Import ShrineStatusPanel | Line 29 (with other imports) |
-| 4 | `app/game/page.tsx` | Move FlagTrackerPanel below AutoFarmPanel | Move lines 1146-1159 to after line 1139 |
-| 5 | `app/game/page.tsx` | Fix FlagTrackerPanel visibility — show only when player IS the bearer (currently inverted at line 1147) | Line 1147 |
-| 6 | `app/game/page.tsx` | Render ShrineStatusPanel between FlagTrackerPanel and WMDMiniStatus | After FlagTrackerPanel |
+| 1 | `app/api/player/route.ts` | Add shrine boosts query + camelCase mapping | After line 58 |
+| 2 | `app/game/page.tsx` | Fix FlagTracker visibility (`!==` instead of `===`) | Line 1142 |
+| 3 | `app/game/page.tsx` | Add FlagBearerPanel when player IS bearer | After line 1154 |
+| 4 | `app/game/page.tsx` | Add ShrineStatusPanel between FlagTracker and WMD | After FlagTracker |
+| 5 | `components/index.ts` | Export ShrineStatusPanel + FlagBearerPanel | Add to exports |
+| 6 | `components/AutoFarmPanel.tsx` | Add `compact` prop support | Add prop + conditional rendering |
+| 7 | `components/FlagTrackerPanel.tsx` | Already has `compact` prop — verify it works correctly | Already implemented |
+| 8 | `components/WMDMiniStatus.tsx` | Add `compact` prop support | Add prop + conditional rendering |
 
 ---
 
 ## Verification Checklist
 - [ ] `npm run dev` starts without errors
-- [ ] Sidebar order is: Controls → AutoFarm → FlagTracker → ShrineStatus → WMD
-- [ ] FlagTrackerPanel only shows when player IS the bearer (not when they don't)
-- [ ] FlagTrackerPanel hidden for non-bearer players
-- [ ] ShrineStatusPanel shows in sidebar between FlagTracker and WMD
-- [ ] Activate shrine boost at shrine tile (1,1) via ShrinePanel → ACTIVE badge appears
+- [ ] Activate shrine boost at shrine tile → ACTIVE badge appears in ShrinePanel
 - [ ] Timer counts down in ShrinePanel
 - [ ] Total gathering bonus updates in ShrinePanel
 - [ ] HarvestCalculatorTab auto-detects shrine bonus
-- [ ] Each tier shows correct status (active with timer / expired / inactive)
-- [ ] Total bonus multiplier displays correctly (e.g., +50% x1.50 for 2 active)
-- [ ] Tradeable item count displays correctly
-- [ ] Clicking ShrineStatusPanel navigates to shrine tile view
-- [ ] Navigate away and back — boosts persist with correct timers
-- [ ] After boost expires, status changes from ✅ to ❌
+- [ ] ShrineStatusPanel shows in sidebar with correct tier statuses
+- [ ] ShrineStatusPanel compact mode shows "⛩️ 2/4 +50%"
+- [ ] FlagTrackerPanel shows when player is NOT the bearer
+- [ ] FlagBearerPanel shows when player IS the bearer
+- [ ] FlagTrackerPanel hidden when player is the bearer
+- [ ] All modules have compact/foldable mode
+- [ ] Movement Controls always show full size
 - [ ] `npx tsc --noEmit` passes with 0 errors
 
 ---
 
 ## Notes
-- The shrine activation API (`/api/shrine/activate`) works correctly — only the data loading is broken
+- The shrine activation API works correctly — only the data loading is broken
 - The ShrinePanel UI is complete (554 lines) — no UI changes needed
 - The HarvestCalculatorTab already has shrine bonus integration (reads from player API)
 - The `shrineBoosts` field already exists on the Player type
-- The `/api/shrine/status` endpoint already exists and returns the correct data
+- The `/api/shrine/status` endpoint already exists and returns correct data
+- FlagTrackerPanel already has `compact` prop and collapse functionality
 - No database schema changes needed
-- The ShrineStatusPanel follows the same pattern as WMDMiniStatus (compact, fetches own data, click-to-open)
+- ShrineStatusPanel follows WMDMiniStatus pattern (compact, fetches own data, 30s polling)
+- FlagBearerPanel is new — shows bearer status when player holds the flag
