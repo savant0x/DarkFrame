@@ -57,6 +57,14 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       .select('*')
       .eq('player_username', username);
 
+    // Fetch active shrine boosts
+    const now = new Date().toISOString();
+    const { data: shrineBoosts } = await supabase
+      .from('player_shrine_boosts')
+      .select('*')
+      .eq('player_username', username)
+      .gt('expires_at', now);
+
     const result = {
       ...mapped,
       currentPosition: { x: player.current_x || 0, y: player.current_y || 0 },
@@ -86,6 +94,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       },
       bank: { metal: player.bank_metal || 0, energy: player.bank_energy || 0 },
       factoryCount: player.factory_count || 0,
+      shrineBoosts: (shrineBoosts || []).map(b => ({
+        ...mapCamelCase(b),
+        tier: b.boost_tier,
+        expiresAt: b.expires_at,
+        yieldBonus: b.yield_bonus,
+      })),
     };
     
     log.debug('Player data retrieved', { username, level: player.level, effectivePower: balanceEffects.effectivePower });

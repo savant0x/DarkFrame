@@ -12,7 +12,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
-import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, BankPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, SpecializationPanel, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, AutoFarmStatsDisplay, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel } from '@/components';
+import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, BankPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, SpecializationPanel, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, AutoFarmStatsDisplay, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel, ShrineStatusPanel } from '@/components';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
 import FlagTrackerPanel from '@/components/FlagTrackerPanel';
@@ -1138,13 +1138,8 @@ export default function GamePage() {
               />
             </div>
 
-            {/* WMD Mini Status Widget */}
-            <div className="p-3">
-              <WMDMiniStatus onClick={() => setCurrentView('WMD')} />
-            </div>
-
-            {/* Flag Tracker Panel - Only show if player is NOT the bearer */}
-            {flagBearer && flagBearer.username !== player?.username && (
+            {/* Flag Tracker Panel - Only show if player IS the bearer */}
+            {flagBearer && flagBearer.username === player?.username && (
               <div className="p-3">
                 <FlagTrackerPanel
                   playerPosition={player?.currentPosition || { x: 75, y: 75 }}
@@ -1157,6 +1152,17 @@ export default function GamePage() {
                 />
               </div>
             )}
+
+            {/* Shrine Status Panel */}
+            <div className="p-3">
+              <ShrineStatusPanel onClick={() => setCurrentView('SHRINE')} />
+            </div>
+
+            {/* WMD Mini Status Widget */}
+            <div className="p-3">
+              <WMDMiniStatus onClick={() => setCurrentView('WMD')} />
+            </div>
+
           </>
         }
         tutorialQuestPanel={
