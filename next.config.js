@@ -1,14 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    turbopackFileSystemCacheForDev: false,
-  },
-
-  // Fix webpack cache warnings
-  webpack: (config, { isServer }) => {
-    config.cache = false;
-    return config;
-  },
+  // Next.js 16 uses Turbopack by default.
+  // Empty turbopack config silences the webpack migration warning.
+  turbopack: {},
 
   // Content Security Policy headers
   async headers() {
@@ -21,7 +15,7 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com",
-              "worker-src 'self' blob:", // Allow Web Workers for canvas-confetti
+              "worker-src 'self' blob:",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self' data:",
