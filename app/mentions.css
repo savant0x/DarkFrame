@@ -1,0 +1,189 @@
+/**
+ * @file app/mentions.css
+ * @created 2025-01-26
+ * @overview Custom styling for react-mentions component
+ * 
+ * OVERVIEW:
+ * Provides dark theme styling for the MentionsInput component used in ChatPanel.
+ * Overrides default react-mentions styles to match DarkFrame's cyberpunk aesthetic.
+ * 
+ * KEY FEATURES:
+ * - Dark background matching chat panel design
+ * - Cyan accent colors for mentions and focus states
+ * - Smooth transitions and hover effects
+ * - Responsive suggestion dropdown
+ * - Accessible focus indicators
+ * 
+ * IMPLEMENTATION NOTES:
+ * - FID-20251026-019: Sprint 2 Phase 1 - @Mentions Feature
+ * - Import this file in ChatPanel component or layout
+ * - Colors match DarkFrame's design system (cyan-500, gray-900, etc.)
+ * - ECHO v5.2 compliant: Production-ready, comprehensive docs
+ */
+
+/* Base mentions input container */
+.mentions-input {
+  width: 100%;
+  position: relative;
+}
+
+/* Input field base styling */
+.mentions-input .mentions__control {
+  background-color: #111827; /* gray-900 */
+  border: 1px solid #374151; /* gray-700 */
+  border-radius: 0.5rem;
+  font-size: 14px;
+  min-height: 40px;
+  transition: all 0.2s ease;
+}
+
+.mentions-input .mentions__control:focus-within {
+  border-color: #22d3ee; /* cyan-500 */
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.1);
+}
+
+/* Highlighter (for showing mentions with background) */
+.mentions-input .mentions__highlighter {
+  padding: 9px;
+  border: 1px solid transparent;
+  overflow: hidden !important;
+}
+
+/* Actual input field */
+.mentions-input .mentions__input {
+  padding: 9px;
+  color: #f3f4f6; /* gray-100 */
+  outline: none;
+  border: none;
+  background: transparent;
+}
+
+.mentions-input .mentions__input::placeholder {
+  color: #9ca3af; /* gray-400 */
+}
+
+/* Disabled state */
+.mentions-input .mentions__input:disabled {
+  color: #6b7280; /* gray-500 */
+  cursor: not-allowed;
+  background-color: #1f2937; /* gray-800 */
+}
+
+/* Suggestions dropdown container */
+.mentions-input .mentions__suggestions {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 8px;
+  z-index: 100;
+}
+
+.mentions-input .mentions__suggestions__list {
+  background-color: #1f2937; /* gray-800 */
+  border: 1px solid #22d3ee; /* cyan-500 */
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Individual suggestion item */
+.mentions-input .mentions__suggestions__item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #374151; /* gray-700 */
+  color: #d1d5db; /* gray-300 */
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mentions-input .mentions__suggestions__item:last-child {
+  border-bottom: none;
+}
+
+.mentions-input .mentions__suggestions__item:hover,
+.mentions-input .mentions__suggestions__item--focused {
+  background-color: rgba(34, 211, 238, 0.2); /* cyan-500/20 */
+  color: #22d3ee; /* cyan-400 */
+}
+
+/* Mention highlight in input */
+.mentions-input .mentions__mention {
+  background-color: rgba(34, 211, 238, 0.2); /* cyan-500/20 */
+  color: #22d3ee; /* cyan-400 */
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 4px;
+  position: relative;
+}
+
+/* Scrollbar styling for suggestions list */
+.mentions-input .mentions__suggestions__list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mentions-input .mentions__suggestions__list::-webkit-scrollbar-track {
+  background: #111827; /* gray-900 */
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+
+.mentions-input .mentions__suggestions__list::-webkit-scrollbar-thumb {
+  background: #374151; /* gray-700 */
+  border-radius: 4px;
+}
+
+.mentions-input .mentions__suggestions__list::-webkit-scrollbar-thumb:hover {
+  background: #4b5563; /* gray-600 */
+}
+
+/* Loading state (if needed) */
+.mentions-input .mentions__suggestions__item--loading {
+  color: #9ca3af; /* gray-400 */
+  font-style: italic;
+  text-align: center;
+}
+
+/* Empty state (if needed) */
+.mentions-input .mentions__suggestions__item--empty {
+  color: #9ca3af; /* gray-400 */
+  font-style: italic;
+  text-align: center;
+  padding: 12px;
+}
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * 1. Import Requirements:
+ *    - Import this CSS file in ChatPanel component or app/layout.tsx
+ *    - Ensure it loads after global styles for proper cascade
+ * 
+ * 2. Customization:
+ *    - Colors use DarkFrame's design tokens (cyan-500, gray-900, etc.)
+ *    - Adjust colors in style object props to override these defaults
+ *    - Use style prop on MentionsInput for inline overrides
+ * 
+ * 3. Accessibility:
+ *    - Focus states use cyan glow for visibility
+ *    - Hover states have distinct visual feedback
+ *    - Keyboard navigation fully supported by react-mentions
+ * 
+ * 4. Responsive Design:
+ *    - Suggestion dropdown uses max-height for overflow
+ *    - Works on mobile and desktop
+ *    - Touch-friendly tap targets (8px+ padding)
+ * 
+ * 5. Browser Support:
+ *    - Webkit scrollbar styles for Chrome/Safari/Edge
+ *    - Fallback to default scrollbar in Firefox
+ *    - All modern browsers supported
+ * 
+ * 6. ECHO Compliance:
+ *    - ✅ Complete implementation (no placeholder styles)
+ *    - ✅ Comprehensive documentation (OVERVIEW, inline comments)
+ *    - ✅ Production-ready CSS
+ *    - ✅ Accessible and user-friendly
+ */

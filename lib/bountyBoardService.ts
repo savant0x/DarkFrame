@@ -1,0 +1,67 @@
+/**
+ * Bounty Board Service — Supabase backend
+ */
+import { createServiceClient } from '@/lib/supabase/server';
+import type { Json } from '@/types/database';
+
+export interface PlayerBounties {
+  lastRefresh: string | null;
+  bounties: Record<string, unknown>[];
+  unclaimedRewards?: number;
+}
+
+interface BountyBoardResult { success: boolean; message: string; bounties?: Record<string, unknown>[]; metalGained?: number; energyGained?: number; rewardsClaimed?: boolean }
+
+function needsRefresh(lastRefresh: string | null | undefined): boolean {
+  if (!lastRefresh) return true;
+  const now = new Date();
+  const diffMs = now.getTime() - new Date(lastRefresh).getTime();
+  return diffMs > 24 * 60 * 60 * 1000;
+}
+
+export async function refreshBounties(username: string): Promise<BountyBoardResult> {
+  const supabase = createServiceClient();
+  const { data: player } = await supabase.from('players').select('*').eq('username', username).single();
+  if (!player) throw new Error('Player not found');
+
+  const currentBounties = player.daily_bounties as unknown as PlayerBounties | undefined;
+  if (!needsRefresh(currentBounties?.lastRefresh || null)) {
+    return { success: false, message: 'Bounties already refreshed today', bounties: currentBounties?.bounties || [] };
+  }
+
+  const newBounties = { bounties: [], lastRefresh: new Date(), unclaimedRewards: 0 };
+  await supabase.from('players').update({ daily_bounties: newBounties as unknown as Json }).eq('username', username);
+  return { success: true, message: 'Bounties refreshed', bounties: [] };
+}
+
+export async function getBounties(username: string): Promise<PlayerBounties> {
+  const supabase = createServiceClient();
+  const { data: player } = await supabase.from('players').select('daily_bounties').eq('username', username).single();
+  return (player?.daily_bounties as unknown as PlayerBounties) || { lastRefresh: null, bounties: [] };
+}
+
+export async function claimBounty(username: string, bountyId: string): Promise<BountyBoardResult> {
+  const supabase = createServiceClient();
+  const { data: player } = await supabase.from('players').select('daily_bounties').eq('username', username).single();
+  const current = (player?.daily_bounties as unknown as PlayerBounties) || { lastRefresh: null, bounties: [] };
+  const idx = current.bounties.findIndex(b => (b as Record<string, unknown>).id === bountyId);
+  if (idx === -1) return { success: false, message: 'Bounty not found' };
+  current.bounties.splice(idx, 1);
+  await supabase.from('players').update({ daily_bounties: current as unknown as Json }).eq('username', username);
+  return { success: true, message: 'Bounty claimed' };
+}
+
+export async function addBounty(username: string, bounty: Record<string, unknown>): Promise<BountyBoardResult> {
+  const supabase = createServiceClient();
+  const { data: player } = await supabase.from('players').select('daily_bounties').eq('username', username).single();
+  const current = (player?.daily_bounties as unknown as PlayerBounties) || { lastRefresh: null, bounties: [], unclaimedRewards: 0 };
+  current.bounties.push(bounty);
+  await supabase.from('players').update({ daily_bounties: current as unknown as Json }).eq('username', username);
+  return { success: true, message: 'Bounty added' };
+}
+
+export const claimBountyReward = claimBounty;
+
+export async function getBountyStats(_username: string): Promise<Record<string, number>> {
+  return { activeBounties: 0, completedBounties: 0, totalEarned: 0 };
+}

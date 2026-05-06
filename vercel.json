@@ -1,0 +1,17 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/flag-bot-movement",
+      "schedule": "0,30 * * * *"
+    },
+    {
+      "path": "/api/cron/player-snapshot",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/purge-old-data",
+      "schedule": "1 0 1 1 *"
+    }
+  ]
+}
+

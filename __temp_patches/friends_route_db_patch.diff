@@ -1,0 +1,17 @@
+*** Begin Patch
+*** Update File: app/api/friends/route.ts
+@@
+ export async function GET(request: NextRequest) {
+   try {
+     // 1. Get MongoDB connection
+     const mongoClient = await clientPromise;
+-    const db = mongoClient.db('darkframe');
++    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
+@@
+ export async function POST(request: NextRequest) {
+   try {
+     // 1. Get MongoDB connection
+     const mongoClient = await clientPromise;
+-    const db = mongoClient.db('darkframe');
++    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
+*** End Patch
