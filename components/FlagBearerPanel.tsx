@@ -1,24 +1,8 @@
-/**
- * @file components/FlagBearerPanel.tsx
- * @created 2026-05-06
- * @overview Compact flag bearer status widget for the sidebar.
- * Shows when the player currently holds the flag.
- * Displays hold timer, earnings, and flag controls.
- * DB-driven: reads from flagBearer prop (sourced from /api/flag).
- *
- * Features:
- * - Hold duration timer with expiry warning
- * - Session earnings display
- * - HP bar (if applicable)
- * - Collapsible (full + compact modes)
- * - Flag release button
- */
-
 'use client';
 
-import { useState } from 'react';
-import type { FlagBearer } from '@/types/flag.types';
-import { formatHoldDuration, getTimeRemaining, isFlagExpiringSoon } from '@/lib/flagService';
+import { useState, useEffect } from 'react';
+import { Flag } from 'lucide-react';
+import type { FlagBearer } from '@/types';
 
 interface FlagBearerPanelProps {
   flagBearer: FlagBearer;
@@ -26,117 +10,59 @@ interface FlagBearerPanelProps {
   compact?: boolean;
 }
 
-export default function FlagBearerPanel({
-  flagBearer,
-  onRelease,
-  compact = false,
-}: FlagBearerPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
+export default function FlagBearerPanel({ flagBearer, onRelease, compact = false }: FlagBearerPanelProps) {
+  const [holdTime, setHoldTime] = useState('');
 
-  const timeRemaining = getTimeRemaining(flagBearer.holdDuration);
-  const isExpiring = isFlagExpiringSoon(flagBearer.holdDuration);
-  const holdText = formatHoldDuration(flagBearer.holdDuration);
+  useEffect(() => {
+    const update = () => {
+      const held = flagBearer.holdDuration || 0;
+      const hours = Math.floor(held / 3600);
+      const mins = Math.floor((held % 3600) / 60);
+      setHoldTime(`${hours}h ${mins}m`);
+    };
+    update();
+    const i = setInterval(update, 60000);
+    return () => clearInterval(i);
+  }, [flagBearer.holdDuration]);
 
-  return (
-    <div className="bg-gray-800 rounded-lg p-3 border border-yellow-600/50">
-      {/* Header — clickable to collapse/expand */}
-      <div
-        className="flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity"
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-lg">🚩</span>
-          <h3 className="text-sm font-bold text-yellow-400">Flag Bearer</h3>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold ${isExpiring ? 'text-red-400 animate-pulse' : 'text-green-400'}`}>
-            {holdText}
-          </span>
-          <span className="text-gray-400 text-xs">{collapsed ? '▶' : '▼'}</span>
+  if (compact) {
+    return (
+      <div className="bg-[--card] border border-[--solar]/20 rounded-lg overflow-hidden">
+        <div className="px-3 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Flag className="w-3.5 h-3.5 text-[--solar]" />
+            <span className="text-[13px] font-bold text-[--text-1]">Flag Bearer</span>
+          </div>
+          <span className="text-xs text-[--solar] font-mono">{holdTime}</span>
         </div>
       </div>
+    );
+  }
 
-      {/* Compact mode: just timer */}
-      {collapsed && (
-        <div className="mt-2 text-xs text-gray-300">
-          <span className={isExpiring ? 'text-red-400 font-bold' : 'text-green-400 font-bold'}>
-            {timeRemaining}
-          </span>
-          <span className="text-gray-500 ml-1">remaining</span>
+  return (
+    <div className="bg-[--card] border border-[--border] rounded-lg overflow-hidden">
+      <div className="px-3 py-2 bg-gradient-to-r from-[--solar]/8 to-transparent border-b border-[--border] text-[13px] font-bold text-[--text-1] flex items-center gap-1.5">
+        <Flag className="w-3.5 h-3.5 text-[--solar]" /> FLAG BEARER
+      </div>
+      <div className="p-2.5 space-y-2">
+        <div className="text-center">
+          <div className="text-2xl mb-1 text-[--solar]">⚑</div>
+          <div className="text-xs text-[--solar] font-bold">You hold the flag!</div>
+          <div className="text-[10px] text-[--text-3] mt-0.5">Held for {holdTime}</div>
         </div>
-      )}
-
-      {/* Full mode: bearer details */}
-      {!collapsed && (
-        <div className="mt-2 space-y-2">
-          {/* Bearer Info */}
-          <div className="bg-gray-900 rounded p-2 border border-gray-700">
-            <div className="flex items-center justify-between text-xs">
-              <div>
-                <p className="text-gray-400">Bearer</p>
-                <p className="text-white font-bold">{flagBearer.username}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-gray-400">Level</p>
-                <p className="text-cyan-400 font-bold">{flagBearer.level}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Hold Timer */}
-          <div className={`rounded p-2 border ${isExpiring ? 'bg-red-900/30 border-red-600/50' : 'bg-gray-900 border-gray-700'}`}>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">Hold Time</span>
-              <span className={`font-bold ${isExpiring ? 'text-red-400' : 'text-green-400'}`}>
-                {holdText}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-xs mt-1">
-              <span className="text-gray-400">Remaining</span>
-              <span className={`font-bold ${isExpiring ? 'text-red-400 animate-pulse' : 'text-yellow-400'}`}>
-                {timeRemaining}
-              </span>
-            </div>
-          </div>
-
-          {/* HP Bar */}
-          {flagBearer.currentHP !== undefined && flagBearer.maxHP !== undefined && (
-            <div className="text-xs">
-              <div className="flex justify-between text-gray-400 mb-1">
-                <span>HP</span>
-                <span>{flagBearer.currentHP.toLocaleString()} / {flagBearer.maxHP.toLocaleString()}</span>
-              </div>
-              <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-red-500 h-full transition-all duration-300"
-                  style={{ width: `${(flagBearer.currentHP / flagBearer.maxHP) * 100}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Session Earnings */}
-          {flagBearer.sessionEarnings && (
-            <div className="bg-gray-900 rounded p-2 border border-gray-700">
-              <p className="text-xs text-gray-400 mb-1">Session Earnings</p>
-              <div className="flex gap-3 text-xs">
-                <span className="text-yellow-400 font-bold">⚙️ {flagBearer.sessionEarnings.metal?.toLocaleString() || 0}</span>
-                <span className="text-blue-400 font-bold">⚡ {flagBearer.sessionEarnings.energy?.toLocaleString() || 0}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Release Button */}
-          {onRelease && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRelease(); }}
-              className="w-full px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors"
-            >
-              🏳️ Release Flag
-            </button>
-          )}
-        </div>
-      )}
+        <table className="w-full text-xs">
+          <tbody>
+            <tr className="bg-[--row-even]"><td className="px-2 py-1 text-[--text-2]">Harvest</td><td className="px-2 py-1 text-right text-[--synth] font-bold font-mono">+100%</td></tr>
+            <tr className="bg-[--row-odd]"><td className="px-2 py-1 text-[--text-2]">XP</td><td className="px-2 py-1 text-right text-[--electric] font-bold font-mono">+100%</td></tr>
+          </tbody>
+        </table>
+        {onRelease && (
+          <button onClick={onRelease} className="w-full px-2 py-1.5 bg-white/[0.04] hover:bg-white/[0.08] text-[--text-2] hover:text-[--neon-red] rounded text-xs font-bold transition-all">
+            Release Flag
+          </button>
+        )}
+        <p className="text-[10px] text-[--text-3] text-center italic">Visible trail left</p>
+      </div>
     </div>
   );
 }

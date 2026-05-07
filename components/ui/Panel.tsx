@@ -44,24 +44,24 @@ interface PanelProps {
 
 const neonColors = {
   cyan: {
-    border: 'border-neon-cyan/20 hover:border-neon-cyan/40',
-    glow: 'shadow-glow-cyan-sm',
-    text: 'text-neon-cyan',
+    border: 'border-[--electric]/20 hover:border-[--electric]/40',
+    glow: 'shadow-glow-electric-sm',
+    text: 'text-[--electric]',
   },
   blue: {
-    border: 'border-neon-blue/20 hover:border-neon-blue/40',
-    glow: 'shadow-glow-blue',
-    text: 'text-neon-blue',
+    border: 'border-[--electric]/20 hover:border-[--electric]/40',
+    glow: 'shadow-glow-electric',
+    text: 'text-[--electric]',
   },
   purple: {
-    border: 'border-neon-purple/20 hover:border-neon-purple/40',
-    glow: 'shadow-glow-purple',
-    text: 'text-neon-purple',
+    border: 'border-[--neon-pink]/20 hover:border-[--neon-pink]/40',
+    glow: 'shadow-glow-pink-sm',
+    text: 'text-[--neon-pink]',
   },
   green: {
-    border: 'border-success/20 hover:border-success/40',
-    glow: 'shadow-[0_0_20px_rgba(16,185,129,0.3)]',
-    text: 'text-success',
+    border: 'border-[--synth]/20 hover:border-[--synth]/40',
+    glow: 'shadow-glow-synth-sm',
+    text: 'text-[--synth]',
   },
 };
 
@@ -90,25 +90,14 @@ export function Panel({
       transition={{ duration: 0.4 }}
       className={`
         relative group
-        bg-gradient-to-br from-slate-900/60 to-slate-800/40
-        backdrop-blur-xl
+        bg-[--card]
         border ${colors.border}
-        rounded-2xl
-        ${colors.glow}
+        rounded-lg
         overflow-hidden
         transition-all duration-300
         ${className}
       `}
     >
-      {/* Holographic shine effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-neon-cyan/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-      
-      {/* Animated corner accents */}
-      <div className={`absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 ${colors.border} rounded-tl-2xl opacity-50`} />
-      <div className={`absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 ${colors.border} rounded-tr-2xl opacity-50`} />
-      <div className={`absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 ${colors.border} rounded-bl-2xl opacity-50`} />
-      <div className={`absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 ${colors.border} rounded-br-2xl opacity-50`} />
-
       {/* Header */}
       {(title || icon || action) && (
         <div

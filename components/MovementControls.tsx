@@ -1,9 +1,3 @@
-/**
- * @file components/MovementControls.tsx
- * @created 2025-10-16
- * @overview 9-direction movement compass with keyboard support
- */
-
 'use client';
 
 import React, { useEffect } from 'react';
@@ -11,174 +5,40 @@ import { useGameContext } from '@/context/GameContext';
 import { MovementDirection, KeyToDirection } from '@/types';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 
-interface MovementControlsProps {
-  onBeforeMove?: () => void;
-}
+interface MovementControlsProps { onBeforeMove?: () => void; }
 
 export default function MovementControls({ onBeforeMove }: MovementControlsProps) {
   const { movePlayer, isLoading } = useGameContext();
 
-  /**
-   * Handle keyboard input
-   */
   useEffect(() => {
     function handleKeyPress(event: KeyboardEvent) {
       if (isTypingInInput()) return;
-
       const direction = KeyToDirection[event.key];
-      if (direction && !isLoading) {
-        event.preventDefault();
-        onBeforeMove?.();
-        movePlayer(direction);
-      }
+      if (direction && !isLoading) { event.preventDefault(); onBeforeMove?.(); movePlayer(direction); }
     }
-
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [movePlayer, isLoading, onBeforeMove]);
 
-  /**
-   * Handle button click
-   */
-  function handleMove(direction: MovementDirection) {
-    if (!isLoading) {
-      onBeforeMove?.();
-      movePlayer(direction);
-    }
-  }
-
-  const buttonClass = `
-    w-14 h-14 
-    bg-gray-800/60 hover:bg-cyan-500/20
-    disabled:bg-gray-800/30 disabled:cursor-not-allowed
-    text-white font-bold rounded-lg 
-    transition-all duration-150 
-    border-2 border-cyan-500/30
-    shadow-[0_0_10px_rgba(0,240,255,0.2)]
-    hover:border-cyan-500/50
-    hover:shadow-[0_0_20px_rgba(0,240,255,0.4)]
-    active:scale-95
-  `;
-
-  const refreshButtonClass = `
-    w-14 h-14 
-    bg-green-500/20 hover:bg-green-500/30
-    disabled:bg-gray-800/30 disabled:cursor-not-allowed
-    text-white font-bold rounded-lg 
-    transition-all duration-150 
-    border-2 border-green-500/40
-    shadow-[0_0_10px_rgba(0,255,100,0.2)]
-    hover:border-green-500/60
-    hover:shadow-[0_0_20px_rgba(0,255,100,0.4)]
-    active:scale-95
-  `;
+  function handleMove(direction: MovementDirection) { if (!isLoading) { onBeforeMove?.(); movePlayer(direction); } }
 
   return (
     <div>
-      {/* Banner Title */}
-      <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2 -mx-3 -mt-3 mb-3">
-        <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-          🎮 MOVEMENT CONTROLS
-        </h3>
+      <div className="bg-gradient-to-r from-[--electric]/10 to-transparent border-b border-white/10 px-3 py-1.5 mb-2">
+        <h3 className="text-xs font-bold text-white">🎮 MOVEMENT</h3>
       </div>
-      
-      {/* Compass Grid */}
-      <div className="grid grid-cols-3 gap-2 w-fit mx-auto mb-3">
-        {/* Row 1 */}
-        <button
-          onClick={() => handleMove(MovementDirection.Northwest)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="Northwest (Q / 7)"
-        >
-          ↖<br />
-          <span className="text-xs">Q</span>
-        </button>
-        <button
-          onClick={() => handleMove(MovementDirection.North)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="North (W / 8 / ↑)"
-        >
-          ↑<br />
-          <span className="text-xs">W</span>
-        </button>
-        <button
-          onClick={() => handleMove(MovementDirection.Northeast)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="Northeast (E / 9)"
-        >
-          ↗<br />
-          <span className="text-xs">E</span>
-        </button>
-
-        {/* Row 2 */}
-        <button
-          onClick={() => handleMove(MovementDirection.West)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="West (A / 4 / ←)"
-        >
-          ←<br />
-          <span className="text-xs">A</span>
-        </button>
-        <button
-          onClick={() => handleMove(MovementDirection.Refresh)}
-          disabled={isLoading}
-          className={refreshButtonClass}
-          title="Refresh (S / 5)"
-        >
-          ⟳<br />
-          <span className="text-xs">S</span>
-        </button>
-        <button
-          onClick={() => handleMove(MovementDirection.East)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="East (D / 6 / →)"
-        >
-          →<br />
-          <span className="text-xs">D</span>
-        </button>
-
-        {/* Row 3 */}
-        <button
-          onClick={() => handleMove(MovementDirection.Southwest)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="Southwest (Z / 1)"
-        >
-          ↙<br />
-          <span className="text-xs">Z</span>
-        </button>
-        <button
-          onClick={() => handleMove(MovementDirection.South)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="South (X / 2 / ↓)"
-        >
-          ↓<br />
-          <span className="text-xs">X</span>
-        </button>
-        <button
-          onClick={() => handleMove(MovementDirection.Southeast)}
-          disabled={isLoading}
-          className={buttonClass}
-          title="Southeast (C / 3)"
-        >
-          ↘<br />
-          <span className="text-xs">C</span>
-        </button>
+      <div className="grid grid-cols-3 gap-1 mb-2">
+        <button onClick={() => handleMove(MovementDirection.Northwest)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">↖</span><span className="text-[10px] text-white/50">Q</span></button>
+        <button onClick={() => handleMove(MovementDirection.North)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">↑</span><span className="text-[10px] text-white/50">W</span></button>
+        <button onClick={() => handleMove(MovementDirection.Northeast)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">↗</span><span className="text-[10px] text-white/50">E</span></button>
+        <button onClick={() => handleMove(MovementDirection.West)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">←</span><span className="text-[10px] text-white/50">A</span></button>
+        <button onClick={() => handleMove(MovementDirection.Refresh)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--synth]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--synth]/25 hover:shadow-[0_0_8px_rgba(0,255,0,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">⟳</span><span className="text-[10px] text-white/50">S</span></button>
+        <button onClick={() => handleMove(MovementDirection.East)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">→</span><span className="text-[10px] text-white/50">D</span></button>
+        <button onClick={() => handleMove(MovementDirection.Southwest)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">↙</span><span className="text-[10px] text-white/50">Z</span></button>
+        <button onClick={() => handleMove(MovementDirection.South)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">↓</span><span className="text-[10px] text-white/50">X</span></button>
+        <button onClick={() => handleMove(MovementDirection.Southeast)} disabled={isLoading} className="aspect-square bg-white/5 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-150 border border-white/10 hover:border-[--electric]/25 hover:shadow-[0_0_8px_rgba(0,127,255,0.15)] active:scale-95 flex flex-col items-center justify-center gap-0.5"><span className="text-base">↘</span><span className="text-[10px] text-white/50">C</span></button>
       </div>
-
-      <p className="text-center text-[10px] text-white/50">
-        Use keyboard: QWEASDZXC · Numpad 1-9 · Arrow keys
-      </p>
+      <p className="text-center text-xs text-white/40">Keys: QWEASDZXC · Numpad 1-9 · Arrows</p>
     </div>
   );
 }
-
-// ============================================================
-// END OF FILE
-// ============================================================

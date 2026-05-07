@@ -1,456 +1,119 @@
-/**
- * @file components/FlagTrackerPanel.tsx
- * @created 2025-10-20
- * @updated 2026-05-04 — Challenge/flee system (FID-20260504-FLAG)
- * @overview Flag Bearer tracking panel component
- * 
- * OVERVIEW:
- * Displays real-time information about the current Flag Bearer including their
- * location, distance from viewer, compass direction, and challenge actions.
- * Much simpler and more focused than a full map - shows exactly what players
- * need to track and engage the Flag Bearer.
- * 
- * Features:
- * - Current Flag Bearer info (name, level, position)
- * - Distance and direction calculations
- * - Visual compass rose with direction arrow
- * - Challenge range indicator (in range / out of range)
- * - Track and Challenge action buttons
- * - Real-time WebSocket updates
- * - Mobile-friendly compact design
- */
-
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { 
-  type FlagBearer, 
-  type FlagTrackerData,
-  CompassDirection,
-  FLAG_CONFIG 
-} from '@/types/flag.types';
-import { 
-  buildTrackerData, 
-  formatDistance, 
-  getCompassArrow,
-  formatHoldDuration,
-  getTimeRemaining,
-  isFlagExpiringSoon
-} from '@/lib/flagService';
+import { useState } from 'react';
+import { type FlagBearer, type FlagTrackerData, CompassDirection, FLAG_CONFIG } from '@/types/flag.types';
+import { buildTrackerData, formatDistance, getCompassArrow, formatHoldDuration, getTimeRemaining, isFlagExpiringSoon } from '@/lib/flagService';
+import { CARD, CARD_BODY, TABLE, TABLE_ROW_EVEN, TABLE_ROW_ODD, TABLE_LABEL, TABLE_VALUE, TABLE_DIM, BTN, BTN_PRIMARY, BTN_DANGER, BTN_DISABLED } from '@/components/ui/design';
 
-/**
- * FlagTrackerPanel Props
- */
 interface FlagTrackerPanelProps {
-  /** Current player position for distance/direction calculations */
   playerPosition: { x: number; y: number };
-  
-  /** Current Flag Bearer data (from API or WebSocket) */
   flagBearer: FlagBearer | null;
-  
-  /** Callback when user clicks Track button */
   onTrack?: (bearer: FlagBearer) => void;
-  
-  /** Callback when user clicks Challenge button */
   onChallenge?: (bearer: FlagBearer) => void;
-  
-  /** Whether challenge is on cooldown */
   challengeOnCooldown?: boolean;
-  
-  /** Remaining cooldown time in seconds */
   cooldownRemaining?: number;
-  
-  /** Compact mode for mobile */
   compact?: boolean;
 }
 
-/**
- * Flag Tracker Panel Component
- * 
- * Shows current Flag Bearer location and provides tracking/attack actions.
- * Updates in real-time via WebSocket events.
- * 
- * @example
- * ```tsx
- * <FlagTrackerPanel
- *   playerPosition={{ x: 75, y: 75 }}
- *   flagBearer={currentBearer}
- *   onTrack={(bearer) => router.push(`/profile/${bearer.username}`)}
- *   onAttack={(bearer) => handleAttack(bearer.playerId)}
- *   attackOnCooldown={false}
- * />
- * ```
- */
-export default function FlagTrackerPanel({
-  playerPosition,
-  flagBearer,
-  onTrack,
-  onChallenge,
-  challengeOnCooldown = false,
-  cooldownRemaining = 0,
-  compact = false
-}: FlagTrackerPanelProps) {
-  const router = useRouter();
-  const [trackerData, setTrackerData] = useState<FlagTrackerData | null>(null);
-  
-  // Main panel collapse state
+export default function FlagTrackerPanel({ playerPosition, flagBearer, onTrack, onChallenge, challengeOnCooldown = false, cooldownRemaining = 0 }: FlagTrackerPanelProps) {
+  const tracker = buildTrackerData(flagBearer, playerPosition);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-  
-  // Collapsible section state (individual sections)
-  const [showBearerInfo, setShowBearerInfo] = useState(true);
-  const [showLocation, setShowLocation] = useState(true);
-  const [showCompass, setShowCompass] = useState(true);
-  
-  // Calculate tracker data whenever bearer or player position changes
-  useEffect(() => {
-    const data = buildTrackerData(flagBearer, playerPosition);
-    setTrackerData(data);
-  }, [flagBearer, playerPosition]);
-  
-  // No bearer - show empty state
-  if (!flagBearer || !trackerData) {
+
+  if (!tracker) {
     return (
-      <div className="bg-gray-900 border-2 border-gray-700 rounded-lg p-4">
-        <div className="flex items-center gap-3">
-          <div className="text-4xl">🏳️</div>
+      <div className={CARD + ' p-2.5'}>
+        <div className="flex items-center gap-2">
+          <span className="text-base">🏳</span>
           <div>
-            <h3 className="text-lg font-bold text-gray-400">No Flag Bearer</h3>
-            <p className="text-sm text-gray-500">The flag is currently unclaimed</p>
+            <h3 className="text-xs font-bold text-[--text-2]">No Flag Bearer</h3>
+            <p className="text-xs text-[--text-3]">The flag is unclaimed</p>
           </div>
         </div>
       </div>
     );
   }
-  
-  const { bearer, distance, direction, inChallengeRange } = trackerData;
-  
-  // TypeScript safety: bearer is guaranteed non-null here due to early return above
+
+  const { bearer, distance, direction, inChallengeRange } = tracker;
   if (!bearer) return null;
-  
   const compassArrow = getCompassArrow(direction);
   const timeRemaining = getTimeRemaining(bearer.holdDuration);
   const isExpiringSoon = isFlagExpiringSoon(bearer.holdDuration);
-  
-  // Full panel view with main collapsible header
+
+  const ok = inChallengeRange;
+  // Match the shrine design: use accent border on card, subtle gradient on header
+  const accentBorder = ok ? 'border-[--synth]/25' : 'border-[--solar]/25';
+  const headerGradient = ok ? 'bg-gradient-to-r from-[--synth]/8 to-transparent' : 'bg-gradient-to-r from-[--solar]/8 to-transparent';
+  const badgeClass = ok
+    ? 'bg-[--synth]/10 border border-[--synth]/20 text-[--synth]'
+    : 'bg-[--solar]/10 border border-[--solar]/20 text-[--solar]';
+
   return (
-    <div 
-      className={`
-        bg-gray-900 border-2 rounded-lg overflow-hidden transition-all duration-300
-        ${inChallengeRange ? 'border-green-500' : 'border-red-500'}
-      `}
-    >
-      {/* Main Header - Always Visible, Clickable to Collapse Entire Panel */}
-      <div 
-        className="bg-gray-800 border-b border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors"
-        onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
-      >
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl animate-pulse">🏴</div>
-            <div>
-              <h3 className="text-lg font-bold text-white">Flag Bearer</h3>
-              <p className="text-xs text-gray-400">Track and attack to claim the flag</p>
-            </div>
-          </div>
-          <span className="text-gray-400 text-xl">{isPanelCollapsed ? '▶' : '▼'}</span>
+    <div className={`${CARD} ${accentBorder}`} style={{ borderWidth: '1px' }}>
+      {/* Header — matches shrine style: gradient + bold text + badge */}
+      <div className={`flex items-center justify-between px-3 py-2 cursor-pointer hover:bg-white/[0.03] transition-colors ${headerGradient}`} style={{ borderBottom: '1px solid var(--border)' }} onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}>
+        <span className="text-[13px] font-bold text-[--text-1]">🏴 Flag Bearer</span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeClass}`}>{ok ? 'IN RANGE' : 'OUT OF RANGE'}</span>
+          <span className="text-xs text-[--text-3]">{isPanelCollapsed ? '▸' : '▾'}</span>
         </div>
       </div>
-      
-      {/* Panel Content - Collapsible */}
+
       {!isPanelCollapsed && (
-        <div className="p-4 space-y-3">
-          {/* Bearer Info Section */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {/* Header - Clickable to collapse */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowBearerInfo(!showBearerInfo);
-              }}
-              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
-            >
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                <span>👤</span>
-                <span>Bearer Info</span>
-              </span>
-              <span className="text-gray-400 text-sm">{showBearerInfo ? '▼' : '▶'}</span>
-            </button>
-            
-            {/* Collapsible Content */}
-            {showBearerInfo && (
-              <div className="px-3 py-3 border-t border-gray-700 space-y-2">
-                {/* Username and Level */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-gray-400">Player</div>
-                    <div className="text-base font-bold text-white">{bearer.username}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-400">Level</div>
-                    <div className="text-base font-bold text-cyan-400">{bearer.level}</div>
-                  </div>
-                </div>
-                
-                {/* HP Bar */}
-                {bearer.currentHP !== undefined && bearer.maxHP !== undefined && (
-                  <div>
-                    <div className="text-xs text-gray-400 mb-1">Health</div>
-                    <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-red-500 h-full transition-all duration-300"
-                        style={{ width: `${(bearer.currentHP / bearer.maxHP) * 100}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1 text-center">
-                      {bearer.currentHP.toLocaleString()} / {bearer.maxHP.toLocaleString()}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Hold Duration */}
-                <div className="bg-gray-900 rounded px-2 py-1.5 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Holding Flag</span>
-                  <span className={`text-xs font-bold ${isExpiringSoon ? 'text-yellow-400' : 'text-green-400'}`}>
-                    {formatHoldDuration(bearer.holdDuration)} ({timeRemaining})
-                  </span>
-                </div>
-              </div>
-            )}
+        <div className={CARD_BODY}>
+          {/* Range status badge */}
+          <div className={`rounded px-2 py-1.5 text-center text-xs font-bold mb-2 ${badgeClass}`}>
+            {ok ? `✓ IN RANGE (≤${FLAG_CONFIG.CHALLENGE_RANGE})` : `✗ OUT OF RANGE (+${distance - FLAG_CONFIG.CHALLENGE_RANGE} tiles)`}
           </div>
-          
-          {/* Location & Distance Section */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {/* Header - Clickable to collapse */}
+
+          {/* Info table — matches shrine: alternating row-even/row-odd, same cell padding */}
+          <table className={TABLE + ' mb-2'}>
+            <tbody>
+              <tr className={TABLE_ROW_EVEN}>
+                <td className={TABLE_LABEL}>Player</td>
+                <td className={TABLE_VALUE}>{bearer.username}</td>
+                <td className={TABLE_DIM}>Lv.{bearer.level}</td>
+              </tr>
+              <tr className={TABLE_ROW_ODD}>
+                <td className={TABLE_LABEL}>Location</td>
+                <td className={TABLE_VALUE + ' font-mono'}>({bearer.position.x}, {bearer.position.y})</td>
+                <td className={TABLE_VALUE + ' text-[--electric] font-mono'}>{formatDistance(distance)}</td>
+              </tr>
+              <tr className={TABLE_ROW_EVEN}>
+                <td className={TABLE_LABEL}>Direction</td>
+                <td className={TABLE_VALUE}>{compassArrow} {direction}</td>
+                <td></td>
+              </tr>
+              {bearer.currentHP !== undefined && bearer.maxHP !== undefined && (
+                <tr className={TABLE_ROW_ODD}>
+                  <td className={TABLE_LABEL}>Health</td>
+                  <td colSpan={2}>
+                    <div className="bg-white/[0.04] rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-[--neon-red] h-full transition-all rounded-full" style={{ width: `${(bearer.currentHP / bearer.maxHP) * 100}%` }} />
+                    </div>
+                    <div className="text-[10px] text-[--text-3] mt-0.5 font-mono">{bearer.currentHP.toLocaleString()} / {bearer.maxHP.toLocaleString()}</div>
+                  </td>
+                </tr>
+              )}
+              <tr className={TABLE_ROW_EVEN}>
+                <td className={TABLE_LABEL}>Holding</td>
+                <td className={TABLE_VALUE + ' font-mono'} colSpan={2}>{formatHoldDuration(bearer.holdDuration)} ({timeRemaining})</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Action buttons — full width, equal size */}
+          <div className="flex gap-1">
+            <button onClick={() => onTrack?.(bearer)} className={`${BTN} ${BTN_PRIMARY} flex-1 font-bold`}>🔍 Track</button>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLocation(!showLocation);
-              }}
-              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
+              onClick={() => onChallenge?.(bearer)}
+              disabled={!ok || challengeOnCooldown}
+              className={`flex-1 font-bold py-1.5 px-2 rounded text-xs transition-all ${!ok || challengeOnCooldown ? BTN_DISABLED + ' bg-white/5 border border-[--border]' : `${BTN} ${BTN_DANGER} font-bold`}`}
             >
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                <span>📍</span>
-                <span>Location & Distance</span>
-              </span>
-              <span className="text-gray-400 text-sm">{showLocation ? '▼' : '▶'}</span>
+              ⚔ {challengeOnCooldown ? `Wait ${cooldownRemaining}s` : 'Challenge'}
             </button>
-            
-            {/* Collapsible Content */}
-            {showLocation && (
-              <div className="grid grid-cols-2 gap-2 px-3 py-3 border-t border-gray-700">
-                {/* Location */}
-                <div className="bg-gray-900/50 rounded-lg p-2">
-                  <div className="text-xs text-gray-400 mb-1">Location</div>
-                  <div className="text-sm font-bold text-white">
-                    ({bearer.position.x}, {bearer.position.y})
-                  </div>
-                </div>
-                
-                {/* Distance */}
-                <div className="bg-gray-900/50 rounded-lg p-2">
-                  <div className="text-xs text-gray-400 mb-1">Distance</div>
-                  <div className="text-sm font-bold text-cyan-400">
-                    {formatDistance(distance)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Attack Range Status - Above Compass */}
-          <div 
-            className={`
-              rounded-lg p-2 text-center font-bold text-xs border
-              ${inChallengeRange 
-                ? 'bg-green-900/30 border-green-500 text-green-400' 
-                : 'bg-red-900/30 border-red-500 text-red-400'
-              }
-            `}
-          >
-            {inChallengeRange ? (
-              <div className="flex items-center justify-center gap-2">
-                <span>✓</span>
-                <span>IN RANGE</span>
-                <span className="opacity-75">(≤{FLAG_CONFIG.CHALLENGE_RANGE})</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <span>✗</span>
-                <span>OUT OF RANGE</span>
-                <span className="opacity-75">(+{distance - FLAG_CONFIG.CHALLENGE_RANGE} tiles)</span>
-              </div>
-            )}
-          </div>
-          
-          {/* Compass Direction Section */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {/* Header - Clickable to collapse */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCompass(!showCompass);
-              }}
-              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
-            >
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                <span>🧭</span>
-                <span>Direction</span>
-              </span>
-              <span className="text-gray-400 text-sm">{showCompass ? '▼' : '▶'}</span>
-            </button>
-            
-            {/* Collapsible Content */}
-            {showCompass && (
-              <div className="px-3 py-3 border-t border-gray-700">
-                <div className="flex items-center justify-center gap-4">
-                  {/* Compass Rose */}
-                  <div className="relative w-16 h-16">
-                    {/* Background circle */}
-                    <div className="absolute inset-0 border-4 border-gray-700 rounded-full"></div>
-                    
-                    {/* Cardinal directions */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">
-                      N
-                    </div>
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 text-xs text-gray-500 font-bold">
-                      S
-                    </div>
-                    <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">
-                      W
-                    </div>
-                    <div className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">
-                      E
-                    </div>
-                    
-                    {/* Direction Arrow */}
-                    <div 
-                      className="absolute inset-0 flex items-center justify-center text-2xl text-cyan-400"
-                      style={{
-                        transform: `rotate(${getRotationForDirection(direction)}deg)`
-                      }}
-                    >
-                      ↑
-                    </div>
-                  </div>
-                  
-                  {/* Direction Label */}
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">{compassArrow}</div>
-                    <div className="text-lg font-bold text-white">{direction}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Action Buttons - Compact */}
-          <div className="flex gap-2 justify-center pt-1">
-            {/* Track Button */}
-            <button
-              onClick={() => {
-                onTrack?.(bearer);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-colors flex items-center gap-2 text-sm"
-            >
-              <span>🔍</span>
-              <span>Track</span>
-            </button>
-            
-            {/* Challenge Button */}
-            <button
-              onClick={() => onChallenge && onChallenge(bearer)}
-                disabled={!inChallengeRange || challengeOnCooldown}
-                className={`
-                  font-bold py-2 px-3 rounded-lg transition-colors flex items-center gap-2 text-sm
-                  ${!inChallengeRange || challengeOnCooldown
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700 text-white'
-                }
-              `}
-              title={
-                challengeOnCooldown 
-                  ? `Cooldown: ${cooldownRemaining}s` 
-                      : !inChallengeRange
-                  ? 'Move closer to challenge' 
-                  : 'Challenge Flag Bearer'
-              }
-            >
-              <span>⚔️</span>
-              <span>
-                {challengeOnCooldown 
-                  ? `${cooldownRemaining}s` 
-                  : 'Challenge'
-                }
-              </span>
-            </button>
-          </div>
-          
-          {/* Help Text */}
-          <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-800">
-            💡 Track to view profile • Challenge to contest the flag
           </div>
         </div>
       )}
     </div>
   );
 }
-
-/**
- * Get CSS rotation angle for compass direction
- * 
- * @param direction - Compass direction enum
- * @returns Rotation angle in degrees (0° = North)
- */
-function getRotationForDirection(direction: CompassDirection): number {
-  const rotations: Record<CompassDirection, number> = {
-    [CompassDirection.North]: 0,
-    [CompassDirection.NorthEast]: 45,
-    [CompassDirection.East]: 90,
-    [CompassDirection.SouthEast]: 135,
-    [CompassDirection.South]: 180,
-    [CompassDirection.SouthWest]: 225,
-    [CompassDirection.West]: 270,
-    [CompassDirection.NorthWest]: 315
-  };
-  
-  return rotations[direction];
-}
-
-/**
- * IMPLEMENTATION NOTES:
- * 
- * 1. **Visual Design:**
- *    - Clean card layout with clear sections
- *    - Green border when in range, red when out of range
- *    - Animated flag icon (pulsing) for visual interest
- *    - Compass rose with rotating arrow
- *    - Mobile-responsive (compact mode)
- * 
- * 2. **User Experience:**
- *    - All critical info at a glance
- *    - Clear visual feedback (colors, icons)
- *    - Disabled states with helpful tooltips
- *    - Compact mode for mobile (expandable)
- *    - Real-time updates via props
- * 
- * 3. **Interactivity:**
- *    - Track button: Navigate to player profile
- *    - Attack button: Initiate combat (only when in range)
- *    - Cooldown display prevents spam
- *    - Responsive hover states
- * 
- * 4. **Data Display:**
- *    - Bearer name, level, HP
- *    - Exact coordinates
- *    - Distance in tiles
- *    - Compass direction with visual arrow
- *    - Hold duration with expiry warning
- *    - Range status (in/out of range)
- * 
- * 5. **Performance:**
- *    - Memoized calculations in flagService
- *    - Only re-renders on prop changes
- *    - Lightweight DOM (no heavy graphics)
- *    - CSS animations for smooth transitions
- */

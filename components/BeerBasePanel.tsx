@@ -341,11 +341,11 @@ export default function BeerBasePanel() {
                     <div className="text-sm">
                       <span className="text-gray-400">Loot: </span>
                       <span className="text-cyan-400 font-bold">
-                        {formatNumberAbbreviated(base.resources.metal)} 🔩
+                        {formatNumberAbbreviated(base.resources?.metal ?? 0)} 🔩
                       </span>
                       <span className="text-gray-400"> + </span>
                       <span className="text-yellow-400 font-bold">
-                        {formatNumberAbbreviated(base.resources.energy)} ⚡
+                        {formatNumberAbbreviated(base.resources?.energy ?? 0)} ⚡
                       </span>
                     </div>
                     <button

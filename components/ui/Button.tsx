@@ -1,123 +1,60 @@
-/**
- * Button Component
- * 
- * Reusable button with variants and sizes
- * 
- * Created: 2025-10-18
- * Feature: FID-20251018-044 (UI/UX Dashboard Redesign)
- * 
- * OVERVIEW:
- * Button component with multiple variants (primary, secondary, danger, ghost)
- * and sizes (sm, base, lg). Supports icons, loading state, and disabled state.
- * 
- * @example
- * <Button variant="primary" size="base" onClick={handleClick}>
- *   Click Me
- * </Button>
- */
-
 'use client';
 
-import { ButtonHTMLAttributes, ReactNode, forwardRef } from 'react';
-import { motion, HTMLMotionProps } from 'framer-motion';
+import { ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
-import { tapScale } from '@/lib/animations';
 
-interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
+interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success';
   size?: 'sm' | 'base' | 'lg';
   loading?: boolean;
   icon?: ReactNode;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
+  disabled?: boolean;
+  className?: string;
   children: ReactNode;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+  title?: string;
 }
 
-const variantClasses = {
-  primary: `
-    bg-primary-600 hover:bg-primary-700 active:bg-primary-800
-    text-white border border-primary-500
-    shadow-md hover:shadow-lg
-  `,
-  secondary: `
-    bg-bg-tertiary hover:bg-bg-hover active:bg-border-main
-    text-text-primary border border-border-main
-    shadow-sm hover:shadow-md
-  `,
-  danger: `
-    bg-red-600 hover:bg-red-700 active:bg-red-800
-    text-white border border-red-500
-    shadow-md hover:shadow-lg
-  `,
-  ghost: `
-    bg-transparent hover:bg-bg-tertiary active:bg-bg-hover
-    text-text-primary border border-transparent
-    hover:border-border-light
-  `,
-  success: `
-    bg-green-600 hover:bg-green-700 active:bg-green-800
-    text-white border border-green-500
-    shadow-md hover:shadow-lg
-  `,
+const variants = {
+  primary: 'bg-[--electric]/15 border-[--electric]/25 text-[--electric] hover:bg-[--electric]/25 hover:shadow-glow-electric',
+  secondary: 'bg-white/[0.04] border-[--border] text-[--text-1] hover:bg-white/[0.08]',
+  danger: 'bg-[--neon-red]/15 border-[--neon-red]/25 text-[--neon-red] hover:bg-[--neon-red]/25 hover:shadow-glow-red',
+  ghost: 'bg-transparent border-transparent text-[--text-2] hover:bg-white/[0.04] hover:text-[--text-1]',
+  success: 'bg-[--synth-dim] border-[--synth]/20 text-[--synth] hover:bg-[--synth]/20 hover:shadow-glow-synth',
 };
 
-const sizeClasses = {
-  sm: 'px-3 py-1.5 text-sm h-8',
-  base: 'px-4 py-2 text-base h-10',
-  lg: 'px-6 py-3 text-lg h-12',
+const sizes = {
+  sm: 'px-2.5 py-1 text-xs h-7',
+  base: 'px-3 py-1.5 text-xs h-8',
+  lg: 'px-4 py-2 text-sm h-10',
 };
 
-export function Button({
-  variant = 'primary',
-  size = 'base',
-  loading = false,
-  icon,
-  iconPosition = 'left',
-  fullWidth = false,
-  disabled = false,
-  className = '',
-  children,
-  ...props
-}: ButtonProps) {
-  const isDisabled = disabled || loading;
-
+export function Button({ variant = 'primary', size = 'sm', loading, icon, iconPosition = 'left', fullWidth, disabled, className = '', children, onClick, type = 'button', title }: ButtonProps) {
   return (
-    <motion.button
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled || loading}
+      title={title}
       className={`
-        inline-flex items-center justify-center gap-2
-        font-medium rounded-lg
-        transition-all duration-200
-        disabled:opacity-50 disabled:cursor-not-allowed
-        ${variantClasses[variant]}
-        ${sizeClasses[size]}
+        inline-flex items-center justify-center gap-1.5
+        font-semibold rounded-md
+        transition-all duration-150
+        disabled:opacity-30 disabled:cursor-not-allowed
+        active:scale-[0.97]
+        ${variants[variant]}
+        ${sizes[size]}
         ${fullWidth ? 'w-full' : ''}
         ${className}
       `}
-      disabled={isDisabled}
-      whileTap={!isDisabled ? tapScale : undefined}
-      {...props}
     >
-      {loading && (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      )}
+      {loading && <Loader2 className="w-3 h-3 animate-spin" />}
       {!loading && icon && iconPosition === 'left' && icon}
       {children}
       {!loading && icon && iconPosition === 'right' && icon}
-    </motion.button>
+    </button>
   );
 }
-
-// ============================================================
-// IMPLEMENTATION NOTES:
-// ============================================================
-// - 5 variants: primary, secondary, danger, ghost, success
-// - 3 sizes: sm, base, lg
-// - Loading state with spinner
-// - Optional icon with position control
-// - Full width option
-// - Tap scale animation
-// - Disabled state handling
-// - All button HTML attributes supported
-// ============================================================
-// END OF FILE
-// ============================================================

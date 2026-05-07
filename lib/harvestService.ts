@@ -222,25 +222,45 @@ export async function harvestResourceTile(
     }
     
     const baseAmount = generateBaseHarvestAmount();
-    
-    const permanentBonus = tile.terrain === TerrainType.Metal 
-      ? player.gathering_metal_bonus 
+
+    const permanentBonus = tile.terrain === TerrainType.Metal
+      ? player.gathering_metal_bonus
       : player.gathering_energy_bonus;
-    
+
     // DEPRECATED: kept for backwards compatibility
     const temporaryBonus = 0;
-    
-    // Shrine boosts are stored elsewhere; check if available
+
+    // Fetch shrine bonus from player's active boosts
     let shrineBonus = 0;
-    
-    // Check VIP status for 2x resource multiplier
-    let vipMultiplier = 1;
-    if (player.is_vip && player.vip_expiration && new Date(player.vip_expiration) > new Date()) {
-      vipMultiplier = 2;
+    try {
+      const { data: shrineBoosts } = await supabase
+        .from('player_shrine_boosts')
+        .select('yield_bonus')
+        .eq('player_username', playerId)
+        .gt('expires_at', new Date().toISOString());
+      if (shrineBoosts && shrineBoosts.length > 0) {
+        // Use diminishing stacking for shrine: +25/+20/+15/+10 = +70% max
+        const raw = shrineBoosts.reduce((sum, b) => sum + (b.yield_bonus || 0), 0);
+        let effective = 0;
+        let remaining = raw * 100; // Convert to percentage points
+        const t1 = Math.min(remaining, 25); effective += t1; remaining -= t1;
+        if (remaining > 0) { const t2 = Math.min(remaining, 20); effective += t2; remaining -= t2; }
+        if (remaining > 0) { const t3 = Math.min(remaining, 15); effective += t3; remaining -= t3; }
+        if (remaining > 0) { effective += Math.min(remaining, 10); }
+        shrineBonus = effective;
+      }
+    } catch (error) {
+      console.error('❌ Error fetching shrine boosts:', error);
     }
-    
-    // Check Flag Bearer status for +100% bonus (2x multiplier)
-    let flagBearerMultiplier = 1;
+
+    // Check VIP status for +50% bonus (additive, not multiplicative)
+    let vipBonus = 0;
+    if (player.is_vip && player.vip_expiration && new Date(player.vip_expiration) > new Date()) {
+      vipBonus = 50; // +50% additive
+    }
+
+    // Check Flag Bearer status for +50% bonus (additive, not multiplicative)
+    let flagBearerBonus = 0;
     let isPlayerFlagBearer = false;
     try {
       const { data: flagDoc } = await supabase
@@ -249,22 +269,25 @@ export async function harvestResourceTile(
         .limit(1)
         .maybeSingle();
       if (flagDoc && flagDoc.bearer_username === playerId) {
-        flagBearerMultiplier = 2;
+        flagBearerBonus = 50; // +50% additive
         isPlayerFlagBearer = true;
       }
     } catch (error) {
       console.error('❌ Error checking flag bearer status:', error);
     }
-    
-    // Calculate final amount with all bonuses
-    let finalAmount = calculateHarvestAmount(baseAmount, permanentBonus, temporaryBonus + shrineBonus);
-    
-    // Apply VIP multiplier
-    finalAmount = Math.floor(finalAmount * vipMultiplier);
-    
-    // Apply Flag Bearer multiplier
-    finalAmount = Math.floor(finalAmount * flagBearerMultiplier);
-    
+
+    // Calculate total multiplier using additive diminishing returns
+    const { calculateTotalMultiplier } = await import('@/lib/multiplierService');
+    const totalMultiplier = calculateTotalMultiplier([
+      { name: 'VIP', bonusPercent: vipBonus },
+      { name: 'Flag Bearer', bonusPercent: flagBearerBonus },
+      { name: 'Shrine', bonusPercent: shrineBonus },
+    ]);
+
+    // Calculate final amount: base × (1 + permanent%) × totalMultiplier
+    let finalAmount = calculateHarvestAmount(baseAmount, permanentBonus, temporaryBonus);
+    finalAmount = Math.floor(finalAmount * totalMultiplier);
+
     // Apply balance penalty/bonus to gathering (if player has units)
     if (player.total_strength || player.total_defense) {
       const { calculateBalanceEffects, applyBalanceToGathering } = await import('@/lib/balanceService');
@@ -322,13 +345,11 @@ export async function harvestResourceTile(
     
     // Generate success message with VIP and Flag Bearer indicators
     let successMessage = getHarvestSuccessMessage(tile.terrain, finalAmount);
-    if (vipMultiplier === 2) {
-      const baseHarvestAmount = Math.floor(finalAmount / (flagBearerMultiplier === 2 ? 4 : 2));
-      successMessage += ` ⚡ VIP 2x Boost! (+${baseHarvestAmount} bonus)`;
+    if (vipBonus > 0) {
+      successMessage += ` ⚡ VIP +${vipBonus}%!`;
     }
     if (isPlayerFlagBearer) {
-      const baseHarvestAmount = Math.floor(finalAmount / (vipMultiplier === 2 ? 4 : 2));
-      successMessage += ` 🚩 Flag Bearer +100%! (+${baseHarvestAmount} bonus)`;
+      successMessage += ` 🚩 Flag Bearer +${flagBearerBonus}%!`;
     }
     
     const result: HarvestResult = {

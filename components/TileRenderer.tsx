@@ -16,7 +16,7 @@ import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
-import { getMaxSlots } from '@/lib/factoryUpgradeService';
+import { getMaxSlots, getFactoryDefense, getRegenRate } from '@/lib/factoryUpgradeService';
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
 import { logger } from '@/lib/logger';
@@ -44,26 +44,16 @@ interface TileRendererProps {
  */
 function getTerrainColor(terrain: TerrainType): string {
   switch (terrain) {
-    case TerrainType.Metal:
-      return 'bg-gradient-to-br from-gray-400 to-gray-600';
-    case TerrainType.Energy:
-      return 'bg-gradient-to-br from-cyan-400 to-blue-600';
-    case TerrainType.Cave:
-      return 'bg-gradient-to-br from-purple-900 to-black';
-    case TerrainType.Forest:
-      return 'bg-gradient-to-br from-green-700 to-green-900';
-    case TerrainType.Factory:
-      return 'bg-gradient-to-br from-red-600 to-orange-700';
-    case TerrainType.Wasteland:
-      return 'bg-gradient-to-br from-amber-900 to-yellow-800';
-    case TerrainType.Bank:
-      return 'bg-gradient-to-br from-yellow-500 to-yellow-700';
-    case TerrainType.Shrine:
-      return 'bg-gradient-to-br from-purple-500 to-purple-900';
-    case TerrainType.AuctionHouse:
-      return 'bg-gradient-to-br from-emerald-500 to-teal-700';
-    default:
-      return 'bg-gray-500';
+    case TerrainType.Metal: return 'bg-gradient-to-br from-[--electric]/20 to-[--electric]/5';
+    case TerrainType.Energy: return 'bg-gradient-to-br from-[--neon-yellow]/20 to-[--neon-yellow]/5';
+    case TerrainType.Cave: return 'bg-gradient-to-br from-[--neon-pink]/20 to-[--neon-pink]/5';
+    case TerrainType.Forest: return 'bg-gradient-to-br from-[--synth]/20 to-[--synth]/5';
+    case TerrainType.Factory: return 'bg-gradient-to-br from-[--solar]/20 to-[--solar]/5';
+    case TerrainType.Wasteland: return 'bg-gradient-to-br from-amber-900/30 to-yellow-800/20';
+    case TerrainType.Bank: return 'bg-gradient-to-br from-[--neon-yellow]/15 to-[--neon-yellow]/5';
+    case TerrainType.Shrine: return 'bg-gradient-to-br from-[--neon-pink]/15 to-[--neon-pink]/5';
+    case TerrainType.AuctionHouse: return 'bg-gradient-to-br from-[--electric]/15 to-[--electric]/5';
+    default: return 'bg-gradient-to-br from-white/5 to-white/[0.02]';
   }
 }
 
@@ -952,37 +942,41 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* Factory Info (if factory tile) */}
       {tile.terrain === TerrainType.Factory && factoryData && (
-        <div className="mt-4 bg-gray-800 border-2 border-red-600 rounded-lg p-4 space-y-3">
+        <div className="mt-4 bg-[--card] border border-[--border] rounded-lg p-3 space-y-2">
           <div className="flex justify-between items-center">
-            <h4 className="text-lg font-bold text-red-400">🏭 Factory Status</h4>
+            <h4 className="text-[13px] font-bold text-[--text-1]">🏭 Factory Status</h4>
             {factoryData.owner && (
-              <span className={`text-sm font-semibold ${factoryData.owner === player?.username ? 'text-green-400' : 'text-orange-400'}`}>
+              <span className={`text-xs font-semibold ${factoryData.owner === player?.username ? 'text-[--synth]' : 'text-[--solar]'}`}>
                 {factoryData.owner === player?.username ? '✓ Your Factory' : `Owned by ${factoryData.owner}`}
               </span>
             )}
           </div>
           
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-gray-900 p-2 rounded">
-              <div className="text-gray-400">Defense</div>
-              <div className="text-white font-bold">{factoryData.defense.toLocaleString()}</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="bg-white/[0.03] border border-[--border] rounded p-2">
+              <div className="text-[--text-3]">Defense</div>
+              <div className="text-[--text-1] font-bold">{getFactoryDefense(factoryData.level || 1).toLocaleString()}</div>
             </div>
-            <div className="bg-gray-900 p-2 rounded">
-              <div className="text-gray-400">Production</div>
-              <div className="text-white font-bold">{factoryData.productionRate}/hr</div>
+            <div className="bg-white/[0.03] border border-[--border] rounded p-2">
+              <div className="text-[--text-3">Production</div>
+              <div className="text-[--text-1] font-bold">{getRegenRate(factoryData.level || 1).toFixed(1)}/hr</div>
             </div>
-             <div className="bg-gray-900 p-2 rounded col-span-2">
-               <div className="text-gray-400">Unit Slots</div>
-               <div className="flex items-center justify-between">
-                 <div className="text-white font-bold">{factoryData.usedSlots} / {getMaxSlots(factoryData.level || 1)}</div>
-                 <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
-                   <div 
-                     className="h-full bg-blue-500"
-                     style={{ width: `${(factoryData.usedSlots / getMaxSlots(factoryData.level || 1)) * 100}%` }}
-                   />
-                 </div>
-               </div>
-             </div>
+            <div className="bg-white/[0.03] border border-[--border] rounded p-2 col-span-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[--text-3]">Available Slots</div>
+                  <div className="text-[--text-1] font-bold">
+                    {Math.max(getMaxSlots(factoryData.level || 1) - (factoryData.usedSlots ?? 0), 0).toLocaleString()} / {getMaxSlots(factoryData.level || 1).toLocaleString()}
+                  </div>
+                </div>
+                <div className="w-24 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[--synth] rounded-full"
+                    style={{ width: `${Math.max(((getMaxSlots(factoryData.level || 1) - (factoryData.usedSlots ?? 0)) / Math.max(getMaxSlots(factoryData.level || 1), 1)) * 100, 0)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Factory Action Button */}
@@ -1010,61 +1004,46 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
         </div>
       )}
 
-      {/* Harvest Result Display (below tile image) */}
+      {/* Harvest Result Display */}
       {harvestResult && (
-        <div className="mt-4 bg-gray-900 border-2 border-gray-700 rounded-lg p-4 animate-fade-in">
-          {/* Success/Failure Message */}
-          <div className={`font-bold text-center text-lg mb-3 ${harvestResult.success ? 'text-green-400' : 'text-red-400'}`}>
-            {harvestResult.message || (harvestResult.success ? '✅ Success' : '❌ Failed')}
-          </div>
-          
+        <div className="mt-4 bg-[--card] border border-[--border] rounded-lg p-3 animate-fade-in">
           {/* Resource Results */}
-          {harvestResult.success && (harvestResult.metalGained || harvestResult.energyGained) && (
-            <div className="flex justify-center gap-6 mb-3">
-              {harvestResult.metalGained && harvestResult.metalGained > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">⛏️</span>
-                  <span className="text-yellow-400 font-bold text-xl">
-                    +{harvestResult.metalGained.toLocaleString()}
-                  </span>
-                  <span className="text-gray-400">Metal</span>
+          {harvestResult.success && ((harvestResult.metalGained || 0) > 0 || (harvestResult.energyGained || 0) > 0) && (
+            <div className="flex justify-center gap-4 mb-2">
+              {(harvestResult.metalGained || 0) > 0 && (
+                <div className="flex items-center gap-1.5 bg-white/[0.03] border border-[--border] rounded px-2.5 py-1.5">
+                  <span className="text-base">⛏️</span>
+                  <span className="text-[--neon-yellow] font-bold text-sm">+{(harvestResult.metalGained || 0).toLocaleString()}</span>
+                  <span className="text-[--text-2] text-xs">Metal</span>
                 </div>
               )}
-              {harvestResult.energyGained && harvestResult.energyGained > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">⚡</span>
-                  <span className="text-blue-400 font-bold text-xl">
-                    +{harvestResult.energyGained.toLocaleString()}
-                  </span>
-                  <span className="text-gray-400">Energy</span>
+              {(harvestResult.energyGained || 0) > 0 && (
+                <div className="flex items-center gap-1.5 bg-white/[0.03] border border-[--border] rounded px-2.5 py-1.5">
+                  <span className="text-base">⚡</span>
+                  <span className="text-[--electric] font-bold text-sm">+{(harvestResult.energyGained || 0).toLocaleString()}</span>
+                  <span className="text-[--text-2] text-xs">Energy</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* Cave Item Result */}
+          {/* Item Result */}
           {harvestResult.success && harvestResult.item && (
-            <div className="flex items-center justify-center gap-3 mb-3 bg-purple-900 bg-opacity-30 p-3 rounded">
-              <span className="text-3xl">🎁</span>
+            <div className="flex items-center justify-center gap-2 mb-2 bg-white/[0.03] border border-[--border] rounded p-2">
+              <span className="text-xl">🎁</span>
               <div>
-                <div className="text-purple-400 font-bold">{harvestResult.item.name}</div>
-                {harvestResult.item.description && (
-                  <div className="text-gray-400 text-sm">{harvestResult.item.description}</div>
-                )}
+                <div className="text-[--text-1] font-bold text-xs">{harvestResult.item.name}</div>
+                {harvestResult.item.description && <div className="text-[--text-3] text-[10px]">{harvestResult.item.description}</div>}
               </div>
             </div>
           )}
 
-          {/* Bonus Applied */}
-          {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
-            <div className="text-center text-green-400 text-sm mb-2">
-              💎 +{harvestResult.bonusApplied.toFixed(2)}% Bonus Applied
-            </div>
-          )}
-
-          {/* Result Message */}
-          <div className="text-gray-300 text-center text-sm whitespace-pre-line border-t border-gray-700 pt-3 mt-2">
+          {/* Result Message with bonuses */}
+          <div className="text-[--text-2] text-xs text-center whitespace-pre-line border-t border-[--border] pt-2 mt-2">
             {harvestResult.message}
+            {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
+              <span className="text-[--synth] font-bold ml-1">+{harvestResult.bonusApplied.toFixed(0)}% bonus</span>
+            )}
           </div>
         </div>
       )}

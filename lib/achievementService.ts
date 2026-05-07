@@ -1,24 +1,27 @@
 /**
  * @file lib/achievementService.ts
- * @created 2025-01-17
- * @overview Achievement system with 10 prestige units and automatic stat tracking
+ * @created 2026-05-07
+ * @overview Achievement system — tiered rewards for player milestones
+ *
+ * Achievements track progress across categories: harvest, exploration, combat,
+ * collection, social, time. Rewards include metal, energy, RP, XP, VIP days,
+ * and cosmetics. No permanent stat boosts — only temporary buffs + cosmetics.
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import { logger } from './logger';
 
-export enum AchievementCategory {
-  Combat = 'combat',
-  Economic = 'economic',
-  Exploration = 'exploration',
-  Progression = 'progression'
-}
+export type AchievementCategory = 'harvest' | 'exploration' | 'combat' | 'collection' | 'social' | 'time' | 'seasonal';
+export type AchievementTier = 'bronze' | 'silver' | 'gold' | 'platinum';
 
-export enum AchievementRarity {
-  Common = 'common',
-  Rare = 'rare',
-  Epic = 'epic',
-  Legendary = 'legendary'
+export interface AchievementReward {
+  metal?: number;
+  energy?: number;
+  rp?: number;
+  xp?: number;
+  vipDays?: number;
+  cosmeticId?: string;
+  buffId?: string;
+  buffDuration?: number; // hours
 }
 
 export interface Achievement {
@@ -26,200 +29,108 @@ export interface Achievement {
   name: string;
   description: string;
   category: AchievementCategory;
-  rarity: AchievementRarity;
-  requirement: { type: string; value: number };
-  reward: { unitUnlock: string; rpBonus?: number };
-  unlockedAt?: Date;
-  progress?: number;
+  tier: AchievementTier;
+  requirement: number;
+  currentProgress: number;
+  completed: boolean;
+  claimed: boolean;
+  reward: AchievementReward;
 }
 
-export const ACHIEVEMENTS: Record<string, Omit<Achievement, 'unlockedAt' | 'progress'>> = {
-  WARLORD: {
-    id: 'WARLORD', name: 'Warlord', description: 'Win 50 battles against other players',
-    category: AchievementCategory.Combat, rarity: AchievementRarity.Epic,
-    requirement: { type: 'battlesWon', value: 50 },
-    reward: { unitUnlock: 'PRESTIGE_TITAN', rpBonus: 100 }
-  },
-  MASTER_BUILDER: {
-    id: 'MASTER_BUILDER', name: 'Master Builder', description: 'Build 500 total units',
-    category: AchievementCategory.Combat, rarity: AchievementRarity.Rare,
-    requirement: { type: 'totalUnitsBuilt', value: 500 },
-    reward: { unitUnlock: 'PRESTIGE_FABRICATOR', rpBonus: 50 }
-  },
-  ARMY_SUPREME: {
-    id: 'ARMY_SUPREME', name: 'Army Supreme', description: 'Reach 50,000 total army power',
-    category: AchievementCategory.Combat, rarity: AchievementRarity.Legendary,
-    requirement: { type: 'totalArmyPower', value: 50000 },
-    reward: { unitUnlock: 'PRESTIGE_OVERLORD', rpBonus: 150 }
-  },
-  RESOURCE_MAGNATE: {
-    id: 'RESOURCE_MAGNATE', name: 'Resource Magnate', description: 'Accumulate 1,000,000 total resources',
-    category: AchievementCategory.Economic, rarity: AchievementRarity.Epic,
-    requirement: { type: 'totalResourcesGathered', value: 1000000 },
-    reward: { unitUnlock: 'PRESTIGE_HARVESTER', rpBonus: 100 }
-  },
-  BANKER: {
-    id: 'BANKER', name: 'The Banker', description: 'Store 500,000 resources in banks',
-    category: AchievementCategory.Economic, rarity: AchievementRarity.Rare,
-    requirement: { type: 'totalResourcesBanked', value: 500000 },
-    reward: { unitUnlock: 'PRESTIGE_VAULT_KEEPER', rpBonus: 75 }
-  },
-  SHRINE_DEVOTEE: {
-    id: 'SHRINE_DEVOTEE', name: 'Shrine Devotee', description: 'Trade at the shrine 100 times',
-    category: AchievementCategory.Economic, rarity: AchievementRarity.Rare,
-    requirement: { type: 'shrineTradeCount', value: 100 },
-    reward: { unitUnlock: 'PRESTIGE_MYSTIC', rpBonus: 50 }
-  },
-  ARCHAEOLOGIST: {
-    id: 'ARCHAEOLOGIST', name: 'Archaeologist', description: 'Discover all 15 ancient technologies',
-    category: AchievementCategory.Exploration, rarity: AchievementRarity.Legendary,
-    requirement: { type: 'discoveriesFound', value: 15 },
-    reward: { unitUnlock: 'PRESTIGE_ANCIENT_SENTINEL', rpBonus: 200 }
-  },
-  CAVE_EXPLORER: {
-    id: 'CAVE_EXPLORER', name: 'Cave Explorer', description: 'Explore 1,000 caves and forests',
-    category: AchievementCategory.Exploration, rarity: AchievementRarity.Epic,
-    requirement: { type: 'cavesExplored', value: 1000 },
-    reward: { unitUnlock: 'PRESTIGE_SPELUNKER', rpBonus: 100 }
-  },
-  LEGEND: {
-    id: 'LEGEND', name: 'Legend', description: 'Reach Level 50',
-    category: AchievementCategory.Progression, rarity: AchievementRarity.Legendary,
-    requirement: { type: 'level', value: 50 },
-    reward: { unitUnlock: 'PRESTIGE_CHAMPION', rpBonus: 250 }
-  },
-  MASTER_SPECIALIST: {
-    id: 'MASTER_SPECIALIST', name: 'Master Specialist', description: 'Reach 100% mastery in any specialization',
-    category: AchievementCategory.Progression, rarity: AchievementRarity.Epic,
-    requirement: { type: 'specializationMastery', value: 100 },
-    reward: { unitUnlock: 'PRESTIGE_APEX_PREDATOR', rpBonus: 150 }
-  }
-};
+export const ACHIEVEMENTS: Achievement[] = [
+  // Harvest
+  { id: 'harvest_1k',    name: 'First Harvest',     description: 'Harvest 1,000 tiles',       category: 'harvest', tier: 'bronze',   requirement: 1000,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 10000, xp: 500 } },
+  { id: 'harvest_10k',   name: 'Dedicated Farmer',   description: 'Harvest 10,000 tiles',     category: 'harvest', tier: 'silver',   requirement: 10000,  currentProgress: 0, completed: false, claimed: false, reward: { metal: 50000, rp: 10, xp: 2000 } },
+  { id: 'harvest_100k',  name: 'Master Harvester',   description: 'Harvest 100,000 tiles',    category: 'harvest', tier: 'gold',     requirement: 100000, currentProgress: 0, completed: false, claimed: false, reward: { metal: 250000, rp: 50, xp: 10000, vipDays: 1 } },
+  { id: 'harvest_1m',    name: 'Legendary Farmer',   description: 'Harvest 1,000,000 tiles',  category: 'harvest', tier: 'platinum', requirement: 1000000, currentProgress: 0, completed: false, claimed: false, reward: { metal: 1000000, rp: 200, xp: 50000, vipDays: 7, cosmeticId: 'harvest-legend' } },
+  // Exploration
+  { id: 'cave_100',     name: 'Cave Explorer',      description: 'Explore 100 caves',        category: 'exploration', tier: 'bronze',   requirement: 100,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 15000, xp: 1000 } },
+  { id: 'cave_500',     name: 'Spelunker',          description: 'Explore 500 caves',        category: 'exploration', tier: 'silver',   requirement: 500,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 75000, rp: 15, xp: 5000 } },
+  { id: 'cave_2000',    name: 'Cave Master',        description: 'Explore 2,000 caves',      category: 'exploration', tier: 'gold',     requirement: 2000,  currentProgress: 0, completed: false, claimed: false, reward: { metal: 300000, rp: 75, xp: 25000, vipDays: 3 } },
+  // Combat
+  { id: 'attack_10',    name: 'First Blood',        description: 'Win 10 attacks',           category: 'combat', tier: 'bronze',   requirement: 10,    currentProgress: 0, completed: false, claimed: false, reward: { metal: 20000, xp: 2000 } },
+  { id: 'attack_50',    name: 'Warrior',            description: 'Win 50 attacks',           category: 'combat', tier: 'silver',   requirement: 50,    currentProgress: 0, completed: false, claimed: false, reward: { metal: 100000, rp: 20, xp: 10000 } },
+  { id: 'factory_5',    name: 'Factory Capturer',   description: 'Capture 5 factories',      category: 'combat', tier: 'gold',     requirement: 5,     currentProgress: 0, completed: false, claimed: false, reward: { metal: 500000, rp: 100, xp: 50000, vipDays: 5 } },
+  // Collection
+  { id: 'diggers_10',   name: 'Digger Collector',   description: 'Collect 10 diggers',       category: 'collection', tier: 'bronze',  requirement: 10,    currentProgress: 0, completed: false, claimed: false, reward: { metal: 25000, xp: 1500 } },
+  { id: 'diggers_50',   name: 'Digger Hoarder',     description: 'Collect 50 diggers',       category: 'collection', tier: 'silver',  requirement: 50,    currentProgress: 0, completed: false, claimed: false, reward: { metal: 150000, rp: 30, xp: 7500 } },
+  { id: 'diggers_200',  name: 'Digger Baron',       description: 'Collect 200 diggers',      category: 'collection', tier: 'gold',    requirement: 200,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 750000, rp: 150, xp: 30000, vipDays: 7 } },
+  // Social
+  { id: 'referral_1',   name: 'Recruiter',          description: 'Refer 1 player (level 5)',  category: 'social', tier: 'bronze',    requirement: 1,     currentProgress: 0, completed: false, claimed: false, reward: { metal: 10000, rp: 5 } },
+  { id: 'referral_5',   name: 'Networker',          description: 'Refer 5 players (level 15)', category: 'social', tier: 'silver',   requirement: 5,     currentProgress: 0, completed: false, claimed: false, reward: { metal: 50000, rp: 25, vipDays: 3 } },
+  { id: 'referral_25',  name: 'Growth Hacker',      description: 'Refer 25 players (level 25)', category: 'social', tier: 'gold', requirement: 25, currentProgress: 0, completed: false, claimed: false, reward: { metal: 250000, rp: 100, vipDays: 14, cosmeticId: 'recruiter-gold' } },
+  // Time
+  { id: 'streak_7',     name: 'Weekly Warrior',     description: 'Play 7 days in a row',      category: 'time', tier: 'bronze',      requirement: 7,     currentProgress: 0, completed: false, claimed: false, reward: { metal: 25000, xp: 3000 } },
+  { id: 'streak_30',    name: 'Monthly Master',     description: 'Play 30 days in a row',     category: 'time', tier: 'silver',      requirement: 30,    currentProgress: 0, completed: false, claimed: false, reward: { metal: 150000, rp: 50, xp: 15000, vipDays: 3 } },
+  { id: 'streak_100',   name: 'Centurion',          description: 'Play 100 days in a row',    category: 'time', tier: 'gold',        requirement: 100,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 1000000, rp: 200, xp: 100000, vipDays: 30, cosmeticId: 'centurion' } },
+];
 
-export async function checkAchievements(playerId: string): Promise<Achievement[]> {
+/**
+ * Get achievements by category.
+ */
+export function getAchievementsByCategory(category: AchievementCategory): Achievement[] {
+  return ACHIEVEMENTS.filter(a => a.category === category);
+}
+
+/**
+ * Get achievement by ID.
+ */
+export function getAchievementById(id: string): Achievement | undefined {
+  return ACHIEVEMENTS.find(a => a.id === id);
+}
+
+/**
+ * Check and update achievement progress for a player.
+ * Called after stat-tracking events (battle won, unit built, etc.).
+ * Returns newly completed achievements.
+ */
+export async function checkAchievements(username: string): Promise<Achievement[]> {
   const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('*').eq('username', playerId).single();
+  const { data: player } = await supabase.from('players').select('*').eq('username', username).single();
   if (!player) return [];
 
-  // Get existing achievements
-  const { data: existingAchievements } = await supabase
-    .from('player_achievements')
-    .select('achievement_id')
-    .eq('player_username', playerId);
+  const newlyCompleted: Achievement[] = [];
 
-  const unlockedIds = new Set((existingAchievements || []).map(a => a.achievement_id));
-  const newlyUnlocked: Achievement[] = [];
-
-  for (const [id, config] of Object.entries(ACHIEVEMENTS)) {
-    if (unlockedIds.has(id)) continue;
-
+  for (const achievement of ACHIEVEMENTS) {
     let currentValue = 0;
-    switch (config.requirement.type) {
-      case 'battlesWon': currentValue = player.stat_battles_won || 0; break;
-      case 'totalUnitsBuilt': currentValue = player.stat_total_units_built || 0; break;
-      case 'totalArmyPower': currentValue = (player.total_strength || 0) + (player.total_defense || 0); break;
-      case 'totalResourcesGathered': currentValue = player.stat_total_resources_gathered || 0; break;
-      case 'totalResourcesBanked': currentValue = player.stat_total_resources_banked || 0; break;
-      case 'shrineTradeCount': currentValue = player.stat_shrine_trade_count || 0; break;
-      case 'discoveriesFound': currentValue = 0; break;
-      case 'cavesExplored': currentValue = player.stat_caves_explored || 0; break;
-      case 'level': currentValue = player.level || 1; break;
-      case 'specializationMastery': currentValue = player.spec_mastery_level || 0; break;
+
+    // Map achievement IDs to player stat fields
+    switch (achievement.id) {
+      case 'harvest_1k': case 'harvest_10k': case 'harvest_100k': case 'harvest_1m':
+        currentValue = player.stat_total_resources_gathered || 0;
+        break;
+      case 'cave_100': case 'cave_500': case 'cave_2000':
+        currentValue = player.stat_caves_explored || 0;
+        break;
+      case 'attack_10': case 'attack_50': case 'factory_5':
+        currentValue = player.stat_battles_won || 0;
+        break;
+      case 'diggers_10': case 'diggers_50': case 'diggers_200':
+        currentValue = (player.inventory_metal_digger_count || 0) + (player.inventory_energy_digger_count || 0);
+        break;
+      case 'referral_1': case 'referral_5': case 'referral_25':
+        currentValue = player.total_referrals || 0;
+        break;
+      case 'streak_7': case 'streak_30': case 'streak_100':
+        currentValue = player.login_streak || 0;
+        break;
+      default:
+        continue;
     }
 
-    if (currentValue >= config.requirement.value) {
-      const unlockedAchievement: Achievement = {
-        ...config, unlockedAt: new Date(), progress: currentValue
-      };
-
-      newlyUnlocked.push(unlockedAchievement);
-
-      // Insert into player_achievements
-      await supabase.from('player_achievements').insert({
-        achievement_id: id,
-        player_username: playerId,
-        name: config.name,
-        category: config.category,
-        rarity: config.rarity,
-        progress: currentValue,
-        description: config.description,
-        req_type: config.requirement.type,
-        req_value: config.requirement.value,
-        reward_unit_unlock: config.reward.unitUnlock,
-        reward_rp_bonus: config.reward.rpBonus || 0,
-      });
-
-      // Award RP
-      if (config.reward.rpBonus && config.reward.rpBonus > 0) {
-        await supabase.from('players').update({
-          research_points: (player.research_points || 0) + config.reward.rpBonus,
-        }).eq('username', playerId);
-      }
-
-      logger.success('Achievement unlocked!', {
-        username: playerId, achievement: config.name,
-        category: config.category, rarity: config.rarity,
-        prestigeUnit: config.reward.unitUnlock, rpBonus: config.reward.rpBonus,
-      });
+    const updated = checkAchievementProgress(achievement, currentValue);
+    if (updated.completed && !achievement.completed) {
+      newlyCompleted.push(updated);
     }
   }
 
-  return newlyUnlocked;
+  return newlyCompleted;
 }
 
-export async function getAchievementProgress(playerId: string) {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('*').eq('username', playerId).single();
-  if (!player) return null;
-
-  // Get unlocked achievements
-  const { data: achievements } = await supabase
-    .from('player_achievements')
-    .select('*')
-    .eq('player_username', playerId);
-
-  const unlockedAchievements = achievements || [];
-  const unlockedIds = new Set(unlockedAchievements.map((a: any) => a.achievement_id));
-
-  const allAchievements = Object.values(ACHIEVEMENTS).map(config => {
-    const isUnlocked = unlockedIds.has(config.id);
-    let currentValue = 0;
-    switch (config.requirement.type) {
-      case 'battlesWon': currentValue = player.stat_battles_won || 0; break;
-      case 'totalUnitsBuilt': currentValue = player.stat_total_units_built || 0; break;
-      case 'totalArmyPower': currentValue = (player.total_strength || 0) + (player.total_defense || 0); break;
-      case 'totalResourcesGathered': currentValue = player.stat_total_resources_gathered || 0; break;
-      case 'totalResourcesBanked': currentValue = player.stat_total_resources_banked || 0; break;
-      case 'shrineTradeCount': currentValue = player.stat_shrine_trade_count || 0; break;
-      case 'discoveriesFound': currentValue = 0; break;
-      case 'cavesExplored': currentValue = player.stat_caves_explored || 0; break;
-      case 'level': currentValue = player.level || 1; break;
-      case 'specializationMastery': currentValue = player.spec_mastery_level || 0; break;
-    }
-    const progressPercent = Math.min(100, Math.floor((currentValue / config.requirement.value) * 100));
-    return { ...config, isUnlocked, currentValue, progressPercent };
-  });
-
-  return {
-    totalUnlocked: unlockedAchievements.length,
-    totalAvailable: 10,
-    progressPercent: Math.floor((unlockedAchievements.length / 10) * 100),
-    achievements: allAchievements,
-    completionStatus: unlockedAchievements.length >= 10 ? 'COMPLETE' : 'IN_PROGRESS',
-  };
-}
-
-export async function getUnlockedPrestigeUnits(playerId: string): Promise<string[]> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('player_achievements')
-    .select('reward_unit_unlock')
-    .eq('player_username', playerId);
-  if (!data) return [];
-  return data.filter((a: any) => a.reward_unit_unlock).map((a: any) => a.reward_unit_unlock);
-}
-
-export async function hasPrestigeUnitUnlocked(playerId: string, unitType: string): Promise<boolean> {
-  const unlockedUnits = await getUnlockedPrestigeUnits(playerId);
-  return unlockedUnits.includes(unitType);
+/**
+ * Check if an achievement should be completed based on progress.
+ */
+export function checkAchievementProgress(achievement: Achievement, currentValue: number): Achievement {
+  const completed = currentValue >= achievement.requirement;
+  return { ...achievement, currentProgress: Math.min(currentValue, achievement.requirement), completed };
 }

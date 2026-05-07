@@ -305,24 +305,24 @@ export default function BountyBoardPanel() {
       )}
 
       {/* Statistics */}
-      {bountyData && (
+      {bountyData && bountyData.stats && (
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-800 rounded-lg p-3 text-center">
             <div className="text-gray-400 text-sm">Completed</div>
             <div className="text-white text-2xl font-bold">
-              {bountyData.stats.totalCompleted}
+              {bountyData.stats.totalCompleted ?? 0}
             </div>
           </div>
           <div className="bg-gray-800 rounded-lg p-3 text-center">
             <div className="text-gray-400 text-sm">Claimed</div>
             <div className="text-white text-2xl font-bold">
-              {bountyData.stats.totalClaimed}
+              {bountyData.stats.totalClaimed ?? 0}
             </div>
           </div>
           <div className="bg-gray-800 rounded-lg p-3 text-center">
             <div className="text-gray-400 text-sm">Unclaimed</div>
             <div className="text-yellow-400 text-2xl font-bold">
-              {bountyData.stats.unclaimedRewards}
+              {bountyData.stats.unclaimedRewards ?? 0}
             </div>
           </div>
         </div>

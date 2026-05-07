@@ -772,8 +772,8 @@ export default function GamePage() {
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <p className="text-gray-400">
+      <div className="min-h-screen bg-[--void] flex items-center justify-center">
+        <p className="text-white/50">
           {isLoading ? 'Loading player data...' : 'Redirecting...'}
         </p>
       </div>
@@ -901,17 +901,17 @@ export default function GamePage() {
       {/* Tier Unlock Panel */}
       {showTierUnlockPanel && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowTierUnlockPanel(false)}>
-          <div className="bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-purple-400">🧪 Research & Unlock Tiers</h2>
+          <div className="bg-black rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-black border-b border-white/10 p-3 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-[--neon-pink]">🧪 Research & Unlock Tiers</h2>
               <button
                 onClick={() => setShowTierUnlockPanel(false)}
-                className="text-gray-400 hover:text-white text-2xl font-bold"
+                className="text-white/40 hover:text-white text-xl font-bold"
               >
                 ×
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-4">
               <TierUnlockPanel />
             </div>
           </div>
@@ -920,7 +920,7 @@ export default function GamePage() {
 
       {/* Panel Error Message Toast */}
       {panelMessage && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-900 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-[--neon-red]/20 border border-[--neon-red]/30 text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
           {panelMessage}
         </div>
       )}
@@ -964,15 +964,15 @@ export default function GamePage() {
               />
             </div>
           ) : currentView === 'TILE' ? (
-            <div className="flex items-center justify-center w-full h-full text-gray-400">Loading tile...</div>
+            <div className="flex items-center justify-center w-full h-full text-white/50">Loading tile...</div>
           ) : currentView === 'LEADERBOARD' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -981,13 +981,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'CLANS' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -996,13 +996,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'CLAN' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1011,13 +1011,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'STATS' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1029,13 +1029,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'TECH_TREE' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1044,43 +1044,43 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'BATTLE_LOG' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-white text-xl">Battle Log View - Coming Soon</div>
+                <div className="text-white text-lg">Battle Log View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'INVENTORY' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-white text-xl">Inventory View - Coming Soon</div>
+                <div className="text-white text-lg">Inventory View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'PROFILE' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1089,28 +1089,28 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'ADMIN' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
-              <div className="flex-1 overflow-auto bg-gradient-to-b from-gray-900 to-black">
+              <div className="flex-1 overflow-auto bg-[--void]">
                 <AdminPage embedded={true} />
               </div>
             </div>
           ) : currentView === 'WMD' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1119,13 +1119,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'REFERRALS' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
+            <div className="h-full w-full flex flex-col p-4">
+              <div className="mb-2">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
                 >
-                  <span className="text-lg">←</span>
+                  <span>←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1171,14 +1171,10 @@ export default function GamePage() {
               />
             </div>
 
-            {/* Flag Bearer Panel — Only show if player IS the bearer */}
+            {/* Flag Bearer Panel — Show when player IS the bearer */}
             {flagBearer && flagBearer.username === player?.username && (
               <div className="p-3">
-                <FlagBearerPanel
-                  flagBearer={flagBearer}
-                  onRelease={handleFlagRelease}
-                  compact={false}
-                />
+                <FlagBearerPanel flagBearer={flagBearer} onRelease={handleFlagRelease} />
               </div>
             )}
 
@@ -1232,3 +1228,4 @@ export default function GamePage() {
 // ============================================================
 // END OF FILE
 // ============================================================
+

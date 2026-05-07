@@ -6,7 +6,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import type { TablesInsert } from '@/types/database';
 
-const DAILY_HARVEST_MILESTONES: Record<number, number> = { 1000: 500, 2500: 750, 5000: 1000, 10000: 1500, 15000: 1250, 22500: 1000 };
+const DAILY_HARVEST_MILESTONES: Record<number, number> = { 2000: 250, 5000: 500, 10000: 500, 20000: 250 };
 
 function toISO(d: Date): string { return d.toISOString(); }
 

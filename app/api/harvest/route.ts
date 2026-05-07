@@ -74,8 +74,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     let xpResult;
     if (result.success) {
-      // Record harvest for tile cooldown (AM/PM based on X coordinate)
-      const resetPeriod = tile.x >= 1 && tile.x <= 75 ? 'AM' : 'PM';
+      // Record harvest for tile cooldown (full reset period format: YYYY-MM-DD-AM/PM)
+      const { getCurrentResetPeriod } = await import('@/lib/harvestService');
+      const resetPeriod = getCurrentResetPeriod(tile.x);
       try {
         await supabase.from('tile_harvest_records').insert({
           tile_x: tile.x,

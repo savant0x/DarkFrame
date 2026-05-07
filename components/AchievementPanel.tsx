@@ -319,7 +319,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                             <div className="bg-black/30 rounded p-2 mb-3">
                               <div className="text-gray-400 mb-1 text-xs">Requirement:</div>
                               <div className="text-white font-semibold text-sm">
-                                {achievement.requirement.type}: {achievement.requirement.value.toLocaleString()}
+                                {achievement.requirement?.type}: {achievement.requirement?.value?.toLocaleString() ?? 'N/A'}
                               </div>
                             </div>
 

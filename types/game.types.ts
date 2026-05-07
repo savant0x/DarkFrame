@@ -711,15 +711,15 @@ export const GAME_CONSTANTS = {
   /** Harvest system constants */
   HARVEST: {
     /** Base harvest range for metal/energy tiles */
-    MIN_AMOUNT: 800,
-    MAX_AMOUNT: 1500,
+    MIN_AMOUNT: 400,
+    MAX_AMOUNT: 750,
     
     /** Cave item drop rate */
-    CAVE_DROP_RATE: 0.30, // 30% chance
+    CAVE_DROP_RATE: 0.025, // 2.5% chance (reduced from 30%)
     
     /** Cave item distribution */
     TRADEABLE_ITEM_RATE: 0.80, // 80% of drops are tradeable
-    DIGGER_ITEM_RATE: 0.20, // 20% of drops are diggers
+    DIGGER_ITEM_RATE: 0.20, // 20% of drops are diggers (reduced from 65%)
     
     /** Reset times (server time) */
     RESET_TIMES: {
@@ -1850,11 +1850,11 @@ export const UNIT_CONFIGS: Record<UnitType, UnitConfig> = {
  * Maps tier number to level and RP requirements
  */
 export const TIER_UNLOCK_REQUIREMENTS = {
-  [UnitTier.Tier1]: { level: 1, rp: 0 },
-  [UnitTier.Tier2]: { level: 5, rp: 5 },
-  [UnitTier.Tier3]: { level: 10, rp: 15 },
-  [UnitTier.Tier4]: { level: 20, rp: 30 },
-  [UnitTier.Tier5]: { level: 30, rp: 50 }
+  [UnitTier.Tier1]: { level: 1, rp: 0, metal: 0 },
+  [UnitTier.Tier2]: { level: 10, rp: 50, metal: 100000 },
+  [UnitTier.Tier3]: { level: 20, rp: 150, metal: 500000 },
+  [UnitTier.Tier4]: { level: 35, rp: 350, metal: 2500000 },
+  [UnitTier.Tier5]: { level: 50, rp: 750, metal: 10000000 },
 };
 
 /**

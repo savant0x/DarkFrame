@@ -1,41 +1,10 @@
-/**
- * @file components/WMDMiniStatus.tsx
- * @created 2025-10-22
- * @overview WMD Compact Status Widget
- * 
- * OVERVIEW:
- * Minimal status widget for displaying key WMD metrics in the main game UI.
- * Designed for sidebar or header placement. Click to open full WMD Hub.
- * 
- * Features:
- * - RP balance display
- * - Missiles ready count
- * - Active batteries count
- * - Available spies count
- * - Pending votes count
- * - Alert indicators for critical events
- * - Click-to-open WMD Hub
- * 
- * Dependencies: /api/wmd/status endpoint
- */
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/Badge';
 
-interface WMDStatus {
-  rp: number;
-  missilesReady: number;
-  batteriesActive: number;
-  spiesAvailable: number;
-  pendingVotes: number;
-  hasAlerts: boolean;
-}
-
-interface WMDMiniStatusProps {
-  onClick?: () => void;
-}
+interface WMDStatus { rp: number; missilesReady: number; batteriesActive: number; spiesAvailable: number; pendingVotes: number; hasAlerts: boolean; }
+interface WMDMiniStatusProps { onClick?: () => void; }
 
 export default function WMDMiniStatus({ onClick }: WMDMiniStatusProps) {
   const [status, setStatus] = useState<WMDStatus | null>(null);
@@ -44,85 +13,50 @@ export default function WMDMiniStatus({ onClick }: WMDMiniStatusProps) {
   const fetchStatus = async () => {
     try {
       const res = await fetch('/api/wmd/status');
-      
-      // Handle authentication errors silently (user doesn't have WMD access)
-      if (res.status === 401) {
-        setLoading(false);
-        return;
-      }
-      
+      if (res.status === 401) { setLoading(false); return; }
       const data = await res.json();
-      if (data.success) {
-        setStatus(data.status);
-      }
-    } catch (error) {
-      // Only log actual errors, not auth failures
-      console.error('Failed to fetch WMD status:', error instanceof Error ? error.message : String(error));
-    } finally {
-      setLoading(false);
-    }
+      if (data.success) setStatus(data.status);
+    } catch {} finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 30000); // 30s polling
-    return () => clearInterval(interval);
-  }, []);
+  useEffect(() => { fetchStatus(); const i = setInterval(fetchStatus, 30000); return () => clearInterval(i); }, []);
 
   if (loading || !status) {
     return (
-      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-        <p className="text-xs text-gray-400">Loading WMD...</p>
+      <div className="bg-[--shadow] border border-white/10 rounded-lg p-2.5">
+        <div className="flex items-center gap-2 mb-1"><span className="text-sm">⚔</span><h3 className="text-xs font-semibold text-white">WMD</h3></div>
+        <p className="text-xs text-white/40">Loading…</p>
       </div>
     );
   }
 
+  const rows = [
+    { label: 'RP', value: status.rp.toLocaleString(), color: 'text-[--electric]' },
+    { label: 'Missiles', value: String(status.missilesReady), color: 'text-[--synth]' },
+    { label: 'Batteries', value: String(status.batteriesActive), color: 'text-[--neon-yellow]' },
+    { label: 'Spies', value: String(status.spiesAvailable), color: 'text-[--neon-pink]' },
+  ];
+
   return (
-    <div 
-      onClick={onClick}
-      className="bg-gray-800 rounded-lg p-3 border border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer"
-    >
-      {/* Header */}
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-sm font-bold text-white flex items-center gap-1">
-          ⚔️ WMD
-          {status.hasAlerts && (
-            <Badge className="bg-red-600 animate-pulse">!</Badge>
-          )}
-        </h3>
+    <div onClick={onClick} className="bg-[--shadow] border border-white/10 rounded-lg overflow-hidden hover:border-white/20 transition-colors cursor-pointer">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-[--electric]/10 to-transparent border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">⚔</span>
+          <h3 className="text-sm font-bold text-white">WMD</h3>
+           {status.hasAlerts && <Badge className="bg-[--neon-red] animate-pulse text-xs px-1.5 py-0 text-white font-bold">!</Badge>}
+        </div>
+        {status.pendingVotes > 0 && <span className="text-xs text-[--electric] font-semibold font-mono">🗳 {status.pendingVotes}</span>}
       </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">RP</p>
-          <p className="text-blue-400 font-bold">{status.rp}</p>
-        </div>
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">Missiles</p>
-          <p className="text-green-400 font-bold">{status.missilesReady}</p>
-        </div>
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">Batteries</p>
-          <p className="text-yellow-400 font-bold">{status.batteriesActive}</p>
-        </div>
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">Spies</p>
-          <p className="text-purple-400 font-bold">{status.spiesAvailable}</p>
-        </div>
-      </div>
-
-      {/* Pending Votes */}
-      {status.pendingVotes > 0 && (
-        <div className="mt-2 bg-blue-900 rounded p-1.5 text-xs">
-          <p className="text-blue-300">
-            🗳️ {status.pendingVotes} pending vote{status.pendingVotes > 1 ? 's' : ''}
-          </p>
-        </div>
-      )}
-
-      {/* Click Hint */}
-      <p className="text-xs text-gray-500 mt-2 text-center">Click to open</p>
+      <table className="w-full text-xs">
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={row.label} className={`border-t border-white/5 ${i % 2 === 0 ? 'bg-white/[0.03]' : 'bg-white/[0.06]'}`}>
+              <td className="px-3 py-1 text-white/50 font-medium">{row.label}</td>
+              <td className={`px-3 py-1 text-right font-mono font-bold ${row.color}`}>{row.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

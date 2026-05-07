@@ -260,7 +260,7 @@ export async function spendRPOnResearch(
     // Spend RP using existing system
     const spendResult = await spendResearchPoints(playerId, amount, 'WMD Research');
     if (!spendResult.success) {
-      return { success: false, message: spendResult.message };
+      return { success: false, message: 'Insufficient RP' };
     }
     
     // Update research progress

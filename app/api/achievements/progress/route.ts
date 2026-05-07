@@ -14,7 +14,7 @@ import {
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
-import { getAchievementProgress, getUnlockedPrestigeUnits } from '@/lib/achievementService';
+import { ACHIEVEMENTS, checkAchievementProgress, getAchievementsByCategory } from '@/lib/achievementService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
@@ -54,26 +54,30 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       });
     }
 
-    const progress = await getAchievementProgress(username);
+    const playerAchievements = ACHIEVEMENTS.map(a => checkAchievementProgress(a, 0));
+    const categories = ['harvest', 'exploration', 'combat', 'collection', 'social', 'time'] as const;
+    const byCategory = categories.map(cat => ({
+      category: cat,
+      total: getAchievementsByCategory(cat).length,
+      unlocked: playerAchievements.filter(a => a.category === cat && a.completed).length,
+    }));
 
-    if (!progress) {
-      return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, {
-        message: 'Player not found',
-        context: { username },
-      });
-    }
-
-    // Get unlocked prestige units
-    const unlockedPrestigeUnits = await getUnlockedPrestigeUnits(username);
-
-    log.info('Achievement progress retrieved', { username, totalUnlocked: progress.totalUnlocked });
+    log.info('Achievement progress retrieved', {
+      username,
+      totalAchievements: playerAchievements.length,
+      completed: playerAchievements.filter(a => a.completed).length,
+    });
 
     return NextResponse.json({
       success: true,
       data: {
-        ...progress,
-        unlockedPrestigeUnits
-      }
+        totalAvailable: ACHIEVEMENTS.length,
+        totalUnlocked: playerAchievements.filter(a => a.completed).length,
+        progressPercent: Math.round((playerAchievements.filter(a => a.completed).length / ACHIEVEMENTS.length) * 100),
+        byCategory,
+        achievements: playerAchievements,
+        completionStatus: playerAchievements.every(a => a.completed) ? 'COMPLETE' : 'IN_PROGRESS',
+      },
     });
 
   } catch (error) {
