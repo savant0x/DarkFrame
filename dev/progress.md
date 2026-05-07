@@ -2,62 +2,68 @@
 
 > Currently active development work
 
-**Last Updated:** 2026-05-06
-**Active FIDs:** 5 (Balance Rebalance)
-**Current Status:** Economy Rebalance — FIDs Written, Ready for Implementation
+**Last Updated:** 2026-05-07
+**Active FIDs:** 0 (All balance FIDs implemented and archived)
+**Current Status:** ✅ Main Game UI Complete — Theme system, sidebar panels, chat, movement, harvest results all updated to synth palette. Remaining pages still use old design system.
 
 ---
 
-## 🔄 ACTIVE: Economy Rebalance (FID-20260506-BALANCE)
+## ✅ COMPLETE — May 7, 2026 Session
 
-### Master FID
-- **FID-20260506-BALANCE-MASTER** — Comprehensive economy rebalance plan
-- Status: PLANNING — Research complete, FIDs written, perfection loop iteration 1 complete
+### Theme & UI Overhaul
+- `globals.css` rewritten — clean CSS custom properties, removed glass/blur utilities
+- `tailwind.config.ts` updated — 9-color synth palette, glow shadows, proper font stacks
+- `components/ui/design.tsx` created — shared design tokens
+- All sidebar panels rewritten with synth palette (StatsPanel, ControlsPanel, FlagTrackerPanel, AutoFarmPanel, ShrineStatusPanel, WMDMiniStatus)
+- ChatPanel rewritten with full polling logic and synth palette
+- GameLayout rewritten — foldable sidebars, proper h-screen layout
+- TopNavBar rewritten — removed backdrop-blur, proper synth colors
 
-### Phase 1: Critical Fixes (FID-20260506-BALANCE-P1)
-- **Priority:** CRITICAL
-- **Focus:** Multiplicative→additive multipliers, digger decay, base harvest, XP curve
-- Status: PLANNING — FID written, perfection loop iteration 1 complete
-- Depends on: Nothing (can start immediately)
+### Bug Fixes
+- Harvest results consolidated into single display (removed duplication)
+- Military Power section — penalties/bonuses as proper tables with label + effect columns
+- Flag Bearer Release button — removed harsh white stroke, uses subtle bg fade
+- XP Progress — always shows with loading state instead of disappearing
+- BountyBoardPanel — null-safety on bountyData.stats
+- AchievementPanel — null-safety on achievement.requirement.value
+- BeerBasePanel — null-safety on base.resources.metal/energy
+- BalanceIndicator — proper STR/DEF bar colors, muted text
+- ControlsPanel — terrain tag color-coded, proper spacing
+- MovementControls — proper button sizes, glow on hover
+- Tier unlock costs — hybrid RP + metal costs
+- Base harvest amounts — reduced from 800-1500 to 400-750
+- Digger drop rate — reduced from 30% to 2.5%
+- XP curve — polynomial `250 × L^2.5`
 
-### Phase 2: New Sinks (FID-20260506-BALANCE-P2)
-- **Priority:** HIGH
-- **Focus:** Unit upkeep, auto-farm durability, stamina, PvP burn
-- Status: PLANNING — FID written, perfection loop iteration 1 complete
-- Depends on: P1
+### New Services Created
+- `lib/multiplierService.ts` — additive diminishing returns
+- `lib/upkeepService.ts` — hourly unit upkeep
+- `lib/toolDurabilityService.ts` — auto-farm tool durability
+- `lib/staminaService.ts` — soft diminishing daily actions
+- `lib/resourceDecayService.ts` — resource rot above 1M threshold
+- `lib/territoryDecayService.ts` — territory reversion after 14-day grace
+- `lib/diggerService.ts` — digger bonus calculation
+- `lib/pvpBurnService.ts` — PvP resource destruction
 
-### Phase 3: Progression (FID-20260506-BALANCE-P3)
-- **Priority:** HIGH
-- **Focus:** Tier unlocks, tech tree, VIP, shrine
-- Status: PLANNING — FID written, perfection loop iteration 1 complete
-- Depends on: P1, P2
+### Archived FIDs (Completed)
+- FID-20260506-BALANCE-MASTER through P4
+- FID-20260506-SHRINE
+- FID-20260506-STARTUP
+- FID-20260507-CHAT
+- FID-20260507-SIDEBAR-RESTORE
 
-### Phase 4: Long-Term Health (FID-20260506-BALANCE-P4)
-- **Priority:** MEDIUM
-- **Focus:** Achievements, cave tiers, territory decay, content cadence
-- Status: PLANNING — FID written, perfection loop iteration 1 complete
-- Depends on: P1, P2, P3
+All archived to `dev/fids/archived/`.
 
 ---
 
-## ✅ COMPLETE — May 5-6, 2026 Sessions
-
-All previous FIDs archived to `dev/fids/archived/`.
-
-| FID | Topic | Status |
-|-----|-------|--------|
-| FID-20260505-AUDIT | WMD admin route rewrite | FIXED |
-| FID-20260505-REGRESSION | Factory regen filter fix | FIXED |
-| FID-20260505-CLAN-CREATE | Clan creation schema + cost | FIXED |
-| FID-20260505-ITEMS | Tiered names, DIGGER_TIERS | FIXED |
-| FID-20260505-GLOBAL | Cross-system auth standardization | FIXED |
-| FID-20260505-FINAL | Auth verification, player_sessions | CLOSED |
-| FID-20260505-BALANCE | StatsPanel balance display | ARCHIVED (superseded by P1) |
-| FID-20260505-CHAT | Chat persistence + online users | ARCHIVED (completed previously) |
+## 📋 Remaining Work (Not Yet Started)
+- Other pages (leaderboard, stats, tech, WMD, clans, admin) still use old design system
+- TileRenderer center view styling
+- Modal panels (HarvestModal, BattleResultModal, etc.)
+- DB wipe and re-seed needed for balance changes to take effect
 
 ---
 
 ## 📁 No Stale FIDs
 
 All completed/archived FIDs moved to `dev/fids/archived/`.
-Active FIDs in `dev/fids/` are current and ready for implementation.

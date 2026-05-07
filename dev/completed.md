@@ -2,9 +2,58 @@
 
 > Features that have been successfully implemented and tested
 
-**Last Updated:** 2026-05-06
-**Total Completed:** 100+ features + 19 FIDs (14 stabilization + 5 balance planning)
-**Current Phase:** Economy Rebalance — FIDs Written, Ready for Implementation
+**Last Updated:** 2026-05-07
+**Total Completed:** 100+ features + 25+ FIDs
+**Current Phase:** Main Game UI Theme Complete — Remaining pages need design update
+
+---
+
+## 2026-05-07 — Theme System & UI Overhaul (9 FIDs Implemented)
+
+### Theme System
+- Complete synth palette (9 colors): void, shadow, white, electric, neon-pink, neon-red, solar, synth, neon-yellow
+- CSS custom properties for all colors
+- Shared design tokens (`components/ui/design.tsx`)
+- Glow shadow system (3 intensity tiers)
+- Text hierarchy: white/white60/white40/white25 only (no gray-400/500)
+
+### Sidebar Panels (Left + Right)
+- StatsPanel — table-based layout for all sections
+- ControlsPanel — color-coded terrain tags, proper spacing
+- FlagTrackerPanel — table layout, accent borders
+- FlagBearerPanel — new component, subtle button styling
+- AutoFarmPanel — table layout, muted colors
+- ShrineStatusPanel — table with alternating rows
+- WMDMiniStatus — consistent card design
+- MovementControls — proper button sizes, glow on hover
+- BalanceIndicator — proper STR/DEF bar colors
+- XPProgressBar — always shows with loading state
+- ChatPanel — full rebuild with synth palette
+
+### Layout
+- GameLayout — foldable sidebars with toggle buttons
+- TopNavBar — removed backdrop-blur, synth palette
+- pt-14 on sidebars removed, flat dark design
+
+### Economy Balance (Code Implementation)
+- MultiplierService — additive diminishing returns formula
+- UpkeepService — hourly unit upkeep with exponential scaling
+- ToolDurabilityService — auto-farm tool durability
+- StaminaService — soft diminishing daily actions
+- ResourceDecayService — resource rot above 1M threshold
+- TerritoryDecayService — territory reversion after 14-day grace
+- DiggerService — digger bonus calculation
+- PvPBurnService — PvP resource destruction (20% burned)
+
+### Bug Fixes
+- Harvest results consolidated (no duplication)
+- Military Power penalties/bonuses as proper tables
+- Null-safety across BountyBoardPanel, AchievementPanel, BeerBasePanel
+- XP Progress always shows (loading state instead of disappearing)
+- Tier unlock costs — hybrid RP + metal
+- Base harvest reduced (800-1500 → 400-750)
+- Digger drop rate reduced (30% → 2.5%)
+- XP curve polynomial (250 × L^2.5)
 
 ---
 
