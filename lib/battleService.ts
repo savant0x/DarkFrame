@@ -60,6 +60,8 @@ function playerUnitToUnits(playerUnit: PlayerUnit, owner: string): Unit[] {
 
 /**
  * Load player units from player_units table.
+ * Respects the quantity field — each row is expanded into N Unit objects.
+ * If strength/defense are NULL (legacy rows), falls back to UNIT_CONFIGS.
  */
 export async function loadPlayerUnits(
   supabase: ReturnType<typeof createServiceClient>,
@@ -72,20 +74,34 @@ export async function loadPlayerUnits(
   }
   const { data, error } = await query;
   if (error) throw new Error(`Failed to load units for ${username}: ${error.message}`);
-  return (data || []).map((row) => ({
-    id: row.id,
-    type: row.unit_type as UnitType,
-    strength: row.strength || 0,
-    defense: row.defense || 0,
-    producedAt: { x: row.produced_at_x || 0, y: row.produced_at_y || 0 },
-    producedDate: row.produced_date ? new Date(row.produced_date) : new Date(),
-    owner: row.player_username,
-  }));
+
+  const units: Unit[] = [];
+  for (const row of data || []) {
+    const quantity = row.quantity || 1;
+    const unitType = row.unit_type as UnitType;
+    const config = UNIT_CONFIGS[unitType];
+    const strength = row.strength ?? config?.strength ?? 0;
+    const defense = row.defense ?? config?.defense ?? 0;
+
+    for (let i = 0; i < quantity; i++) {
+      units.push({
+        id: `${row.id}-${i}`,
+        type: unitType,
+        strength,
+        defense,
+        producedAt: { x: row.produced_at_x || 0, y: row.produced_at_y || 0 },
+        producedDate: row.produced_date ? new Date(row.produced_date) : new Date(),
+        owner: row.player_username,
+      });
+    }
+  }
+  return units;
 }
 
 /**
  * Save player units to player_units table.
- * Deletes all existing units for the player, then inserts the new set.
+ * Uses aggregated upsert model: groups units by type, sums quantities,
+ * and upserts rows with quantity/strength/defense. Preserves the quantity model.
  */
 export async function savePlayerUnits(
   supabase: ReturnType<typeof createServiceClient>,
@@ -95,20 +111,34 @@ export async function savePlayerUnits(
   const { error: deleteError } = await supabase.from('player_units').delete().eq('player_username', username);
   if (deleteError) throw new Error(`Failed to delete units for ${username}: ${deleteError.message}`);
 
-  if (units.length > 0) {
-    const rows = units.map((u) => ({
-      id: u.id,
-      player_username: username,
-      unit_type: u.type,
-      strength: u.strength,
-      defense: u.defense,
-      produced_at_x: u.producedAt.x,
-      produced_at_y: u.producedAt.y,
-      produced_date: new Date().toISOString(),
-    }));
-    const { error: insertError } = await supabase.from('player_units').insert(rows as never);
-    if (insertError) throw new Error(`Failed to insert units for ${username}: ${insertError.message}`);
+  if (units.length === 0) return;
+
+  const byType = new Map<UnitType, { count: number; strength: number; defense: number; producedAt: { x: number; y: number }; producedDate: Date }>();
+  for (const u of units) {
+    const existing = byType.get(u.type);
+    if (existing) {
+      existing.count++;
+      existing.strength += u.strength;
+      existing.defense += u.defense;
+    } else {
+      byType.set(u.type, { count: 1, strength: u.strength, defense: u.defense, producedAt: u.producedAt, producedDate: u.producedDate });
+    }
   }
+
+  const now = new Date().toISOString();
+  const rows = Array.from(byType.entries()).map(([unitType, agg]) => ({
+    player_username: username,
+    unit_type: unitType,
+    quantity: agg.count,
+    strength: Math.round(agg.strength / agg.count),
+    defense: Math.round(agg.defense / agg.count),
+    produced_at_x: agg.producedAt.x,
+    produced_at_y: agg.producedAt.y,
+    produced_date: now,
+  }));
+
+  const { error: insertError } = await supabase.from('player_units').insert(rows as never);
+  if (insertError) throw new Error(`Failed to insert units for ${username}: ${insertError.message}`);
 }
 
 /**
@@ -271,7 +301,7 @@ function artilleryPhase(
   defenderUnits: Unit[]
 ): { attackerSupportLost: number; defenderSupportLost: number } {
   const attackerArtillery = groupByArchetype(attackerUnits).get('ARTILLERY') || [];
-  const defenderArtillery = groupByArchetype(attackerUnits).get('ARTILLERY') || [];
+  const defenderArtillery = groupByArchetype(defenderUnits).get('ARTILLERY') || [];
   const attackerSupport = groupByArchetype(attackerUnits).get('SUPPORT') || [];
   const defenderSupport = groupByArchetype(defenderUnits).get('SUPPORT') || [];
 
@@ -922,7 +952,7 @@ export async function executeFactoryAttack(
  * Uses the _attackerCasualties/_defenderCasualties stored in BattleLog
  * to correctly identify which units were lost.
  */
-async function applyBattleResults(battleLog: BattleLog): Promise<void> {
+export async function applyBattleResults(battleLog: BattleLog): Promise<void> {
   const supabase = createServiceClient();
 
   const { data: attacker, error: attackerError } = await supabase

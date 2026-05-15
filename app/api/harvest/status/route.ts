@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { getPlayer } from '@/lib/playerService';
 import { getTileAt } from '@/lib/movementService';
 import { getHarvestStatus } from '@/lib/harvestService';
@@ -26,14 +27,9 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('harvest-status');
   
   try {
-    const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
-    
-    if (!username) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, {
-        message: 'Username parameter is required'
-      });
-    }
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.playerId;
     
     const player = await getPlayer(username);
     if (!player) {

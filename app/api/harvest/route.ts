@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { harvestResourceTile, getHarvestStatus } from '@/lib/harvestService';
 import { harvestCaveTile, harvestForestTile } from '@/lib/caveItemService';
 import type { Tables } from '@/types/database';
@@ -39,9 +40,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('harvestOperation');
 
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const validated = HarvestSchema.parse(body);
     const { username } = validated;
+
+    if (username !== auth.playerId) {
+      log.warn('Harvest attempted as different user', { authenticated: auth.playerId, requested: username });
+      return createErrorResponse(ErrorCode.AUTH_FORBIDDEN, { message: 'You can only harvest as yourself' });
+    }
+
     log.debug('Processing harvest request', { username });
 
     const supabase = createServiceClient();

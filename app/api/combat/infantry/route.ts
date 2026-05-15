@@ -25,6 +25,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { executeInfantryAttack } from '@/lib/battleService';
 import { 
   withRequestLogging, 
@@ -46,19 +47,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('infantryCombat');
 
   try {
-    // Parse request body
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const attackerId = auth.playerId;
+
     const body = await request.json();
-    const username = body.username;
-    if (!username) {
-      log.warn('Username required for infantry combat');
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
-        message: 'Username required'
-      });
-    }
-
-    const attackerId = username;
-
-    // Validate request body
     const validated = InfantryCombatSchema.parse(body);
 
     // Prevent self-attack

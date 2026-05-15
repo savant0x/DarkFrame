@@ -185,9 +185,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const validated = BuildUnitSchema.parse(body);
 
     const unitBlueprint = UNIT_BLUEPRINTS[validated.unitTypeId];
-    if (!unitBlueprint) {
+    const isNewUnit = !unitBlueprint && !!UNIT_CONFIGS[validated.unitTypeId];
+    if (!unitBlueprint && !isNewUnit) {
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Invalid unit type' });
     }
+
+    const newUnitCfg = isNewUnit ? UNIT_CONFIGS[validated.unitTypeId] : null;
 
     const player = await getPlayer(auth.playerId);
     if (!player) {
@@ -197,7 +200,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const playerLevel = player.level || 1;
     const playerRP = player.research_points || 0;
 
-    if (unitBlueprint.unlockRequirement) {
+    // Check unlock requirements (support both old and new unit types)
+    if (isNewUnit && newUnitCfg) {
+      if (playerRP < newUnitCfg.rpRequired) {
+        return createErrorResponse(ErrorCode.INSUFFICIENT_RP, { required: newUnitCfg.rpRequired, have: playerRP });
+      }
+      if (playerLevel < newUnitCfg.levelRequired) {
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          message: `Requires level ${newUnitCfg.levelRequired} (you are level ${playerLevel})`,
+        });
+      }
+    } else if (unitBlueprint?.unlockRequirement) {
       const rpRequired = unitBlueprint.unlockRequirement.researchPoints;
       const levelRequired = unitBlueprint.unlockRequirement.level || 0;
 
@@ -233,8 +246,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    const totalMetalCost = unitBlueprint.metalCost * validated.quantity;
-    const totalEnergyCost = unitBlueprint.energyCost * validated.quantity;
+    const totalMetalCost = isNewUnit && newUnitCfg
+      ? newUnitCfg.metalCost * validated.quantity
+      : unitBlueprint!.metalCost * validated.quantity;
+    const totalEnergyCost = isNewUnit && newUnitCfg
+      ? newUnitCfg.energyCost * validated.quantity
+      : unitBlueprint!.energyCost * validated.quantity;
 
     const playerMetal = player.resources_metal || 0;
     const playerEnergy = player.resources_energy || 0;
@@ -246,13 +263,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, { resourceType: 'energy', needed: totalEnergyCost, have: playerEnergy });
     }
 
-    const dbUnitType = BLUEPRINT_TO_DB[validated.unitTypeId];
+    const dbUnitType: string = isNewUnit ? validated.unitTypeId : BLUEPRINT_TO_DB[validated.unitTypeId];
     if (!dbUnitType) {
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: `Unknown unit type: ${validated.unitTypeId}` });
     }
 
-    const unitConfig = UNIT_CONFIGS[dbUnitType as UnitType];
-    const slotCostPerUnit = unitConfig?.slotCost || 1;
+    const slotCostPerUnit = newUnitCfg?.slotCost || (UNIT_CONFIGS[dbUnitType as UnitType]?.slotCost) || 1;
 
     let remainingUnits = validated.quantity;
 
@@ -278,8 +294,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }
 
-    const strengthGained = unitBlueprint.strength * validated.quantity;
-    const defenseGained = unitBlueprint.defense * validated.quantity;
+    const cfg = isNewUnit ? newUnitCfg : (dbUnitType ? UNIT_CONFIGS[dbUnitType as UnitType] : null);
+    const unitStrength = cfg?.strength ?? unitBlueprint?.strength ?? 0;
+    const unitDefense = cfg?.defense ?? unitBlueprint?.defense ?? 0;
+
+    const strengthGained = unitStrength * validated.quantity;
+    const defenseGained = unitDefense * validated.quantity;
 
     const newTotalStrength = (player.total_strength || 0) + strengthGained;
     const newTotalDefense = (player.total_defense || 0) + defenseGained;
@@ -297,23 +317,29 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     const { data: existingUnit } = await supabase
       .from('player_units')
-      .select('id, quantity')
+      .select('id, quantity, strength, defense')
       .eq('player_username', auth.playerId)
-      .eq('unit_type', dbUnitType)
+      .eq('unit_type', dbUnitType as UnitTypeEnum)
       .maybeSingle();
 
     if (existingUnit) {
       await supabase
         .from('player_units')
-        .update({ quantity: existingUnit.quantity + validated.quantity })
+        .update({
+          quantity: existingUnit.quantity + validated.quantity,
+          strength: unitStrength,
+          defense: unitDefense,
+        })
         .eq('id', existingUnit.id);
     } else {
       await supabase
         .from('player_units')
         .insert({
           player_username: auth.playerId,
-          unit_type: dbUnitType,
+          unit_type: dbUnitType as UnitTypeEnum,
           quantity: validated.quantity,
+          strength: unitStrength,
+          defense: unitDefense,
         });
     }
 

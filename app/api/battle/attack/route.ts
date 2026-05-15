@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/lib/authMiddleware';
-import { resolveBattle, recordBattle } from '@/lib';
+import { resolveBattle, recordBattle, applyBattleResults } from '@/lib';
 import { BattleType } from '@/types';
 import { 
   withRequestLogging, 
@@ -53,6 +53,8 @@ const handler = rateLimiter(async (req: NextRequest) => {
       attackerUnits, defenderUnits, attacker, defender,
       BattleType.Factory, factoryLocation
     );
+
+    await applyBattleResults(battleLog);
     
     await recordBattle({
       attacker: battleLog.attacker.username,
