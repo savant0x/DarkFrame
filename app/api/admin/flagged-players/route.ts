@@ -1,6 +1,6 @@
 /**
  * 📅 Created: 2025-01-18
- * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth; proper types
  * 🎯 OVERVIEW:
  * Flagged Players Admin Endpoint
  * 
@@ -8,12 +8,14 @@
  * Rate Limited: 500 req/min (admin dashboard)
  * - Returns all players with active anti-cheat flags
  * - Supports filtering by reason and resolution status
- * - Admin-only access (rank >= 5)
+ * - Admin-only access
  * - Includes flag details and occurrence counts
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import type { Database } from '@/types/database';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -24,6 +26,58 @@ import {
   ErrorCode,
 } from '@/lib';
 
+type PlayerFlag = Database['public']['Tables']['player_flags']['Row'];
+type PlayerRow = Database['public']['Tables']['players']['Row'];
+
+interface FlagGroup {
+  username: string;
+  totalFlags: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  flags: PlayerFlag[];
+  latestFlagDate: string | null;
+  oldestFlagDate: string | null;
+}
+
+interface FlagResponse {
+  id: string;
+  flagType: string;
+  severity: string;
+  description: string;
+  evidence: null;
+  metadata: null;
+  occurrenceCount: number;
+  createdAt: string;
+  resolved: boolean;
+  resolvedBy: null;
+  resolvedAt: null;
+}
+
+interface EnrichedPlayerData {
+  username: string;
+  totalFlags: number;
+  severityCounts: {
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+  };
+  flags: FlagResponse[];
+  latestFlagDate: string | null;
+  oldestFlagDate: string | null;
+  playerInfo: {
+    rank: number | null;
+    resources: {
+      metal: number | null;
+      energy: number | null;
+    };
+    createdAt: string | null;
+    lastActive: null;
+  } | null;
+}
+
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
@@ -31,22 +85,15 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('flagged-players');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
-    if (!username) return NextResponse.json({ success: false, error: 'Username parameter required' }, { status: 400 });
-    const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
-    }
-
     const reasonFilter = searchParams.get('reason');
     const resolved = searchParams.get('resolved') === 'true';
 
-    // Build Supabase query
+    const supabase = createServiceClient();
+
     let query = supabase
       .from('player_flags')
       .select('*');
@@ -61,18 +108,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       return createErrorFromException(flagsError, ErrorCode.INTERNAL_ERROR);
     }
 
-    // In-memory aggregation (replaces MongoDB $group pipeline)
-    const groupedMap = new Map<string, {
-      username: string;
-      totalFlags: number;
-      criticalCount: number;
-      highCount: number;
-      mediumCount: number;
-      lowCount: number;
-      flags: any[];
-      latestFlagDate: string | null;
-      oldestFlagDate: string | null;
-    }>();
+    const groupedMap = new Map<string, FlagGroup>();
 
     for (const flag of (allFlags || [])) {
       const key = flag.player_username;
@@ -93,10 +129,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       const group = groupedMap.get(key)!;
       group.totalFlags++;
       group.mediumCount++;
-
       group.flags.push(flag);
 
-      // Track date range
       const flagDate = flag.created_at;
       if (flagDate) {
         if (!group.latestFlagDate || flagDate > group.latestFlagDate) {
@@ -108,7 +142,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       }
     }
 
-    // Convert map to array and sort
     const flaggedPlayers = Array.from(groupedMap.values())
       .sort((a, b) => {
         if (b.criticalCount !== a.criticalCount) return b.criticalCount - a.criticalCount;
@@ -117,14 +150,37 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         return b.totalFlags - a.totalFlags;
       });
 
-    // Enrich with player details
-    const enrichedData = await Promise.all(
-      flaggedPlayers.map(async (fp) => {
+    const enrichedData: EnrichedPlayerData[] = await Promise.all(
+      flaggedPlayers.map(async (fp): Promise<EnrichedPlayerData> => {
         const { data: player } = await supabase
           .from('players')
           .select('*')
           .eq('username', fp.username)
           .single();
+
+        const flags: FlagResponse[] = fp.flags.map((flag): FlagResponse => ({
+          id: flag.id,
+          flagType: 'unknown',
+          severity: 'MEDIUM',
+          description: flag.reason,
+          evidence: null,
+          metadata: null,
+          occurrenceCount: 1,
+          createdAt: flag.created_at,
+          resolved: flag.resolved,
+          resolvedBy: null,
+          resolvedAt: null,
+        }));
+
+        const playerInfo = player ? {
+          rank: player.rank,
+          resources: {
+            metal: player.resources_metal,
+            energy: player.resources_energy,
+          },
+          createdAt: player.created_at,
+          lastActive: null,
+        } : null;
 
         return {
           username: fp.username,
@@ -133,51 +189,30 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
             critical: fp.criticalCount,
             high: fp.highCount,
             medium: fp.mediumCount,
-            low: fp.lowCount
+            low: fp.lowCount,
           },
-          flags: fp.flags.map((flag: any) => ({
-            id: flag.id,
-            flagType: 'unknown',
-            severity: 'MEDIUM',
-            description: flag.reason,
-            evidence: null,
-            metadata: null,
-            occurrenceCount: 1,
-            createdAt: flag.created_at,
-            resolved: flag.resolved,
-            resolvedBy: null,
-            resolvedAt: null
-          })),
+          flags,
           latestFlagDate: fp.latestFlagDate,
           oldestFlagDate: fp.oldestFlagDate,
-          playerInfo: player ? {
-            rank: player.rank,
-            resources: {
-              metal: player.resources_metal,
-              energy: player.resources_energy
-            },
-            createdAt: player.created_at,
-            lastActive: null
-          } : null
+          playerInfo,
         };
-      })
+      }),
     );
 
-    // Calculate summary statistics
     const stats = {
       totalFlaggedPlayers: flaggedPlayers.length,
       totalFlags: flaggedPlayers.reduce((sum, p) => sum + p.totalFlags, 0),
       criticalPlayers: flaggedPlayers.filter(p => p.criticalCount > 0).length,
       highPlayers: flaggedPlayers.filter(p => p.highCount > 0).length,
       mediumPlayers: flaggedPlayers.filter(p => p.mediumCount > 0).length,
-      lowPlayers: flaggedPlayers.filter(p => p.lowCount > 0).length
+      lowPlayers: flaggedPlayers.filter(p => p.lowCount > 0).length,
     };
 
     log.info('Flagged players retrieved', {
       totalFlaggedPlayers: stats.totalFlaggedPlayers,
       totalFlags: stats.totalFlags,
       criticalPlayers: stats.criticalPlayers,
-      adminUser: username,
+      adminUser: auth.username,
     });
 
     return NextResponse.json({
@@ -186,8 +221,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       stats,
       filters: {
         reason: reasonFilter || 'all',
-        resolved
-      }
+        resolved,
+      },
     });
 
   } catch (error) {
@@ -197,25 +232,3 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     endTimer();
   }
 }));
-
-/**
- * 📝 IMPLEMENTATION NOTES:
- * - Fetches all flags from player_flags table
- * - Aggregates in-memory via Map/Array (replaces MongoDB $group pipeline)
- * - Enriches data with current player stats
- * - Supports filtering by reason and resolution status
- * - Returns summary statistics for admin dashboard
- * - Sorted by severity (CRITICAL first) then flag count
- * 
- * 🔐 SECURITY:
- * - Admin-only access (rank >= 5)
- * - No sensitive data exposure
- * - Read-only operation
- * 
- * 📊 RESPONSE STRUCTURE:
- * {
- *   success: true,
- *   data: [{ username, flags, severityCounts, playerInfo }],
- *   stats: { totalFlaggedPlayers, totalFlags, criticalPlayers, ... }
- * }
- */

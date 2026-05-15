@@ -52,7 +52,7 @@ export function Card({
   const content = (
     <div
       className={`
-        bg-bg-secondary border border-border-light rounded-lg
+        bg-[--shadow] border border-[--border] rounded-lg
         ${paddingClasses[padding]}
         ${isInteractive ? 'transition-all duration-200' : ''}
         ${clickable || onClick ? 'cursor-pointer' : ''}

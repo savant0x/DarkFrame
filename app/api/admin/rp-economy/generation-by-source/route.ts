@@ -1,11 +1,13 @@
 /**
  * @file app/api/admin/rp-economy/generation-by-source/route.ts
  * @created 2025-10-20
+ * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  * @overview API endpoint for RP generation breakdown by source
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -27,26 +29,32 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-generation-by-source');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const searchParams = request.nextUrl.searchParams;
-    const username = searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
+    const period = searchParams.get('period') || '7d';
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
-    }
+    const { data: players } = await supabase
+      .from('players')
+      .select('username, research_points');
 
-    const period = searchParams.get('period') || '7d';
+    const totalRP = (players || []).reduce((sum: number, p: { research_points: number | null }) => sum + (p.research_points || 0), 0);
 
     log.info('RP generation by source retrieved', {
-      sourceCount: 0,
-      totalGeneration: 0,
+      totalRP,
+      playerCount: players?.length || 0,
       period,
     });
 
-    return NextResponse.json({ sources: [] });
+    return NextResponse.json({
+      success: true,
+      totalRP,
+      playerCount: players?.length || 0,
+      period,
+    });
 
   } catch (error) {
     log.error('Failed to fetch generation by source', error instanceof Error ? error : new Error(String(error)));

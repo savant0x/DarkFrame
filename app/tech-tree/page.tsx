@@ -1,20 +1,9 @@
-// ============================================================
-// FILE: app/tech-tree/page.tsx
-// CREATED: 2025-01-18
-// LAST MODIFIED: 2025-01-18
-// ============================================================
-// OVERVIEW:
-// Technology research tree page allowing players to unlock new
-// capabilities and upgrades. Features include fast travel (Troop Transport),
-// enhanced resource gathering, combat bonuses, and special abilities.
-// ============================================================
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Zap, 
+import {
+  Zap,
   ArrowLeft,
   Rocket,
   Pickaxe,
@@ -30,13 +19,11 @@ import {
 } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import BackButton from '@/components/BackButton';
-
-// ============================================================
-// TYPE DEFINITIONS
-// ============================================================
+import GameLayout from '@/components/GameLayout';
+import { StatsPanel, ControlsPanel, TopNavBar } from '@/components';
 
 interface TechTreePageProps {
-  embedded?: boolean; // When true, renders without TopNavBar and GameLayout
+  embedded?: boolean;
 }
 
 interface Technology {
@@ -45,7 +32,7 @@ interface Technology {
   description: string;
   icon: string;
   cost: number;
-  researchTime: number; // in seconds
+  researchTime: number;
   prerequisites: string[];
   unlocked: boolean;
   researching: boolean;
@@ -53,10 +40,6 @@ interface Technology {
   category: 'movement' | 'combat' | 'economy' | 'special';
   effects: string[];
 }
-
-// ============================================================
-// MOCK TECHNOLOGIES
-// ============================================================
 
 const TECHNOLOGIES: Technology[] = [
   {
@@ -137,10 +120,6 @@ const TECHNOLOGIES: Technology[] = [
     category: 'special',
     effects: ['Reveal nearby enemy positions', 'View enemy unit counts']
   },
-  
-  // ============================================================
-  // BOT HUNTER TECH BRANCH
-  // ============================================================
   {
     id: 'bot-hunter',
     name: 'Bot Hunter',
@@ -251,29 +230,12 @@ const TECHNOLOGIES: Technology[] = [
   }
 ];
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
-
-/**
- * Tech Tree Page Component
- * 
- * Displays available technologies and allows players to:
- * - View technology descriptions and costs
- * - Research new technologies
- * - Track research progress
- * - View unlocked technologies
- */
 export default function TechTreePage({ embedded = false }: TechTreePageProps = {}) {
   const router = useRouter();
   const { player, refreshGameState } = useGameContext();
   const [technologies, setTechnologies] = useState<Technology[]>(TECHNOLOGIES);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // ============================================================
-  // ICON MAPPING
-  // ============================================================
 
   const getIcon = (iconName: string) => {
     const icons: Record<string, React.ReactNode> = {
@@ -288,13 +250,6 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
     return icons[iconName] || <Zap className="w-8 h-8" />;
   };
 
-  // ============================================================
-  // ACTION HANDLERS
-  // ============================================================
-
-  /**
-   * Start researching a technology
-   */
   const handleResearch = async (techId: string) => {
     setIsLoading(true);
     setError(null);
@@ -309,14 +264,11 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
       const data = await response.json();
 
       if (data.success) {
-        // Update local state
         setTechnologies(prev =>
           prev.map(tech =>
             tech.id === techId ? { ...tech, researching: true } : tech
           )
         );
-        
-        // Refresh player data to update resources
         await refreshGameState?.();
       } else {
         setError(typeof data.error === 'string' ? data.error : (data.message || 'Failed to start research'));
@@ -329,26 +281,19 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
     }
   };
 
-  /**
-   * Check if technology can be researched
-   */
   const canResearch = (tech: Technology): boolean => {
     if (!player) return false;
     if (tech.unlocked || tech.researching) return false;
     if (player.resources.metal < tech.cost) return false;
-    
-    // Check prerequisites
+
     for (const prereqId of tech.prerequisites) {
       const prereq = technologies.find(t => t.id === prereqId);
       if (!prereq?.unlocked) return false;
     }
-    
+
     return true;
   };
 
-  /**
-   * Get category color
-   */
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       movement: 'cyan',
@@ -359,19 +304,15 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
     return colors[category] || 'gray';
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
-
   if (!player) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-blue-900/20 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-[--void] flex items-center justify-center">
         <div className="text-center">
           <p className="text-white/70 mb-4">Loading player data...</p>
           {!embedded && (
             <button
               onClick={() => router.push('/game')}
-              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded"
+              className="bg-[--electric] hover:opacity-80 text-white font-bold py-2 px-4 rounded"
             >
               Return to Game
             </button>
@@ -381,30 +322,35 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
     );
   }
 
+  const categoryStyles: Record<string, { bg: string; border: string; text: string }> = {
+    movement: { bg: 'bg-[--electric]/10', border: 'border-[--electric]/20', text: 'text-[--electric]' },
+    combat: { bg: 'bg-[--neon-red]/10', border: 'border-[--neon-red]/20', text: 'text-[--neon-red]' },
+    economy: { bg: 'bg-[--neon-yellow]/10', border: 'border-[--neon-yellow]/20', text: 'text-[--neon-yellow]' },
+    special: { bg: 'bg-[--neon-pink]/10', border: 'border-[--neon-pink]/20', text: 'text-[--neon-pink]' },
+  };
+
   const renderTechTreeContent = () => (
-    <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-700 p-6 flex-shrink-0">
+    <div className="bg-[--card] rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+      <div className="bg-[--void] border-b border-[--border] p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Zap className="w-8 h-8 text-cyan-400" />
+            <Zap className="w-8 h-8 text-[--electric]" />
             <h1 className="text-3xl font-bold text-white">Technology Tree</h1>
           </div>
           <div className="text-right">
             <p className="text-white/50 text-sm">Available Metal</p>
-            <p className="text-2xl font-bold text-gray-400">⚙️ {player.resources.metal.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-white/60">⚙️ {player.resources.metal.toLocaleString()}</p>
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400">
+          <div className="bg-[--neon-red]/10 border border-[--neon-red]/20 rounded-lg p-3 text-[--neon-red]">
             {error}
           </div>
         )}
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        {/* Categories */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {technologies.map(tech => {
             const color = getCategoryColor(tech.category);
@@ -412,35 +358,35 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
             const isLocked = tech.prerequisites.some(
               prereqId => !technologies.find(t => t.id === prereqId)?.unlocked
             );
+            const styles = categoryStyles[tech.category] || categoryStyles.movement;
 
             return (
               <div
                 key={tech.id}
-                className={`bg-gray-900/60 backdrop-blur-sm border-2 rounded-lg overflow-hidden transition-all ${
+                className={`bg-[--card] border-2 rounded-lg overflow-hidden transition-all ${
                   tech.unlocked
-                    ? 'border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
+                    ? 'border-[--synth]/20'
                     : tech.researching
-                    ? 'border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                    ? 'border-[--electric]/20'
                     : canStartResearch
-                    ? `border-${color}-500/30 hover:border-${color}-500/50`
-                    : 'border-gray-700/30'
+                    ? `${styles.border} hover:opacity-80`
+                    : 'border-[--border]'
                 }`}
               >
-                {/* Header */}
-                <div className={`bg-gradient-to-r from-${color}-500/20 to-${color}-500/10 border-b border-${color}-500/30 p-4`}>
+                <div className={`${styles.bg} border-b ${styles.border} p-4`}>
                   <div className="flex items-center justify-between mb-2">
-                    <div className={`text-${color}-400`}>{getIcon(tech.icon)}</div>
+                    <div className={styles.text}>{getIcon(tech.icon)}</div>
                     {tech.unlocked ? (
-                      <div className="bg-green-500/20 border border-green-500/50 rounded-full p-2">
-                        <Check className="w-5 h-5 text-green-400" />
+                      <div className="bg-[--synth]/15 border border-[--synth]/25 rounded-full p-2">
+                        <Check className="w-5 h-5 text-[--synth]" />
                       </div>
                     ) : tech.researching ? (
-                      <div className="bg-blue-500/20 border border-blue-500/50 rounded-full p-2">
-                        <Clock className="w-5 h-5 text-blue-400 animate-spin" />
+                      <div className="bg-[--electric]/15 border border-[--electric]/25 rounded-full p-2">
+                        <Clock className="w-5 h-5 text-[--electric] animate-spin" />
                       </div>
                     ) : isLocked ? (
-                      <div className="bg-gray-700/50 rounded-full p-2">
-                        <Lock className="w-5 h-5 text-gray-500" />
+                      <div className="bg-[--card] rounded-full p-2">
+                        <Lock className="w-5 h-5 text-white/40" />
                       </div>
                     ) : null}
                   </div>
@@ -448,21 +394,18 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
                   <p className="text-sm text-white/70 capitalize">{tech.category}</p>
                 </div>
 
-                {/* Content */}
                 <div className="p-4">
                   <p className="text-white/80 text-sm mb-4">{tech.description}</p>
 
-                  {/* Effects */}
                   <div className="space-y-2 mb-4">
                     {tech.effects.map((effect, index) => (
                       <div key={index} className="flex items-start gap-2 text-sm">
-                        <TrendingUp className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+                        <TrendingUp className="w-4 h-4 text-[--synth] flex-shrink-0 mt-0.5" />
                         <span className="text-white/70">{effect}</span>
                       </div>
                     ))}
                   </div>
 
-                  {/* Prerequisites */}
                   {tech.prerequisites.length > 0 && (
                     <div className="mb-4">
                       <p className="text-xs text-white/50 mb-1">Requires:</p>
@@ -473,8 +416,8 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
                             key={prereqId}
                             className={`inline-block text-xs px-2 py-1 rounded mr-2 mb-1 ${
                               prereq?.unlocked
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                                ? 'bg-[--synth]/15 text-[--synth] border border-[--synth]/25'
+                                : 'bg-[--neon-red]/15 text-[--neon-red] border border-[--neon-red]/25'
                             }`}
                           >
                             {prereq?.name || prereqId}
@@ -484,18 +427,17 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
                     </div>
                   )}
 
-                  {/* Cost and Action */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between pt-4 border-t border-[--border]">
                     <div>
                       <p className="text-xs text-white/50">Cost</p>
-                      <p className="text-lg font-bold text-yellow-400">{tech.cost.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-[--neon-yellow]">{tech.cost.toLocaleString()}</p>
                     </div>
                     {tech.unlocked ? (
-                      <span className="bg-green-500/20 text-green-400 font-bold px-4 py-2 rounded border border-green-500/50">
+                      <span className="bg-[--synth]/15 text-[--synth] font-bold px-4 py-2 rounded border border-[--synth]/25">
                         Unlocked
                       </span>
                     ) : tech.researching ? (
-                      <span className="bg-blue-500/20 text-blue-400 font-bold px-4 py-2 rounded border border-blue-500/50">
+                      <span className="bg-[--electric]/15 text-[--electric] font-bold px-4 py-2 rounded border border-[--electric]/25">
                         Researching...
                       </span>
                     ) : (
@@ -504,8 +446,8 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
                         disabled={!canStartResearch || isLoading}
                         className={`font-bold px-4 py-2 rounded transition-all ${
                           canStartResearch
-                            ? `bg-${color}-600 hover:bg-${color}-700 text-white border border-${color}-500/50`
-                            : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                            ? `${styles.text} bg-[--card] border ${styles.border} hover:opacity-80`
+                            : 'bg-[--card] text-white/40 cursor-not-allowed'
                         }`}
                       >
                         Research
@@ -521,33 +463,22 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps = {
     </div>
   );
 
-  // If embedded, return just the content
   if (embedded) {
     return renderTechTreeContent();
   }
 
-  // Otherwise, return standalone page (shouldn't be used per project rules)
-  return renderTechTreeContent();
+  return (
+    <>
+      <TopNavBar />
+      <GameLayout
+        statsPanel={<StatsPanel />}
+        controlsPanel={<ControlsPanel />}
+        tileView={
+          <div className="h-full w-full overflow-auto bg-[--void]">
+            {renderTechTreeContent()}
+          </div>
+        }
+      />
+    </>
+  );
 }
-
-// ============================================================
-// IMPLEMENTATION NOTES:
-// ============================================================
-// - Displays technology tree with categories (movement, combat, economy, special)
-// - Troop Transport technology enables fast travel (5 spaces vs 1)
-// - Bot Hunter tech branch (6 tiers):
-//   * T1: Bot Hunter - Unlock scanner, +25% loot
-//   * T2: Advanced Tracking - 2x radius, 50% faster cooldown, +75% loot
-//   * T3: Bot Magnet - Attract bots to location
-//   * T4: Bot Concentration Zones - Control spawn areas
-//   * T5: Bot Summoning Circle - Spawn specific bot types
-//   * T6: Fast Travel Network - Waypoint system
-// - Shows prerequisites, costs, and effects for each technology
-// - Research system with API integration (/api/research endpoint)
-// - Visual feedback for unlocked, researching, and locked states
-// - Color-coded by category for easy identification
-// - Glassmorphism design matching game theme
-// - Back button and metal display in header
-// ============================================================
-// END OF FILE
-// ============================================================

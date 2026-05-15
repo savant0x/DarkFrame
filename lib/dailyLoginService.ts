@@ -26,8 +26,8 @@ export interface LoginStatus {
   streakAtRisk: boolean;
 }
 
-const BASE_DAILY_RP = 100;
-const STREAK_BONUS_PER_DAY = 10;
+const BASE_DAILY_RP = 30;
+const STREAK_BONUS_PER_DAY = 5;
 const MAX_STREAK_DAYS = 7;
 const STREAK_BREAK_HOURS = 24;
 
@@ -49,7 +49,7 @@ export async function checkDailyLogin(username: string): Promise<DailyLoginResul
 
     let newStreak = player.login_streak || 0;
     let streakBroken = false;
-    if (hoursSinceLastLogin >= STREAK_BREAK_HOURS) { streakBroken = newStreak > 0; newStreak = 1; }
+    if (hoursSinceLastLogin > STREAK_BREAK_HOURS) { streakBroken = newStreak > 0; newStreak = 1; }
     else { newStreak += 1; }
 
     const effectiveStreak = Math.min(newStreak, MAX_STREAK_DAYS);

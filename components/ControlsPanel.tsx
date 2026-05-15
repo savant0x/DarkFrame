@@ -1,13 +1,12 @@
 'use client';
 
 import React from 'react';
-import { MapPin, Flag } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import MovementControls from './MovementControls';
-import type { FlagBearer } from '@/types';
 import { TerrainType } from '@/types';
 
-interface ControlsPanelProps { flagBearer?: FlagBearer | null; onBeforeMove?: () => void; }
+interface ControlsPanelProps { onBeforeMove?: () => void; }
 
 function getTerrainColor(terrain: string): string {
   switch (terrain) {
@@ -24,7 +23,7 @@ function getTerrainColor(terrain: string): string {
   }
 }
 
-export default function ControlsPanel({ flagBearer, onBeforeMove }: ControlsPanelProps) {
+export default function ControlsPanel({ onBeforeMove }: ControlsPanelProps) {
   const { player, currentTile } = useGameContext();
 
   return (
@@ -36,11 +35,13 @@ export default function ControlsPanel({ flagBearer, onBeforeMove }: ControlsPane
             <MapPin className="w-3.5 h-3.5 text-[--electric]" /> POSITION
           </div>
           <div className="p-2.5 text-center">
-            <div className="text-lg font-mono font-bold text-[--text-1] mb-1.5">({player.currentPosition.x}, {player.currentPosition.y})</div>
+            <div className="text-lg font-mono font-bold text-[--text-1] mb-1.5">({player.currentPosition?.x || 75}, {player.currentPosition?.y || 75})</div>
             {currentTile && (
               <div className="flex items-center justify-center gap-2">
                 <span className="text-xs text-[--text-2]">Terrain:</span>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${getTerrainColor(currentTile.terrain)}`}>{currentTile.terrain}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${getTerrainColor(currentTile.terrain)}`}>
+                  {currentTile.botAtLocation?.isBeerBase ? '🍺 Base' : currentTile.occupiedByBase ? '🏠 Base' : currentTile.terrain}
+                </span>
               </div>
             )}
           </div>

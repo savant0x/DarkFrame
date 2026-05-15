@@ -2,9 +2,9 @@
 
 > Strategic vision, milestone planning, and feature evolution
 
-**Last Updated:** 2026-05-06
+**Last Updated:** 2026-05-11
 **Project Started:** October 16, 2025
-**Current Status:** Economy Rebalance Planning — Research Complete, Implementation Pending
+**Current Status:** Factory & Unit Redesign — Complete, Awaiting DB Reset
 
 ---
 
@@ -32,71 +32,43 @@ Build a **persistent multiplayer tile-based strategy game** where players compet
 - 15+ FIDs closed and archived
 
 ### 🔄 In Progress
-- Economy Rebalance: Research complete, implementation pending
-- 4-phase balance plan documented and ready to execute
+- None — all current FIDs complete
 
 ### 📋 Planned
-- Phase 1: Critical fixes (multipliers, diggers, base harvest, XP)
-- Phase 2: New sinks (upkeep, durability, stamina, PvP burn)
-- Phase 3: Progression (tiers, tech tree, VIP, shrine)
-- Phase 4: Long-term health (decay, achievements, content cadence)
+- DB wipe and re-seed (required for all balance changes to take effect)
+- Bot dynamic scaling (new feature)
+- Clan bank upgrade RP costs (new feature)
+- WMD component RP surcharge (new feature)
+- Battle service full multi-phase combat implementation
+- After-Action Report text generation
+- Factory archetype assignment on map generation
+- Shrine sacrifice-digger asymptotic curve testing
 
 ---
 
-## 🏗️ Implementation Phases
+## 🏗️ Implementation Phases — ALL COMPLETE
 
-### Phase 1: Critical Economy Fixes (FID-20260506-BALANCE-P1)
-**Priority:** CRITICAL
-**Focus:** Stop the bleeding — fix the most broken systems first
+### Phase 1-4: Economy Rebalance (FID-20260508-BALANCE-V2) ✅
+**Status:** COMPLETE — 16 changes across 14 files
+- Additive multipliers with diminishing returns ✅
+- Digger exponential decay ✅
+- Base harvest 400-750 ✅
+- XP per harvest 3 + polynomial curve ✅
+- Resource decay, PvP burn, army balance, flag, terrain, auto-farm, banks, forests, achievements ✅
 
-- Convert multipliers from multiplicative to additive with diminishing returns
-- Implement digger exponential decay (0-3 diggers per 12h, not hundreds)
-- Reduce base harvest (400-750, down from 800-1,500)
-- Reduce XP per harvest (3, down from 20) + polynomial curve
-- Preserve inventory on move (bug fix)
-
-**Expected Impact:** Daily income drops from ~193M to ~10-15M resources
-
-### Phase 2: New Resource Sinks (FID-20260506-BALANCE-P2)
-**Priority:** HIGH
-**Focus:** Add the sinks that were completely missing
-
-- Unit upkeep (exponential scaling past supply cap)
-- Auto-farm tool durability (decay + repair costs)
-- Stamina system (soft diminishing, never zero)
-- PvP resource destruction (20% burn)
-
-**Expected Impact:** Daily sinks of ~200K-1M+ resources
-
-### Phase 3: Progression Rebalance (FID-20260506-BALANCE-P3)
-**Priority:** HIGH
-**Focus:** Make progression take months/years, not days
-
-- Tier unlock hybrid costs (RP + metal)
-- Tech tree rebalance (level requirements, hybrid costs, fix API)
-- VIP rebalance (+50% additive, convenience features)
-- Shrine rebalance (lower costs, diminishing stacking)
-- Harvest milestone RP reduction (1,500/day, down from 6,000)
-
-**Expected Impact:** Time to max progression: 6-12 months, not 1-2 days
-
-### Phase 4: Long-Term Health (FID-20260506-BALANCE-P4)
-**Priority:** MEDIUM
-**Focus:** Keep the game healthy for years
-
-- Resource decay (0.5% daily above 1M threshold)
-- Territory decay (uncontested tiles revert)
-- Cave difficulty tiers (harder = better drops)
-- Combat shrine buffs (temporary PvP boosts)
-- Achievement system (horizontal progression, no permanent stat boosts)
-- Content cadence (monthly events, quarterly map events, 6-month expansions)
-
-**Expected Impact:** Sustainable 2-3 year lifecycle without forced resets
+### Factory & Unit Redesign (FID-20260511-FACTORY-UNIT-REDESIGN) ✅
+**Status:** COMPLETE — 20+ files modified
+- 65 unit types → 20 focused units (4 archetypes × 5 tiers) ✅
+- Linear slot regen → Burst+Decay model ✅
+- Simple STR vs DEF → Multi-phase combat algorithm ✅
+- Map entropy, terrain modifiers, factory archetypes ✅
+- Operational Data currency ✅
 
 ---
 
 ## 🔥 Key Balance Numbers
 
+### Economy (FID-20260508-BALANCE-V2)
 | System | Before | After |
 |--------|--------|-------|
 | Max multiplier | 8.8x+ (unbounded) | ~3-4x (additive diminishing) |
@@ -106,15 +78,27 @@ Build a **persistent multiplayer tile-based strategy game** where players compet
 | XP per harvest | 20 | 3 |
 | XP to level 30 | 29K | ~1.23M |
 | Tier 5 unlock | Level 30, 50 RP | Level 50, 750 RP + 10M metal |
-| Unit upkeep | None | Exponential past supply cap |
-| Auto-farm decay | None | Tool durability + repair |
-| Stamina | None | Soft diminishing (never zero) |
 | VIP resource bonus | 2x multiplicative | +50% additive |
 | PvP destruction | None | 20% burned |
 | Shrine max | +100% | +70% (diminishing) |
 | Daily RP from milestones | 6,000 | 1,500 |
 | Daily resources (full sweep) | ~193M | ~10-15M |
 | Time to max progression | 1-2 days | 6-12 months |
+
+### Factory & Units (FID-20260511-FACTORY-UNIT-REDESIGN)
+| System | Before | After |
+|--------|--------|-------|
+| Unit types | 65 (mirrored STR/DEF) | 20 (4 archetypes × 5 tiers) |
+| Cost scaling | Flat ~33-40 metal/STR | Orthogonal (30-85 metal/STR by tier) |
+| Slot scaling | Flat 100-3000 slots | Orthogonal (10-2.5 slots/STR by tier) |
+| Factory slots L1→L10 | 5,000→9,500 (linear) | 5,000→~41,000 (polynomial) |
+| Slot regen | Linear 416→791/hr | Burst 80% + 20% asymptotic decay |
+| Factory defense L10 | 500,000 | ~260,000 (constrained polynomial) |
+| Upgrade cost L10 cumulative | 112K metal | ~357K metal |
+| Map entropy | None | -1 level per 72h unoccupied |
+| Terrain modifiers | None | 5 types (Wasteland/Metal/Energy/Cave/Forest) |
+| Combat | STR vs DEF subtraction | Multi-phase (Artillery→Support→Vanguard→Casualties) |
+| Prestige currency | None | Operational Data (1 per 100 slots cycled) |
 
 ---
 
@@ -139,18 +123,37 @@ Build a **persistent multiplayer tile-based strategy game** where players compet
 
 ---
 
-## 🚀 Post-Balance Roadmap
+## 🚀 Post-Reset Roadmap
 
-After all 4 phases are complete:
+After DB reset and testing confirms all systems work:
 
-1. **Payment Integration** — Stripe for VIP purchases
-2. **Production Deployment** — Vercel/Railway hosting
-3. **Real-Time Systems** — WebSocket for live updates
-4. **Mobile Responsive** — Mobile-friendly UI
-5. **Admin Tools** — Economy balancing dashboard, player moderation
-6. **World Events** — Server-wide events that create FOMO
-7. **Alliance System** — Multi-clan cooperation
-8. **Map Expansions** — New terrain types, new areas
+### Immediate Testing
+1. **Factory cycling** — Capture → build → abandon → repeat
+2. **Unit production** — All 20 unit types buildable with correct costs/slots
+3. **PvP combat** — Multi-phase algorithm with intransitive counters
+4. **Map entropy** — Factories degrade after 72h unoccupied
+5. **Operational Data** — Earned from factory cycling, displayed in StatsPanel
+
+### Short-Term (Next 1-2 Sessions)
+6. **Battle Service Full Implementation** — Complete multi-phase combat
+7. **After-Action Report** — Readable combat log text generation
+8. **Factory Archetype Assignment** — Based on terrain during map generation
+9. **Shrine Sacrifice-Digger Testing** — Asymptotic curve verification
+
+### Medium-Term
+10. **Bot Dynamic Scaling** — Bots scale with player progression
+11. **Clan Bank Upgrade RP Costs** — New feature
+12. **WMD Component RP Surcharge** — New feature
+13. **Real-Time Systems** — WebSocket for live updates (replace polling)
+14. **Mobile Responsive** — Mobile-friendly UI
+
+### Long-Term
+15. **Payment Integration** — Stripe for VIP purchases (route exists)
+16. **Production Deployment** — Vercel/Railway hosting
+17. **Admin Tools** — Economy balancing dashboard, player moderation
+18. **World Events** — Server-wide events that create FOMO
+19. **Alliance System** — Multi-clan cooperation
+20. **Map Expansions** — New terrain types, new areas
 
 ---
 

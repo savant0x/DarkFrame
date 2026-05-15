@@ -26,33 +26,30 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { retrieveCheckoutSession } from '@/lib/stripe/stripeService';
 import { grantVIP, recordPaymentTransaction } from '@/lib/stripe/subscriptionService';
 import { VIPTier } from '@/types/stripe.types';
 import { logger } from '@/lib/logger/productionLogger';
+import {
+  withRequestLogging,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+} from '@/lib';
+
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
 
 /**
  * POST /api/stripe/verify-session
  * 
  * Verifies a checkout session and activates VIP immediately if payment succeeded.
+ * Idempotent: safe to call multiple times — checks for existing transaction record.
  * 
  * @param {object} request.body - Request body
  * @param {string} request.body.sessionId - Stripe checkout session ID
  * @returns {object} Success status with VIP details or error message
- * 
- * @example
- * POST /api/stripe/verify-session
- * { "sessionId": "cs_test_..." }
- * 
- * Response:
- * {
- *   "success": true,
- *   "vipActivated": true,
- *   "tier": "basic",
- *   "expiresAt": "2025-11-24T..."
- * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   try {
     const { sessionId } = await request.json();
     
@@ -64,6 +61,24 @@ export async function POST(request: NextRequest) {
     }
     
     logger.info('Verifying checkout session', { sessionId });
+
+    const supabase = createServiceClient();
+
+    const { data: existingTransaction } = await supabase
+      .from('admin_logs')
+      .select('id')
+      .eq('action', 'STRIPE_SESSION_VERIFIED')
+      .eq('target', sessionId)
+      .maybeSingle();
+
+    if (existingTransaction) {
+      logger.info('Session already processed (idempotent)', { sessionId });
+      return NextResponse.json({
+        success: true,
+        vipActivated: true,
+        message: 'VIP already activated for this session'
+      });
+    }
     
     // Retrieve session from Stripe
     const session = await retrieveCheckoutSession(sessionId);
@@ -182,7 +197,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}));
 
 /* ============================================================================
  * IMPLEMENTATION NOTES

@@ -84,49 +84,31 @@ export function getRarityEffect(rarity: string): string {
 
 /**
  * Compute the correct bonus percentage for a new digger based on
- * GAME_CONSTANTS.DIGGER_TIERS diminishing returns spec.
+ * the exponential decay formula: Bonus = 200 × (1 - e^(-0.008×n))
  *
  * @param diggerType - METAL_DIGGER, ENERGY_DIGGER, or UNIVERSAL_DIGGER
- * @param currentCount - How many diggers of this type (or total universal) the player already has
+ * @param currentCount - How many diggers of this type the player already has
  * @returns Bonus percentage to apply (e.g., 2 for +2%)
  */
 export function getDiggerBonus(diggerType: string, currentCount: number): number {
-  const tiers = GAME_CONSTANTS.DIGGER_TIERS;
-  let remaining = currentCount + 1;
-  let bonus = 0;
-
-  for (const tier of tiers) {
-    const tierSize = tier.max === Infinity ? remaining : Math.min(remaining, tier.max - tier.min + 1);
-    if (tierSize <= 0) break;
-    bonus += tierSize * tier.bonusPercent;
-    remaining -= tierSize;
-    if (remaining <= 0) break;
-  }
-
-  if (bonus === 0 && diggerType === 'UNIVERSAL_DIGGER') {
-    return 2; // minimum bonus
-  }
-
+  const DIGGER_BONUS_CAP = 200;
+  const DIGGER_DECAY_CONSTANT = 0.008;
+  const count = currentCount + 1;
+  if (count <= 0) return 0;
+  const bonus = Math.floor(DIGGER_BONUS_CAP * (1 - Math.exp(-DIGGER_DECAY_CONSTANT * count)) * 100) / 100;
   return Math.max(0.5, bonus);
 }
 
 /**
- * Total bonus accumulated from all diggers of a type based on count.
+ * Total bonus accumulated from all diggers based on count.
+ * Uses exponential decay formula: Bonus = 200 × (1 - e^(-0.008×n))
  * Used for displaying tooltips and harvest calculator.
  */
 export function getTotalDiggerBonus(count: number): number {
   if (count === 0) return 0;
-  const tiers = GAME_CONSTANTS.DIGGER_TIERS;
-  let remaining = count;
-  let total = 0;
-  for (const tier of tiers) {
-    const tierSize = tier.max === Infinity ? remaining : Math.min(remaining, tier.max - tier.min + 1);
-    if (tierSize <= 0) break;
-    total += tierSize * tier.bonusPercent;
-    remaining -= tierSize;
-    if (remaining <= 0) break;
-  }
-  return total;
+  const DIGGER_BONUS_CAP = 200;
+  const DIGGER_DECAY_CONSTANT = 0.008;
+  return Math.floor(DIGGER_BONUS_CAP * (1 - Math.exp(-DIGGER_DECAY_CONSTANT * count)) * 100) / 100;
 }
 
 const LEGACY_NAME_RE = /_\d{5,}$/;
@@ -168,9 +150,6 @@ export function normalizeItemRow(row: {
   const cleanName = shouldReplace
     ? pickRandomName(rawType, rawRarity)
     : rawName;
-  if (shouldReplace) {
-    console.log('[ItemUtils] Replacing generic name "' + rawName + '" with "' + cleanName + '" (type=' + rawType + ', rarity=' + rawRarity + ')');
-  }
 
   const category = rawType.includes('DIGGER') ? 'digger' : 'tradeable';
   const description = rawDescription || getRarityEffect(rawRarity);

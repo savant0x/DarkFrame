@@ -2,9 +2,22 @@
 
 > Features that have been successfully implemented and verified.
 
-**Last Updated:** 2026-05-07
-**Total Completed:** 100+ features across 25+ phases
-**Current Phase:** Economy Rebalance — All Phases Implemented
+**Last Updated:** 2026-05-11
+**Total Completed:** 100+ features across 30+ phases
+**Current Phase:** Factory & Unit Redesign — Complete
+
+---
+
+## 2026-05-11 — Factory & Unit System Overhaul
+
+### FID-20260511-FACTORY-UNIT-REDESIGN
+- Complete redesign of factory cycling, unit production, and combat systems
+- 65 unit types → 20 focused units (4 archetypes × 5 tiers)
+- Linear slot regen → Burst+Decay model (80% capture, 20% asymptotic)
+- Simple STR vs DEF combat → Multi-phase algorithm
+- Added Operational Data currency, terrain modifiers, factory archetypes
+- All FIDs archived, TSC 0 errors, Next.js build passes
+- 20+ files modified across types, services, API routes, components, scripts
 
 ---
 

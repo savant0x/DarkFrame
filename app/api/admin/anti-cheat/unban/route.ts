@@ -1,32 +1,74 @@
 /**
  * Admin Unban Player API
+ * Updated 2026-05-15: Fixed auth bypass, actually unbans the player
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import {
+  withRequestLogging,
+  createRouteLogger,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+} from '@/lib';
 
-export async function POST(req: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
+
+export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
+  const log = createRouteLogger('AdminAntiCheatUnbanAPI');
+  const endTimer = log.time('anti-cheat-unban');
+
   try {
+    const auth = await requireAdminAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await req.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
+    const { username } = body;
+    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
+    // Check if player exists
+    const { data: player } = await supabase
+      .from('players')
+      .select('username')
+      .eq('username', username)
+      .single();
+
+    if (!player) {
+      return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
+        message: 'Player not found',
+        username,
+      });
     }
 
+    // Actually unban the player
+    await supabase.from('players').update({
+      is_banned: false,
+      banned_at: null,
+      ban_reason: null,
+    }).eq('username', username);
+
     await supabase.from('admin_logs').insert({
-      admin_username: username,
-      action: 'unban_player',
+      admin_username: auth.username,
+      action: 'ANTI_CHEAT_UNBAN',
       target: username,
       details: {},
     });
 
-    return NextResponse.json({ success: true, message: `${username} unban recorded` });
+    log.info('Anti-cheat unban recorded', {
+      adminUsername: auth.username,
+      targetUsername: username,
+    });
+
+    return NextResponse.json({ success: true, message: `${username} has been unbanned` });
   } catch (error) {
-    console.error('Unban error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to unban player' }, { status: 500 });
+    log.error('Unban error', error instanceof Error ? error : new Error(String(error)));
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+  } finally {
+    endTimer();
   }
-}
+}));

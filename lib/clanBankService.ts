@@ -55,12 +55,21 @@ export async function depositToBank(
   if ((player.resources_energy || 0) < depositEnergy) throw new Error('Insufficient Energy');
   if ((player.research_points || 0) < depositRP) throw new Error('Insufficient Research Points');
 
-  // Update clan bank
-  await supabase.from('clans').update({
-    bank_treasury_metal: (clan.bank_treasury_metal || 0) + depositMetal,
-    bank_treasury_energy: (clan.bank_treasury_energy || 0) + depositEnergy,
-    bank_treasury_rp: (clan.bank_treasury_rp || 0) + depositRP,
-  }).eq('id', clanId);
+  // Update clan bank — conditional on treasury not changing (prevents concurrent deposit overflow)
+  const { error: updateError } = await supabase
+    .from('clans')
+    .update({
+      bank_treasury_metal: (clan.bank_treasury_metal || 0) + depositMetal,
+      bank_treasury_energy: (clan.bank_treasury_energy || 0) + depositEnergy,
+      bank_treasury_rp: (clan.bank_treasury_rp || 0) + depositRP,
+    })
+    .eq('id', clanId)
+    .eq('bank_treasury_metal', clan.bank_treasury_metal || 0)
+    .eq('bank_treasury_energy', clan.bank_treasury_energy || 0);
+
+  if (updateError) {
+    throw new Error('Bank state changed during deposit. Please try again.');
+  }
 
   // Deduct from player
   await supabase.from('players').update({
@@ -113,12 +122,21 @@ export async function withdrawFromBank(
   if (withdrawMetal > (clan.bank_treasury_metal || 0)) throw new Error('Insufficient Metal in bank');
   if (withdrawEnergy > (clan.bank_treasury_energy || 0)) throw new Error('Insufficient Energy in bank');
 
-  // Update clan bank
-  await supabase.from('clans').update({
-    bank_treasury_metal: (clan.bank_treasury_metal || 0) - withdrawMetal,
-    bank_treasury_energy: (clan.bank_treasury_energy || 0) - withdrawEnergy,
-    bank_treasury_rp: (clan.bank_treasury_rp || 0) - withdrawRP,
-  }).eq('id', clanId);
+  // Update clan bank — conditional on treasury not changing (prevents double-spend)
+  const { error: updateError } = await supabase
+    .from('clans')
+    .update({
+      bank_treasury_metal: (clan.bank_treasury_metal || 0) - withdrawMetal,
+      bank_treasury_energy: (clan.bank_treasury_energy || 0) - withdrawEnergy,
+      bank_treasury_rp: (clan.bank_treasury_rp || 0) - withdrawRP,
+    })
+    .eq('id', clanId)
+    .eq('bank_treasury_metal', clan.bank_treasury_metal || 0)
+    .eq('bank_treasury_energy', clan.bank_treasury_energy || 0);
+
+  if (updateError) {
+    throw new Error('Bank state changed during withdrawal. Please try again.');
+  }
 
   // Add to player
   const { data: player } = await supabase.from('players').select('resources_metal, resources_energy, research_points').eq('username', playerId).single();

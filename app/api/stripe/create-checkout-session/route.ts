@@ -1,27 +1,38 @@
 /**
  * Stripe Checkout Session Creation API
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
+ * Updated: 2026-05-15 — Added rate limiting and session auth
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { createCheckoutSession } from '@/lib/stripe';
 import { VIPTier, isValidVIPTier } from '@/types/stripe.types';
 import { ErrorCode } from '@/lib/errors/codes';
 import { logger } from '@/lib/logger/productionLogger';
+import {
+  withRequestLogging,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createErrorFromException,
+} from '@/lib';
 
-export async function POST(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ success: false, message: 'Username required' }, { status: 400 });
     const { tier } = body;
     
     const supabase = createServiceClient();
     const { data: player } = await supabase
       .from('players')
       .select('username, is_vip, vip_expiration, email, stripe_customer_id')
-      .eq('username', username)
+      .eq('username', auth.playerId)
       .maybeSingle();
     
     if (!player) {
@@ -55,7 +66,7 @@ export async function POST(request: NextRequest) {
     const result = await createCheckoutSession({
       userId: player.username,
       username: player.username,
-      email: player.email || username,
+      email: player.email || player.username,
       tier: tier as VIPTier,
       successUrl: `${process.env.NEXT_PUBLIC_APP_URL}/game/vip-upgrade/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/game/vip-upgrade/cancel`,
@@ -92,4 +103,4 @@ export async function POST(request: NextRequest) {
       message: 'An unexpected error occurred. Please try again later.',
     }, { status: 500 });
   }
-}
+}));

@@ -1,6 +1,7 @@
 /**
  * 📅 Created: 2025-01-18
  * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth instead of self-bypass
  * 🎯 OVERVIEW:
  * Ban Player Admin Endpoint
  * 
@@ -10,11 +11,12 @@
  * - Prevents future logins
  * - Requires ban reason and optional duration
  * - Logs all ban actions for accountability
- * - Admin-only access (rank >= 5)
+ * - Admin-only access (verified via session/JWT)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -35,21 +37,16 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('ban-player');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const validated = BanPlayerSchema.parse(body);
     const { username, reason, durationDays, autoResolveFlags } = validated;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
-    }
-
-    // Check if player exists
+    // Check if target player exists
     const { data: player, error: playerError } = await supabase
       .from('players')
       .select('*')
@@ -64,7 +61,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Prevent banning admins
-    if (player.rank && player.rank >= 5) {
+    if (player.is_admin || (player.rank && player.rank >= 5)) {
       return createErrorResponse(ErrorCode.ADMIN_CANNOT_BAN_ADMIN, {
         message: 'Cannot ban admin accounts',
         username,
@@ -75,23 +72,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const bannedAt = new Date();
     const expiresAt = durationDays 
       ? new Date(bannedAt.getTime() + durationDays * 24 * 60 * 60 * 1000)
-      : null; // null = permanent ban
+      : null;
 
+    // Actually ban the player
+    await supabase.from('players').update({
+      is_banned: true,
+      banned_at: bannedAt.toISOString(),
+      ban_reason: reason.trim(),
+    }).eq('username', username);
 
     // Optionally resolve all active flags for this player
     if (autoResolveFlags) {
       await supabase
         .from('player_flags')
-        .update({
-          resolved: true
-        })
+        .update({ resolved: true })
         .eq('player_username', username)
         .eq('resolved', false);
     }
 
     // Log admin action
     await supabase.from('admin_logs').insert({
-      admin_username: username,
+      admin_username: auth.username,
       action: 'BAN_PLAYER',
       target: username,
       details: {
@@ -108,8 +109,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     });
 
     log.info('Player banned successfully', {
-      username,
-      bannedBy: username,
+      adminUsername: auth.username,
+      targetUsername: username,
       isPermanent: !durationDays,
       durationDays: durationDays || 'permanent',
       flagsResolved: autoResolveFlags,
@@ -120,7 +121,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       message: `Player ${username} has been banned`,
       data: {
         username,
-        bannedBy: username,
+        bannedBy: auth.username,
         bannedAt,
         expiresAt,
         isPermanent: !durationDays,
@@ -150,6 +151,9 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('unban-player');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = request.nextUrl;
     const username = searchParams.get('username');
 
@@ -161,14 +165,7 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
-    }
-
-    // Check player exists before update
+    // Check player exists
     const { data: player, error: playerError } = await supabase
       .from('players')
       .select('*')
@@ -182,16 +179,26 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       });
     }
 
-    // Log unban action (players table has no ban columns, so we just log it)
+    // Actually unban the player
+    await supabase.from('players').update({
+      is_banned: false,
+      banned_at: null,
+      ban_reason: null,
+    }).eq('username', username);
+
+    // Log unban action
     await supabase.from('admin_logs').insert({
-      admin_username: username,
+      admin_username: auth.username,
       action: 'UNBAN_PLAYER',
-      target: username
+      target: username,
+      details: {
+        unbannedAt: new Date().toISOString(),
+      }
     });
 
     log.info('Player unbanned successfully', {
-      username,
-      unbannedBy: username,
+      adminUsername: auth.username,
+      targetUsername: username,
     });
 
     return NextResponse.json({
@@ -199,7 +206,7 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       message: `Player ${username} has been unbanned`,
       data: {
         username,
-        unbannedBy: username,
+        unbannedBy: auth.username,
         unbannedAt: new Date()
       }
     });

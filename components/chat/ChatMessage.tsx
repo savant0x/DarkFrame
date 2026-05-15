@@ -236,7 +236,7 @@ export default function ChatMessage({
 
     try {
       // TODO Task 8: Implement /api/chat/item-link endpoint
-      const response = await fetch(`/api/chat/item-link?name=${encodeURIComponent(itemName)}`);
+      const response = await fetch(`/api/chat/item-link?itemName=${encodeURIComponent(itemName)}`);
       const data = await response.json();
 
       if (data.exists) {

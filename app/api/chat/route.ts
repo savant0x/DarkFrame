@@ -16,6 +16,7 @@ import {
   sendGlobalChatMessage,
   getGlobalChatMessages,
   deleteGlobalChatMessage,
+  editGlobalChatMessage,
   type SendMessageRequest,
   type GetMessagesRequest,
   type ChatMessage,
@@ -140,10 +141,10 @@ export async function POST(request: NextRequest) {
     const cleanMessage = filteredResult.filtered;
     const hadProfanity = filteredResult.hadProfanity;
 
-    const spamCheck = await detectSpam(user.username, user.username, cleanMessage);
+    const spamCheck = await detectSpam(username, username, cleanMessage);
     if (spamCheck.isSpam) {
       if (spamCheck.shouldMute) {
-        await muteUserForSpam(user.username, user.username, spamCheck.reason || 'Spam detected');
+        await muteUserForSpam(username, username, spamCheck.reason || 'Spam detected');
       }
       return NextResponse.json({ success: false, error: spamCheck.reason || 'Spam detected', isSpam: true, muted: spamCheck.shouldMute }, { status: 429 });
     }
@@ -172,11 +173,16 @@ export async function PATCH(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
+    const username = auth.playerId;
     const body = await request.json();
-    const user = buildPlayerContext(auth.playerId, auth.player);
-    return NextResponse.json({ success: true });
+    const { messageId, newContent } = body;
+    if (!messageId || !newContent) {
+      return NextResponse.json({ success: false, error: 'messageId and newContent required' }, { status: 400 });
+    }
+    const result = await editGlobalChatMessage(messageId, newContent, username);
+    return NextResponse.json(result);
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Failed to edit message' }, { status: 500 });
   }
 }
 

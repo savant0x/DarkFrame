@@ -2,11 +2,13 @@
  * @file app/api/admin/vip/grant/route.ts
  * @created 2025-10-19
  * @updated 2026-05-03 — Migrated to Supabase
+ * @updated 2026-05-15 — Added requireAdmin auth + audit logging
  * @overview Admin API - Grant VIP status to user
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -22,16 +24,20 @@ import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminVIPGrant);
 
-export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('AdminVIPGrantAPI');
   const endTimer = log.time('grantVIP');
   
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const validated = GrantVIPSchema.parse(body);
 
     log.debug('VIP grant request', { 
-      username: validated.username, 
+      adminUsername: auth.username,
+      targetUsername: validated.username, 
       days: validated.days 
     });
 
@@ -71,8 +77,20 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       });
     }
 
+    await supabase.from('admin_logs').insert({
+      admin_username: auth.username,
+      action: 'VIP_GRANT',
+      target: validated.username,
+      details: {
+        days: validated.days,
+        expiresAt: expirationDate.toISOString(),
+        grantedAt: now.toISOString(),
+      }
+    });
+
     log.info('VIP granted successfully', { 
-      username: validated.username, 
+      adminUsername: auth.username,
+      targetUsername: validated.username, 
       days: validated.days,
       expiresAt: expirationDate.toISOString()
     });

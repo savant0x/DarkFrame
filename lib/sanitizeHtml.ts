@@ -18,22 +18,42 @@
  */
 
 import DOMPurify from 'dompurify';
+import { JSDOM } from 'jsdom';
 
 // Safe HTML tags allowed in user content
 const ALLOWED_TAGS = [
-  'p', 'br', 'strong', 'em', 'u', 's',         // Basic formatting
-  'h1', 'h2', 'h3',                             // Headings
-  'ul', 'ol', 'li',                             // Lists
-  'blockquote',                                 // Quotes
-  'span', 'div',                                // Containers
+  'p', 'br', 'strong', 'em', 'u', 's',
+  'h1', 'h2', 'h3',
+  'ul', 'ol', 'li',
+  'blockquote',
+  'span', 'div',
 ];
 
 // Safe attributes allowed on elements
 const ALLOWED_ATTR = [
-  'style',           // For colors, fonts, alignment
-  'class',           // For Tiptap classes
-  'data-*',          // For Tiptap data attributes
+  'style',
+  'class',
+  'data-*',
 ];
+
+const SANITIZE_OPTIONS = {
+  ALLOWED_TAGS,
+  ALLOWED_ATTR,
+  ALLOW_DATA_ATTR: true,
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
+  FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+  KEEP_CONTENT: true,
+  RETURN_DOM: false,
+  RETURN_DOM_FRAGMENT: false,
+  IN_PLACE: false,
+};
+
+function getServerSanitizer(): typeof DOMPurify.sanitize {
+  const window = new JSDOM('').window;
+  return DOMPurify(window).sanitize;
+}
+
+const serverSanitize = getServerSanitizer();
 
 /**
  * Sanitizes HTML string to prevent XSS attacks
@@ -42,22 +62,10 @@ const ALLOWED_ATTR = [
  */
 export function sanitizeHtml(html: string): string {
   if (typeof window === 'undefined') {
-    // Server-side: return as-is, will be sanitized on client
-    // (DOMPurify requires DOM environment)
-    return html;
+    return serverSanitize(html, SANITIZE_OPTIONS);
   }
 
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
-    ALLOW_DATA_ATTR: true,                    // Allow data-* attributes
-    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input'],
-    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
-    KEEP_CONTENT: true,                       // Keep text content when stripping tags
-    RETURN_DOM: false,                        // Return string not DOM
-    RETURN_DOM_FRAGMENT: false,
-    IN_PLACE: false,                          // Don't modify original
-  });
+  return DOMPurify.sanitize(html, SANITIZE_OPTIONS);
 }
 
 /**
@@ -68,13 +76,12 @@ export function sanitizeHtml(html: string): string {
  */
 export function stripHtml(html: string): string {
   if (typeof window === 'undefined') {
-    // Server-side: basic regex strip
-    return html.replace(/<[^>]*>/g, '');
+    return serverSanitize(html, { ALLOWED_TAGS: [], KEEP_CONTENT: true });
   }
 
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [],                         // No tags allowed
-    KEEP_CONTENT: true,                       // Keep text content
+    ALLOWED_TAGS: [],
+    KEEP_CONTENT: true,
   });
 }
 

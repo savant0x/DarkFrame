@@ -1,11 +1,12 @@
 // ============================================================
 // FILE: app/api/admin/hotkeys/route.ts
 // CREATED: 2025-01-23
-// UPDATED: 2026-05-03 — Migrated to Supabase
+// UPDATED: 2026-05-15 — Fixed auth bypass: use requireAdminAuth for PUT and POST
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { DEFAULT_HOTKEYS, HotkeyConfig, HotkeySettings } from '@/types/hotkey.types';
 import type { Json } from '@/types/database';
 import {
@@ -27,6 +28,9 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-hotkeys');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const supabase = createServiceClient();
     
     const { data: configRow, error } = await supabase
@@ -72,16 +76,11 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
   const endTimer = log.time('update-hotkeys');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const { hotkeys, username } = body;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
-
-    const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
-    }
+    const { hotkeys } = body;
     
     if (!Array.isArray(hotkeys) || hotkeys.length === 0) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Hotkeys must be a non-empty array');
@@ -96,20 +95,21 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
       }
     }
     
+    const supabase = createServiceClient();
+
     const { data: configRow } = await supabase
       .from('bot_config')
       .select('config_value')
       .eq('config_key', 'hotkey_settings')
       .maybeSingle();
     
-    // Parse version from existing config_value, default to 0
     const existingSettings = configRow?.config_value as Record<string, unknown> | undefined;
     const currentVersion = (existingSettings?.version as number) || 0;
     
     const newSettings: HotkeySettings = {
       version: currentVersion + 1,
       lastModified: new Date(),
-      modifiedBy: username,
+      modifiedBy: auth.username,
       hotkeys: hotkeys as HotkeyConfig[],
     };
     
@@ -128,7 +128,7 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
     }
     
     log.info('Hotkey settings updated', {
-      adminUsername: username,
+      adminUsername: auth.username,
       version: newSettings.version,
       hotkeyCount: hotkeys.length,
     });
@@ -151,21 +151,15 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
   const endTimer = log.time('reset-hotkeys');
 
   try {
-    const body = await request.json();
-    const { username } = body;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
-    }
-    
     const resetSettings: HotkeySettings = {
       version: 1,
       lastModified: new Date(),
-      modifiedBy: username,
+      modifiedBy: auth.username,
       hotkeys: DEFAULT_HOTKEYS,
     };
     
@@ -190,7 +184,7 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
     }
     
     log.info('Hotkey settings reset to defaults', {
-      adminUsername: username,
+      adminUsername: auth.username,
       hotkeyCount: DEFAULT_HOTKEYS.length,
     });
     

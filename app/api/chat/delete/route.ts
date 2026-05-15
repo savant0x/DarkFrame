@@ -22,73 +22,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { PlayerContext } from '@/lib/channelService';
 
-// ============================================================================
-// TYPES
-// ============================================================================
-
-interface ChatMessage {
-  id: string;
-  channel_id: string;
-  clan_id?: string;
-  sender_id: string;
-  sender_username: string;
-  sender_level: number;
-  sender_is_vip: boolean;
-  content: string;
-  timestamp: string;
-  edited: boolean;
-  edited_at?: string;
-  is_deleted?: boolean;
-  deleted_at?: string;
-  deleted_by?: string;
-}
-
-interface MessageSoftDeleteData {
-  is_deleted: boolean;
-  deleted_at: string;
-  deleted_by: string;
-}
-
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
-const TABLE_MESSAGES = 'clan_chat_messages';
-
-// ============================================================================
-// AUTHENTICATION (PLACEHOLDER)
-// ============================================================================
-
-async function getAuthenticatedUser(
-  request: NextRequest
-): Promise<PlayerContext | null> {
-  // PLACEHOLDER: Mock user for development
-  return {
-    username: 'TestUser',
-    level: 10,
-    isVIP: false,
-    clanId: undefined,
-    isMuted: false,
-    channelBans: [],
-  };
-}
-
-// ============================================================================
-// DELETE /api/chat/delete - Delete Message
-// ============================================================================
+const TABLE_MESSAGES = 'chat_messages';
 
 export async function DELETE(request: NextRequest) {
   try {
-    const user = await getAuthenticatedUser(request);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.playerId;
 
     const { searchParams } = new URL(request.url);
     const messageId = searchParams.get('messageId');
@@ -100,22 +43,15 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (messageId.length < 8 || messageId.length > 50) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid message ID' },
-        { status: 400 }
-      );
-    }
-
     const supabase = createServiceClient();
 
-    const { data: message } = await supabase
+    const { data: message, error: fetchError } = await supabase
       .from(TABLE_MESSAGES)
       .select('*')
       .eq('id', messageId)
       .single();
 
-    if (!message) {
+    if (fetchError || !message) {
       return NextResponse.json(
         { success: false, error: 'Message not found' },
         { status: 404 }
@@ -129,14 +65,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Check ownership via sender_id (resolve to username from players table)
-    const { data: sender } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', message.sender_id)
-      .maybeSingle();
-
-    if (!sender || sender.username !== user.username) {
+    if (message.sender_id !== username && message.sender_username !== username) {
       return NextResponse.json(
         { success: false, error: 'You can only delete your own messages' },
         { status: 403 }
@@ -144,10 +73,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    
+
     const { error } = await supabase
       .from(TABLE_MESSAGES)
-      .update({ deleted: true })
+      .update({ deleted: true } as never)
       .eq('id', messageId);
 
     if (error) {

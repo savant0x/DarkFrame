@@ -1,7 +1,7 @@
 /**
  * @file app/api/player/profile/route.ts
  * @created 2025-10-18
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2026-05-15 — Added rate limiting to prevent user enumeration
  * @overview Player profile data API endpoint
  * 
  * OVERVIEW:
@@ -10,12 +10,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import {
+  withRequestLogging,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+} from '@/lib';
+
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
 /**
  * GET /api/player/profile
  * Get player's full profile data
  */
-export async function GET(request: NextRequest) {
+export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   try {
     const username = request.nextUrl.searchParams.get('username');
     if (!username) return NextResponse.json({ success: false, error: 'Username parameter required' }, { status: 400 });
@@ -76,4 +83,4 @@ export async function GET(request: NextRequest) {
     console.error('Error loading profile:', error);
     return NextResponse.json({ success: false, error: 'Failed to load profile' }, { status: 500 });
   }
-}
+}));

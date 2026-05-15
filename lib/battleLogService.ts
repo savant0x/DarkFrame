@@ -26,34 +26,69 @@ import {
 export function mapDbBattleLogToDomain(row: Tables<'battle_logs'>): BattleLog {
   const outcome = toBattleOutcome(row.outcome);
   const isAttackerWin = outcome === BattleOutcome.ATTACKER_WIN;
+
+  const rounds = parseRounds(row.rounds);
+  const attackerUnits = parseUnitSnapshots(row, 'attacker');
+  const defenderUnits = parseUnitSnapshots(row, 'defender');
+
   return {
     _id: row.id,
     battleId: row.id,
-    battleType: BattleType.PLAYER_VS_PLAYER,
+    battleType: toBattleType(row.battle_type),
     timestamp: fromISO(row.created_at),
     attackerId: row.attacker_username,
     attackerUsername: row.attacker_username,
     defenderId: row.defender_username,
     defenderUsername: row.defender_username,
-    tileX: 0,
-    tileY: 0,
+    tileX: row.location_x ?? 0,
+    tileY: row.location_y ?? 0,
     outcome,
     winner: isAttackerWin ? row.attacker_username : row.defender_username,
     loser: isAttackerWin ? row.defender_username : row.attacker_username,
-    attackerUnits: [],
-    defenderUnits: [],
+    attackerUnits,
+    defenderUnits,
     attackerSurvivors: [],
     defenderSurvivors: [],
     attackerDamageDealt: row.attacker_strength || 0,
     defenderDamageDealt: row.defender_defense || 0,
-    attackerUnitsLost: 0,
-    defenderUnitsLost: 0,
+    attackerUnitsLost: row.attacker_units_lost ?? 0,
+    defenderUnitsLost: row.defender_units_lost ?? 0,
     totalDamage: row.damage_dealt || 0,
     battleDurationMs: 0,
     attackerLevel: 0,
     defenderLevel: 0,
     resourcesLooted: parseResourceLoot(row.resources_stolen),
   };
+}
+
+function parseRounds(value: Json | null): { unitType: string; quantity: number; strength: number; defense: number; health: number; tier: number; }[] {
+  return [];
+}
+
+function parseUnitSnapshots(row: Tables<'battle_logs'>, side: 'attacker' | 'defender'): { unitType: string; quantity: number; strength: number; defense: number; health: number; tier: number; }[] {
+  const unitsLost = side === 'attacker' ? (row.attacker_units_lost ?? 0) : (row.defender_units_lost ?? 0);
+  const avgStat = side === 'attacker'
+    ? (row.attacker_strength || 0)
+    : (row.defender_defense || 0);
+  if (unitsLost <= 0) return [];
+  return [{
+    unitType: 'unknown',
+    quantity: unitsLost,
+    strength: avgStat,
+    defense: avgStat,
+    health: 0,
+    tier: 1,
+  }];
+}
+
+function toBattleType(value: string | null | undefined): BattleType {
+  if (!value) return BattleType.PLAYER_VS_PLAYER;
+  const normalized = value.toUpperCase();
+  if (normalized === 'INFANTRY') return BattleType.PLAYER_VS_PLAYER;
+  if (normalized === 'BASE') return BattleType.PLAYER_VS_PLAYER;
+  if (normalized === 'FACTORY') return BattleType.PLAYER_VS_FACTORY;
+  if (normalized === 'CLAN_WAR') return BattleType.CLAN_WAR;
+  return BattleType.PLAYER_VS_PLAYER;
 }
 
 // ============================================================================

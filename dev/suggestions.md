@@ -2,10 +2,26 @@
 
 > Dynamic recommendations for system optimization and enhancement
 
-**Last Updated:** 2026-05-06
-**Active Suggestions:** 15
-**Implemented:** 8
+**Last Updated:** 2026-05-11
+**Active Suggestions:** 5
+**Implemented:** 25+
 **Review Cycle:** Weekly
+
+---
+
+## ✅ Implemented (May 11, 2026)
+
+### Factory & Unit Redesign
+- S-FACTORY-01: Burst+Decay slot model — ✅ Implemented
+- S-FACTORY-02: Map entropy (72h degradation) — ✅ Implemented
+- S-FACTORY-03: Terrain modifiers — ✅ Implemented
+- S-FACTORY-04: Factory archetypes — ✅ Implemented
+- S-UNIT-01: Reduce 65 types to 20 focused units — ✅ Implemented
+- S-UNIT-02: Orthogonal cost scaling — ✅ Implemented
+- S-UNIT-03: Intransitive combat (RPS) — ✅ Implemented
+- S-COMBAT-01: Multi-phase combat algorithm — ✅ Implemented
+- S-COMBAT-02: After-Action Report text generation — ✅ Implemented
+- S-ECON-01: Operational Data currency — ✅ Implemented
 
 ---
 

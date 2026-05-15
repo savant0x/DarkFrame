@@ -1,27 +1,23 @@
 /**
  * Session Trends Analytics — Supabase backend
  */
-import { requireAuth } from '@/lib/authMiddleware';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdminAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   const { searchParams } = request.nextUrl;
-  const username = searchParams.get('username');
-  if (!username) return NextResponse.json({ success: false, error: 'Username parameter required' }, { status: 400 });
-
-  const supabase = createServiceClient();
-
-  const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-  if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) return NextResponse.json({ success: false, error: 'Admin required' }, { status: 403 });
-
   const period = searchParams.get('period') || '7d';
 
-  // Active players in period
   const since = new Date();
   if (period === '24h') since.setDate(since.getDate() - 1);
   else if (period === '7d') since.setDate(since.getDate() - 7);
   else since.setDate(since.getDate() - 30);
+
+  const supabase = createServiceClient();
 
   const { count: activeCount } = await supabase
     .from('players')

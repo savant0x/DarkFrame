@@ -146,7 +146,31 @@ export async function summonBots(
 
   // Insert bots into database
   if (botsToInsert.length > 0) {
-    await supabase.from('players').insert(botsToInsert as unknown as TablesInsert<'players'>);
+    const rows: TablesInsert<'players'>[] = botsToInsert.map((bot) => ({
+      username: bot.username ?? `bot_${Date.now()}`,
+      email: bot.email ?? `bot_${Date.now()}@darkframe.game`,
+      password: bot.password ?? `bot_${Date.now()}_pwd`,
+      is_bot: true,
+      is_special_base: false,
+      is_admin: false,
+      level: bot.level ?? 1,
+      xp: bot.xp ?? 0,
+      rank: bot.rank ?? 1,
+      resources_metal: bot.resources?.metal ?? 0,
+      resources_energy: bot.resources?.energy ?? 0,
+      total_strength: bot.totalStrength ?? 0,
+      total_defense: bot.totalDefense ?? 0,
+      current_x: bot.currentPosition?.x ?? 1,
+      current_y: bot.currentPosition?.y ?? 1,
+      base_x: bot.base?.x ?? 1,
+      base_y: bot.base?.y ?? 1,
+      factory_count: 0,
+      inventory_capacity: 2000,
+      research_points: 0,
+      last_bot_summon: new Date().toISOString(),
+      bot_config: bot.botConfig ?? {},
+    }));
+    await supabase.from('players').insert(rows);
   }
 
   // Update player's last summon time

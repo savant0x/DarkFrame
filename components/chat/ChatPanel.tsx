@@ -62,7 +62,8 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const lastMessageTimestampRef = useRef<Date | null>(null);
   const initialLoadDoneRef = useRef<Set<string>>(new Set());
-  const isPollingMessages = true;
+  const [isPollingMessages, setIsPollingMessages] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const channels: ChannelMetadata[] = useMemo(() => {
     const isNewbie = level >= 1 && level <= 5;
@@ -81,6 +82,7 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
     let active = true; let timer: NodeJS.Timeout | null = null;
     const fetchMessages = async () => {
       try {
+        setFetchError(null);
         const since = lastMessageTimestampRef.current ? `&since=${lastMessageTimestampRef.current.toISOString()}` : '';
         const res = await fetch(`/api/chat?channelId=${activeChannel}&limit=${MESSAGE_LOAD_LIMIT}${since}`);
         if (!res.ok) throw new Error('Failed to load messages');
@@ -88,10 +90,23 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
         if (!active) return;
         if (data?.messages && Array.isArray(data.messages)) {
           const newMessages: ChatMessageData[] = data.messages.map((m: any) => ({ id: m.id, channelId: m.channelId, senderId: m.senderId, senderUsername: m.senderUsername, senderLevel: m.senderLevel, senderIsVIP: m.senderIsVIP ?? m.isVIP ?? false, content: m.content || m.message, timestamp: new Date(m.timestamp), edited: m.edited, editedAt: m.editedAt ? new Date(m.editedAt) : undefined }));
-          setMessages(prev => { const updated = new Map(prev); const existing = prev.get(activeChannel) || []; const merged = [...existing, ...newMessages].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime()); updated.set(activeChannel, merged.slice(-100)); return updated; });
+          setMessages(prev => {
+            const updated = new Map(prev);
+            const existing = prev.get(activeChannel) || [];
+            const existingIds = new Set(existing.map(m => m.id));
+            const uniqueNew = newMessages.filter(m => !existingIds.has(m.id));
+            const merged = [...existing, ...uniqueNew].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            updated.set(activeChannel, merged.slice(-100));
+            return updated;
+          });
           if (newMessages.length > 0) lastMessageTimestampRef.current = newMessages[newMessages.length - 1].timestamp;
         }
-      } catch (err) { if (active) console.error('[Chat] Poll error:', err); }
+      } catch (err) {
+        if (active) {
+          console.error('[Chat] Poll error:', err);
+          setFetchError(err instanceof Error ? err.message : 'Failed to load messages');
+        }
+      }
     };
     fetchMessages();
     timer = setInterval(fetchMessages, 2000);
@@ -145,7 +160,17 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
         const data = await res.json();
         if (!active) return;
         if (data?.conversations && Array.isArray(data.conversations)) {
-          setConversations(data.conversations.map((c: any) => ({ id: c.id, otherUserId: c.otherUserId, otherUsername: c.otherUsername, lastMessage: c.lastMessage ? { content: c.lastMessage.content, senderId: c.lastMessage.senderId, timestamp: new Date(c.lastMessage.timestamp), status: c.lastMessage.status } : null, unreadCount: c.unreadCount || 0, updatedAt: new Date(c.updatedAt) })));
+          const newConversations = data.conversations.map((c: any) => ({ id: c.id, otherUserId: c.otherUserId, otherUsername: c.otherUsername, lastMessage: c.lastMessage ? { content: c.lastMessage.content, senderId: c.lastMessage.senderId, timestamp: new Date(c.lastMessage.timestamp), status: c.lastMessage.status } : null, unreadCount: c.unreadCount || 0, updatedAt: new Date(c.updatedAt) }));
+          setConversations(prev => {
+            const existingIds = new Set(prev.map((c: ConversationPreview) => c.id));
+            const uniqueNew = newConversations.filter((c: ConversationPreview) => !existingIds.has(c.id));
+            const merged = [...prev, ...uniqueNew];
+            for (const updated of newConversations) {
+              const idx = merged.findIndex((c: ConversationPreview) => c.id === updated.id);
+              if (idx !== -1) merged[idx] = updated;
+            }
+            return merged.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+          });
         }
       } catch (err) { if (active) console.error('[Chat] Conversations poll error:', err); }
     };
@@ -165,7 +190,13 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
         const data = await res.json();
         if (!active) return;
         if (data?.messages && Array.isArray(data.messages)) {
-          setDmMessages(data.messages.map((m: any) => ({ id: m.id, conversationId: m.conversationId, senderId: m.senderId, recipientId: m.recipientId, content: m.content || m.message, status: m.status, timestamp: new Date(m.timestamp), editedAt: m.editedAt ? new Date(m.editedAt) : undefined, deletedAt: m.deletedAt ? new Date(m.deletedAt) : undefined })));
+          const newDmMessages = data.messages.map((m: any) => ({ id: m.id, conversationId: m.conversationId, senderId: m.senderId, recipientId: m.recipientId, content: m.content || m.message, status: m.status, timestamp: new Date(m.timestamp), editedAt: m.editedAt ? new Date(m.editedAt) : undefined, deletedAt: m.deletedAt ? new Date(m.deletedAt) : undefined }));
+          setDmMessages(prev => {
+            const existingIds = new Set(prev.map((m: DirectMessage) => m.id));
+            const uniqueNew = newDmMessages.filter((m: DirectMessage) => !existingIds.has(m.id));
+            const merged = [...prev, ...uniqueNew].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            return merged;
+          });
         }
       } catch (err) { if (active) console.error('[Chat] DM messages poll error:', err); }
     };
@@ -232,7 +263,13 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
         <div className="flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-[--electric]" />
           <div>
-            <h3 className="text-[13px] font-bold text-[--text-1]">Global Chat</h3>
+            <h3 className="text-[13px] font-bold text-[--text-1]">
+              {activeTab === 'DM'
+                ? (selectedConversationId
+                    ? conversations.find(c => c.id === selectedConversationId)?.otherUsername || 'DM'
+                    : 'Direct Messages')
+                : channels.find(c => c.id === activeChannel)?.name || 'Global Chat'}
+            </h3>
             <p className="text-[10px] text-[--text-3]">{connectionText}</p>
           </div>
         </div>
@@ -330,7 +367,13 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
               </div>
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                {currentMessages.length === 0 ? (
+                {fetchError && (
+                  <div className="flex flex-col items-center justify-center py-4 text-[--neon-red]">
+                    <p className="text-xs">{fetchError}</p>
+                    <button onClick={() => { setIsPollingMessages(true); setFetchError(null); }} className="text-[10px] underline mt-1">Retry</button>
+                  </div>
+                )}
+                {currentMessages.length === 0 && !fetchError ? (
                   <div className="flex flex-col items-center justify-center h-full text-[--text-3]"><MessageCircle className="w-8 h-8 mb-2 opacity-50" /><p className="text-xs">No messages yet. Start the conversation!</p></div>
                 ) : currentMessages.map(msg => {
                   const isOwn = msg.senderId === userId;

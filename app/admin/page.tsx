@@ -28,6 +28,8 @@ import SystemResetModal from '@/components/admin/SystemResetModal';
 import WebSocketConsoleModal from '@/components/admin/WebSocketConsoleModal';
 import HotkeyManagerPanel from '@/components/HotkeyManagerPanel';
 import type { AdminStatsPayload, AdminPlayerListItem, AdminBotStatsPayload } from '@/types/api-responses';
+import GameLayout from '@/components/GameLayout';
+import { StatsPanel, ControlsPanel, TopNavBar } from '@/components';
 
 interface AdminPageProps {
   embedded?: boolean;
@@ -926,114 +928,127 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
   if (!player || !isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white flex items-center justify-center">
-        <p>Access Denied - Admin Only</p>
-      </div>
+      <>
+        <TopNavBar />
+        <GameLayout
+          statsPanel={<StatsPanel />}
+          controlsPanel={<ControlsPanel />}
+          tileView={
+            <div className="h-full w-full overflow-auto bg-[--void] text-white flex items-center justify-center">
+              <p>Access Denied - Admin Only</p>
+            </div>
+          }
+        />
+      </>
     );
   }
 
-  return (
-    <div className={embedded ? "p-6" : "min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-8"}>
+  const renderAdminContent = () => (
+    <div className={embedded ? "p-6" : "h-full w-full overflow-auto bg-[--void] text-white p-8"}>
       <div className="max-w-7xl mx-auto">
         {!embedded && <BackButton />}
 
         <div className="flex items-center justify-between mb-8 mt-4">
-          <h1 className="text-4xl font-bold text-purple-400">⚙️ Admin Panel</h1>
-          <div className="bg-purple-900/30 px-4 py-2 rounded-lg border border-purple-500">
-            <p className="text-sm text-purple-300">Admin: {player.username}</p>
+          <h1 className="text-4xl font-bold text-[--neon-pink]">⚙️ Admin Panel</h1>
+          <div className="bg-[--neon-pink]/5 px-4 py-2 rounded-lg border border-[--neon-pink]/30">
+            <p className="text-sm text-[--neon-pink]">Admin: {player.username}</p>
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 mb-6">
-            <p className="text-red-400">{error}</p>
+          <div className="bg-[--neon-red]/10 border border-[--neon-red]/20 rounded-lg p-4 mb-6">
+            <p className="text-[--neon-red]">{error}</p>
           </div>
         )}
 
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-gray-400">Loading admin data...</p>
+            <p className="text-white/50">Loading admin data...</p>
           </div>
         ) : (
           <div className="space-y-6">
             {/* Game Statistics */}
             {stats && (
-              <div className="bg-gray-800 rounded-lg p-6 border-2 border-purple-500/30">
-                <h2 className="text-2xl font-bold text-purple-400 mb-4">📊 Game Statistics</h2>
+              <div className="bg-[--card] rounded-lg p-6 border-2 border-[--neon-pink]/20">
+                <h2 className="text-2xl font-bold text-[--neon-pink] mb-4">📊 Game Statistics</h2>
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Total Players</p>
-                    <p className="text-3xl font-bold text-cyan-400">{stats.totalPlayers}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Total Players</p>
+                    <p className="text-3xl font-bold text-[--electric]">{stats.totalPlayers}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Bots</p>
-                    <p className="text-3xl font-bold text-green-400">{stats.totalBots}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Bots</p>
+                    <p className="text-3xl font-bold text-[--synth]">{stats.totalBots}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Factories</p>
-                    <p className="text-3xl font-bold text-red-400">{stats.totalFactories}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Factories</p>
+                    <p className="text-3xl font-bold text-[--neon-red]">{stats.totalFactories}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Clans</p>
-                    <p className="text-3xl font-bold text-purple-300">{stats.totalClans}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Clans</p>
+                    <p className="text-3xl font-bold text-[--neon-pink]">{stats.totalClans}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Caves</p>
-                    <p className="text-3xl font-bold text-orange-400">{stats.totalCaves}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Caves</p>
+                    <p className="text-3xl font-bold text-[--solar]">{stats.totalCaves}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Battles</p>
-                    <p className="text-3xl font-bold text-yellow-400">{stats.totalBattles}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Battles</p>
+                    <p className="text-3xl font-bold text-[--neon-yellow]">{stats.totalBattles}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Active (24h)</p>
-                    <p className="text-3xl font-bold text-emerald-300">{stats.activePlayers24h}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Active (24h)</p>
+                    <p className="text-3xl font-bold text-[--synth]">{stats.activePlayers24h}</p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Resources Gathered</p>
-                    <p className="text-3xl font-bold text-blue-300">{stats.totalResourcesGathered.toLocaleString()}</p>
+                  <div className="bg-[--card] p-4 rounded-lg">
+                    <p className="text-white/50 text-sm">Resources Gathered</p>
+                    <p className="text-3xl font-bold text-[--electric]">{stats.totalResourcesGathered.toLocaleString()}</p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* Player Management */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-purple-500/30">
+            <div className="bg-[--card] rounded-lg p-6 border-2 border-[--neon-pink]/20">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-purple-400">👥 Player Management</h2>
+                <h2 className="text-2xl font-bold text-[--neon-pink]">👥 Player Management</h2>
                 <input
                   type="text"
                   placeholder="Search players..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-purple-500 focus:outline-none w-64"
+                  className="bg-[--card] border border-[--border] rounded-lg px-4 py-2 text-white focus:border-[--neon-pink]/30 focus:outline-none w-64"
                 />
               </div>
 
-              <div className="bg-gray-900 rounded-lg overflow-hidden">
+              <div className="bg-[--card] rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-800">
+                  <thead className="bg-[--card]">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Username</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Level</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Rank</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">STR</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">DEF</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Username</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Level</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Rank</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">STR</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">DEF</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">X</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Y</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-800">
+                  <tbody className="divide-y divide-[--border]">
                     {filteredPlayers.map((p) => (
-                      <tr key={p.username} className="hover:bg-gray-800/50 transition-colors">
+                      <tr key={p.username} className="hover:bg-[--card]/50 transition-colors">
                         <td className="px-4 py-3 text-white font-medium">{p.username}</td>
-                        <td className="px-4 py-3 text-yellow-400">{p.level}</td>
-                        <td className="px-4 py-3 text-purple-400">{p.rank}</td>
-                        <td className="px-4 py-3 text-blue-400">{p.totalStrength?.toLocaleString() ?? 0}</td>
-                        <td className="px-4 py-3 text-yellow-400">{p.totalDefense?.toLocaleString() ?? 0}</td>
+                        <td className="px-4 py-3 text-[--neon-yellow]">{p.level}</td>
+                        <td className="px-4 py-3 text-[--neon-pink]">{p.rank}</td>
+                        <td className="px-4 py-3 text-[--electric]">{p.totalStrength?.toLocaleString() ?? 0}</td>
+                        <td className="px-4 py-3 text-[--neon-yellow]">{p.totalDefense?.toLocaleString() ?? 0}</td>
+                        <td className="px-4 py-3 text-white/60">{p.current_x}</td>
+                        <td className="px-4 py-3 text-white/60">{p.current_y}</td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setSelectedPlayer(p.username)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded text-sm transition-colors"
+                            className="bg-[--neon-pink]/15 hover:bg-[--neon-pink]/15 text-white px-3 py-1 rounded text-sm transition-colors"
                           >
                             View
                           </button>
@@ -1044,7 +1059,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                 </table>
 
                 {filteredPlayers.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
+                  <div className="text-center py-8 text-white/50">
                     No players found
                   </div>
                 )}
@@ -1052,21 +1067,21 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
             </div>
 
             {/* VIP Management */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-yellow-500/30">
+            <div className="bg-[--card] rounded-lg p-6 border-2 border-[--neon-yellow]/20">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-yellow-400">⚡ VIP Management</h2>
+                <h2 className="text-2xl font-bold text-[--neon-yellow]">⚡ VIP Management</h2>
                 <div className="flex gap-2 items-center">
                   <input
                     type="text"
                     placeholder="Search users..."
                     value={vipSearchTerm}
                     onChange={(e) => setVipSearchTerm(e.target.value)}
-                    className="bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-white focus:border-yellow-500 focus:outline-none w-64"
+                    className="bg-[--card] border border-[--border] rounded-lg px-4 py-2 text-white focus:border-[--neon-yellow]/20 focus:outline-none w-64"
                   />
                   <button
                     onClick={loadVipUsers}
                     disabled={vipLoading}
-                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-700 text-white rounded-lg font-semibold transition-colors"
+                    className="px-4 py-2 bg-[--neon-yellow]/15 hover:bg-white/10 disabled:bg-white/5 text-white rounded-lg font-semibold transition-colors"
                   >
                     {vipLoading ? '⟳' : '🔄'} Refresh
                   </button>
@@ -1075,17 +1090,17 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
               {/* Stats Cards */}
               <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-gray-900 p-4 rounded-lg border border-blue-500/30">
-                  <p className="text-sm text-gray-400">Total Users</p>
-                  <p className="text-2xl font-bold text-blue-400">{vipUsers.length}</p>
+                <div className="bg-[--card] p-4 rounded-lg border border-[--electric]/20">
+                  <p className="text-sm text-white/50">Total Users</p>
+                  <p className="text-2xl font-bold text-[--electric]">{vipUsers.length}</p>
                 </div>
-                <div className="bg-gray-900 p-4 rounded-lg border border-yellow-500/30">
-                  <p className="text-sm text-gray-400">VIP Users</p>
-                  <p className="text-2xl font-bold text-yellow-400">{vipCount}</p>
+                <div className="bg-[--card] p-4 rounded-lg border border-[--neon-yellow]/20">
+                  <p className="text-sm text-white/50">VIP Users</p>
+                  <p className="text-2xl font-bold text-[--neon-yellow]">{vipCount}</p>
                 </div>
-                <div className="bg-gray-900 p-4 rounded-lg border border-purple-500/30">
-                  <p className="text-sm text-gray-400">Basic Users</p>
-                  <p className="text-2xl font-bold text-purple-400">{basicCount}</p>
+                <div className="bg-[--card] p-4 rounded-lg border border-[--neon-pink]/20">
+                  <p className="text-sm text-white/50">Basic Users</p>
+                  <p className="text-2xl font-bold text-[--neon-pink]">{basicCount}</p>
                 </div>
               </div>
 
@@ -1095,8 +1110,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   onClick={() => setVipFilter('all')}
                   className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                     vipFilter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[--electric]/15 text-white'
+                      : 'bg-white/5 text-white/60 hover:bg-white/5'
                   }`}
                 >
                   All Users
@@ -1105,8 +1120,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   onClick={() => setVipFilter('vip')}
                   className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                     vipFilter === 'vip'
-                      ? 'bg-yellow-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[--neon-yellow]/15 text-white'
+                      : 'bg-white/5 text-white/60 hover:bg-white/5'
                   }`}
                 >
                   VIP Only
@@ -1115,8 +1130,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   onClick={() => setVipFilter('basic')}
                   className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                     vipFilter === 'basic'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[--neon-pink]/15 text-white'
+                      : 'bg-white/5 text-white/60 hover:bg-white/5'
                   }`}
                 >
                   Basic Only
@@ -1124,34 +1139,34 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
               </div>
 
               {/* Users Table */}
-              <div className="bg-gray-900 rounded-lg overflow-hidden">
+              <div className="bg-[--card] rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-800">
+                  <thead className="bg-[--card]">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Username</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Expires</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Username</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Email</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Status</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Expires</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-white/50 uppercase">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-800">
+                  <tbody className="divide-y divide-[--border]">
                     {filteredVipUsers.map((user) => (
-                      <tr key={user.username} className="hover:bg-gray-800/50">
+                      <tr key={user.username} className="hover:bg-[--card]/50">
                         <td className="px-4 py-3 text-white font-medium">{user.username}</td>
-                        <td className="px-4 py-3 text-gray-400 text-sm">{user.email || 'N/A'}</td>
+                        <td className="px-4 py-3 text-white/50 text-sm">{user.email || 'N/A'}</td>
                         <td className="px-4 py-3">
                           {user.vip ? (
-                            <span className="inline-block bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-3 py-1 rounded-full text-xs font-bold">
+                             <span className="inline-block bg-[--neon-yellow]/15 border border-[--neon-yellow]/25 text-[--neon-yellow] px-3 py-1 rounded-full text-xs font-bold">
                               ⚡ VIP
                             </span>
                           ) : (
-                            <span className="inline-block bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                            <span className="inline-block bg-[--neon-pink]/15 text-white px-3 py-1 rounded-full text-xs font-bold">
                               BASIC
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-400 text-sm">
+                        <td className="px-4 py-3 text-white/50 text-sm">
                           {user.vip && user.vipExpiration 
                             ? new Date(user.vipExpiration).toLocaleDateString('en-US', {
                                 year: 'numeric',
@@ -1168,21 +1183,21 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               <>
                                 <button
                                   onClick={() => handleGrantVip(user.username, 7)}
-                                  className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded transition-colors"
+                                  className="px-2 py-1 bg-[--neon-yellow]/15 hover:bg-white/10 text-white text-xs rounded transition-colors"
                                   title="Grant 7 days"
                                 >
                                   7d
                                 </button>
                                 <button
                                   onClick={() => handleGrantVip(user.username, 30)}
-                                  className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded transition-colors"
+                                  className="px-2 py-1 bg-[--neon-yellow]/15 hover:bg-white/10 text-white text-xs rounded transition-colors"
                                   title="Grant 30 days"
                                 >
                                   30d
                                 </button>
                                 <button
                                   onClick={() => handleGrantVip(user.username, 365)}
-                                  className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs rounded transition-colors"
+                                  className="px-2 py-1 bg-[--neon-yellow]/15 hover:bg-white/10 text-white text-xs rounded transition-colors"
                                   title="Grant 1 year"
                                 >
                                   1yr
@@ -1191,7 +1206,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             ) : (
                               <button
                                 onClick={() => handleRevokeVip(user.username)}
-                                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+                                className="px-3 py-1 bg-[--neon-red]/15 hover:bg-white/10 text-white text-xs rounded transition-colors"
                               >
                                 Revoke
                               </button>
@@ -1203,7 +1218,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                     {filteredVipUsers.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                        <td colSpan={5} className="px-4 py-8 text-center text-white/50">
                           No users found
                         </td>
                       </tr>
@@ -1214,9 +1229,9 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
             </div>
 
             {/* Analytics Dashboard */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-cyan-500/30">
+            <div className="bg-[--card] rounded-lg p-6 border-2 border-[--electric]/20">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-cyan-400">📊 Analytics Dashboard</h2>
+                <h2 className="text-2xl font-bold text-[--electric]">📊 Analytics Dashboard</h2>
                 
                 {/* Period Selector */}
                 <div className="flex gap-2">
@@ -1224,8 +1239,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     onClick={() => setAnalyticsPeriod('24h')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                       analyticsPeriod === '24h'
-                        ? 'bg-cyan-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-[--electric]/15 text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/5'
                     }`}
                   >
                     24 Hours
@@ -1234,8 +1249,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     onClick={() => setAnalyticsPeriod('7d')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                       analyticsPeriod === '7d'
-                        ? 'bg-cyan-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-[--electric]/15 text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/5'
                     }`}
                   >
                     7 Days
@@ -1244,8 +1259,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     onClick={() => setAnalyticsPeriod('30d')}
                     className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                       analyticsPeriod === '30d'
-                        ? 'bg-cyan-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-[--electric]/15 text-white'
+                        : 'bg-white/5 text-white/60 hover:bg-white/5'
                     }`}
                   >
                     30 Days
@@ -1253,7 +1268,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   <button
                     onClick={loadAnalyticsData}
                     disabled={analyticsLoading}
-                    className="px-4 py-2 rounded-lg font-semibold bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                    className="px-4 py-2 rounded-lg font-semibold bg-white/5 text-white/60 hover:bg-white/5 disabled:opacity-50 transition-colors"
                   >
                     {analyticsLoading ? '⟳' : '🔄'} Refresh
                   </button>
@@ -1264,7 +1279,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
               <div className="grid grid-cols-2 gap-6">
                 {/* Activity Timeline */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-300 mb-2">Player Activity Trends</h3>
+                  <h3 className="text-lg font-semibold text-white/60 mb-2">Player Activity Trends</h3>
                   <ActivityTimeline 
                     data={activityData}
                     period={analyticsPeriod}
@@ -1275,7 +1290,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                 {/* Resource Gains */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-300 mb-2">Resource Accumulation</h3>
+                  <h3 className="text-lg font-semibold text-white/60 mb-2">Resource Accumulation</h3>
                   <ResourceGains 
                     data={resourceData}
                     period={analyticsPeriod}
@@ -1286,7 +1301,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                 {/* Session Distribution */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-300 mb-2">Session Duration Distribution</h3>
+                  <h3 className="text-lg font-semibold text-white/60 mb-2">Session Duration Distribution</h3>
                   <SessionDistribution 
                     buckets={sessionData?.buckets || []}
                     period={analyticsPeriod}
@@ -1297,7 +1312,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                 {/* Flag Breakdown */}
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-300 mb-2">Anti-Cheat Flag Severity</h3>
+                  <h3 className="text-lg font-semibold text-white/60 mb-2">Anti-Cheat Flag Severity</h3>
                   <FlagBreakdown 
                     data={flagData}
                     totalFlagged={flagData.reduce((sum, f) => sum + f.count, 0)}
@@ -1308,7 +1323,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                 {/* Bot Population */}
                 <div className="col-span-2">
-                  <h3 className="text-lg font-semibold text-gray-300 mb-2">Bot Population by Specialization</h3>
+                  <h3 className="text-lg font-semibold text-white/60 mb-2">Bot Population by Specialization</h3>
                   <BotPopulationTrends 
                     currentStats={botStats}
                     loading={!botStats}
@@ -1319,8 +1334,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
             </div>
 
             {/* Database Tools */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-purple-500/30">
-              <h2 className="text-2xl font-bold text-purple-400 mb-4">🛠️ Database Tools</h2>
+            <div className="bg-[--card] rounded-lg p-6 border-2 border-[--neon-pink]/20">
+              <h2 className="text-2xl font-bold text-[--neon-pink] mb-4">🛠️ Database Tools</h2>
               <div className="grid grid-cols-3 gap-4">
                 <button 
                   onClick={async () => {
@@ -1334,32 +1349,32 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       alert('Failed to fix base tiles');
                     }
                   }}
-                  className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
+                  className="bg-[--solar]/15 hover:bg-white/10 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
                 >
                   🏠 Fix Base Tiles
                 </button>
                 <button 
                   onClick={() => setShowTileInspector(true)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
+                  className="bg-[--electric]/15 hover:bg-[--electric]/15 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
                 >
                   📊 View Tiles
                 </button>
-                <button className="bg-green-600 hover:bg-green-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
+                <button className="bg-[--synth]/15 hover:bg-[--synth]/15 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
                   onClick={() => setShowFactoryInspector(true)}
                 >
                   🏭 Factory Inspector
                 </button>
-                <button className="bg-yellow-600 hover:bg-yellow-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
+                <button className="bg-[--neon-yellow]/15 hover:bg-[--neon-yellow]/15 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
                   onClick={() => setShowBattleLogs(true)}
                 >
                   📝 Battle Logs
                 </button>
-                <button className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
+                <button className="bg-[--neon-pink]/15 hover:bg-[--neon-pink]/15 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
                   onClick={() => setShowAchievementStats(true)}
                 >
                   🎯 Achievement Stats
                 </button>
-                <button className="bg-red-600 hover:bg-red-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
+                <button className="bg-[--neon-red]/15 hover:bg-[--neon-red]/15 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
                   onClick={() => setShowSystemReset(true)}
                 >
                   🔄 Reset Systems
@@ -1368,59 +1383,59 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
             </div>
 
             {/* Bot System Controls */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-cyan-500/30">
-              <h2 className="text-2xl font-bold text-cyan-400 mb-4">🤖 Bot Ecosystem Controls</h2>
+            <div className="bg-[--card] rounded-lg p-6 border-2 border-[--electric]/20">
+              <h2 className="text-2xl font-bold text-[--electric] mb-4">🤖 Bot Ecosystem Controls</h2>
               
               <div className="space-y-6">
                 {/* Bot Statistics */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3">Bot Population</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--electric] mb-3">Bot Population</h3>
                   <div className="grid grid-cols-5 gap-3">
-                    <div className="bg-gray-800 p-3 rounded text-center">
-                      <p className="text-xs text-gray-400">Total Bots</p>
-                      <p className="text-2xl font-bold text-cyan-400">{botStats?.totalBots || 0}</p>
+                    <div className="bg-[--card] p-3 rounded text-center">
+                      <p className="text-xs text-white/50">Total Bots</p>
+                      <p className="text-2xl font-bold text-[--electric]">{botStats?.totalBots || 0}</p>
                     </div>
-                    <div className="bg-gray-800 p-3 rounded text-center">
-                      <p className="text-xs text-gray-400">Hoarders</p>
-                      <p className="text-2xl font-bold text-yellow-400">{botStats?.bySpecialization?.hoarder || 0}</p>
+                    <div className="bg-[--card] p-3 rounded text-center">
+                      <p className="text-xs text-white/50">Hoarders</p>
+                      <p className="text-2xl font-bold text-[--neon-yellow]">{botStats?.bySpecialization?.hoarder || 0}</p>
                     </div>
-                    <div className="bg-gray-800 p-3 rounded text-center">
-                      <p className="text-xs text-gray-400">Fortresses</p>
-                      <p className="text-2xl font-bold text-blue-400">{botStats?.bySpecialization?.fortress || 0}</p>
+                    <div className="bg-[--card] p-3 rounded text-center">
+                      <p className="text-xs text-white/50">Fortresses</p>
+                      <p className="text-2xl font-bold text-[--electric]">{botStats?.bySpecialization?.fortress || 0}</p>
                     </div>
-                    <div className="bg-gray-800 p-3 rounded text-center">
-                      <p className="text-xs text-gray-400">Raiders</p>
-                      <p className="text-2xl font-bold text-red-400">{botStats?.bySpecialization?.raider || 0}</p>
+                    <div className="bg-[--card] p-3 rounded text-center">
+                      <p className="text-xs text-white/50">Raiders</p>
+                      <p className="text-2xl font-bold text-[--neon-red]">{botStats?.bySpecialization?.raider || 0}</p>
                     </div>
-                    <div className="bg-gray-800 p-3 rounded text-center">
-                      <p className="text-xs text-gray-400">Ghosts</p>
-                      <p className="text-2xl font-bold text-purple-400">{botStats?.bySpecialization?.ghost || 0}</p>
+                    <div className="bg-[--card] p-3 rounded text-center">
+                      <p className="text-xs text-white/50">Ghosts</p>
+                      <p className="text-2xl font-bold text-[--neon-pink]">{botStats?.bySpecialization?.ghost || 0}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Quick Actions */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3">Quick Actions</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--electric] mb-3">Quick Actions</h3>
                   <div className="grid grid-cols-3 gap-3">
                     <button 
                       onClick={handleSpawn10Bots}
                       disabled={botActionLoading}
-                      className="bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-[--synth]/15 hover:bg-[--synth]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       ➕ Spawn 10 Bots
                     </button>
                     <button 
                       onClick={handleRunRegen}
                       disabled={botActionLoading}
-                      className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-[--electric]/15 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       🔄 Run Regen Cycle
                     </button>
                     <button 
                       onClick={handleBotAnalytics}
                       disabled={botActionLoading}
-                      className="bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-[--neon-pink]/15 hover:bg-[--neon-pink]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       📊 Bot Analytics
                     </button>
@@ -1428,31 +1443,31 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   <div className="grid grid-cols-5 gap-3 mt-3">
                     <button 
                       onClick={() => setShowWebSocketConsole(true)}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-[--electric]/15 hover:bg-white/10 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       🔌 WebSocket Console
                     </button>
                     <button 
                       onClick={() => setShowTileInspector(true)}
-                      className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-white/5 hover:bg-white/5 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       🗺️ Tile Inspector
                     </button>
                     <button 
                       onClick={() => setShowFactoryInspector(true)}
-                      className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-white/5 hover:bg-white/5 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       🏭 Factory Inspector
                     </button>
                     <button 
                       onClick={() => setShowHotkeyManager(true)}
-                      className="bg-cyan-700 hover:bg-cyan-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-[--electric]/15 hover:bg-[--electric]/15 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       ⌨️ Hotkey Manager
                     </button>
                     <button 
                       onClick={() => setShowSystemReset(true)}
-                      className="bg-red-700 hover:bg-red-600 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
+                      className="bg-[--neon-red]/15 hover:bg-[--neon-red]/15 text-white px-4 py-3 rounded-lg font-semibold transition-colors text-sm"
                     >
                       ⚠️ System Reset
                     </button>
@@ -1460,53 +1475,53 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                 </div>
 
                 {/* System Configuration */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3">System Configuration</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--electric] mb-3">System Configuration</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Total Bot Cap</label>
+                      <label className="text-sm text-white/50">Total Bot Cap</label>
                       <input 
                         type="number" 
                         value={botConfig.totalBotCap}
                         onChange={(e) => setBotConfig({...botConfig, totalBotCap: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Daily Spawn Count</label>
+                      <label className="text-sm text-white/50">Daily Spawn Count</label>
                       <input 
                         type="number" 
                         value={botConfig.dailySpawnCount}
                         onChange={(e) => setBotConfig({...botConfig, dailySpawnCount: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Migration % (0-100)</label>
+                      <label className="text-sm text-white/50">Migration % (0-100)</label>
                       <input 
                         type="number" 
                         step="1"
                         value={Math.round(botConfig.migrationPercent * 100)}
                         onChange={(e) => setBotConfig({...botConfig, migrationPercent: (parseInt(e.target.value) || 0) / 100})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                   </div>
                   <button 
                     onClick={handleSaveConfig}
                     disabled={botActionLoading}
-                    className="mt-4 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-semibold transition-colors w-full"
+                    className="mt-4 bg-[--electric]/15 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-semibold transition-colors w-full"
                   >
                     💾 Save Configuration
                   </button>
                 </div>
 
                 {/* Resource Regeneration Rates */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3">Regeneration Rates (% per hour)</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--electric] mb-3">Regeneration Rates (% per hour)</h3>
                   <div className="grid grid-cols-5 gap-3">
                     <div className="space-y-2">
-                      <label className="text-xs text-yellow-400">Hoarder</label>
+                      <label className="text-xs text-[--neon-yellow]">Hoarder</label>
                       <input 
                         type="number" 
                         step="0.01"
@@ -1515,11 +1530,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           ...botConfig, 
                           regenRates: {...botConfig.regenRates, hoarder: parseFloat(e.target.value) || 0}
                         })}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-blue-400">Fortress</label>
+                      <label className="text-xs text-[--electric]">Fortress</label>
                       <input 
                         type="number" 
                         step="0.01"
@@ -1528,11 +1543,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           ...botConfig, 
                           regenRates: {...botConfig.regenRates, fortress: parseFloat(e.target.value) || 0}
                         })}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-red-400">Raider</label>
+                      <label className="text-xs text-[--neon-red]">Raider</label>
                       <input 
                         type="number" 
                         step="0.01"
@@ -1541,11 +1556,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           ...botConfig, 
                           regenRates: {...botConfig.regenRates, raider: parseFloat(e.target.value) || 0}
                         })}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-purple-400">Ghost</label>
+                      <label className="text-xs text-[--neon-pink]">Ghost</label>
                       <input 
                         type="number" 
                         step="0.01"
@@ -1554,11 +1569,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           ...botConfig, 
                           regenRates: {...botConfig.regenRates, ghost: parseFloat(e.target.value) || 0}
                         })}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-green-400">Balanced</label>
+                      <label className="text-xs text-[--synth]">Balanced</label>
                       <input 
                         type="number" 
                         step="0.01"
@@ -1567,27 +1582,27 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           ...botConfig, 
                           regenRates: {...botConfig.regenRates, balanced: parseFloat(e.target.value) || 0}
                         })}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                        className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Beer Base Smart Spawning */}
-                <div className="bg-gray-900 rounded-lg p-4 border-2 border-yellow-500/30">
+                <div className="bg-[--card] rounded-lg p-4 border-2 border-[--neon-yellow]/20">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-yellow-300 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-[--neon-yellow] flex items-center gap-2">
                       <span>🍺</span>
                       <span>Beer Base Smart Spawning</span>
-                      <span className="text-xs bg-green-600 px-2 py-1 rounded">AUTO</span>
+                      <span className="text-xs bg-[--synth]/15 px-2 py-1 rounded">AUTO</span>
                     </h3>
-                    <div className="text-xs text-gray-400">
+                    <div className="text-xs text-white/50">
                       Current: {botStats?.beerBases || 0} active
                     </div>
                   </div>
                   
-                  <div className="bg-yellow-900/20 border border-yellow-500/30 rounded p-3 mb-4">
-                    <p className="text-xs text-yellow-300">
+                  <div className="bg-[--neon-yellow]/5 border border-[--neon-yellow]/20 rounded p-3 mb-4">
+                    <p className="text-xs text-[--neon-yellow]">
                       🤖 <strong>Smart System Active:</strong> Beer Bases automatically spawn based on player levels. 
                       System analyzes active players and spawns appropriate difficulty targets.
                     </p>
@@ -1595,23 +1610,23 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400 flex items-center gap-2">
+                      <label className="text-sm text-white/50 flex items-center gap-2">
                         Enable System
-                        <span className="text-xs text-gray-500">(Master switch)</span>
+                        <span className="text-xs text-white/40">(Master switch)</span>
                       </label>
                       <select 
                         value={beerBaseConfig.enabled ? 'true' : 'false'}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, enabled: e.target.value === 'true'})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       >
                         <option value="true">✅ Enabled</option>
                         <option value="false">❌ Disabled</option>
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400 flex items-center gap-2">
+                      <label className="text-sm text-white/50 flex items-center gap-2">
                         Spawn Rate Min %
-                        <span className="text-xs text-gray-500">(of bots)</span>
+                        <span className="text-xs text-white/40">(of bots)</span>
                       </label>
                       <input 
                         type="number"
@@ -1619,13 +1634,13 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                         max="100"
                         value={beerBaseConfig.spawnRateMin}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, spawnRateMin: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400 flex items-center gap-2">
+                      <label className="text-sm text-white/50 flex items-center gap-2">
                         Spawn Rate Max %
-                        <span className="text-xs text-gray-500">(of bots)</span>
+                        <span className="text-xs text-white/40">(of bots)</span>
                       </label>
                       <input 
                         type="number"
@@ -1633,13 +1648,13 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                         max="100"
                         value={beerBaseConfig.spawnRateMax}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, spawnRateMax: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400 flex items-center gap-2">
+                      <label className="text-sm text-white/50 flex items-center gap-2">
                         Resource Multiplier
-                        <span className="text-xs text-gray-500">(1-20x)</span>
+                        <span className="text-xs text-white/40">(1-20x)</span>
                       </label>
                       <input 
                         type="number"
@@ -1647,15 +1662,15 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                         max="20"
                         value={beerBaseConfig.resourceMultiplier}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, resourceMultiplier: parseInt(e.target.value) || 1})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Weekly Respawn Day</label>
+                      <label className="text-sm text-white/50">Weekly Respawn Day</label>
                       <select 
                         value={beerBaseConfig.respawnDay}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, respawnDay: parseInt(e.target.value)})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       >
                         <option value="0">Sunday</option>
                         <option value="1">Monday</option>
@@ -1667,29 +1682,29 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Respawn Hour (0-23)</label>
+                      <label className="text-sm text-white/50">Respawn Hour (0-23)</label>
                       <input 
                         type="number"
                         min="0"
                         max="23"
                         value={beerBaseConfig.respawnHour}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, respawnHour: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                   </div>
 
                   {/* Variety Enforcement Settings (FID-20251025-001) */}
-                  <div className="mt-4 bg-yellow-900/10 border border-yellow-500/20 rounded-lg p-3">
+                  <div className="mt-4 bg-[--neon-yellow]/5 border border-[--neon-yellow]/20 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-semibold text-yellow-200 flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-[--neon-yellow] flex items-center gap-2">
                         🎨 Variety Enforcement
-                        <span className="text-xs text-gray-400">(Prevents homogeneous spawns)</span>
+                        <span className="text-xs text-white/50">(Prevents homogeneous spawns)</span>
                       </h4>
                       <select 
                         value={beerBaseConfig.varietyEnabled ? 'true' : 'false'}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, varietyEnabled: e.target.value === 'true'})}
-                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                        className="bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-xs"
                       >
                         <option value="true">✅ Enabled</option>
                         <option value="false">❌ Disabled</option>
@@ -1698,70 +1713,70 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     
                     {beerBaseConfig.varietyEnabled && (
                       <>
-                        <p className="text-xs text-gray-400 mb-3">
+                        <p className="text-xs text-white/50 mb-3">
                           Ensures minimum variety across all power tiers even when player base is homogeneous. 
                           Example: If all players are Level 15, variety prevents 100% Mid-tier spawns.
                         </p>
                         
                         <div className="grid grid-cols-5 gap-3">
                           <div className="space-y-1">
-                            <label className="text-xs text-gray-400">Min WEAK %</label>
+                            <label className="text-xs text-white/50">Min WEAK %</label>
                             <input 
                               type="number"
                               min="0"
                               max="100"
                               value={beerBaseConfig.minWeakPercent}
                               onChange={(e) => setBeerBaseConfig({...beerBaseConfig, minWeakPercent: parseInt(e.target.value) || 0})}
-                              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                              className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs text-gray-400">Min MEDIUM %</label>
+                            <label className="text-xs text-white/50">Min MEDIUM %</label>
                             <input 
                               type="number"
                               min="0"
                               max="100"
                               value={beerBaseConfig.minMediumPercent}
                               onChange={(e) => setBeerBaseConfig({...beerBaseConfig, minMediumPercent: parseInt(e.target.value) || 0})}
-                              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                              className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs text-gray-400">Min STRONG %</label>
+                            <label className="text-xs text-white/50">Min STRONG %</label>
                             <input 
                               type="number"
                               min="0"
                               max="100"
                               value={beerBaseConfig.minStrongPercent}
                               onChange={(e) => setBeerBaseConfig({...beerBaseConfig, minStrongPercent: parseInt(e.target.value) || 0})}
-                              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                              className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs text-gray-400">Min ELITE %</label>
+                            <label className="text-xs text-white/50">Min ELITE %</label>
                             <input 
                               type="number"
                               min="0"
                               max="100"
                               value={beerBaseConfig.minElitePercent}
                               onChange={(e) => setBeerBaseConfig({...beerBaseConfig, minElitePercent: parseInt(e.target.value) || 0})}
-                              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                              className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-xs text-gray-400">Max Same Tier %</label>
+                            <label className="text-xs text-white/50">Max Same Tier %</label>
                             <input 
                               type="number"
                               min="0"
                               max="100"
                               value={beerBaseConfig.maxSameTierPercent}
                               onChange={(e) => setBeerBaseConfig({...beerBaseConfig, maxSameTierPercent: parseInt(e.target.value) || 0})}
-                              className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"
+                              className="w-full bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-sm"
                             />
                           </div>
                         </div>
                         
-                        <div className="mt-2 text-xs text-gray-500">
+                        <div className="mt-2 text-xs text-white/40">
                           <strong>Current totals:</strong> Min {beerBaseConfig.minWeakPercent + beerBaseConfig.minMediumPercent + beerBaseConfig.minStrongPercent + beerBaseConfig.minElitePercent}% guaranteed variety
                         </div>
                       </>
@@ -1769,16 +1784,16 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   </div>
 
                   {/* Dynamic Schedules (FID-20251025-003) */}
-                  <div className="mt-4 bg-blue-900/10 border border-blue-500/20 rounded-lg p-3">
+                  <div className="mt-4 bg-[--electric]/5 border border-[--electric]/20 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-semibold text-blue-200 flex items-center gap-2">
+                      <h4 className="text-sm font-semibold text-[--electric] flex items-center gap-2">
                         📅 Dynamic Respawn Schedules
-                        <span className="text-xs text-gray-400">(Multiple respawn times)</span>
+                        <span className="text-xs text-white/50">(Multiple respawn times)</span>
                       </h4>
                       <select 
                         value={beerBaseConfig.schedulesEnabled ? 'true' : 'false'}
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, schedulesEnabled: e.target.value === 'true'})}
-                        className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-xs"
+                        className="bg-[--card] border border-[--border] rounded px-2 py-1 text-white text-xs"
                       >
                         <option value="false">🕐 Legacy Single Schedule</option>
                         <option value="true">✅ Dynamic Schedules</option>
@@ -1787,15 +1802,15 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     
                     {beerBaseConfig.schedulesEnabled ? (
                       <>
-                        <p className="text-xs text-gray-400 mb-3">
+                        <p className="text-xs text-white/50 mb-3">
                           Configure multiple respawn times per week with timezone support. Schedules can overlap (combine percentages).
                         </p>
                         
                         {/* Schedule List */}
                         {schedulesLoading ? (
-                          <div className="text-center py-4 text-gray-400">Loading schedules...</div>
+                          <div className="text-center py-4 text-white/50">Loading schedules...</div>
                         ) : schedules.length === 0 ? (
-                          <div className="bg-gray-800 rounded p-3 text-center text-gray-400 text-sm">
+                          <div className="bg-[--card] rounded p-3 text-center text-white/50 text-sm">
                             No schedules configured. Click "Add Schedule" to create one.
                           </div>
                         ) : (
@@ -1808,12 +1823,12 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               return (
                                 <div 
                                   key={schedule.id}
-                                  className={`bg-gray-800 rounded p-2 flex items-center justify-between ${!schedule.enabled ? 'opacity-50' : ''}`}
+                                  className={`bg-[--card] rounded p-2 flex items-center justify-between ${!schedule.enabled ? 'opacity-50' : ''}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <button
                                       onClick={() => handleToggleSchedule(schedule)}
-                                      className={`w-12 h-6 rounded-full transition-colors ${schedule.enabled ? 'bg-green-600' : 'bg-gray-600'}`}
+                                      className={`w-12 h-6 rounded-full transition-colors ${schedule.enabled ? 'bg-[--synth]/15' : 'bg-white/5'}`}
                                     >
                                       <div className={`w-5 h-5 bg-white rounded-full transition-transform ${schedule.enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
                                     </button>
@@ -1821,7 +1836,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                                       <div className="text-sm text-white font-medium">
                                         {schedule.name || `Schedule ${days[schedule.dayOfWeek]} ${hourStr}`}
                                       </div>
-                                      <div className="text-xs text-gray-400">
+                                      <div className="text-xs text-white/50">
                                         {days[schedule.dayOfWeek]} at {hourStr} {tzShort} • {schedule.spawnPercentage}% spawn
                                       </div>
                                     </div>
@@ -1829,13 +1844,13 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => handleEditSchedule(schedule)}
-                                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs rounded"
+                                      className="px-3 py-1 bg-[--electric]/15 hover:bg-[--electric]/15 text-white text-xs rounded"
                                     >
                                       Edit
                                     </button>
                                     <button
                                       onClick={() => handleDeleteSchedule(schedule.id)}
-                                      className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded"
+                                      className="px-3 py-1 bg-[--neon-red]/15 hover:bg-[--neon-red]/15 text-white text-xs rounded"
                                     >
                                       Delete
                                     </button>
@@ -1859,13 +1874,13 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             });
                             setShowScheduleModal(true);
                           }}
-                          className="mt-3 w-full bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold"
+                          className="mt-3 w-full bg-[--electric]/15 hover:bg-[--electric]/15 text-white px-4 py-2 rounded text-sm font-semibold"
                         >
                           ➕ Add Schedule
                         </button>
                       </>
                     ) : (
-                      <div className="text-xs text-gray-400">
+                      <div className="text-xs text-white/50">
                         Using legacy single schedule: {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][beerBaseConfig.respawnDay]} at {beerBaseConfig.respawnHour.toString().padStart(2, '0')}:00
                       </div>
                     )}
@@ -1875,27 +1890,27 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     <button 
                       onClick={handleSaveBeerBaseConfig}
                       disabled={beerBaseLoading}
-                      className="bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                      className="bg-[--neon-yellow]/15 hover:bg-[--neon-yellow]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-semibold transition-colors"
                     >
                       💾 Save Beer Base Config
                     </button>
                     <button 
                       onClick={handleRespawnBeerBases}
                       disabled={beerBaseLoading}
-                      className="bg-orange-600 hover:bg-orange-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                      className="bg-[--solar]/15 hover:bg-white/10 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-semibold transition-colors"
                     >
                       🍺 Manual Respawn Now
                     </button>
                   </div>
 
-                  <div className="mt-3 text-xs text-gray-400 bg-gray-800 rounded p-2">
+                  <div className="mt-3 text-xs text-white/50 bg-[--card] rounded p-2">
                     <strong>How it works:</strong> System checks active players (last 7 days), analyzes their levels, 
                     and spawns Beer Bases with appropriate power tiers. Distribution: 40% same tier, 30% one up, 10% one down, 20% two up.
                   </div>
                 </div>
 
                 {/* Beer Base Analytics Dashboard (FID-20251025-004) */}
-                <div className="mt-4 bg-cyan-900/10 border border-cyan-500/20 rounded-lg">
+                <div className="mt-4 bg-[--electric]/5 border border-[--electric]/20 rounded-lg">
                   <button
                     onClick={() => {
                       setBeerAnalyticsExpanded(!beerAnalyticsExpanded);
@@ -1903,21 +1918,21 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                         loadBeerBaseAnalytics();
                       }
                     }}
-                    className="w-full p-3 text-left hover:bg-cyan-900/20 transition-colors flex items-center justify-between rounded-lg"
+                    className="w-full p-3 text-left hover:bg-[--electric]/5 transition-colors flex items-center justify-between rounded-lg"
                   >
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-cyan-200">
+                      <h4 className="text-sm font-semibold text-[--electric]">
                         📊 Beer Base Analytics Dashboard
                       </h4>
-                      <span className="text-xs text-gray-400">(365-day retention)</span>
+                      <span className="text-xs text-white/50">(365-day retention)</span>
                     </div>
-                    <span className="text-2xl text-cyan-400">{beerAnalyticsExpanded ? '▼' : '▶'}</span>
+                    <span className="text-2xl text-[--electric]">{beerAnalyticsExpanded ? '▼' : '▶'}</span>
                   </button>
                   
                   {beerAnalyticsExpanded && (
                     <div className="p-4 pt-0 space-y-4">
                       {/* Period Selector & Actions */}
-                      <div className="flex items-center justify-between bg-gray-800 rounded-lg p-3">
+                      <div className="flex items-center justify-between bg-[--card] rounded-lg p-3">
                         <div className="flex gap-2">
                           {(['7d', '14d', '30d', '90d', '365d'] as const).map((period) => (
                             <button
@@ -1925,8 +1940,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               onClick={() => setBeerAnalyticsPeriod(period)}
                               className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
                                 beerAnalyticsPeriod === period
-                                  ? 'bg-cyan-600 text-white'
-                                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  ? 'bg-[--electric]/15 text-white'
+                                  : 'bg-white/5 text-white/60 hover:bg-white/5'
                               }`}
                             >
                               {period.toUpperCase()}
@@ -1937,7 +1952,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           <button
                             onClick={loadBeerBaseAnalytics}
                             disabled={beerAnalyticsLoading}
-                            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-600 text-white rounded text-xs font-semibold transition-colors"
+                            className="px-3 py-1 bg-white/5 hover:bg-white/5 disabled:bg-white/5 text-white rounded text-xs font-semibold transition-colors"
                           >
                             {beerAnalyticsLoading ? '⟳' : '🔄'} Refresh
                           </button>
@@ -1955,7 +1970,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                                 '_blank'
                               );
                             }}
-                            className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-xs font-semibold transition-colors"
+                            className="px-3 py-1 bg-[--synth]/15 hover:bg-[--synth]/15 text-white rounded text-xs font-semibold transition-colors"
                           >
                             📥 Export CSV
                           </button>
@@ -1963,68 +1978,68 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       </div>
 
                       {beerAnalyticsLoading && !beerSpawnStats ? (
-                        <div className="text-center py-8 text-gray-400">Loading analytics...</div>
+                        <div className="text-center py-8 text-white/50">Loading analytics...</div>
                       ) : beerAnalyticsError ? (
-                        <div className="bg-red-900/30 border border-red-500/30 rounded p-4 text-red-300">
+                        <div className="bg-[--neon-red]/5 border border-[--neon-red]/20 rounded p-4 text-[--neon-red]">
                           ❌ Error: {beerAnalyticsError}
                         </div>
                       ) : (
                         <>
                           {/* Quick Stats Cards */}
                           <div className="grid grid-cols-4 gap-3">
-                            <div className="bg-gray-800 rounded-lg p-3 border border-cyan-500/30">
-                              <div className="text-xs text-gray-400 mb-1">Total Spawns</div>
-                              <div className="text-2xl font-bold text-cyan-400">
+                            <div className="bg-[--card] rounded-lg p-3 border border-[--electric]/20">
+                              <div className="text-xs text-white/50 mb-1">Total Spawns</div>
+                              <div className="text-2xl font-bold text-[--electric]">
                                 {beerSpawnStats?.dailySpawns?.reduce((sum: number, d: any) => sum + d.count, 0) || 0}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-white/40">
                                 Avg: {beerSpawnStats?.averagePerDay?.toFixed(1) || '0'}/day
                               </div>
                             </div>
-                            <div className="bg-gray-800 rounded-lg p-3 border border-red-500/30">
-                              <div className="text-xs text-gray-400 mb-1">Total Defeats</div>
-                              <div className="text-2xl font-bold text-red-400">
+                            <div className="bg-[--card] rounded-lg p-3 border border-[--neon-red]/20">
+                              <div className="text-xs text-white/50 mb-1">Total Defeats</div>
+                              <div className="text-2xl font-bold text-[--neon-red]">
                                 {beerDefeatStats?.dailyDefeats?.reduce((sum: number, d: any) => sum + d.count, 0) || 0}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-white/40">
                                 Avg: {beerDefeatStats?.averagePerDay?.toFixed(1) || '0'}/day
                               </div>
                             </div>
-                            <div className="bg-gray-800 rounded-lg p-3 border border-yellow-500/30">
-                              <div className="text-xs text-gray-400 mb-1">Defeat Rate</div>
-                              <div className="text-2xl font-bold text-yellow-400">
+                            <div className="bg-[--card] rounded-lg p-3 border border-[--neon-yellow]/20">
+                              <div className="text-xs text-white/50 mb-1">Defeat Rate</div>
+                              <div className="text-2xl font-bold text-[--neon-yellow]">
                                 {beerEffectivenessStats?.defeatRate 
                                   ? `${(beerEffectivenessStats.defeatRate * 100).toFixed(1)}%`
                                   : '0%'}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-white/40">
                                 Engagement Score: {beerEffectivenessStats?.engagementScore?.toFixed(2) || '0'}
                               </div>
                             </div>
-                            <div className="bg-gray-800 rounded-lg p-3 border border-purple-500/30">
-                              <div className="text-xs text-gray-400 mb-1">Avg Lifespan</div>
-                              <div className="text-2xl font-bold text-purple-400">
+                            <div className="bg-[--card] rounded-lg p-3 border border-[--neon-pink]/20">
+                              <div className="text-xs text-white/50 mb-1">Avg Lifespan</div>
+                              <div className="text-2xl font-bold text-[--neon-pink]">
                                 {beerEffectivenessStats?.avgLifespanByTier?.[0]?.avgLifespanHours
                                   ? `${(beerEffectivenessStats.avgLifespanByTier.reduce((sum: number, t: any) => sum + (t.avgLifespanHours || 0), 0) / beerEffectivenessStats.avgLifespanByTier.length).toFixed(1)}h`
                                   : '0h'}
                               </div>
-                              <div className="text-xs text-gray-500">All tiers combined</div>
+                              <div className="text-xs text-white/40">All tiers combined</div>
                             </div>
                           </div>
 
                           {/* Tier Distribution */}
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <h5 className="text-sm font-semibold text-cyan-300 mb-3">🎯 Spawn Distribution by Tier</h5>
+                          <div className="bg-[--card] rounded-lg p-4">
+                            <h5 className="text-sm font-semibold text-[--electric] mb-3">🎯 Spawn Distribution by Tier</h5>
                             <div className="space-y-2">
                               {beerSpawnStats?.tierDistribution?.map((tier: any) => {
                                 const percentage = (tier.count / (beerSpawnStats?.dailySpawns?.reduce((sum: number, d: any) => sum + d.count, 0) || 1)) * 100;
                                 const tierNames = ['WEAK', 'MEDIUM', 'STRONG', 'ELITE', 'ULTRA', 'LEGENDARY'];
-                                const tierColors = ['bg-green-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500', 'bg-pink-500'];
+                                const tierColors = ['bg-[--synth]/15', 'bg-[--electric]/15', 'bg-[--neon-pink]/15', 'bg-[--solar]/15', 'bg-[--neon-red]/15', 'bg-[--neon-pink]/15'];
                                 
                                 return (
                                   <div key={tier.tier} className="flex items-center gap-3">
-                                    <div className="w-24 text-xs text-gray-400">{tierNames[tier.tier]}</div>
-                                    <div className="flex-1 bg-gray-700 rounded-full h-6 overflow-hidden">
+                                    <div className="w-24 text-xs text-white/50">{tierNames[tier.tier]}</div>
+                                    <div className="flex-1 bg-white/5 rounded-full h-6 overflow-hidden">
                                       <div 
                                         className={`${tierColors[tier.tier]} h-full flex items-center justify-center text-xs font-bold text-white transition-all`}
                                         style={{ width: `${percentage}%` }}
@@ -2040,15 +2055,15 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           </div>
 
                           {/* Defeat Stats by Tier */}
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <h5 className="text-sm font-semibold text-red-300 mb-3">⚔️ Defeats by Tier</h5>
+                          <div className="bg-[--card] rounded-lg p-4">
+                            <h5 className="text-sm font-semibold text-[--neon-red] mb-3">⚔️ Defeats by Tier</h5>
                             <div className="space-y-2">
                               {beerDefeatStats?.defeatsByTier?.map((tier: any) => {
                                 const tierNames = ['WEAK', 'MEDIUM', 'STRONG', 'ELITE', 'ULTRA', 'LEGENDARY'];
-                                const tierColors = ['text-green-400', 'text-blue-400', 'text-purple-400', 'text-orange-400', 'text-red-400', 'text-pink-400'];
+                                const tierColors = ['text-[--synth]', 'text-[--electric]', 'text-[--neon-pink]', 'text-[--solar]', 'text-[--neon-red]', 'text-[--neon-pink]'];
                                 
                                 return (
-                                  <div key={tier.tier} className="flex items-center justify-between bg-gray-700/50 rounded px-3 py-2">
+                                  <div key={tier.tier} className="flex items-center justify-between bg-white/5/50 rounded px-3 py-2">
                                     <span className={`text-sm font-semibold ${tierColors[tier.tier]}`}>
                                       {tierNames[tier.tier]}
                                     </span>
@@ -2060,11 +2075,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           </div>
 
                           {/* Top Players */}
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <h5 className="text-sm font-semibold text-yellow-300 mb-3">🏆 Top Beer Base Hunters</h5>
+                          <div className="bg-[--card] rounded-lg p-4">
+                            <h5 className="text-sm font-semibold text-[--neon-yellow] mb-3">🏆 Top Beer Base Hunters</h5>
                             <div className="space-y-2">
                               {beerDefeatStats?.topPlayers?.slice(0, 10).map((player: any, index: number) => (
-                                <div key={player.username} className="flex items-center justify-between bg-gray-700/50 rounded px-3 py-2">
+                                <div key={player.username} className="flex items-center justify-between bg-white/5/50 rounded px-3 py-2">
                                   <div className="flex items-center gap-3">
                                     <span className="text-lg">
                                       {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
@@ -2072,13 +2087,13 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                                     <span className="text-sm font-semibold text-white">{player.username}</span>
                                   </div>
                                   <div className="flex items-center gap-4 text-xs">
-                                    <span className="text-red-400">
+                                    <span className="text-[--neon-red]">
                                       {player.totalDefeats} defeats
                                     </span>
-                                    <span className="text-blue-400">
+                                    <span className="text-[--electric]">
                                       {player.totalRewards.metal.toLocaleString()} 🔩
                                     </span>
-                                    <span className="text-yellow-400">
+                                    <span className="text-[--neon-yellow]">
                                       {player.totalRewards.energy.toLocaleString()} ⚡
                                     </span>
                                   </div>
@@ -2088,17 +2103,17 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           </div>
 
                           {/* Effectiveness Metrics */}
-                          <div className="bg-gray-800 rounded-lg p-4">
-                            <h5 className="text-sm font-semibold text-purple-300 mb-3">📈 Effectiveness Metrics</h5>
+                          <div className="bg-[--card] rounded-lg p-4">
+                            <h5 className="text-sm font-semibold text-[--neon-pink] mb-3">📈 Effectiveness Metrics</h5>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
-                                <div className="text-xs text-gray-400 mb-2">Average Lifespan by Tier</div>
+                                <div className="text-xs text-white/50 mb-2">Average Lifespan by Tier</div>
                                 <div className="space-y-1">
                                   {beerEffectivenessStats?.avgLifespanByTier?.map((tier: any) => {
                                     const tierNames = ['WEAK', 'MEDIUM', 'STRONG', 'ELITE', 'ULTRA', 'LEGENDARY'];
                                     return (
                                       <div key={tier.tier} className="flex justify-between text-xs">
-                                        <span className="text-gray-400">{tierNames[tier.tier]}:</span>
+                                        <span className="text-white/50">{tierNames[tier.tier]}:</span>
                                         <span className="text-white font-semibold">
                                           {tier.avgLifespanHours?.toFixed(1) || '0'}h
                                         </span>
@@ -2108,11 +2123,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                                 </div>
                               </div>
                               <div>
-                                <div className="text-xs text-gray-400 mb-2">Peak Activity Hours (UTC)</div>
+                                <div className="text-xs text-white/50 mb-2">Peak Activity Hours (UTC)</div>
                                 <div className="space-y-1">
                                   {beerEffectivenessStats?.peakHours?.slice(0, 3).map((peak: any, index: number) => (
                                     <div key={peak.hour} className="flex justify-between text-xs">
-                                      <span className="text-gray-400">
+                                      <span className="text-white/50">
                                         {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'} {peak.hour.toString().padStart(2, '0')}:00
                                       </span>
                                       <span className="text-white font-semibold">{peak.count} defeats</span>
@@ -2125,15 +2140,15 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                           {/* Spawn Sources */}
                           {beerSpawnStats?.spawnSources && (
-                            <div className="bg-gray-800 rounded-lg p-4">
-                              <h5 className="text-sm font-semibold text-green-300 mb-3">🎲 Spawn Sources</h5>
+                            <div className="bg-[--card] rounded-lg p-4">
+                              <h5 className="text-sm font-semibold text-[--synth] mb-3">🎲 Spawn Sources</h5>
                               <div className="flex gap-4">
                                 {beerSpawnStats.spawnSources.map((source: any) => (
-                                  <div key={source.source} className="flex-1 bg-gray-700/50 rounded p-3 text-center">
-                                    <div className="text-xs text-gray-400 mb-1">
+                                  <div key={source.source} className="flex-1 bg-white/5/50 rounded p-3 text-center">
+                                    <div className="text-xs text-white/50 mb-1">
                                       {source.source === 'auto' ? 'Automatic' : 'Manual'}
                                     </div>
-                                    <div className="text-xl font-bold text-green-400">{source.count}</div>
+                                    <div className="text-xl font-bold text-[--synth]">{source.count}</div>
                                   </div>
                                 ))}
                               </div>
@@ -2146,41 +2161,41 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                 </div>
 
                 {/* Predictive Spawning Configuration (FID-20251025-002) */}
-                <div className="mt-4 bg-green-900/10 border border-green-500/20 rounded-lg">
+                <div className="mt-4 bg-[--synth]/5 border border-[--synth]/20 rounded-lg">
                   <button
                     onClick={() => {
                       const expanded = !(beerBaseConfig as any).predictiveExpanded;
                       setBeerBaseConfig({ ...beerBaseConfig, predictiveExpanded: expanded } as any);
                     }}
-                    className="w-full p-3 text-left hover:bg-green-900/20 transition-colors flex items-center justify-between rounded-lg"
+                    className="w-full p-3 text-left hover:bg-[--synth]/5 transition-colors flex items-center justify-between rounded-lg"
                   >
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-green-200">
+                      <h4 className="text-sm font-semibold text-[--synth]">
                         🔮 Predictive Spawning
                       </h4>
-                      <span className="text-xs text-gray-400">(Historical data forecasting)</span>
+                      <span className="text-xs text-white/50">(Historical data forecasting)</span>
                     </div>
-                    <span className="text-2xl text-green-400">{(beerBaseConfig as any).predictiveExpanded ? '▼' : '▶'}</span>
+                    <span className="text-2xl text-[--synth]">{(beerBaseConfig as any).predictiveExpanded ? '▼' : '▶'}</span>
                   </button>
                   
                   {(beerBaseConfig as any).predictiveExpanded && (
                     <div className="p-4 pt-0 space-y-4">
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-white/50">
                         🧠 <strong>AI-Powered Forecasting:</strong> Uses 365-day player history with linear regression to predict 
                         future player levels. Spawns appropriate tiers <em>ahead</em> of progression curve.
                       </p>
                       
                       {/* Mode Toggle */}
-                      <div className="bg-gray-800 rounded-lg p-4">
+                      <div className="bg-[--card] rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                          <label className="text-sm font-semibold text-green-300">Predictive Mode</label>
+                          <label className="text-sm font-semibold text-[--synth]">Predictive Mode</label>
                           <select 
                             value={(beerBaseConfig as any).usePredictiveSpawning ? 'true' : 'false'}
                             onChange={(e) => setBeerBaseConfig({
                               ...beerBaseConfig, 
                               usePredictiveSpawning: e.target.value === 'true'
                             } as any)}
-                            className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                            className="bg-white/5 border border-[--border] rounded px-3 py-2 text-white text-sm"
                           >
                             <option value="false">📊 Current Player Levels</option>
                             <option value="true">🔮 Predictive (Forecast)</option>
@@ -2189,7 +2204,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                         
                         {(beerBaseConfig as any).usePredictiveSpawning && (
                           <div className="space-y-2">
-                            <label className="text-xs text-gray-400">Prediction Horizon (weeks ahead)</label>
+                            <label className="text-xs text-white/50">Prediction Horizon (weeks ahead)</label>
                             <input 
                               type="number"
                               min="1"
@@ -2199,9 +2214,9 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                                 ...beerBaseConfig,
                                 predictiveWeeksAhead: parseInt(e.target.value) || 2
                               } as any)}
-                              className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                              className="w-full bg-white/5 border border-[--border] rounded px-3 py-2 text-white text-sm"
                             />
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-white/40">
                               Default: 2 weeks. Higher values = spawns more challenging ahead of current playerbase
                             </p>
                           </div>
@@ -2211,8 +2226,8 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       {/* Current Mode Indicator */}
                       <div className={`rounded-lg p-3 border-2 ${
                         (beerBaseConfig as any).usePredictiveSpawning 
-                          ? 'bg-green-900/20 border-green-500/30' 
-                          : 'bg-blue-900/20 border-blue-500/30'
+                          ? 'bg-[--synth]/5 border-[--synth]/20' 
+                          : 'bg-[--electric]/5 border-[--electric]/20'
                       }`}>
                         <div className="flex items-center gap-2">
                           <span className="text-2xl">{(beerBaseConfig as any).usePredictiveSpawning ? '🔮' : '📊'}</span>
@@ -2220,7 +2235,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             <div className="text-sm font-bold text-white">
                               {(beerBaseConfig as any).usePredictiveSpawning ? 'PREDICTIVE MODE ACTIVE' : 'CURRENT MODE ACTIVE'}
                             </div>
-                            <div className="text-xs text-gray-400">
+                            <div className="text-xs text-white/50">
                               {(beerBaseConfig as any).usePredictiveSpawning 
                                 ? `Spawning based on projected levels ${(beerBaseConfig as any).predictiveWeeksAhead || 2} weeks ahead`
                                 : 'Spawning based on current player levels (last 7 days activity)'}
@@ -2230,38 +2245,38 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       </div>
 
                       {/* Distribution Comparison */}
-                      <div className="bg-gray-800 rounded-lg p-4">
-                        <h5 className="text-sm font-semibold text-green-300 mb-3">📊 Distribution Comparison</h5>
-                        <p className="text-xs text-gray-400 mb-3">
+                      <div className="bg-[--card] rounded-lg p-4">
+                        <h5 className="text-sm font-semibold text-[--synth] mb-3">📊 Distribution Comparison</h5>
+                        <p className="text-xs text-white/50 mb-3">
                           Compare current vs predicted tier distributions. Predictive mode helps maintain challenge as players progress.
                         </p>
                         
                         <div className="grid grid-cols-6 gap-2 text-xs">
-                          <div className="text-center text-gray-400 font-semibold">Tier</div>
-                          <div className="text-center text-gray-400 font-semibold">WEAK</div>
-                          <div className="text-center text-gray-400 font-semibold">MID</div>
-                          <div className="text-center text-gray-400 font-semibold">STRONG</div>
-                          <div className="text-center text-gray-400 font-semibold">ELITE</div>
-                          <div className="text-center text-gray-400 font-semibold">ULTRA</div>
+                          <div className="text-center text-white/50 font-semibold">Tier</div>
+                          <div className="text-center text-white/50 font-semibold">WEAK</div>
+                          <div className="text-center text-white/50 font-semibold">MID</div>
+                          <div className="text-center text-white/50 font-semibold">STRONG</div>
+                          <div className="text-center text-white/50 font-semibold">ELITE</div>
+                          <div className="text-center text-white/50 font-semibold">ULTRA</div>
                           
                           {/* Current Distribution Row */}
-                          <div className="text-left text-blue-400 font-semibold">Current</div>
+                          <div className="text-left text-[--electric] font-semibold">Current</div>
                           {[0, 1, 2, 3, 4].map((tier) => (
-                            <div key={`current-${tier}`} className="bg-blue-900/30 rounded p-1 text-center text-white">
+                            <div key={`current-${tier}`} className="bg-[--electric]/5 rounded p-1 text-center text-white">
                               —%
                             </div>
                           ))}
                           
                           {/* Predicted Distribution Row */}
-                          <div className="text-left text-green-400 font-semibold">Predicted</div>
+                          <div className="text-left text-[--synth] font-semibold">Predicted</div>
                           {[0, 1, 2, 3, 4].map((tier) => (
-                            <div key={`predicted-${tier}`} className="bg-green-900/30 rounded p-1 text-center text-white">
+                            <div key={`predicted-${tier}`} className="bg-[--synth]/5 rounded p-1 text-center text-white">
                               —%
                             </div>
                           ))}
                         </div>
                         
-                        <div className="mt-3 text-xs text-gray-500">
+                        <div className="mt-3 text-xs text-white/40">
                           <strong>Note:</strong> Real-time distribution data requires backend integration with 
                           /api/admin/beer-bases/predictive-comparison endpoint. Values shown when available.
                         </div>
@@ -2294,7 +2309,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             }
                           }}
                           disabled={beerBaseLoading}
-                          className="flex-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
+                          className="flex-1 bg-[--synth]/15 hover:bg-[--synth]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
                         >
                           {beerBaseLoading ? '⏳ Calculating...' : '🔄 Recalculate Predictions'}
                         </button>
@@ -2309,17 +2324,17 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               'Use Case: Prevent "too easy" spawns as playerbase advances rapidly'
                             );
                           }}
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded font-semibold text-sm transition-colors"
+                          className="px-4 py-2 bg-white/5 hover:bg-white/5 text-white rounded font-semibold text-sm transition-colors"
                         >
                           ℹ️ How It Works
                         </button>
                       </div>
 
                       {/* Implementation Status */}
-                      <div className="bg-yellow-900/20 border border-yellow-500/30 rounded p-3">
+                      <div className="bg-[--neon-yellow]/5 border border-[--neon-yellow]/20 rounded p-3">
                         <div className="flex items-start gap-2">
                           <span className="text-lg">⚠️</span>
-                          <div className="text-xs text-yellow-300">
+                          <div className="text-xs text-[--neon-yellow]">
                             <strong>Implementation Status:</strong> Backend integration complete. 
                             API endpoints /api/admin/beer-bases/predictive-comparison and 
                             /api/admin/beer-bases/recalculate-predictions may need implementation for full UI functionality.
@@ -2332,66 +2347,66 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                 </div>
 
                 {/* Tech System Costs */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3">Tech System Costs & Cooldowns</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--electric] mb-3">Tech System Costs & Cooldowns</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Bot Magnet Cost (Metal)</label>
+                      <label className="text-sm text-white/50">Bot Magnet Cost (Metal)</label>
                       <input 
                         type="number" 
                         defaultValue={10000}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Magnet Cooldown (hours)</label>
+                      <label className="text-sm text-white/50">Magnet Cooldown (hours)</label>
                       <input 
                         type="number" 
                         defaultValue={336}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Summoning Cost (Metal)</label>
+                      <label className="text-sm text-white/50">Summoning Cost (Metal)</label>
                       <input 
                         type="number" 
                         defaultValue={25000}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Summoning Cost (Energy)</label>
+                      <label className="text-sm text-white/50">Summoning Cost (Energy)</label>
                       <input 
                         type="number" 
                         defaultValue={25000}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Phase-Out System */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-cyan-300 mb-3">Phase-Out System</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--electric] mb-3">Phase-Out System</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Enabled</label>
-                      <select className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white">
+                      <label className="text-sm text-white/50">Enabled</label>
+                      <select className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white">
                         <option value="false">Disabled</option>
                         <option value="true">Enabled</option>
                       </select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">1 Bot per X Players</label>
+                      <label className="text-sm text-white/50">1 Bot per X Players</label>
                       <input 
                         type="number" 
                         defaultValue={10}
-                        className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+                        className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm text-gray-400">Priority</label>
-                      <select className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white">
+                      <label className="text-sm text-white/50">Priority</label>
+                      <select className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white">
                         <option value="weakest">Weakest</option>
                         <option value="oldest">Oldest</option>
                         <option value="random">Random</option>
@@ -2403,15 +2418,15 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
             </div>
 
             {/* WMD System Oversight */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-pink-500/30">
+            <div className="bg-[--card] rounded-lg p-6 border-2 border-[--neon-pink]/20">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-pink-400">☢️ WMD System Oversight</h2>
+                <h2 className="text-2xl font-bold text-[--neon-pink]">☢️ WMD System Oversight</h2>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-400">Time Range:</span>
+                  <span className="text-sm text-white/50">Time Range:</span>
                   <select 
                     value={wmdTimeRange}
                     onChange={(e) => setWmdTimeRange(e.target.value as '7d' | '30d' | '90d')}
-                    className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-white text-sm"
+                    className="bg-white/5 border border-[--border] rounded px-3 py-1 text-white text-sm"
                   >
                     <option value="7d">Last 7 Days</option>
                     <option value="30d">Last 30 Days</option>
@@ -2423,55 +2438,55 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
               <div className="space-y-6">
                 {/* System Health Status */}
                 {wmdStatus && (
-                  <div className="bg-gray-900 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-pink-300 mb-3">System Health</h3>
+                  <div className="bg-[--card] rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-[--neon-pink] mb-3">System Health</h3>
                     <div className="grid grid-cols-4 gap-3">
-                      <div className="bg-gray-800 p-3 rounded text-center">
-                        <p className="text-xs text-gray-400">Active Operations</p>
-                        <p className="text-2xl font-bold text-pink-400">
+                      <div className="bg-[--card] p-3 rounded text-center">
+                        <p className="text-xs text-white/50">Active Operations</p>
+                        <p className="text-2xl font-bold text-[--neon-pink]">
                           {wmdStatus.activeOperations?.missiles || 0}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">Missiles</p>
+                        <p className="text-xs text-white/40 mt-1">Missiles</p>
                       </div>
-                      <div className="bg-gray-800 p-3 rounded text-center">
-                        <p className="text-xs text-gray-400">Active Votes</p>
-                        <p className="text-2xl font-bold text-yellow-400">
+                      <div className="bg-[--card] p-3 rounded text-center">
+                        <p className="text-xs text-white/50">Active Votes</p>
+                        <p className="text-2xl font-bold text-[--neon-yellow]">
                           {wmdStatus.activeOperations?.votes || 0}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">Pending</p>
+                        <p className="text-xs text-white/40 mt-1">Pending</p>
                       </div>
-                      <div className="bg-gray-800 p-3 rounded text-center">
-                        <p className="text-xs text-gray-400">Scheduled Jobs</p>
-                        <p className="text-2xl font-bold text-blue-400">
+                      <div className="bg-[--card] p-3 rounded text-center">
+                        <p className="text-xs text-white/50">Scheduled Jobs</p>
+                        <p className="text-2xl font-bold text-[--electric]">
                           {wmdStatus.jobs?.scheduled || 0}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">Queue</p>
+                        <p className="text-xs text-white/40 mt-1">Queue</p>
                       </div>
-                      <div className="bg-gray-800 p-3 rounded text-center">
-                        <p className="text-xs text-gray-400">System Alerts</p>
-                        <p className={`text-2xl font-bold ${(wmdStatus.alerts?.length || 0) > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                      <div className="bg-[--card] p-3 rounded text-center">
+                        <p className="text-xs text-white/50">System Alerts</p>
+                        <p className={`text-2xl font-bold ${(wmdStatus.alerts?.length || 0) > 0 ? 'text-[--neon-red]' : 'text-[--synth]'}`}>
                           {wmdStatus.alerts?.length || 0}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">Active</p>
+                        <p className="text-xs text-white/40 mt-1">Active</p>
                       </div>
                     </div>
 
                     {/* Active Alerts */}
                     {wmdStatus.alerts && wmdStatus.alerts.length > 0 && (
                       <div className="mt-4 space-y-2">
-                        <h4 className="text-sm font-semibold text-red-400">⚠️ Active Alerts</h4>
+                        <h4 className="text-sm font-semibold text-[--neon-red]">⚠️ Active Alerts</h4>
                         {wmdStatus.alerts.map((alert: any, idx: number) => (
-                          <div key={idx} className="bg-red-900/20 border border-red-500/30 rounded p-3">
+                          <div key={idx} className="bg-[--neon-red]/5 border border-[--neon-red]/20 rounded p-3">
                             <div className="flex items-start justify-between">
                               <div>
-                                <p className="text-sm font-semibold text-red-300">{alert.type}</p>
-                                <p className="text-xs text-gray-400 mt-1">{alert.message}</p>
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-sm font-semibold text-[--neon-red]">{alert.type}</p>
+                                <p className="text-xs text-white/50 mt-1">{alert.message}</p>
+                                <p className="text-xs text-white/40 mt-1">
                                   {alert.playerId && `Player: ${alert.playerId}`}
                                   {alert.clanId && ` | Clan: ${alert.clanId}`}
                                 </p>
                               </div>
-                              <span className="text-xs text-gray-400">
+                              <span className="text-xs text-white/50">
                                 {new Date(alert.createdAt).toLocaleDateString()}
                               </span>
                             </div>
@@ -2484,41 +2499,41 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                 {/* Analytics Summary */}
                 {wmdAnalytics && (
-                  <div className="bg-gray-900 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-pink-300 mb-3">Analytics Summary</h3>
+                  <div className="bg-[--card] rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-[--neon-pink] mb-3">Analytics Summary</h3>
                     
                     {/* Missile Statistics */}
                     <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-orange-400 mb-2">🚀 Missile Operations</h4>
+                      <h4 className="text-sm font-semibold text-[--solar] mb-2">🚀 Missile Operations</h4>
                       <div className="grid grid-cols-5 gap-3">
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Total Launched</p>
-                          <p className="text-xl font-bold text-orange-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Total Launched</p>
+                          <p className="text-xl font-bold text-[--solar]">
                             {wmdAnalytics.missiles?.total || 0}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Intercepted</p>
-                          <p className="text-xl font-bold text-blue-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Intercepted</p>
+                          <p className="text-xl font-bold text-[--electric]">
                             {wmdAnalytics.missiles?.intercepted || 0}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Hit Targets</p>
-                          <p className="text-xl font-bold text-red-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Hit Targets</p>
+                          <p className="text-xl font-bold text-[--neon-red]">
                             {wmdAnalytics.missiles?.hit || 0}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Success Rate</p>
-                          <p className="text-xl font-bold text-green-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Success Rate</p>
+                          <p className="text-xl font-bold text-[--synth]">
                             {wmdAnalytics.missiles?.successRate ? 
                               `${(wmdAnalytics.missiles.successRate * 100).toFixed(1)}%` : '0%'}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Avg Damage</p>
-                          <p className="text-xl font-bold text-yellow-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Avg Damage</p>
+                          <p className="text-xl font-bold text-[--neon-yellow]">
                             {wmdAnalytics.missiles?.avgDamage ? 
                               Math.round(wmdAnalytics.missiles.avgDamage).toLocaleString() : '0'}
                           </p>
@@ -2528,29 +2543,29 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                     {/* Voting Statistics */}
                     <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-yellow-400 mb-2">🗳️ Voting Patterns</h4>
+                      <h4 className="text-sm font-semibold text-[--neon-yellow] mb-2">🗳️ Voting Patterns</h4>
                       <div className="grid grid-cols-4 gap-3">
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Total Votes</p>
-                          <p className="text-xl font-bold text-yellow-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Total Votes</p>
+                          <p className="text-xl font-bold text-[--neon-yellow]">
                             {wmdAnalytics.votes?.total || 0}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Passed</p>
-                          <p className="text-xl font-bold text-green-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Passed</p>
+                          <p className="text-xl font-bold text-[--synth]">
                             {wmdAnalytics.votes?.passed || 0}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Failed</p>
-                          <p className="text-xl font-bold text-red-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Failed</p>
+                          <p className="text-xl font-bold text-[--neon-red]">
                             {wmdAnalytics.votes?.failed || 0}
                           </p>
                         </div>
-                        <div className="bg-gray-800 p-2 rounded text-center">
-                          <p className="text-xs text-gray-400">Approval Rate</p>
-                          <p className="text-xl font-bold text-purple-400">
+                        <div className="bg-[--card] p-2 rounded text-center">
+                          <p className="text-xs text-white/50">Approval Rate</p>
+                          <p className="text-xl font-bold text-[--neon-pink]">
                             {wmdAnalytics.votes?.approvalRate ? 
                               `${(wmdAnalytics.votes.approvalRate * 100).toFixed(1)}%` : '0%'}
                           </p>
@@ -2561,23 +2576,23 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     {/* Defense & Economic Stats */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <h4 className="text-sm font-semibold text-blue-400 mb-2">🛡️ Defense Operations</h4>
-                        <div className="bg-gray-800 p-3 rounded">
+                        <h4 className="text-sm font-semibold text-[--electric] mb-2">🛡️ Defense Operations</h4>
+                        <div className="bg-[--card] p-3 rounded">
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-gray-400">Research Attempts</span>
-                            <span className="text-sm font-bold text-blue-400">
+                            <span className="text-xs text-white/50">Research Attempts</span>
+                            <span className="text-sm font-bold text-[--electric]">
                               {wmdAnalytics.defense?.researchAttempts || 0}
                             </span>
                           </div>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-gray-400">Successful Research</span>
-                            <span className="text-sm font-bold text-green-400">
+                            <span className="text-xs text-white/50">Successful Research</span>
+                            <span className="text-sm font-bold text-[--synth]">
                               {wmdAnalytics.defense?.researchSuccesses || 0}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">Active Spy Ops</span>
-                            <span className="text-sm font-bold text-purple-400">
+                            <span className="text-xs text-white/50">Active Spy Ops</span>
+                            <span className="text-sm font-bold text-[--neon-pink]">
                               {wmdAnalytics.defense?.activeSpyOps || 0}
                             </span>
                           </div>
@@ -2585,25 +2600,25 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-semibold text-green-400 mb-2">💰 Economic Impact</h4>
-                        <div className="bg-gray-800 p-3 rounded">
+                        <h4 className="text-sm font-semibold text-[--synth] mb-2">💰 Economic Impact</h4>
+                        <div className="bg-[--card] p-3 rounded">
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-gray-400">Total Spent</span>
-                            <span className="text-sm font-bold text-red-400">
+                            <span className="text-xs text-white/50">Total Spent</span>
+                            <span className="text-sm font-bold text-[--neon-red]">
                               {wmdAnalytics.economy?.totalSpent ? 
                                 Math.round(wmdAnalytics.economy.totalSpent).toLocaleString() : '0'}
                             </span>
                           </div>
                           <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs text-gray-400">Avg Per Operation</span>
-                            <span className="text-sm font-bold text-yellow-400">
+                            <span className="text-xs text-white/50">Avg Per Operation</span>
+                            <span className="text-sm font-bold text-[--neon-yellow]">
                               {wmdAnalytics.economy?.avgCost ? 
                                 Math.round(wmdAnalytics.economy.avgCost).toLocaleString() : '0'}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-xs text-gray-400">Clans Participating</span>
-                            <span className="text-sm font-bold text-green-400">
+                            <span className="text-xs text-white/50">Clans Participating</span>
+                            <span className="text-sm font-bold text-[--synth]">
                               {wmdAnalytics.economy?.uniqueClans || 0}
                             </span>
                           </div>
@@ -2614,11 +2629,11 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     {/* Balance Warnings */}
                     {wmdAnalytics.balance?.warnings && wmdAnalytics.balance.warnings.length > 0 && (
                       <div className="mt-4">
-                        <h4 className="text-sm font-semibold text-orange-400 mb-2">⚠️ Balance Warnings</h4>
+                        <h4 className="text-sm font-semibold text-[--solar] mb-2">⚠️ Balance Warnings</h4>
                         <div className="space-y-2">
                           {wmdAnalytics.balance.warnings.map((warning: string, idx: number) => (
-                            <div key={idx} className="bg-orange-900/20 border border-orange-500/30 rounded px-3 py-2">
-                              <p className="text-sm text-orange-300">{warning}</p>
+                            <div key={idx} className="bg-[--solar]/5 border border-[--solar]/20 rounded px-3 py-2">
+                               <p className="text-sm text-[--solar]">{warning}</p>
                             </div>
                           ))}
                         </div>
@@ -2628,23 +2643,23 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                 )}
 
                 {/* Emergency Admin Actions */}
-                <div className="bg-gray-900 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-pink-300 mb-3">🚨 Emergency Actions</h3>
+                <div className="bg-[--card] rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-[--neon-pink] mb-3">🚨 Emergency Actions</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-red-400">Missile Control</h4>
+                      <h4 className="text-sm font-semibold text-[--neon-red]">Missile Control</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
                           placeholder="Missile ID"
                           id="disarm-missile-id"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <input 
                           type="text"
                           placeholder="Reason for disarming"
                           id="disarm-reason"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <button
                           onClick={async () => {
@@ -2677,7 +2692,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               alert('Failed to disarm missile');
                             }
                           }}
-                          className="w-full bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
+                          className="w-full bg-[--neon-red]/15 hover:bg-[--neon-red]/15 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
                         >
                           🛑 Emergency Disarm
                         </button>
@@ -2685,19 +2700,19 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-yellow-400">Vote Control</h4>
+                      <h4 className="text-sm font-semibold text-[--neon-yellow]">Vote Control</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
                           placeholder="Vote ID"
                           id="expire-vote-id"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <input 
                           type="text"
                           placeholder="Reason for expiration"
                           id="expire-reason"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <button
                           onClick={async () => {
@@ -2730,7 +2745,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               alert('Failed to expire vote');
                             }
                           }}
-                          className="w-full bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
+                          className="w-full bg-[--neon-yellow]/15 hover:bg-[--neon-yellow]/15 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
                         >
                           ⏱️ Force Expire
                         </button>
@@ -2738,25 +2753,25 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-blue-400">Cooldown Adjustment</h4>
+                      <h4 className="text-sm font-semibold text-[--electric]">Cooldown Adjustment</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
                           placeholder="Clan ID"
                           id="cooldown-clan-id"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <input 
                           type="number"
                           placeholder="Hours to adjust (+/-)"
                           id="cooldown-hours"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <input 
                           type="text"
                           placeholder="Reason"
                           id="cooldown-reason"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <button
                           onClick={async () => {
@@ -2786,7 +2801,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               alert('Failed to adjust cooldown');
                             }
                           }}
-                          className="w-full bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
+                          className="w-full bg-[--electric]/15 hover:bg-[--electric]/15 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
                         >
                           ⏰ Adjust Cooldown
                         </button>
@@ -2794,23 +2809,23 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-purple-400">Flag Suspicious Activity</h4>
+                      <h4 className="text-sm font-semibold text-[--neon-pink]">Flag Suspicious Activity</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
                           placeholder="Player ID (optional)"
                           id="flag-player-id"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <input 
                           type="text"
                           placeholder="Clan ID (optional)"
                           id="flag-clan-id"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <select 
                           id="flag-activity-type"
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         >
                           <option value="">Select Activity Type</option>
                           <option value="rapid_launch">Rapid Launch</option>
@@ -2823,7 +2838,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           placeholder="Details and evidence"
                           id="flag-details"
                           rows={3}
-                          className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm"
+                          className="w-full bg-[--card] border border-[--border] rounded px-3 py-2 text-white text-sm"
                         />
                         <button
                           onClick={async () => {
@@ -2868,7 +2883,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               alert('Failed to flag activity');
                             }
                           }}
-                          className="w-full bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
+                          className="w-full bg-[--neon-pink]/15 hover:bg-[--neon-pink]/15 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
                         >
                           🚩 Create Alert
                         </button>
@@ -2880,7 +2895,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
             </div>
 
         {/* RP Economy Management */}
-        <div className="bg-gray-800 rounded-lg border-2 border-purple-500/30">
+        <div className="bg-[--card] rounded-lg border-2 border-[--neon-pink]/20">
               <button
                 onClick={() => {
                   setRpEconomyExpanded(!rpEconomyExpanded);
@@ -2888,30 +2903,30 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     loadRpEconomyData();
                   }
                 }}
-                className="w-full p-6 text-left hover:bg-gray-700/50 transition-colors flex items-center justify-between"
+                className="w-full p-6 text-left hover:bg-white/5/50 transition-colors flex items-center justify-between"
               >
                 <div>
-                  <h2 className="text-2xl font-bold text-yellow-400">💰 RP Economy Management</h2>
-                  <p className="text-gray-400 text-sm mt-1">Monitor and manage the Research Point economy</p>
+                  <h2 className="text-2xl font-bold text-[--neon-yellow]">💰 RP Economy Management</h2>
+                  <p className="text-white/50 text-sm mt-1">Monitor and manage the Research Point economy</p>
                 </div>
-                <span className="text-3xl text-purple-400">{rpEconomyExpanded ? '▼' : '▶'}</span>
+                <span className="text-3xl text-[--neon-pink]">{rpEconomyExpanded ? '▼' : '▶'}</span>
               </button>
 
               {rpEconomyExpanded && (
                 <div className="p-6 pt-0 space-y-6">
                   {rpLoading && !rpStats ? (
-                    <div className="text-center py-8 text-gray-400">Loading economy data...</div>
+                    <div className="text-center py-8 text-white/50">Loading economy data...</div>
                   ) : (
                     <>
                       {/* Quick Actions Bar */}
-                      <div className="flex items-center justify-between bg-gray-900 rounded-lg p-4">
-                        <div className="text-sm text-gray-400">
+                      <div className="flex items-center justify-between bg-[--card] rounded-lg p-4">
+                        <div className="text-sm text-white/50">
                           Last refreshed: {new Date().toLocaleTimeString()}
                         </div>
                         <button
                           onClick={loadRpEconomyData}
                           disabled={rpLoading}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-lg font-semibold transition-colors text-sm"
+                          className="px-4 py-2 bg-[--neon-pink]/15 hover:bg-white/10 disabled:bg-white/5 rounded-lg font-semibold transition-colors text-sm"
                         >
                           {rpLoading ? '⏳ Loading...' : '🔄 Refresh Data'}
                         </button>
@@ -2919,14 +2934,14 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
 
                       {/* Economy Overview Stats */}
                       <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-gradient-to-br from-yellow-600 to-orange-600 rounded-lg p-4 text-white">
+                        <div className="bg-gradient-to-br from-[--neon-yellow]/15 to-[--solar]/15 rounded-lg p-4 text-white">
                           <div className="flex items-center justify-between mb-2">
                             <div className="text-2xl">💰</div>
                             <div className="text-xs opacity-80">Total RP in Circulation</div>
                           </div>
                           <div className="text-2xl font-bold">{rpStats?.totalRP?.toLocaleString() || '0'}</div>
                         </div>
-                        <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-lg p-4 text-white">
+                        <div className="bg-gradient-to-br from-[--synth]/15 to-[--synth]/15 rounded-lg p-4 text-white">
                           <div className="flex items-center justify-between mb-2">
                             <div className="text-2xl">📈</div>
                             <div className="text-xs opacity-80">Daily Generation</div>
@@ -2934,7 +2949,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           <div className="text-2xl font-bold">{rpStats?.dailyGeneration?.toLocaleString() || '0'}</div>
                           <div className="text-xs opacity-80">Last 24 hours</div>
                         </div>
-                        <div className="bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg p-4 text-white">
+                        <div className="bg-gradient-to-br from-[--electric]/15 to-[--electric]/15 rounded-lg p-4 text-white">
                           <div className="flex items-center justify-between mb-2">
                             <div className="text-2xl">👥</div>
                             <div className="text-xs opacity-80">Active Earners</div>
@@ -2942,7 +2957,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                           <div className="text-2xl font-bold">{rpStats?.activeEarners24h?.toLocaleString() || '0'}</div>
                           <div className="text-xs opacity-80">Last 24 hours</div>
                         </div>
-                        <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg p-4 text-white">
+                        <div className="bg-gradient-to-br from-[--neon-pink]/15 to-[--neon-pink]/15 rounded-lg p-4 text-white">
                           <div className="flex items-center justify-between mb-2">
                             <div className="text-2xl">📊</div>
                             <div className="text-xs opacity-80">Average Balance</div>
@@ -2955,34 +2970,34 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       {/* Generation vs Spending & Bulk Adjustment */}
                       <div className="grid grid-cols-2 gap-6">
                         {/* Generation/Spending */}
-                        <div className="bg-gray-900 rounded-lg p-4">
-                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-purple-400">
+                        <div className="bg-[--card] rounded-lg p-4">
+                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[--neon-pink]">
                             <span>💸</span>
                             <span>Generation vs Spending</span>
                           </h3>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-400">Total Generated:</span>
-                              <span className="text-green-400 font-bold">{rpStats?.totalGenerated?.toLocaleString() || '0'} RP</span>
+                              <span className="text-white/50">Total Generated:</span>
+                              <span className="text-[--synth] font-bold">{rpStats?.totalGenerated?.toLocaleString() || '0'} RP</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-400">Total Spent:</span>
-                              <span className="text-red-400 font-bold">{rpStats?.totalSpent?.toLocaleString() || '0'} RP</span>
+                              <span className="text-white/50">Total Spent:</span>
+                              <span className="text-[--neon-red] font-bold">{rpStats?.totalSpent?.toLocaleString() || '0'} RP</span>
                             </div>
-                            <div className="flex justify-between items-center pt-2 border-t border-gray-700">
-                              <span className="text-gray-300 font-semibold">Net Circulation:</span>
-                              <span className="text-yellow-400 font-bold text-lg">{rpStats?.totalRP?.toLocaleString() || '0'} RP</span>
+                            <div className="flex justify-between items-center pt-2 border-t border-[--border]">
+                              <span className="text-white/60 font-semibold">Net Circulation:</span>
+                              <span className="text-[--neon-yellow] font-bold text-lg">{rpStats?.totalRP?.toLocaleString() || '0'} RP</span>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-gray-500 text-xs">VIP Players:</span>
-                              <span className="text-purple-400 text-xs">{rpStats?.vipPlayers || 0} players (+50% bonus)</span>
+                              <span className="text-white/40 text-xs">VIP Players:</span>
+                              <span className="text-[--neon-pink] text-xs">{rpStats?.vipPlayers || 0} players (+50% bonus)</span>
                             </div>
                           </div>
                         </div>
 
                         {/* Bulk RP Adjustment Tool */}
-                        <div className="bg-gray-900 rounded-lg p-4">
-                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-purple-400">
+                        <div className="bg-[--card] rounded-lg p-4">
+                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[--neon-pink]">
                             <span>⚙️</span>
                             <span>Bulk RP Adjustment</span>
                           </h3>
@@ -2991,32 +3006,32 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               type="text"
                               value={rpBulkUsername}
                               onChange={(e) => setRpBulkUsername(e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm"
+                              className="w-full px-3 py-2 bg-[--card] border border-[--border] rounded text-white text-sm"
                               placeholder="Username"
                             />
                             <input
                               type="number"
                               value={rpBulkAmount || ''}
                               onChange={(e) => setRpBulkAmount(parseInt(e.target.value) || 0)}
-                              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm"
+                              className="w-full px-3 py-2 bg-[--card] border border-[--border] rounded text-white text-sm"
                               placeholder="Amount (+ to add, - to remove)"
                             />
                             <input
                               type="text"
                               value={rpBulkReason}
                               onChange={(e) => setRpBulkReason(e.target.value)}
-                              className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm"
+                              className="w-full px-3 py-2 bg-[--card] border border-[--border] rounded text-white text-sm"
                               placeholder="Reason for adjustment"
                             />
                             <button
                               onClick={handleRpBulkAdjustment}
                               disabled={rpBulkLoading || !rpBulkUsername || rpBulkAmount === 0 || !rpBulkReason}
-                              className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 rounded font-semibold transition-colors text-sm"
+                              className="w-full px-4 py-2 bg-[--solar]/15 hover:bg-white/10 disabled:bg-white/5 rounded font-semibold transition-colors text-sm"
                             >
                               {rpBulkLoading ? '⏳ Processing...' : '💰 Adjust RP Balance'}
                             </button>
                             {rpBulkResult && (
-                              <div className={`text-xs p-2 rounded ${rpBulkResult.startsWith('✅') ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>
+                              <div className={`text-xs p-2 rounded ${rpBulkResult.startsWith('✅') ? 'bg-[--synth]/10 text-[--synth]' : 'bg-[--neon-red]/10 text-[--neon-red]'}`}>
                                 {rpBulkResult}
                               </div>
                             )}
@@ -3027,42 +3042,42 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       {/* Top Earners and Spenders */}
                       <div className="grid grid-cols-2 gap-6">
                         {/* Top Earners */}
-                        <div className="bg-gray-900 rounded-lg p-4">
-                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-purple-400">
+                        <div className="bg-[--card] rounded-lg p-4">
+                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[--neon-pink]">
                             <span>🏆</span>
                             <span>Top RP Earners</span>
-                            <span className="text-xs text-gray-400 ml-auto">{rpDateFilter}</span>
+                            <span className="text-xs text-white/50 ml-auto">{rpDateFilter}</span>
                           </h3>
                           <div className="space-y-2">
                             {rpTopEarners.slice(0, 5).map((player: any, index: number) => (
-                              <div key={player.username} className="flex items-center justify-between p-2 bg-gray-800 rounded text-sm">
+                              <div key={player.username} className="flex items-center justify-between p-2 bg-[--card] rounded text-sm">
                                 <div className="flex items-center gap-2">
                                   <span>{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
                                   <span className="font-semibold">{player.username}</span>
-                                  {player.vip && <span className="text-xs bg-purple-600 px-1 py-0.5 rounded">VIP</span>}
+                                  {player.vip && <span className="text-xs bg-[--neon-pink]/15 px-1 py-0.5 rounded">VIP</span>}
                                 </div>
-                                <span className="text-green-400 font-bold">{player.amount?.toLocaleString()} RP</span>
+                                <span className="text-[--synth] font-bold">{player.amount?.toLocaleString()} RP</span>
                               </div>
                             ))}
                           </div>
                         </div>
 
                         {/* Top Spenders */}
-                        <div className="bg-gray-900 rounded-lg p-4">
-                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-purple-400">
+                        <div className="bg-[--card] rounded-lg p-4">
+                          <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[--neon-pink]">
                             <span>💸</span>
                             <span>Top RP Spenders</span>
-                            <span className="text-xs text-gray-400 ml-auto">{rpDateFilter}</span>
+                            <span className="text-xs text-white/50 ml-auto">{rpDateFilter}</span>
                           </h3>
                           <div className="space-y-2">
                             {rpTopSpenders.slice(0, 5).map((player: any, index: number) => (
-                              <div key={player.username} className="flex items-center justify-between p-2 bg-gray-800 rounded text-sm">
+                              <div key={player.username} className="flex items-center justify-between p-2 bg-[--card] rounded text-sm">
                                 <div className="flex items-center gap-2">
                                   <span>{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
                                   <span className="font-semibold">{player.username}</span>
-                                  {player.vip && <span className="text-xs bg-purple-600 px-1 py-0.5 rounded">VIP</span>}
+                                  {player.vip && <span className="text-xs bg-[--neon-pink]/15 px-1 py-0.5 rounded">VIP</span>}
                                 </div>
-                                <span className="text-red-400 font-bold">{player.amount?.toLocaleString()} RP</span>
+                                <span className="text-[--neon-red] font-bold">{player.amount?.toLocaleString()} RP</span>
                               </div>
                             ))}
                           </div>
@@ -3070,9 +3085,9 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       </div>
 
                       {/* Transaction History with Filters */}
-                      <div className="bg-gray-900 rounded-lg p-4">
+                      <div className="bg-[--card] rounded-lg p-4">
                         <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-bold flex items-center gap-2 text-purple-400">
+                          <h3 className="text-lg font-bold flex items-center gap-2 text-[--neon-pink]">
                             <span>📜</span>
                             <span>Recent RP Transactions</span>
                           </h3>
@@ -3082,7 +3097,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             <select
                               value={rpDateFilter}
                               onChange={(e) => setRpDateFilter(e.target.value as any)}
-                              className="px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs"
+                              className="px-2 py-1 bg-[--card] border border-[--border] rounded text-xs"
                             >
                               <option value="24h">Last 24 Hours</option>
                               <option value="7d">Last 7 Days</option>
@@ -3093,7 +3108,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             <select
                               value={rpSourceFilter}
                               onChange={(e) => setRpSourceFilter(e.target.value)}
-                              className="px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs"
+                              className="px-2 py-1 bg-[--card] border border-[--border] rounded text-xs"
                             >
                               <option value="all">All Sources</option>
                               <option value="harvest_milestone">Harvest Milestones</option>
@@ -3109,15 +3124,15 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                               value={rpUsernameFilter}
                               onChange={(e) => setRpUsernameFilter(e.target.value)}
                               placeholder="Filter by username..."
-                              className="px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs w-40"
+                              className="px-2 py-1 bg-[--card] border border-[--border] rounded text-xs w-40"
                             />
                           </div>
                         </div>
                         
                         <div className="overflow-x-auto max-h-64 overflow-y-auto">
                           <table className="w-full text-xs">
-                            <thead className="sticky top-0 bg-gray-900">
-                              <tr className="border-b border-gray-700">
+                            <thead className="sticky top-0 bg-[--card]">
+                              <tr className="border-b border-[--border]">
                                 <th className="text-left py-2 px-2">Time</th>
                                 <th className="text-left py-2 px-2">Player</th>
                                 <th className="text-left py-2 px-2">Source</th>
@@ -3128,12 +3143,12 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             </thead>
                             <tbody>
                               {rpTransactions.slice(0, 50).map((tx: any) => (
-                                <tr key={tx._id} className="border-b border-gray-700/50 hover:bg-gray-800/50">
-                                  <td className="py-2 px-2 text-gray-400">{formatRpTimestamp(tx.timestamp)}</td>
+                                <tr key={tx._id} className="border-b border-[--border]/50 hover:bg-[--card]/50">
+                                  <td className="py-2 px-2 text-white/50">{formatRpTimestamp(tx.timestamp)}</td>
                                   <td className="py-2 px-2 font-semibold">{tx.username}</td>
                                   <td className="py-2 px-2">{formatRpSourceName(tx.source)}</td>
-                                  <td className="py-2 px-2 text-gray-400">{tx.description}</td>
-                                  <td className={`py-2 px-2 text-right font-bold ${tx.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  <td className="py-2 px-2 text-white/50">{tx.description}</td>
+                                  <td className={`py-2 px-2 text-right font-bold ${tx.amount >= 0 ? 'text-[--synth]' : 'text-[--neon-red]'}`}>
                                     {tx.amount >= 0 ? '+' : ''}{tx.amount?.toLocaleString()}
                                   </td>
                                   <td className="py-2 px-2 text-center">{tx.vipBonusApplied ? '👑' : '-'}</td>
@@ -3142,7 +3157,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                             </tbody>
                           </table>
                           {rpTransactions.length === 0 && (
-                            <div className="text-center py-8 text-gray-400">No transactions found</div>
+                            <div className="text-center py-8 text-white/50">No transactions found</div>
                           )}
                         </div>
                       </div>
@@ -3208,30 +3223,30 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
           {/* Schedule Management Modal (FID-20251025-003) */}
           {showScheduleModal && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full border-2 border-blue-500">
-                <h3 className="text-xl font-bold text-blue-300 mb-4">
+              <div className="bg-[--card] rounded-lg p-6 max-w-md w-full border-2 border-[--electric]/20">
+                <h3 className="text-xl font-bold text-[--electric] mb-4">
                   {editingSchedule ? 'Edit Schedule' : 'Add New Schedule'}
                 </h3>
                 
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm text-gray-400 block mb-1">Schedule Name (optional)</label>
+                    <label className="text-sm text-white/50 block mb-1">Schedule Name (optional)</label>
                     <input
                       type="text"
                       value={scheduleForm.name}
                       onChange={(e) => setScheduleForm({...scheduleForm, name: e.target.value})}
                       placeholder="e.g., Weekend Morning Spawn"
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                      className="w-full bg-white/5 border border-[--border] rounded px-3 py-2 text-white"
                     />
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-sm text-gray-400 block mb-1">Day of Week</label>
+                      <label className="text-sm text-white/50 block mb-1">Day of Week</label>
                       <select
                         value={scheduleForm.dayOfWeek}
                         onChange={(e) => setScheduleForm({...scheduleForm, dayOfWeek: parseInt(e.target.value)})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                        className="w-full bg-white/5 border border-[--border] rounded px-3 py-2 text-white"
                       >
                         <option value="0">Sunday</option>
                         <option value="1">Monday</option>
@@ -3244,39 +3259,39 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                     </div>
                     
                     <div>
-                      <label className="text-sm text-gray-400 block mb-1">Hour (0-23)</label>
+                      <label className="text-sm text-white/50 block mb-1">Hour (0-23)</label>
                       <input
                         type="number"
                         min="0"
                         max="23"
                         value={scheduleForm.hour}
                         onChange={(e) => setScheduleForm({...scheduleForm, hour: parseInt(e.target.value) || 0})}
-                        className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                        className="w-full bg-white/5 border border-[--border] rounded px-3 py-2 text-white"
                       />
                     </div>
                   </div>
                   
                   <div>
-                    <label className="text-sm text-gray-400 block mb-1">Spawn Percentage (1-200%)</label>
+                    <label className="text-sm text-white/50 block mb-1">Spawn Percentage (1-200%)</label>
                     <input
                       type="number"
                       min="1"
                       max="200"
                       value={scheduleForm.spawnPercentage}
                       onChange={(e) => setScheduleForm({...scheduleForm, spawnPercentage: parseInt(e.target.value) || 100})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                      className="w-full bg-white/5 border border-[--border] rounded px-3 py-2 text-white"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-white/40 mt-1">
                       Tip: Multiple schedules can combine (e.g., two 50% schedules = 100% total)
                     </p>
                   </div>
                   
                   <div>
-                    <label className="text-sm text-gray-400 block mb-1">Timezone</label>
+                    <label className="text-sm text-white/50 block mb-1">Timezone</label>
                     <select
                       value={scheduleForm.timezone}
                       onChange={(e) => setScheduleForm({...scheduleForm, timezone: e.target.value})}
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                      className="w-full bg-white/5 border border-[--border] rounded px-3 py-2 text-white"
                     >
                       <option value="America/New_York">Eastern (EST/EDT)</option>
                       <option value="America/Chicago">Central (CST/CDT)</option>
@@ -3299,7 +3314,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       onChange={(e) => setScheduleForm({...scheduleForm, enabled: e.target.checked})}
                       className="w-4 h-4"
                     />
-                    <label htmlFor="scheduleEnabled" className="text-sm text-gray-300">
+                    <label htmlFor="scheduleEnabled" className="text-sm text-white/60">
                       Schedule Enabled
                     </label>
                   </div>
@@ -3309,7 +3324,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                   <button
                     onClick={handleSaveSchedule}
                     disabled={schedulesLoading}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-semibold"
+                    className="flex-1 bg-[--electric]/15 hover:bg-[--electric]/15 disabled:bg-white/5 disabled:cursor-not-allowed text-white px-4 py-2 rounded font-semibold"
                   >
                     {schedulesLoading ? 'Saving...' : 'Save Schedule'}
                   </button>
@@ -3318,7 +3333,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
                       setShowScheduleModal(false);
                       setEditingSchedule(null);
                     }}
-                    className="flex-1 bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded font-semibold"
+                     className="flex-1 bg-white/5 hover:bg-white/10 text-white px-4 py-2 rounded font-semibold"
                   >
                     Cancel
                   </button>
@@ -3330,6 +3345,25 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
         )}
       </div>
     </div>
+  );
+
+  if (embedded) {
+    return renderAdminContent();
+  }
+
+  return (
+    <>
+      <TopNavBar />
+      <GameLayout
+        statsPanel={<StatsPanel />}
+        controlsPanel={<ControlsPanel />}
+        tileView={
+          <div className="h-full w-full overflow-auto bg-[--void]">
+            {renderAdminContent()}
+          </div>
+        }
+      />
+    </>
   );
 }
 

@@ -26,6 +26,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { toJsonb, fromJsonbArray } from '@/lib/supabase/jsonb';
 import type { Json } from '@/types/database';
 import { type Player } from '@/types/game.types';
 
@@ -130,7 +131,7 @@ export async function setConcentrationZones(
   const supabase = createServiceClient();
   const { error } = await supabase
     .from('players')
-    .update({ concentration_zones: zones as unknown as Json })
+    .update({ concentration_zones: toJsonb({ zones } as Record<string, unknown>) })
     .eq('username', playerId);
 
   if (error) {
@@ -160,7 +161,7 @@ export async function getConcentrationZones(
     .eq('username', playerId)
     .single();
 
-  return ((player?.concentration_zones as unknown) as ConcentrationZone[]) || [];
+  return fromJsonbArray<ConcentrationZone>(player?.concentration_zones);
 }
 
 /**
@@ -209,7 +210,7 @@ export async function getZoneSpawnPosition(): Promise<{
 
   // Pick random player
   const player = playersWithZones[Math.floor(Math.random() * playersWithZones.length)];
-  const zones = player.concentration_zones as unknown as ConcentrationZone[];
+  const zones = fromJsonbArray<ConcentrationZone>(player.concentration_zones);
 
   if (!zones || zones.length === 0) {
     return null;
@@ -261,7 +262,7 @@ export async function isInConcentrationZone(
     .neq('concentration_zones', '[]');
 
   for (const player of (playersWithZones || [])) {
-    const zones = (player.concentration_zones as unknown as ConcentrationZone[]) || [];
+    const zones = fromJsonbArray<ConcentrationZone>(player.concentration_zones);
     
     for (const zone of zones) {
       const bounds = getZoneBoundaries(zone);
@@ -307,12 +308,12 @@ export async function getZoneStats(): Promise<{
   const players = playersWithZones || [];
 
   const totalZones = players.reduce((sum, p) => {
-    const zones = (p.concentration_zones as unknown as ConcentrationZone[]) || [];
+    const zones = fromJsonbArray<ConcentrationZone>(p.concentration_zones);
     return sum + zones.length;
   }, 0);
 
   const distribution = players.map((p: any) => {
-    const zones = (p.concentration_zones as unknown as ConcentrationZone[]) || [];
+    const zones = fromJsonbArray<ConcentrationZone>(p.concentration_zones);
     return {
       playerName: p.username,
       zoneCount: zones.length,

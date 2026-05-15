@@ -1,0 +1,90 @@
+Good doc — very clean for a research prompt. Let me go through each question category with actual recommendations rather than "it depends" hedging.
+
+---
+
+## Distribution
+
+**1. Wasteland at 40%**
+Keep it. 40% empty space is a feature — it creates travel cost, which gives positional advantage meaning. Cutting wasteland just to increase density makes the map feel claustrophobic and reduces the value of scouting/positioning. If the map feels too sparse, the answer is usually fewer players, not more tiles.
+
+**2. Metal vs. Energy ratio**
+If T2+ units are net metal-heavy, yes — make Metal slightly rarer. Not dramatically: try 17% Metal / 22% Energy (roughly 3,825 / 4,950), then reclaim ~450 tiles back to Wasteland. This creates a real metal economy without making early game painful. Watch whether T1 is gated on metal too — if it's symmetrical at T1, the imbalance only matters post-L10.
+
+**3. Caves at 8% / ~33 diggers per full sweep**
+33 diggers per full sweep is fine if a full sweep is a meaningful time investment. The problem would be if auto-farm makes a full cave sweep trivial to complete in one session — then 33 diggers every few hours is actually a lot. Check the VIP movement math: at 200ms intervals across 1,800 caves, that's 6 minutes of pure traversal, not counting non-cave tiles. Probably fine. The anti-bad-luck guarantee at 75 caves is good design.
+
+**4. Forests at 2% / same mechanics as Caves**
+If they're identical mechanics, they're not a distinct terrain type — they're just named caves. Two options: (a) give Forests a meaningfully better loot table (higher item tier, not just higher drop rate), or (b) fold them into Caves and use those 450 tiles as something else. The "described as better" framing that doesn't match the code is a player trust problem waiting to happen. Pick one reality.
+
+**5. Factories at 10% / 2,250 tiles**
+Depends entirely on concurrent player count. 2,250 factories is a lot — if you have 50 concurrent players, that's 45 factories per player. Contested hotspots require scarcity. I'd probably cut this to 5% (1,125), reclaim the tiles as Wasteland, and see if that creates the conflict density you want. More factories = more safe farming = less PvP.
+
+**6. Banks at 4**
+4 is very few. 8 at minimum, probably 12. Travel time to storage is friction that disproportionately punishes early players who don't have strong map knowledge. Banks shouldn't be a strategic resource — they're infrastructure. Make them accessible.
+
+**7. Forest loot table**
+Already answered in #4: differentiate or delete.
+
+---
+
+## Resources
+
+**8. Base harvest 400–750**
+The range is fine but the floor matters more than the ceiling. 400 minimum means even bad-luck harvests feel meaningful. The question is whether early game costs are calibrated against this — if T2 units cost 100,000 metal and a player is doing ~575 avg per tile on 150 metal tiles per half-map per reset cycle, that's 86,250 metal per reset. So ~1.2 cycles to T2 ignoring spending, which feels about right for early progression.
+
+**9. Max harvest 5,681**
+The ceiling is fine if it requires four independent systems to line up simultaneously (max diggers + VIP + flag bearer + full shrine). That's the right structure for a cap — make it theoretically possible but practically rare. Make sure the flag bearer bonus isn't trivially retained; otherwise it collapses into a standard bonus.
+
+**10. Digger cap at 200%**
+The exponential decay curve is good. 200% cap with diminishing returns after 100 diggers gives meaningful progression without making late-game feel mandatory. The curve from 10→50 diggers (+50.5%) is the sweet spot players will chase, which is healthy.
+
+**11. Guaranteed digger every 75 caves**
+Yes, this is correct design. Anti-bad-luck protection at 75 caves (4.2% of the full cave pool) means you can't get completely shut out in a partial run. Keep it.
+
+---
+
+## Progression
+
+**12. XP curve balance (combat vs. passive)**
+The curve is fine — the problem is the 3 XP/harvest vs. 300 XP/combat gap is too wide. Passive harvesters are 100x slower per action. That's not "slower" — that's a completely different game. If you want harvesters to be a viable playstyle, raise harvest XP to 15-30/tile. If combat should be the primary path, be explicit about it in UX.
+
+**13. RP sources**
+30 RP from 30 levels vs. 350 RP for T4 is a 10x gap. Unless daily milestones and achievements can realistically generate 300+ RP over the same period, T4 is effectively locked. Either lower the T4 RP cost, raise the per-level RP, or make sure RP sources are plentiful and visible. Players who don't know how to earn RP will feel stuck.
+
+**14. T5 at L50 as aspirational**
+Fine if intentional and communicated. If it's aspirational-but-opaque, it becomes a frustration. Consider a visible "progress toward T5" display so players can see the path even if they'll never reach it this reset.
+
+---
+
+## Strategic
+
+**15. Shrine at (1,1)**
+Move it. Corner position strongly advantages whoever spawns nearest — it's not contested, it's camped. Center (75,75) or somewhere in the middle third creates genuine competition. The shrine is valuable enough that it should be fought over, not squatted.
+
+**16. Banks in diamond pattern**
+Yes — current positions (25,25), (50,50), (75,75), (100,100) are all on the same diagonal. That's extremely uneven coverage. A diamond at roughly (38,75), (75,38), (112,75), (75,112) would distribute coverage much more evenly.
+
+**17. Clustered vs. random map**
+Clustered, weakly. Pure random produces a lot of "this area is just bad" zones with no strategic identity. Light biome clustering — one quadrant skews resource-rich, another skews factory-dense — gives players something to fight over geographically. Don't over-do it; soft clusters are enough.
+
+**18. Spawn ring in outer 20%**
+Yes, with guaranteed nearby resources. Spawning into a wasteland-heavy zone with no resources nearby is a churn driver. A 20-tile guaranteed resource radius on spawn is a standard convention for good reason.
+
+**19. Auction House at (10,10) near Shrine**
+Separate them. Having both high-value special tiles clustered at the corner means the top-left quadrant is dominant by default. Put the AH somewhere near map center or at a different strategic anchor.
+
+---
+
+## Known Discrepancies
+
+**20.** Yes, delete `DIGGER_TIERS` from `GAME_CONSTANTS`. Dead constants are landmines for future devs.
+
+**21.** Fix the JSDoc. Stale comments are worse than no comments.
+
+**22.** Match JSDoc to post-overwrite actuals (8,995 tiles, ~39.98%). The code constant of 9,000 is an implementation detail; what players experience is 8,995. Document the reality, comment the "why" (5 tiles overwritten by specials).
+
+---
+
+## Priority Order
+
+If I were triaging these: **Shrine location → Bank placement → Factory count → Forest differentiation → RP gap → XP combat/harvest balance**. The first three are structural and affect every player's experience from day one. The last two are economy tuning you can iterate on.

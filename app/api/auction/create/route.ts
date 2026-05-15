@@ -1,11 +1,13 @@
 /**
  * @file app/api/auction/create/route.ts
  * @created 2025-01-17
+ * @updated 2026-05-15 — Fixed auth bypass: use requireAuth instead of body-supplied username
  * @overview Create new auction listing
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuctionListing } from '@/lib/auctionService';
+import { requireAuth } from '@/lib/authMiddleware';
 import { CreateAuctionRequest } from '@/types/auction.types';
 import { logger } from '@/lib/logger';
 import { 
@@ -50,14 +52,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('createAuction');
   
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.username;
+
     // Parse and validate request body
     const rawBody = await request.json();
     const validated = CreateAuctionSchema.parse(rawBody);
-    const username = rawBody.username;
-    if (!username) {
-      log.warn('Username required for auction creation');
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Username required' });
-    }
 
     log.debug('Auction creation request', { 
       username, 

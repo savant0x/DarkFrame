@@ -12,9 +12,13 @@ type PlayerRecord = Record<string, unknown>;
 
 export async function GET(_request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagBearer | null>>> {
   const supabase = createServiceClient();
-  const { data: rawFlag } = await supabase.from('flags').select('*').single();
-  const f = rawFlag as FlagRecord | null;
-  if (!f?.bearer_username) return NextResponse.json({ success: true, data: null, timestamp: new Date() });
+  const { data: rawFlag, error: flagError } = await supabase.from('flags').select('*').maybeSingle();
+  if (flagError) {
+    console.error('[Flag API] Error fetching flag:', flagError);
+    return NextResponse.json({ success: true, data: null, timestamp: new Date() });
+  }
+  const f = (rawFlag || null) as FlagRecord | null;
+  if (!f || !f.bearer_username) return NextResponse.json({ success: true, data: null, timestamp: new Date() });
 
   // Auto-clear expired challenge
   const now = Date.now();
@@ -98,22 +102,25 @@ async function handleChallenge(
   if (f.challenge_active) {
     return NextResponse.json({ success: false, error: 'Already being challenged', timestamp: new Date() }, { status: 429 });
   }
-  if (f.grace_until && new Date(f.grace_until as string) > new Date()) {
+  const graceUntil = f.grace_until;
+  if (typeof graceUntil === 'string' && new Date(graceUntil) > new Date()) {
     return NextResponse.json({ success: false, error: 'Bearer has grace period', timestamp: new Date() }, { status: 403 });
   }
 
-  const { data: rawPlayer } = await supabase.from('players').select('current_x,current_y,flag_challenge_cooldown_until').eq('username', challenger.username).single();
-  const p = rawPlayer as PlayerRecord | null;
-  if (!p) return NextResponse.json({ success: false, error: 'Player not found', timestamp: new Date() }, { status: 404 });
+  const { data: rawPlayer } = await supabase.from('players').select('current_x,current_y,flag_challenge_cooldown_until,flag_times_held').eq('username', challenger.username).single();
+  if (!rawPlayer) return NextResponse.json({ success: false, error: 'Player not found', timestamp: new Date() }, { status: 404 });
 
-  if (p.flag_challenge_cooldown_until && new Date(p.flag_challenge_cooldown_until as string) > new Date()) {
+  if (rawPlayer.flag_challenge_cooldown_until && new Date(rawPlayer.flag_challenge_cooldown_until) > new Date()) {
     return NextResponse.json({ success: false, error: 'Challenge cooldown active', timestamp: new Date() }, { status: 429 });
   }
 
-  const attackerPos = body.attackerPosition as { x: number; y: number } | undefined;
+  const rawBody = body;
+  const attackerPos = rawBody && typeof rawBody === 'object' && 'attackerPosition' in rawBody && rawBody.attackerPosition && typeof rawBody.attackerPosition === 'object' && 'x' in rawBody.attackerPosition && 'y' in rawBody.attackerPosition
+    ? { x: Number(rawBody.attackerPosition.x), y: Number(rawBody.attackerPosition.y) }
+    : undefined;
   if (!attackerPos) return NextResponse.json({ success: false, error: 'attackerPosition required', timestamp: new Date() }, { status: 400 });
 
-  const distance = calculateDistance(attackerPos.x, attackerPos.y, f.position_x as number, f.position_y as number);
+  const distance = calculateDistance(Number(attackerPos.x), Number(attackerPos.y), Number(f.position_x), Number(f.position_y));
   if (distance > FLAG_CONFIG.CHALLENGE_RANGE) {
     return NextResponse.json({ success: false, error: `Out of range: ${Math.round(distance)} tiles`, timestamp: new Date() }, { status: 400 });
   }
@@ -122,7 +129,7 @@ async function handleChallenge(
 
   // Bot bearer: auto-transfer flag immediately — no combat, no channel, instant
   if (f.is_bot) {
-    const flagId = f.id as string;
+    const flagId = f.id;
     await supabase.from('flags').update({
       is_bot: false,
       bearer_id: challenger.username,
@@ -141,7 +148,7 @@ async function handleChallenge(
       challenge_started_at: null,
       challenge_expires_at: null,
       challenge_lock_expires_at: null,
-    } as never).eq('id', flagId);
+    }).eq('id', String(flagId));
 
     // Update challenger player row with flag bearer tracking
     await supabase.from('players').update({
@@ -150,8 +157,8 @@ async function handleChallenge(
       flag_session_energy: 0,
       flag_flee_count: 0,
       flag_grace_until: null,
-      flag_times_held: ((p as Record<string, unknown>).flag_times_held as number || 0) + 1,
-    } as never).eq('username', challenger.username);
+      flag_times_held: (rawPlayer.flag_times_held || 0) + 1,
+    }).eq('username', challenger.username);
 
     // Clean up the old flag bot
     const botUsername = f.bearer_username as string;

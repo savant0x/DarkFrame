@@ -280,3 +280,37 @@ if (typeof window !== 'undefined') {
     console.error('Failed to preload image manifest:', err)
   );
 }
+
+/**
+ * Get beer base image path based on power tier and tile coordinates.
+ * Maps tiers to existing assets per the beer base design document.
+ *
+ * Tiers: WEAK → bases/1-2, MID → bases/3-5, STRONG → bases/6-10,
+ * ELITE → market_plaza/research_lab, ULTRA → vault/ancient_forge,
+ * LEGENDARY → grand_temple/war_memorial
+ */
+export function getBeerBaseImagePath(tier: string, tileX: number, tileY: number): string {
+  const seed = getTileSeed(tileX, tileY);
+  const randomValue = seededRandom(seed);
+
+  switch (tier?.toUpperCase()) {
+    case 'WEAK':
+      return `/assets/tiles/bases/${randomValue < 0.5 ? '1' : '2'}.jpg`;
+    case 'MID': {
+      const midIndex = Math.floor(randomValue * 3) + 3; // 3-5
+      return `/assets/tiles/bases/${midIndex}.jpg`;
+    }
+    case 'STRONG': {
+      const strongIndex = Math.floor(randomValue * 5) + 6; // 6-10
+      return `/assets/tiles/bases/${strongIndex}.jpg`;
+    }
+    case 'ELITE':
+      return randomValue < 0.5 ? '/assets/tiles/market_plaza/market_plaza.jpg' : '/assets/tiles/research_lab/research_lab.jpg';
+    case 'ULTRA':
+      return randomValue < 0.5 ? '/assets/tiles/vault/vault.jpg' : '/assets/tiles/ancient_forge/ancient_forge.jpg';
+    case 'LEGENDARY':
+      return randomValue < 0.5 ? '/assets/tiles/grand_temple/grand_temple.jpg' : '/assets/tiles/war_memorial/war_memorial.jpg';
+    default:
+      return `/assets/tiles/bases/${Math.floor(randomValue * 10) + 1}.jpg`;
+  }
+}

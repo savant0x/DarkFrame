@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -31,15 +32,13 @@ export async function GET(
   const endTimer = log.time('admin-player-detail');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { username } = await context.params;
     if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
 
     const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required (rank 5+)');
-    }
 
     // Get player data
     const { data: player } = await supabase
@@ -54,7 +53,6 @@ export async function GET(
     }
 
     // Get additional stats
-    const sessions = null; // player_sessions table not in schema
     const lastActive = player.last_login_date;
 
     const p = player;
@@ -83,7 +81,6 @@ export async function GET(
       username, 
       level: responseData.level, 
       isBot: responseData.isBot,
-      sessionCount: 0
     });
 
     return NextResponse.json({
@@ -98,16 +95,3 @@ export async function GET(
     endTimer();
   }
 }
-
-/**
- * 📝 IMPLEMENTATION NOTES:
- * - Admin-only access (rank >= 5)
- * - Returns comprehensive player data
- * - Includes last active timestamp from sessions
- * - Handles missing player gracefully
- * 
- * 🔐 SECURITY:
- * - Admin authentication required
- * - No sensitive data exposure
- * - Safe error handling
- */

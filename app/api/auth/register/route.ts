@@ -59,7 +59,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     if (authError) {
       log.error('Supabase auth signup failed', authError);
-      return NextResponse.json({ success: false, error: authError.message }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Registration failed. Please try again or contact support.' }, { status: 400 });
     }
 
     let newPlayerCode = generateReferralCode();

@@ -128,6 +128,33 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       // Non-critical, continue without cooldown data
     }
 
+    // Check for bots (including beer bases) at destination tile
+    try {
+      const supabaseBot = createServiceClient();
+      const { data: botAtTile } = await supabaseBot
+        .from('players')
+        .select('username, is_special_base, total_strength, total_defense, resources_metal, resources_energy, spec_doctrine')
+        .eq('is_bot', true)
+        .eq('current_x', tileCurrentX)
+        .eq('current_y', tileCurrentY)
+        .maybeSingle();
+
+      if (botAtTile) {
+        const tierMatch = botAtTile.username?.match(/-(WEAK|MID|STRONG|ELITE|ULTRA|LEGENDARY)-/);
+        mappedTile.botAtLocation = {
+          username: botAtTile.username,
+          isBeerBase: botAtTile.is_special_base || false,
+          tier: tierMatch ? tierMatch[1] : 'WEAK',
+          specialization: botAtTile.spec_doctrine || 'balanced',
+          strength: botAtTile.total_strength || 0,
+          defense: botAtTile.total_defense || 0,
+          resources: { metal: botAtTile.resources_metal || 0, energy: botAtTile.resources_energy || 0 },
+        };
+      }
+    } catch {
+      // Non-critical
+    }
+
     return NextResponse.json({
       success: true,
       data: {

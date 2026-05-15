@@ -1,6 +1,7 @@
 /**
  * @file app/api/cron/player-snapshot/route.ts
  * @created 2025-10-25
+ * @updated 2026-05-15 — Fixed POST auth bypass: use requireAdminAuth
  * 
  * OVERVIEW:
  * Daily cron job to capture player level snapshots.
@@ -14,19 +15,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { capturePlayerSnapshot } from '@/lib/playerHistoryService';
 import { logger } from '@/lib/logger';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const username = request.nextUrl.searchParams.get('username');
-    if (!username) return NextResponse.json({ error: 'Username parameter required' }, { status: 401 });
+    const cronSecret = process.env.CRON_SECRET;
+    const providedSecret = request.headers.get('x-cron-secret') || request.nextUrl.searchParams.get('secret');
+    if (!cronSecret || providedSecret !== cronSecret) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     logger.info('Starting daily player snapshot...');
 
     const supabase = createServiceClient();
 
-    // Get all active players (logged in within last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -42,7 +46,6 @@ export async function GET(request: NextRequest) {
 
     logger.info(`Found ${activePlayers.length} active players to snapshot`);
 
-    // Capture snapshot for each player
     let successCount = 0;
     let errorCount = 0;
 
@@ -84,17 +87,12 @@ export async function GET(request: NextRequest) {
 // POST endpoint for manual trigger (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ error: 'Username required' }, { status: 401 });
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
+    logger.info('Manual player snapshot triggered', { admin: auth.username });
 
     const supabase = createServiceClient();
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    logger.info('Manual player snapshot triggered', { admin: username });
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

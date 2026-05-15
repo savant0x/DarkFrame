@@ -49,12 +49,15 @@ export const EmailSchema = z
   .trim();
 
 /**
- * Password requirements (min 6 chars for game, not banking)
+ * Password requirements (min 8 chars, uppercase, lowercase, number)
  */
 export const PasswordSchema = z
   .string()
-  .min(6, 'Password must be at least 6 characters')
-  .max(100, 'Password too long');
+  .min(8, 'Password must be at least 8 characters')
+  .max(100, 'Password too long')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+  .regex(/[0-9]/, 'Password must contain at least one number');
 
 /**
  * Standard coordinate for game grid (0-based, legacy system)
@@ -236,6 +239,8 @@ export const FactoryProduceSchema = z.object({
   username: UsernameSchema,
   x: CoordinateSchema,
   y: CoordinateSchema,
+  unitType: z.string().optional(),
+  quantity: z.number().int().min(1).max(1000).optional(),
 });
 
 export type FactoryProduceRequest = z.infer<typeof FactoryProduceSchema>;

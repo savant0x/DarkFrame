@@ -5,7 +5,8 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, Database } from '@/types/database';
+import type { Database, Tables } from '@/types/database';
+import { toDbAuctionItemType, toDbType, toDbResourceType } from '@/lib/supabase/enumMapping';
 import { 
   AuctionListing, 
   AuctionBid, 
@@ -171,9 +172,9 @@ export async function createAuctionListing(
         sale_fee: saleFee,
         clan_only: request.clanOnly || false,
         settled: false,
-        item_type: request.item.itemType as unknown as Database['public']['Enums']['auction_item_type'],
+        item_type: toDbAuctionItemType(request.item.itemType),
         unit_id: request.item.unitId || null,
-        unit_type: request.item.unitType as unknown as Database['public']['Enums']['unit_type'] | null,
+        unit_type: request.item.unitType ? toDbType(request.item.unitType) : null,
         unit_strength: request.item.unitStrength || null,
         unit_defense: request.item.unitDefense || null,
         resource_type: request.item.resourceType || null,
@@ -214,14 +215,27 @@ async function validateAndLockItem(
   player: Tables<'players'>,
   item: AuctionItem
 ): Promise<{ success: boolean; message: string; error?: string }> {
-  
+  const supabase = createServiceClient();
+
   if (item.itemType === AuctionItemType.Unit) {
     if (!item.unitId) {
       return { success: false, message: 'Unit ID is required', error: 'INVALID_ITEM' };
     }
 
-    // Units are stored externally; skip detailed validation for now
-    // TODO: Validate unit ownership against unit storage
+    const { data: unit } = await supabase
+      .from('player_units')
+      .select('id, player_username, unit_type, quantity')
+      .eq('id', item.unitId)
+      .single();
+
+    if (!unit || unit.player_username !== player.username) {
+      return { success: false, message: 'You do not own this unit', error: 'NOT_OWNER' };
+    }
+
+    if (unit.quantity < 1) {
+      return { success: false, message: 'Unit quantity is zero', error: 'INSUFFICIENT_UNITS' };
+    }
+
     return {
       success: true,
       message: 'Unit validated'
@@ -232,8 +246,8 @@ async function validateAndLockItem(
       return { success: false, message: 'Resource type and amount required', error: 'INVALID_ITEM' };
     }
 
-    const currentAmount = item.resourceType === 'metal' 
-      ? player.resources_metal 
+    const currentAmount = item.resourceType === 'metal'
+      ? player.resources_metal
       : player.resources_energy;
 
     if (currentAmount < item.resourceAmount) {
@@ -250,11 +264,25 @@ async function validateAndLockItem(
     };
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
-    if (!item.tradeableItemQuantity) {
+    if (!item.tradeableItemQuantity || item.tradeableItemQuantity < 1) {
       return { success: false, message: 'Tradeable item quantity required', error: 'INVALID_ITEM' };
     }
 
-    // TODO: Implement proper tradeable item validation
+    const { data: inventoryItems } = await supabase
+      .from('player_inventory')
+      .select('id, player_username, quantity')
+      .eq('player_username', player.username);
+
+    const totalOwned = (inventoryItems || []).reduce((sum, inv) => sum + inv.quantity, 0);
+
+    if (totalOwned < item.tradeableItemQuantity) {
+      return {
+        success: false,
+        message: 'Insufficient tradeable items in inventory',
+        error: 'INSUFFICIENT_INVENTORY'
+      };
+    }
+
     return {
       success: true,
       message: 'Tradeable items validated'
@@ -351,16 +379,31 @@ export async function placeBid(
 
     if (bidInsertErr) throw new Error(bidInsertErr.message);
 
-    // Update auction current bid
+    // Update auction current bid — conditional on current_bid not changing (prevents double-spend)
     const { error: updateErr } = await supabase
       .from('auction_listings')
       .update({
         current_bid: request.bidAmount,
         highest_bidder: bidderUsername
       })
-      .eq('auction_id', request.auctionId);
+      .eq('auction_id', request.auctionId)
+      .eq('current_bid', auction.current_bid);
 
     if (updateErr) throw new Error(updateErr.message);
+
+    const { data: verifyAuction } = await supabase
+      .from('auction_listings')
+      .select('current_bid')
+      .eq('auction_id', request.auctionId)
+      .single();
+
+    if (!verifyAuction || verifyAuction.current_bid !== request.bidAmount) {
+      return {
+        success: false,
+        message: 'Bid was outpaced by another bidder. Please try again.',
+        error: 'BID_OUTPACED'
+      };
+    }
 
     const { data: updatedAuction } = await supabase
       .from('auction_listings')
@@ -480,8 +523,8 @@ export async function buyoutAuction(
 
     const now = new Date().toISOString();
 
-    // Update auction status
-    await supabase
+    // Update auction status — conditional on status still being active (prevents double-purchase)
+    const { error: updateErr } = await supabase
       .from('auction_listings')
       .update({
         status: AuctionStatus.Sold,
@@ -491,7 +534,30 @@ export async function buyoutAuction(
         final_price: buyoutPrice,
         winner_username: buyerUsername
       })
-      .eq('auction_id', auctionId);
+      .eq('auction_id', auctionId)
+      .eq('status', AuctionStatus.Active);
+
+    if (updateErr) {
+      return {
+        success: false,
+        message: 'Auction was already sold or expired.',
+        error: 'AUCTION_NO_LONGER_ACTIVE'
+      };
+    }
+
+    const { data: verifyAuction } = await supabase
+      .from('auction_listings')
+      .select('status')
+      .eq('auction_id', auctionId)
+      .single();
+
+    if (!verifyAuction || verifyAuction.status !== AuctionStatus.Sold) {
+      return {
+        success: false,
+        message: 'Auction was already sold or expired.',
+        error: 'AUCTION_NO_LONGER_ACTIVE'
+      };
+    }
 
     const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
     const trade: TradeHistory = {
@@ -502,7 +568,7 @@ export async function buyoutAuction(
       item: {
         itemType: (auction.item_type || 'resource') as AuctionItemType,
         unitId: auction.unit_id ?? undefined,
-        resourceType: (auction.resource_type ?? undefined) as unknown as ResourceType,
+        resourceType: (auction.resource_type ?? undefined) as ResourceType,
         resourceAmount: auction.resource_amount ?? undefined,
         tradeableItemQuantity: auction.tradeable_item_quantity ?? undefined
       } as AuctionItem,
@@ -669,7 +735,7 @@ export async function getAuctions(
     }
 
     if (filters.unitType) {
-      query = query.eq('unit_type', filters.unitType);
+      query = query.eq('unit_type', toDbType(filters.unitType));
     }
 
     if (filters.resourceType) {
@@ -746,7 +812,7 @@ function convertSupabaseListing(row: Tables<'auction_listings'>): AuctionListing
     item: {
       itemType: row.item_type as AuctionItemType,
       unitId: row.unit_id || undefined,
-      resourceType: (row.resource_type ?? undefined) as unknown as ResourceType,
+      resourceType: (row.resource_type ?? undefined) as ResourceType,
       resourceAmount: row.resource_amount || undefined,
       tradeableItemQuantity: row.tradeable_item_quantity || undefined
     },

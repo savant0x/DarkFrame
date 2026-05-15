@@ -1,24 +1,23 @@
 /**
  * Factory Release API Endpoint
  * Created: 2025-11-03
- * Updated: 2026-05-03 — Migrated to Supabase
+ * Updated: 2026-05-15 — Fixed: clean up orphaned units when factory is released
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { getMaxSlots } from '@/lib/factoryUpgradeService';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { mode, factoryX, factoryY, username } = body;
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
-    if (!username) {
-      return NextResponse.json(
-        { success: false, error: 'Username is required' },
-        { status: 400 }
-      );
-    }
+    const body = await request.json();
+    const { mode, factoryX, factoryY } = body;
+
+    const username = auth.playerId;
 
     if (!mode || (mode !== 'single' && mode !== 'releaseAll')) {
       return NextResponse.json(
@@ -39,23 +38,27 @@ export async function POST(request: NextRequest) {
     let releasedCount = 0;
     let message = '';
 
-    if (mode === 'single') {
+    async function releaseSingleFactory(x: number, y: number) {
       const { data: factory, error } = await supabase
         .from('factories')
         .select('*')
-        .eq('x', factoryX)
-        .eq('y', factoryY)
+        .eq('x', x)
+        .eq('y', y)
         .eq('owner', username)
         .maybeSingle();
 
       if (error || !factory) {
-        return NextResponse.json(
-          { success: false, error: 'Factory not found or not owned by you' },
-          { status: 404 }
-        );
+        return { success: false, error: 'Factory not found or not owned by you' };
       }
 
       const now = new Date().toISOString();
+
+      await supabase
+        .from('player_units')
+        .delete()
+        .eq('produced_at_x', x)
+        .eq('produced_at_y', y);
+
       await supabase
         .from('factories')
         .update({
@@ -68,8 +71,20 @@ export async function POST(request: NextRequest) {
           last_attacked_by: null,
           last_attack_time: null,
         })
-        .eq('x', factoryX)
-        .eq('y', factoryY);
+        .eq('x', x)
+        .eq('y', y);
+
+      return { success: true };
+    }
+
+    if (mode === 'single') {
+      const result = await releaseSingleFactory(factoryX, factoryY);
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, error: result.error },
+          { status: 404 }
+        );
+      }
 
       releasedFactories.push({ x: factoryX, y: factoryY });
       releasedCount = 1;
@@ -83,23 +98,8 @@ export async function POST(request: NextRequest) {
 
       if (error) throw error;
 
-      const now = new Date().toISOString();
       for (const f of (factories || [])) {
-        await supabase
-          .from('factories')
-          .update({
-            owner: null,
-            level: 1,
-            slots: getMaxSlots(1),
-            used_slots: 0,
-            production_rate: 1,
-            last_slot_regen: now,
-            last_attacked_by: null,
-            last_attack_time: null,
-          })
-          .eq('x', f.x)
-          .eq('y', f.y);
-
+        await releaseSingleFactory(f.x, f.y);
         releasedFactories.push({ x: f.x, y: f.y });
       }
 
@@ -113,9 +113,9 @@ export async function POST(request: NextRequest) {
       releasedCount,
       releasedFactories,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }
     );
   }

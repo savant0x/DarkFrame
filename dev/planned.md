@@ -2,41 +2,75 @@
 
 > Future enhancements and potential features
 
-**Last Updated:** 2026-05-06
-**Status:** Economy Rebalance FIDs Written — Ready for Implementation
+**Last Updated:** 2026-05-11
+**Status:** Factory & Unit Redesign Complete — Awaiting DB Reset & Testing
 
 ---
 
-## 🎯 ACTIVE: Economy Rebalance
+## ✅ COMPLETED — May 11, 2026
 
-The economy rebalance is the current priority. See `dev/fids/FID-20260506-BALANCE-MASTER.md` for the master plan.
+### Factory & Unit System Overhaul (FID-20260511-FACTORY-UNIT-REDESIGN)
+- 65 unit types → 20 focused units (4 archetypes × 5 tiers)
+- Linear slot regen → Burst+Decay model
+- Simple STR vs DEF combat → Multi-phase algorithm
+- Map entropy, terrain modifiers, factory archetypes
+- Operational Data currency
+- TSC 0 errors, Next.js build passes
 
-**Implementation order:**
-1. Phase 1: Critical fixes (multipliers, diggers, harvest, XP)
-2. Phase 2: New sinks (upkeep, durability, stamina, PvP burn)
-3. Phase 3: Progression (tiers, tech tree, VIP, shrine)
-4. Phase 4: Long-term health (achievements, decay, content cadence)
+### Economy Rebalance V2 (FID-20260508-BALANCE-V2)
+- 16 changes across XP, factory defense, resource decay, diggers, RP, PvP, army balance, flag, terrain, auto-farm, banks, forests, achievements
+
+### Page Structure & Synth Palette (FID-20260508-PAGE-STRUCTURE)
+- All 20 pages under GameLayout wrapper
+- Synth palette applied globally
+
+### Digger Balance (FID-20260510-DIGGER-BALANCE)
+- Exponential decay formula corrected
+- Asymptotic cost curve implemented
+
+### Inventory Redesign (FID-20260510-INVENTORY-REDESIGN)
+- Visual hierarchy, item grouping, sacrifice values
 
 ---
 
-## 📋 POST-BALANCE PLANNING
+## 📋 IMMEDIATE (Before Next Session)
 
-After all 4 balance phases are complete:
+These must be done before the game is playable with the new systems:
+
+1. **DB Wipe & Re-seed** — Required for all balance changes to take effect
+   - Run `supabase db reset` or apply migration `20260511000001_factory_unit_redesign.sql`
+   - Run `npx tsx scripts/reset-and-seed.ts`
+2. **Test factory capture → build → abandon cycle**
+3. **Test unit production with new UNIT_CONFIGS**
+4. **Test PvP combat with multi-phase algorithm**
+5. **Verify map entropy degrades unoccupied factories after 72h**
+
+---
+
+## 📋 POST-RESET PLANNING
+
+After DB reset and testing confirms systems work:
 
 ### High Priority
-- **Payment Integration** — Stripe for VIP purchases
-- **Production Deployment** — Vercel/Railway hosting
-- **WMD Phase 2+3** — API routes + frontend integration (was in progress before balance work)
+- **Battle Service Full Implementation** — Multi-phase combat algorithm partially implemented (phase structure exists, needs full resolution logic + After-Action Report text generation)
+- **After-Action Report** — Generate readable text from combat results
+- **Factory Archetype Assignment** — Assign archetypes during map generation based on terrain
+- **Shrine Sacrifice-Digger Route** — Asymptotic curve route exists, needs testing
 
 ### Medium Priority
-- **Real-Time Systems** — WebSocket for live updates
+- **Bot Dynamic Scaling** — Bots should scale with player progression
+- **Clan Bank Upgrade RP Costs** — New feature
+- **WMD Component RP Surcharge** — New feature
+- **Real-Time Systems** — WebSocket for live updates (replace polling)
 - **Mobile Responsive** — Mobile-friendly UI
-- **Admin Tools** — Economy balancing dashboard, player moderation
 
 ### Lower Priority
 - **World Events** — Server-wide events that create FOMO
 - **Alliance System** — Multi-clan cooperation
 - **Map Expansions** — New terrain types, new areas
+- **Admin Tools** — Economy balancing dashboard, player moderation
+- **Payment Integration** — Stripe for VIP purchases (route exists)
+- **Production Deployment** — Vercel/Railway hosting
 
 ---
 
@@ -53,8 +87,3 @@ I'll create a detailed FID with:
 - File changes needed
 - Time estimate
 - Acceptance criteria
-
----
-
-*ECHO v1.3.4 — Balance Rebalance Planning Complete*
-*Say "resume" anytime to restore context*

@@ -242,35 +242,80 @@ export type Database = {
         Row: {
           attacker_strength: number
           attacker_username: string
+          attacker_units_lost: number
+          attacker_xp: number
+          battle_type: string
           created_at: string
           damage_dealt: number
           defender_defense: number
           defender_username: string
+          defender_units_lost: number
+          defender_xp: number
           id: string
+          location_x: number | null
+          location_y: number | null
           outcome: string
           resources_stolen: Json | null
+          rounds: Json | null
+          total_rounds: number
+          attacker_units_captured: number
+          defender_units_captured: number
+          attacker_hp_start: number
+          attacker_hp_end: number
+          defender_hp_start: number
+          defender_hp_end: number
         }
         Insert: {
           attacker_strength: number
           attacker_username: string
+          attacker_units_lost?: number
+          attacker_xp?: number
+          battle_type?: string
           created_at?: string
           damage_dealt: number
           defender_defense: number
           defender_username: string
+          defender_units_lost?: number
+          defender_xp?: number
           id?: string
+          location_x?: number | null
+          location_y?: number | null
           outcome: string
           resources_stolen?: Json | null
+          rounds?: Json | null
+          total_rounds?: number
+          attacker_units_captured?: number
+          defender_units_captured?: number
+          attacker_hp_start?: number
+          attacker_hp_end?: number
+          defender_hp_start?: number
+          defender_hp_end?: number
         }
         Update: {
           attacker_strength?: number
           attacker_username?: string
+          attacker_units_lost?: number
+          attacker_xp?: number
+          battle_type?: string
           created_at?: string
           damage_dealt?: number
           defender_defense?: number
           defender_username?: string
+          defender_units_lost?: number
+          defender_xp?: number
           id?: string
+          location_x?: number | null
+          location_y?: number | null
           outcome?: string
           resources_stolen?: Json | null
+          rounds?: Json | null
+          total_rounds?: number
+          attacker_units_captured?: number
+          defender_units_captured?: number
+          attacker_hp_start?: number
+          attacker_hp_end?: number
+          defender_hp_start?: number
+          defender_hp_end?: number
         }
         Relationships: []
       }
@@ -1182,6 +1227,7 @@ export type Database = {
           last_message: string | null
           last_message_at: string | null
           participants: string[]
+          unread_count: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1190,6 +1236,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           participants?: string[]
+          unread_count?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1198,6 +1245,7 @@ export type Database = {
           last_message?: string | null
           last_message_at?: string | null
           participants?: string[]
+          unread_count?: number | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1243,11 +1291,15 @@ export type Database = {
           last_attacked_by: string | null
           last_resource_generation: string | null
           last_slot_regen: string
+          last_interacted_at: string | null
           level: number
           owner: string | null
           production_rate: number
           slots: number
           used_slots: number
+          times_captured: number | null
+          factory_archetype: string | null
+          terrain_modifier: string | null
           x: number
           y: number
         }
@@ -1258,11 +1310,15 @@ export type Database = {
           last_attacked_by?: string | null
           last_resource_generation?: string | null
           last_slot_regen?: string
+          last_interacted_at?: string | null
           level?: number
           owner?: string | null
           production_rate?: number
           slots?: number
           used_slots?: number
+          times_captured?: number | null
+          factory_archetype?: string | null
+          terrain_modifier?: string | null
           x: number
           y: number
         }
@@ -1273,11 +1329,15 @@ export type Database = {
           last_attacked_by?: string | null
           last_resource_generation?: string | null
           last_slot_regen?: string
+          last_interacted_at?: string | null
           level?: number
           owner?: string | null
           production_rate?: number
           slots?: number
           used_slots?: number
+          times_captured?: number | null
+          factory_archetype?: string | null
+          terrain_modifier?: string | null
           x?: number
           y?: number
         }
@@ -1482,30 +1542,48 @@ export type Database = {
       messages: {
         Row: {
           content: string
+          content_type: string
           conversation_id: string | null
           created_at: string | null
+          deleted_at: string | null
+          edited_at: string | null
           id: string
           read: boolean | null
           read_at: string | null
+          recipient_id: string | null
+          sender_id: string | null
           sender_username: string
+          status: string
         }
         Insert: {
           content: string
+          content_type?: string
           conversation_id?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           read?: boolean | null
           read_at?: string | null
-          sender_username: string
+          recipient_id?: string | null
+          sender_id?: string | null
+          sender_username?: string
+          status?: string
         }
         Update: {
           content?: string
+          content_type?: string
           conversation_id?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          edited_at?: string | null
           id?: string
           read?: boolean | null
           read_at?: string | null
+          recipient_id?: string | null
+          sender_id?: string | null
           sender_username?: string
+          status?: string
         }
         Relationships: [
           {
@@ -1874,6 +1952,7 @@ export type Database = {
           bonus_percent: number
           bonus_value: number | null
           description: string | null
+          digger_weight: number
           found_at_x: number | null
           found_at_y: number | null
           found_date: string
@@ -1889,6 +1968,7 @@ export type Database = {
           bonus_percent?: number
           bonus_value?: number | null
           description?: string | null
+          digger_weight?: number
           found_at_x?: number | null
           found_at_y?: number | null
           found_date?: string
@@ -1904,6 +1984,7 @@ export type Database = {
           bonus_percent?: number
           bonus_value?: number | null
           description?: string | null
+          digger_weight?: number
           found_at_x?: number | null
           found_at_y?: number | null
           found_date?: string
@@ -2200,6 +2281,9 @@ export type Database = {
           flag_total_time_held: number
           gathering_energy_bonus: number
           gathering_metal_bonus: number
+          sacrificed_digger_count: number
+          sacrificed_energy_bonus: number
+          sacrificed_metal_bonus: number
           inventory_capacity: number
           inventory_energy_digger_count: number
           inventory_metal_digger_count: number
@@ -2236,6 +2320,7 @@ export type Database = {
           referred_by: string | null
           referred_by_username: string | null
           research_points: number
+          operational_data: number
           resources_energy: number
           resources_metal: number
           signup_ip: string | null
@@ -2320,6 +2405,9 @@ export type Database = {
           flag_total_time_held?: number
           gathering_energy_bonus?: number
           gathering_metal_bonus?: number
+          sacrificed_digger_count?: number
+          sacrificed_energy_bonus?: number
+          sacrificed_metal_bonus?: number
           inventory_capacity?: number
           inventory_energy_digger_count?: number
           inventory_metal_digger_count?: number
@@ -2440,6 +2528,9 @@ export type Database = {
           flag_total_time_held?: number
           gathering_energy_bonus?: number
           gathering_metal_bonus?: number
+          sacrificed_digger_count?: number
+          sacrificed_energy_bonus?: number
+          sacrificed_metal_bonus?: number
           inventory_capacity?: number
           inventory_energy_digger_count?: number
           inventory_metal_digger_count?: number
@@ -3707,25 +3798,31 @@ export type Database = {
         | "failed"
         | "aborted"
       wmd_notification_type:
+        | "missile_assembled"
         | "missile_launched"
         | "missile_incoming"
         | "missile_impact"
         | "missile_intercepted"
+        | "missile_dismantled"
+        | "intelligence_leak"
         | "spy_dispatched"
         | "spy_detected"
         | "spy_captured"
         | "spy_mission_complete"
+        | "spy_mission_failed"
         | "sabotage_detected"
         | "sabotage_repelled"
         | "sabotage_successful"
         | "defense_activated"
         | "defense_upgraded"
         | "defense_breached"
+        | "defense_grid_activated"
         | "research_complete"
         | "tech_unlocked"
         | "vote_started"
         | "vote_complete"
         | "vote_tie"
+        | "clan_authorization"
       wmd_vote_status: "active" | "passed" | "failed" | "tied" | "expired"
       wmd_vote_type:
         | "launch_authorization"

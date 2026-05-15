@@ -121,15 +121,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 75000,
-          displayMessage: 'Shrine Discovery: 75,000 Metal!',
+          amount: 25000,
+          displayMessage: 'Shrine Discovery: 25,000 Metal!',
         },
       },
       {
         id: 'movement_navigate_to_metal_bank',
         order: 2,
         title: 'Visit the Metal Bank',
-        instruction: 'Navigate to the Metal Bank to learn about resource storage!',
+        instruction: 'Navigate to the Metal Bank at (38, 38)!',
         detailedHelp: `🎯 WHY: The Metal Bank protects your Metal from enemy raids! Stored resources are 100% safe.
 
 🕐 WHEN TO USE:
@@ -138,7 +138,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • When preparing for risky battles (protect your wealth first!)
 
 ⚡ HOW TO USE:
-• Navigate to coordinates (25, 25)
+• Navigate to coordinates (38, 38)
 • Click "Bank" button to deposit/withdraw Metal
 • Withdraw anytime - no fees, instant access!
 
@@ -146,8 +146,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 25,
-          targetY: 25,
+          targetX: 38,
+          targetY: 38,
           locationName: 'Metal Bank'
         },
         completionMessage: 'Found the Metal Bank! Store your Metal here to protect it.',
@@ -156,15 +156,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 750,
-          displayMessage: 'You earned 750 Metal for finding the Metal Bank!',
+          amount: 15000,
+          displayMessage: 'You earned 15,000 Metal for finding the Metal Bank!',
         },
       },
       {
         id: 'movement_navigate_to_exchange',
         order: 3,
         title: 'Visit the Exchange',
-        instruction: 'Navigate to the Exchange Bank!',
+        instruction: 'Navigate to the Exchange at (38, 112)!',
         detailedHelp: `🎯 WHY: The Exchange is your resource conversion hub! Convert Metal ↔️ Energy with a 20% fee.
 
 🕐 WHEN TO USE:
@@ -173,7 +173,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • Before building units that require different resources
 
 ⚡ HOW TO USE:
-• Navigate to coordinates (50, 50)
+• Navigate to coordinates (38, 112)
 • Click "Exchange" button to see current rates
 • Trade Metal for Energy or Energy for Metal
 • Pay 20% conversion fee (e.g., 100 Metal → 80 Energy)
@@ -182,8 +182,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 50,
-          targetY: 50,
+          targetX: 38,
+          targetY: 112,
           locationName: 'Exchange Bank'
         },
         completionMessage: 'Found the Exchange! You can convert Metal ↔ Energy here with a 20% fee.',
@@ -192,15 +192,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 1000,
-          displayMessage: 'You earned 1,000 Metal for finding the Exchange!',
+          amount: 12000,
+          displayMessage: 'You earned 12,000 Metal for finding the Exchange!',
         },
       },
       {
         id: 'movement_navigate_to_energy_bank',
         order: 4,
         title: 'Visit the Energy Bank',
-        instruction: 'Navigate to the Energy Bank!',
+        instruction: 'Navigate to the Energy Bank at (112, 38)!',
         detailedHelp: `🎯 WHY: The Energy Bank protects your Energy from raids! Just like Metal Bank but for Energy.
 
 🕐 WHEN TO USE:
@@ -210,7 +210,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • After trading at the Exchange
 
 ⚡ HOW TO USE:
-• Navigate to coordinates (75, 75)
+• Navigate to coordinates (112, 38)
 • Click "Bank" button for deposit/withdraw
 • No fees, instant access, 100% raid protection
 
@@ -218,8 +218,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 75,
-          targetY: 75,
+          targetX: 112,
+          targetY: 38,
           locationName: 'Energy Bank'
         },
         completionMessage: 'Found the Energy Bank! Keep your Energy safe here.',
@@ -228,25 +228,24 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 50,
-          displayMessage: 'You earned 50 Metal for finding the Energy Bank!',
+          amount: 10000,
+          displayMessage: 'You earned 10,000 Metal for finding the Energy Bank!',
         },
       },
       {
-        id: 'movement_navigate_to_secondary_exchange',
+        id: 'movement_navigate_to_auction',
         order: 5,
         title: 'Explore the Far Corner',
-        instruction: 'Navigate to the far corner of the map at (100, 100)!',
-        detailedHelp: `🎯 WHY: Exploring distant regions helps you understand map layout and discover hidden opportunities!
+        instruction: 'Navigate to the Auction House at (10, 10)!',
+        detailedHelp: `🎯 WHY: Exploring distant landmarks helps you understand the map layout!
 
 🕐 WHEN TO USE:
-• When scouting for remote caves and resources
-• Looking for less-contested harvest locations
-• Planning factory placement in quieter areas
-• Exploring the full extent of the game world
+• When scouting for remote resources
+• Looking for less-contested areas
+• Planning your expansion strategy
 
 ⚡ HOW TO EXPLORE:
-• Navigate to coordinates (100, 100) - far corner
+• Navigate to coordinates (10, 10)
 • Use WASD, Arrow Keys, or Numpad to move
 • Notice how terrain changes in different regions
 • Remote areas often have better resources!
@@ -255,18 +254,18 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 100,
-          targetY: 100,
-          locationName: 'Far Corner'
+          targetX: 10,
+          targetY: 10,
+          locationName: 'Auction House'
         },
-        completionMessage: 'You explored the far corner! Remote areas often have hidden treasures.',
+        completionMessage: 'You explored the Auction House area! Keep exploring to find hidden treasures.',
         difficulty: 'EASY',
         estimatedSeconds: 40,
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 50,
-          displayMessage: 'You earned 50 Metal for exploring the far corner!',
+          amount: 8000,
+          displayMessage: 'You earned 8,000 Metal for exploring!',
         },
       },
       {
@@ -297,15 +296,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 100,
-          displayMessage: 'You earned 100 Metal for mastering movement!',
+          amount: 5000,
+          displayMessage: 'You earned 5,000 Metal for mastering movement!',
         },
       },
     ],
     completionReward: {
       type: 'ACHIEVEMENT',
       achievementId: 'tutorial_movement_complete',
-      displayMessage: 'Achievement Unlocked: Navigator!',
+      displayMessage: 'Achievement Unlocked: Navigator! +50,000 Metal bonus!',
     },
     isOptional: false,
     estimatedMinutes: 1,
@@ -488,8 +487,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
     ],
     completionReward: {
       type: 'METAL',
-      amount: 500,
-      displayMessage: 'Resource Management Complete! +500 Metal bonus!',
+      amount: 50000,
+      displayMessage: 'Resource Management Complete! +50,000 Metal bonus!',
     },
     isOptional: false,
     estimatedMinutes: 5,
@@ -547,15 +546,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: false,
         reward: {
           type: 'EXPERIENCE',
-          amount: 100,
-          displayMessage: '+100 XP! You\'re getting stronger!',
+          amount: 5000,
+          displayMessage: '+5,000 XP! You\'re getting stronger!',
         },
       },
     ],
     completionReward: {
       type: 'ACHIEVEMENT',
       achievementId: 'tutorial_first_battle',
-      displayMessage: 'Achievement Unlocked: Warrior!',
+      displayMessage: 'Achievement Unlocked: Warrior! +75,000 Metal!',
     },
     isOptional: false,
     estimatedMinutes: 2,
@@ -602,8 +601,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
     ],
     completionReward: {
       type: 'METAL',
-      amount: 150,
-      displayMessage: 'Social Exploration Complete! +150 Metal!',
+      amount: 30000,
+      displayMessage: 'Social Exploration Complete! +30,000 Metal!',
     },
     isOptional: true,
     estimatedMinutes: 1,
@@ -649,9 +648,9 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
       },
     ],
     completionReward: {
-      type: 'OIL',
-      amount: 100,
-      displayMessage: 'Tech Tree Explored! +100 Oil!',
+      type: 'ENERGY',
+      amount: 25000,
+      displayMessage: 'Tech Tree Explored! +25,000 Energy!',
     },
     isOptional: true,
     estimatedMinutes: 1,
@@ -683,14 +682,14 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
           type: 'ITEM',
           itemId: 'starter_pack',
           itemName: 'Starter Pack',
-          displayMessage: 'Starter Pack: 500 Metal, 300 Oil, 5 Random Items!',
+          displayMessage: 'Starter Pack: 100,000 Metal, 75,000 Energy, 10 Random Items!',
         },
       },
     ],
     completionReward: {
       type: 'ACHIEVEMENT',
       achievementId: 'tutorial_master',
-      displayMessage: 'Achievement Unlocked: Tutorial Master! +50% bonus to all starter rewards!',
+      displayMessage: 'Achievement Unlocked: Tutorial Master! +100,000 Metal & +50% bonus to all starter rewards!',
     },
     isOptional: false,
     estimatedMinutes: 1,
@@ -709,7 +708,7 @@ export function getTutorialQuests(): TutorialQuest[] {
  * Get specific tutorial quest by ID
  */
 export function getTutorialQuest(questId: string): TutorialQuest | null {
-  return TUTORIAL_QUESTS.find(q => q._id === questId) || null;
+  return TUTORIAL_QUESTS.find(q => q._id === questId || q.id === questId) || null;
 }
 
 /**
@@ -1212,7 +1211,7 @@ async function validateStepAction(
       return validateMoveAction(step, validationData as Record<string, number | string | boolean>);
     
     case 'MOVE_TO_COORDS':
-      return validateMoveToCordsAction(step, validationData as Record<string, number | string | boolean>);
+      return validateMoveToCoordsAction(step, validationData as Record<string, number | string | boolean>);
     
     case 'HARVEST':
       return validateHarvestAction(step, validationData as Record<string, number | string | boolean>);
@@ -1304,7 +1303,7 @@ function validateMoveAction(
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredMoves) {
-    const moveCount = (validationData.moveCount as number) || 0;
+    const moveCount = (validationData.moveCount as number) || (validationData.currentCount as number) || 0;
     if (moveCount < stepValidation.requiredMoves) {
       return false;
     }
@@ -1342,7 +1341,7 @@ function validateMoveAction(
 /**
  * Validate MOVE_TO_COORDS action
  */
-function validateMoveToCordsAction(
+function validateMoveToCoordsAction(
   step: TutorialStep,
   validationData: Record<string, number | string | boolean>
 ): boolean {

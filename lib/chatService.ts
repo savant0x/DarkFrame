@@ -468,7 +468,7 @@ export async function getGlobalChatMessages(
 
     let query = createServiceClient()
       .from('chat_messages')
-      .select('*, players!chat_messages_sender_id_fkey(level, vip)')
+      .select('*, players!chat_messages_sender_id_fkey(level, is_vip)')
       .eq('channel', channelId)
       .eq('deleted', false)
       .order('created_at', { ascending: false })
@@ -494,7 +494,7 @@ export async function getGlobalChatMessages(
     }
 
     const messages: ChatMessage[] = (rows as Tables<'chat_messages'>[]).map((row) => {
-      const playerData = (row as unknown as { players?: { level: number; vip: boolean } }).players;
+      const playerData = (row as unknown as { players?: { level: number; is_vip: boolean } }).players;
       const lvl = playerData?.level || 1;
       return {
         id: row.id,
@@ -502,7 +502,7 @@ export async function getGlobalChatMessages(
         senderId: row.sender_id,
         senderUsername: row.sender_username || row.sender_id,
         senderLevel: lvl,
-        isVIP: playerData?.vip || false,
+        isVIP: playerData?.is_vip || false,
         isNewbie: lvl >= 1 && lvl <= 5,
         message: row.message,
         itemLinks: parseItemLinks(row.message),
@@ -590,7 +590,7 @@ export async function editGlobalChatMessage(
 
     const { error: updateError } = await getSupabase()
       .from('chat_messages')
-      .update({ message: filtered } as TablesInsert<'chat_messages'>)
+      .update({ message: filtered } as never)
       .eq('id', messageId);
 
     if (updateError) {

@@ -220,8 +220,6 @@ export async function handleChatMessage(
       });
       return;
     }
-    
-    playerContext.isMuted = false;
 
     // Send message via chat service
     const request: SendMessageRequest = {

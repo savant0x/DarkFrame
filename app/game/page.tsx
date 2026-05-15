@@ -12,7 +12,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
-import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, BankPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, SpecializationPanel, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, AutoFarmStatsDisplay, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel, ShrineStatusPanel } from '@/components';
+import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, BankPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, SpecializationPanel, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, AutoFarmStatsDisplay, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel, ShrineStatusPanel } from '@/components';
+import { InventoryPanel } from '@/components/inventory';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
 import FlagTrackerPanel from '@/components/FlagTrackerPanel';
@@ -148,6 +149,13 @@ export default function GamePage() {
       router.push('/login');
     }
   }, [player, isLoading, router]);
+
+  // Listen for inventory open event from StatsPanel
+  useEffect(() => {
+    const handler = () => setCurrentView(prev => prev === 'INVENTORY' ? 'TILE' : 'INVENTORY');
+    window.addEventListener('openInventory', handler);
+    return () => window.removeEventListener('openInventory', handler);
+  }, []);
 
   // Initialize AutoFarmEngine
   useEffect(() => {
@@ -487,6 +495,11 @@ export default function GamePage() {
     // 'Q' key - Flag Tracker is always visible (removed toggle)
     // Q hotkey removed - flag tracker now permanently in sidebar
 
+    // 'I' key - Toggle Inventory view
+    if (key === 'i') {
+      setCurrentView(prev => prev === 'INVENTORY' ? 'TILE' : 'INVENTORY');
+    }
+
     // 'G' key - Harvest for Metal/Energy (API validates tile type, don't block here)
     if (key === 'g') {
       handleHarvest();
@@ -497,8 +510,12 @@ export default function GamePage() {
       handleHarvest();
     }
 
-    // 'R' key - Attack / Manage Factory
+    // 'R' key - Attack / Manage Factory / Attack Bot
     if (key === 'r') {
+      if (currentTile?.botAtLocation) {
+        handleAttack();
+        return;
+      }
       if (!currentTile || currentTile.terrain !== TerrainType.Factory) {
         return;
       }
@@ -553,12 +570,52 @@ export default function GamePage() {
     }
   };
 
-  // Handle factory attack action
+  // Handle factory attack action or bot attack
   const handleAttack = async () => {
     if (!player || !currentTile || isAttacking) return;
 
     setIsAttacking(true);
     setAttackResult(null); // Clear previous result
+
+    // If there's a bot at this tile, attack the bot instead of the factory
+    if (currentTile.botAtLocation) {
+      try {
+        const response = await fetch('/api/bot/attack', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: player.username }),
+        });
+
+        const data = await response.json();
+
+        setAttackResult({
+          success: data.success,
+          message: data.message,
+          playerPower: data.playerPower || 0,
+          factoryDefense: data.botPower || 0,
+          captured: data.victory || false,
+        });
+
+        setTimeout(() => {
+          setAttackResult(null);
+          refreshGameState();
+        }, 3000);
+      } catch (error) {
+        console.error('Bot attack error:', error);
+        setAttackResult({
+          success: false,
+          message: 'Network error - please try again',
+          playerPower: 0,
+          factoryDefense: 0,
+          captured: false,
+        });
+      } finally {
+        setIsAttacking(false);
+      }
+      return;
+    }
+
+    // Otherwise, attack factory
 
     try {
       const response = await fetch('/api/factory/attack', {
@@ -672,6 +729,7 @@ export default function GamePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'challenge',
+          username: player.username,
           targetPlayerId: targetId,
           attackerPosition: player.currentPosition
         })
@@ -679,7 +737,8 @@ export default function GamePage() {
 
       if (!response.ok) {
         const result = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
-        throw new Error(result.error || `HTTP ${response.status}`);
+        setPanelMessage(`❌ ${result.error || `HTTP ${response.status}`}`);
+        return;
       }
 
       const result = await response.json();
@@ -785,7 +844,7 @@ export default function GamePage() {
       {/* Tutorial System - Interactive quest overlay for new players */}
       {player && (
         <TutorialOverlay 
-          playerId={String((player as any)._id || player.username)}
+          playerId={player.username}
           isEnabled={true}
           onComplete={() => {
             console.log('Tutorial completed!');
@@ -810,7 +869,6 @@ export default function GamePage() {
         dmUnreadCount={dmUnreadCount}
       />
       
-      <InventoryPanel />
       <CaveItemNotification />
       <DiscoveryNotification 
         discovery={discoveryNotification}
@@ -1059,8 +1117,8 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'INVENTORY' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col">
+              <div className="mb-2 flex-shrink-0">
                 <button
                   onClick={() => setCurrentView('TILE')}
                   className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
@@ -1069,8 +1127,8 @@ export default function GamePage() {
                   <span>Back to Game</span>
                 </button>
               </div>
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-white text-lg">Inventory View - Coming Soon</div>
+              <div className="flex-1 overflow-hidden">
+                <InventoryPanel />
               </div>
             </div>
           ) : currentView === 'PROFILE' ? (
@@ -1154,9 +1212,8 @@ export default function GamePage() {
         }
         controlsPanel={
           <>
-            {/* Controls Panel - Contains Position display, Flag Bearer status, and Movement Controls */}
-            <ControlsPanel flagBearer={flagBearer} />
-            
+            <ControlsPanel />
+
             {/* Auto-Farm Control Panel */}
             <div className="p-3">
               <AutoFarmPanel
@@ -1178,8 +1235,8 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Flag Tracker Panel — Only show if player is NOT the bearer */}
-            {flagBearer && flagBearer.username !== player?.username && (
+            {/* Flag Tracker Panel — Always show (handles null bearer internally) */}
+            {!(flagBearer && flagBearer.username === player?.username) && (
               <div className="p-3">
                 <FlagTrackerPanel
                   playerPosition={player?.currentPosition || { x: 75, y: 75 }}
@@ -1202,7 +1259,6 @@ export default function GamePage() {
             <div className="p-3">
               <WMDMiniStatus onClick={() => setCurrentView('WMD')} />
             </div>
-
           </>
         }
         tutorialQuestPanel={

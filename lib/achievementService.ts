@@ -40,8 +40,11 @@ export interface Achievement {
 export const ACHIEVEMENTS: Achievement[] = [
   // Harvest
   { id: 'harvest_1k',    name: 'First Harvest',     description: 'Harvest 1,000 tiles',       category: 'harvest', tier: 'bronze',   requirement: 1000,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 10000, xp: 500 } },
+  { id: 'harvest_5k',    name: 'Active Harvester',   description: 'Harvest 5,000 tiles',      category: 'harvest', tier: 'bronze',   requirement: 5000,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 25000, rp: 5, xp: 1000 } },
   { id: 'harvest_10k',   name: 'Dedicated Farmer',   description: 'Harvest 10,000 tiles',     category: 'harvest', tier: 'silver',   requirement: 10000,  currentProgress: 0, completed: false, claimed: false, reward: { metal: 50000, rp: 10, xp: 2000 } },
+  { id: 'harvest_25k',   name: 'Seasoned Farmer',    description: 'Harvest 25,000 tiles',     category: 'harvest', tier: 'silver',   requirement: 25000,  currentProgress: 0, completed: false, claimed: false, reward: { metal: 100000, rp: 15, xp: 5000 } },
   { id: 'harvest_100k',  name: 'Master Harvester',   description: 'Harvest 100,000 tiles',    category: 'harvest', tier: 'gold',     requirement: 100000, currentProgress: 0, completed: false, claimed: false, reward: { metal: 250000, rp: 50, xp: 10000, vipDays: 1 } },
+  { id: 'harvest_500k',  name: 'Expert Harvester',   description: 'Harvest 500,000 tiles',    category: 'harvest', tier: 'gold',     requirement: 500000, currentProgress: 0, completed: false, claimed: false, reward: { metal: 750000, rp: 100, xp: 25000, vipDays: 3 } },
   { id: 'harvest_1m',    name: 'Legendary Farmer',   description: 'Harvest 1,000,000 tiles',  category: 'harvest', tier: 'platinum', requirement: 1000000, currentProgress: 0, completed: false, claimed: false, reward: { metal: 1000000, rp: 200, xp: 50000, vipDays: 7, cosmeticId: 'harvest-legend' } },
   // Exploration
   { id: 'cave_100',     name: 'Cave Explorer',      description: 'Explore 100 caves',        category: 'exploration', tier: 'bronze',   requirement: 100,   currentProgress: 0, completed: false, claimed: false, reward: { metal: 15000, xp: 1000 } },

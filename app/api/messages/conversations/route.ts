@@ -11,23 +11,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { getConversations } from '@/lib/messagingService';
 
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const playerId = auth.playerId;
+
     const { searchParams } = new URL(request.url);
-    const playerId = searchParams.get('playerId');
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
     const includeArchived = searchParams.get('includeArchived');
     const sortBy = searchParams.get('sortBy') as 'recent' | 'unread' | 'pinned' | undefined;
-
-    if (!playerId) {
-      return NextResponse.json(
-        { success: false, error: 'playerId is required' },
-        { status: 400 }
-      );
-    }
 
     const result = await getConversations({
       playerId,

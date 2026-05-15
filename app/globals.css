@@ -6,23 +6,51 @@
 @tailwind utilities;
 
 :root {
-  --void: #02010A;
-  --shadow: #0A0A14;
-  --card: #111122;
-  --border: rgba(255, 255, 255, 0.06);
-  --text-1: #FFFFFF;
-  --text-2: rgba(255, 255, 255, 0.55);
-  --text-3: rgba(255, 255, 255, 0.30);
-  --electric: #007FFF;
-  --neon-pink: #FF1493;
-  --neon-red: #F73718;
-  --solar: #FF4E00;
-  --synth: #00C853;
-  --synth-dim: rgba(0, 200, 83, 0.10);
+  /* ── Core Surfaces ── */
+  --void:       #02010A;
+  --shadow:     #0A0A14;
+  --card:       #111122;
+  --surface:    #12122A;
+  --border:     rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.15);
+
+  /* ── Text ── */
+  --text-1:     #FFFFFF;
+  --text-2:     rgba(255, 255, 255, 0.55);
+  --text-3:     rgba(255, 255, 255, 0.30);
+
+  /* ── Accent / Status (new synth palette) ── */
+  --accent:     #00E5FF;
+  --danger:     #FF3B30;
+  --success:    #00FF88;
+  --warning:    #FFD600;
+  --muted:      #5A5A7A;
+
+  /* ── Legacy aliases ── */
+  --electric:   #007FFF;
+  --neon-pink:  #FF1493;
+  --neon-red:   #F73718;
+  --solar:     #FF4E00;
+  --synth:     #00C853;
   --neon-yellow: #C8D600;
+  --synth-dim:  rgba(0, 200, 83, 0.10);
   --neon-yellow-dim: rgba(200, 214, 0, 0.10);
-  --row-even: rgba(255, 255, 255, 0.02);
-  --row-odd: rgba(255, 255, 255, 0.04);
+
+  /* ── Table rows ── */
+  --row-even:   rgba(255, 255, 255, 0.02);
+  --row-odd:    rgba(255, 255, 255, 0.04);
+
+  /* ── Glow Shadows ── */
+  --accent-sm:  0 0 8px rgba(0, 229, 255, 0.15);
+  --accent-md:  0 0 12px rgba(0, 229, 255, 0.25);
+  --glow-pink-sm: 0 0 8px rgba(255, 105, 180, 0.15);
+
+  /* ── Spacing ── */
+  --space-2:    2px;
+  --space-4:    4px;
+  --space-8:    8px;
+  --space-12:   12px;
+  --space-16:   16px;
 }
 
 body {
@@ -38,8 +66,8 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse at 20% 0%, rgba(0, 127, 255, 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 100%, rgba(255, 20, 147, 0.02) 0%, transparent 40%);
+    radial-gradient(ellipse at 20% 0%, rgba(0, 229, 255, 0.03) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(255, 105, 180, 0.02) 0%, transparent 40%);
   pointer-events: none;
   z-index: 0;
 }

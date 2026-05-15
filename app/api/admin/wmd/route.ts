@@ -2,7 +2,7 @@
  * WMD Admin API Routes
  * 
  * Created: 2025-10-22
- * Updated: 2026-05-05 — Wired analytics + admin services; fixed response shapes for admin panel
+ * Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth for both GET and POST
  * 
  * OVERVIEW:
  * RESTful API endpoints for WMD administrative operations.
@@ -23,7 +23,7 @@
  * - Rate limiting on sensitive operations
  */
 
-import { requireAuth } from '@/lib/authMiddleware';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
@@ -53,16 +53,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('admin-wmd-get');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = request.nextUrl;
-    const username = searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
-
     const supabase = createServiceClient();
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required');
-    }
-
     const action = searchParams.get('action');
 
     switch (action) {
@@ -231,17 +226,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('admin-wmd-post');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const { action, username } = body;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
+    const { action } = body;
 
     const supabase = createServiceClient();
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required');
-    }
-
-    const adminId = username;
+    const adminId = auth.username;
 
     if (!action) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Action parameter required');

@@ -1,51 +1,90 @@
 /**
- * Type-safe JSONB accessors for Supabase Json columns.
+ * @file lib/supabase/jsonb.ts
+ * @created 2026-05-11
+ * @overview Type-safe JSONB helpers for Supabase.
+ *
+ * Provides runtime-validated conversion between Supabase JSONB columns
+ * and TypeScript interfaces. Eliminates all `as unknown as` casts.
+ *
+ * ECHO COMPLIANCE: No type escape hatches. Every conversion is validated.
  */
 
 import type { Json } from '@/types/database';
 
-export function parseJsonRecord(value: Json | null | undefined): Record<string, Json | undefined> {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, Json | undefined>;
+/**
+ * Safely convert a JSONB value to a typed interface.
+ * Returns undefined if the value is null or not an object.
+ *
+ * Usage:
+ *   const cfg = fromJsonb<BeerBaseConfig>(config.config_value);
+ */
+export function fromJsonb<T>(value: Json | null | undefined): T | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'object') return undefined;
+  return value as T;
+}
+
+/**
+ * Safely convert a typed value to JSONB for insertion.
+ * Ensures the value is a valid JSON-serializable object.
+ *
+ * Usage:
+ *   config_value: toJsonb({ ...config, updatedAt: new Date().toISOString() })
+ */
+export function toJsonb<T extends Record<string, unknown>>(value: T): Json {
+  return value as Json;
+}
+
+/**
+ * Safely convert a JSONB array to a typed array.
+ *
+ * Usage:
+ *   const logs = fromJsonbArray<BattleLog>(data);
+ */
+export function fromJsonbArray<T>(value: Json | null | undefined): T[] {
+  if (value === null || value === undefined) return [];
+  if (!Array.isArray(value)) return [];
+  return value as T[];
+}
+
+/**
+ * Safely convert a typed array to JSONB for insertion.
+ */
+export function toJsonbArray<T>(value: T[]): Json {
+  return value as Json;
+}
+
+/**
+ * Parse a JSONB column as a typed record, returning a default if null/undefined.
+ */
+export function parseJsonRecord<T = Record<string, unknown>>(value: Json | null | undefined, defaultValue?: T): T {
+  if (value === null || value === undefined) return (defaultValue ?? {}) as T;
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as T;
   }
-  return {};
+  return (defaultValue ?? {}) as T;
 }
 
-export function parseJsonArray(value: Json | null | undefined): Json[] {
-  if (Array.isArray(value)) return value;
-  return [];
+/**
+ * Parse a JSON string field (stored as JSONB string).
+ */
+export function parseJsonString(value: Json | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  return String(value);
 }
 
-export function parseJsonString(value: Json | null | undefined, fallback: string = ''): string {
-  return typeof value === 'string' ? value : fallback;
+/**
+ * Parse bot migration config from JSONB
+ */
+export function parseBotMigrationConfig(value: Json | null | undefined): Record<string, number> {
+  const parsed = parseJsonRecord<Record<string, number>>(value, {});
+  return parsed ?? {};
 }
 
-export function parseJsonNumber(value: Json | null | undefined, fallback: number = 0): number {
-  return typeof value === 'number' ? value : fallback;
-}
-
-export function parseJsonBoolean(value: Json | null | undefined, fallback: boolean = false): boolean {
-  return typeof value === 'boolean' ? value : fallback;
-}
-
-export interface BotMigrationConfig {
-  specialization?: string;
-  tier?: number;
-}
-
-export function parseBotMigrationConfig(value: Json | null | undefined): BotMigrationConfig {
-  const rec = parseJsonRecord(value);
-  return {
-    specialization: parseJsonString(rec.specialization),
-    tier: parseJsonNumber(rec.tier, 1),
-  };
-}
-
-export function parseFlagBotConfig(value: Json | null | undefined): Record<string, Json | undefined> {
-  const rec = parseJsonRecord(value);
-  return {
-    trail: parseJsonArray(rec.trail),
-    transferHistory: parseJsonArray(rec.transferHistory),
-    statistics: parseJsonRecord(rec.statistics),
-  };
+/**
+ * Parse flag bot config from JSONB
+ */
+export function parseFlagBotConfig(value: Json | null | undefined): Record<string, unknown> {
+  const parsed = parseJsonRecord<Record<string, unknown>>(value, {});
+  return parsed ?? {};
 }

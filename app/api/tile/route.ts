@@ -72,23 +72,24 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       log.error('Error fetching harvest records', error instanceof Error ? error : new Error(String(error)));
     }
 
-    if (tile.occupied_by_base) {
-      try {
-        const supabase = createServiceClient();
-        const { data: baseOwner } = await supabase
-          .from('players')
-          .select('username, base_greeting')
-          .eq('base_x', x)
-          .eq('base_y', y)
-          .maybeSingle();
+    // Check if any player has their base at this tile — dynamic lookup ensures
+    // bases render correctly even after a map reset where occupied_by_base may not be set
+    try {
+      const supabase = createServiceClient();
+      const { data: baseOwner } = await supabase
+        .from('players')
+        .select('username, base_greeting')
+        .eq('base_x', x)
+        .eq('base_y', y)
+        .maybeSingle();
 
-        if (baseOwner) {
-          tileData.baseOwner = baseOwner.username;
-          tileData.baseGreeting = baseOwner.base_greeting || '';
-        }
-      } catch (error) {
-        log.error('Error fetching base owner', error instanceof Error ? error : new Error(String(error)));
+      if (baseOwner) {
+        tileData.occupiedByBase = true;
+        tileData.baseOwner = baseOwner.username;
+        tileData.baseGreeting = (baseOwner as Record<string, unknown>).base_greeting || '';
       }
+    } catch (error) {
+      log.error('Error fetching base owner', error instanceof Error ? error : new Error(String(error)));
     }
 
     try {
@@ -106,6 +107,33 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       }
     } catch (error) {
       log.error('Error checking flag bearer', error instanceof Error ? error : new Error(String(error)));
+    }
+
+    // Check for bots (including beer bases) at this tile — they use current_x/current_y
+    try {
+      const supabase = createServiceClient();
+      const { data: botAtTile } = await supabase
+        .from('players')
+        .select('username, is_special_base, total_strength, total_defense, resources_metal, resources_energy, spec_doctrine')
+        .eq('is_bot', true)
+        .eq('current_x', x)
+        .eq('current_y', y)
+        .maybeSingle();
+
+      if (botAtTile) {
+        const tierMatch = botAtTile.username?.match(/-(WEAK|MID|STRONG|ELITE|ULTRA|LEGENDARY)-/);
+        tileData.botAtLocation = {
+          username: botAtTile.username,
+          isBeerBase: botAtTile.is_special_base || false,
+          tier: tierMatch ? tierMatch[1] : 'WEAK',
+          specialization: botAtTile.spec_doctrine || 'balanced',
+          strength: botAtTile.total_strength || 0,
+          defense: botAtTile.total_defense || 0,
+          resources: { metal: botAtTile.resources_metal || 0, energy: botAtTile.resources_energy || 0 },
+        };
+      }
+    } catch (error) {
+      log.error('Error checking bot at tile', error instanceof Error ? error : new Error(String(error)));
     }
     
     log.debug('Tile data retrieved', { x, y, terrain: tile.terrain, occupied_by_base: tile.occupied_by_base });

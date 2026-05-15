@@ -75,11 +75,12 @@ import type {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const userId = (body as Record<string, unknown>).username as string;
-    if (!userId) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const userId = auth.playerId;
 
-    const { recipientId, content } = body as Record<string, unknown>;
+    const body = await request.json();
+    const { recipientId, content } = body as { recipientId: string; content: string };
 
     if (!recipientId || typeof recipientId !== 'string') {
       return NextResponse.json(
@@ -95,16 +96,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create request object
     const messageRequest: SendMessageRequest = {
       recipientId,
       content,
     };
 
-    // Send message via service layer
     const result = await sendDirectMessage(userId, messageRequest);
 
-    // Return success response
     const response: SendMessageResponse = {
       message: result.message,
       conversationId: result.conversationId,
@@ -116,7 +114,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    // Handle specific error types
     if (error instanceof ValidationError) {
       return NextResponse.json(
         { success: false, error: error.message },
@@ -131,7 +128,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log unexpected errors for debugging
     console.error('Unexpected error in POST /api/dm:', error);
     
     return NextResponse.json(

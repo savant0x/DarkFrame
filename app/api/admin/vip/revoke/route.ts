@@ -2,11 +2,13 @@
  * @file app/api/admin/vip/revoke/route.ts
  * @created 2025-10-19
  * @updated 2026-05-03 — Migrated to Supabase
+ * @updated 2026-05-15 — Added requireAdmin auth + audit logging
  * @overview Admin API - Revoke VIP status from user
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -22,15 +24,21 @@ import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminVIP);
 
-export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('AdminVIPRevokeAPI');
   const endTimer = log.time('revokeVIP');
   
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const validated = RevokeVIPSchema.parse(body);
 
-    log.debug('VIP revoke request', { username: validated.username });
+    log.debug('VIP revoke request', { 
+      adminUsername: auth.username,
+      targetUsername: validated.username 
+    });
 
     const supabase = createServiceClient();
     
@@ -67,7 +75,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       });
     }
 
-    log.info('VIP revoked successfully', { username: validated.username });
+    await supabase.from('admin_logs').insert({
+      admin_username: auth.username,
+      action: 'VIP_REVOKE',
+      target: validated.username,
+      details: {
+        revokedAt: new Date().toISOString(),
+      }
+    });
+
+    log.info('VIP revoked successfully', { 
+      adminUsername: auth.username,
+      targetUsername: validated.username 
+    });
 
     return NextResponse.json({
       success: true,

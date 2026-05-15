@@ -50,10 +50,10 @@ export default function UnitBuildPanel({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [quantities, setQuantities] = useState<Record<UnitType, string>>({
-    [UnitType.T1_Rifleman]: '1',
-    [UnitType.T1_Scout]: '1',
-    [UnitType.T1_Bunker]: '1',
-    [UnitType.T1_Barrier]: '1'
+    [UnitType.S_T1_VanguardInfantry]: '1',
+    [UnitType.B_T1_AegisDrone]: '1',
+    [UnitType.A_T1_MortarSquad]: '1',
+    [UnitType.U_T1_CommsRelay]: '1'
   } as Record<UnitType, string>);
 
   if (!isOpen) return null;
@@ -109,18 +109,27 @@ export default function UnitBuildPanel({
   };
 
   const getUnitIcon = (unitType: UnitType): string => {
-    switch (unitType) {
-      case UnitType.T1_Rifleman: return '🎯';
-      case UnitType.T1_Scout: return '👁️';
-      case UnitType.T1_Bunker: return '🏰';
-      case UnitType.T1_Barrier: return '🛡️';
+    const config = UNIT_CONFIGS[unitType];
+    if (!config) return '❓';
+    switch (config.archetype) {
+      case 'STRIKER': return '⚔️';
+      case 'BULWARK': return '🛡️';
+      case 'ARTILLERY': return '💥';
+      case 'SUPPORT': return '📡';
       default: return '❓';
     }
   };
 
   const getUnitColor = (unitType: UnitType): string => {
     const config = UNIT_CONFIGS[unitType];
-    return config.strength > 0 ? 'border-red-500' : 'border-blue-500';
+    if (!config) return 'border-gray-500';
+    switch (config.archetype) {
+      case 'STRIKER': return 'border-red-500';
+      case 'BULWARK': return 'border-blue-500';
+      case 'ARTILLERY': return 'border-orange-500';
+      case 'SUPPORT': return 'border-green-500';
+      default: return 'border-gray-500';
+    }
   };
 
   return (
@@ -166,7 +175,7 @@ export default function UnitBuildPanel({
 
         {/* Unit Cards Grid */}
         <div className="grid grid-cols-2 gap-4 mb-4">
-          {[UnitType.T1_Rifleman, UnitType.T1_Scout, UnitType.T1_Bunker, UnitType.T1_Barrier].map(unitType => {
+          {[UnitType.S_T1_VanguardInfantry, UnitType.B_T1_AegisDrone, UnitType.A_T1_MortarSquad, UnitType.U_T1_CommsRelay].map(unitType => {
             const config = UNIT_CONFIGS[unitType];
             const quantity = parseInt(quantities[unitType]) || 1;
             const totalMetal = config.metalCost * quantity;

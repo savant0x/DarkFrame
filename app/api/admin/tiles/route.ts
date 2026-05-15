@@ -1,5 +1,6 @@
 /**
  * 📅 Created: 2025-01-18
+ * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth instead of self-authentication
  * 🎯 OVERVIEW:
  * Admin Tiles Endpoint
  * 
@@ -11,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -28,22 +30,21 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-tiles');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = request.nextUrl;
-    const username = searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '200', 10), 500);
+    const offset = (page - 1) * limit;
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required (rank 5+)');
-    }
-
-    // Get all tiles
-    const { data: tiles, error: tilesError } = await supabase
+    // Get tiles with pagination
+    const { data: tiles, count, error: tilesError } = await supabase
       .from('tiles')
-      .select('*')
-      .limit(10000); // Limit to prevent memory issues
+      .select('*', { count: 'exact' })
+      .range(offset, offset + limit - 1);
 
     if (tilesError) {
       log.error('Failed to fetch tiles', tilesError);
@@ -64,12 +65,13 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       discoveredBy: tile.discovered_by || []
     }));
 
-    log.info('Tiles retrieved', { totalTiles: transformedTiles.length });
+    log.info('Tiles retrieved', { totalTiles: transformedTiles.length, page, limit });
 
     return NextResponse.json({
       success: true,
       tiles: transformedTiles,
-      total: transformedTiles.length
+      total: count || 0,
+      pagination: { page, limit },
     });
 
   } catch (error) {

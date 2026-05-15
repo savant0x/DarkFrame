@@ -201,7 +201,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     for (let i = 0; i < quantity; i++) {
       newUnits.push({
         id: `${username}-${Date.now()}-${i}-${Math.random().toString(36).substring(7)}`,
-        unit_type: unitType as Database['public']['Enums']['unit_type'],
+        unit_type: unitType as unknown as Database['public']['Enums']['unit_type'],
         strength: unitConfig.strength,
         defense: unitConfig.defense,
         produced_at_x: factoryX,

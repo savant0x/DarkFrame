@@ -57,19 +57,19 @@ export default function WMDHub() {
   ];
 
   return (
-    <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="bg-[--card] rounded-lg h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-700 p-6 flex-shrink-0">
+      <div className="bg-[--shadow] border-b border-[--border] p-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-2">
           ⚔️ Weapons of Mass Destruction
         </h1>
-        <p className="text-gray-400">
+        <p className="text-[--text-2]">
           Research, build, and deploy advanced warfare systems
         </p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-2 p-4 bg-gray-800/50 border-b border-gray-700 flex-shrink-0">
+      <div className="flex flex-wrap gap-2 p-4 bg-[--card]/50 border-b border-[--border] flex-shrink-0">
         {tabs.map((tab) => (
           <Button
             key={tab.id}

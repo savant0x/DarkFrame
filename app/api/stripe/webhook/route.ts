@@ -34,6 +34,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
+import { createServiceClient } from '@/lib/supabase/server';
 import Stripe from 'stripe';
 import { verifyWebhookSignature } from '@/lib/stripe/stripeService';
 import { grantVIP, revokeVIP, recordPaymentTransaction } from '@/lib/stripe/subscriptionService';
@@ -45,18 +46,10 @@ import { logger } from '@/lib/logger/productionLogger';
  * 
  * Receives webhook events from Stripe, verifies signatures, and processes
  * payment-related events to automatically manage VIP subscriptions.
+ * Implements event deduplication to prevent double-processing on retries.
  * 
  * @param request - Next.js request with raw webhook payload
  * @returns Response with 200 (success), 400 (invalid), or 500 (error)
- * 
- * @example
- * // Stripe sends POST request:
- * POST /api/stripe/webhook
- * Headers: stripe-signature
- * Body: raw JSON event data
- * 
- * // Returns:
- * { received: true }
  */
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -94,6 +87,30 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const supabase = createServiceClient();
+
+    const { data: existingEvent } = await supabase
+      .from('admin_logs')
+      .select('id')
+      .eq('action', 'STRIPE_WEBHOOK_PROCESSED')
+      .eq('target', event.id)
+      .maybeSingle();
+
+    if (existingEvent) {
+      logger.info('Webhook event already processed (deduplicated)', {
+        type: event.type,
+        id: event.id,
+      });
+      return NextResponse.json({ received: true });
+    }
+
+    await supabase.from('admin_logs').insert({
+      action: 'STRIPE_WEBHOOK_PROCESSED',
+      admin_username: 'system',
+      target: event.id,
+      details: { event_type: event.type },
+    });
     
     logger.info('Webhook event received', {
       type: event.type,

@@ -16,10 +16,10 @@ const DIGGER_BONUS_CAP = 200; // 200% max bonus (asymptote)
 const DIGGER_DECAY_CONSTANT = 0.008;
 
 // Guaranteed digger interval
-const GUARANTEED_DIGGER_INTERVAL = 75; // Every 75 caves, guaranteed digger
+const GUARANTEED_DIGGER_INTERVAL = 150; // Every 150 caves, guaranteed digger (increased from 75)
 
-// Drop rate constants (reduced from old 30% → 2.5%)
-const CAVE_DROP_RATE = 0.025; // 2.5% base drop rate (down from 30%)
+// Drop rate constants (reduced from old 30% → 1.5%)
+const CAVE_DROP_RATE = 0.015; // 1.5% base drop rate (down from 2.5%)
 const DIGGER_DROP_CHANCE = 0.20; // 20% of drops are diggers (down from 65%)
 const TRADEABLE_DROP_CHANCE = 0.80; // 80% of drops are tradeable (up from 35%)
 
@@ -84,7 +84,7 @@ export function rollDiggerDrop(cavesSinceLastDigger: number): DiggerDropResult {
  * @param totalCaves - Total cave tiles on map (default 1800)
  * @returns Expected number of diggers per full sweep
  */
-export function getExpectedDiggersPerSweep(totalCaves: number = 1800): number {
+export function getExpectedDiggersPerSweep(totalCaves: number = 1350): number {
   // Normal drops: caves × dropRate × diggerChance
   const normalDiggers = totalCaves * CAVE_DROP_RATE * DIGGER_DROP_CHANCE;
   // Guaranteed drops: caves / interval

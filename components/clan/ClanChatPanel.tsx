@@ -227,12 +227,12 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
 
     setIsSending(true);
     try {
-      const response = await fetch('/api/clan/chat/send', {
+      const response = await fetch('/api/clan/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clanId,
-          content: messageInput.trim()
+          message: messageInput.trim()
         })
       });
 
@@ -266,10 +266,10 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
     }
 
     try {
-      const response = await fetch('/api/clan/chat/delete', {
+      const response = await fetch(`/api/clan/chat?messageId=${messageId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanId, messageId })
+        body: JSON.stringify({ clanId })
       });
 
       if (!response.ok) throw new Error('Failed to delete message');

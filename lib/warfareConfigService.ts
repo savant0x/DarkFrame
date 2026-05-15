@@ -10,6 +10,8 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { fromJsonb, toJsonb } from '@/lib/supabase/jsonb';
+import type { Database } from '@/types/database';
 
 export interface WarfareConfig {
   version: number;
@@ -146,7 +148,7 @@ export async function loadWarfareConfig(): Promise<WarfareConfig> {
   }
   
   if (data && data.config_value) {
-    return (data.config_value as unknown) as WarfareConfig;
+    return fromJsonb<WarfareConfig>(data.config_value) ?? { ...DEFAULT_WARFARE_CONFIG, last_updated: '', updated_by: 'system' };
   }
   
   return { ...DEFAULT_WARFARE_CONFIG, version: 1, last_updated: '', updated_by: 'system' };
@@ -185,7 +187,7 @@ export async function saveWarfareConfig(
     throw new Error(`Failed to save warfare config: ${upsertErr.message}`);
   }
   
-  return newConfig as unknown as WarfareConfig;
+  return newConfig;
 }
 
 export function validateWarfareConfig(
@@ -246,5 +248,5 @@ export function validateWarfareConfig(
 
 export async function getConfigHistory(_limit = 10): Promise<WarfareConfig[]> {
   const config = await loadWarfareConfig();
-  return [config as unknown as WarfareConfig];
+  return [config];
 }

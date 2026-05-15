@@ -111,7 +111,7 @@ export default function TutorialOverlay({
         error: null,
       });
 
-      setProgressPercent(calculateProgress(progress));
+      setProgressPercent(calculateProgress(progress, quest));
       setJoyrideSteps([joyrideStep]);
       setRunJoyride(true);
 
@@ -178,9 +178,12 @@ export default function TutorialOverlay({
   /**
    * Calculate overall tutorial progress percentage
    */
-  const calculateProgress = (progress: TutorialProgress): number => {
+  const calculateProgress = (progress: TutorialProgress, currentQuest?: TutorialQuest | null): number => {
+    if (currentQuest && currentQuest.steps.length > 0) {
+      return Math.round(((progress.currentStepIndex || 0) / currentQuest.steps.length) * 100);
+    }
     const totalSteps = progress.totalStepsCompleted;
-    const maxSteps = 22; // Total across all quests (7+7+3+2+2+1)
+    const maxSteps = 22;
     return Math.round((totalSteps / maxSteps) * 100);
   };
 

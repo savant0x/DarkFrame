@@ -47,6 +47,36 @@ import {
 } from '@/types/stripe.types';
 
 /**
+ * Record a payment transaction in the database.
+ */
+export async function recordPaymentTransaction(params: {
+  userId: string;
+  username: string;
+  tier: VIPTier;
+  amount: number;
+  stripeSessionId: string;
+  stripeCustomerId: string;
+  stripeSubscriptionId: string;
+  status: 'pending' | 'completed' | 'failed' | 'refunded';
+}): Promise<void> {
+  const supabase = createServiceClient();
+  const { error } = await supabase.from('payment_transactions').insert({
+    user_id: params.userId,
+    username: params.username,
+    tier: params.tier,
+    amount: params.amount,
+    stripe_session_id: params.stripeSessionId,
+    stripe_customer_id: params.stripeCustomerId,
+    stripe_subscription_id: params.stripeSubscriptionId,
+    status: params.status,
+    created_at: new Date().toISOString(),
+  });
+  if (error) {
+    console.error('[Subscription] Failed to record payment transaction:', error);
+  }
+}
+
+/**
  * Grant VIP Status
  * 
  * Grants VIP status to a user after successful payment. Updates user record
@@ -257,94 +287,23 @@ export async function extendVIP(params: {
   }
 }
 
-/**
- * Record Payment Transaction
- * 
- * Creates a payment transaction record for auditing and analytics.
- * Stores all payment details including amount, status, and Stripe IDs.
- * 
- * @param {object} transaction - Transaction details
- * @param {string} transaction.userId - User who made payment
- * @param {string} transaction.username - Username for display
- * @param {string} transaction.stripeCustomerId - Stripe Customer ID
- * @param {string} transaction.stripeSessionId - Checkout Session ID
- * @param {string} transaction.stripeSubscriptionId - Subscription ID
- * @param {number} transaction.amount - Payment amount in USD cents
- * @param {VIPTier} transaction.tier - VIP tier purchased
- * @param {string} transaction.status - Payment status (completed, failed, refunded)
- * @returns {Promise<string | null>} Transaction ID or null if failed
- * 
- * @example
- * const txnId = await recordPaymentTransaction({
- *   userId: '507f1f77bcf86cd799439011',
- *   username: 'player123',
- *   stripeCustomerId: 'cus_1234abcd',
- *   stripeSessionId: 'cs_test_5678',
- *   stripeSubscriptionId: 'sub_9012',
- *   amount: 1499,
- *   tier: VIPTier.MONTHLY,
- *   status: 'completed'
- * });
- */
-export async function recordPaymentTransaction(transaction: {
-  userId: string;
-  username: string;
-  stripeCustomerId: string;
-  stripeSessionId: string;
-  stripeSubscriptionId: string;
-  amount: number;
-  tier: VIPTier;
-  status: 'completed' | 'failed' | 'refunded';
-}): Promise<string | null> {
-  try {
-    const supabase = createServiceClient();
-    
-    const paymentTransaction: Record<string, any> = {
-      user_id: transaction.userId,
-      username: transaction.username,
-      stripe_customer_id: transaction.stripeCustomerId,
-      stripe_session_id: transaction.stripeSessionId,
-      stripe_subscription_id: transaction.stripeSubscriptionId,
-      stripe_price_id: VIP_PRICING[transaction.tier].stripePriceId,
-      amount: transaction.amount,
-      tier: transaction.tier,
-      status: transaction.status,
-      created_at: new Date().toISOString(),
-      completed_at: transaction.status === 'completed' ? new Date().toISOString() : undefined,
-      refunded_at: transaction.status === 'refunded' ? new Date().toISOString() : undefined,
-    };
-    
-    const { data: result, error } = await supabase
-      .from('payment_transactions')
-      .insert(paymentTransaction as unknown as TablesInsert<'payment_transactions'>)
-      .select('id')
-      .single();
-    
-    if (error) throw error;
-    
-    console.log('Payment transaction recorded:', {
-      transactionId: result.id,
-      userId: transaction.userId,
-      amount: transaction.amount,
-      status: transaction.status,
-    });
-    
-    return result.id;
-  } catch (error) {
-    console.error('Failed to record payment transaction:', error);
-    return null;
+function toVIPTier(value: string): VIPTier {
+  switch (value) {
+    case 'WEEKLY': return VIPTier.WEEKLY;
+    case 'MONTHLY': return VIPTier.MONTHLY;
+    case 'QUARTERLY': return VIPTier.QUARTERLY;
+    case 'BIANNUAL': return VIPTier.BIANNUAL;
+    case 'YEARLY': return VIPTier.YEARLY;
+    default: return VIPTier.MONTHLY;
   }
 }
 
 /**
- * Get User Payment History
- * 
- * Retrieves all payment transactions for a specific user.
- * Used for admin dashboard and user billing history display.
- * 
- * @param {string} userId - User ID to get payment history for
- * @param {number} [limit=50] - Maximum number of transactions to return
- * @returns {Promise<PaymentTransaction[]>} Array of payment transactions
+ * Get payment transactions for a user
+ *
+ * @param userId - User ID to get payment history for
+ * @param limit - Maximum number of transactions to return
+ * @returns Promise resolving to array of payment transactions
  * 
  * @example
  * const history = await getUserPaymentHistory('507f1f77bcf86cd799439011', 10);
@@ -364,7 +323,21 @@ export async function getUserPaymentHistory(
       .order('created_at', { ascending: false })
       .limit(limit);
     
-    return (transactions || []) as unknown as PaymentTransaction[];
+    return (transactions || []).map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      username: row.username,
+      stripeCustomerId: row.stripe_customer_id ?? '',
+      stripeSessionId: row.stripe_session_id ?? undefined,
+      stripeSubscriptionId: row.stripe_subscription_id ?? undefined,
+      stripePriceId: row.stripe_price_id ?? '',
+      amount: row.amount,
+      tier: toVIPTier(row.tier),
+      status: row.status,
+      createdAt: new Date(row.created_at),
+      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+      refundedAt: row.refunded_at ? new Date(row.refunded_at) : undefined,
+    }));
   } catch (error) {
     console.error('Failed to get user payment history:', error);
     return [];

@@ -15,6 +15,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Database } from '@/types/database';
+
 import { WMDNotification, WMDEventType, NotificationPriority, NotificationScope } from '@/types/wmd';
 
 /**
@@ -40,7 +41,7 @@ export async function createWMDNotification(
       .from('wmd_notifications')
       .insert({
         player_id: sourceId,
-        notification_type: eventType as unknown as Database['public']['Enums']['wmd_notification_type'],
+        notification_type: eventType,
         title,
         message,
         data: {

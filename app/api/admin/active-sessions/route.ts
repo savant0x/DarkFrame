@@ -1,12 +1,12 @@
 /**
  * @file app/api/admin/active-sessions/route.ts
  * @created 2025-10-18
- * @updated 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
- * @updated 2026-05-03 — Migrated to Supabase
+ * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -24,18 +24,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('fetch-active-sessions');
 
   try {
-    const { searchParams } = request.nextUrl;
-    const username = searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
     const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
-    }
 
     const { data: players, error } = await supabase
       .from('players')
@@ -75,7 +67,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       totalActive,
       longestSessionHours: Math.floor(longestSession / 3600),
       abusiveCount: abusiveSessions.length,
-      adminUser: username,
+      adminUser: auth.username,
     });
 
     return NextResponse.json({

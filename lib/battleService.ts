@@ -20,7 +20,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables } from '@/types/database';
+import type { Tables, Database } from '@/types/database';
 import { mapDbBattleLogToDomain } from './battleLogService';
 import type { BattleLog as ActivityBattleLog } from '@/types/activityLog.types';
 import {
@@ -344,7 +344,11 @@ function calculateDamage(
   attackerLevel: number,
   defenderLevel: number
 ): number {
-  const baseDamage = attackerSTR * (1 - defenderDEF / (defenderDEF + attackerSTR));
+  const denominator = defenderDEF + attackerSTR;
+  if (denominator === 0) {
+    return 5;
+  }
+  const baseDamage = attackerSTR * (1 - defenderDEF / denominator);
 
   let counterMultiplier = 1.0;
   if (attackerArchetype === 'STRIKER' && defenderArchetype === 'BULWARK') {
@@ -665,6 +669,21 @@ export async function executeInfantryAttack(
       defender_defense: battleLog.defender.totalDEF,
       damage_dealt: battleLog.attacker.damageDealt,
       outcome: battleLog.outcome,
+      battle_type: battleLog.battleType,
+      total_rounds: battleLog.totalRounds,
+      rounds: battleLog.rounds as never,
+      attacker_units_lost: battleLog.attacker.unitsLost,
+      defender_units_lost: battleLog.defender.unitsLost,
+      attacker_units_captured: battleLog.attacker.unitsCaptured,
+      defender_units_captured: battleLog.defender.unitsCaptured,
+      attacker_hp_start: battleLog.attacker.startingHP,
+      attacker_hp_end: battleLog.attacker.endingHP,
+      defender_hp_start: battleLog.defender.startingHP,
+      defender_hp_end: battleLog.defender.endingHP,
+      attacker_xp: battleLog.attackerXP,
+      defender_xp: battleLog.defenderXP,
+      location_x: battleLog.location?.x ?? null,
+      location_y: battleLog.location?.y ?? null,
       resources_stolen: battleLog.resourcesStolen || null,
       created_at: new Date().toISOString()
     });
@@ -747,14 +766,50 @@ export async function executeBaseAttack(
         amount: stolenAmount
       };
 
-      const attackerResourceValue = resourceToSteal === 'metal' ? attacker.resources_metal : attacker.resources_energy;
+      const { data: defenderCurrent } = await supabase
+        .from('players')
+        .select(resourceColumn)
+        .eq('username', defenderId)
+        .single();
 
-      if (resourceColumn === 'resources_metal') {
-        await supabase.from('players').update({ resources_metal: defenderResources - stolenAmount }).eq('username', defenderId);
-        await supabase.from('players').update({ resources_metal: attackerResourceValue + stolenAmount }).eq('username', attackerId);
-      } else {
-        await supabase.from('players').update({ resources_energy: defenderResources - stolenAmount }).eq('username', defenderId);
-        await supabase.from('players').update({ resources_energy: attackerResourceValue + stolenAmount }).eq('username', attackerId);
+      if (defenderCurrent) {
+        const actualDefenderResources = (defenderCurrent[resourceColumn as keyof typeof defenderCurrent] as number) || 0;
+        const actualStolen = Math.min(stolenAmount, Math.max(0, actualDefenderResources));
+
+        if (actualStolen > 0) {
+          const updateDefData: Database['public']['Tables']['players']['Update'] = {};
+          if (resourceColumn === 'resources_metal') {
+            updateDefData.resources_metal = actualDefenderResources - actualStolen;
+          } else {
+            updateDefData.resources_energy = actualDefenderResources - actualStolen;
+          }
+          const { error: updateDefError } = await supabase
+            .from('players')
+            .update(updateDefData)
+            .eq('username', defenderId);
+
+          if (!updateDefError) {
+            const { data: attackerCurrent } = await supabase
+              .from('players')
+              .select(resourceColumn)
+              .eq('username', attackerId)
+              .single();
+
+            if (attackerCurrent) {
+              const actualAttackerResources = (attackerCurrent[resourceColumn as keyof typeof attackerCurrent] as number) || 0;
+              const updateAttData: Database['public']['Tables']['players']['Update'] = {};
+              if (resourceColumn === 'resources_metal') {
+                updateAttData.resources_metal = actualAttackerResources + actualStolen;
+              } else {
+                updateAttData.resources_energy = actualAttackerResources + actualStolen;
+              }
+              await supabase
+                .from('players')
+                .update(updateAttData)
+                .eq('username', attackerId);
+            }
+          }
+        }
       }
     }
   }
@@ -817,6 +872,21 @@ export async function executeBaseAttack(
       defender_defense: battleLog.defender.totalDEF,
       damage_dealt: battleLog.attacker.damageDealt,
       outcome: battleLog.outcome,
+      battle_type: battleLog.battleType,
+      total_rounds: battleLog.totalRounds,
+      rounds: battleLog.rounds as never,
+      attacker_units_lost: battleLog.attacker.unitsLost,
+      defender_units_lost: battleLog.defender.unitsLost,
+      attacker_units_captured: battleLog.attacker.unitsCaptured,
+      defender_units_captured: battleLog.defender.unitsCaptured,
+      attacker_hp_start: battleLog.attacker.startingHP,
+      attacker_hp_end: battleLog.attacker.endingHP,
+      defender_hp_start: battleLog.defender.startingHP,
+      defender_hp_end: battleLog.defender.endingHP,
+      attacker_xp: battleLog.attackerXP,
+      defender_xp: battleLog.defenderXP,
+      location_x: battleLog.location?.x ?? null,
+      location_y: battleLog.location?.y ?? null,
       resources_stolen: battleLog.resourcesStolen || null,
       created_at: new Date().toISOString()
     });
@@ -894,12 +964,12 @@ export async function executeFactoryAttack(
 
   await applyBattleResults(battleLog);
 
-  const attackerXPAction = battleLog.outcome === BattleOutcome.AttackerWin 
-    ? XPAction.BASE_ATTACK_WIN 
+  const attackerXPAction = battleLog.outcome === BattleOutcome.AttackerWin
+    ? XPAction.FACTORY_CAPTURE
     : XPAction.BASE_ATTACK_LOSS;
 
   const defenderXPAction = battleLog.outcome === BattleOutcome.DefenderWin
-    ? XPAction.DEFENSE_SUCCESS
+    ? XPAction.FACTORY_DEFENSE
     : XPAction.BASE_ATTACK_LOSS;
 
   const attackerXPResult = await awardXP(attackerId, attackerXPAction);
@@ -923,6 +993,21 @@ export async function executeFactoryAttack(
       defender_defense: battleLog.defender.totalDEF,
       damage_dealt: battleLog.attacker.damageDealt,
       outcome: battleLog.outcome,
+      battle_type: battleLog.battleType,
+      total_rounds: battleLog.totalRounds,
+      rounds: battleLog.rounds as never,
+      attacker_units_lost: battleLog.attacker.unitsLost,
+      defender_units_lost: battleLog.defender.unitsLost,
+      attacker_units_captured: battleLog.attacker.unitsCaptured,
+      defender_units_captured: battleLog.defender.unitsCaptured,
+      attacker_hp_start: battleLog.attacker.startingHP,
+      attacker_hp_end: battleLog.attacker.endingHP,
+      defender_hp_start: battleLog.defender.startingHP,
+      defender_hp_end: battleLog.defender.endingHP,
+      attacker_xp: battleLog.attackerXP,
+      defender_xp: battleLog.defenderXP,
+      location_x: battleLog.location?.x ?? null,
+      location_y: battleLog.location?.y ?? null,
       resources_stolen: null,
       created_at: new Date().toISOString()
     });

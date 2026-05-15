@@ -86,13 +86,42 @@ import { useGameContext } from '@/context/GameContext';
 import { BackButton, StatsPanel, ControlsPanel } from '@/components';
 import GameLayout from '@/components/GameLayout';
 import TopNavBar from '@/components/TopNavBar';
-import { UNIT_BLUEPRINTS, UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
+import { UNIT_CONFIGS } from '@/types/game.types';
+import { UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
 
 interface UnitWithStatus extends UnitBlueprint {
   isUnlocked: boolean;
   playerOwned: number;
   slotCost: number;
 }
+
+// Convert new UNIT_CONFIGS to the old UnitBlueprint format
+function buildBlueprints(): UnitBlueprint[] {
+  return Object.values(UNIT_CONFIGS).map(cfg => {
+    // Map archetype → category (STRENGTH or DEFENSE)
+    const category = cfg.archetype === 'BULWARK' ? UnitCategory.Defense : UnitCategory.Strength;
+    // Map tier → rarity (T1=Common ... T5=Legendary)
+    const rarity = cfg.tier as unknown as UnitRarity;
+
+    return {
+      id: cfg.type,
+      name: cfg.name,
+      category,
+      rarity,
+      strength: cfg.strength,
+      defense: cfg.defense,
+      metalCost: cfg.metalCost,
+      energyCost: cfg.energyCost,
+      description: cfg.description,
+      unlockRequirement: {
+        researchPoints: cfg.rpRequired,
+        level: cfg.levelRequired,
+      },
+    };
+  });
+}
+
+const BLUEPRINTS = buildBlueprints();
 
 import type { UnitFactoryStatsPayload } from '@/types/api-responses';
 
@@ -115,11 +144,9 @@ export default function UnitFactoryPage() {
     }
   }, [player, router]);
 
-  // Fetch available units and player stats
+  // Fetch player stats and merge with local blueprints
   useEffect(() => {
     if (!player) return;
-
-    const username = player.username; // Capture for null-safety
 
     async function fetchUnits() {
       try {
@@ -132,8 +159,21 @@ export default function UnitFactoryPage() {
         const data = await response.json();
 
         if (data.success) {
-          setUnits(data.units);
           setPlayerStats(data.playerStats);
+          // Merge API unit data (owned counts, unlock status) with local blueprints
+          const apiUnits: Record<string, any> = {};
+          (data.units || []).forEach((u: any) => { apiUnits[u.id] = u; });
+          
+          const merged: UnitWithStatus[] = BLUEPRINTS.map(bp => {
+            const api = apiUnits[bp.id];
+            return {
+              ...bp,
+              slotCost: 0,
+              isUnlocked: api?.isUnlocked ?? false,
+              playerOwned: api?.playerOwned ?? 0,
+            };
+          });
+          setUnits(merged);
         } else {
           console.error('API returned error:', data.message || 'Unknown error');
         }

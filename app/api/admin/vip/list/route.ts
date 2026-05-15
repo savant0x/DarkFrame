@@ -1,11 +1,11 @@
 /**
  * @file app/api/admin/vip/list/route.ts
  * @created 2025-10-19
- * @updated 2026-05-03 — Migrated to Supabase
+ * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth instead of self-check
  * @overview Admin API - List all users with VIP status
  */
 
-import { requireAuth } from '@/lib/authMiddleware';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
@@ -25,29 +25,21 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('list-vip-users');
 
   try {
-    const { searchParams } = request.nextUrl;
-    const username = searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
     const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
-    }
     
     const { data: users, error } = await supabase
       .from('players')
       .select('username, email, is_vip, vip_expiration, created_at')
+      .eq('is_vip', true)
       .order('username');
 
     if (error) throw error;
 
-    const vipUsers = (users || []).filter(u => u.is_vip);
-
     log.info('VIP users list retrieved', {
-      totalUsers: (users || []).length,
-      vipUsers: vipUsers.length,
+      vipUsers: (users || []).length,
     });
 
     return NextResponse.json({

@@ -20,47 +20,59 @@
  */
 
 type ObjectId = string;
+import type { Database } from '@/types/database';
 import { WarheadType } from './missile.types';
 import { MissionType } from './intelligence.types';
+
+// ============================================================================
+// TYPE ALIASES
+// ============================================================================
+
+/**
+ * Flexible notification details with known optional properties and index signature.
+ */
+export interface WMDNotificationDetails {
+  missileId?: string;
+  warheadType?: WarheadType;
+  missionType?: MissionType;
+  techId?: string;
+  techTier?: number;
+  damageDealt?: number;
+  unitsDestroyed?: number;
+}
 
 // ============================================================================
 // ENUMS
 // ============================================================================
 
 /**
- * WMD notification event types
+ * WMD notification event types — derived from Database enum for exact DB match.
+ * This eliminates all `as unknown as` casts when inserting into wmd_notifications.
  */
-export enum WMDEventType {
-  // Missile events
-  MISSILE_ASSEMBLED = 'MISSILE_ASSEMBLED',         // All 5 components complete
-  MISSILE_LAUNCHED = 'MISSILE_LAUNCHED',           // Launch initiated
-  MISSILE_DETECTED = 'MISSILE_DETECTED',           // Radar detection
-  MISSILE_INTERCEPTED = 'MISSILE_INTERCEPTED',     // Defense success
-  MISSILE_IMPACTED = 'MISSILE_IMPACTED',           // Detonation
-  MISSILE_DISMANTLED = 'MISSILE_DISMANTLED',       // Manually destroyed
-  
-  // Intelligence events
-  INTELLIGENCE_LEAK = 'INTELLIGENCE_LEAK',         // Missile details exposed
-  SPY_MISSION_COMPLETED = 'SPY_MISSION_COMPLETED', // Mission finished
-  SPY_MISSION_FAILED = 'SPY_MISSION_FAILED',       // Mission failed
-  SPY_DETECTED = 'SPY_DETECTED',                   // Spy caught
-  SABOTAGE_SUCCESSFUL = 'SABOTAGE_SUCCESSFUL',     // Component destroyed
-  ASSASSINATION = 'ASSASSINATION',                 // Spy killed
-  
-  // Defense events
-  BATTERY_DEPLOYED = 'BATTERY_DEPLOYED',           // New battery online
-  RADAR_ONLINE = 'RADAR_ONLINE',                   // Radar activated
-  DEFENSE_GRID_ACTIVATED = 'DEFENSE_GRID_ACTIVATED', // Clan pooling enabled
-  
-  // Research events
-  RESEARCH_COMPLETED = 'RESEARCH_COMPLETED',       // Tech unlocked
-  TIER_10_UNLOCKED = 'TIER_10_UNLOCKED',           // Ultimate tech (global)
-  
-  // Clan events
-  CLAN_VOTE_STARTED = 'CLAN_VOTE_STARTED',         // Vote initiated
-  CLAN_VOTE_PASSED = 'CLAN_VOTE_PASSED',           // Vote approved
-  CLAN_AUTHORIZATION = 'CLAN_AUTHORIZATION',       // Launch authorized
-}
+export const WMDEventType = {
+  MISSILE_ASSEMBLED: 'missile_assembled',
+  MISSILE_LAUNCHED: 'missile_launched',
+  MISSILE_DETECTED: 'missile_incoming',
+  MISSILE_INTERCEPTED: 'missile_intercepted',
+  MISSILE_IMPACTED: 'missile_impact',
+  MISSILE_DISMANTLED: 'missile_dismantled',
+  INTELLIGENCE_LEAK: 'intelligence_leak',
+  SPY_MISSION_COMPLETED: 'spy_mission_complete',
+  SPY_MISSION_FAILED: 'spy_mission_failed',
+  SPY_DETECTED: 'spy_detected',
+  SABOTAGE_SUCCESSFUL: 'sabotage_successful',
+  ASSASSINATION: 'spy_captured',
+  BATTERY_DEPLOYED: 'defense_activated',
+  RADAR_ONLINE: 'defense_upgraded',
+  DEFENSE_GRID_ACTIVATED: 'defense_grid_activated',
+  RESEARCH_COMPLETED: 'research_complete',
+  TIER_10_UNLOCKED: 'tech_unlocked',
+  CLAN_VOTE_STARTED: 'vote_started',
+  CLAN_VOTE_PASSED: 'vote_complete',
+  CLAN_AUTHORIZATION: 'clan_authorization',
+} as const;
+
+export type WMDEventType = typeof WMDEventType[keyof typeof WMDEventType];
 
 /**
  * Notification priority levels
@@ -109,16 +121,7 @@ export interface WMDNotification {
   targetClanName?: string;
   
   // Event details
-  details: {
-    missileId?: string;
-    warheadType?: WarheadType;
-    missionType?: MissionType;
-    techId?: string;
-    techTier?: number;
-    damageDealt?: number;
-    unitsDestroyed?: number;
-    [key: string]: any;            // Flexible for event-specific data
-  };
+  details: WMDNotificationDetails;
   
   // Message content
   title: string;
@@ -174,7 +177,7 @@ export interface NotificationRequest {
   sourceName: string;
   targetId?: string;
   targetName?: string;
-  details: Record<string, any>;
+  details: Record<string, string | number | boolean | null>;
   customMessage?: string;          // Override default message
 }
 
@@ -210,7 +213,7 @@ export interface WMDWebSocketEvent {
   sourceName: string;
   targetId?: string;
   targetName?: string;
-  details: Record<string, any>;
+  details: Record<string, string | number | boolean | null>;
   
   timestamp: Date;
 }
@@ -306,7 +309,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: Partial<NotificationPreferences> 
  */
 export const NOTIFICATION_TEMPLATES: Record<WMDEventType, {
   title: string;
-  message: (data: any) => string;
+  message: (data: Record<string, string | number | boolean | null>) => string;
   icon: string;
   color: string;
   priority: NotificationPriority;
@@ -320,7 +323,7 @@ export const NOTIFICATION_TEMPLATES: Record<WMDEventType, {
   },
   [WMDEventType.MISSILE_LAUNCHED]: {
     title: '⚠️ MISSILE LAUNCH DETECTED',
-    message: (data) => `${data.sourceName} has launched a ${data.warheadType} missile targeting ${data.targetName}! Impact in ${Math.floor(data.flightTime / 60000)} minutes.`,
+    message: (data) => `${data.sourceName} has launched a ${data.warheadType} missile targeting ${data.targetName}! Impact in ${Math.floor(Number(data.flightTime) / 60000)} minutes.`,
     icon: '⚠️',
     color: '#FF0000',
     priority: NotificationPriority.CRITICAL,
@@ -494,7 +497,7 @@ export function getNotificationTemplate(eventType: WMDEventType) {
  */
 export function generateNotificationMessage(
   eventType: WMDEventType,
-  data: any
+  data: Record<string, string | number | boolean | null>
 ): { title: string; message: string; icon: string; color: string } {
   const template = NOTIFICATION_TEMPLATES[eventType];
   return {

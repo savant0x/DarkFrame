@@ -166,7 +166,7 @@ export default function AchievementStatsModal({ onClose }: AchievementStatsModal
    */
   const formatAchievementDate = (isoString?: string): string => {
     if (!isoString) return 'Never';
-    return formatAchievementDate(isoString);
+    return new Date(isoString).toLocaleDateString();
   };
 
   /**

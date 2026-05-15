@@ -65,17 +65,37 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       .eq('player_username', username)
       .gt('expires_at', now);
 
+    // Fetch player units
+    const { data: playerUnits } = await supabase
+      .from('player_units')
+      .select('*')
+      .eq('player_username', username);
+
     const result = {
       ...mapped,
       currentPosition: { x: player.current_x || 0, y: player.current_y || 0 },
       base: { x: player.base_x || 0, y: player.base_y || 0 },
+      baseGreeting: (player as Record<string, unknown>).base_greeting || 'Welcome to my base!',
       totalStrength: player.total_strength || 0,
       totalDefense: player.total_defense || 0,
       resources: { metal: player.resources_metal || 0, energy: player.resources_energy || 0 },
+      units: (playerUnits || []).map(u => ({
+        id: u.id,
+        unitType: u.unit_type,
+        name: '',
+        archetype: '',
+        rarity: 'common',
+        strength: u.strength || 0,
+        defense: u.defense || 0,
+        quantity: u.quantity || 0,
+        createdAt: u.produced_date ? new Date(u.produced_date) : new Date(),
+      })),
+      // @ts-ignore — sacrificed columns added via migration
       gatheringBonus: {
-        metalBonus: player.gathering_metal_bonus || 0,
-        energyBonus: player.gathering_energy_bonus || 0,
+        metalBonus: (player as Record<string, unknown>).sacrificed_metal_bonus ?? (player as Record<string, unknown>).gathering_metal_bonus ?? 0,
+        energyBonus: (player as Record<string, unknown>).sacrificed_energy_bonus ?? (player as Record<string, unknown>).gathering_energy_bonus ?? 0,
       },
+      sacrificedDiggerCount: (player as Record<string, unknown>).sacrificed_digger_count || 0,
       balanceEffects,
       xpProgress,
       inventory: {

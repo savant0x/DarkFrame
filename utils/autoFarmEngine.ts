@@ -93,7 +93,7 @@ export class AutoFarmEngine {
       this.MOVEMENT_WAIT = Math.round(200 / spd);
       this.HARVEST_WAIT = Math.round(800 / spd);
       this.MOVEMENT_DELAY = Math.round(500 / spd);
-      this.HARVEST_DELAY_EXTRA = Math.round(2000 / spd);
+      this.HARVEST_DELAY_EXTRA = Math.round(1000 / spd);
       console.log('[AutoFarm] Basic mode - Guaranteed cooldown (11.6 hour completion)' + (spd > 1 ? ', Flag Bearer Boost active' : ''));
     }
     

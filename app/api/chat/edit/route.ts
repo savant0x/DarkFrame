@@ -25,67 +25,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { createServiceClient } from '@/lib/supabase/server';
 import { filterMessage, detectSpam } from '@/lib/moderationService';
-import type { PlayerContext } from '@/lib/channelService';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-interface EditMessageBody {
-  messageId: string;
-  newContent: string;
-}
-
-interface ChatMessage {
-  id: string;
-  channel_id: string;
-  clan_id?: string;
-  sender_id: string;
-  sender_username: string;
-  sender_level: number;
-  sender_is_vip: boolean;
-  content: string;
-  timestamp: string;
-  edited: boolean;
-  edited_at?: string;
-  is_deleted?: boolean;
-}
-
-interface MessageUpdateData {
-  content: string;
-  edited: boolean;
-  edited_at: string;
-}
-
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
 
 const TABLE_MESSAGES = 'chat_messages';
 const EDIT_TIME_LIMIT_MS = 15 * 60 * 1000;
 
-// ============================================================================
-// POST /api/chat/edit - Edit Message
-// ============================================================================
-
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.playerId;
+
     const body = await request.json();
-    const username = (body as Record<string, unknown>).username as string;
-    if (!username) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
-
-    const { messageId, newContent } = body as EditMessageBody;
-
-    const user: PlayerContext = {
-      username,
-      level: 1,
-      isVIP: false,
-      clanId: undefined,
-      isMuted: false,
-      channelBans: [],
-    };
+    const { messageId, newContent } = body as { messageId: string; newContent: string };
 
     if (!messageId || !newContent) {
       return NextResponse.json(
@@ -108,22 +62,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (messageId.length < 8 || messageId.length > 50) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid message ID' },
-        { status: 400 }
-      );
-    }
-
     const supabase = createServiceClient();
 
-    const { data: message } = await supabase
+    const { data: message, error: fetchError } = await supabase
       .from(TABLE_MESSAGES)
       .select('*')
       .eq('id', messageId)
       .single();
 
-    if (!message) {
+    if (fetchError || !message) {
       return NextResponse.json(
         { success: false, error: 'Message not found' },
         { status: 404 }
@@ -137,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (message.sender_id !== user.username) {
+    if (message.sender_id !== username && message.sender_username !== username) {
       return NextResponse.json(
         { success: false, error: 'You can only edit your own messages' },
         { status: 403 }
@@ -159,7 +106,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const filteredResult = await filterMessage(newContent, user.username);
+    const playerContext = {
+      username,
+      level: 1,
+      isVIP: false,
+      clanId: undefined,
+      isMuted: false,
+      channelBans: [],
+    };
+
+    const filteredResult = await filterMessage(newContent, username);
     
     if (!filteredResult.success) {
       return NextResponse.json(
@@ -172,7 +128,6 @@ export async function POST(request: NextRequest) {
     }
 
     const cleanContent = filteredResult.filtered;
-    const hadProfanity = filteredResult.hadProfanity;
 
     if (cleanContent.length >= 10) {
       const letters = cleanContent.replace(/[^a-zA-Z]/g, '');
@@ -195,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     const { error } = await supabase
       .from(TABLE_MESSAGES)
-      .update({ message: cleanContent })
+      .update({ message: cleanContent } as never)
       .eq('id', messageId);
 
     if (error) {
@@ -215,7 +170,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         message: updatedMessage,
-        hadProfanity,
+        hadProfanity: filteredResult.hadProfanity,
       },
       { status: 200 }
     );

@@ -1,6 +1,6 @@
 /**
  * 📅 Created: 2025-01-18
- * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  * 🎯 OVERVIEW:
  * Clear Flag Admin Endpoint
  * 
@@ -9,11 +9,12 @@
  * - Marks a specific anti-cheat flag as resolved
  * - Requires admin notes explaining resolution
  * - Records which admin cleared the flag and when
- * - Admin-only access (rank >= 5)
+ * - Admin-only access
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 
 import {
   withRequestLogging,
@@ -35,21 +36,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clear-flag');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const username = (body as Record<string, unknown>).username as string;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
 
     const validated = ClearFlagSchema.parse(body);
     const { flagId, adminNotes } = validated;
 
     const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
-    }
 
     // Update flag to resolved
     const { data: result, error: updateError } = await supabase
@@ -70,7 +65,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Log admin action
     await supabase.from('admin_logs').insert({
-      admin_username: username,
+      admin_username: auth.username,
       action: 'CLEAR_FLAG',
       target: result.player_username,
       details: { admin_notes: adminNotes.trim(), flag_id: flagId }
@@ -79,7 +74,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     log.info('Flag cleared successfully', {
       flagId,
       player_username: result.player_username,
-      adminUser: username,
+      adminUser: auth.username,
     });
 
     return NextResponse.json({
@@ -88,7 +83,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       data: {
         flagId: result.id,
         player_username: result.player_username,
-        resolvedBy: username,
+        resolvedBy: auth.username,
         adminNotes: adminNotes.trim()
       }
     });
@@ -103,28 +98,3 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     endTimer();
   }
 }));
-
-/**
- * 📝 IMPLEMENTATION NOTES:
- * - Marks flag as resolved, not deleted (maintains history)
- * - Requires meaningful admin notes for accountability
- * - Logs all admin actions in admin_logs table
- * - Returns updated flag data for UI refresh
- * 
- * 🔐 SECURITY:
- * - Admin-only access (rank >= 5)
- * - Validates flag ID and notes
- * - Audit trail via admin logs
- * 
- * 📊 REQUEST BODY:
- * {
- *   flagId: string,
- *   adminNotes: string (min 10 characters)
- * }
- * 
- * 🚀 FUTURE ENHANCEMENTS:
- * - Bulk flag clearing for same issue
- * - Flag reinstatement if player reoffends
- * - Automatic notifications to player
- * - Admin action history view
- */

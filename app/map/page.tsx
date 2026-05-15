@@ -345,9 +345,9 @@ export default function MapPage() {
             )}
             
             {/* Keyboard Shortcuts */}
-            <div className="bg-gray-700 rounded-lg p-4 text-xs">
-              <h3 className="font-semibold mb-2">⌨️ Shortcuts</h3>
-              <ul className="space-y-1 text-gray-300">
+            <div className="bg-[--card] rounded-lg p-4 text-xs">
+              <h3 className="font-semibold mb-2 text-white/70">⌨️ Shortcuts</h3>
+              <ul className="space-y-1 text-white/50">
                 <li>Arrow Keys / WASD: Pan</li>
                 <li>+/- Keys: Zoom</li>
                 <li>Home / H: Center on player</li>
@@ -358,11 +358,10 @@ export default function MapPage() {
         </aside>
         
         {/* Map Canvas - Full Map View */}
-        <main className="flex-1 bg-gray-900 relative overflow-auto">
+        <main className="flex-1 bg-[--void] relative overflow-auto">
           {mapData ? (
             <>
-              {/* Map Container - Shows entire 150×150 grid */}
-              <div className="relative bg-gray-950 m-6 border-2 border-gray-700 inline-block" 
+              <div className="relative bg-[--card] m-6 border-2 border-[--border] inline-block"
                    style={{ 
                      width: `${MAP_CONFIG.WIDTH * MAP_CONFIG.TILE_SIZE}px`, // 4800px (150 tiles × 32px)
                      height: `${MAP_CONFIG.HEIGHT * MAP_CONFIG.TILE_SIZE}px`, // 4800px
@@ -386,7 +385,7 @@ export default function MapPage() {
                     <span className="font-bold ml-2">Click:</span> Select Tile • 
                     <span className="font-bold ml-2">Scroll:</span> Navigate
                   </p>
-                  <p className="text-center text-xs text-gray-300 mt-1">
+                  <p className="text-center text-xs text-white/50 mt-1">
                     Your position: ({playerPosition.x}, {playerPosition.y}) • Total tiles: 22,500
                   </p>
                 </div>
@@ -395,8 +394,8 @@ export default function MapPage() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-                <p className="text-gray-400">Loading map data...</p>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[--electric] mx-auto mb-4" />
+                <p className="text-white/50">Loading map data...</p>
               </div>
             </div>
           )}

@@ -1,0 +1,102 @@
+I’ve analysed the current state against the 22 questions. Here are my findings and recommendations for each area.
+
+---
+
+## Terrain Distribution (1–7)
+
+**1. Wasteland at ~40%**  
+Yes, it’s on the high side. 40% empty space makes the map feel sparse and reduces the density of meaningful interactions. Consider reducing it to **30–32%** (≈6,750–7,200 tiles), redistributing the freed tiles into resource patches, forests, or small filler elements. This would increase resource availability and create more natural choke-points.
+
+**2. Metal/Energy symmetry (20% each)**  
+If T2+ military costs truly favour metal, a slight asymmetry would add strategic depth. A 15% Metal / 25% Energy split (or vice versa, depending on which you want to be the “military fuel”) forces players to seek specific regions, fuels trade, and makes factory control more meaningful. Keep the split, but push one resource to be scarcer.
+
+**3. Cave count & digger pace (8%, 1,800 tiles)**  
+A full sweep of 1,800 caves yields ≈33 diggers per player per day. Non‑VIP traversal/harvest speeds (~3.3s/tile) make that achievable in under an hour. This means a dedicated player reaches the 200% digger cap in **less than a week**. That pace trivialises long‑term progression.  
+**Recommendation:** reduce the guaranteed drop pity to every **100–125 caves**, or lower the base drop rate to 2.0%. This stretches the journey to cap without making it feel impossible.
+
+**4. Forests (2%, 450 tiles) – current clone of caves**  
+Forests need a real differentiator. Right now they’re just a rarer version of the same thing. Give them a **distinct loot table** with:
+- Higher drop rate (e.g., 5%)
+- A larger digger share (30% of drops)
+- Exclusive items (cosmetics, powerful temporary buffs, or rare tradeables)  
+This justifies their scarcity and creates a “treasure hunt” feel.
+
+**5. Factories (10%, 2,250 tiles)**  
+For a game that wants strategic hotspots, 2,250 factories is likely too many unless concurrent player counts are extremely high. If you want genuine competition, consider dropping factory count to **5–7% (~1,125–1,575 tiles)**. This concentrates control points, forces conflict, and makes holding a factory a meaningful status symbol.  
+
+**6. Banks – 4 locations**  
+Four banks give a maximum travel distance of ~106 tiles (corner to nearest bank). For a game with storage limits, that’s tedious. Increase to **8 banks** arranged in a diamond (e.g., at 50,50; 50,100; 100,50; 100,100 and mirrors at the centre and edges). This halves the worst-case travel and reduces dead time.
+
+**7. Forest loot table**  
+As discussed in (4), make forests mechanically distinct. No ambiguity.
+
+---
+
+## Resource Economy (8–11)
+
+**8. Base harvest 400–750**  
+This creates an extremely rapid income. At base rate (no bonuses), a player can harvest ≈626k of a resource per hour if they stay in one dense patch. With daily resets, a single resource type (20% of map) can yield **~2.6M per day**, making Tier 4 reachable in 1–2 days of casual farming. This may be intentional if the endgame is fully PvP, but it compresses the resource-gathering phase.  
+**Suggestion:** reduce base harvest to **200–400** or increase unit costs by 50% to restore mid‑game tension.
+
+**9. Max harvest ceiling (≈5,681/tile)**  
+This is a single action worth an enormous amount, making high‑end players produce resources 10× faster than new players. It risks breaking the economy if not gated by extreme effort. 5,681 seems too high – consider capping the effective multiplier at a lower value, or hard‑capping the raw harvest yield after bonuses to **2,500–3,000** so the ceiling remains aspirational but not absurd.
+
+**10. Digger cap (200%) – meaningful?**  
+The exponential decay formula is elegant, but the cap is reached too soon (see #3). If digger acquisition slows, hitting 200% becomes a long‑term goal, which feels meaningful. The cap itself is fine; the issue is the pace. After fixing pace, keep the 200% cap as a satisfying endpoint.
+
+**11. Guaranteed digger every 75 caves**  
+The anti‑bad‑luck mechanic is good **in principle**. With a slower overall pace (e.g., pity every 100), it remains fair while preventing the system from flooding players with diggers. Keep it, but tune the interval.
+
+---
+
+## Progression & Unlocks (12–14)
+
+**12. XP curve (250 × L^2.5) and combat sources**  
+Harvest-only XP (3/tile) is painfully slow – level 10 would take 264 days of harvesting alone. This is clearly designed to force players into combat and factory captures, which award 30–300 XP per action. The curve works **if** combat rates are reasonably high.  
+To avoid alienating pure farmers, consider raising harvest XP to **5–8** while keeping combat as the primary leveling path. Otherwise, ensure factory captures and caves are frequent enough that active players can reach level 20–25 within a few months.
+
+**13. RP supply vs Tier unlock costs**  
+At 1 RP per level, a Lv30 player earns 30 RP – far short of the T4 cost (350 RP). Supplementary sources (daily harvest milestones, achievements, special events) must provide the bulk of RP. I recommend:
+- Daily milestone that grants 2–5 RP (e.g., harvesting 100 tiles + capturing 1 factory).
+- Achievement rewards that collectively grant 200+ RP over a month.
+- Occasional world‑event RP drops.  
+Without that, players stall at T3 indefinitely.
+
+**14. T5 at Lv50 – unreachable?**  
+Setting T5 as a near‑unobtainable cap is a valid design choice, creating a long‑term aspirational goal. The issue is that T5’s cost (750 RP, 10M metal) and level gate (Lv50) together make it a multi‑year journey. Ensure T4 provides a complete, satisfying experience so players don’t feel cheated. If you want a slightly more accessible pinnacle, consider lowering the gate to **Lv40–45** while keeping the resource cost intimidating.
+
+---
+
+## Strategic Map Design (15–19)
+
+**15. Shrine location (1,1)**  
+Corner placement turns it into a pilgrimage site, easily defended by one alliance. Moving it to the centre **(75,75)** or near the centre would create constant, multi‑faction conflict over its buff. This fits a PvP‑focused game better. Change it.
+
+**16. Bank pattern**  
+Current layout (25,25; 50,50; 75,75; 100,100) is a diagonal line, leaving large corners underserved. A **diamond** at (50,50), (50,100), (100,50), (100,100) with an optional centre bank provides equal coverage. I’d add a bank at (75,75) as well for a total of 5, which drastically reduces travel pain.
+
+**17. Clustered vs random terrain**  
+Pure randomness creates unfair spawns and no strategic territory. Introduce **regional clustering** – e.g., metal‑rich north, energy‑rich south, forests scattered. This encourages territorial alliances, trading, and wars over resource zones. Randomness can still be used within each cluster to keep exploration fresh.
+
+**18. Spawn points for new players**  
+Spawning in an outer ring (e.g., the outermost 20% of the map) with guaranteed nearby resource patches (metal, energy, some caves) prevents instant spawn‑griefing and gives newbies a safe ramp‑up. Highly recommended.
+
+**19. Auction House near Shrine**  
+AH at (10,10) collides with the Shrine traffic (1,1). Move the AH to a far corner like **(140,140)** or the opposite side of the map. This spreads player activity and makes journeys to trade a conscious decision rather than a short walk.
+
+---
+
+## Code & Documentation Clean‑up (20–22)
+
+**20. Dead `DIGGER_TIERS` constant**  
+Remove it. It’s confusing and misleading. If the old linear system is fully replaced, delete the constant and any stale imports from `itemUtils.ts` (or mark that file for refactoring).
+
+**21. JSDoc in `generateTerrainArray()` – “Cave: 2,250”**  
+Correct to `Cave: 1,800`. The comment should reflect the actual value in `TERRAIN_COUNTS`. Fix the documentation now to prevent future errors.
+
+**22. `game.types.ts` line 22 – Wasteland count/percentage**  
+The effective count after overwrite is **8,995 tiles (39.98%)**. The comment currently says 8,500 (38%). It should be updated to match the post‑overwrite reality. I recommend always documenting the **actual in‑game count** (8,995, ~40%) to avoid confusion, with a note that 5 tiles are overwritten by special structures.
+
+---
+
+All suggestions assume you want a balanced, competitive MMO with meaningful player choices. Let me know if you’d like me to elaborate on any specific recommendation or simulate alternative distributions.

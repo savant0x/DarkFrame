@@ -1,7 +1,7 @@
 /**
  * Log Cleanup API Route
  * Created: 2025-10-18
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
+ * Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  * 
  * OVERVIEW:
  * Administrative endpoint for manually triggering log cleanup and archival.
@@ -11,19 +11,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { cleanupOldLogs } from '@/lib/activityLogService';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const username = body.username;
-    if (!username) return NextResponse.json({ error: 'Username required' }, { status: 400 });
+    const auth = await requireAdminAuth(req);
+    if (auth instanceof NextResponse) return auth;
 
-    const supabase = createServiceClient();
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return NextResponse.json({ error: 'Administrator access required' }, { status: 403 });
-    }
+    const body = await req.json().catch(() => ({}));
 
     const { searchParams } = req.nextUrl;
     const dryRun = searchParams.get('dryRun') === 'true';
@@ -57,10 +53,11 @@ export async function POST(req: NextRequest) {
       errors: [] as string[],
     };
 
+    const supabase = createServiceClient();
+
     // Activity logs cleanup
     if (cleanupType === 'activity' || cleanupType === 'all') {
       try {
-        // Use Supabase: cleanup from admin_logs table
         const adminCutoffDate = new Date();
         adminCutoffDate.setDate(adminCutoffDate.getDate() - adminRetentionDays);
 

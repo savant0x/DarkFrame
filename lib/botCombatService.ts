@@ -34,8 +34,38 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Player } from '@/types/game.types';
+import type { Tables } from '@/types/database';
 import { BotReputation } from '@/types/game.types';
 import { removeBeerBase } from './beerBaseService';
+
+/**
+ * Maps a flat DB player row to the Player domain type.
+ * Only maps fields used by this service; nested objects use empty defaults.
+ */
+function mapPlayerRow(row: Tables<'players'>): Player {
+  return {
+    username: row.username,
+    email: row.email,
+    password: row.password,
+    base: { x: row.base_x, y: row.base_y },
+    currentPosition: { x: row.current_x, y: row.current_y },
+    resources: { metal: row.resources_metal, energy: row.resources_energy },
+    bank: { metal: row.bank_metal, energy: row.bank_energy, lastDeposit: row.bank_last_deposit ? new Date(row.bank_last_deposit) : null },
+    inventory: { items: [], capacity: 100, metalDiggerCount: 0, energyDiggerCount: 0 },
+    gatheringBonus: { metalBonus: 0, energyBonus: 0 },
+    activeBoosts: { gatheringBoost: null, expiresAt: null },
+    shrineBoosts: [],
+    units: [],
+    totalStrength: row.total_strength || 0,
+    totalDefense: row.total_defense || 0,
+    xp: row.xp || 0,
+    level: row.level || 1,
+    researchPoints: row.research_points || 0,
+    unlockedTiers: [],
+    isAdmin: row.is_admin || false,
+    isBot: row.is_bot || false,
+  };
+}
 
 /**
  * Zone adjacency map for zone-weighted targeting
@@ -404,8 +434,8 @@ export async function runBotAttackCycle(): Promise<{
     const { data: bots } = await supabase.from('players').select('*').eq('is_bot', true);
     const { data: players } = await supabase.from('players').select('*').neq('is_bot', true);
     
-    const allBots = (bots || []) as unknown as Player[];
-    const allPlayers = (players || []) as unknown as Player[];
+    const allBots: Player[] = (bots || []).map(mapPlayerRow);
+    const allPlayers: Player[] = (players || []).map(mapPlayerRow);
     
     console.log(`[Bot Attacks] Processing ${allBots.length} bots...`);
     

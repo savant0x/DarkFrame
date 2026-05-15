@@ -1,6 +1,7 @@
 /**
  * @file app/api/auction/bid/route.ts
  * @created 2025-01-17
+ * @updated 2026-05-15 — Fixed auth bypass: use requireAuth instead of body-supplied username
  * @overview Place bid on auction listing
  * 
  * OVERVIEW:
@@ -12,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { placeBid } from '@/lib/auctionService';
 import { PlaceBidRequest } from '@/types/auction.types';
+import { requireAuth } from '@/lib/authMiddleware';
 import { logger } from '@/lib/logger';
 import { 
   withRequestLogging, 
@@ -60,14 +62,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('placeBid');
   
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.username;
+
     // Parse and validate request body
     const rawBody = await request.json();
     const validated = BidAuctionSchema.parse(rawBody);
-    const username = rawBody.username;
-    if (!username) {
-      log.warn('Username required for bid');
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Username required' });
-    }
 
     log.debug('Bid placement request', { 
       username, 

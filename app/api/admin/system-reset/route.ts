@@ -1,11 +1,12 @@
 /**
  * Admin System Reset Endpoint
  * Created: 2025-01-18
- * Updated: 2026-05-03 — Migrated to Supabase
+ * Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth; prevent audit log deletion
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { 
   withRequestLogging, 
   createRouteLogger, 
@@ -26,25 +27,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('systemReset');
 
   try {
-    const body = await request.json();
-    const username = (body as Record<string, unknown>).username as string;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
+    const body = await request.json();
     const validated = SystemResetSchema.parse(body);
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      log.warn('Non-admin system reset attempt', { username });
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
-        message: 'Access denied - Admin only'
-      });
-    }
-
     log.warn('DANGEROUS: System reset initiated', { 
       action: validated.action, 
-      adminUsername: username 
+      adminUsername: auth.username 
     });
 
     let deletedCount = 0;
@@ -53,7 +46,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     switch (validated.action) {
       case 'clear-battle-logs': {
-        const { error, count } = await supabase
+        const { count } = await supabase
           .from('battle_logs')
           .delete({ count: 'exact' })
           .neq('id', '0');
@@ -64,18 +57,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
 
       case 'clear-activity-logs': {
-        const { error, count } = await supabase
-          .from('admin_logs')
-          .delete({ count: 'exact' })
-          .neq('id', '0');
-        deletedCount = count || 0;
-        message = `Deleted ${deletedCount} activity records`;
-        actionType = 'CLEAR_ACTIVITY_LOGS';
-        break;
+        return createErrorResponse(ErrorCode.AUTH_FORBIDDEN, 'Cannot delete audit logs — security policy');
       }
 
       case 'reset-flags': {
-        const { error, count } = await supabase
+        const { count } = await supabase
           .from('player_flags')
           .delete({ count: 'exact' })
           .neq('id', '0');
@@ -91,12 +77,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         actionType = 'CLEAR_ALL_SESSIONS';
         break;
       }
+
+      default:
+        return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, `Unknown action: ${validated.action}`);
     }
 
     // Log the admin action for audit trail
     await supabase.from('admin_logs').insert({
       action: actionType,
-      admin_username: username,
+      admin_username: auth.username,
       target: 'SYSTEM',
       details: {
         action: validated.action,
@@ -109,7 +98,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       action: validated.action, 
       deletedCount, 
       actionType,
-      adminUsername: username 
+      adminUsername: auth.username 
     });
 
     return NextResponse.json({

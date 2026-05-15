@@ -76,7 +76,24 @@ export const checkDailyHarvestMilestone = trackDailyHarvest;
 export async function spendRP(username: string, amount: number, reason: string): Promise<{ success: boolean; message: string; newBalance?: number }> {
   const supabase = createServiceClient();
   const { data: player } = await supabase.from('players').select('research_points').eq('username', username).single();
-  if (!player || (player.research_points || 0) < amount) return { success: false, message: 'Insufficient RP' };
+  if (!player) {
+    await supabase.from('admin_logs').insert({
+      action: 'RP_SPEND_FAILED',
+      admin_username: 'system',
+      target: username,
+      details: { reason, amount, error: 'Player not found' },
+    });
+    return { success: false, message: 'Player not found' };
+  }
+  if ((player.research_points || 0) < amount) {
+    await supabase.from('admin_logs').insert({
+      action: 'RP_SPEND_FAILED',
+      admin_username: 'system',
+      target: username,
+      details: { reason, amount, currentBalance: player.research_points || 0, error: 'Insufficient RP' },
+    });
+    return { success: false, message: 'Insufficient RP' };
+  }
   const newBal = player.research_points - amount;
   await supabase.from('players').update({ research_points: newBal }).eq('username', username);
   await supabase.from('player_rp_history').insert({ player_username: username, amount: -amount, reason, balance: newBal });

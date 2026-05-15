@@ -1,24 +1,21 @@
 /**
  * Admin Player Flags API
  */
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
-  const username = req.nextUrl.searchParams.get('username');
-  if (!username) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
+  const auth = await requireAdminAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
+  const targetUsername = req.nextUrl.searchParams.get('target');
+  if (!targetUsername) return NextResponse.json({ success: false, error: 'target parameter required' }, { status: 400 });
 
   const supabase = createServiceClient();
-
-  const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-  if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-    return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
-  }
-
   try {
-    const supabase = createServiceClient();
     const { data } = await supabase.from('admin_logs')
-      .select('*').eq('target', username)
+      .select('*').eq('target', targetUsername)
       .order('created_at', { ascending: false }).limit(50);
 
     return NextResponse.json({

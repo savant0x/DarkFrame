@@ -1,10 +1,11 @@
 /**
  * Admin Bot Leaderboard API
- * Updated: 2026-05-03 — Migrated to Supabase
+ * Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -22,17 +23,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('bot-leaderboard');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = request.nextUrl;
-    const username = searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter required');
-
-    const supabase = createServiceClient();
-
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, { message: 'Admin privileges required' });
-    }
-
     const metric = searchParams.get('metric') || 'strength';
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
 
@@ -43,6 +37,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       case 'reputation': sortColumn = 'reputation'; break;
       default: sortColumn = 'total_strength'; break;
     }
+
+    const supabase = createServiceClient();
 
     const { data: bots, error } = await supabase
       .from('bots')

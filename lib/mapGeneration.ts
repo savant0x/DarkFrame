@@ -73,10 +73,14 @@ function generateTerrainArray(): TerrainType[] {
 const FIXED_LOCATIONS = {
   SHRINE: { x: 1, y: 1 },
   BANKS: [
-    { x: 25, y: 25, type: 'metal' as const },
-    { x: 75, y: 75, type: 'energy' as const },
-    { x: 50, y: 50, type: 'exchange' as const },
-    { x: 100, y: 100, type: 'exchange' as const }
+    { x: 38, y: 38, type: 'metal' as const },
+    { x: 112, y: 38, type: 'energy' as const },
+    { x: 38, y: 112, type: 'exchange' as const },
+    { x: 112, y: 112, type: 'exchange' as const },
+    { x: 75, y: 25, type: 'metal' as const },
+    { x: 25, y: 75, type: 'energy' as const },
+    { x: 75, y: 125, type: 'exchange' as const },
+    { x: 125, y: 75, type: 'exchange' as const }
   ],
   AUCTION_HOUSE: { x: 10, y: 10 }
 };

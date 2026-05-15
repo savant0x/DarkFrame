@@ -74,7 +74,7 @@ export default function WebSocketTestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-[--void] text-white p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">WebSocket Test Console</h1>
 

@@ -2,9 +2,26 @@
 
 > Bugs, blockers, and technical debt tracking.
 
-**Last Updated:** 2026-05-07
-**Active Issues:** 0 (all fixed this session)
-**Resolved This Session:** 15+ bugs
+**Last Updated:** 2026-05-11
+**Active Issues:** 0 (all fixed)
+**Resolved This Session:** 0 (no new bugs — redesign work only)
+
+---
+
+## ✅ Resolved (2026-05-11)
+
+| # | File | Issue | Fix |
+|---|------|-------|-----|
+| 1 | game.types.ts | 65 bloated unit types with flat cost-per-STR | Reduced to 20 focused units with orthogonal cost scaling |
+| 2 | factoryService.ts | Broken produceUnit API (always made T1_Rifleman) | Replaced with buildUnitsAtFactory using UNIT_CONFIGS |
+| 3 | factoryUpgradeService.ts | Linear slot regen discouraged factory cycling | Burst+Decay model (80% capture, 20% asymptotic) |
+| 4 | battleService.ts | Simple STR vs DEF combat, no tactical depth | Multi-phase algorithm with intransitive counters |
+| 5 | StatsPanel.tsx | No army composition display | Added archetype breakdown (Striker/Bulwark/Artillery/Support) |
+| 6 | UnitBuildPanel.tsx | Referenced old UnitType enum values | Updated to new archetype-based types with icons |
+| 7 | CreateListingModal.tsx | Referenced old UnitType enum values | Updated to new archetype-based types |
+| 8 | auctionService.ts | UnitType incompatible with DB enum | Added type cast |
+| 9 | database.ts | Missing new factory columns | Added last_interacted_at, terrain_modifier, factory_archetype, times_captured |
+| 10 | reset-and-seed.ts | Old factory config values | Updated with new formulas, operational_data, player_units |
 
 ---
 

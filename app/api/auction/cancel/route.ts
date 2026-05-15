@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -56,17 +57,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('auction-cancel');
   
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const validated = AuctionCancelSchema.parse(body);
-    const username = body.username;
-    if (!username) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
-        message: 'Username required',
-      });
-    }
 
-    // Cancel auction
-    const result = await cancelAuction(username, validated.auctionId);
+    const result = await cancelAuction(auth.playerId, validated.auctionId);
 
     if (!result.success) {
       return createErrorResponse(ErrorCode.AUCTION_NOT_FOUND, {
@@ -75,7 +72,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    log.info('Auction cancelled', { username, auctionId: validated.auctionId });
+    log.info('Auction cancelled', { username: auth.playerId, auctionId: validated.auctionId });
 
     return NextResponse.json(result);
 

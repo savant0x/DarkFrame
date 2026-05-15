@@ -283,6 +283,17 @@ export async function unbanFromChannel(
   userId: string, channelId: string, moderatorId: string, moderatorUsername: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createServiceClient();
+
+  const { data: moderator } = await supabase
+    .from('players')
+    .select('is_admin, rank')
+    .eq('username', moderatorUsername)
+    .single();
+
+  if (!moderator || (!moderator.is_admin && (moderator.rank || 0) < 5)) {
+    return { success: false, error: 'Insufficient permissions to unban users' };
+  }
+
   await supabase.from('admin_logs').insert({
     action: 'unban_from_channel',
     admin_username: moderatorUsername,

@@ -87,6 +87,27 @@ export async function requireAdmin(
   return auth;
 }
 
+/**
+ * Reusable admin authentication middleware.
+ * Replaces the broken pattern of trusting client-supplied ?username= query params.
+ * Uses server-side session/JWT verification — the ONLY secure approach.
+ *
+ * Usage:
+ * ```ts
+ * export const POST = async (request: NextRequest) => {
+ *   const auth = await requireAdminAuth(request);
+ *   if (auth instanceof NextResponse) return auth;
+ *   // auth.username is the authenticated admin's username
+ *   // auth.isAdmin is guaranteed true
+ * };
+ * ```
+ */
+export async function requireAdminAuth(
+  request: NextRequest
+): Promise<AuthResult | NextResponse> {
+  return requireAdmin(request);
+}
+
 export async function requireClanMembership(
   _request: NextRequest,
   _db?: unknown

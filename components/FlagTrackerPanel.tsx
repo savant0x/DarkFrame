@@ -19,7 +19,9 @@ export default function FlagTrackerPanel({ playerPosition, flagBearer, onTrack, 
   const tracker = buildTrackerData(flagBearer, playerPosition);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
 
-  if (!tracker) {
+  const { bearer, distance, direction, inChallengeRange } = tracker;
+
+  if (!bearer) {
     return (
       <div className={CARD + ' p-2.5'}>
         <div className="flex items-center gap-2">
@@ -32,9 +34,6 @@ export default function FlagTrackerPanel({ playerPosition, flagBearer, onTrack, 
       </div>
     );
   }
-
-  const { bearer, distance, direction, inChallengeRange } = tracker;
-  if (!bearer) return null;
   const compassArrow = getCompassArrow(direction);
   const timeRemaining = getTimeRemaining(bearer.holdDuration);
   const isExpiringSoon = isFlagExpiringSoon(bearer.holdDuration);

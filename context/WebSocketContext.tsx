@@ -82,7 +82,7 @@ export function WebSocketProvider({
   
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 1;
+  const maxReconnectAttempts = 5;
   const baseReconnectDelay = 1000; // 1 second
 
   /**

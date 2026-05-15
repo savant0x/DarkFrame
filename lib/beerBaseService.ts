@@ -3,6 +3,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
+import { fromJsonb, toJsonb } from '@/lib/supabase/jsonb';
 import { createBotPlayer } from './botService';
 import { BotSpecialization, PlayerUnit, UnitType } from '@/types/game.types';
 import type { Tables, Json, Database } from '@/types/database';
@@ -37,7 +38,7 @@ export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
   const supabase = createServiceClient();
   const { data: config } = await supabase.from('bot_config').select('*').eq('config_key', 'beerBase').single();
   if (config) {
-    const cfg = config.config_value as unknown as Partial<BeerBaseConfig>;
+    const cfg = fromJsonb<Partial<BeerBaseConfig>>(config.config_value);
     return { ...DEFAULT_CONFIG, ...cfg };
   }
   return DEFAULT_CONFIG;
@@ -47,7 +48,7 @@ export async function updateBeerBaseConfig(config: Partial<BeerBaseConfig>): Pro
   const supabase = createServiceClient();
   await supabase.from('bot_config').upsert({
     config_key: 'beerBase',
-    config_value: { ...config, updatedAt: new Date().toISOString() } as unknown as Json,
+    config_value: toJsonb({ ...config, updatedAt: new Date().toISOString() }),
   }, { onConflict: 'config_key' });
 }
 
@@ -127,6 +128,25 @@ function getRandomPosition(): { x: number; y: number } {
   return { x: Math.floor(Math.random() * MAP_SIZE), y: Math.floor(Math.random() * MAP_SIZE) };
 }
 
+/**
+ * Query for a random Wasteland tile that is not occupied by a base.
+ * Falls back to getRandomPosition() if no Wasteland tiles found.
+ */
+async function getRandomWastelandPosition(supabase: ReturnType<typeof createServiceClient>): Promise<{ x: number; y: number }> {
+  const { data: tiles } = await supabase
+    .from('tiles')
+    .select('x, y')
+    .eq('terrain', 'Wasteland')
+    .eq('occupied_by_base', false)
+    .limit(500);
+
+  if (tiles && tiles.length > 0) {
+    const tile = tiles[Math.floor(Math.random() * tiles.length)];
+    return { x: tile.x, y: tile.y };
+  }
+  return getRandomPosition();
+}
+
 function selectRandomPowerTier(): PowerTier {
   const roll = Math.random() * 100;
   if (roll < 10) return PowerTier.Weak; if (roll < 40) return PowerTier.Mid;
@@ -145,12 +165,9 @@ export async function spawnBeerBase(): Promise<string> {
   ];
   const specialization = specializations[Math.floor(Math.random() * specializations.length)];
   const powerTier = selectRandomPowerTier();
-  const position = getRandomPosition();
+  const position = await getRandomWastelandPosition(supabase);
 
-  const bot: Record<string, unknown> = await createBotPlayer(null, specialization, true) as unknown as Record<string, unknown>;
-  bot.base = position;
-  bot.currentPosition = position;
-  bot.isSpecialBase = true;
+  const bot = await createBotPlayer(null, specialization, true);
   const timestamp = Date.now();
   const randomSuffix = Math.floor(Math.random() * 10000);
   const botUsername = `🍺BeerBase-${powerTier}-${timestamp}-${randomSuffix}`;
@@ -160,23 +177,34 @@ export async function spawnBeerBase(): Promise<string> {
     [PowerTier.Elite]: 8, [PowerTier.Ultra]: 12, [PowerTier.Legendary]: 20,
   };
   const multiplier = resourceMultipliers[powerTier] * config.resourceMultiplier;
-  const botResources = (bot.resources as { metal?: number; energy?: number }) || { metal: 1000, energy: 1000 };
+  const botResources = bot.resources ?? { metal: 1000, energy: 1000 };
   const metal = Math.floor((botResources.metal || 1000) * multiplier);
   const energy = Math.floor((botResources.energy || 1000) * multiplier);
 
-  await supabase.from('players').insert({
+  const insertData: Database['public']['Tables']['players']['Insert'] = {
     username: botUsername,
-    base_x: position.x, base_y: position.y,
-    current_x: position.x, current_y: position.y,
-    is_bot: true, is_special_base: true,
-    spec_doctrine: 'none',
-    level: Math.floor(Math.random() * 10) + 1,
-    resources_metal: metal, resources_energy: energy,
-    total_strength: (bot.totalStrength as number) || 100,
-    total_defense: (bot.totalDefense as number) || 100,
-    password: 'beerbase_bot_auth_placeholder',
     email: `${botUsername.toLowerCase().replace(/[^a-z0-9]/g, '')}@bot.darkframe.local`,
-  } as Database['public']['Tables']['players']['Insert']);
+    password: 'beerbase_bot_auth_placeholder',
+    is_bot: true,
+    is_special_base: true,
+    is_admin: false,
+    level: Math.floor(Math.random() * 10) + 1,
+    xp: 0,
+    rank: 1,
+    resources_metal: metal,
+    resources_energy: energy,
+    total_strength: bot.totalStrength ?? 100,
+    total_defense: bot.totalDefense ?? 100,
+    current_x: position.x,
+    current_y: position.y,
+    base_x: position.x,
+    base_y: position.y,
+    factory_count: 0,
+    inventory_capacity: 2000,
+    research_points: 0,
+    spec_doctrine: 'none',
+  };
+  await supabase.from('players').insert(insertData);
 
   return botUsername;
 }

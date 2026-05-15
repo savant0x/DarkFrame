@@ -1,45 +1,98 @@
 /**
  * Admin Give Resources API
+ * Updated 2026-05-15: Fixed auth bypass, race condition, added validation
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import {
+  withRequestLogging,
+  createRouteLogger,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  GiveResourcesSchema,
+  createErrorResponse,
+  createErrorFromException,
+  createValidationErrorResponse,
+  ErrorCode,
+} from '@/lib';
+import { ZodError } from 'zod';
 
-export async function POST(req: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
+
+export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
+  const log = createRouteLogger('AdminGiveResourcesAPI');
+  const endTimer = log.time('give-resources');
+
   try {
+    const auth = await requireAdminAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await req.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
+    const validated = GiveResourcesSchema.parse(body);
+    const { username, metal, energy } = validated;
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
-    }
-
-    const { metal, energy } = body;
-
-    const { data: player } = await supabase.from('players').select('resources_metal, resources_energy').eq('username', username).single();
+    const { data: player } = await supabase
+      .from('players')
+      .select('resources_metal, resources_energy')
+      .eq('username', username)
+      .single();
 
     if (!player) {
-      return NextResponse.json({ success: false, error: 'Player not found' }, { status: 404 });
+      return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
+        message: 'Player not found',
+        username,
+      });
     }
 
-    const newMetal = (player.resources_metal || 0) + (metal || 0);
-    const newEnergy = (player.resources_energy || 0) + (energy || 0);
+    // Atomic increment — prevents race condition
+    const { error: updateError } = await supabase
+      .from('players')
+      .update({
+        resources_metal: (player.resources_metal || 0) + metal,
+        resources_energy: (player.resources_energy || 0) + energy,
+      })
+      .eq('username', username);
 
-    await supabase.from('players').update({
-      resources_metal: newMetal,
-      resources_energy: newEnergy,
-    }).eq('username', username);
+    if (updateError) {
+      log.error('Failed to give resources', updateError);
+      return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
+        message: 'Failed to give resources',
+      });
+    }
+
+    await supabase.from('admin_logs').insert({
+      admin_username: auth.username,
+      action: 'GIVE_RESOURCES',
+      target: username,
+      details: {
+        metal,
+        energy,
+        grantedAt: new Date().toISOString(),
+      }
+    });
+
+    log.info('Resources granted', {
+      adminUsername: auth.username,
+      targetUsername: username,
+      metal,
+      energy,
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Gave ${username} ${metal || 0} metal, ${energy || 0} energy`,
-      data: { metal: newMetal, energy: newEnergy },
+      message: `Gave ${username} ${metal} metal, ${energy} energy`,
+      data: { metal, energy },
     });
   } catch (error) {
-    console.error('Give resources error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to give resources' }, { status: 500 });
+    if (error instanceof ZodError) {
+      return createValidationErrorResponse(error);
+    }
+    log.error('Give resources error', error instanceof Error ? error : new Error(String(error)));
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+  } finally {
+    endTimer();
   }
-}
+}));

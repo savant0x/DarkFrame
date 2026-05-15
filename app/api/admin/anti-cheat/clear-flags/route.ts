@@ -1,6 +1,6 @@
 /**
  * 📅 Created: 2025-01-18
- * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth; proper types
  * 🎯 OVERVIEW:
  * Clear Player Flags Endpoint
  * 
@@ -15,6 +15,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import type { Database } from '@/types/database';
+import type { Json } from '@/types/database';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -28,6 +31,19 @@ import {
 import { ClearFlagsSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
 
+type PlayerFlag = Database['public']['Tables']['player_flags']['Row'];
+
+interface PreviousFlagEntry {
+  reason: string;
+  flagged_by: string;
+  created_at: string;
+}
+
+interface ClearFlagsDetails {
+  flags_cleared: number;
+  previous_flags: PreviousFlagEntry[];
+}
+
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
@@ -35,45 +51,38 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clear-flags');
 
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
     const validated = ClearFlagsSchema.parse(body);
-    const { username } = validated;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const { username: targetUsername } = validated;
+    if (!targetUsername) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
 
     const supabase = createServiceClient();
 
-    const { data: adminCheck } = await supabase.from('players').select('is_admin, rank').eq('username', username).single();
-    if (!adminCheck?.is_admin && (adminCheck?.rank || 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
-    }
-
-    // Check if player exists
     const { data: player, error: playerError } = await supabase
       .from('players')
       .select('*')
-      .eq('username', username)
+      .eq('username', targetUsername)
       .single();
 
     if (playerError || !player) {
       return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
         message: 'Player not found',
-        username,
+        username: targetUsername,
       });
     }
 
-    // Get current flags for logging — uses player_username column
     const { data: currentFlags } = await supabase
       .from('player_flags')
       .select('*')
-      .eq('player_username', username);
+      .eq('player_username', targetUsername);
 
-    // Delete all flags for this player
     const { error: deleteError } = await supabase
       .from('player_flags')
       .delete()
-      .eq('player_username', username);
+      .eq('player_username', targetUsername);
 
     if (deleteError) {
       throw deleteError;
@@ -81,31 +90,34 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     const deletedCount = currentFlags?.length || 0;
 
-    // Log admin action — uses actual admin_logs column names
+    const previousFlags: PreviousFlagEntry[] = (currentFlags || []).map((f: PlayerFlag): PreviousFlagEntry => ({
+      reason: f.reason,
+      flagged_by: f.flagged_by,
+      created_at: f.created_at,
+    }));
+
+    const details: ClearFlagsDetails = {
+      flags_cleared: deletedCount,
+      previous_flags: previousFlags,
+    };
+
     await supabase.from('admin_logs').insert({
       created_at: new Date().toISOString(),
-      admin_username: username,
+      admin_username: auth.username,
       action: 'CLEAR_FLAGS',
-      target: username,
-      details: {
-        flags_cleared: deletedCount,
-        previous_flags: (currentFlags || []).map((f: any) => ({
-          reason: f.reason,
-          flagged_by: f.flagged_by,
-          created_at: f.created_at,
-        })),
-      },
+      target: targetUsername,
+      details: details as unknown as Json,
     });
 
     log.info('Flags cleared successfully', {
-      username,
+      targetUsername,
       flagsCleared: deletedCount,
-      adminUser: username,
+      adminUser: auth.username,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Cleared ${deletedCount} flags for ${username}`,
+      message: `Cleared ${deletedCount} flags for ${targetUsername}`,
       flagsCleared: deletedCount,
     });
 
@@ -119,30 +131,3 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     endTimer();
   }
 }));
-
-/**
- * 📝 IMPLEMENTATION NOTES:
- * - Admin-only access (rank >= 5)
- * - Deletes all player_flags records for username
- * - Logs action with previous flags for audit trail
- * - Does not affect bans (stored in players table)
- * 
- * 🔐 SECURITY:
- * - Admin authentication required
- * - Player existence validation
- * - Audit trail logging
- * 
- * 📊 ADMIN LOG STRUCTURE:
- * {
- *   created_at: Date,
- *   admin_username: string,
- *   action: 'CLEAR_FLAGS',
- *   target: string,
- *   details: { flags_cleared: number, previous_flags: [] }
- * }
- * 
- * ⚠️ NOTE:
- * - This does not unban players
- * - Use /api/admin/anti-cheat/unban to remove bans
- * - Flags may be re-added if suspicious activity continues
- */

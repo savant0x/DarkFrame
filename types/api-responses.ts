@@ -57,6 +57,8 @@ export interface AdminPlayerListItem {
   isVip: boolean;
   clanId: string | null;
   createdAt: string;
+  current_x: number;
+  current_y: number;
 }
 
 export interface AdminBotStatsPayload {
@@ -187,22 +189,24 @@ export interface UnitFactoryStatsPayload {
 // ============================================================
 
 export interface InventoryItemPayload {
-  id?: string | number;
+  id: string;
   name: string;
   type: string;
-  itemType?: string;
+  category: string;
   rarity: string;
   description: string;
   quantity: number;
+  gatheringBonus: number;
+  bonusType: string;
+  foundAt: { x: number; y: number } | null;
+  foundDate: string | null;
 }
 
 export interface InventoryPayload {
   items: InventoryItemPayload[];
-  resources: unknown[];
   capacity: number;
   used: number;
   gatheringBonus: { metalBonus: number; energyBonus: number };
-  activeBoosts: { gatheringBoost: unknown; expiresAt: string | null };
-  metalDiggerCount: number;
-  energyDiggerCount: number;
+  diggers: { common: number; uncommon: number; rare: number; epic: number; legendary: number };
+  activeShrineBoosts: Array<{ tier: string; expiresAt: string; yieldBonus: number }>;
 }

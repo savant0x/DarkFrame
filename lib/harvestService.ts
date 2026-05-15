@@ -223,11 +223,12 @@ export async function harvestResourceTile(
     
     const baseAmount = generateBaseHarvestAmount();
 
+    // Get permanent sacrificed digger bonus (handle both old and new schema)
     const permanentBonus = tile.terrain === TerrainType.Metal
-      ? player.gathering_metal_bonus
-      : player.gathering_energy_bonus;
+      ? (player.sacrificed_metal_bonus || player.gathering_metal_bonus || 0)
+      : (player.sacrificed_energy_bonus || player.gathering_energy_bonus || 0);
 
-    // DEPRECATED: kept for backwards compatibility
+    // DEPRECATED: kept for backwards compatibility during migration
     const temporaryBonus = 0;
 
     // Fetch shrine bonus from player's active boosts
@@ -309,7 +310,7 @@ export async function harvestResourceTile(
     
     if (updateError) throw new Error(updateError.message);
     
-    // Mark tile as harvested
+    // Mark tile as harvested — use upsert with conflict detection to prevent TOCTOU
     const currentPeriod = getCurrentResetPeriod(tile.x);
     
     const { error: recordError } = await supabase
@@ -322,7 +323,15 @@ export async function harvestResourceTile(
         harvested_at: new Date().toISOString()
       });
     
-    if (recordError) throw new Error(recordError.message);
+    if (recordError) {
+      if (recordError.code === '23505') {
+        return {
+          success: false,
+          message: 'You have already harvested this tile. It will reset later.'
+        };
+      }
+      throw new Error(recordError.message);
+    }
     
     // Track daily harvest milestone progress and award RP
     try {

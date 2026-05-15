@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getPlayerCombatHistory } from '@/lib/battleService';
+import { createServiceClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,15 +34,44 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get('limit');
     const limit = Math.min(parseInt(limitParam || '10', 10), 50);
 
-    // Handle summary request (just counts)
     if (summaryParam === 'true') {
-      // For now, return zero counts - this endpoint would need battle log collection
+      const supabase = createServiceClient();
+
+      const baseQuery = supabase
+        .from('battle_logs')
+        .select('*', { count: 'exact', head: true })
+        .or(`attacker_username.eq.${username},defender_username.eq.${username}`);
+
+      const attackQuery = supabase
+        .from('battle_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('attacker_username', username);
+
+      const defenseQuery = supabase
+        .from('battle_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('defender_username', username);
+
+      const infantryQuery = supabase
+        .from('battle_logs')
+        .select('*', { count: 'exact', head: true })
+        .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
+        .eq('battle_type', 'INFANTRY');
+
+      const [totalRes, attackRes, defenseRes, infantryRes] = await Promise.all([
+        baseQuery,
+        attackQuery,
+        defenseQuery,
+        infantryQuery,
+      ]);
+
       return NextResponse.json({
         success: true,
-        attackCount: 0,
-        defenseCount: 0,
-        infantryCount: 0,
-        landMineCount: 0
+        attackCount: attackRes.count ?? 0,
+        defenseCount: defenseRes.count ?? 0,
+        infantryCount: infantryRes.count ?? 0,
+        landMineCount: 0,
+        totalCount: totalRes.count ?? 0,
       });
     }
 

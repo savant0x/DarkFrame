@@ -1,7 +1,7 @@
 /**
  * @file app/api/friends/route.ts
  * @created 2025-10-26
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2026-05-15 — Added rate limiting to prevent friend spam
  * @overview Friend System base API endpoints
  */
 
@@ -9,8 +9,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getFriends, sendFriendRequest } from '@/lib/friendService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
+import {
+  withRequestLogging,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+} from '@/lib';
 
-export async function GET(request: NextRequest) {
+const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const GET = withRequestLogging(getRateLimiter(async (request: NextRequest) => {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
@@ -27,19 +35,20 @@ export async function GET(request: NextRequest) {
     console.error('Unexpected error in GET /api/friends:', error);
     return NextResponse.json({ success: false, error: 'An unexpected error occurred while fetching friends' }, { status: 500 });
   }
-}
+}));
 
-export async function POST(request: NextRequest) {
+export const POST = withRequestLogging(postRateLimiter(async (request: NextRequest) => {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const senderId = auth.playerId;
+
     let body: unknown;
     try {
       body = await request.json();
     } catch {
       return NextResponse.json({ success: false, error: 'Invalid JSON in request body' }, { status: 400 });
     }
-
-    const userId = (body as Record<string, unknown>).username as string;
-    if (!userId) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
 
     if (!body || typeof body !== 'object') {
       return NextResponse.json({ success: false, error: 'Request body must be an object' }, { status: 400 });
@@ -64,7 +73,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'message must be 200 characters or fewer' }, { status: 400 });
     }
 
-    const friendRequest = await sendFriendRequest(userId, targetIdentifier, message as string | undefined);
+    const friendRequest = await sendFriendRequest(senderId, targetIdentifier, message as string | undefined);
 
     return NextResponse.json({ success: true, request: friendRequest }, { status: 201 });
 
@@ -82,4 +91,4 @@ export async function POST(request: NextRequest) {
     console.error('Unexpected error in POST /api/friends:', error);
     return NextResponse.json({ success: false, error: 'An unexpected error occurred while sending friend request' }, { status: 500 });
   }
-}
+}));

@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import {
   sendDirectMessage,
   getMessageHistory,
@@ -23,15 +24,14 @@ import {
   markMessagesAsRead,
 } from '@/lib/messagingService';
 
-// ============================================================================
-// GET - Fetch Message History
-// ============================================================================
-
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const playerId = auth.playerId;
+
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
-    const playerId = searchParams.get('playerId');
     const limit = searchParams.get('limit');
     const before = searchParams.get('before');
     const after = searchParams.get('after');
@@ -60,18 +60,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ============================================================================
-// POST - Send Message
-// ============================================================================
-
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { senderId, recipientId, content, contentType } = body;
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const senderId = auth.playerId;
 
-    if (!senderId || !recipientId || !content) {
+    const body = await request.json();
+    const { recipientId, content, contentType } = body;
+
+    if (!recipientId || !content) {
       return NextResponse.json(
-        { success: false, error: 'senderId, recipientId, and content are required' },
+        { success: false, error: 'recipientId and content are required' },
         { status: 400 }
       );
     }

@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     // Build response message — units are NOT deleted, they remain with the player
-    const maxFactories = FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER;
+    const maxFactories = 10; // Hard cap of 10 factories per player
     const message = `Factory abandoned successfully. You now own ${factoriesOwned}/${maxFactories} factories.`;
 
     return NextResponse.json({

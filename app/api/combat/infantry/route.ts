@@ -27,9 +27,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { executeInfantryAttack } from '@/lib/battleService';
-import { 
-  withRequestLogging, 
-  createRouteLogger, 
+import {
+  withRequestLogging,
+  createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   InfantryCombatSchema,
@@ -39,6 +39,8 @@ import {
   ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
+import { getIO } from '@/lib/websocket/server';
+import { notifyDefenseAlert, broadcastBattleResult } from '@/lib/websocket/broadcast';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.battle);
 
@@ -71,6 +73,43 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Execute infantry battle
     const result = await executeInfantryAttack(attackerId, validated.targetUsername, validated.unitIds);
+
+    // Send real-time notifications via WebSocket
+    const io = getIO();
+    if (io) {
+      const battleId = result.battleLog.battleId;
+      const defenderId = validated.targetUsername;
+      const attackerWon = result.outcome === 'ATTACKER_WIN';
+
+      await notifyDefenseAlert(io, defenderId, {
+        defenderId,
+        defenderName: defenderId,
+        attackerId,
+        attackerName: attackerId,
+        location: { x: 0, y: 0 },
+        estimatedArrival: Date.now(),
+        threatLevel: 'medium',
+      });
+
+      await broadcastBattleResult(io, {
+        battleId,
+        winner: attackerWon ? attackerId : defenderId,
+        loser: attackerWon ? defenderId : attackerId,
+        casualties: {
+          winner: attackerWon ? result.defender.unitsLost : result.attacker.unitsLost,
+          loser: attackerWon ? result.attacker.unitsLost : result.defender.unitsLost,
+        },
+        resourcesLost: {
+          winner: {},
+          loser: {},
+        },
+        experienceGained: {
+          winner: attackerWon ? result.battleLog.attackerXP : result.battleLog.defenderXP,
+          loser: attackerWon ? result.battleLog.defenderXP : result.battleLog.attackerXP,
+        },
+        completedAt: Date.now(),
+      });
+    }
 
     log.info('Infantry combat completed', { 
       attacker: attackerId, 

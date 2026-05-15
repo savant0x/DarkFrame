@@ -28,10 +28,10 @@ export default function HomePage() {
   }, [player, isLoading, router]);
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+    <div className="min-h-screen bg-[--void] flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-blue-400 mb-2">DarkFrame</h1>
-        <p className="text-gray-400">Loading...</p>
+        <h1 className="text-4xl font-bold text-[--electric] mb-2">DarkFrame</h1>
+        <p className="text-white/50">Loading...</p>
       </div>
     </div>
   );

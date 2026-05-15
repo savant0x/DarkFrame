@@ -23,7 +23,7 @@
 
 import { Filter } from 'bad-words';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { TablesInsert } from '@/types/database';
+import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
 import type {
   Message,
   Conversation,
@@ -43,6 +43,93 @@ import type {
 const profanityFilter = new Filter();
 
 // Rate limiting cache (in production, use Redis)
+
+// ============================================================================
+// DB ↔ DOMAIN MAPPING FUNCTIONS
+// ============================================================================
+
+/**
+ * Maps a conversations DB row to our domain Conversation type.
+ */
+function mapDbConversation(row: Tables<'conversations'>): Conversation {
+  const lastMsg = typeof row.last_message === 'string'
+    ? JSON.parse(row.last_message)
+    : (row.last_message as Record<string, unknown> | null);
+
+  return {
+    _id: row.id,
+    participants: row.participants as Conversation['participants'],
+    lastMessage: lastMsg?.content
+      ? {
+          content: (lastMsg.content as string) ?? '',
+          senderId: (lastMsg.sender_id as string) ?? '',
+          createdAt: new Date((lastMsg.created_at as string) ?? Date.now()),
+          status: ((lastMsg.status as string) ?? 'sent') as MessageStatus,
+        }
+      : undefined,
+    unreadCount: typeof row.unread_count === 'number' ? { total: row.unread_count } : {},
+    createdAt: new Date(row.created_at ?? Date.now()),
+    updatedAt: new Date(row.updated_at ?? Date.now()),
+  };
+}
+
+/**
+ * Maps our domain Conversation to a DB insert object.
+ */
+function mapConversationToDb(conv: Partial<Conversation>): TablesInsert<'conversations'> {
+  return {
+    id: conv._id,
+    participants: conv.participants ?? [],
+    last_message: conv.lastMessage
+      ? JSON.stringify({
+          content: conv.lastMessage.content,
+          sender_id: conv.lastMessage.senderId,
+          created_at: conv.lastMessage.createdAt.toISOString(),
+          status: conv.lastMessage.status,
+        })
+      : null,
+    created_at: conv.createdAt?.toISOString() ?? new Date().toISOString(),
+    updated_at: conv.updatedAt?.toISOString() ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * Maps a messages DB row to our domain Message type.
+ */
+function mapDbMessage(row: Tables<'messages'>): Message {
+  return {
+    _id: row.id,
+    conversationId: row.conversation_id ?? '',
+    senderId: row.sender_id ?? '',
+    recipientId: row.recipient_id ?? '',
+    content: row.content,
+    contentType: (row.content_type as Message['contentType']) ?? 'text',
+    status: (row.status as MessageStatus) ?? 'sent',
+    createdAt: new Date(row.created_at ?? Date.now()),
+    readAt: row.read_at ? new Date(row.read_at) : undefined,
+    editedAt: row.edited_at ? new Date(row.edited_at) : undefined,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
+  };
+}
+
+/**
+ * Maps our domain Message to a DB insert object.
+ */
+function mapMessageToDb(msg: Message): TablesInsert<'messages'> {
+  return {
+    id: msg._id,
+    conversation_id: msg.conversationId,
+    sender_id: msg.senderId,
+    recipient_id: msg.recipientId,
+    content: msg.content,
+    content_type: msg.contentType,
+    status: msg.status,
+    created_at: msg.createdAt.toISOString(),
+    read_at: msg.readAt?.toISOString() ?? null,
+    edited_at: msg.editedAt?.toISOString() ?? null,
+    deleted_at: msg.deletedAt?.toISOString() ?? null,
+  };
+}
 const rateLimitCache = new Map<string, RateLimitState>();
 
 // ============================================================================
@@ -176,21 +263,19 @@ export async function getOrCreateConversation(
 ): Promise<Conversation> {
   const supabase = createServiceClient();
 
-  // Normalize participant order for consistent lookup
   const participants: [string, string] = [player1Id, player2Id].sort() as [string, string];
 
-  // Try to find existing conversation
   const { data: existing } = await supabase
     .from('conversations')
     .select('*')
     .contains('participants', participants)
+    .eq('participants', participants)
     .single();
 
   if (existing) {
-    return existing as unknown as Conversation;
+    return mapDbConversation(existing);
   }
 
-  // Create new conversation
   const newConversation = {
     _id: crypto.randomUUID(),
     participants,
@@ -202,7 +287,7 @@ export async function getOrCreateConversation(
     updatedAt: new Date(),
   } as Conversation;
 
-  await supabase.from('conversations').insert(newConversation as unknown as TablesInsert<'conversations'>);
+  await supabase.from('conversations').insert(mapConversationToDb(newConversation));
 
   return newConversation;
 }
@@ -221,38 +306,28 @@ export async function getConversations(
     const limit = request.limit || 20;
     const offset = request.offset || 0;
 
-    // Build query
-    let query = supabase
+    const { data: results, count: totalCount, error } = await supabase
       .from('conversations')
-      .select('*', { count: 'exact' });
-
-    // Filter by participant
-    query = query.contains('participants', [request.playerId]);
-
-    if (!request.includeArchived) {
-      query = query.not(`is_archived->${request.playerId}`, 'is', null);
-    }
-
-    // Build sort
-    let orderColumn = 'updated_at';
-    let ascending = false;
-
-    if (request.sortBy === 'unread') {
-      orderColumn = `unread_count->'${request.playerId}'`;
-    } else if (request.sortBy === 'pinned') {
-      orderColumn = `is_pinned->'${request.playerId}'`;
-    }
-
-    // Execute query
-    const { data: results, count: totalCount, error } = await query
-      .order(orderColumn, { ascending })
+      .select('*', { count: 'exact' })
+      .contains('participants', [request.playerId])
+      .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) throw error;
 
+    const conversations = (results || []).map(mapDbConversation);
+
+    if (request.sortBy === 'unread') {
+      conversations.sort((a, b) => {
+        const aCount = typeof a.unreadCount === 'number' ? a.unreadCount : (a.unreadCount as Record<string, number>)?.[request.playerId] || 0;
+        const bCount = typeof b.unreadCount === 'number' ? b.unreadCount : (b.unreadCount as Record<string, number>)?.[request.playerId] || 0;
+        return bCount - aCount;
+      });
+    }
+
     return {
       success: true,
-      conversations: (results || []) as unknown as Conversation[],
+      conversations,
       totalCount: totalCount || 0,
       hasMore: offset + (results?.length || 0) < (totalCount || 0),
     };
@@ -308,38 +383,35 @@ export async function sendDirectMessage(
     // Create message
     const supabase = createServiceClient();
 
-    const message = {
+    const message: Message = {
       _id: crypto.randomUUID(),
       conversationId: conversation._id,
       senderId: senderId,
       recipientId: request.recipientId,
       content: validation.filteredContent || request.content,
       contentType: request.contentType || 'text',
-      status: 'sent' as MessageStatus,
+      status: 'sent',
       createdAt: new Date(),
       metadata: validation.filteredContent !== request.content
         ? { originalContent: request.content }
         : undefined,
-    } as Message;
+    };
 
-    await supabase.from('messages').insert(message as unknown as TablesInsert<'messages'>);
+    await supabase.from('messages').insert(mapMessageToDb(message));
 
     // Update conversation
-    const currentUnread = conversation.unreadCount?.[request.recipientId] || 0;
-    const updateData: any = {
-      lastMessage: {
+    const currentUnread = typeof conversation.unreadCount === 'number' ? conversation.unreadCount : 0;
+    const updateData = {
+      last_message: JSON.stringify({
         content: message.content,
-        senderId: message.senderId,
-        createdAt: message.createdAt,
+        sender_id: message.senderId,
+        created_at: message.createdAt.toISOString(),
         status: message.status,
-      },
-      updatedAt: new Date(),
-      unreadCount: {
-        ...(conversation.unreadCount || {}),
-        [request.recipientId]: currentUnread + 1,
-      },
+      }),
+      updated_at: new Date().toISOString(),
+      unread_count: currentUnread + 1,
     };
-    (supabase.from('conversations')).update(updateData).eq('id', conversation._id);
+    await supabase.from('conversations').update(updateData as never).eq('id', conversation._id);
 
     return {
       success: true,
@@ -393,7 +465,7 @@ export async function getMessageHistory(
 
     return {
       success: true,
-      messages: messageList.reverse() as unknown as Message[], // Reverse to show oldest first
+      messages: messageList.reverse().map(mapDbMessage),
       hasMore,
       conversationId: request.conversationId,
     };
@@ -424,15 +496,15 @@ export async function markMessagesAsRead(
   try {
     const supabase = createServiceClient();
 
-    // Build query
     let query = supabase
       .from('messages')
       .update({
-        read: true,
+        status: 'read',
         read_at: new Date().toISOString(),
       })
       .eq('conversation_id', conversationId)
-      .eq('read', false);
+      .eq('recipient_id', playerId)
+      .neq('status', 'read');
 
     if (messageIds && messageIds.length > 0) {
       query = query.in('id', messageIds);
@@ -443,6 +515,14 @@ export async function markMessagesAsRead(
     if (error) throw error;
 
     const readCount = (data || []).length;
+
+    await supabase
+      .from('conversations')
+      .update({
+        unread_count: 0,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', conversationId);
 
     return {
       success: true,
@@ -470,12 +550,11 @@ export async function deleteDirectMessage(
   try {
     const supabase = createServiceClient();
 
-    // Verify ownership
     const { data: message } = await supabase
       .from('messages')
       .select('*')
       .eq('id', messageId)
-      .eq('sender_username', playerId)
+      .eq('sender_id', playerId)
       .single();
 
     if (!message) {
@@ -485,7 +564,14 @@ export async function deleteDirectMessage(
       };
     }
 
-    // Soft delete — messages table has no deleted column, skip update
+    await supabase
+      .from('messages')
+      .update({
+        deleted_at: new Date().toISOString(),
+        status: 'deleted',
+      })
+      .eq('id', messageId);
+
     return { success: true };
   } catch (error: unknown) {
     console.error('Error deleting message:', error);
@@ -524,7 +610,7 @@ export async function searchConversations(
 
     return {
       success: true,
-      conversations: filtered as unknown as Conversation[],
+      conversations: filtered.map(mapDbConversation),
       totalCount: filtered.length,
       hasMore: false,
     };

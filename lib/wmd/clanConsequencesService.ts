@@ -24,7 +24,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import { parseJsonRecord, parseJsonString } from '@/lib/supabase/jsonb';
+import { parseJsonRecord, parseJsonString, toJsonb } from '@/lib/supabase/jsonb';
 
 /**
  * Consequence severity levels
@@ -230,13 +230,13 @@ async function applyClanWMDCooldown(
       .eq('id', clanId)
       .single();
     
-    const settings = parseJsonRecord(clan?.clan_settings);;
+    const settings = parseJsonRecord(clan?.clan_settings);
     settings.wmdCooldownUntil = cooldownUntil.toISOString();
     settings.lastWMDLaunch = new Date().toISOString();
     
     await supabase
       .from('clans')
-      .update({ clan_settings: settings })
+      .update({ clan_settings: toJsonb(settings) })
       .eq('id', clanId);
     
     console.log(`[ClanConsequences] Clan ${clanId} on WMD cooldown until ${cooldownUntil.toISOString()}`);
@@ -311,7 +311,7 @@ export async function isClanOnWMDCooldown(
     }
     
     const now = new Date();
-    const cooldownUntil = new Date(parseJsonString(settings.wmdCooldownUntil));
+    const cooldownUntil = new Date(String(settings.wmdCooldownUntil ?? ''));
     
     if (now >= cooldownUntil) {
       return { onCooldown: false, cooldownUntil: null, remainingTime: 0 };

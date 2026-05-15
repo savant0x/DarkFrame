@@ -32,7 +32,7 @@ export enum XPAction {
 }
 
 export const XP_REWARDS: Record<XPAction, number> = {
-  [XPAction.HARVEST_RESOURCE]: 3,
+  [XPAction.HARVEST_RESOURCE]: 12,
   [XPAction.CAVE_EXPLORATION]: 30,
   [XPAction.CAVE_ITEM_RARE]: 50,
   [XPAction.CAVE_ITEM_LEGENDARY]: 100,
@@ -96,7 +96,7 @@ export async function awardXP(playerId: string, action: XPAction, multiplier: nu
   const newTotalXP = (player.xp || 0) + xpGained;
   const newLevel = calculateLevel(newTotalXP);
   const levelsGained = newLevel - oldLevel;
-  const rpAwarded = levelsGained;
+  const rpAwarded = levelsGained * 3;
 
   await supabase.from('players').update({
     xp: newTotalXP,

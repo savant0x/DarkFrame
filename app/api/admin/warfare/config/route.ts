@@ -3,11 +3,11 @@
  * @created 2025-10-18
  * @updated 2025-10-23 (FID-20251023-001: Auth deduplication + JSDoc)
  * @updated 2026-05-03 — Migrated to Supabase
+ * @updated 2026-05-15 — Removed hardcoded password, fixed auth response, use requireAdminAuth
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   loadWarfareConfig,
   saveWarfareConfig,
@@ -25,7 +25,6 @@ import {
   ErrorCode,
 } from '@/lib';
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): Promise<NextResponse> => {
@@ -33,11 +32,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
   const endTimer = log.time('admin-warfare-config-get');
 
   try {
-    const supabase = createServiceClient();
-    const result = await requireAuth(request);
-    if (result instanceof NextResponse) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
-    }
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
     // Check if history requested
     const { searchParams } = new URL(request.url);
@@ -78,23 +74,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
   const endTimer = log.time('admin-warfare-config-post');
 
   try {
-    const supabase = createServiceClient();
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
-    }
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
     // Parse request body
     const body = await request.json();
-    const { config, adminPassword } = body;
+    const { config } = body;
 
     if (!config) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'config is required');
-    }
-
-    // Verify admin password
-    if (adminPassword !== ADMIN_PASSWORD) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin authorization required');
     }
 
     // Validate configuration first
@@ -111,11 +99,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
     }
 
     // Save configuration
-    const savedConfig = await saveWarfareConfig(config, auth.username || auth.playerId);
+    const savedConfig = await saveWarfareConfig(config, auth.username);
 
     log.info('Warfare config updated', {
       version: savedConfig.version,
-      updatedBy: auth.username || auth.playerId,
+      updatedBy: auth.username,
       changedFields: Object.keys(config).length
     });
 

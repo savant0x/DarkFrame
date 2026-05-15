@@ -12,16 +12,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { markMessagesAsRead } from '@/lib/messagingService';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { conversationId, playerId, messageIds } = body;
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const playerId = auth.playerId;
 
-    if (!conversationId || !playerId) {
+    const body = await request.json();
+    const { conversationId, messageIds } = body;
+
+    if (!conversationId) {
       return NextResponse.json(
-        { success: false, error: 'conversationId and playerId are required' },
+        { success: false, error: 'conversationId is required' },
         { status: 400 }
       );
     }

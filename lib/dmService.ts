@@ -74,11 +74,12 @@ function buildDMClanId(userId1: string, userId2: string): string {
  */
 function parseDMClanId(clanId: string): [string, string] | null {
   if (!clanId.startsWith('dm_')) return null;
-  const parts = clanId.substring(3).split('_');
-  if (parts.length < 2) return null;
-  const splitIdx = Math.floor(parts.length / 2);
-  const a = parts.slice(0, splitIdx + 1).join('_');
-  const b = parts.slice(splitIdx + 1).join('_');
+  const rest = clanId.substring(3);
+  const firstUnderscore = rest.indexOf('_');
+  if (firstUnderscore === -1) return null;
+  const a = rest.substring(0, firstUnderscore);
+  const b = rest.substring(firstUnderscore + 1);
+  if (!b) return null;
   return [a, b];
 }
 
@@ -139,7 +140,7 @@ export async function createConversation(
         .order('created_at', { ascending: false })
         .limit(1);
 
-      const lastMsg = lastMsgData?.[0] as ClanChatMessageRow | undefined;
+      const lastMsg = lastMsgData?.[0];
 
       const now = new Date();
       return {
@@ -208,9 +209,9 @@ export async function getConversations(
 
     const { data: dmRows, error } = await supabase
       .from('clan_chat_messages')
-      .select('clan_id, sender_id, message, created_at')
+      .select('clan_id, sender_id, message, created_at, deleted')
       .eq('channel', DM_CHANNEL)
-      .or(`sender_id.eq.${userId}`)
+      .like('clan_id', 'dm_%')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -221,6 +222,7 @@ export async function getConversations(
       otherUserId: string;
       lastMessage: { content: string; senderId: string; timestamp: Date; status: DMMessageStatus } | null;
       messageCount: number;
+      unreadCount: number;
       latestTimestamp: Date;
     }>();
 
@@ -228,6 +230,7 @@ export async function getConversations(
       if (row.clan_id.startsWith('dm_')) {
         const participants = parseDMClanId(row.clan_id);
         if (!participants) continue;
+        if (!participants.includes(userId)) continue;
         const otherUserId = participants.find(id => id !== userId);
         if (!otherUserId) continue;
 
@@ -236,49 +239,51 @@ export async function getConversations(
             otherUserId,
             lastMessage: null,
             messageCount: 1,
+            unreadCount: row.sender_id !== userId && !row.deleted ? 1 : 0,
             latestTimestamp: new Date(row.created_at),
           });
+          const entry = convMap.get(row.clan_id)!;
+          entry.lastMessage = {
+            content: row.message.length > 100 ? row.message.substring(0, 100) + '...' : row.message,
+            senderId: row.sender_id,
+            timestamp: new Date(row.created_at),
+            status: 'SENT' as DMMessageStatus,
+          };
         } else {
           const entry = convMap.get(row.clan_id)!;
           entry.messageCount++;
-          if (new Date(row.created_at) > entry.latestTimestamp) {
-            entry.latestTimestamp = new Date(row.created_at);
+          if (row.sender_id !== userId && !row.deleted) {
+            entry.unreadCount++;
+          }
+          const msgTime = new Date(row.created_at);
+          if (msgTime > entry.latestTimestamp) {
+            entry.latestTimestamp = msgTime;
           }
         }
       }
     }
 
-    for (const [clanId, entry] of convMap) {
-      const { data: lastMsgData } = await supabase
-        .from('clan_chat_messages')
-        .select('*')
-        .eq('clan_id', clanId)
-        .eq('channel', DM_CHANNEL)
-        .order('created_at', { ascending: false })
-        .limit(1);
+    const otherUserIds = Array.from(convMap.values()).map(e => e.otherUserId);
+    const uniqueOtherIds = [...new Set(otherUserIds)];
 
-      if (lastMsgData && lastMsgData.length > 0) {
-        const lm = lastMsgData[0] as ClanChatMessageRow;
-        entry.lastMessage = {
-          content: lm.message.length > 100 ? lm.message.substring(0, 100) + '...' : lm.message,
-          senderId: lm.sender_id,
-          timestamp: new Date(lm.created_at),
-          status: 'SENT' as DMMessageStatus,
-        };
+    let userDataMap = new Map<string, string>();
+    if (uniqueOtherIds.length > 0) {
+      const { data: otherUsers } = await supabase
+        .from('players')
+        .select('username')
+        .in('username', uniqueOtherIds);
+
+      if (otherUsers) {
+        for (const u of otherUsers) {
+          userDataMap.set(u.username, u.username);
+        }
       }
     }
 
     const previews: ConversationPreview[] = [];
-    let totalUnread = 0;
 
     for (const [clanId, entry] of convMap) {
-      const { data: otherUserData } = await supabase
-        .from('players')
-        .select('username')
-        .eq('username', entry.otherUserId)
-        .single();
-
-      const otherUsername = otherUserData?.username || 'Unknown User';
+      const otherUsername = userDataMap.get(entry.otherUserId) || 'Unknown User';
 
       previews.push({
         id: clanId,
@@ -286,7 +291,7 @@ export async function getConversations(
         otherUsername,
         otherUserAvatar: undefined,
         lastMessage: entry.lastMessage,
-        unreadCount: 0,
+        unreadCount: entry.unreadCount,
         updatedAt: entry.latestTimestamp,
       });
     }
@@ -295,7 +300,7 @@ export async function getConversations(
 
     return {
       conversations: previews,
-      totalUnread,
+      totalUnread: previews.reduce((sum, c) => sum + c.unreadCount, 0),
     };
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -374,11 +379,11 @@ export async function getConversationMessages(
     resultMessages.reverse();
 
     const nextCursor = hasMore && resultMessages.length > 0
-      ? (resultMessages[0] as ClanChatMessageRow).created_at
+      ? resultMessages[0].created_at
       : undefined;
 
     const formattedMessages: DirectMessage[] = resultMessages.map(msg => {
-      const m = msg as ClanChatMessageRow;
+      const m = msg;
       return {
         id: m.id,
         conversationId: m.clan_id,
@@ -559,9 +564,28 @@ export async function markMessageRead(
     }
 
     const { count } = await countQuery;
+    const unreadCount = count || 0;
+
+    if (request.messageIds && request.messageIds.length > 0) {
+      await supabase
+        .from('clan_chat_messages')
+        .update({ is_read: true } as never)
+        .eq('clan_id', request.conversationId)
+        .eq('channel', DM_CHANNEL)
+        .in('id', request.messageIds)
+        .neq('sender_id', userId);
+    } else {
+      await supabase
+        .from('clan_chat_messages')
+        .update({ is_read: true } as never)
+        .eq('clan_id', request.conversationId)
+        .eq('channel', DM_CHANNEL)
+        .neq('sender_id', userId)
+        .eq('deleted', false);
+    }
 
     return {
-      markedCount: count || 0,
+      markedCount: unreadCount,
       newUnreadCount: 0,
     };
   } catch (error) {
@@ -684,12 +708,12 @@ export async function searchConversations(
 
     const convMap = new Map<string, {
       otherUserId: string;
-      messages: ClanChatMessageRow[];
+      messages: Array<Pick<ClanChatMessageRow, 'clan_id' | 'sender_id' | 'message' | 'created_at'>>;
       latestTimestamp: Date;
     }>();
 
     for (const row of dmRows) {
-      const r = row as unknown as ClanChatMessageRow;
+      const r = row;
       if (!r.clan_id.startsWith('dm_')) continue;
       const participants = parseDMClanId(r.clan_id);
       if (!participants) continue;

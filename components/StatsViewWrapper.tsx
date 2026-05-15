@@ -485,8 +485,9 @@ function HarvestCalculatorTab() {
           // Auto-populate with player's actual bonuses
           // Calculate digger bonus from inventory
           let totalDiggerBonus = 0;
-          if (data.inventory) {
-            data.inventory.forEach((item: any) => {
+          const invItems = data.inventory?.items || data.inventory || [];
+          if (Array.isArray(invItems)) {
+            invItems.forEach((item: any) => {
               if (item.name?.toLowerCase().includes('digger') && item.equipped) {
                 totalDiggerBonus += item.yieldBonus || 0;
               }

@@ -24,6 +24,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Send, Smile, Loader, Check, CheckCheck, Clock } from 'lucide-react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import type { Message, MessageThreadState } from '@/types/messaging.types';
 
 interface MessageThreadProps {
@@ -56,6 +57,7 @@ export default function MessageThread({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { emit, on, isConnected } = useWebSocket();
 
   // ========================================================================
   // DATA LOADING
@@ -133,6 +135,50 @@ export default function MessageThread({
   useEffect(() => {
     loadMessages();
   }, [conversationId]);
+
+  // Listen for incoming messages and typing indicators via WebSocket
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const unsubMessage = on('message:receive', (payload) => {
+      if (payload.conversationId === conversationId) {
+        setState(prev => ({
+          ...prev,
+          messages: [...prev.messages, {
+            _id: payload._id,
+            conversationId: payload.conversationId,
+            senderId: payload.senderId,
+            recipientId: payload.recipientId,
+            content: payload.content,
+            contentType: payload.contentType,
+            status: payload.status,
+            createdAt: new Date(payload.createdAt),
+            readAt: payload.readAt ? new Date(payload.readAt) : undefined,
+          }],
+        }));
+        scrollToBottom();
+        markAsRead();
+      }
+    });
+
+    const unsubTypingStart = on('typing:start', (payload) => {
+      if (payload.conversationId === conversationId && payload.playerId !== playerId) {
+        setState(prev => ({ ...prev, recipientTyping: true }));
+      }
+    });
+
+    const unsubTypingStop = on('typing:stop', (payload) => {
+      if (payload.conversationId === conversationId && payload.playerId !== playerId) {
+        setState(prev => ({ ...prev, recipientTyping: false }));
+      }
+    });
+
+    return () => {
+      unsubMessage();
+      unsubTypingStart();
+      unsubTypingStop();
+    };
+  }, [conversationId, playerId, isConnected, on]);
 
   // ========================================================================
   // MESSAGE SENDING
@@ -240,13 +286,15 @@ export default function MessageThread({
   // ========================================================================
 
   const emitTypingStart = () => {
-    // TODO: Emit via Socket.io
-    // socket.emit('typing:start', { conversationId, recipientId });
+    if (isConnected) {
+      emit('typing:start_private', { conversationId, recipientId });
+    }
   };
 
   const emitTypingStop = () => {
-    // TODO: Emit via Socket.io
-    // socket.emit('typing:stop', { conversationId, recipientId });
+    if (isConnected) {
+      emit('typing:stop_private', { conversationId, recipientId });
+    }
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;

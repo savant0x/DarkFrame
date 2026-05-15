@@ -71,7 +71,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
       }
 
       const data = await response.json();
-      setBattles(data.battles || []);
+      setBattles(data.logs || []);
     } catch (err) {
       console.error('Error fetching battle logs:', err);
       setError('Failed to load battle history');

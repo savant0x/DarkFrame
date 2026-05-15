@@ -99,7 +99,8 @@ export interface TutorialStep {
  * Represents a complete quest chain (e.g., "Movement Basics")
  */
 export interface TutorialQuest {
-  _id?: string;                  // Quest ID (e.g., "quest_movement_basics")
+  id?: string;                   // Quest ID (preferred, camelCase)
+  _id?: string;                  // Quest ID (snake_case / MongoDB legacy alias)
   title: string;                 // Quest name (e.g., "Movement Basics")
   description: string;           // Quest summary
   category: TutorialQuestCategory;
