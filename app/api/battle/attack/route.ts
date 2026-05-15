@@ -1,9 +1,10 @@
 // API Route: /api/battle/attack
 // Records a battle and returns the result
-// Updated: 2026-05-03 — Migrated from MongoDB to Supabase
+// Updated: 2026-05-15 — FID-20260515-BATTLE-SYSTEM-FIX: Added session auth, aligned with battleService
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { recordBattle, resolveBattle } from '@/lib';
+import { requireAuth } from '@/lib/authMiddleware';
+import { resolveBattle, recordBattle } from '@/lib';
 import { BattleType } from '@/types';
 import { 
   withRequestLogging, 
@@ -24,13 +25,13 @@ const handler = rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('battleResolution');
   
   try {
+    const auth = await requireAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
+    const authenticatedUsername = auth.playerId;
+
     const body = await req.json();
     const validated = BattleAttackSchema.parse(body);
-    
-    log.debug('Battle attack initiated', { 
-      target: validated.targetUsername,
-      unitCount: Object.keys(validated.units).length 
-    });
     
     const { attacker, defender, factoryLocation, attackerUnits, defenderUnits } = body;
     
@@ -39,6 +40,11 @@ const handler = rateLimiter(async (req: NextRequest) => {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, {
         fields: ['attacker', 'defender', 'factoryLocation', 'attackerUnits', 'defenderUnits']
       });
+    }
+
+    if (attacker !== authenticatedUsername) {
+      log.warn('Battle attack attempted as different user', { authenticated: authenticatedUsername, requested: attacker });
+      return createErrorResponse(ErrorCode.AUTH_FORBIDDEN, { message: 'You can only initiate battles as yourself' });
     }
     
     log.debug('Resolving battle', { attacker, defender, location: factoryLocation });
@@ -60,7 +66,6 @@ const handler = rateLimiter(async (req: NextRequest) => {
       details: battleLog,
     });
     
-    // Record Beer Base defeat for analytics if applicable
     if (defender.startsWith('🍺BeerBase-') && battleLog.outcome === 'ATTACKER_WIN') {
       try {
         const supabase = createServiceClient();

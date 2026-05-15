@@ -1,6 +1,7 @@
 /**
  * Combat Event Handler
  * Created: 2025-10-19
+ * Updated: 2026-05-15 — FID-20260515-BATTLE-SYSTEM-FIX
  * 
  * OVERVIEW:
  * Handles combat-related WebSocket events including attack notifications,
@@ -59,7 +60,7 @@ export async function handleBattleStart(
       attacker_strength: 0,
       damage_dealt: 0,
       defender_defense: 0,
-      outcome: 'ongoing',
+      outcome: 'ONGOING',
     };
     
     await supabase.from('battle_logs').insert(battleData);
@@ -86,6 +87,7 @@ export async function handleBattleStart(
 export async function handleBattleEnd(
   io: Server,
   battleId: string,
+  outcome: 'ATTACKER_WIN' | 'DEFENDER_WIN' | 'DRAW',
   winner: string,
   loser: string,
   casualties: { winner: number; loser: number }
@@ -97,7 +99,7 @@ export async function handleBattleEnd(
     await supabase
       .from('battle_logs')
       .update({
-        outcome: winner,
+        outcome,
         damage_dealt: casualties?.winner || 0,
         defender_defense: casualties?.loser || 0,
       })

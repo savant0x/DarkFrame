@@ -53,19 +53,20 @@ export * from './botConfig.types';
 export * from './autoFarm.types';
 
 // Re-export activity log types (excluding Battle* conflicts with game.types)
-// TODO Phase 3: Reconcile duplicate Battle type definitions
-// - game.types.ts has BattleType/BattleOutcome/BattleLog with PascalCase values
-// - activityLog.types.ts has same types with snake_case values
-// Keep game.types exports as canonical, import activityLog types locally where needed
+// Canonical battle types live in game.types.ts (BattleType, BattleOutcome, BattleLog, BattleResult, etc.)
+// activityLog.types.ts BattleType/BattleOutcome are now aligned with game.types values.
 export {
   ActionCategory,
-  ActionType
+  ActionType,
+  BattleOutcome as ActivityBattleOutcome,
+  BattleType as ActivityBattleType,
 } from './activityLog.types';
 export type {
   ActivityLog,
   ActivityLogQuery,
   BattleLogStats,
-  BattleLogQuery
+  BattleLogQuery,
+  BattleLog as ActivityBattleLog,
 } from './activityLog.types';
 
 // Re-export websocket types

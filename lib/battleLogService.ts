@@ -2,23 +2,11 @@
  * Battle Log Service
  * 
  * Created: 2025-10-18
+ * Updated: 2026-05-15 — FID-20260515-BATTLE-SYSTEM-FIX
  * 
  * OVERVIEW:
  * Specialized service for tracking combat engagements in DarkFrame.
- * Enhances existing battle logging with detailed statistics, unit tracking, and analytics.
- * Provides comprehensive combat data for balancing, player analytics, and leaderboards.
- * 
- * Features:
- * - Detailed battle tracking (participants, units, damage, outcomes)
- * - Battle statistics and analytics
- * - Combat leaderboards and rankings
- * - Unit performance analysis
- * - Clan warfare tracking
- * - Factory battle logging
- * 
- * Dependencies:
- * - Supabase for data persistence
- * - activityLog.types.ts for battle-specific types
+ * Maps Supabase battle_logs rows to domain BattleLog types.
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
@@ -30,6 +18,43 @@ import {
   BattleType,
   BattleOutcome,
 } from '@/types/activityLog.types';
+
+// ============================================================================
+// MAPPING FUNCTIONS
+// ============================================================================
+
+export function mapDbBattleLogToDomain(row: Tables<'battle_logs'>): BattleLog {
+  const outcome = toBattleOutcome(row.outcome);
+  const isAttackerWin = outcome === BattleOutcome.ATTACKER_WIN;
+  return {
+    _id: row.id,
+    battleId: row.id,
+    battleType: BattleType.PLAYER_VS_PLAYER,
+    timestamp: fromISO(row.created_at),
+    attackerId: row.attacker_username,
+    attackerUsername: row.attacker_username,
+    defenderId: row.defender_username,
+    defenderUsername: row.defender_username,
+    tileX: 0,
+    tileY: 0,
+    outcome,
+    winner: isAttackerWin ? row.attacker_username : row.defender_username,
+    loser: isAttackerWin ? row.defender_username : row.attacker_username,
+    attackerUnits: [],
+    defenderUnits: [],
+    attackerSurvivors: [],
+    defenderSurvivors: [],
+    attackerDamageDealt: row.attacker_strength || 0,
+    defenderDamageDealt: row.defender_defense || 0,
+    attackerUnitsLost: 0,
+    defenderUnitsLost: 0,
+    totalDamage: row.damage_dealt || 0,
+    battleDurationMs: 0,
+    attackerLevel: 0,
+    defenderLevel: 0,
+    resourcesLooted: parseResourceLoot(row.resources_stolen),
+  };
+}
 
 // ============================================================================
 // CONSTANTS
@@ -51,19 +76,33 @@ function fromISO(s: string): Date {
   return new Date(s);
 }
 
-// Helper to apply filters to a Supabase query builder
+function parseResourceLoot(value: Json | null): { metal: number; energy: number; } | undefined {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const metal = 'metal' in value ? Number(value.metal) : 0;
+  const energy = 'energy' in value ? Number(value.energy) : 0;
+  return { metal, energy };
+}
+
+function toBattleOutcome(s: string): BattleOutcome {
+  switch (s) {
+    case BattleOutcome.ATTACKER_WIN: return BattleOutcome.ATTACKER_WIN;
+    case BattleOutcome.DEFENDER_WIN: return BattleOutcome.DEFENDER_WIN;
+    case BattleOutcome.DRAW: return BattleOutcome.DRAW;
+    default: return BattleOutcome.DRAW;
+  }
+}
+
 function applyFilters(q: any, query: BattleLogQuery) {
   if (query.playerId) {
     q = q.or(`attacker_username.eq.${query.playerId},defender_username.eq.${query.playerId}`);
   }
-
   if (query.startDate) {
     q = q.gte('created_at', toISO(query.startDate));
   }
   if (query.endDate) {
     q = q.lte('created_at', toISO(query.endDate));
   }
-
   return q;
 }
 
@@ -71,40 +110,6 @@ function applyFilters(q: any, query: BattleLogQuery) {
 // CORE LOGGING FUNCTIONS
 // ============================================================================
 
-/**
- * Log a battle engagement
- * 
- * @param battleLog - Battle log entry to record
- * @returns Promise resolving to inserted battle log ID
- * 
- * @example
- * await logBattle({
- *   battleId: 'battle_1729234567890',
- *   battleType: BattleType.PLAYER_VS_PLAYER,
- *   timestamp: new Date(),
- *   attackerId: '12345',
- *   attackerUsername: 'player1',
- *   defenderId: '67890',
- *   defenderUsername: 'player2',
- *   tileX: 10,
- *   tileY: 15,
- *   outcome: BattleOutcome.ATTACKER_WIN,
- *   winner: '12345',
- *   loser: '67890',
- *   attackerUnits: [...],
- *   defenderUnits: [...],
- *   attackerSurvivors: [...],
- *   defenderSurvivors: [...],
- *   attackerDamageDealt: 1500,
- *   defenderDamageDealt: 800,
- *   attackerUnitsLost: 5,
- *   defenderUnitsLost: 12,
- *   totalDamage: 2300,
- *   battleDurationMs: 250,
- *   attackerLevel: 15,
- *   defenderLevel: 14
- * });
- */
 export async function logBattle(battleLog: Omit<BattleLog, '_id'>): Promise<string> {
   try {
     const supabase = createServiceClient();
@@ -115,8 +120,8 @@ export async function logBattle(battleLog: Omit<BattleLog, '_id'>): Promise<stri
       attacker_strength: battleLog.attackerDamageDealt || 0,
       defender_defense: battleLog.defenderDamageDealt || 0,
       damage_dealt: battleLog.totalDamage || 0,
-      outcome: battleLog.outcome || 'unknown',
-      resources_stolen: (battleLog as unknown as { resourcesStolen?: Json }).resourcesStolen || null,
+      outcome: battleLog.outcome || BattleOutcome.DRAW,
+      resources_stolen: battleLog.resourcesLooted ?? null,
       created_at: toISO(battleLog.timestamp || new Date()),
     };
 
@@ -138,15 +143,6 @@ export async function logBattle(battleLog: Omit<BattleLog, '_id'>): Promise<stri
   }
 }
 
-/**
- * Log multiple battles in bulk
- * 
- * @param battleLogs - Array of battle log entries
- * @returns Promise resolving to array of inserted battle log IDs
- * 
- * @example
- * await logBattlesBulk([battle1, battle2, battle3]);
- */
 export async function logBattlesBulk(battleLogs: Omit<BattleLog, '_id'>[]): Promise<string[]> {
   try {
     const supabase = createServiceClient();
@@ -157,8 +153,8 @@ export async function logBattlesBulk(battleLogs: Omit<BattleLog, '_id'>[]): Prom
       attacker_strength: log.attackerDamageDealt || 0,
       defender_defense: log.defenderDamageDealt || 0,
       damage_dealt: log.totalDamage || 0,
-      outcome: log.outcome || 'unknown',
-      resources_stolen: (log as unknown as { resourcesStolen?: Json }).resourcesStolen || null,
+      outcome: log.outcome || BattleOutcome.DRAW,
+      resources_stolen: log.resourcesLooted ? JSON.stringify(log.resourcesLooted) : null,
       created_at: toISO(log.timestamp || new Date()),
     }));
 
@@ -183,20 +179,6 @@ export async function logBattlesBulk(battleLogs: Omit<BattleLog, '_id'>[]): Prom
 // QUERY FUNCTIONS
 // ============================================================================
 
-/**
- * Query battle logs with filtering and pagination
- * 
- * @param query - Query parameters for filtering battles
- * @returns Promise resolving to array of matching battle logs
- * 
- * @example
- * const battles = await queryBattleLogs({
- *   playerId: '12345',
- *   battleType: BattleType.PLAYER_VS_PLAYER,
- *   startDate: new Date('2025-10-01'),
- *   limit: 20
- * });
- */
 export async function queryBattleLogs(query: BattleLogQuery): Promise<BattleLog[]> {
   try {
     const supabase = createServiceClient();
@@ -205,9 +187,7 @@ export async function queryBattleLogs(query: BattleLogQuery): Promise<BattleLog[
     const offset = query.offset || 0;
 
     let q = supabase.from(TABLE_NAME).select('*');
-
     q = applyFilters(q, query);
-
     q = q.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 
     const { data, error } = await q;
@@ -217,46 +197,17 @@ export async function queryBattleLogs(query: BattleLogQuery): Promise<BattleLog[
       throw new Error('Failed to query battle logs');
     }
 
-    return (data || []).map((row: any) => ({
-      _id: row.id,
-      attackerUsername: row.attacker_username,
-      defenderUsername: row.defender_username,
-      attackerDamageDealt: row.attacker_strength,
-      defenderDamageDealt: row.defender_defense,
-      totalDamage: row.damage_dealt,
-      outcome: row.outcome,
-      resourcesStolen: row.resources_stolen,
-      timestamp: fromISO(row.created_at),
-    } as unknown as BattleLog));
+    return (data || []).map((row) => mapDbBattleLogToDomain(row));
   } catch (error) {
     console.error('[BattleLog] Error querying battle logs:', error);
     throw new Error('Failed to query battle logs');
   }
 }
 
-/**
- * Get battle logs for a specific player
- * 
- * @param playerId - Player ID to get battles for
- * @param limit - Maximum number of battles to return
- * @returns Promise resolving to player's recent battles
- * 
- * @example
- * const playerBattles = await getPlayerCombatLogs('12345', 20);
- */
 export async function getPlayerCombatLogs(playerId: string, limit: number = 50): Promise<BattleLog[]> {
   return queryBattleLogs({ playerId, limit } as BattleLogQuery);
 }
 
-/**
- * Get recent battle logs (last 24 hours)
- * 
- * @param limit - Maximum number of battles to return
- * @returns Promise resolving to recent battles
- * 
- * @example
- * const recentBattles = await getRecentCombatLogs(50);
- */
 export async function getRecentCombatLogs(limit: number = 50): Promise<BattleLog[]> {
   const oneDayAgo = new Date();
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
@@ -267,15 +218,6 @@ export async function getRecentCombatLogs(limit: number = 50): Promise<BattleLog
   } as BattleLogQuery);
 }
 
-/**
- * Get battle by ID
- * 
- * @param battleId - Unique battle identifier (Supabase row id)
- * @returns Promise resolving to battle log or null
- * 
- * @example
- * const battle = await getBattleById('some-uuid');
- */
 export async function getBattleById(battleId: string): Promise<BattleLog | null> {
   try {
     const supabase = createServiceClient();
@@ -290,34 +232,13 @@ export async function getBattleById(battleId: string): Promise<BattleLog | null>
       return null;
     }
 
-    return {
-      _id: data.id,
-      attackerUsername: data.attacker_username,
-      defenderUsername: data.defender_username,
-      attackerDamageDealt: data.attacker_strength,
-      defenderDamageDealt: data.defender_defense,
-      totalDamage: data.damage_dealt,
-      outcome: data.outcome,
-      resourcesStolen: data.resources_stolen,
-      timestamp: fromISO(data.created_at),
-    } as unknown as BattleLog;
+    return mapDbBattleLogToDomain(data);
   } catch (error) {
     console.error('[BattleLog] Error getting battle by ID:', error);
     return null;
   }
 }
 
-/**
- * Get battles at specific location
- * 
- * NOTE: The battle_logs table does not store tile coordinates.
- * Battles are queried by attacker/defender username instead.
- * 
- * @param tileX - X coordinate
- * @param tileY - Y coordinate
- * @param limit - Maximum number of battles to return
- * @returns Promise resolving to battles at location
- */
 export async function getBattlesAtLocation(tileX: number, tileY: number, limit: number = 20): Promise<BattleLog[]> {
   return queryBattleLogs({ limit } as BattleLogQuery);
 }
@@ -326,18 +247,6 @@ export async function getBattlesAtLocation(tileX: number, tileY: number, limit: 
 // STATISTICS FUNCTIONS
 // ============================================================================
 
-/**
- * Get battle log statistics
- * 
- * @param query - Optional query to filter statistics
- * @returns Promise resolving to battle log statistics
- * 
- * @example
- * const stats = await getBattleLogStats({
- *   playerId: '12345',
- *   startDate: new Date('2025-10-01')
- * });
- */
 export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleLogStats> {
   try {
     const supabase = createServiceClient();
@@ -361,7 +270,6 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
     let defenderWins = 0;
     let draws = 0;
     let totalDamage = 0;
-    let totalUnitsLost = 0;
 
     const playerMap = new Map<string, any>();
 
@@ -369,9 +277,9 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
       const bType = 'unknown';
       battlesByType[bType] = (battlesByType[bType] || 0) + 1;
 
-      if (battle.outcome === 'ATTACKER_WIN') attackerWins++;
-      else if (battle.outcome === 'DEFENDER_WIN') defenderWins++;
-      else if (battle.outcome === 'DRAW') draws++;
+      if (battle.outcome === BattleOutcome.ATTACKER_WIN) attackerWins++;
+      else if (battle.outcome === BattleOutcome.DEFENDER_WIN) defenderWins++;
+      else if (battle.outcome === BattleOutcome.DRAW) draws++;
 
       totalDamage += battle.damage_dealt || 0;
 
@@ -382,13 +290,13 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
         const existing = playerMap.get(attUser);
         if (existing) {
           existing.battlesParticipated++;
-          if (battle.outcome === 'ATTACKER_WIN') existing.wins++;
+          if (battle.outcome === BattleOutcome.ATTACKER_WIN) existing.wins++;
         } else {
           playerMap.set(attUser, {
             playerId: attUser,
             username: attUser,
             battlesParticipated: 1,
-            wins: battle.outcome === 'ATTACKER_WIN' ? 1 : 0,
+            wins: battle.outcome === BattleOutcome.ATTACKER_WIN ? 1 : 0,
           });
         }
       }
@@ -397,13 +305,13 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
         const existing = playerMap.get(defUser);
         if (existing) {
           existing.battlesParticipated++;
-          if (battle.outcome === 'DEFENDER_WIN') existing.wins++;
+          if (battle.outcome === BattleOutcome.DEFENDER_WIN) existing.wins++;
         } else {
           playerMap.set(defUser, {
             playerId: defUser,
             username: defUser,
             battlesParticipated: 1,
-            wins: battle.outcome === 'DEFENDER_WIN' ? 1 : 0,
+            wins: battle.outcome === BattleOutcome.DEFENDER_WIN ? 1 : 0,
           });
         }
       }
@@ -435,10 +343,10 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
 
     return {
       totalBattles: totalBattles || 0,
-      battlesByType: battlesByType as unknown as Record<string, number>,
+      battlesByType,
       winRate,
       averageDamage,
-      totalUnitsLost,
+      totalUnitsLost: 0,
       mostActivePlayers,
       deadliestUnits
     };
@@ -448,15 +356,6 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
   }
 }
 
-/**
- * Get player combat statistics
- * 
- * @param playerId - Player ID to get stats for
- * @returns Promise resolving to player's combat statistics
- * 
- * @example
- * const playerStats = await getPlayerCombatStatistics('12345');
- */
 export async function getPlayerCombatStatistics(playerId: string): Promise<{
   totalBattles: number;
   wins: number;
@@ -491,9 +390,9 @@ export async function getPlayerCombatStatistics(playerId: string): Promise<{
     for (const battle of battles || []) {
       const isAttacker = battle.attacker_username === playerId;
 
-      if (battle.outcome === 'ATTACKER_WIN') {
+      if (battle.outcome === BattleOutcome.ATTACKER_WIN) {
         if (isAttacker) wins++; else losses++;
-      } else if (battle.outcome === 'DEFENDER_WIN') {
+      } else if (battle.outcome === BattleOutcome.DEFENDER_WIN) {
         if (!isAttacker) wins++; else losses++;
       } else {
         draws++;
@@ -531,16 +430,6 @@ export async function getPlayerCombatStatistics(playerId: string): Promise<{
 // INDEX MANAGEMENT
 // ============================================================================
 
-/**
- * Create Supabase indexes for optimal query performance
- * NOTE: Supabase indexes are managed via migrations, not code.
- * This function is retained as a no-op for API compatibility.
- * 
- * @returns Promise resolving when indexes are noted
- * 
- * @example
- * await createBattleLogIndexes();
- */
 export async function createBattleLogIndexes(): Promise<void> {
   console.log('[BattleLog] Index management handled via Supabase migrations');
   console.log('[BattleLog] Required indexes:');
@@ -549,24 +438,3 @@ export async function createBattleLogIndexes(): Promise<void> {
   console.log('[BattleLog]   - id (unique)');
   console.log('[BattleLog]   - created_at (desc)');
 }
-
-/**
- * FOOTER:
- * 
- * Implementation Notes:
- * - Battle logs provide detailed combat analytics for game balancing
- * - Player statistics track performance across all battle types
- * - Supabase indexes should be created via migrations
- * - Unit performance tracking enables meta-game analysis
- * 
- * Performance Considerations:
- * - Battle logs are more detailed than activity logs (larger documents)
- * - Consider implementing battle log aggregation for historical analysis
- * - Unit performance queries may require additional optimization
- * 
- * Future Enhancements:
- * - Implement deadliest units aggregation (currently placeholder)
- * - Add battle replay data structure
- * - Implement real-time battle streaming for spectators
- * - Add ML-based battle outcome prediction
- */

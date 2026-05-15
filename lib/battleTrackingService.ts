@@ -1,9 +1,10 @@
 /**
  * BattleTrackingService - Tracks and aggregates player battle stats
  * @created 2025-10-19
- * @author ECHO v5.1
+ * @updated 2026-05-15 — FID-20260515-BATTLE-SYSTEM-FIX
  *
- * OVERVIEW: Provides functions to record battles, fetch player stats, and get recent battles. Used by /api/battle/attack and /api/stats/battles endpoints.
+ * OVERVIEW: Provides functions to record battles, fetch player stats, and get recent battles.
+ * Fixed column references to match Supabase schema (attacker_username, defender_username, outcome, created_at).
  */
 import { createServiceClient } from '@/lib/supabase/server';
 import type { TablesInsert } from '@/types/database';
@@ -29,12 +30,6 @@ export interface PlayerBattleStats {
   totalBattles: number;
 }
 
-/**
- * Records a battle in the battleLogs collection
- */
-/**
- * Records a battle in the battleLogs collection
- */
 export async function recordBattle(battle: BattleRecord): Promise<void> {
   const supabase = createServiceClient();
   await supabase.from('battle_logs').insert({
@@ -42,77 +37,59 @@ export async function recordBattle(battle: BattleRecord): Promise<void> {
     defender_username: battle.defender,
     attacker_strength: battle.attackerPower,
     defender_defense: battle.defenderPower,
-    outcome: battle.winner,
+    outcome: battle.winner === battle.attacker ? 'ATTACKER_WIN' : (battle.winner === battle.defender ? 'DEFENDER_WIN' : 'DRAW'),
     damage_dealt: 0,
     created_at: battle.timestamp.toISOString(),
     resources_stolen: battle.details,
-  } as unknown as TablesInsert<'battle_logs'>);
+  });
 }
 
-/**
- * Gets aggregated battle stats for a player
- */
-/**
- * Gets aggregated battle stats for a player
- */
 export async function getPlayerBattleStats(username: string): Promise<PlayerBattleStats> {
   const supabase = createServiceClient();
-
-  const { count: wins } = await supabase
-    .from('battle_logs')
-    .select('*', { count: 'exact', head: true })
-    .eq('outcome', username);
-
-  const { count: losses } = await supabase
-    .from('battle_logs')
-    .select('*', { count: 'exact', head: true })
-    .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
-    .neq('outcome', username);
-
-  const { count: draws } = await supabase
-    .from('battle_logs')
-    .select('*', { count: 'exact', head: true })
-    .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
-    .is('outcome', null);
 
   const { count: totalBattles } = await supabase
     .from('battle_logs')
     .select('*', { count: 'exact', head: true })
     .or(`attacker_username.eq.${username},defender_username.eq.${username}`);
 
-  const winRate = (totalBattles || 0) > 0 ? (wins || 0) / (totalBattles || 1) : 0;
-  return { username, wins: wins || 0, losses: losses || 0, draws: draws || 0, winRate, totalBattles: totalBattles || 0 };
+  const { count: wins } = await supabase
+    .from('battle_logs')
+    .select('*', { count: 'exact', head: true })
+    .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
+    .or(`outcome.eq.ATTACKER_WIN,and(attacker_username.eq.${username},outcome.eq.ATTACKER_WIN),and(defender_username.eq.${username},outcome.eq.DEFENDER_WIN)`);
+
+  const { count: draws } = await supabase
+    .from('battle_logs')
+    .select('*', { count: 'exact', head: true })
+    .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
+    .eq('outcome', 'DRAW');
+
+  const total = totalBattles || 0;
+  const w = wins || 0;
+  const d = draws || 0;
+  const l = total - w - d;
+  const winRate = total > 0 ? w / total : 0;
+
+  return { username, wins: w, losses: Math.max(0, l), draws: d, winRate, totalBattles: total };
 }
 
-/**
- * Gets the most recent battles
- * @param limit - Number of battles to return (default: 10)
- * @returns Array of BattleRecord
- */
 export async function getRecentBattles(limit: number = 10): Promise<BattleRecord[]> {
   const supabase = createServiceClient();
   const { data: docs } = await supabase
     .from('battle_logs')
     .select('*')
-    .order('timestamp', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(limit);
 
   return (docs || []).map((doc: any) => ({
-    attacker: doc.attacker ?? '',
-    defender: doc.defender ?? '',
-    winner: doc.winner ?? '',
-    factoryLocation: doc.factory_location ?? { x: 0, y: 0 },
-    attackerPower: doc.attacker_power ?? 0,
-    defenderPower: doc.defender_power ?? 0,
-    factoryCaptured: doc.factory_captured ?? false,
-    timestamp: doc.timestamp ? new Date(doc.timestamp) : new Date(),
-    details: doc.details ?? {},
+    attacker: doc.attacker_username ?? '',
+    defender: doc.defender_username ?? '',
+    winner: doc.outcome === 'ATTACKER_WIN' ? doc.attacker_username : (doc.outcome === 'DEFENDER_WIN' ? doc.defender_username : ''),
+    factoryLocation: { x: 0, y: 0 },
+    attackerPower: doc.attacker_strength ?? 0,
+    defenderPower: doc.defender_defense ?? 0,
+    factoryCaptured: doc.outcome === 'ATTACKER_WIN',
+    timestamp: doc.created_at ? new Date(doc.created_at) : new Date(),
+    details: doc.resources_stolen ?? {},
   }));
 }
-
-/**
- * IMPLEMENTATION NOTES:
- * - All stats are recalculated live for accuracy.
- * - Draws are defined as battles with winner: null.
- * - Extend for advanced stats as needed.
- */

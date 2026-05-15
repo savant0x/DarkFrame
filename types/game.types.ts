@@ -1,13 +1,24 @@
 /**
  * @file game.types.ts
  * @created 2025-10-16
+ * @updated 2026-05-11 — FID-20260511-FACTORY-UNIT-REDESIGN
  * @overview Core TypeScript type definitions for DarkFrame game domain model
- * 
+ *
  * OVERVIEW:
  * Defines all core game entities including terrain types, tiles, players, positions,
  * movement directions, and resources. These types are used throughout the application
  * for type safety and data validation.
+ *
+ * FID-20260511-FACTORY-UNIT-REDESIGN CHANGES:
+ * - Reduced UNIT_CONFIGS from 65 bloated types to 20 focused units (4 archetypes × 5 tiers)
+ * - Added UnitArchetype type: STRIKER | BULWARK | ARTILLERY | SUPPORT
+ * - Added archetype field to UnitConfig and PlayerUnit (replaced category 'STR'|'DEF')
+ * - Orthogonal cost scaling: higher tiers = more slot-efficient, less resource-efficient
+ * - Intransitive combat: Striker > Bulwark > Artillery > Support > Striker
+ * - UnitType now derived from Database['public']['Enums']['unit_type'] for exact DB match
  */
+
+import type { Database } from '@/types/database';
 
 
 /**
@@ -82,6 +93,15 @@ export interface Tile {
   hasTrail?: boolean;
   trailTimestamp?: Date;
   trailExpiresAt?: Date;
+  botAtLocation?: {
+    username: string;
+    isBeerBase: boolean;
+    tier?: string;
+    specialization?: string;
+    strength?: number;
+    defense?: number;
+    resources?: { metal: number; energy: number };
+  };
 }
 
 /**
@@ -420,7 +440,9 @@ export interface Player {
   clanLevel?: number; // Clan's current level (denormalized for quick access)
   isAdmin?: boolean; // Admin access flag (grants access to /admin panel)
   vip?: boolean; // VIP subscription status (premium features: 2x auto-farm speed, etc.)
+  is_vip?: boolean; // DB alias for vip status (snake_case for raw Supabase data)
   vipExpiration?: Date; // VIP subscription expiration date
+  vip_expiration?: string | null; // DB alias for vip expiration (snake_case for raw Supabase data)
   vipTier?: string; // VIP tier (WEEKLY, MONTHLY, QUARTERLY, BIANNUAL, YEARLY)
   stripeCustomerId?: string; // Stripe customer ID for subscription management
   stripeSubscriptionId?: string; // Stripe subscription ID for tracking
@@ -886,110 +908,99 @@ export enum UnitTier {
 }
 
 /**
- * Unit types available for building (40 total: 5 tiers × 8 units per tier)
- * Naming convention: Tier + Role + Variant
- * Each tier has 4 STR units and 4 DEF units
+ * Unit archetype — determines combat role and intransitive counter relationships.
+ * Strikers > Bulwarks > Artillery > Support > Strikers (rock-paper-scissors).
+ *
+ * FID-20260511-FACTORY-UNIT-REDESIGN: Replaced mirrored STR/DEF pairs with
+ * four distinct archetypes that create tactical depth in automated combat.
  */
-export enum UnitType {
-  // ===== TIER 1 (Level 1+, 0 RP) =====
-  // STR Units
-  T1_Rifleman = 'T1_RIFLEMAN',           // STR: 5
-  T1_Scout = 'T1_SCOUT',                 // STR: 8
-  T1_Grenadier = 'T1_GRENADIER',         // STR: 12
-  T1_Sniper = 'T1_SNIPER',               // STR: 15
-  // DEF Units
-  T1_Bunker = 'T1_BUNKER',               // DEF: 5
-  T1_Barrier = 'T1_BARRIER',             // DEF: 8
-  T1_Turret = 'T1_TURRET',               // DEF: 12
-  T1_Shield = 'T1_SHIELD',               // DEF: 15
+export type UnitArchetype = 'STRIKER' | 'BULWARK' | 'ARTILLERY' | 'SUPPORT';
 
-  // ===== TIER 2 (Level 5+, 5 RP) =====
-  // STR Units
-  T2_Commando = 'T2_COMMANDO',           // STR: 30
-  T2_Ranger = 'T2_RANGER',               // STR: 40
-  T2_Assassin = 'T2_ASSASSIN',           // STR: 50
-  T2_Demolisher = 'T2_DEMOLISHER',       // STR: 60
-  // DEF Units
-  T2_Fortress = 'T2_FORTRESS',           // DEF: 30
-  T2_Barricade = 'T2_BARRICADE',         // DEF: 40
-  T2_Cannon = 'T2_CANNON',               // DEF: 50
-  T2_Sentinel = 'T2_SENTINEL',           // DEF: 60
+/**
+ * Unit types available for building (20 total: 4 archetypes × 5 tiers)
+ *
+ * Naming convention: [ARCHETYPE]_[TIER]_[NAME]
+ *
+ * ORTHOGONAL COST SCALING:
+ * - Higher tiers are MORE slot-efficient but LESS resource-efficient
+ * - T1: Cheap metal/energy, massive slot consumption (good for early game)
+ * - T5: Expensive metal/energy, minimal slot consumption (good for late game)
+ * - This creates meaningful choice: resources vs slots
+ *
+ * INTRANSITIVE COMBAT:
+ * - Strikers deal 130% damage to Bulwarks
+ * - Bulwarks absorb 70% of incoming damage (frontline)
+ * - Artillery strikes Support units first (disrupt multipliers)
+ * - Support amplifies STR/DEF of Strikers and Bulwarks
+ *
+ * FID-20260511-FACTORY-UNIT-REDESIGN: Reduced from 65 bloated types to 20
+ * focused units with distinct tactical roles.
+ */
+export const UnitType = {
+  // ===== STRIKER ARCHETYPE (Offense Focus) =====
+  S_T1_VanguardInfantry: 'T1_RIFLEMAN' as const,
+  S_T2_AssaultArmor: 'T2_COMMANDO' as const,
+  S_T3_PlasmaGunship: 'T3_STRIKER' as const,
+  S_T4_OrbitalDestroyer: 'T4_TITAN' as const,
+  S_T5_SingularityTitan: 'T5_OVERLORD' as const,
+  // ===== BULWARK ARCHETYPE (Defense Focus) =====
+  B_T1_AegisDrone: 'T1_BUNKER' as const,
+  B_T2_PhalanxMech: 'T2_FORTRESS' as const,
+  B_T3_ShieldCruiser: 'T3_CITADEL' as const,
+  B_T4_VoidBastion: 'T4_STRONGHOLD' as const,
+  B_T5_CitadelLeviathan: 'T5_BASTION' as const,
+  // ===== ARTILLERY ARCHETYPE (Anti-Support Focus) =====
+  A_T1_MortarSquad: 'T1_TURRET' as const,
+  A_T2_RocketBattery: 'T2_CANNON' as const,
+  A_T3_RailgunEmplacement: 'T3_ARTILLERY' as const,
+  A_T4_OrbitalStrike: 'T4_DREADNOUGHT' as const,
+  A_T5_AnnihilatorCannon: 'T5_LEVIATHAN' as const,
+  // ===== SUPPORT ARCHETYPE (Multiplier/Buffer) =====
+  U_T1_CommsRelay: 'T1_SHIELD' as const,
+  U_T2_TacticalLink: 'T2_SENTINEL' as const,
+  U_T3_CommandNetwork: 'T3_GUARDIAN' as const,
+  U_T4_WarCouncil: 'T4_COLOSSUS' as const,
+  U_T5_SupremeCommand: 'T5_IMMORTAL' as const,
+} as const;
 
-  // ===== TIER 3 (Level 10+, 15 RP) =====
-  // STR Units
-  T3_Striker = 'T3_STRIKER',             // STR: 90
-  T3_Raider = 'T3_RAIDER',               // STR: 105
-  T3_Enforcer = 'T3_ENFORCER',           // STR: 120
-  T3_Warlord = 'T3_WARLORD',             // STR: 135
-  // DEF Units
-  T3_Citadel = 'T3_CITADEL',             // DEF: 90
-  T3_Bulwark = 'T3_BULWARK',             // DEF: 105
-  T3_Artillery = 'T3_ARTILLERY',         // DEF: 120
-  T3_Guardian = 'T3_GUARDIAN',           // DEF: 135
+export type UnitType = typeof UnitType[keyof typeof UnitType];
 
-  // ===== TIER 4 (Level 20+, 30 RP) =====
-  // STR Units
-  T4_Titan = 'T4_TITAN',                 // STR: 180
-  T4_Juggernaut = 'T4_JUGGERNAUT',       // STR: 210
-  T4_Destroyer = 'T4_DESTROYER',         // STR: 240
-  T4_Annihilator = 'T4_ANNIHILATOR',     // STR: 270
-  // DEF Units
-  T4_Stronghold = 'T4_STRONGHOLD',       // DEF: 180
-  T4_Rampart = 'T4_RAMPART',             // DEF: 210
-  T4_Dreadnought = 'T4_DREADNOUGHT',     // DEF: 240
-  T4_Colossus = 'T4_COLOSSUS',           // DEF: 270
-
-  // ===== TIER 5 (Level 30+, 50 RP) =====
-  // STR Units
-  T5_Overlord = 'T5_OVERLORD',           // STR: 360
-  T5_Conqueror = 'T5_CONQUEROR',         // STR: 420
-  T5_Devastator = 'T5_DEVASTATOR',       // STR: 480
-  T5_Apocalypse = 'T5_APOCALYPSE',       // STR: 540
-  // DEF Units
-  T5_Bastion = 'T5_BASTION',             // DEF: 360
-  T5_Monolith = 'T5_MONOLITH',           // DEF: 420
-  T5_Leviathan = 'T5_LEVIATHAN',         // DEF: 480
-  T5_Immortal = 'T5_IMMORTAL',           // DEF: 540
-
-  // ===== SPECIALIZED UNITS (Offensive Doctrine, Level 15+, 25 RP) =====
-  SPEC_OFF_Vanguard = 'SPEC_OFF_VANGUARD',               // STR: 200, Mastery 0%+
-  SPEC_OFF_Berserker = 'SPEC_OFF_BERSERKER',             // STR: 280, Mastery 0%+
-  SPEC_OFF_Executioner = 'SPEC_OFF_EXECUTIONER',         // STR: 360, Mastery 25%+
-  SPEC_OFF_Annihilator = 'SPEC_OFF_ANNIHILATOR',         // STR: 480, Mastery 75%+
-  SPEC_OFF_Warmonger = 'SPEC_OFF_WARMONGER',             // STR: 620, Mastery 100%
-
-  // ===== SPECIALIZED UNITS (Defensive Doctrine, Level 15+, 25 RP) =====
-  SPEC_DEF_Guardian = 'SPEC_DEF_GUARDIAN',               // DEF: 200, Mastery 0%+
-  SPEC_DEF_Fortress = 'SPEC_DEF_FORTRESS',               // DEF: 280, Mastery 0%+
-  SPEC_DEF_Citadel = 'SPEC_DEF_CITADEL',                 // DEF: 360, Mastery 25%+
-  SPEC_DEF_Bulwark = 'SPEC_DEF_BULWARK',                 // DEF: 480, Mastery 75%+
-  SPEC_DEF_Invincible = 'SPEC_DEF_INVINCIBLE',           // DEF: 620, Mastery 100%
-
-  // ===== SPECIALIZED UNITS (Tactical Doctrine, Level 15+, 25 RP) =====
-  SPEC_TAC_Striker = 'SPEC_TAC_STRIKER',                 // Balanced: 120/120, Mastery 0%+
-  SPEC_TAC_Vanguard = 'SPEC_TAC_VANGUARD',               // Balanced: 160/160, Mastery 0%+
-  SPEC_TAC_Elite = 'SPEC_TAC_ELITE',                     // Balanced: 210/210, Mastery 25%+
-  SPEC_TAC_Commander = 'SPEC_TAC_COMMANDER',             // Balanced: 280/280, Mastery 75%+
-  SPEC_TAC_Supreme = 'SPEC_TAC_SUPREME',                 // Balanced: 360/360, Mastery 100%
-
-  // ===== PRESTIGE UNITS (Achievement Unlocks) =====
-  PRESTIGE_TITAN = 'PRESTIGE_TITAN',                     // STR: 700, Achievement: Warlord
-  PRESTIGE_FABRICATOR = 'PRESTIGE_FABRICATOR',           // Balanced: 400/400, Achievement: Master Builder
-  PRESTIGE_OVERLORD = 'PRESTIGE_OVERLORD',               // STR: 1000, Achievement: Army Supreme
-  PRESTIGE_HARVESTER = 'PRESTIGE_HARVESTER',             // Balanced: 450/450, Achievement: Resource Magnate
-  PRESTIGE_VAULT_KEEPER = 'PRESTIGE_VAULT_KEEPER',       // DEF: 800, Achievement: The Banker
-  PRESTIGE_MYSTIC = 'PRESTIGE_MYSTIC',                   // Balanced: 500/500, Achievement: Shrine Devotee
-  PRESTIGE_ANCIENT_SENTINEL = 'PRESTIGE_ANCIENT_SENTINEL', // Balanced: 550/550, Achievement: Archaeologist
-  PRESTIGE_SPELUNKER = 'PRESTIGE_SPELUNKER',             // Balanced: 400/400, Achievement: Cave Explorer
-  PRESTIGE_CHAMPION = 'PRESTIGE_CHAMPION',               // Balanced: 600/600, Achievement: Legend
-  PRESTIGE_APEX_PREDATOR = 'PRESTIGE_APEX_PREDATOR',     // STR: 900, Achievement: Master Specialist
-}
+/**
+ * Reverse mapping: DB unit_type value → archetype category
+ */
+export const UNIT_TYPE_ARCHETTE: Record<UnitType, UnitArchetype> = {
+  // Strikers
+  'T1_RIFLEMAN': 'STRIKER',
+  'T2_COMMANDO': 'STRIKER',
+  'T3_STRIKER': 'STRIKER',
+  'T4_TITAN': 'STRIKER',
+  'T5_OVERLORD': 'STRIKER',
+  // Bulwarks
+  'T1_BUNKER': 'BULWARK',
+  'T2_FORTRESS': 'BULWARK',
+  'T3_CITADEL': 'BULWARK',
+  'T4_STRONGHOLD': 'BULWARK',
+  'T5_BASTION': 'BULWARK',
+  // Artillery
+  'T1_TURRET': 'ARTILLERY',
+  'T2_CANNON': 'ARTILLERY',
+  'T3_ARTILLERY': 'ARTILLERY',
+  'T4_DREADNOUGHT': 'ARTILLERY',
+  'T5_LEVIATHAN': 'ARTILLERY',
+  // Support
+  'T1_SHIELD': 'SUPPORT',
+  'T2_SENTINEL': 'SUPPORT',
+  'T3_GUARDIAN': 'SUPPORT',
+  'T4_COLOSSUS': 'SUPPORT',
+  'T5_IMMORTAL': 'SUPPORT',
+};
 
 /**
  * Unit configuration for building
  * 
  * @property type - Unit type identifier
  * @property name - Display name
+ * @property archetype - Combat role (STRIKER/BULWARK/ARTILLERY/SUPPORT)
  * @property tier - Unit tier (1-5)
  * @property metalCost - Metal resource cost
  * @property energyCost - Energy resource cost
@@ -998,10 +1009,14 @@ export enum UnitType {
  * @property defense - Defensive power (DEF)
  * @property levelRequired - Minimum player level to unlock
  * @property rpRequired - Research Points needed to unlock tier (one-time cost)
+ *
+ * FID-20260511-FACTORY-UNIT-REDESIGN: Added archetype field for intransitive combat.
  */
 export interface UnitConfig {
   type: UnitType;
   name: string;
+  description: string;
+  archetype: UnitArchetype;
   tier: UnitTier;
   metalCost: number;
   energyCost: number;
@@ -1016,833 +1031,316 @@ export interface UnitConfig {
  * Available unit configurations
  */
 /**
- * Complete unit configurations for all 40 units (5 tiers × 8 units)
- * 
- * BALANCING PHILOSOPHY:
- * - Tier 1: Entry-level units (Level 1+, 0 RP)
- * - Tier 2: Mid-game units (Level 5+, 5 RP to unlock tier)
- * - Tier 3: Advanced units (Level 10+, 15 RP to unlock tier)
- * - Tier 4: Elite units (Level 20+, 30 RP to unlock tier)
- * - Tier 5: Legendary units (Level 30+, 50 RP to unlock tier)
- * 
- * COST SCALING:
- * - Metal/Energy costs scale exponentially per tier
- * - Higher tiers require more factory slots
- * - STR/DEF values scale progressively within each tier
+ * Complete unit configurations for all 20 units (4 archetypes × 5 tiers)
+ *
+ * BALANCING PHILOSOPHY — ORTHOGONAL COST SCALING:
+ * - Higher tiers are MORE slot-efficient but LESS resource-efficient
+ * - T1: Cheap metal/energy, massive slot consumption (good for early game)
+ * - T5: Expensive metal/energy, minimal slot consumption (good for late game)
+ * - This creates meaningful choice: resources vs slots
+ *
+ * INTRANSITIVE COMBAT:
+ * - Strikers deal 130% damage to Bulwarks
+ * - Bulwarks absorb 70% of incoming damage (frontline)
+ * - Artillery strikes Support units first (disrupt multipliers)
+ * - Support amplifies STR/DEF of Strikers and Bulwarks (diminishing returns, max +60%)
+ *
+ * FID-20260511-FACTORY-UNIT-REDESIGN: Replaced 65 bloated mirrored STR/DEF pairs
+ * with 20 focused units across 4 archetypes. Each unit has a distinct tactical role.
  */
-export const UNIT_CONFIGS: Record<UnitType, UnitConfig> = {
-  // ==================== TIER 1: Basic Units ====================
-  // STR Units
-  [UnitType.T1_Rifleman]: {
-    type: UnitType.T1_Rifleman,
-    name: 'Rifleman',
-    tier: UnitTier.Tier1,
-    metalCost: 200,
-    energyCost: 100,
-    slotCost: 100,
-    strength: 5,
-    defense: 0,
-    levelRequired: 1,
-    rpRequired: 0
-  },
-  [UnitType.T1_Scout]: {
-    type: UnitType.T1_Scout,
-    name: 'Scout',
+export const UNIT_CONFIGS: Record<string, UnitConfig> = {
+  // ==================== STRIKER ARCHETYPE (Offense Focus) ====================
+  // High STR, negligible DEF. The spear. Deals 130% damage to Bulwarks.
+  'T1_RIFLEMAN': {
+    type: 'T1_RIFLEMAN',
+    description: 'Basic infantry. Deals 130% damage to Bulwarks in combat.',
+    name: 'Vanguard Infantry',
+    archetype: 'STRIKER',
     tier: UnitTier.Tier1,
     metalCost: 300,
     energyCost: 150,
     slotCost: 100,
-    strength: 8,
+    strength: 10,
     defense: 0,
     levelRequired: 1,
     rpRequired: 0
   },
-  [UnitType.T1_Grenadier]: {
-    type: UnitType.T1_Grenadier,
-    name: 'Grenadier',
+  'T2_COMMANDO': {
+    type: 'T2_COMMANDO',
+    description: 'Elite assault armor. High STR damage, counters defensive lines.',
+    name: 'Assault Armor',
+    archetype: 'STRIKER',
+    tier: UnitTier.Tier2,
+    metalCost: 1400,
+    energyCost: 700,
+    slotCost: 250,
+    strength: 35,
+    defense: 0,
+    levelRequired: 10,
+    rpRequired: 50
+  },
+  'T3_STRIKER': {
+    type: 'T3_STRIKER',
+    description: 'Plasma-armed gunship. Devastating offensive power.',
+    name: 'Plasma Gunship',
+    archetype: 'STRIKER',
+    tier: UnitTier.Tier3,
+    metalCost: 4500,
+    energyCost: 2250,
+    slotCost: 450,
+    strength: 90,
+    defense: 0,
+    levelRequired: 20,
+    rpRequired: 150
+  },
+  'T4_TITAN': {
+    type: 'T4_TITAN',
+    description: 'Orbital destroyer. Massive STR output against hardened targets.',
+    name: 'Orbital Destroyer',
+    archetype: 'STRIKER',
+    tier: UnitTier.Tier4,
+    metalCost: 13000,
+    energyCost: 6500,
+    slotCost: 700,
+    strength: 200,
+    defense: 0,
+    levelRequired: 35,
+    rpRequired: 350
+  },
+  'T5_OVERLORD': {
+    type: 'T5_OVERLORD',
+    description: 'Singularity-powered titan. Absolute offensive supremacy.',
+    name: 'Singularity Titan',
+    archetype: 'STRIKER',
+    tier: UnitTier.Tier5,
+    metalCost: 34000,
+    energyCost: 17000,
+    slotCost: 1000,
+    strength: 400,
+    defense: 0,
+    levelRequired: 50,
+    rpRequired: 750
+  },
+
+  // ==================== BULWARK ARCHETYPE (Defense Focus) ====================
+  // High DEF, negligible STR. The shield. Absorbs 70% of incoming damage.
+  'T1_BUNKER': {
+    type: 'T1_BUNKER',
+    description: 'Frontline bunker. High DEF absorbs incoming damage for allies.',
+    name: 'Aegis Drone',
+    archetype: 'BULWARK',
     tier: UnitTier.Tier1,
-    metalCost: 400,
+    metalCost: 250,
+    energyCost: 150,
+    slotCost: 100,
+    strength: 0,
+    defense: 10,
+    levelRequired: 1,
+    rpRequired: 0
+  },
+  'T2_FORTRESS': {
+    type: 'T2_FORTRESS',
+    description: 'Phalanx mech. Reinforced defense for holding the line.',
+    name: 'Phalanx Mech',
+    archetype: 'BULWARK',
+    tier: UnitTier.Tier2,
+    metalCost: 1200,
+    energyCost: 600,
+    slotCost: 250,
+    strength: 0,
+    defense: 35,
+    levelRequired: 10,
+    rpRequired: 50
+  },
+  'T3_CITADEL': {
+    type: 'T3_CITADEL',
+    description: 'Shield cruiser. Mobile fortress with exceptional durability.',
+    name: 'Shield Cruiser',
+    archetype: 'BULWARK',
+    tier: UnitTier.Tier3,
+    metalCost: 3800,
+    energyCost: 1900,
+    slotCost: 450,
+    strength: 0,
+    defense: 90,
+    levelRequired: 20,
+    rpRequired: 150
+  },
+  'T4_STRONGHOLD': {
+    type: 'T4_STRONGHOLD',
+    description: 'Void bastion. Nearly impenetrable defensive position.',
+    name: 'Void Bastion',
+    archetype: 'BULWARK',
+    tier: UnitTier.Tier4,
+    metalCost: 11000,
+    energyCost: 5500,
+    slotCost: 700,
+    strength: 0,
+    defense: 200,
+    levelRequired: 35,
+    rpRequired: 350
+  },
+  'T5_BASTION': {
+    type: 'T5_BASTION',
+    description: 'Citadel leviathan. Ultimate defensive bulwark.',
+    name: 'Citadel Leviathan',
+    archetype: 'BULWARK',
+    tier: UnitTier.Tier5,
+    metalCost: 28000,
+    energyCost: 14000,
+    slotCost: 1000,
+    strength: 0,
+    defense: 400,
+    levelRequired: 50,
+    rpRequired: 750
+  },
+
+  // ==================== ARTILLERY ARCHETYPE (Anti-Support Focus) ====================
+  // Moderate STR, targets Support first. The hammer. Disrupts enemy multipliers.
+  'T1_TURRET': {
+    type: 'T1_TURRET',
+    description: 'Auto-turret. Strikes enemy Support units first in combat.',
+    name: 'Mortar Squad',
+    archetype: 'ARTILLERY',
+    tier: UnitTier.Tier1,
+    metalCost: 350,
     energyCost: 200,
-    slotCost: 100,
-    strength: 12,
-    defense: 0,
-    levelRequired: 1,
-    rpRequired: 0
-  },
-  [UnitType.T1_Sniper]: {
-    type: UnitType.T1_Sniper,
-    name: 'Sniper',
-    tier: UnitTier.Tier1,
-    metalCost: 500,
-    energyCost: 250,
-    slotCost: 100,
+    slotCost: 120,
     strength: 15,
     defense: 0,
     levelRequired: 1,
     rpRequired: 0
   },
-  
-  // DEF Units
-  [UnitType.T1_Bunker]: {
-    type: UnitType.T1_Bunker,
-    name: 'Bunker',
+  'T2_CANNON': {
+    type: 'T2_CANNON',
+    description: 'Rocket battery. Suppresses support lines with barrages.',
+    name: 'Rocket Battery',
+    archetype: 'ARTILLERY',
+    tier: UnitTier.Tier2,
+    metalCost: 1600,
+    energyCost: 800,
+    slotCost: 280,
+    strength: 45,
+    defense: 0,
+    levelRequired: 10,
+    rpRequired: 50
+  },
+  'T3_ARTILLERY': {
+    type: 'T3_ARTILLERY',
+    description: 'Railgun emplacement. Precision anti-support strikes.',
+    name: 'Railgun Emplacement',
+    archetype: 'ARTILLERY',
+    tier: UnitTier.Tier3,
+    metalCost: 5000,
+    energyCost: 2500,
+    slotCost: 500,
+    strength: 110,
+    defense: 0,
+    levelRequired: 20,
+    rpRequired: 150
+  },
+  'T4_DREADNOUGHT': {
+    type: 'T4_DREADNOUGHT',
+    description: 'Orbital strike platform. Devastates support formations.',
+    name: 'Orbital Strike',
+    archetype: 'ARTILLERY',
+    tier: UnitTier.Tier4,
+    metalCost: 14000,
+    energyCost: 7000,
+    slotCost: 750,
+    strength: 230,
+    defense: 0,
+    levelRequired: 35,
+    rpRequired: 350
+  },
+  'T5_LEVIATHAN': {
+    type: 'T5_LEVIATHAN',
+    description: 'Annihilator cannon. Erases entire support networks.',
+    name: 'Annihilator Cannon',
+    archetype: 'ARTILLERY',
+    tier: UnitTier.Tier5,
+    metalCost: 36000,
+    energyCost: 18000,
+    slotCost: 1100,
+    strength: 450,
+    defense: 0,
+    levelRequired: 50,
+    rpRequired: 750
+  },
+
+  // ==================== SUPPORT ARCHETYPE (Multiplier/Buffer) ====================
+  // Zero combat stats. The multiplier. Amplifies STR/DEF of Strikers and Bulwarks.
+  // Vulnerable to Artillery. Uses diminishing returns curve (max +60% buff).
+  'T1_SHIELD': {
+    type: 'T1_SHIELD',
+    description: 'Comms relay. Amplifies allied STR/DEF in combat (up to +60%).',
+    name: 'Comms Relay',
+    archetype: 'SUPPORT',
     tier: UnitTier.Tier1,
     metalCost: 200,
     energyCost: 100,
-    slotCost: 100,
+    slotCost: 80,
     strength: 0,
-    defense: 5,
+    defense: 0,
     levelRequired: 1,
     rpRequired: 0
   },
-  [UnitType.T1_Barrier]: {
-    type: UnitType.T1_Barrier,
-    name: 'Barrier',
-    tier: UnitTier.Tier1,
-    metalCost: 300,
-    energyCost: 150,
-    slotCost: 100,
+  'T2_SENTINEL': {
+    type: 'T2_SENTINEL',
+    description: 'Tactical link. Enhances unit coordination and effectiveness.',
+    name: 'Tactical Link',
+    archetype: 'SUPPORT',
+    tier: UnitTier.Tier2,
+    metalCost: 1000,
+    energyCost: 500,
+    slotCost: 180,
     strength: 0,
-    defense: 8,
-    levelRequired: 1,
-    rpRequired: 0
-  },
-  [UnitType.T1_Turret]: {
-    type: UnitType.T1_Turret,
-    name: 'Turret',
-    tier: UnitTier.Tier1,
-    metalCost: 400,
-    energyCost: 200,
-    slotCost: 100,
-    strength: 0,
-    defense: 12,
-    levelRequired: 1,
-    rpRequired: 0
-  },
-  [UnitType.T1_Shield]: {
-    type: UnitType.T1_Shield,
-    name: 'Shield Generator',
-    tier: UnitTier.Tier1,
-    metalCost: 500,
-    energyCost: 250,
-    slotCost: 100,
-    strength: 0,
-    defense: 15,
-    levelRequired: 1,
-    rpRequired: 0
-  },
-
-  // ==================== TIER 2: Improved Units ====================
-  // STR Units
-  [UnitType.T2_Commando]: {
-    type: UnitType.T2_Commando,
-    name: 'Commando',
-    tier: UnitTier.Tier2,
-    metalCost: 1200,
-    energyCost: 600,
-    slotCost: 300,
-    strength: 30,
-    defense: 0,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  [UnitType.T2_Ranger]: {
-    type: UnitType.T2_Ranger,
-    name: 'Ranger',
-    tier: UnitTier.Tier2,
-    metalCost: 1600,
-    energyCost: 800,
-    slotCost: 300,
-    strength: 40,
-    defense: 0,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  [UnitType.T2_Assassin]: {
-    type: UnitType.T2_Assassin,
-    name: 'Assassin',
-    tier: UnitTier.Tier2,
-    metalCost: 2000,
-    energyCost: 1000,
-    slotCost: 300,
-    strength: 50,
-    defense: 0,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  [UnitType.T2_Demolisher]: {
-    type: UnitType.T2_Demolisher,
-    name: 'Demolisher',
-    tier: UnitTier.Tier2,
-    metalCost: 2400,
-    energyCost: 1200,
-    slotCost: 300,
-    strength: 60,
-    defense: 0,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  
-  // DEF Units
-  [UnitType.T2_Fortress]: {
-    type: UnitType.T2_Fortress,
-    name: 'Fortress',
-    tier: UnitTier.Tier2,
-    metalCost: 1200,
-    energyCost: 600,
-    slotCost: 300,
-    strength: 0,
-    defense: 30,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  [UnitType.T2_Barricade]: {
-    type: UnitType.T2_Barricade,
-    name: 'Barricade',
-    tier: UnitTier.Tier2,
-    metalCost: 1600,
-    energyCost: 800,
-    slotCost: 300,
-    strength: 0,
-    defense: 40,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  [UnitType.T2_Cannon]: {
-    type: UnitType.T2_Cannon,
-    name: 'Cannon',
-    tier: UnitTier.Tier2,
-    metalCost: 2000,
-    energyCost: 1000,
-    slotCost: 300,
-    strength: 0,
-    defense: 50,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-  [UnitType.T2_Sentinel]: {
-    type: UnitType.T2_Sentinel,
-    name: 'Sentinel',
-    tier: UnitTier.Tier2,
-    metalCost: 2400,
-    energyCost: 1200,
-    slotCost: 300,
-    strength: 0,
-    defense: 60,
-    levelRequired: 5,
-    rpRequired: 5
-  },
-
-  // ==================== TIER 3: Advanced Units ====================
-  // STR Units
-  [UnitType.T3_Striker]: {
-    type: UnitType.T3_Striker,
-    name: 'Striker',
-    tier: UnitTier.Tier3,
-    metalCost: 3600,
-    energyCost: 1800,
-    slotCost: 700,
-    strength: 90,
     defense: 0,
     levelRequired: 10,
-    rpRequired: 15
-  },
-  [UnitType.T3_Raider]: {
-    type: UnitType.T3_Raider,
-    name: 'Raider',
-    tier: UnitTier.Tier3,
-    metalCost: 4200,
-    energyCost: 2100,
-    slotCost: 700,
-    strength: 105,
-    defense: 0,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-  [UnitType.T3_Enforcer]: {
-    type: UnitType.T3_Enforcer,
-    name: 'Enforcer',
-    tier: UnitTier.Tier3,
-    metalCost: 4800,
-    energyCost: 2400,
-    slotCost: 700,
-    strength: 120,
-    defense: 0,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-  [UnitType.T3_Warlord]: {
-    type: UnitType.T3_Warlord,
-    name: 'Warlord',
-    tier: UnitTier.Tier3,
-    metalCost: 5400,
-    energyCost: 2700,
-    slotCost: 700,
-    strength: 135,
-    defense: 0,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-  
-  // DEF Units
-  [UnitType.T3_Citadel]: {
-    type: UnitType.T3_Citadel,
-    name: 'Citadel',
-    tier: UnitTier.Tier3,
-    metalCost: 3600,
-    energyCost: 1800,
-    slotCost: 700,
-    strength: 0,
-    defense: 90,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-  [UnitType.T3_Bulwark]: {
-    type: UnitType.T3_Bulwark,
-    name: 'Bulwark',
-    tier: UnitTier.Tier3,
-    metalCost: 4200,
-    energyCost: 2100,
-    slotCost: 700,
-    strength: 0,
-    defense: 105,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-  [UnitType.T3_Artillery]: {
-    type: UnitType.T3_Artillery,
-    name: 'Artillery',
-    tier: UnitTier.Tier3,
-    metalCost: 4800,
-    energyCost: 2400,
-    slotCost: 700,
-    strength: 0,
-    defense: 120,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-  [UnitType.T3_Guardian]: {
-    type: UnitType.T3_Guardian,
-    name: 'Guardian',
-    tier: UnitTier.Tier3,
-    metalCost: 5400,
-    energyCost: 2700,
-    slotCost: 700,
-    strength: 0,
-    defense: 135,
-    levelRequired: 10,
-    rpRequired: 15
-  },
-
-  // ==================== TIER 4: Elite Units ====================
-  // STR Units
-  [UnitType.T4_Titan]: {
-    type: UnitType.T4_Titan,
-    name: 'Titan',
-    tier: UnitTier.Tier4,
-    metalCost: 7200,
-    energyCost: 3600,
-    slotCost: 1500,
-    strength: 180,
-    defense: 0,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  [UnitType.T4_Juggernaut]: {
-    type: UnitType.T4_Juggernaut,
-    name: 'Juggernaut',
-    tier: UnitTier.Tier4,
-    metalCost: 8400,
-    energyCost: 4200,
-    slotCost: 1500,
-    strength: 210,
-    defense: 0,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  [UnitType.T4_Destroyer]: {
-    type: UnitType.T4_Destroyer,
-    name: 'Destroyer',
-    tier: UnitTier.Tier4,
-    metalCost: 9600,
-    energyCost: 4800,
-    slotCost: 1500,
-    strength: 240,
-    defense: 0,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  [UnitType.T4_Annihilator]: {
-    type: UnitType.T4_Annihilator,
-    name: 'Annihilator',
-    tier: UnitTier.Tier4,
-    metalCost: 10800,
-    energyCost: 5400,
-    slotCost: 1500,
-    strength: 270,
-    defense: 0,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  
-  // DEF Units
-  [UnitType.T4_Stronghold]: {
-    type: UnitType.T4_Stronghold,
-    name: 'Stronghold',
-    tier: UnitTier.Tier4,
-    metalCost: 7200,
-    energyCost: 3600,
-    slotCost: 1500,
-    strength: 0,
-    defense: 180,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  [UnitType.T4_Rampart]: {
-    type: UnitType.T4_Rampart,
-    name: 'Rampart',
-    tier: UnitTier.Tier4,
-    metalCost: 8400,
-    energyCost: 4200,
-    slotCost: 1500,
-    strength: 0,
-    defense: 210,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  [UnitType.T4_Dreadnought]: {
-    type: UnitType.T4_Dreadnought,
-    name: 'Dreadnought',
-    tier: UnitTier.Tier4,
-    metalCost: 9600,
-    energyCost: 4800,
-    slotCost: 1500,
-    strength: 0,
-    defense: 240,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-  [UnitType.T4_Colossus]: {
-    type: UnitType.T4_Colossus,
-    name: 'Colossus',
-    tier: UnitTier.Tier4,
-    metalCost: 10800,
-    energyCost: 5400,
-    slotCost: 1500,
-    strength: 0,
-    defense: 270,
-    levelRequired: 20,
-    rpRequired: 30
-  },
-
-  // ==================== TIER 5: Legendary Units ====================
-  // STR Units
-  [UnitType.T5_Overlord]: {
-    type: UnitType.T5_Overlord,
-    name: 'Overlord',
-    tier: UnitTier.Tier5,
-    metalCost: 14400,
-    energyCost: 7200,
-    slotCost: 3000,
-    strength: 360,
-    defense: 0,
-    levelRequired: 30,
     rpRequired: 50
   },
-  [UnitType.T5_Conqueror]: {
-    type: UnitType.T5_Conqueror,
-    name: 'Conqueror',
-    tier: UnitTier.Tier5,
-    metalCost: 16800,
-    energyCost: 8400,
-    slotCost: 3000,
-    strength: 420,
-    defense: 0,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-  [UnitType.T5_Devastator]: {
-    type: UnitType.T5_Devastator,
-    name: 'Devastator',
-    tier: UnitTier.Tier5,
-    metalCost: 19200,
-    energyCost: 9600,
-    slotCost: 3000,
-    strength: 480,
-    defense: 0,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-  [UnitType.T5_Apocalypse]: {
-    type: UnitType.T5_Apocalypse,
-    name: 'Apocalypse',
-    tier: UnitTier.Tier5,
-    metalCost: 21600,
-    energyCost: 10800,
-    slotCost: 3000,
-    strength: 540,
-    defense: 0,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-  
-  // DEF Units
-  [UnitType.T5_Bastion]: {
-    type: UnitType.T5_Bastion,
-    name: 'Bastion',
-    tier: UnitTier.Tier5,
-    metalCost: 14400,
-    energyCost: 7200,
-    slotCost: 3000,
-    strength: 0,
-    defense: 360,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-  [UnitType.T5_Monolith]: {
-    type: UnitType.T5_Monolith,
-    name: 'Monolith',
-    tier: UnitTier.Tier5,
-    metalCost: 16800,
-    energyCost: 8400,
-    slotCost: 3000,
-    strength: 0,
-    defense: 420,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-  [UnitType.T5_Leviathan]: {
-    type: UnitType.T5_Leviathan,
-    name: 'Leviathan',
-    tier: UnitTier.Tier5,
-    metalCost: 19200,
-    energyCost: 9600,
-    slotCost: 3000,
-    strength: 0,
-    defense: 480,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-  [UnitType.T5_Immortal]: {
-    type: UnitType.T5_Immortal,
-    name: 'Immortal',
-    tier: UnitTier.Tier5,
-    metalCost: 21600,
-    energyCost: 10800,
-    slotCost: 3000,
-    strength: 0,
-    defense: 540,
-    levelRequired: 30,
-    rpRequired: 50
-  },
-
-  // ==================== SPECIALIZED UNITS: Offensive Doctrine ====================
-  [UnitType.SPEC_OFF_Vanguard]: {
-    type: UnitType.SPEC_OFF_Vanguard,
-    name: 'Vanguard',
-    tier: UnitTier.Tier2, // Classified as Tier2 for balance purposes
-    metalCost: 4000,
-    energyCost: 2000,
-    slotCost: 200,
-    strength: 200,
-    defense: 0,
-    levelRequired: 15,
-    rpRequired: 25 // Must choose Offensive specialization
-  },
-  [UnitType.SPEC_OFF_Berserker]: {
-    type: UnitType.SPEC_OFF_Berserker,
-    name: 'Berserker',
+  'T3_GUARDIAN': {
+    type: 'T3_GUARDIAN',
+    description: 'Command network. Directs battlefield with advanced tactics.',
+    name: 'Command Network',
+    archetype: 'SUPPORT',
     tier: UnitTier.Tier3,
-    metalCost: 6500,
-    energyCost: 3250,
-    slotCost: 300,
-    strength: 280,
+    metalCost: 3200,
+    energyCost: 1600,
+    slotCost: 350,
+    strength: 0,
     defense: 0,
-    levelRequired: 15,
-    rpRequired: 25
+    levelRequired: 20,
+    rpRequired: 150
   },
-  [UnitType.SPEC_OFF_Executioner]: {
-    type: UnitType.SPEC_OFF_Executioner,
-    name: 'Executioner',
-    tier: UnitTier.Tier3,
+  'T4_COLOSSUS': {
+    type: 'T4_COLOSSUS',
+    description: 'War council. Orchestrates large-scale combat operations.',
+    name: 'War Council',
+    archetype: 'SUPPORT',
+    tier: UnitTier.Tier4,
     metalCost: 9000,
     energyCost: 4500,
-    slotCost: 300,
-    strength: 360,
+    slotCost: 550,
+    strength: 0,
     defense: 0,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 25%+ mastery
+    levelRequired: 35,
+    rpRequired: 350
   },
-  [UnitType.SPEC_OFF_Annihilator]: {
-    type: UnitType.SPEC_OFF_Annihilator,
-    name: 'Annihilator',
-    tier: UnitTier.Tier4,
-    metalCost: 12000,
-    energyCost: 6000,
-    slotCost: 400,
-    strength: 480,
-    defense: 0,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 75%+ mastery
-  },
-  [UnitType.SPEC_OFF_Warmonger]: {
-    type: UnitType.SPEC_OFF_Warmonger,
-    name: 'Warmonger',
-    tier: UnitTier.Tier5,
-    metalCost: 16000,
-    energyCost: 8000,
-    slotCost: 500,
-    strength: 620,
-    defense: 0,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 100% mastery
-  },
-
-  // ==================== SPECIALIZED UNITS: Defensive Doctrine ====================
-  [UnitType.SPEC_DEF_Guardian]: {
-    type: UnitType.SPEC_DEF_Guardian,
-    name: 'Guardian',
-    tier: UnitTier.Tier2,
-    metalCost: 4000,
-    energyCost: 2000,
-    slotCost: 200,
-    strength: 0,
-    defense: 200,
-    levelRequired: 15,
-    rpRequired: 25 // Must choose Defensive specialization
-  },
-  [UnitType.SPEC_DEF_Fortress]: {
-    type: UnitType.SPEC_DEF_Fortress,
-    name: 'Fortress',
-    tier: UnitTier.Tier3,
-    metalCost: 6500,
-    energyCost: 3250,
-    slotCost: 300,
-    strength: 0,
-    defense: 280,
-    levelRequired: 15,
-    rpRequired: 25
-  },
-  [UnitType.SPEC_DEF_Citadel]: {
-    type: UnitType.SPEC_DEF_Citadel,
-    name: 'Citadel',
-    tier: UnitTier.Tier3,
-    metalCost: 9000,
-    energyCost: 4500,
-    slotCost: 300,
-    strength: 0,
-    defense: 360,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 25%+ mastery
-  },
-  [UnitType.SPEC_DEF_Bulwark]: {
-    type: UnitType.SPEC_DEF_Bulwark,
-    name: 'Bulwark',
-    tier: UnitTier.Tier4,
-    metalCost: 12000,
-    energyCost: 6000,
-    slotCost: 400,
-    strength: 0,
-    defense: 480,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 75%+ mastery
-  },
-  [UnitType.SPEC_DEF_Invincible]: {
-    type: UnitType.SPEC_DEF_Invincible,
-    name: 'Invincible',
-    tier: UnitTier.Tier5,
-    metalCost: 16000,
-    energyCost: 8000,
-    slotCost: 500,
-    strength: 0,
-    defense: 620,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 100% mastery
-  },
-
-  // ==================== SPECIALIZED UNITS: Tactical Doctrine ====================
-  [UnitType.SPEC_TAC_Striker]: {
-    type: UnitType.SPEC_TAC_Striker,
-    name: 'Striker',
-    tier: UnitTier.Tier2,
-    metalCost: 4500,
-    energyCost: 2250,
-    slotCost: 200,
-    strength: 120,
-    defense: 120,
-    levelRequired: 15,
-    rpRequired: 25 // Must choose Tactical specialization
-  },
-  [UnitType.SPEC_TAC_Vanguard]: {
-    type: UnitType.SPEC_TAC_Vanguard,
-    name: 'Tactical Vanguard',
-    tier: UnitTier.Tier3,
-    metalCost: 7000,
-    energyCost: 3500,
-    slotCost: 300,
-    strength: 160,
-    defense: 160,
-    levelRequired: 15,
-    rpRequired: 25
-  },
-  [UnitType.SPEC_TAC_Elite]: {
-    type: UnitType.SPEC_TAC_Elite,
-    name: 'Elite Operative',
-    tier: UnitTier.Tier3,
-    metalCost: 10000,
-    energyCost: 5000,
-    slotCost: 300,
-    strength: 210,
-    defense: 210,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 25%+ mastery
-  },
-  [UnitType.SPEC_TAC_Commander]: {
-    type: UnitType.SPEC_TAC_Commander,
-    name: 'Commander',
-    tier: UnitTier.Tier4,
-    metalCost: 13000,
-    energyCost: 6500,
-    slotCost: 400,
-    strength: 280,
-    defense: 280,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 75%+ mastery
-  },
-  [UnitType.SPEC_TAC_Supreme]: {
-    type: UnitType.SPEC_TAC_Supreme,
-    name: 'Supreme Commander',
-    tier: UnitTier.Tier5,
-    metalCost: 17000,
-    energyCost: 8500,
-    slotCost: 500,
-    strength: 360,
-    defense: 360,
-    levelRequired: 15,
-    rpRequired: 25 // Requires 100% mastery
-  },
-
-  // ==================== PRESTIGE UNITS (Achievement Unlocks) ====================
-  [UnitType.PRESTIGE_TITAN]: {
-    type: UnitType.PRESTIGE_TITAN,
-    name: 'Prestige Titan',
-    tier: UnitTier.Tier5,
-    metalCost: 25000,
-    energyCost: 15000,
-    slotCost: 6,
-    strength: 700,
-    defense: 0,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Warlord achievement
-  },
-  [UnitType.PRESTIGE_FABRICATOR]: {
-    type: UnitType.PRESTIGE_FABRICATOR,
-    name: 'Master Fabricator',
-    tier: UnitTier.Tier5,
-    metalCost: 20000,
-    energyCost: 20000,
-    slotCost: 500,
-    strength: 400,
-    defense: 400,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Master Builder achievement
-  },
-  [UnitType.PRESTIGE_OVERLORD]: {
-    type: UnitType.PRESTIGE_OVERLORD,
-    name: 'Supreme Overlord',
-    tier: UnitTier.Tier5,
-    metalCost: 35000,
-    energyCost: 25000,
-    slotCost: 700,
-    strength: 1000,
-    defense: 0,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Army Supreme achievement
-  },
-  [UnitType.PRESTIGE_HARVESTER]: {
-    type: UnitType.PRESTIGE_HARVESTER,
-    name: 'Mega Harvester',
-    tier: UnitTier.Tier5,
-    metalCost: 22000,
-    energyCost: 22000,
-    slotCost: 500,
-    strength: 450,
-    defense: 450,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Resource Magnate achievement
-  },
-  [UnitType.PRESTIGE_VAULT_KEEPER]: {
-    type: UnitType.PRESTIGE_VAULT_KEEPER,
-    name: 'Vault Keeper',
-    tier: UnitTier.Tier5,
-    metalCost: 30000,
-    energyCost: 18000,
-    slotCost: 6,
-    strength: 0,
-    defense: 800,
-    levelRequired: 1,
-    rpRequired: 0 // Requires The Banker achievement
-  },
-  [UnitType.PRESTIGE_MYSTIC]: {
-    type: UnitType.PRESTIGE_MYSTIC,
-    name: 'Shrine Mystic',
+  'T5_IMMORTAL': {
+    type: 'T5_IMMORTAL',
+    description: 'Supreme command. Transcendent battlefield coordination.',
+    name: 'Supreme Command',
+    archetype: 'SUPPORT',
     tier: UnitTier.Tier5,
     metalCost: 24000,
-    energyCost: 24000,
-    slotCost: 6,
-    strength: 500,
-    defense: 500,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Shrine Devotee achievement
-  },
-  [UnitType.PRESTIGE_ANCIENT_SENTINEL]: {
-    type: UnitType.PRESTIGE_ANCIENT_SENTINEL,
-    name: 'Ancient Sentinel',
-    tier: UnitTier.Tier5,
-    metalCost: 26000,
-    energyCost: 26000,
-    slotCost: 6,
-    strength: 550,
-    defense: 550,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Archaeologist achievement
-  },
-  [UnitType.PRESTIGE_SPELUNKER]: {
-    type: UnitType.PRESTIGE_SPELUNKER,
-    name: 'Master Spelunker',
-    tier: UnitTier.Tier5,
-    metalCost: 20000,
-    energyCost: 20000,
-    slotCost: 500,
-    strength: 400,
-    defense: 400,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Cave Explorer achievement
-  },
-  [UnitType.PRESTIGE_CHAMPION]: {
-    type: UnitType.PRESTIGE_CHAMPION,
-    name: 'Legendary Champion',
-    tier: UnitTier.Tier5,
-    metalCost: 28000,
-    energyCost: 28000,
-    slotCost: 700,
-    strength: 600,
-    defense: 600,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Legend achievement
-  },
-  [UnitType.PRESTIGE_APEX_PREDATOR]: {
-    type: UnitType.PRESTIGE_APEX_PREDATOR,
-    name: 'Apex Predator',
-    tier: UnitTier.Tier5,
-    metalCost: 32000,
-    energyCost: 20000,
-    slotCost: 700,
-    strength: 900,
+    energyCost: 12000,
+    slotCost: 800,
+    strength: 0,
     defense: 0,
-    levelRequired: 1,
-    rpRequired: 0 // Requires Master Specialist achievement
-  }
+    levelRequired: 50,
+    rpRequired: 750
+  },
 };
 
 /**
@@ -1889,19 +1387,21 @@ export function getAvailableUnits(playerLevel: number, unlockedTiers: UnitTier[]
  * @property unitId - Unit blueprint ID from UNIT_BLUEPRINTS
  * @property unitType - Unit type for combat and display
  * @property name - Unit name
- * @property category - STR or DEF category
+ * @property archetype - Combat archetype (STRIKER/BULWARK/ARTILLERY/SUPPORT)
  * @property rarity - Rarity tier
  * @property strength - STR contribution
  * @property defense - DEF contribution
  * @property quantity - Number of units of this type owned
  * @property createdAt - When unit was built
+ *
+ * FID-20260511-FACTORY-UNIT-REDESIGN: Changed category ('STR'|'DEF') to archetype (UnitArchetype).
  */
 export interface PlayerUnit {
   id: string; // Alias for unitId - battle system compatibility
   unitId: string;
   unitType: UnitType; // Added for combat modal and army management compatibility
   name: string;
-  category: 'STR' | 'DEF';
+  archetype: UnitArchetype;
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
   strength: number;
   defense: number;
@@ -2073,6 +1573,12 @@ export interface BattleLog {
   // Battle notes/message
   message?: string;
   notes?: string;
+
+  // Internal tracking (not serialized to DB)
+  _attackerCasualties?: Unit[];
+  _defenderCasualties?: Unit[];
+  _attackerSurvivors?: Unit[];
+  _defenderSurvivors?: Unit[];
 }
 
 /**

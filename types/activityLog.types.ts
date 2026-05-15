@@ -139,20 +139,22 @@ export enum ActionType {
 
 /**
  * Battle outcome types for combat logging
+ * Aligned with game.types.ts BattleOutcome to prevent mapping errors.
  */
 export enum BattleOutcome {
-  ATTACKER_WIN = 'attacker_win',
-  DEFENDER_WIN = 'defender_win',
-  DRAW = 'draw'
+  ATTACKER_WIN = 'ATTACKER_WIN',
+  DEFENDER_WIN = 'DEFENDER_WIN',
+  DRAW = 'DRAW'
 }
 
 /**
  * Battle types for categorizing combat
+ * Aligned with game.types.ts BattleType to prevent mapping errors.
  */
 export enum BattleType {
-  PLAYER_VS_PLAYER = 'pvp',
-  PLAYER_VS_FACTORY = 'pve_factory',
-  CLAN_WAR = 'clan_war'
+  PLAYER_VS_PLAYER = 'INFANTRY',
+  PLAYER_VS_FACTORY = 'FACTORY',
+  CLAN_WAR = 'CLAN_WAR'
 }
 
 // ============================================================================
