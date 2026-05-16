@@ -182,35 +182,66 @@ export default function ChatMessage({
   /**
    * Handle report message
    */
-  const handleReport = useCallback(() => {
-    // TODO Task 8: Implement report API
-    toast.success('Message reported to moderators');
+  const handleReport = useCallback(async () => {
+    try {
+      const response = await fetch('/api/chat/report-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: message.id, reason: 'inappropriate_content' }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success('Message reported to moderators');
+      } else {
+        toast.error(data.message || 'Failed to report message');
+      }
+    } catch {
+      toast.error('Failed to report message');
+    }
     setShowActions(false);
-  }, []);
+  }, [message.id]);
 
-  /**
-   * Handle block user
-   */
-  const handleBlock = useCallback(() => {
-    // TODO Task 8: Implement block API
-    toast.success(`Blocked ${message.senderUsername}`);
+  const handleBlock = useCallback(async () => {
+    try {
+      const response = await fetch('/api/chat/block-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUsername: message.senderUsername }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success(data.alreadyBlocked ? `${message.senderUsername} is already blocked` : `Blocked ${message.senderUsername}`);
+      } else {
+        toast.error(data.message || 'Failed to block user');
+      }
+    } catch {
+      toast.error('Failed to block user');
+    }
     setShowActions(false);
   }, [message.senderUsername]);
 
-  /**
-   * Handle delete message
-   */
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!canDelete) {
       toast.error('You cannot delete this message');
       return;
     }
 
-    // TODO Task 8: Implement delete API
-    if (onDelete) {
-      onDelete(message.id);
+    try {
+      const response = await fetch('/api/chat/delete-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: message.id }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        if (onDelete) onDelete(message.id);
+        toast.success('Message deleted');
+      } else {
+        toast.error(data.message || 'Failed to delete message');
+      }
+    } catch {
+      toast.error('Failed to delete message');
     }
-    toast.success('Message deleted');
     setShowActions(false);
   }, [canDelete, message.id, onDelete]);
 
@@ -220,9 +251,9 @@ export default function ChatMessage({
   const handleProfileClick = useCallback(() => {
     if (onProfileClick) {
       onProfileClick(message.senderUsername);
+    } else {
+      window.location.href = `/profile?username=${encodeURIComponent(message.senderUsername)}`;
     }
-    // TODO: Open profile modal/page
-    toast.info(`Opening profile for ${message.senderUsername}`);
   }, [message.senderUsername, onProfileClick]);
 
   /**
@@ -257,8 +288,7 @@ export default function ChatMessage({
    * Handle item link click
    */
   const handleItemClick = useCallback((itemName: string) => {
-    // TODO: Open item details modal or navigate to auction house
-    toast.info(`View item: ${itemName}`);
+    window.location.href = `/game/auction-house?search=${encodeURIComponent(itemName)}`;
   }, []);
 
   // ============================================================================

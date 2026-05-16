@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Unit, UnitType } from '@/types';
+import type { Unit, UnitType, BattleType } from '@/types';
 
 function createMockSupabase() {
   const chain = {
@@ -108,7 +108,7 @@ describe('battleService', () => {
         makeUnit('T1_RIFLEMAN', 'defender1'),
       ];
 
-      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'infantry', { x: 10, y: 10 });
+      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'INFANTRY' as BattleType, { x: 10, y: 10 });
 
       expect(['ATTACKER_WIN', 'DRAW']).toContain(result.outcome);
       expect(result.rounds.length).toBeGreaterThan(0);
@@ -127,7 +127,7 @@ describe('battleService', () => {
         makeUnit('T3_STRIKER', 'defender1'),
       ];
 
-      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'infantry', { x: 10, y: 10 });
+      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'INFANTRY' as BattleType, { x: 10, y: 10 });
 
       expect(['DEFENDER_WIN', 'DRAW']).toContain(result.outcome);
     });
@@ -137,7 +137,7 @@ describe('battleService', () => {
       const attackerUnits: Unit[] = [];
       const defenderUnits: Unit[] = [makeUnit('T1_RIFLEMAN', 'defender1')];
 
-      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'infantry', { x: 10, y: 10 });
+      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'INFANTRY' as BattleType, { x: 10, y: 10 });
 
       expect(['DEFENDER_WIN', 'DRAW']).toContain(result.outcome);
     });
@@ -147,7 +147,7 @@ describe('battleService', () => {
       const attackerUnits: Unit[] = [makeUnit('T1_RIFLEMAN', 'attacker1')];
       const defenderUnits: Unit[] = [];
 
-      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'infantry', { x: 10, y: 10 });
+      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'INFANTRY' as BattleType, { x: 10, y: 10 });
 
       expect(result.outcome).toBe('ATTACKER_WIN');
     });
@@ -163,7 +163,7 @@ describe('battleService', () => {
         makeUnit('T2_COMMANDO', 'defender1'),
       ];
 
-      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'infantry', { x: 10, y: 10 });
+      const result = await resolveBattle(attackerUnits, defenderUnits, 'attacker1', 'defender1', 'INFANTRY' as BattleType, { x: 10, y: 10 });
 
       expect(result.rounds.length).toBeGreaterThan(0);
       expect(result._attackerCasualties).toBeDefined();

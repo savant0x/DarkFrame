@@ -17,27 +17,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { getActivityLogStats, getActionCountForPeriod } from '@/lib/activityLogService';
 import { getBattleLogStats, getPlayerCombatStatistics } from '@/lib/battleLogService';
 
-/**
- * GET /api/logs/stats
- * 
- * Get log statistics
- * 
- * Query Parameters:
- * - type: Statistics type ('activity', 'battle', 'player')
- * - playerId: Player ID for player-specific stats (required for type=player)
- * - startDate: Filter start date (ISO string)
- * - endDate: Filter end date (ISO string)
- * 
- * @example
- * GET /api/logs/stats?type=activity
- * GET /api/logs/stats?type=battle&startDate=2025-10-01
- * GET /api/logs/stats?type=player&playerId=player1
- */
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireAdminAuth(req);
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = req.nextUrl;
     
     const type = searchParams.get('type') || 'activity';
@@ -45,20 +33,8 @@ export async function GET(req: NextRequest) {
     const startDateParam = searchParams.get('startDate');
     const endDateParam = searchParams.get('endDate');
     
-    // Parse dates
     const startDate = startDateParam ? new Date(startDateParam) : undefined;
     const endDate = endDateParam ? new Date(endDateParam) : undefined;
-    
-    // Authorization check for global stats (admin only)
-    // TODO: Add proper admin role check from database
-    const isAdmin = false; // Replace with actual admin check
-    
-    if (type !== 'player' && !isAdmin) {
-      return NextResponse.json(
-        { error: 'Forbidden: Admin access required for global statistics' },
-        { status: 403 }
-      );
-    }
     
     // Handle different stat types
     switch (type) {

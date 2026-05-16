@@ -25,65 +25,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/authService';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import { queryActivityLogs } from '@/lib/activityLogService';
 import { queryBattleLogs, getPlayerCombatStatistics } from '@/lib/battleLogService';
 
-/**
- * GET /api/logs/player/[id]
- * 
- * Retrieves comprehensive logs for specific player including activity history,
- * battle engagements, and combined statistics.
- * 
- * @param req - Next.js request object
- * @param params - Route parameters containing player ID
- * @returns Combined player logs with activity and battle data
- * 
- * @example
- * GET /api/logs/player/JohnDoe?type=all&limit=50
- * Response: {
- *   playerId: "JohnDoe",
- *   activityLogs: [...],
- *   battleLogs: [...],
- *   stats: { totalActions: 150, totalBattles: 20, ... },
- *   period: { startDate: "...", endDate: "..." }
- * }
- */
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Extract and verify authentication token
-    const token = req.cookies.get('token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAdminAuth(req);
+    if (auth instanceof NextResponse) return auth;
 
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      );
-    }
-    
-  const requestingPlayer = payload.username;
-  const { id } = await context.params;
-  const targetPlayerId = id;
-
-    // Authorization: Users can only view their own logs unless admin
-    // TODO: Add admin role check from user profile/database
-    const isAdmin = false; // Placeholder - implement admin check
-    if (!isAdmin && requestingPlayer !== targetPlayerId) {
-      return NextResponse.json(
-        { error: 'You can only view your own logs' },
-        { status: 403 }
-      );
-    }
+    const { id } = await context.params;
+    const targetPlayerId = id;
 
     // Parse query parameters
     const searchParams = req.nextUrl.searchParams;

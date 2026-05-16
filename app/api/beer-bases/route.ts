@@ -13,10 +13,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   getBeerBaseStats,
-  updateBeerBaseConfig,
   manualBeerBaseRespawn,
+  updateBeerBaseConfig,
   type BeerBaseConfig,
 } from '@/lib/beerBaseService';
 
@@ -47,14 +48,8 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) {
-      return NextResponse.json(
-        { success: false, message: 'Username is required' },
-        { status: 400 }
-      );
-    }
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
 
     const result = await manualBeerBaseRespawn();
 
@@ -87,14 +82,10 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
+    const auth = await requireAdminAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const username = body.username;
-    if (!username) {
-      return NextResponse.json(
-        { success: false, message: 'Username is required' },
-        { status: 400 }
-      );
-    }
     const updates: Partial<BeerBaseConfig> = {};
 
     // Validate and apply updates
@@ -167,8 +158,4 @@ export async function PUT(request: NextRequest) {
 //   - respawnDay: 0-6 (Sunday-Saturday)
 //   - respawnHour: 0-23
 //   - enabled: true/false
-// 
-// TODO: Add proper admin role verification
-// Currently any authenticated user can access these endpoints
-// Should restrict to users with admin: true flag
 // ============================================================

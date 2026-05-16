@@ -142,8 +142,35 @@ export function getSocketIOServer(
     });
 
     socket.on('game:request_tile_info', async (data) => {
-      // TODO: Implement tile info request
-      console.log(`[Socket.io] Tile info requested: (${data.x},${data.y})`);
+      try {
+        const { createServiceClient } = await import('@/lib/supabase/server');
+        const supabase = createServiceClient();
+        const { data: tile, error } = await supabase
+          .from('tiles')
+          .select('*')
+          .eq('x', data.x)
+          .eq('y', data.y)
+          .single();
+
+        if (error || !tile) {
+          socket.emit('game:tile_info_response', { x: data.x, y: data.y, error: 'Tile not found' });
+          return;
+        }
+
+        const t = tile as Record<string, unknown>;
+        socket.emit('game:tile_info_response', {
+          x: t.x,
+          y: t.y,
+          type: t.bank_type || t.type || 'Wasteland',
+          ownedBy: t.base_owner || t.owned_by || null,
+          structure: t.structure || null,
+          resources: t.resources || {},
+          isFactory: t.is_factory || false,
+          isCave: (t.bank_type || t.type) === 'Cave',
+        });
+      } catch (err) {
+        socket.emit('game:tile_info_response', { x: data.x, y: data.y, error: 'Failed to fetch tile info' });
+      }
     });
 
     // ============================================================================

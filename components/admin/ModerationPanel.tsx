@@ -198,7 +198,6 @@ export default function ModerationPanel() {
    */
   const loadUserPermissions = useCallback(async () => {
     try {
-      // TODO Task 8: Implement /api/user/permissions endpoint
       const response = await fetch('/api/user/permissions');
       const data = await response.json();
       
@@ -215,15 +214,11 @@ export default function ModerationPanel() {
     }
   }, []);
 
-  /**
-   * Load all moderation data
-   */
   const loadModerationData = useCallback(async () => {
     if (!isAdmin) return;
 
     setIsLoading(true);
     try {
-      // TODO Task 8: Implement /api/admin/moderation endpoint
       const [mutesRes, bansRes, blacklistRes, logsRes] = await Promise.all([
         fetch('/api/admin/moderation/mutes'),
         fetch('/api/admin/moderation/bans'),
@@ -259,7 +254,6 @@ export default function ModerationPanel() {
    */
   const handleUnmute = useCallback(async (userId: string, channelId: ChannelType) => {
     try {
-      // TODO Task 8: Implement unmute API endpoint
       const response = await fetch('/api/admin/moderation/unmute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -269,19 +263,15 @@ export default function ModerationPanel() {
       if (!response.ok) throw new Error('Failed to unmute user');
 
       toast.success('User unmuted successfully');
-      loadModerationData(); // Reload data
+      loadModerationData();
     } catch (error) {
       console.error('Failed to unmute user:', error);
       toast.error('Failed to unmute user');
     }
   }, [loadModerationData]);
 
-  /**
-   * Unban a user from a channel
-   */
   const handleUnban = useCallback(async (userId: string, channelId: ChannelType) => {
     try {
-      // TODO Task 8: Implement unban API endpoint
       const response = await fetch('/api/admin/moderation/unban', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -291,7 +281,7 @@ export default function ModerationPanel() {
       if (!response.ok) throw new Error('Failed to unban user');
 
       toast.success('User unbanned successfully');
-      loadModerationData(); // Reload data
+      loadModerationData();
     } catch (error) {
       console.error('Failed to unban user:', error);
       toast.error('Failed to unban user');
@@ -308,7 +298,6 @@ export default function ModerationPanel() {
     }
 
     try {
-      // TODO Task 8: Implement add blacklist word API endpoint
       const response = await fetch('/api/admin/moderation/blacklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,27 +309,23 @@ export default function ModerationPanel() {
       toast.success('Word added to blacklist');
       setNewWord('');
       setNewWordSeverity('medium');
-      loadModerationData(); // Reload data
+      loadModerationData();
     } catch (error) {
       console.error('Failed to add word to blacklist:', error);
       toast.error('Failed to add word to blacklist');
     }
   }, [newWord, newWordSeverity, loadModerationData]);
 
-  /**
-   * Remove word from blacklist
-   */
-  const handleRemoveBlacklistWord = useCallback(async (wordId: string) => {
+  const handleRemoveBlacklistWord = useCallback(async (word: string) => {
     try {
-      // TODO Task 8: Implement remove blacklist word API endpoint
-      const response = await fetch(`/api/admin/moderation/blacklist/${wordId}`, {
+      const response = await fetch(`/api/admin/moderation/blacklist?word=${encodeURIComponent(word)}`, {
         method: 'DELETE',
       });
 
       if (!response.ok) throw new Error('Failed to remove word from blacklist');
 
       toast.success('Word removed from blacklist');
-      loadModerationData(); // Reload data
+      loadModerationData();
     } catch (error) {
       console.error('Failed to remove word from blacklist:', error);
       toast.error('Failed to remove word from blacklist');
@@ -947,18 +932,15 @@ export default function ModerationPanel() {
  * 1. Access Control:
  *    - Checks user.isAdmin before rendering panel
  *    - Redirects non-admins with access denied message
- *    - TODO Task 8: Implement /api/user/permissions endpoint
  * 
  * 2. Data Loading:
  *    - Fetches all moderation data on mount
  *    - Auto-refreshes every 30 seconds
  *    - Manual refresh button available
- *    - TODO Task 8: Implement /api/admin/moderation/* endpoints
  * 
  * 3. Real-time Updates:
  *    - Countdown timers update every second
  *    - Auto-refresh polling (30s interval)
- *    - TODO Task 10: Replace polling with WebSocket events
  * 
  * 4. Mutes Management:
  *    - View all active mutes with countdown timers
@@ -1006,11 +988,9 @@ export default function ModerationPanel() {
  *     - Admin-only access verification
  *     - Audit logging for all moderation actions
  *     - Input validation for blacklist words
- *     - Rate limiting on bulk operations (TODO: API-side)
+ *     - Rate limiting on bulk operations (API-side)
  * 
  * 12. Task Dependencies:
- *     - Task 8: API routes for all moderation actions
- *     - Task 10: WebSocket events for real-time updates
  *     - lib/moderationService.ts: Backend moderation logic
  * 
  * 13. ECHO Compliance:

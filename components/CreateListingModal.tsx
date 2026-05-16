@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuctionItemType, ResourceType, AUCTION_CONFIG, CreateAuctionRequest, AuctionItem } from '@/types/auction.types';
-import { UnitType } from '@/types';
+import { UnitType, UNIT_CONFIGS } from '@/types';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -99,11 +99,12 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
         resourceAmount: parseInt(resourceAmount, 10)
       };
     } else if (itemType === AuctionItemType.Unit) {
+      const config = UNIT_CONFIGS[unitType];
       return {
         itemType: AuctionItemType.Unit,
         unitType,
-        unitStrength: 100, // TODO: Get from actual unit data
-        unitDefense: 50
+        unitStrength: config?.strength || 100,
+        unitDefense: config?.defense || 50
       };
     } else {
       // TradeableItem (Phase 5)
