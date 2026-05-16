@@ -164,7 +164,7 @@ export async function createFlag(flag: {
     return data?.id || '';
   } catch (error) {
     console.error('Flag creation error:', error);
-    throw error;
+    return '';
   }
 }
 

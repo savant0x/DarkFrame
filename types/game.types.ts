@@ -968,7 +968,7 @@ export type UnitType = typeof UnitType[keyof typeof UnitType];
 /**
  * Reverse mapping: DB unit_type value → archetype category
  */
-export const UNIT_TYPE_ARCHETTE: Record<UnitType, UnitArchetype> = {
+export const UNIT_TYPE_ARCHETYPE: Record<UnitType, UnitArchetype> = {
   // Strikers
   'T1_RIFLEMAN': 'STRIKER',
   'T2_COMMANDO': 'STRIKER',

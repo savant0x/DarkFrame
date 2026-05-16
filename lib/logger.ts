@@ -21,6 +21,31 @@
 const isDev = process.env.NODE_ENV === 'development';
 
 /**
+ * Fields that may contain PII and should be redacted in production logs
+ */
+const PII_FIELDS = ['email', 'password', 'token', 'session_id', 'stripe_customer_id', 'ip_address', 'phone'];
+
+/**
+ * Redact PII fields from an object for production-safe logging
+ */
+function redactPII(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(redactPII);
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    const lowerKey = key.toLowerCase();
+    if (PII_FIELDS.some(field => lowerKey.includes(field))) {
+      result[key] = '[REDACTED]';
+    } else if (value && typeof value === 'object') {
+      result[key] = redactPII(value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+/**
  * Standardized logger service
  * 
  * Methods:
@@ -71,28 +96,23 @@ export const logger = {
    * logger.warn('Harvest cooldown active', { timeRemaining });
    */
   warn: (message: string, data?: unknown): void => {
-    console.warn(`⚠️  ${message}`, data !== undefined ? data : '');
+    console.warn(`⚠️  ${message}`, isDev ? data : redactPII(data));
   },
 
   /**
    * Error logging (all environments)
    * Use for exceptions and failures
-   * 
-   * @param message - Error message
-   * @param error - Optional error object or additional data
-   * 
-   * @example
-   * logger.error('Failed to fetch player data', error);
+   * PII is redacted in production logs
    */
   error: (message: string, error?: unknown): void => {
     if (error instanceof Error) {
       console.error(`❌ ${message}`, {
         message: error.message,
-        stack: error.stack,
+        stack: isDev ? error.stack : '[HIDDEN]',
         name: error.name
       });
     } else if (error !== undefined) {
-      console.error(`❌ ${message}`, error);
+      console.error(`❌ ${message}`, isDev ? error : redactPII(error));
     } else {
       console.error(`❌ ${message}`);
     }

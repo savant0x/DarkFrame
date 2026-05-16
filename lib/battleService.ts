@@ -33,7 +33,7 @@ import {
   BattleResult,
   CombatRound,
   UNIT_CONFIGS,
-  UNIT_TYPE_ARCHETTE,
+  UNIT_TYPE_ARCHETYPE,
   UnitArchetype,
 } from '@/types';
 import { awardXP, XPAction } from './xpService';
@@ -165,7 +165,7 @@ function unitsToPlayerUnits(units: Unit[], ownerPlayerUnits: PlayerUnit[]): Play
       });
     } else {
       const sampleUnit = typeUnits[0];
-      const archetype = UNIT_TYPE_ARCHETTE[unitType] || 'STRIKER';
+      const archetype = UNIT_TYPE_ARCHETYPE[unitType] || 'STRIKER';
       playerUnits.push({
         id: `${unitType}-playerunit`,
         unitId: `${unitType}-playerunit`,
@@ -212,7 +212,7 @@ const SUPPORT_MAX_BUFF = 0.60;
  * Get archetype for a unit
  */
 function getArchetype(unit: Unit): UnitArchetype {
-  return UNIT_TYPE_ARCHETTE[unit.type] || 'STRIKER';
+  return UNIT_TYPE_ARCHETYPE[unit.type] || 'STRIKER';
 }
 
 /**
