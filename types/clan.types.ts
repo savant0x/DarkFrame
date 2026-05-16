@@ -1432,3 +1432,124 @@ export const CLAN_PERK_CATALOG: ClanPerk[] = [
  *    - Monument bonuses apply to all members
  *    - Territory defense bonuses when on clan land
  */
+
+// ============================================================================
+// CLAN ANALYTICS TYPES (for ClanInspectorModal)
+// ============================================================================
+
+export interface ClanAnalyticsOverview {
+  totalMembers: number;
+  activeMembers7d: number;
+  treasury: { metal: number; energy: number };
+  territoryCount: number;
+  warRecord: { wins: number; losses: number };
+  healthScore: number;
+  createdAt: string;
+}
+
+export interface ClanAnalyticsMember {
+  username: string;
+  role: ClanRole;
+  joinedAt: string;
+  lastActive: string;
+  rpContributed: number;
+  warsParticipated: number;
+  territoriesCaptured: number;
+}
+
+export interface ClanAnalyticsFinancial {
+  totalDeposits: number;
+  totalWithdrawals: number;
+  netFlow: number;
+  taxCollected: number;
+  transactions: Array<{
+    id: string;
+    username: string;
+    type: 'deposit' | 'withdrawal' | 'tax';
+    amount: number;
+    resource: 'metal' | 'energy';
+    createdAt: string;
+  }>;
+}
+
+export interface ClanAnalyticsTerritory {
+  totalTerritories: number;
+  incomePerDay: number;
+  defenseBonus: number;
+  territories: Array<{
+    x: number;
+    y: number;
+    terrain: string;
+    income: number;
+    capturedAt: string;
+  }>;
+}
+
+export interface ClanAnalyticsWarfare {
+  totalWars: number;
+  currentWars: number;
+  winRate: number;
+  battles: Array<{
+    id: string;
+    opponentClan: string;
+    result: 'win' | 'loss';
+    date: string;
+    territoriesGained: number;
+    territoriesLost: number;
+  }>;
+}
+
+export interface ClanAnalyticsActivity {
+  totalActions: number;
+  actionsByType: Record<string, number>;
+  recentActivities: Array<{
+    id: string;
+    username: string;
+    action: string;
+    details: string;
+    createdAt: string;
+  }>;
+}
+
+export interface ClanAnalyticsResearch {
+  totalRPContributed: number;
+  completedResearch: string[];
+  inProgress: Array<{
+    name: string;
+    progress: number;
+    required: number;
+  }>;
+  activePerks: string[];
+}
+
+export interface ClanAnalyticsAlliance {
+  totalAlliances: number;
+  alliances: Array<{
+    clanName: string;
+    formedAt: string;
+    status: 'active' | 'broken';
+    terms: string;
+  }>;
+}
+
+export interface ClanAnalyticsHealth {
+  healthScore: number;
+  trend: 'improving' | 'stable' | 'declining';
+  factors: Array<{
+    name: string;
+    score: number;
+    weight: number;
+  }>;
+  prediction: string;
+}
+
+export type ClanAnalyticsData =
+  | ClanAnalyticsOverview
+  | ClanAnalyticsMember[]
+  | ClanAnalyticsFinancial
+  | ClanAnalyticsTerritory
+  | ClanAnalyticsWarfare
+  | ClanAnalyticsActivity
+  | ClanAnalyticsResearch
+  | ClanAnalyticsAlliance
+  | ClanAnalyticsHealth;

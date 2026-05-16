@@ -73,6 +73,7 @@ export async function collectAllFactoryIncome(username: string): Promise<{
 
   let totalMetal = 0, totalEnergy = 0;
   const factoryDetails: Array<{ position: { x: number; y: number }; level: number; metal: number; energy: number; hoursElapsed: number }> = [];
+  const updates: Array<{ x: number; y: number; last_resource_generation: string }> = [];
 
   for (const factory of factories) {
     const income = calculateFactoryIncome(factory);
@@ -80,14 +81,20 @@ export async function collectAllFactoryIncome(username: string): Promise<{
       totalMetal += income.metal;
       totalEnergy += income.energy;
       factoryDetails.push({ position: { x: factory.x, y: factory.y }, level: factory.level, metal: income.metal, energy: income.energy, hoursElapsed: income.hoursElapsed });
-      await supabase.from('factories').update({ last_resource_generation: new Date().toISOString() }).eq('x', factory.x).eq('y', factory.y);
+      updates.push({ x: factory.x, y: factory.y, last_resource_generation: new Date().toISOString() });
     }
+  }
+
+  if (updates.length > 0) {
+    const { error: batchError } = await supabase.from('factories').upsert(updates as never, { onConflict: 'x,y' });
+    if (batchError) throw new Error(batchError.message);
   }
 
   if (totalMetal > 0 || totalEnergy > 0) {
     const { data: player } = await supabase.from('players').select('resources_metal, resources_energy').eq('username', username).single();
     if (player) {
-      await supabase.from('players').update({ resources_metal: player.resources_metal + totalMetal, resources_energy: player.resources_energy + totalEnergy }).eq('username', username);
+      const { error: updateError } = await supabase.from('players').update({ resources_metal: player.resources_metal + totalMetal, resources_energy: player.resources_energy + totalEnergy }).eq('username', username);
+      if (updateError) throw new Error(updateError.message);
     }
   }
   return { totalMetal, totalEnergy, factoriesCollected: factoryDetails.length, factories: factoryDetails };

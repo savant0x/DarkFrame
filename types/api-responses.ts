@@ -64,7 +64,9 @@ export interface AdminPlayerListItem {
 export interface AdminBotStatsPayload {
   totalBots: number;
   activeBots: number;
+  inactiveBots?: number;
   beerBaseBots: number;
+  beerBases?: number;
   roamingBots: number;
   activeBeerBases: number;
   nests: number;
@@ -72,6 +74,9 @@ export interface AdminBotStatsPayload {
   spawnRateMax: number;
   regenInterval: number;
   maxBots: number;
+  migrationPercent?: number;
+  lastRegenCycle?: string;
+  bySpecialization?: Record<string, number>;
 }
 
 export interface AdminBotSpawnPayload {
@@ -209,4 +214,164 @@ export interface InventoryPayload {
   gatheringBonus: { metalBonus: number; energyBonus: number };
   diggers: { common: number; uncommon: number; rare: number; epic: number; legendary: number };
   activeShrineBoosts: Array<{ tier: string; expiresAt: string; yieldBonus: number }>;
+}
+
+// ============================================================
+// ADMIN PAGE — Additional types for state management
+// ============================================================
+
+export interface AdminWmdStatusPayload {
+  status: string;
+  activeJobs: number;
+  totalLaunches: number;
+  totalIntercepts: number;
+  activeOperations?: number;
+  jobs?: Array<Record<string, unknown>>;
+  alerts?: Array<{ id: string; message: string; severity: string; createdAt: string }>;
+}
+
+export interface AdminWmdAnalyticsPayload {
+  launchesOverTime: Array<{ date: string; count: number }>;
+  interceptsOverTime: Array<{ date: string; count: number }>;
+  topTargets: Array<{ location: string; count: number }>;
+  successRate: number;
+  missiles?: Array<Record<string, unknown>>;
+}
+
+export interface AdminBeerBaseConfigPayload {
+  enabled: boolean;
+  spawnRateMin: number;
+  spawnRateMax: number;
+  resourceMultiplier: number;
+  respawnDay: number;
+  respawnHour: number;
+  varietyEnabled: boolean;
+  minWeakPercent: number;
+  minMediumPercent: number;
+  minStrongPercent: number;
+  minElitePercent: number;
+  maxSameTierPercent: number;
+  schedulesEnabled: boolean;
+  usePredictiveSpawning: boolean;
+  predictiveWeeksAhead: number;
+  schedules?: Array<Record<string, unknown>>;
+}
+
+export interface AdminSchedulePayload {
+  id: string;
+  enabled: boolean;
+  dayOfWeek: number;
+  hour: number;
+  spawnPercentage: number;
+  timezone: string;
+  name: string;
+}
+
+export interface AdminBeerSpawnStatsPayload {
+  totalSpawns: number;
+  avgPerDay: number;
+  dailySpawns?: Array<{ date: string; count: number }>;
+  tierDistribution: Record<string, number>;
+  spawnSources?: Array<{ source: string; count: number }>;
+}
+
+export interface AdminBeerDefeatStatsPayload {
+  totalDefeats: number;
+  avgDefeatsPerDay: number;
+  dailyDefeats?: Array<{ date: string; count: number }>;
+  topDefeaters: Array<{ username: string; count: number }>;
+  defeatsByTier?: Record<string, number>;
+  topPlayers?: Array<{ username: string; defeats: number }>;
+}
+
+export interface AdminBeerEffectivenessStatsPayload {
+  resourceGainPerSpawn: number;
+  defeatRate: number;
+  avgPlayerLevel: number;
+  engagementScore?: number;
+  avgLifespanByTier?: Record<string, number>;
+  peakHours?: Array<{ hour: number; count: number }>;
+}
+
+export interface AdminActivityTrendPayload {
+  timestamp: number;
+  date: string;
+  count: number;
+  uniquePlayers: number;
+  activePlayers?: number;
+  newPlayers?: number;
+  battles?: number;
+}
+
+export interface AdminResourceTrendPayload {
+  timestamp: number;
+  date: string;
+  metal: number;
+  energy: number;
+  total: number;
+  sessions: number;
+  metalGathered?: number;
+  energyGathered?: number;
+  metalSpent?: number;
+  energySpent?: number;
+}
+
+export interface AdminSessionTrendPayload {
+  buckets: Array<{ range: string; count: number }>;
+  totalSessions?: number;
+  avgDuration?: number;
+  uniquePlayers?: number;
+}
+
+export interface AdminFlagDataPayload {
+  severity: string;
+  count: number;
+  username?: string;
+  flagType?: string;
+  createdAt?: string;
+  resolved?: boolean;
+}
+
+export interface VipUserPayload {
+  username: string;
+  email: string | null;
+  isVIP: boolean;
+  vipTier: 'basic' | 'vip' | null;
+  vip: boolean;
+  vipExpiration: string | null;
+  createdAt: string;
+}
+
+export interface RpStatsPayload {
+  totalRPGenerated: number;
+  totalRPSpent: number;
+  activePlayers: number;
+  avgRPPerPlayer: number;
+}
+
+export interface RpTransactionPayload {
+  id: string;
+  username: string;
+  amount: number;
+  source: string;
+  description: string;
+  createdAt: string;
+}
+
+export interface RpGenerationSourcePayload {
+  source: string;
+  totalGenerated: number;
+  transactionCount: number;
+}
+
+export interface RpMilestoneStatsPayload {
+  milestone: string;
+  playersReached: number;
+  avgTimeToReach: number;
+}
+
+export interface RpTopPlayerPayload {
+  username: string;
+  totalRP: number;
+  rank: number;
 }

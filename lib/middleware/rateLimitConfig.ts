@@ -517,7 +517,18 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     windowMs: 60 * 1000,
     message: 'Rate limit exceeded. Please slow down your requests.',
   },
-  
+
+  /**
+   * Strict rate limit for sensitive write operations
+   * 60 requests per minute
+   * Used for friend requests, permissions, session verification
+   */
+  STRICT: {
+    maxRequests: 60,
+    windowMs: 60 * 1000,
+    message: 'Rate limit exceeded. Please wait before sending more requests.',
+  },
+
   // ==========================================================================
   // DEFAULT LIMITS
   // ==========================================================================

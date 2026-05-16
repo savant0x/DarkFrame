@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { MovementDirection, KeyToDirection } from '@/types';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
@@ -9,18 +9,25 @@ interface MovementControlsProps { onBeforeMove?: () => void; }
 
 export default function MovementControls({ onBeforeMove }: MovementControlsProps) {
   const { movePlayer, isLoading } = useGameContext();
+  const movePlayerRef = useRef(movePlayer);
+  const isLoadingRef = useRef(isLoading);
+  const onBeforeMoveRef = useRef(onBeforeMove);
+
+  useEffect(() => { movePlayerRef.current = movePlayer; }, [movePlayer]);
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
+  useEffect(() => { onBeforeMoveRef.current = onBeforeMove; }, [onBeforeMove]);
 
   useEffect(() => {
     function handleKeyPress(event: KeyboardEvent) {
       if (isTypingInInput()) return;
       const direction = KeyToDirection[event.key];
-      if (direction && !isLoading) { event.preventDefault(); onBeforeMove?.(); movePlayer(direction); }
+      if (direction && !isLoadingRef.current) { event.preventDefault(); onBeforeMoveRef.current?.(); movePlayerRef.current(direction); }
     }
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [movePlayer, isLoading, onBeforeMove]);
+  }, []);
 
-  function handleMove(direction: MovementDirection) { if (!isLoading) { onBeforeMove?.(); movePlayer(direction); } }
+  function handleMove(direction: MovementDirection) { if (!isLoadingRef.current) { onBeforeMoveRef.current?.(); movePlayerRef.current(direction); } }
 
   return (
     <div>

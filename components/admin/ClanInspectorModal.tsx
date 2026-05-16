@@ -63,7 +63,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Clan } from '@/types/clan.types';
+import type { Clan, ClanAnalyticsData } from '@/types/clan.types';
 
 interface ClanInspectorModalProps {
   isOpen: boolean;
@@ -706,10 +706,32 @@ function MetricCard({ label, value, icon, trend }: MetricCardProps) {
  * Converts analytics data to CSV format
  */
 function convertToCSV(data: any, tab: string): string {
-  // Simplified CSV conversion - expand based on tab
-  const headers = Object.keys(data).join(',');
-  const values = Object.values(data).join(',');
-  return `${headers}\n${values}`;
+  if (!data || typeof data !== 'object') return '';
+
+  const flatData = flattenObject(data);
+  const headers = Object.keys(flatData);
+  const values = headers.map(h => {
+    const val = String(flatData[h] ?? '');
+    return val.includes(',') || val.includes('"') || val.includes('\n')
+      ? `"${val.replace(/"/g, '""')}"`
+      : val;
+  });
+  return `${headers.join(',')}\n${values.join(',')}`;
+}
+
+function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const newKey = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.assign(result, flattenObject(value as Record<string, unknown>, newKey));
+    } else if (Array.isArray(value)) {
+      result[newKey] = value.map(item => typeof item === 'object' ? JSON.stringify(item) : String(item ?? '')).join(' | ');
+    } else {
+      result[newKey] = value ?? '';
+    }
+  }
+  return result;
 }
 
 // Trophy icon component

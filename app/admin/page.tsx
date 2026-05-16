@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import BackButton from '@/components/BackButton';
@@ -27,7 +27,7 @@ import AchievementStatsModal from '@/components/admin/AchievementStatsModal';
 import SystemResetModal from '@/components/admin/SystemResetModal';
 import WebSocketConsoleModal from '@/components/admin/WebSocketConsoleModal';
 import HotkeyManagerPanel from '@/components/HotkeyManagerPanel';
-import type { AdminStatsPayload, AdminPlayerListItem, AdminBotStatsPayload } from '@/types/api-responses';
+import type { AdminStatsPayload, AdminPlayerListItem, AdminBotStatsPayload, AdminSchedulePayload } from '@/types/api-responses';
 import GameLayout from '@/components/GameLayout';
 import { StatsPanel, ControlsPanel, TopNavBar } from '@/components';
 
@@ -101,10 +101,10 @@ export default function AdminPage({ embedded = false }: AdminPageProps = {}) {
   const [beerBaseLoading, setBeerBaseLoading] = useState(false);
   
   // Schedule management state (FID-20251025-003)
-  const [schedules, setSchedules] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<AdminSchedulePayload[]>([]);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<any | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<AdminSchedulePayload | null>(null);
   const [scheduleForm, setScheduleForm] = useState({
     enabled: true,
     dayOfWeek: 0,
@@ -262,7 +262,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps = {}) {
     };
 
     loadStats();
-    loadVipUsers(); // Load VIP users on mount
+    loadVipUsers();
   }, [player]);
 
   // Reload WMD analytics when time range changes
@@ -289,7 +289,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps = {}) {
     if (player && isAdmin) {
       loadVipUsers();
     }
-  }, [vipFilter]);
+  }, [vipFilter, player, isAdmin]);
 
   // Filter players by search term
   const filteredPlayers = players.filter(p =>
@@ -736,7 +736,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
   };
 
   // Load VIP users
-  const loadVipUsers = async () => {
+  const loadVipUsers = useCallback(async () => {
     setVipLoading(true);
     try {
       const response = await fetch('/api/admin/vip/list');
@@ -749,7 +749,7 @@ Regen Cycle: ${botStats.lastRegenCycle || 'Never'}
     } finally {
       setVipLoading(false);
     }
-  };
+  }, []);
 
   // Grant VIP
   const handleGrantVip = async (username: string, days: number) => {
