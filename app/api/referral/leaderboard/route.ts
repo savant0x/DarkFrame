@@ -9,9 +9,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireAuth,
+  logger,
+} from '@/lib';
 
-export async function GET(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const GET = rateLimiter(async (request: NextRequest) => {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
@@ -103,10 +110,10 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('[Referral Leaderboard] Error:', error);
+    logger.error('[Referral Leaderboard] Error:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error'
     }, { status: 500 });
   }
-}
+});

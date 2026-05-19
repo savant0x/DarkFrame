@@ -1,19 +1,18 @@
-/**
- * @file app/api/players/search/route.ts
- * @created 2025-10-26
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
- * @overview Player search API endpoint for DM system
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireAuth,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  logger,
+} from '@/lib';
 
-const MAX_SEARCH_RESULTS = 20;
-const MIN_QUERY_LENGTH = 1;
-const MAX_QUERY_LENGTH = 50;
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-export async function GET(request: NextRequest) {
+export const GET = rateLimiter(async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get('q');
@@ -21,26 +20,17 @@ export async function GET(request: NextRequest) {
     if (auth instanceof NextResponse) return auth;
     const username = auth.playerId;
 
-  if (!query) {
-      return NextResponse.json(
-        { error: 'Bad Request', details: 'Search query parameter "q" is required' },
-        { status: 400 }
-      );
+    if (!query) {
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Search query parameter "q" is required');
     }
 
     const trimmedQuery = query.trim();
-    if (trimmedQuery.length < MIN_QUERY_LENGTH) {
-      return NextResponse.json(
-        { error: 'Bad Request', details: `Search query must be at least ${MIN_QUERY_LENGTH} character(s)` },
-        { status: 400 }
-      );
+    if (trimmedQuery.length < 2) {
+      return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, `Search query must be at least ${2} character(s)`);
     }
 
-    if (trimmedQuery.length > MAX_QUERY_LENGTH) {
-      return NextResponse.json(
-        { error: 'Bad Request', details: `Search query must not exceed ${MAX_QUERY_LENGTH} characters` },
-        { status: 400 }
-      );
+    if (trimmedQuery.length > 50) {
+      return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, `Search query must not exceed ${50} characters`);
     }
 
     const supabase = createServiceClient();
@@ -51,7 +41,7 @@ export async function GET(request: NextRequest) {
       .ilike('username', `%${trimmedQuery}%`)
       .neq('username', username)
       .order('level', { ascending: false })
-      .limit(MAX_SEARCH_RESULTS);
+      .limit(20);
 
     const results = (players || []).map(player => ({
       _id: player.username,
@@ -63,10 +53,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(results, { status: 200 });
   } catch (error) {
-    console.error('[API] Player search error:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error', details: 'An unexpected error occurred while searching for players' },
-      { status: 500 }
-    );
+    logger.error('[API] Player search error:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

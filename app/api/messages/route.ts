@@ -1,30 +1,12 @@
-/**
- * Messages API Route
- * Created: 2025-10-25
- * Feature: FID-20251025-102
- * 
- * OVERVIEW:
- * RESTful API endpoints for private messaging operations.
- * Handles sending messages, fetching conversations, message history,
- * and marking messages as read.
- * 
- * ENDPOINTS:
- * - GET  /api/messages - Get message history for a conversation
- * - POST /api/messages - Send a new message
- * - GET  /api/messages/conversations - Get all conversations for a player
- * - POST /api/messages/read - Mark messages as read
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
-import {
-  sendDirectMessage,
-  getMessageHistory,
-  getConversations,
-  markMessagesAsRead,
-} from '@/lib/messagingService';
+import { getMessageHistory, sendDirectMessage } from '@/lib/messagingService';
+import { createRateLimiter, ENDPOINT_RATE_LIMITS, createErrorResponse, ErrorCode, createErrorFromException, logger } from '@/lib';
 
-export async function GET(request: NextRequest) {
+const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const GET = getRateLimiter(async (request: NextRequest) => {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
@@ -37,10 +19,7 @@ export async function GET(request: NextRequest) {
     const after = searchParams.get('after');
 
     if (!conversationId) {
-      return NextResponse.json(
-        { success: false, error: 'conversationId is required' },
-        { status: 400 }
-      );
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'conversationId is required');
     }
 
     const result = await getMessageHistory({
@@ -51,16 +30,13 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Error in GET /api/messages:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    logger.error('Error in GET /api/messages:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = postRateLimiter(async (request: NextRequest) => {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
@@ -70,10 +46,7 @@ export async function POST(request: NextRequest) {
     const { recipientId, content, contentType } = body;
 
     if (!recipientId || !content) {
-      return NextResponse.json(
-        { success: false, error: 'recipientId and content are required' },
-        { status: 400 }
-      );
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'recipientId and content are required');
     }
 
     const result = await sendDirectMessage(senderId, {
@@ -87,11 +60,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Error in POST /api/messages:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    logger.error('Error in POST /api/messages:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

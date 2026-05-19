@@ -1,34 +1,38 @@
-/**
- * @file app/api/referral/generate/route.ts
- * Created: 2025-10-24
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
- * 
- * OVERVIEW:
- * API endpoint to generate unique referral code for authenticated player.
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { generateReferralCode, generateReferralLink } from '@/lib/referralService';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireAuth,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  generateReferralCode,
+  generateReferralLink,
+  logger,
+} from '@/lib';
 
-export async function POST(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const POST = rateLimiter(async (request: NextRequest) => {
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const username = auth.username;
 
     const supabase = createServiceClient();
-    
+
     const { data: player } = await supabase
       .from('players')
       .select('referral_code, referral_link')
       .eq('username', username)
       .maybeSingle();
-    
+
     if (!player) {
-      return NextResponse.json({ success: false, error: 'Player not found' }, { status: 404 });
+      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
     }
-    
+
     if (player.referral_code) {
       return NextResponse.json({
         success: true,
@@ -38,11 +42,11 @@ export async function POST(request: NextRequest) {
         }
       });
     }
-    
+
     let code = generateReferralCode();
     let attempts = 0;
     const maxAttempts = 10;
-    
+
     while (attempts < maxAttempts) {
       const { data: existing } = await supabase
         .from('players')
@@ -53,13 +57,13 @@ export async function POST(request: NextRequest) {
       code = generateReferralCode();
       attempts++;
     }
-    
+
     if (attempts >= maxAttempts) {
-      return NextResponse.json({ success: false, error: 'Failed to generate unique referral code' }, { status: 500 });
+      return createErrorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to generate unique referral code');
     }
-    
+
     const link = generateReferralLink(code);
-    
+
     await supabase
       .from('players')
       .update({
@@ -67,16 +71,13 @@ export async function POST(request: NextRequest) {
         referral_link: link,
       })
       .eq('username', username);
-    
+
     return NextResponse.json({
       success: true,
       data: { code, link }
     });
   } catch (error) {
-    console.error('[Referral Generate] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Internal server error'
-    }, { status: 500 });
+    logger.error('[Referral Generate] Error:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

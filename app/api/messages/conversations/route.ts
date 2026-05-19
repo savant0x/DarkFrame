@@ -1,20 +1,11 @@
-/**
- * Conversations API Route
- * Created: 2025-10-25
- * Feature: FID-20251025-102
- * 
- * OVERVIEW:
- * API endpoint for fetching player conversations.
- * 
- * ENDPOINT:
- * GET /api/messages/conversations?playerId={id}&limit={n}&sortBy={type}
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getConversations } from '@/lib/messagingService';
+import { createRateLimiter, ENDPOINT_RATE_LIMITS, createErrorFromException, ErrorCode, logger } from '@/lib';
 
-export async function GET(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const GET = rateLimiter(async (request: NextRequest) => {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
@@ -35,11 +26,8 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Error in GET /api/messages/conversations:', error);
-    return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    logger.error('Error in GET /api/messages/conversations:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

@@ -1,31 +1,23 @@
-/**
- * @file app/api/player/profile/route.ts
- * @created 2025-10-18
- * @updated 2026-05-15 — Added rate limiting to prevent user enumeration
- * @overview Player profile data API endpoint
- * 
- * OVERVIEW:
- * Returns comprehensive player profile data including stats, achievements, and base info.
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
   withRequestLogging,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  logger,
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-/**
- * GET /api/player/profile
- * Get player's full profile data
- */
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   try {
-    const username = request.nextUrl.searchParams.get('username');
-    if (!username) return NextResponse.json({ success: false, error: 'Username parameter required' }, { status: 400 });
+    const { requireAuth } = await import('@/lib/authMiddleware');
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = request.nextUrl.searchParams.get('username') || auth.username;
     const supabase = createServiceClient();
 
     const { data: player } = await supabase
@@ -35,7 +27,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       .maybeSingle();
 
     if (!player) {
-      return NextResponse.json({ success: false, error: 'Player not found' }, { status: 404 });
+      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
     }
 
     const { data: achievements } = await supabase
@@ -80,7 +72,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     return NextResponse.json({ success: true, data: profileData });
 
   } catch (error) {
-    console.error('Error loading profile:', error);
-    return NextResponse.json({ success: false, error: 'Failed to load profile' }, { status: 500 });
+    logger.error('Error loading profile:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
 }));
