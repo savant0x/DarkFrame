@@ -24,14 +24,15 @@ import {
   getFastTravelStatus,
 } from '@/lib/fastTravelService';
 import { 
-  withRequestLogging, 
-  createRouteLogger, 
+  withRequestLogging,
+  createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse, 
+  createErrorResponse,
   createValidationErrorResponse,
   createErrorFromException,
-  ErrorCode
+  ErrorCode,
+  logger
 } from '@/lib';
 import { FastTravelSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
@@ -53,7 +54,7 @@ export async function GET(request: NextRequest) {
       .from('players')
       .select('*')
       .eq('username', username)
-      .single();
+      .maybeSingle();
 
     if (error || !player) {
       return NextResponse.json(
@@ -69,7 +70,7 @@ export async function GET(request: NextRequest) {
       ...status,
     });
   } catch (error) {
-    console.error('Error getting fast travel status:', error);
+    logger.error('Error getting fast travel status:', error);
     return NextResponse.json(
       { error: 'Failed to get fast travel status' },
       { status: 500 }
@@ -85,9 +86,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('POST /api/fast-travel');
   
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const username = (body as Record<string, unknown>).username as string;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const username = auth.username;
 
     const validated = FastTravelSchema.parse(body);
 
@@ -97,7 +100,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       .from('players')
       .select('*')
       .eq('username', username)
-      .single();
+      .maybeSingle();
 
     if (error || !player) {
       log.error('Player not found', undefined, { username });
@@ -203,9 +206,12 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('fast-travel-delete');
 
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const { name, username } = body;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const { name } = body;
+    const username = auth.username;
 
     const supabase = createServiceClient();
 
@@ -213,7 +219,7 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       .from('players')
       .select('*')
       .eq('username', username)
-      .single();
+      .maybeSingle();
 
     if (error || !player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');

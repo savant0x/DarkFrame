@@ -42,20 +42,24 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
-import { getFactoryStats, FACTORY_UPGRADE } from '@/lib/factoryUpgradeService';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireAuth,
+  FACTORY_UPGRADE,
+  getFactoryStats,
+  logger,
+} from '@/lib';
 
-export async function POST(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const POST = rateLimiter(async (request: NextRequest) => {
   try {
-    // Parse request body
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.username;
+
     const body = await request.json();
-    const username = body.username;
-    if (!username) {
-      return NextResponse.json(
-        { success: false, error: 'Username required' },
-        { status: 400 }
-      );
-    }
     const { factoryX, factoryY } = body;
 
     // Validate coordinates
@@ -74,7 +78,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('x', factoryX)
       .eq('y', factoryY)
-      .single();
+      .maybeSingle();
 
     if (factoryError || !factory) {
       return NextResponse.json(
@@ -136,7 +140,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .eq('x', factoryX)
       .eq('y', factoryY)
-      .single();
+      .maybeSingle();
 
     // Build response message — units are NOT deleted, they remain with the player
     const maxFactories = 10; // Hard cap of 10 factories per player
@@ -150,7 +154,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Factory abandon error:', error);
+    logger.error('Factory abandon error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -160,7 +164,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * IMPLEMENTATION NOTES:

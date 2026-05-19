@@ -10,30 +10,25 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { getFactoryData } from '@/lib/factoryService';
-import { applySlotRegeneration, getAvailableSlots, getTimeUntilNextSlot, getFactoryCapacity } from '@/lib/slotRegenService';
-import { getMaxSlots } from '@/lib/factoryUpgradeService';
-import type { Factory } from '@/types';
-import type { Tables } from '@/types/database';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  FACTORY_UPGRADE,
+  applySlotRegeneration,
+  consumeSlots,
+  hasEnoughSlots,
+  toFactoryType,
+  getMaxSlots,
+  getAvailableSlots,
+  getTimeUntilNextSlot,
+  getFactoryCapacity,
+  getFactoryData,
+  logger,
+} from '@/lib';
 
-function toFactoryType(row: Tables<'factories'>): Factory {
-  return {
-    x: row.x,
-    y: row.y,
-    owner: row.owner,
-    defense: row.defense,
-    level: row.level,
-    slots: row.slots,
-    usedSlots: row.used_slots,
-    productionRate: row.production_rate,
-    lastSlotRegen: new Date(row.last_slot_regen),
-    lastResourceGeneration: row.last_resource_generation ? new Date(row.last_resource_generation) : new Date(),
-    lastAttackedBy: row.last_attacked_by,
-    lastAttackTime: row.last_attack_time ? new Date(row.last_attack_time) : null,
-  };
-}
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-export async function GET(request: NextRequest) {
+export const GET = rateLimiter(async (request: NextRequest) => {
   try {
     const supabase = createServiceClient();
     const { searchParams } = new URL(request.url);
@@ -76,7 +71,7 @@ export async function GET(request: NextRequest) {
         .select('*')
         .eq('x', x)
         .eq('y', y)
-        .single();
+        .maybeSingle();
       if (corrected) {
         factory = toFactoryType(corrected);
         row = corrected;
@@ -118,13 +113,13 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Factory status error:', error);
+    logger.error('Factory status error:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }
     );
   }
-}
+});
 
 // ============================================================
 // END OF FILE
