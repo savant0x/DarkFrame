@@ -6,12 +6,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import { createRateLimiter, ENDPOINT_RATE_LIMITS, logger } from '@/lib';
 
-export async function GET(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const GET = rateLimiter(async (request: NextRequest) => {
+  const auth = await requireAdminAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const { searchParams } = request.nextUrl;
-    const username = searchParams.get('username');
-    if (!username || username !== 'FAME') return NextResponse.json({ success: false, error: 'Admin only' }, { status: 403 });
     
     const x = parseInt(searchParams.get('x') || '0');
     const y = parseInt(searchParams.get('y') || '0');
@@ -22,7 +27,7 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('x', x)
       .eq('y', y)
-      .single();
+      .maybeSingle();
     
     return NextResponse.json({ 
       success: true, 
@@ -30,10 +35,10 @@ export async function GET(request: NextRequest) {
     });
     
   } catch (error) {
-    console.error('Debug tile error:', error);
+    logger.error('Debug tile error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch tile' },
       { status: 500 }
     );
   }
-}
+});

@@ -20,10 +20,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
-import { getPlayerCombatHistory } from '@/lib/battleService';
 import { createServiceClient } from '@/lib/supabase/server';
+import { createRateLimiter, ENDPOINT_RATE_LIMITS, getPlayerCombatHistory, logger } from '@/lib';
 
-export async function GET(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const GET = rateLimiter(async (request: NextRequest) => {
   try {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
@@ -85,7 +87,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Fetch battle logs error:', error);
+    logger.error('Fetch battle logs error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -95,4 +97,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

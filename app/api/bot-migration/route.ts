@@ -13,12 +13,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   executeMigration,
   getMigrationHistory,
   getNextMigrationTime,
 } from '@/lib/botMigrationService';
 import { createServiceClient } from '@/lib/supabase/server';
+import { logger } from '@/lib';
 
 // ============================================================================
 // GET - Migration History and Status
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Migration history fetch error:', error);
+    logger.error('Migration history fetch error:', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch migration history',
@@ -63,36 +65,14 @@ export async function GET(request: NextRequest) {
  * Requires admin privileges
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ error: 'Username required' }, { status: 400 });
-
-    const supabase = createServiceClient();
-    
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (error || !player) {
-      return NextResponse.json(
-        { error: 'Player not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check admin privileges (rank >= 5)
-    if (!player.rank || player.rank < 5) {
-      return NextResponse.json(
-        { error: 'Admin privileges required (rank 5+)' },
-        { status: 403 }
-      );
-    }
 
     // Execute migration
-    const result = await executeMigration('manual', username);
+    const result = await executeMigration('manual', auth.username);
 
     return NextResponse.json({
       success: true,
@@ -100,7 +80,7 @@ export async function POST(request: NextRequest) {
       data: result,
     });
   } catch (error) {
-    console.error('Migration execution error:', error);
+    logger.error('Migration execution error:', error);
     return NextResponse.json(
       {
         error: 'Failed to execute migration',

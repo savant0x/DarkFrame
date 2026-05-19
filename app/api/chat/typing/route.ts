@@ -14,14 +14,19 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { createServiceClient } from '@/lib/supabase/server';
+import { logger } from '@/lib';
 
 const TYPING_TIMEOUT_MS = 5000;
 
 export async function POST(request: NextRequest) {
   try {
-    const body: { channelId: string; userId: string; username: string } = await request.json();
-    const { channelId, userId, username } = body;
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.username;
+    const body: { channelId: string; userId: string } = await request.json();
+    const { channelId, userId } = body;
 
     if (!channelId || typeof channelId !== 'string') {
       return NextResponse.json(
@@ -33,13 +38,6 @@ export async function POST(request: NextRequest) {
     if (!userId || typeof userId !== 'string') {
       return NextResponse.json(
         { success: false, error: 'userId is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!username || typeof username !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'username is required' },
         { status: 400 }
       );
     }
@@ -59,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[POST /api/chat/typing] Error:', error);
+    logger.error('[POST /api/chat/typing] Error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -101,7 +99,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error('[GET /api/chat/typing] Error:', error);
+    logger.error('[GET /api/chat/typing] Error:', error);
     return NextResponse.json(
       {
         success: false,
