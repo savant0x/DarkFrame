@@ -20,6 +20,7 @@ import {
   updateBeerBaseConfig,
   type BeerBaseConfig,
 } from '@/lib/beerBaseService';
+import { logger } from '@/lib';
 
 /**
  * GET /api/beer-bases
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
       ...stats,
     });
   } catch (error) {
-    console.error('Failed to get Beer Base stats:', error);
+    logger.error('Failed to get Beer Base stats:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to retrieve Beer Base statistics' },
       { status: 500 }
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error('Failed to trigger Beer Base respawn:', error);
+    logger.error('Failed to trigger Beer Base respawn:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to trigger respawn' },
       { status: 500 }
@@ -128,7 +129,7 @@ export async function PUT(request: NextRequest) {
       updates,
     });
   } catch (error) {
-    console.error('Failed to update Beer Base config:', error);
+    logger.error('Failed to update Beer Base config:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to update configuration' },
       { status: 500 }

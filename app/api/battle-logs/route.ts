@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { createServiceClient } from '@/lib/supabase/server';
 import { mapDbBattleLogToDomain } from '@/lib/battleLogService';
+import { logger } from '@/lib';
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error('Fetch battle logs error:', error);
+    logger.error('Fetch battle logs error:', error);
     return NextResponse.json(
       {
         success: false,

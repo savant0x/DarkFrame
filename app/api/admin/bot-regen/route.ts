@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/lib/authMiddleware';
+import { logger } from '@/lib';
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < replacementCount; i++) {
       const x = Math.floor(Math.random() * 150) + 1;
       const y = Math.floor(Math.random() * 150) + 1;
-      const username = `Bot_Regen_${Math.random().toString(36).substring(2, 8)}`;
+      const username = `Bot_Regen_${crypto.randomUUID().replace(/-/g, '').substring(0, 6)}`;
       const { error } = await supabase.from('players').insert({
         username,
         email: `bot_regen_${username.toLowerCase()}@darkframe.internal`,
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
       message: `Regen complete: ${cleaned} bots cleaned, ${spawned} replacement bots spawned`,
     });
   } catch (error) {
-    console.error('Regen error:', error);
+    logger.error('Regen error:', error);
     return NextResponse.json({ success: false, error: 'Regen cycle failed' }, { status: 500 });
   }
 }

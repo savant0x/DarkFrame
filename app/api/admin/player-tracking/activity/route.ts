@@ -4,6 +4,7 @@
 import { requireAdminAuth } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { logger } from '@/lib';
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req);
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error('Activity error:', error);
+    logger.error('Activity error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load activity' }, { status: 500 });
   }
 }

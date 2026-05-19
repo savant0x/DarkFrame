@@ -6,17 +6,18 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import { calculatePlayerPower } from '@/lib/factoryService';
 import { awardXP, XPAction } from '@/lib/xpService';
+import { logger } from '@/lib';
 
 const BOT_ATTACK_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
   try {
-    const { username } = await request.json();
-    if (!username) {
-      return NextResponse.json({ success: false, message: 'Username required' }, { status: 400 });
-    }
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+    const username = auth.username;
 
     const supabase = createServiceClient();
 
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
       .from('players')
       .select('current_x, current_y, resources_metal, resources_energy')
       .eq('username', username)
-      .single();
+      .maybeSingle();
 
     if (!player) {
       return NextResponse.json({ success: false, message: 'Player not found' }, { status: 404 });
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       .eq('is_bot', true)
       .eq('current_x', player.current_x)
       .eq('current_y', player.current_y)
-      .single();
+      .maybeSingle();
 
     if (!bot) {
       return NextResponse.json({ success: false, message: 'No bot at this location' }, { status: 404 });
@@ -99,16 +100,26 @@ export async function POST(request: NextRequest) {
     if (playerWins) {
       await awardXP(username, XPAction.FACTORY_CAPTURE);
 
+      // ISSUE-035 fix: Re-read player resources from DB to avoid stale reads
+      const { data: freshPlayer } = await supabase
+        .from('players')
+        .select('resources_metal, resources_energy')
+        .eq('username', username)
+        .maybeSingle();
+
       // Loot 50% of bot's resources
       const metalLoot = Math.floor((bot.resources_metal || 0) * 0.5);
       const energyLoot = Math.floor((bot.resources_energy || 0) * 0.5);
 
       await supabase.from('players').update({
-        resources_metal: (player.resources_metal || 0) + metalLoot,
-        resources_energy: (player.resources_energy || 0) + energyLoot,
+        resources_metal: ((freshPlayer?.resources_metal ?? player.resources_metal) || 0) + metalLoot,
+        resources_energy: ((freshPlayer?.resources_energy ?? player.resources_energy) || 0) + energyLoot,
       }).eq('username', username);
 
       if (bot.is_special_base) {
+        // ISSUE-036 fix: Clean up related rows before deleting the bot player row
+        await supabase.from('player_units').delete().eq('player_username', bot.username);
+        await supabase.from('bots').delete().eq('username', bot.username);
         await supabase.from('players').delete().eq('username', bot.username);
       }
 
@@ -128,7 +139,7 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error('Bot attack error:', error);
+    logger.error('Bot attack error:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
   }
 }

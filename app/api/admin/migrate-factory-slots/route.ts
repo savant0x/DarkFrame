@@ -13,6 +13,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import { logger } from '@/lib';
 
 const FACTORY_UPGRADE = {
   BASE_SLOTS: 5000,
@@ -28,6 +30,9 @@ function getMaxSlots(level: number): number {
  * One-time migration to update all factory slot capacities
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createServiceClient();
 
@@ -104,7 +109,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Factory slot migration error:', error);
+    logger.error('Factory slot migration error:', error);
     return NextResponse.json({
       success: false,
       error: 'Migration failed',
@@ -163,7 +168,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Factory slot migration preview error:', error);
+    logger.error('Factory slot migration preview error:', error);
     return NextResponse.json({
       success: false,
       error: 'Preview failed',

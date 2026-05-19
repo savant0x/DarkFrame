@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAuth } from '@/lib/authMiddleware';
+import { logger } from '@/lib';
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Predictive spawning error:', error);
+    logger.error('Predictive spawning error:', error);
     return NextResponse.json({ success: false, error: 'Recalculation failed' }, { status: 500 });
   }
 }

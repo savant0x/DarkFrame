@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { logger } from '@/lib';
 
 export async function GET(_req: NextRequest) {
   try {
@@ -65,7 +66,7 @@ export async function GET(_req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Bot stats error:', error);
+    logger.error('Bot stats error:', error);
     return NextResponse.json({ success: false, error: 'Failed to load bot stats' }, { status: 500 });
   }
 }

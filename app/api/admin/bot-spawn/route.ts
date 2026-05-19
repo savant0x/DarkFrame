@@ -4,14 +4,15 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import { requireAdminAuth } from '@/lib/authMiddleware';
+import { logger } from '@/lib';
 
 const BOT_NAMES = ['Bot_Alpha', 'Bot_Beta', 'Bot_Gamma', 'Bot_Delta', 'Bot_Epsilon', 'Bot_Zeta', 'Bot_Eta', 'Bot_Theta', 'Bot_Iota', 'Bot_Kappa'];
 const BOT_SPECS: Array<'offensive' | 'defensive' | 'tactical'> = ['offensive', 'defensive', 'tactical'];
 
 function generateBotUsername(): string {
   const base = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-  const suffix = Math.random().toString(36).substring(2, 8);
+  const suffix = crypto.randomUUID().replace(/-/g, '').substring(0, 6);
   return `${base}_${suffix}`;
 }
 
@@ -21,9 +22,8 @@ function generateBotEmail(username: string): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth(req);
+    const auth = await requireAdminAuth(req);
     if (auth instanceof NextResponse) return auth;
-    if (!auth.isAdmin) return NextResponse.json({ success: false, error: 'Admin required' }, { status: 403 });
 
     const body = await req.json();
     const username = auth.username;
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (error) {
-        console.error('Bot insert failed:', error.message);
+        logger.error('Bot insert failed:', error.message);
         continue;
       }
       spawned.push(botUsername);
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       message: `${spawned.length} bots spawned with spec: ${spec}`,
     });
   } catch (error) {
-    console.error('Bot spawn error:', error);
+    logger.error('Bot spawn error:', error);
     return NextResponse.json({ success: false, error: 'Failed to spawn bots' }, { status: 500 });
   }
 }
