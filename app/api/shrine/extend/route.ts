@@ -168,7 +168,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     });
 
   } catch (error) {
-    console.error('Shrine extend error:', error);
+    logger.error('Shrine extend error:', error);
     return NextResponse.json({ success: false, message: 'Failed to extend boost' }, { status: 500 });
   }
 }));

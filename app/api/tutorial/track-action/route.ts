@@ -1,126 +1,160 @@
-/**
- * Tutorial Action Tracking API
- * Created: 2025-10-25
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
- * Feature: Real-time tutorial progress tracking
- * 
- * OVERVIEW:
- * Endpoint for tracking player actions (moves, harvests, attacks) during tutorial
- * Enables real-time progress updates in the TutorialQuestPanel
- * 
- * USAGE:
- * POST /api/tutorial/track-action
- * Body: { playerId, action: 'move' | 'harvest' | 'attack', data: {...} }
- */
-
 import { NextRequest, NextResponse } from 'next/server';
+import { createServiceClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/authMiddleware';
 import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
   getCurrentQuestAndStep,
-  updateActionTracking,
-  getActionTracking,
-} from '@/lib/tutorialService';
+  logger,
+} from '@/lib';
 
-/**
- * Normalize direction format (N/S/E/W → north/south/east/west)
- * Fixes bug where "N" !== "north" breaks tutorial validation
- */
-function normalizeDirection(direction: string | undefined): string | undefined {
-  if (!direction) return undefined;
-  
-  const directionMap: Record<string, string> = {
-    'n': 'north',
-    'north': 'north',
-    's': 'south',
-    'south': 'south',
-    'e': 'east',
-    'east': 'east',
-    'w': 'west',
-    'west': 'west',
+function normalizeDirection(dir: string): string {
+  const d = dir.toLowerCase().trim();
+  const map: Record<string, string> = {
+    north: 'north', n: 'north', up: 'north',
+    south: 'south', s: 'south', down: 'south',
+    east: 'east', e: 'east', right: 'east',
+    west: 'west', w: 'west', left: 'west',
   };
-  
-  return directionMap[direction.toLowerCase()] || direction.toLowerCase();
+  return map[d] || d;
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { playerId, action, data } = body;
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-    if (!playerId || !action) {
-      return NextResponse.json(
-        { error: 'playerId and action are required' },
-        { status: 400 }
-      );
+export const POST = rateLimiter(async (request: NextRequest) => {
+  try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const body = await request.json();
+    const { action, data } = body;
+    const playerId = auth.playerId;
+
+    if (!action) {
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'action is required');
     }
 
-    // Get current tutorial step
     const { step } = await getCurrentQuestAndStep(playerId);
-    
+
     if (!step || !step.validationData) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         tracked: false,
-        message: 'No active tutorial step with tracking' 
+        message: 'No active tutorial step with tracking'
       });
     }
 
-    // Track action based on type
     let tracked = false;
-    
+    const supabase = createServiceClient();
+
     if (action === 'move' && step.action === 'MOVE') {
       const { requiredMoves, anyDirection, direction } = step.validationData;
-      
+
       if (requiredMoves) {
-        // Get current tracking
-        const tracking = await getActionTracking(playerId, step.id);
-        
-        const currentCount = tracking ? tracking.currentCount + 1 : 1;
-        
-        // Check direction if specified (with normalization)
         let countThis = true;
         if (!anyDirection && direction && data.direction) {
           const normalizedPlayerDirection = normalizeDirection(data.direction);
           const normalizedRequiredDirection = normalizeDirection(direction);
           countThis = normalizedPlayerDirection === normalizedRequiredDirection;
         }
-        
+
         if (countThis) {
-          await updateActionTracking(playerId, step.id, currentCount, requiredMoves);
+          // Atomic increment — no read-then-write race
+          const { data: updated } = await supabase
+            .from('tutorial_action_tracking')
+            .update({
+              current_count: '=current_count+1' as unknown as number,
+              last_updated: new Date().toISOString(),
+            })
+            .eq('player_username', playerId)
+            .eq('step_id', step.id)
+            .select();
+
+          if (!updated || updated.length === 0) {
+            await supabase
+              .from('tutorial_action_tracking')
+              .upsert({
+                player_username: playerId,
+                step_id: step.id,
+                current_count: 1,
+                target_count: requiredMoves,
+                last_updated: new Date().toISOString(),
+              }, { onConflict: 'player_username,step_id', ignoreDuplicates: false });
+          }
+
           tracked = true;
         }
       }
     } else if (action === 'harvest' && step.action === 'HARVEST') {
       const { requiredHarvests } = step.validationData;
-      
+
       if (requiredHarvests) {
-        const tracking = await getActionTracking(playerId, step.id);
-        
-        const currentCount = tracking ? tracking.currentCount + 1 : 1;
-        await updateActionTracking(playerId, step.id, currentCount, requiredHarvests);
+        // Atomic increment — no read-then-write race
+        const { data: updated } = await supabase
+          .from('tutorial_action_tracking')
+          .update({
+            current_count: '=current_count+1' as unknown as number,
+            last_updated: new Date().toISOString(),
+          })
+          .eq('player_username', playerId)
+          .eq('step_id', step.id)
+          .select();
+
+        if (!updated || updated.length === 0) {
+          await supabase
+            .from('tutorial_action_tracking')
+            .upsert({
+              player_username: playerId,
+              step_id: step.id,
+              current_count: 1,
+              target_count: requiredHarvests,
+              last_updated: new Date().toISOString(),
+            }, { onConflict: 'player_username,step_id', ignoreDuplicates: false });
+        }
+
         tracked = true;
       }
     } else if (action === 'attack' && step.action === 'ATTACK') {
       const { requiredAttacks } = step.validationData;
-      
+
       if (requiredAttacks) {
-        const tracking = await getActionTracking(playerId, step.id);
-        
-        const currentCount = tracking ? tracking.currentCount + 1 : 1;
-        await updateActionTracking(playerId, step.id, currentCount, requiredAttacks);
+        // Atomic increment — no read-then-write race
+        const { data: updated } = await supabase
+          .from('tutorial_action_tracking')
+          .update({
+            current_count: '=current_count+1' as unknown as number,
+            last_updated: new Date().toISOString(),
+          })
+          .eq('player_username', playerId)
+          .eq('step_id', step.id)
+          .select();
+
+        if (!updated || updated.length === 0) {
+          await supabase
+            .from('tutorial_action_tracking')
+            .upsert({
+              player_username: playerId,
+              step_id: step.id,
+              current_count: 1,
+              target_count: requiredAttacks,
+              last_updated: new Date().toISOString(),
+            }, { onConflict: 'player_username,step_id', ignoreDuplicates: false });
+        }
+
         tracked = true;
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       tracked,
       step: step.id,
-      action 
+      action
     });
 
   } catch (error) {
-    console.error('Error in POST /api/tutorial/track-action:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Error in POST /api/tutorial/track-action:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

@@ -1,24 +1,18 @@
-/**
- * @file app/api/research/route.ts
- * @created 2025-01-18
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
- * @overview API endpoint for researching technologies
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Tables } from '@/types/database';
-import { 
-  withRequestLogging, 
-  createRouteLogger, 
+import {
+  withRequestLogging,
+  createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   ResearchTechSchema,
   createErrorResponse,
   createErrorFromException,
   createValidationErrorResponse,
-  ErrorCode
+  ErrorCode,
+  logger
 } from '@/lib';
 import { ZodError } from 'zod';
 
@@ -45,8 +39,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('research');
 
   try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     const body = await request.json();
-    const validated = ResearchTechSchema.parse(body);
+    const validated = { ...ResearchTechSchema.parse(body), username: auth.username };
 
     log.debug('Research request', { username: validated.username, technologyId: validated.technologyId });
 
@@ -66,7 +63,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     if (!player) {
       log.warn('Player not found', { username: validated.username });
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Player not found' });
+      return createErrorResponse(ErrorCode.NOT_FOUND, { message: 'Player not found' });
     }
 
     const unlockedTechnologies: string[] = player.unlocked_techs || [];
@@ -94,7 +91,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Update player: deduct RP and add to unlocked_techs
     const newUnlocked = [...unlockedTechnologies, validated.technologyId];
     const { error: updateError } = await supabase
       .from('players')
@@ -111,7 +107,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.INTERNAL_ERROR, { message: 'Failed to update player' });
     }
 
-    log.info('Technology researched successfully', { 
+    log.info('Technology researched successfully', {
       username: validated.username, technology: technology.name, cost: technology.cost
     });
 
@@ -147,7 +143,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (!player) {
-      return NextResponse.json({ success: false, error: 'Player not found' }, { status: 404 });
+      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
     }
 
     return NextResponse.json({
@@ -155,7 +151,7 @@ export async function GET(request: NextRequest) {
       unlockedTechnologies: player.unlocked_techs || [],
     });
   } catch (error) {
-    console.error('Research GET API error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch technologies' }, { status: 500 });
+    logger.error('Research GET API error:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
 }

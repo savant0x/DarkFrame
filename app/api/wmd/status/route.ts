@@ -1,29 +1,37 @@
-/**
- * @file app/api/wmd/status/route.ts
- * @created 2025-10-22
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
- * @overview WMD Status Summary API
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireAuth,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  logger,
+} from '@/lib';
 
-export async function GET(req: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const GET = rateLimiter(async (req: NextRequest) => {
   try {
     const auth = await requireAuth(req);
     if (auth instanceof NextResponse) return auth;
     const username = auth.playerId;
 
-  const supabase = createServiceClient();
+    const supabase = createServiceClient();
 
     const { data: player } = await supabase
       .from('players')
-      .select('username, research_points')
+      .select('username, research_points, clan_id')
       .eq('username', username)
       .maybeSingle();
     if (!player) {
-      return NextResponse.json({ error: 'Player not found' }, { status: 404 });
+      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
+    }
+
+    const votesQuery = supabase.from('wmd_clan_votes').select('*', { count: 'exact', head: true }).eq('status', 'active');
+    if (player.clan_id) {
+      votesQuery.eq('clan_id', player.clan_id);
     }
 
     const [
@@ -38,7 +46,7 @@ export async function GET(req: NextRequest) {
       supabase.from('wmd_missiles').select('*').eq('owner_id', username),
       supabase.from('wmd_defense_batteries').select('*').eq('owner_id', username),
       supabase.from('wmd_spies').select('*').eq('owner_id', username),
-      supabase.from('wmd_clan_votes').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+      votesQuery,
       supabase.from('wmd_notifications').select('*', { count: 'exact', head: true }).eq('player_id', username).eq('is_read', false),
     ]);
 
@@ -59,7 +67,7 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error fetching WMD status:', error);
-    return NextResponse.json({ error: 'Failed to fetch status' }, { status: 500 });
+    logger.error('Error fetching WMD status:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

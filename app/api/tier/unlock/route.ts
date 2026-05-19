@@ -1,41 +1,17 @@
-/**
- * @file app/api/tier/unlock/route.ts
- * @created 2025-10-17
- * @overview API endpoint for unlocking unit tiers with Research Points
- * 
- * OVERVIEW:
- * POST endpoint for spending RP to unlock higher unit tiers. Validates player
- * level requirements, RP availability, and prevents duplicate unlocks.
- * 
- * REQUEST BODY:
- * {
- *   "tier": number  // Tier to unlock (2-5, Tier 1 is always unlocked)
- * }
- * 
- * RESPONSE:
- * {
- *   "success": true,
- *   "message": "Tier 2 unlocked! You can now build advanced units.",
- *   "tierUnlocked": 2,
- *   "rpSpent": 5,
- *   "rpRemaining": 0,
- *   "unlockedTiers": [1, 2]
- * }
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { unlockTier, getTierUnlockStatus } from '@/lib/tierUnlockService';
 import { UnitTier } from '@/types';
-import { 
-  withRequestLogging, 
-  createRouteLogger, 
+import {
+  withRequestLogging,
+  createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   UnlockTierSchema,
   createErrorResponse,
   createErrorFromException,
   createValidationErrorResponse,
-  ErrorCode
+  ErrorCode,
+  logger
 } from '@/lib';
 import { ZodError } from 'zod';
 import { requireAuth } from '@/lib/authMiddleware';
@@ -56,7 +32,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     log.debug('Tier unlock request', { username, tier: validated.tier });
 
-    // Tier 1 is always unlocked
     if (validated.tier === 1) {
       log.debug('Attempt to unlock Tier 1', { username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
@@ -64,22 +39,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Attempt to unlock tier
     const result = await unlockTier(username, validated.tier as UnitTier);
 
     if (!result.success) {
-      log.debug('Tier unlock failed', { 
-        username, 
-        tier: validated.tier, 
-        reason: result.message 
+      log.debug('Tier unlock failed', {
+        username,
+        tier: validated.tier,
+        reason: result.message
       });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: result.message
       });
     }
 
-    log.info('Tier unlocked successfully', { 
-      username, 
+    log.info('Tier unlocked successfully', {
+      username,
       tier: validated.tier,
       rpSpent: result.rpSpent,
       rpRemaining: result.rpRemaining
@@ -100,10 +74,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   }
 }));
 
-/**
- * GET /api/tier/unlock
- * Get player's tier unlock status
- */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth(request);
@@ -121,14 +91,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Get tier status error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'An unexpected error occurred while fetching tier status',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
-    );
+    logger.error('Get tier status error:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
 }

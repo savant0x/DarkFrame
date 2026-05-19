@@ -1,44 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedPlayer } from '@/lib/wmd/apiHelpers';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  getAuthenticatedPlayer,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  logger,
+} from '@/lib';
 import {
   getPlayerResearch,
+  getAvailableTechs,
   canStartResearch,
   startResearch,
   spendRPOnResearch,
-  getAvailableTechs,
 } from '@/lib/wmd/researchService';
-import { ALL_RESEARCH_TECHS, ResearchCategory } from '@/types/wmd';
 
-export async function GET(req: NextRequest) {
+const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const GET = getRateLimiter(async (req: NextRequest) => {
   try {
-    const auth = await getAuthenticatedPlayer(req);
-    
+    const auth = await getAuthenticatedPlayer();
+
     if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
     }
-    
+
     const { searchParams } = new URL(req.url);
     const view = searchParams.get('view') || 'status';
-    
-    if (view === 'tree') {
-      const techsByCategory = {
-        [ResearchCategory.MISSILE]: ALL_RESEARCH_TECHS.filter(t => t.category === ResearchCategory.MISSILE),
-        [ResearchCategory.DEFENSE]: ALL_RESEARCH_TECHS.filter(t => t.category === ResearchCategory.DEFENSE),
-        [ResearchCategory.INTELLIGENCE]: ALL_RESEARCH_TECHS.filter(t => t.category === ResearchCategory.INTELLIGENCE),
-      };
-      
-      return NextResponse.json({
-        success: true,
-        tree: techsByCategory,
-        totalTechs: ALL_RESEARCH_TECHS.length,
-      });
-    }
-    
-    const research = await getPlayerResearch(auth.playerId);
-    
+
+    const research = await getPlayerResearch(auth.username);
+
     if (view === 'available') {
-      const available = await getAvailableTechs(auth.playerId);
-      
+      const available = await getAvailableTechs(auth.username);
+
       return NextResponse.json({
         success: true,
         available,
@@ -46,89 +42,67 @@ export async function GET(req: NextRequest) {
         currentResearch: research?.currentResearch || null,
       });
     }
-    
+
     return NextResponse.json({
       success: true,
       research,
     });
   } catch (error) {
-    console.error('Error fetching research:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch research data' },
-      { status: 500 }
-    );
+    logger.error('Error fetching research:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = postRateLimiter(async (request: NextRequest) => {
   try {
-    const auth = await getAuthenticatedPlayer(req);
-    
+    const auth = await getAuthenticatedPlayer();
     if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
     }
-    
-    const body = await req.json();
+
+    const body = await request.json();
     const { action, techId } = body;
-    
+
     if (!action || !techId) {
-      return NextResponse.json(
-        { error: 'Missing required fields: action, techId' },
-        { status: 400 }
-      );
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'action and techId are required');
     }
-    
+
     if (action === 'start') {
-      const canStart = await canStartResearch(auth.playerId, techId);
-      
+      const canStart = await canStartResearch(auth.username, techId);
+
       if (!canStart.canStart) {
-        return NextResponse.json(
-          { error: canStart.reason || 'Cannot start research' },
-          { status: 400 }
-        );
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, canStart.reason || 'Cannot start research');
       }
-      
-      const result = await startResearch(auth.playerId, techId);
-      
+
+      const result = await startResearch(auth.username, techId);
+
       if (!result.success) {
-        return NextResponse.json(
-          { error: result.message },
-          { status: 400 }
-        );
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, result.message);
       }
-      
+
       return NextResponse.json({
         success: true,
         message: result.message,
       });
     }
-    
+
     if (action === 'spendRP') {
-      const result = await spendRPOnResearch(auth.playerId, techId);
-      
+      const result = await spendRPOnResearch(auth.username, techId);
+
       if (!result.success) {
-        return NextResponse.json(
-          { error: result.message },
-          { status: 400 }
-        );
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, result.message);
       }
-      
+
       return NextResponse.json({
         success: true,
         message: result.message,
         completed: result.completed,
       });
     }
-    
-    return NextResponse.json(
-      { error: 'Invalid action. Use "start" or "spendRP"' },
-      { status: 400 }
-    );
+
+    return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid action. Use "start" or "spendRP"');
   } catch (error) {
-    console.error('Error in research API:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    logger.error('Error in research API:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});
