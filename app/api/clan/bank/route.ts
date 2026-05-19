@@ -8,6 +8,7 @@ import {
   createErrorResponse,
   createErrorFromException,
   ErrorCode,
+  logger,
 } from '@/lib';
 import {
   depositToBank,
@@ -40,7 +41,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     log.info('Bank info retrieved', { clanId, transactionCount: transactions.length });
     return NextResponse.json({ success: true, bankStats, transactions });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('Failed to get bank info', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -90,12 +91,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, bank, message });
-  } catch (error: any) {
-    console.error('Bank operation error:', error);
-    if (error.message?.includes('permission')) return NextResponse.json({ success: false, error: error.message }, { status: 403 });
-    if (error.message?.includes('Insufficient')) return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-    if (error.message?.includes('capacity')) return NextResponse.json({ success: false, error: error.message }, { status: 400 });
-    if (error.message?.includes('maximum level')) return NextResponse.json({ success: false, error: 'Bank is already at maximum level' }, { status: 400 });
+  } catch (error: unknown) {
+    logger.error('Bank operation error:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('permission')) return NextResponse.json({ success: false, error: errorMessage }, { status: 403 });
+    if (errorMessage.includes('Insufficient')) return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
+    if (errorMessage.includes('capacity')) return NextResponse.json({ success: false, error: errorMessage }, { status: 400 });
+    if (errorMessage.includes('maximum level')) return NextResponse.json({ success: false, error: 'Bank is already at maximum level' }, { status: 400 });
     return NextResponse.json({ success: false, error: 'Banking operation failed' }, { status: 500 });
   }
 }

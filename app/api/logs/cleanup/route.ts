@@ -1,20 +1,12 @@
-/**
- * Log Cleanup API Route
- * Created: 2025-10-18
- * Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth
- * 
- * OVERVIEW:
- * Administrative endpoint for manually triggering log cleanup and archival.
- * Enforces retention policies: 90 days for activity logs, 180 days for battle logs,
- * 365 days for admin action logs. Only accessible by administrators.
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdminAuth } from '@/lib/authMiddleware';
 import { cleanupOldLogs } from '@/lib/activityLogService';
+import { createErrorResponse, createErrorFromException, ErrorCode, createRateLimiter, ENDPOINT_RATE_LIMITS, logger } from '@/lib';
 
-export async function POST(req: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const POST = rateLimiter(async (req: NextRequest) => {
   try {
     const auth = await requireAdminAuth(req);
     if (auth instanceof NextResponse) return auth;
@@ -26,7 +18,7 @@ export async function POST(req: NextRequest) {
     const cleanupType = searchParams.get('type') || 'all';
 
     if (!['activity', 'battle', 'all'].includes(cleanupType)) {
-      return NextResponse.json({ error: 'Invalid type. Must be "activity", "battle", or "all".' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid type. Must be "activity", "battle", or "all".');
     }
 
     const activityRetentionDays = body.activityRetentionDays || 90;
@@ -38,7 +30,7 @@ export async function POST(req: NextRequest) {
       battleRetentionDays < 1 || battleRetentionDays > 3650 ||
       adminRetentionDays < 1 || adminRetentionDays > 3650
     ) {
-      return NextResponse.json({ error: 'Retention days must be between 1 and 3650' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, 'Retention days must be between 1 and 3650');
     }
 
     const activityCutoffDate = new Date();
@@ -55,7 +47,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Activity logs cleanup
     if (cleanupType === 'activity' || cleanupType === 'all') {
       try {
         const adminCutoffDate = new Date();
@@ -81,7 +72,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Battle logs cleanup
     if (cleanupType === 'battle' || cleanupType === 'all') {
       try {
         if (dryRun) {
@@ -110,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(results, { status: 200 });
   } catch (error) {
-    console.error('Error during log cleanup:', error);
-    return NextResponse.json({ error: 'Log cleanup failed', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
+    logger.error('Error during log cleanup:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
-}
+});

@@ -5,16 +5,25 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { requireAuth } from '@/lib/authMiddleware';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  logger,
+} from '@/lib';
 import { FLAG_CONFIG } from '@/types/flag.types';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const username = body.username;
-    const position = body.position as { x: number; y: number } | undefined;
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
 
-    if (!username) return NextResponse.json({ success: false, error: 'Username required' }, { status: 400 });
-    if (!position?.x || !position?.y) return NextResponse.json({ success: false, error: 'Position required' }, { status: 400 });
+export const POST = rateLimiter(async (request: NextRequest) => {
+  try {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
+    const body = await request.json();
+    const username = auth.username;
+    const position = body.position as { x: number; y: number } | undefined;
+    if (position?.x == null || position?.y == null) return NextResponse.json({ success: false, error: 'Position required' }, { status: 400 });
 
     const supabase = createServiceClient();
 
@@ -39,11 +48,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Look up player for HP
-    const { data: player } = await supabase.from('players').select('current_hp, max_hp').eq('username', username).single();
+    const { data: player } = await supabase.from('players').select('current_hp, max_hp').eq('username', username).maybeSingle();
     if (!player) return NextResponse.json({ success: false, error: 'Player not found' }, { status: 404 });
 
     const now = new Date();
-    await supabase.from('flags').update({
+    const { data: claimResult, error: claimError } = await supabase.from('flags').update({
       is_bot: false,
       bearer_id: username,
       bearer_username: username,
@@ -63,11 +72,15 @@ export async function POST(request: NextRequest) {
       challenge_expires_at: null,
       challenge_lock_expires_at: null,
       respawn_at: null,
-    } as never).eq('id', flag.id);
+    } as never).eq('id', flag.id).is('bearer_username', null).select('id');
+
+    if (claimError || !claimResult || claimResult.length === 0) {
+      return NextResponse.json({ success: false, error: 'Flag was just claimed by someone else' }, { status: 409 });
+    }
 
     return NextResponse.json({ success: true, message: 'Flag claimed!' });
   } catch (err) {
-    console.error('[Flag Claim] Error:', err);
+    logger.error('[Flag Claim] Error:', err);
     return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
   }
-}
+});

@@ -26,42 +26,17 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireClanMembership } from '@/lib/authMiddleware';
-import { captureTerritory } from '@/lib/clanWarfareService';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireClanMembership,
+  captureTerritory,
+  logger,
+} from '@/lib';
 
-/**
- * POST /api/clan/warfare/capture
- * Attempt to capture enemy territory during active war
- * 
- * @param request - NextRequest with auth cookie and body data
- * @returns NextResponse with capture result or error
- * 
- * @example
- * POST /api/clan/warfare/capture
- * Body: { targetClanId: "676a1b2c3d4e5f6a7b8c9d0e", tileX: 10, tileY: 15 }
- * Response (success): {
- *   success: true,
- *   territory: { tileX: 10, tileY: 15, clanId: "..." },
- *   defenseBonus: 20,
- *   message: "Successfully captured territory (10, 15)!"
- * }
- * 
- * @example
- * POST /api/clan/warfare/capture
- * Body: { targetClanId: "...", tileX: 10, tileY: 15 }
- * Response (failed capture): {
- *   success: false,
- *   defenseBonus: 40,
- *   message: "Failed to capture territory. Enemy defense bonus: 40%"
- * }
- * 
- * @throws {400} Invalid coords, no active war, territory not owned by target
- * @throws {401} Not authenticated
- * @throws {403} Insufficient permissions (not Officer/Co-Leader/Leader)
- * @throws {404} Player or clan not found
- * @throws {500} Server error
- */
-export async function POST(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const POST = rateLimiter(async (request: NextRequest) => {
   try {
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -108,33 +83,34 @@ export async function POST(request: NextRequest) {
       message: captureResult.message,
     });
 
-  } catch (error: any) {
-    console.error('Error capturing territory:', error);
+  } catch (error: unknown) {
+    logger.error('Error capturing territory:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
 
     // Permission errors
-    if (error.message.includes('permission') || error.message.includes('Officer')) {
+    if (errorMessage.includes('permission') || errorMessage.includes('Officer')) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: errorMessage },
         { status: 403 }
       );
     }
 
     // Business rule violations
     if (
-      error.message.includes('No active war') ||
-      error.message.includes('not owned by target') ||
-      error.message.includes('territory not owned')
+      errorMessage.includes('No active war') ||
+      errorMessage.includes('not owned by target') ||
+      errorMessage.includes('territory not owned')
     ) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: errorMessage },
         { status: 400 }
       );
     }
 
     // Not found errors
-    if (error.message.includes('not found')) {
+    if (errorMessage.includes('not found')) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: errorMessage },
         { status: 404 }
       );
     }
@@ -144,7 +120,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * Implementation Notes:

@@ -1,26 +1,34 @@
-/**
- * @file app/api/flag/route.ts
- * @updated 2026-05-04 — Full spec rebuild: challenge + flee system
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { calculateDistance, calculateFleeCost, canAffordFlee, getRandomFleePosition } from '@/lib/flagService';
-import { type FlagBearer, type FlagAPIResponse, FLAG_CONFIG } from '@/types/flag.types';
+import { requireAuth } from '@/lib/authMiddleware';
+import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  ErrorCode,
+  calculateDistance,
+  logger,
+} from '@/lib';
+import { calculateFleeCost, canAffordFlee, getRandomFleePosition } from '@/lib/flagService';
+import type { FlagAPIResponse, FlagBearer } from '@/types/flag.types';
+import { FLAG_CONFIG } from '@/types/flag.types';
+import type { Tables } from '@/types/database';
 
-type FlagRecord = Record<string, unknown>;
-type PlayerRecord = Record<string, unknown>;
+type FlagRecord = Tables<'flags'>;
+type PlayerRecord = Tables<'players'>;
 
-export async function GET(_request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagBearer | null>>> {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const GET = rateLimiter(async (_request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagBearer | null>>> => {
   const supabase = createServiceClient();
   const { data: rawFlag, error: flagError } = await supabase.from('flags').select('*').maybeSingle();
   if (flagError) {
-    console.error('[Flag API] Error fetching flag:', flagError);
+    logger.error('[Flag API] Error fetching flag:', flagError);
     return NextResponse.json({ success: true, data: null, timestamp: new Date() });
   }
   const f = (rawFlag || null) as FlagRecord | null;
   if (!f || !f.bearer_username) return NextResponse.json({ success: true, data: null, timestamp: new Date() });
 
-  // Auto-clear expired challenge
   const now = Date.now();
   if (f.challenge_active && f.challenge_expires_at) {
     const expiresAt = new Date(f.challenge_expires_at as string).getTime();
@@ -33,7 +41,6 @@ export async function GET(_request: NextRequest): Promise<NextResponse<FlagAPIRe
     }
   }
 
-  // Auto-drop flag if max hold time expired
   if (f.max_hold_expires_at) {
     const maxHoldExpires = new Date(f.max_hold_expires_at as string).getTime();
     if (now > maxHoldExpires) {
@@ -52,7 +59,7 @@ export async function GET(_request: NextRequest): Promise<NextResponse<FlagAPIRe
   }
 
   const bearerId = f.bearer_id as string;
-  const { data: rawHolder } = await supabase.from('players').select('*').eq('username', bearerId).single();
+  const { data: rawHolder } = await supabase.from('players').select('*').eq('username', bearerId).maybeSingle();
   const h = rawHolder as PlayerRecord | null;
   if (!h) return NextResponse.json({ success: true, data: null, timestamp: new Date() });
 
@@ -72,65 +79,66 @@ export async function GET(_request: NextRequest): Promise<NextResponse<FlagAPIRe
     maxHoldExpiresAt: f.max_hold_expires_at ? new Date(f.max_hold_expires_at as string) : null,
   };
   return NextResponse.json({ success: true, data: bearer, timestamp: new Date() });
-}
+});
 
-export async function POST(request: NextRequest): Promise<NextResponse<FlagAPIResponse>> {
+export const POST = rateLimiter(async (request: NextRequest) => {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth as NextResponse<FlagAPIResponse>;
+
   const supabase = createServiceClient();
-  const { data: rawFlag } = await supabase.from('flags').select('*').single();
+  const { data: rawFlag } = await supabase.from('flags').select('*').maybeSingle();
   const f = rawFlag as FlagRecord | null;
-  if (!f?.bearer_username) return NextResponse.json({ success: false, error: 'No flag bearer', timestamp: new Date() }, { status: 404 });
+  if (!f?.bearer_username) return createErrorResponse(ErrorCode.NOT_FOUND, 'No flag bearer');
 
   const body = await request.json();
-  const username = body.username;
-  if (!username) return NextResponse.json({ success: false, error: 'Username required', timestamp: new Date() }, { status: 400 });
+  const username = auth.username;
 
   const action: string = body.action || '';
 
   if (action === 'flee') return handleFlee(supabase, f, { username });
   if (action === 'challenge') return handleChallenge(supabase, f, { username }, body);
-  return NextResponse.json({ success: false, error: 'Invalid action', timestamp: new Date() }, { status: 400 });
-}
+  return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid action');
+});
 
 async function handleChallenge(
   supabase: ReturnType<typeof createServiceClient>, f: FlagRecord,
   challenger: { username: string }, body: Record<string, unknown>
-): Promise<NextResponse<FlagAPIResponse>> {
+): Promise<NextResponse> {
   const bearerUsername = f.bearer_username as string;
   if (!bearerUsername || bearerUsername === challenger.username) {
-    return NextResponse.json({ success: false, error: 'Cannot challenge yourself', timestamp: new Date() }, { status: 400 });
+    return createErrorResponse(ErrorCode.BATTLE_CANNOT_ATTACK_SELF);
   }
   if (f.challenge_active) {
-    return NextResponse.json({ success: false, error: 'Already being challenged', timestamp: new Date() }, { status: 429 });
+    return createErrorResponse(ErrorCode.RATE_LIMIT_EXCEEDED, 'Already being challenged');
   }
   const graceUntil = f.grace_until;
   if (typeof graceUntil === 'string' && new Date(graceUntil) > new Date()) {
-    return NextResponse.json({ success: false, error: 'Bearer has grace period', timestamp: new Date() }, { status: 403 });
+    return createErrorResponse(ErrorCode.BATTLE_TARGET_PROTECTED, 'Bearer has grace period');
   }
 
-  const { data: rawPlayer } = await supabase.from('players').select('current_x,current_y,flag_challenge_cooldown_until,flag_times_held').eq('username', challenger.username).single();
-  if (!rawPlayer) return NextResponse.json({ success: false, error: 'Player not found', timestamp: new Date() }, { status: 404 });
+  const { data: rawPlayer } = await supabase.from('players').select('current_x,current_y,flag_challenge_cooldown_until,flag_times_held').eq('username', challenger.username).maybeSingle();
+  if (!rawPlayer) return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
 
   if (rawPlayer.flag_challenge_cooldown_until && new Date(rawPlayer.flag_challenge_cooldown_until) > new Date()) {
-    return NextResponse.json({ success: false, error: 'Challenge cooldown active', timestamp: new Date() }, { status: 429 });
+    return createErrorResponse(ErrorCode.BATTLE_COOLDOWN_ACTIVE, 'Challenge cooldown active');
   }
 
   const rawBody = body;
   const attackerPos = rawBody && typeof rawBody === 'object' && 'attackerPosition' in rawBody && rawBody.attackerPosition && typeof rawBody.attackerPosition === 'object' && 'x' in rawBody.attackerPosition && 'y' in rawBody.attackerPosition
     ? { x: Number(rawBody.attackerPosition.x), y: Number(rawBody.attackerPosition.y) }
     : undefined;
-  if (!attackerPos) return NextResponse.json({ success: false, error: 'attackerPosition required', timestamp: new Date() }, { status: 400 });
+  if (!attackerPos) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'attackerPosition required');
 
   const distance = calculateDistance(Number(attackerPos.x), Number(attackerPos.y), Number(f.position_x), Number(f.position_y));
   if (distance > FLAG_CONFIG.CHALLENGE_RANGE) {
-    return NextResponse.json({ success: false, error: `Out of range: ${Math.round(distance)} tiles`, timestamp: new Date() }, { status: 400 });
+    return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, `Out of range: ${Math.round(distance)} tiles`);
   }
 
   const now = new Date();
 
-  // Bot bearer: auto-transfer flag immediately — no combat, no channel, instant
   if (f.is_bot) {
     const flagId = f.id;
-    await supabase.from('flags').update({
+    const { data: botClaimResult, error: botClaimError } = await supabase.from('flags').update({
       is_bot: false,
       bearer_id: challenger.username,
       bearer_username: challenger.username,
@@ -148,9 +156,12 @@ async function handleChallenge(
       challenge_started_at: null,
       challenge_expires_at: null,
       challenge_lock_expires_at: null,
-    }).eq('id', String(flagId));
+    }).eq('id', String(flagId)).eq('is_bot', true).select('id');
 
-    // Update challenger player row with flag bearer tracking
+    if (botClaimError || !botClaimResult || botClaimResult.length === 0) {
+      return createErrorResponse(ErrorCode.RATE_LIMIT_EXCEEDED, 'Flag was just claimed by someone else');
+    }
+
     await supabase.from('players').update({
       flag_session_started_at: now.toISOString(),
       flag_session_metal: 0,
@@ -160,7 +171,6 @@ async function handleChallenge(
       flag_times_held: (rawPlayer.flag_times_held || 0) + 1,
     }).eq('username', challenger.username);
 
-    // Clean up the old flag bot
     const botUsername = f.bearer_username as string;
     if (botUsername.startsWith('Flag-Bearer-')) {
       await supabase.from('players').delete().eq('username', botUsername);
@@ -174,15 +184,18 @@ async function handleChallenge(
     });
   }
 
-  // Human bearer: create challenge channel for player interaction
   const channelExpiresAt = new Date(now.getTime() + FLAG_CONFIG.CHANNEL_DURATION);
   const lockExpiresAt = new Date(now.getTime() + FLAG_CONFIG.LOCK_DURATION);
 
-  await supabase.from('flags').update({
+  const { data: challengeResult, error: challengeError } = await supabase.from('flags').update({
     challenge_active: true, challenge_challenger_id: challenger.username,
     challenge_started_at: now.toISOString(), challenge_expires_at: channelExpiresAt.toISOString(),
     challenge_lock_expires_at: lockExpiresAt.toISOString(),
-  } as never).eq('id', f.id as string);
+  } as never).eq('id', f.id as string).eq('challenge_active', false).select('id');
+
+  if (challengeError || !challengeResult || challengeResult.length === 0) {
+    return createErrorResponse(ErrorCode.RATE_LIMIT_EXCEEDED, 'Challenge already active');
+  }
 
   return NextResponse.json({ success: true, data: { channelDuration: FLAG_CONFIG.CHANNEL_DURATION, lockDuration: FLAG_CONFIG.LOCK_DURATION, channelExpiresAt: channelExpiresAt.toISOString() }, message: `Challenge against ${bearerUsername}`, timestamp: new Date() });
 }
@@ -190,32 +203,32 @@ async function handleChallenge(
 async function handleFlee(
   supabase: ReturnType<typeof createServiceClient>, f: FlagRecord,
   user: { username: string }
-): Promise<NextResponse<FlagAPIResponse>> {
+): Promise<NextResponse> {
   if (f.bearer_username !== user.username) {
-    return NextResponse.json({ success: false, error: 'Only bearer can flee', timestamp: new Date() }, { status: 403 });
+    return createErrorResponse(ErrorCode.AUTH_FORBIDDEN, 'Only bearer can flee');
   }
   if (!f.challenge_active) {
-    return NextResponse.json({ success: false, error: 'No active challenge', timestamp: new Date() }, { status: 400 });
+    return createErrorResponse(ErrorCode.VALIDATION_FAILED, 'No active challenge');
   }
 
   const fleeCount = (f.flee_count as number) || 0;
   if (fleeCount >= FLAG_CONFIG.MAX_FLEES) {
-    return NextResponse.json({ success: false, error: 'Max flees reached', timestamp: new Date() }, { status: 400 });
+    return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, 'Max flees reached');
   }
 
   const sessionMetal = (f.session_metal_earned as number) || 0;
   const sessionEnergy = (f.session_energy_earned as number) || 0;
   const fleeCost = calculateFleeCost(sessionMetal, sessionEnergy, fleeCount);
 
-  const { data: rawBearer } = await supabase.from('players').select('resources_metal,resources_energy,flag_flee_cooldown_until,flag_flee_paid_metal,flag_flee_paid_energy').eq('username', user.username).single();
+  const { data: rawBearer } = await supabase.from('players').select('resources_metal,resources_energy,flag_flee_cooldown_until,flag_flee_paid_metal,flag_flee_paid_energy').eq('username', user.username).maybeSingle();
   const b = rawBearer as PlayerRecord | null;
-  if (!b) return NextResponse.json({ success: false, error: 'Bearer not found', timestamp: new Date() }, { status: 404 });
+  if (!b) return createErrorResponse(ErrorCode.NOT_FOUND, 'Bearer not found');
 
   if (b.flag_flee_cooldown_until && new Date(b.flag_flee_cooldown_until as string) > new Date()) {
-    return NextResponse.json({ success: false, error: 'Flee cooldown active', timestamp: new Date() }, { status: 429 });
+    return createErrorResponse(ErrorCode.BATTLE_COOLDOWN_ACTIVE, 'Flee cooldown active');
   }
   if (!canAffordFlee((b.resources_metal as number) || 0, (b.resources_energy as number) || 0, fleeCost)) {
-    return NextResponse.json({ success: false, error: 'Insufficient resources', timestamp: new Date() }, { status: 400 });
+    return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, 'Insufficient resources');
   }
 
   const newPos = getRandomFleePosition(f.position_x as number, f.position_y as number);
@@ -232,7 +245,7 @@ async function handleFlee(
 
   const challengerId = f.challenge_challenger_id as string;
   if (challengerId) {
-    const { data: rawChallenger } = await supabase.from('players').select('resources_metal,resources_energy').eq('username', challengerId).single();
+    const { data: rawChallenger } = await supabase.from('players').select('resources_metal,resources_energy').eq('username', challengerId).maybeSingle();
     const c = rawChallenger as PlayerRecord | null;
     if (c) {
       await supabase.from('players').update({

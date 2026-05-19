@@ -1,10 +1,3 @@
-/**
- * @file app/api/friends/route.ts
- * @created 2025-10-26
- * @updated 2026-05-15 — Added rate limiting to prevent friend spam
- * @overview Friend System base API endpoints
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getFriends, sendFriendRequest } from '@/lib/friendService';
@@ -13,6 +6,10 @@ import {
   withRequestLogging,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  logger,
 } from '@/lib';
 
 const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
@@ -30,10 +27,10 @@ export const GET = withRequestLogging(getRateLimiter(async (request: NextRequest
 
   } catch (error) {
     if (error instanceof ValidationError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED);
     }
-    console.error('Unexpected error in GET /api/friends:', error);
-    return NextResponse.json({ success: false, error: 'An unexpected error occurred while fetching friends' }, { status: 500 });
+    logger.error('Unexpected error in GET /api/friends:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
 }));
 
@@ -47,11 +44,11 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ success: false, error: 'Invalid JSON in request body' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, 'Invalid JSON in request body');
     }
 
     if (!body || typeof body !== 'object') {
-      return NextResponse.json({ success: false, error: 'Request body must be an object' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, 'Request body must be an object');
     }
 
     const { recipientId, recipientUsername, message } = body as Record<string, unknown>;
@@ -62,15 +59,15 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
       '';
 
     if (!targetIdentifier) {
-      return NextResponse.json({ success: false, error: 'recipientId or recipientUsername is required' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'recipientId or recipientUsername is required');
     }
 
     if (message !== undefined && typeof message !== 'string') {
-      return NextResponse.json({ success: false, error: 'message must be a string if provided' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'message must be a string if provided');
     }
 
     if (typeof message === 'string' && message.length > 200) {
-      return NextResponse.json({ success: false, error: 'message must be 200 characters or fewer' }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, 'message must be 200 characters or fewer');
     }
 
     const friendRequest = await sendFriendRequest(senderId, targetIdentifier, message as string | undefined);
@@ -79,16 +76,15 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
 
   } catch (error) {
     if (error instanceof ValidationError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED);
     }
     if (error instanceof PermissionError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 403 });
+      return createErrorResponse(ErrorCode.AUTH_FORBIDDEN);
     }
     if (error instanceof NotFoundError) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 404 });
+      return createErrorResponse(ErrorCode.NOT_FOUND);
     }
-
-    console.error('Unexpected error in POST /api/friends:', error);
-    return NextResponse.json({ success: false, error: 'An unexpected error occurred while sending friend request' }, { status: 500 });
+    logger.error('Unexpected error in POST /api/friends:', error);
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   }
 }));

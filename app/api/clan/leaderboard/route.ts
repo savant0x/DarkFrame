@@ -38,15 +38,21 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { 
+import type { Tables } from '@/types/database';
+import {
   withRequestLogging,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   createErrorResponse,
   ErrorCode,
+  logger,
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.leaderboard);
+
+type ClanRow = Tables<'clans'>;
+type PlayerStats = Pick<Tables<'players'>, 'clan' | 'total_strength' | 'total_defense' | 'base_attack_wins'>;
+type ClanWithValue = ClanRow & { calculatedValue: number };
 
 type LeaderboardCategory = 'power' | 'level' | 'territory' | 'wealth' | 'victories' | 'wars' | 'alliances';
 
@@ -88,7 +94,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const clans = allClans || [];
 
     // Fetch all players for power and victories categories
-    let players: any[] = [];
+    let players: PlayerStats[] = [];
     if (category === 'power' || category === 'victories') {
       const { data: allPlayers, error: playersError } = await supabase
         .from('players')
@@ -99,28 +105,28 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     }
 
     // Calculate value for each clan based on category
-    const clansWithValues = clans.map((clan: any) => {
+    const clansWithValues: ClanWithValue[] = clans.map((clan: ClanRow) => {
       let calculatedValue = 0;
 
       switch (category) {
         case 'power': {
-          const clanPlayers = players.filter((p: any) => p.clan === clan.name);
-          calculatedValue = clanPlayers.reduce((sum: number, p: any) => 
+          const clanPlayers = players.filter((p: PlayerStats) => p.clan === clan.name);
+          calculatedValue = clanPlayers.reduce((sum: number, p: PlayerStats) =>
             sum + (p.total_strength || 0) + (p.total_defense || 0), 0);
           break;
         }
         case 'level':
-          calculatedValue = clan.level || 1;
+          calculatedValue = clan.clan_level || 1;
           break;
         case 'territory':
-          calculatedValue = clan.territory_count || 0;
+          calculatedValue = clan.total_territories || 0;
           break;
         case 'wealth':
-          calculatedValue = (clan.bank_metal || 0) + (clan.bank_energy || 0);
+          calculatedValue = (clan.bank_treasury_metal || 0) + (clan.bank_treasury_energy || 0);
           break;
         case 'victories': {
-          const clanPlayers = players.filter((p: any) => p.clan === clan.name);
-          calculatedValue = clanPlayers.reduce((sum: number, p: any) => 
+          const clanPlayers = players.filter((p: PlayerStats) => p.clan === clan.name);
+          calculatedValue = clanPlayers.reduce((sum: number, p: PlayerStats) =>
             sum + (p.base_attack_wins || 0), 0);
           break;
         }
@@ -128,7 +134,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
           calculatedValue = clan.wars_won || 0;
           break;
         case 'alliances':
-          calculatedValue = Array.isArray(clan.alliances) ? clan.alliances.length : 0;
+          calculatedValue = 0;
           break;
       }
 
@@ -136,7 +142,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     });
 
     // Sort by calculated value descending
-    clansWithValues.sort((a: any, b: any) => b.calculatedValue - a.calculatedValue || a.name?.localeCompare(b.name || '') || 0);
+    clansWithValues.sort((a: ClanWithValue, b: ClanWithValue) => b.calculatedValue - a.calculatedValue || a.name?.localeCompare(b.name || '') || 0);
 
     // Paginate
     const total = clansWithValues.length;
@@ -144,22 +150,22 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const paginated = clansWithValues.slice(skip, skip + limit);
     
     // Format leaderboard entries
-    const leaderboard = paginated.map((clan: any, index: number) => ({
+    const leaderboard = paginated.map((clan: ClanWithValue, index: number) => ({
       clan: {
         _id: clan.id,
         name: clan.name,
         tag: clan.tag,
         description: clan.description || '',
-        leader: clan.leader,
-        members: clan.members || [],
-        level: clan.level || 1,
-        xp: clan.xp || 0,
-        bank: { metal: clan.bank_metal || 0, energy: clan.bank_energy || 0 },
-        territoryCount: clan.territory_count || 0,
+        leader: clan.leader_id,
+        members: [] as string[],
+        level: clan.clan_level || 1,
+        xp: clan.total_xp || 0,
+        bank: { metal: clan.bank_treasury_metal || 0, energy: clan.bank_treasury_energy || 0 },
+        territoryCount: clan.total_territories || 0,
         warsWon: clan.wars_won || 0,
-        alliances: clan.alliances || [],
+        alliances: [] as string[],
         createdAt: clan.created_at,
-        settings: clan.settings || {},
+        settings: clan.clan_settings || {},
       },
       rank: skip + index + 1,
       value: clan.calculatedValue || 0,
@@ -175,7 +181,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     });
     
   } catch (error) {
-    console.error('Error fetching clan leaderboard:', error);
+    logger.error('Error fetching clan leaderboard:', error);
     return NextResponse.json(
       { error: 'Failed to fetch clan leaderboard' },
       { status: 500 }

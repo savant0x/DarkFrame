@@ -26,51 +26,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireClanMembership } from '@/lib/authMiddleware';
 import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireClanMembership,
+  ContractType,
   addContract,
   removeContract,
-  ContractType,
-} from '@/lib/clanAllianceService';
+  logger,
+} from '@/lib';
 
-/**
- * POST /api/clan/alliance/contract
- * Add contract to alliance
- * 
- * @param request - NextRequest with auth cookie and body data
- * @returns NextResponse with updated alliance or error
- * 
- * @example
- * POST /api/clan/alliance/contract
- * Body: {
- *   allianceId: "alliance123",
- *   contractType: "RESOURCE_SHARING",
- *   terms: { resourceSharePercentage: 25 }
- * }
- * Response: {
- *   success: true,
- *   alliance: {
- *     _id: "alliance123",
- *     contracts: [{ type: "RESOURCE_SHARING", terms: {...} }]
- *   }
- * }
- * 
- * @example
- * POST /api/clan/alliance/contract
- * Body: {
- *   allianceId: "alliance123",
- *   contractType: "DEFENSE_PACT",
- *   terms: { autoJoinDefense: true }
- * }
- * 
- * @throws {400} Missing fields, invalid contract type, or not in clan
- * @throws {401} Not authenticated
- * @throws {403} Insufficient permissions (not Leader)
- * @throws {500} Server error
- */
-export async function POST(request: NextRequest) {
+const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+const deleteRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const POST = postRateLimiter(async (request: NextRequest) => {
   try {
     const supabase = createServiceClient();
     const result = await requireClanMembership(request, supabase);
@@ -105,11 +75,12 @@ export async function POST(request: NextRequest) {
         contracts: alliance.contracts,
       },
     });
-  } catch (error: any) {
-    console.error('Add contract error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to add contract' }, { status: 500 });
+  } catch (error: unknown) {
+    logger.error('Add contract error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to add contract';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
-}
+});
 
 /**
  * DELETE /api/clan/alliance/contract
@@ -135,7 +106,7 @@ export async function POST(request: NextRequest) {
  * @throws {404} Contract not found
  * @throws {500} Server error
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = deleteRateLimiter(async (request: NextRequest) => {
   try {
     const supabase = createServiceClient();
     const result = await requireClanMembership(request, supabase);
@@ -166,9 +137,10 @@ export async function DELETE(request: NextRequest) {
         contracts: alliance.contracts,
       },
     });
-  } catch (error: any) {
-    console.error('Remove contract error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to remove contract' }, { status: 500 });
+  } catch (error: unknown) {
+    logger.error('Remove contract error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to remove contract';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
-}
+});
 

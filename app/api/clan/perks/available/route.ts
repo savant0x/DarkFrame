@@ -25,23 +25,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireClanMembership } from '@/lib/authMiddleware';
 import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireClanMembership,
   getAvailablePerks,
   getActivePerks,
-  calculateTierCost,
   getRecommendedPerks,
-} from '@/lib/clanPerkService';
+  calculateTierCost,
+  logger,
+} from '@/lib';
 import { ClanPerkCategory, ClanPerkTier } from '@/types/clan.types';
 
-/**
- * GET /api/clan/perks/available
- * Retrieve all available perks for authenticated player's clan
- * 
- * @param request - NextRequest with auth cookie and optional query parameters
- * @returns NextResponse with perk catalog or error
- */
-export async function GET(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+
+export const GET = rateLimiter(async (request: NextRequest) => {
   try {
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -122,11 +120,12 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(response, { status: 200 });
-  } catch (error: any) {
-    console.error('Error fetching available perks:', error);
+  } catch (error: unknown) {
+    logger.error('Error fetching available perks:', error);
+    const errorDetails = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Failed to fetch available perks', details: error.message },
+      { error: 'Failed to fetch available perks', details: errorDetails },
       { status: 500 }
     );
   }
-}
+});

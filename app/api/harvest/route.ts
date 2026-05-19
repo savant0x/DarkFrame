@@ -18,7 +18,7 @@ import { updateSession } from '@/lib/sessionTracker';
 import { detectResourceHack, detectCooldownViolation } from '@/lib/antiCheatDetector';
 import {
   withRequestLogging, createRouteLogger, createRateLimiter, ENDPOINT_RATE_LIMITS,
-  HarvestSchema, createErrorResponse, createErrorFromException, createValidationErrorResponse, ErrorCode
+  HarvestSchema, createErrorResponse, createErrorFromException, createValidationErrorResponse, ErrorCode, logger
 } from '@/lib';
 import { ZodError } from 'zod';
 
@@ -61,7 +61,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const { data: tile } = await supabase.from('tiles').select('*').eq('x', player.current_x).eq('y', player.current_y).maybeSingle();
     if (!tile) { log.warn('Tile not found'); return createErrorResponse(ErrorCode.INTERNAL_ERROR); }
 
-    const tileForService: TileServiceData = { x: tile.x, y: tile.y, terrain: tile.terrain as unknown as TerrainType, occupied_by_base: tile.occupied_by_base };
+    const tileForService: TileServiceData = { x: tile.x, y: tile.y, terrain: tile.terrain as TerrainType, occupied_by_base: tile.occupied_by_base };
     let result: HarvestResult;
 
     if (tile.terrain === 'Metal' || tile.terrain === 'Energy') {
@@ -84,20 +84,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     let xpResult;
     if (result.success) {
-      // Record harvest for tile cooldown (full reset period format: YYYY-MM-DD-AM/PM)
-      const { getCurrentResetPeriod } = await import('@/lib/harvestService');
-      const resetPeriod = getCurrentResetPeriod(tile.x);
-      try {
-        await supabase.from('tile_harvest_records').insert({
-          tile_x: tile.x,
-          tile_y: tile.y,
-          player_id: username,
-          reset_period: resetPeriod,
-        });
-      } catch (err) {
-        log.error('Failed to record tile harvest', err instanceof Error ? err : new Error(String(err)));
-      }
-
       if (isResourceResult(result)) {
         const totalGained = (result.metalGained || 0) + (result.energyGained || 0);
         await trackResourcesGathered(username, totalGained);
@@ -120,10 +106,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         const totalGained = metalGained + energyGained;
         if (totalGained > 0) {
           const resourceCheck = await detectResourceHack(username, metalGained > energyGained ? 'metal' : 'energy', totalGained, player.level || 1);
-          if (resourceCheck.suspicious) console.warn(`Resource hack detected for ${username}`);
+          if (resourceCheck.suspicious) logger.warn(`Resource hack detected for ${username}`);
         }
         const cooldownCheck = await detectCooldownViolation(username, 'harvest', Date.now());
-        if (cooldownCheck.suspicious) console.warn(`Cooldown violation detected for ${username}`);
+        if (cooldownCheck.suspicious) logger.warn(`Cooldown violation detected for ${username}`);
       }
 
       if (tile.terrain === 'Cave') {
@@ -138,7 +124,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }
 
-    const { data: updatedPlayer } = await supabase.from('players').select('resources_metal, resources_energy').eq('username', username).single();
+    const { data: updatedPlayer } = await supabase.from('players').select('resources_metal, resources_energy').eq('username', username).maybeSingle();
 
     return NextResponse.json({
       success: result.success, message: result.message,

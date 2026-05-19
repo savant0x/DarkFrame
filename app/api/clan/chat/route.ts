@@ -36,6 +36,7 @@ import {
   createErrorResponse,
   createErrorFromException,
   ErrorCode,
+  logger,
 } from '@/lib';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
@@ -105,7 +106,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       messages,
       count: messages.length,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     log.error('Failed to retrieve chat messages', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -176,23 +177,24 @@ export async function POST(request: NextRequest) {
       success: true,
       message: chatMessage,
     });
-  } catch (error: any) {
-    console.error('Error sending chat message:', error);
-    
-    if (error.message.includes('Recruits must wait')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+  } catch (error: unknown) {
+    logger.error('Error sending chat message:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Recruits must wait')) {
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
     }
-    
-    if (error.message.includes('Rate limit exceeded')) {
-      return NextResponse.json({ error: error.message }, { status: 429 });
+
+    if (errorMessage.includes('Rate limit exceeded')) {
+      return NextResponse.json({ error: errorMessage }, { status: 429 });
     }
-    
-    if (error.message.includes('too long')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (errorMessage.includes('too long')) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to send message' },
+      { error: errorMessage || 'Failed to send message' },
       { status: 500 }
     );
   }
@@ -239,23 +241,24 @@ export async function PUT(request: NextRequest) {
       success: true,
       message: updatedMessage,
     });
-  } catch (error: any) {
-    console.error('Error editing chat message:', error);
-    
-    if (error.message.includes('Can only edit your own')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+  } catch (error: unknown) {
+    logger.error('Error editing chat message:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Can only edit your own')) {
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
     }
-    
-    if (error.message.includes('within')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+
+    if (errorMessage.includes('within')) {
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
     }
-    
-    if (error.message.includes('too long')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (errorMessage.includes('too long')) {
+      return NextResponse.json({ error: errorMessage }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to edit message' },
+      { error: errorMessage || 'Failed to edit message' },
       { status: 500 }
     );
   }
@@ -299,15 +302,16 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: 'Message deleted successfully',
     });
-  } catch (error: any) {
-    console.error('Error deleting chat message:', error);
-    
-    if (error.message.includes('Can only delete your own')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+  } catch (error: unknown) {
+    logger.error('Error deleting chat message:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('Can only delete your own')) {
+      return NextResponse.json({ error: errorMessage }, { status: 403 });
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to delete message' },
+      { error: errorMessage || 'Failed to delete message' },
       { status: 500 }
     );
   }

@@ -29,47 +29,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
-import { requireClanMembership } from '@/lib';
 import {
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  requireClanMembership,
+  DistributionMethod,
   distributeEqualSplit,
   distributeByPercentage,
   distributeByMerit,
   directGrant,
-  DistributionMethod,
-  MeritWeights,
+  type MeritWeights,
   DEFAULT_MERIT_WEIGHTS,
-} from '@/lib/clanDistributionService';
+  logger,
+} from '@/lib';
 
-/**
- * POST /api/clan/bank/distribute
- * Distribute clan funds to members
- * 
- * @param request - NextRequest with authentication cookie and distribution data in body
- * @returns NextResponse with distribution results
- * 
- * @example
- * POST /api/clan/bank/distribute (Equal Split)
- * Body: { method: "EQUAL_SPLIT", resourceType: "metal", totalAmount: 100000 }
- * Response: { success: true, distribution: { method: "EQUAL_SPLIT", totalDistributed: {...}, recipients: [...] } }
- * 
- * @example
- * POST /api/clan/bank/distribute (Percentage)
- * Body: { method: "PERCENTAGE", resourceType: "metal", totalAmount: 100000, percentageMap: { player1: 40, player2: 60 } }
- * 
- * @example
- * POST /api/clan/bank/distribute (Merit)
- * Body: { method: "MERIT", resourceType: "rp", totalAmount: 5000, weights: { territoriesClaimed: 0.5, ... } }
- * 
- * @example
- * POST /api/clan/bank/distribute (Direct Grant)
- * Body: { method: "DIRECT_GRANT", grants: [{ playerId: "abc", metal: 10000, energy: 5000 }] }
- * 
- * @throws {400} Invalid distribution method or missing parameters
- * @throws {401} Unauthorized
- * @throws {403} Insufficient permissions
- * @throws {500} Failed to distribute funds
- */
-export async function POST(request: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+
+export const POST = rateLimiter(async (request: NextRequest) => {
   try {
     const supabase = createServiceClient();
 
@@ -147,12 +123,13 @@ export async function POST(request: NextRequest) {
         notes: distributionResult.notes,
       },
     });
-  } catch (error: any) {
-    console.error('Distribution error:', error);
+  } catch (error: unknown) {
+    logger.error('Distribution error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to distribute funds';
     return NextResponse.json(
-      { error: error.message || 'Failed to distribute funds' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
-}
+});
 
