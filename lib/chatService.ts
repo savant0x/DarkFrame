@@ -549,7 +549,7 @@ export async function deleteGlobalChatMessage(
 }
 
 /**
- * Edit a global chat message (own messages only, within 5 minutes)
+ * Edit a global chat message (own messages only, within 15 minutes)
  * 
  * @param messageId - Message ID
  * @param newMessage - New message content
@@ -580,10 +580,10 @@ export async function editGlobalChatMessage(
 
     const now = new Date();
     const messageAge = now.getTime() - new Date(dbMsg.created_at).getTime();
-    const fiveMinutes = 5 * 60 * 1000;
+    const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
-    if (messageAge > fiveMinutes) {
-      return { success: false, error: 'Edit window expired (5 minutes)' };
+    if (messageAge > EDIT_WINDOW_MS) {
+      return { success: false, error: 'Edit window expired (15 minutes)' };
     }
 
     const filtered = filterProfanity(newMessage.trim());
@@ -735,7 +735,7 @@ export async function reloadChatBlacklist(): Promise<void> {
  * 
  * 7. Message Editing:
  *    - Own messages only
- *    - 5-minute edit window
+ *    - 15-minute edit window
  *    - Profanity filtered on edit
  * 
  * 8. Performance:

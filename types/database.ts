@@ -771,6 +771,7 @@ export type Database = {
           created_at: string
           deleted: boolean
           id: string
+          is_read: boolean
           message: string
           sender_id: string
           sender_role: Database["public"]["Enums"]["clan_role"]
@@ -781,6 +782,7 @@ export type Database = {
           created_at?: string
           deleted?: boolean
           id?: string
+          is_read?: boolean
           message: string
           sender_id: string
           sender_role: Database["public"]["Enums"]["clan_role"]
@@ -791,6 +793,7 @@ export type Database = {
           created_at?: string
           deleted?: boolean
           id?: string
+          is_read?: boolean
           message?: string
           sender_id?: string
           sender_role?: Database["public"]["Enums"]["clan_role"]

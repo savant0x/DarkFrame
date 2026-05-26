@@ -236,9 +236,20 @@ export async function handleChatMessage(
       return;
     }
 
-    // Broadcast message to channel room
+    // Broadcast message to channel room (transform to ChatMessagePayload)
     const room = getChannelRoom(channelId, clanId);
-    io.to(room).emit('chat:message', result.message);
+    const payload = {
+      messageId: result.message.id,
+      channelId: result.message.channelId,
+      userId: result.message.senderId,
+      username: result.message.senderUsername,
+      level: result.message.senderLevel,
+      isVIP: result.message.isVIP,
+      content: result.message.message,
+      timestamp: result.message.timestamp?.getTime?.() || Date.now(),
+      isEdited: result.message.edited,
+    };
+    io.to(room).emit('chat:message', payload);
 
     callback?.({ success: true, message: result.message });
 
