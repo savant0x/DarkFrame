@@ -612,7 +612,7 @@ export async function deleteConversation(
 
     const { error } = await supabase
       .from('clan_chat_messages')
-      .update({ deleted: true } as TablesInsert<'clan_chat_messages'>)
+      .update({ deleted: true })
       .eq('clan_id', conversationId)
       .eq('channel', DM_CHANNEL)
       .eq('sender_id', userId);

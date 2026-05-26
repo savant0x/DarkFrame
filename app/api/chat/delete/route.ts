@@ -31,7 +31,7 @@ import type { PlayerContext } from '@/lib/channelService';
 
 interface ChatMessage {
   id: string;
-  channel_id: string;
+  channel: string;
   clan_id?: string;
   sender_id: string;
   sender_username: string;

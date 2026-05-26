@@ -18,6 +18,12 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 const supabase = createServiceClient();
 
+// Seed script helper — bypasses strict typing for bulk operations
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function seedQuery(table: string): any {
+  return (supabase as any).from(table);
+}
+
 const TERRAIN_DISTRIBUTION = [
   { terrain: 'Wasteland', weight: 9000, max: 9000 },
   { terrain: 'Metal', weight: 2250, max: 2250 },
@@ -89,7 +95,7 @@ async function main() {
 
   for (const table of tablesToClear) {
     try {
-      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      const { error } = await seedQuery(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (error && error.code !== '42P01') { // 42P01 = table doesn't exist
         console.log(`  ⚠️  ${table}: ${error.message}`);
       } else {
@@ -177,7 +183,7 @@ async function main() {
   const BATCH_SIZE = 1000;
   for (let i = 0; i < tiles.length; i += BATCH_SIZE) {
     const batch = tiles.slice(i, i + BATCH_SIZE);
-    const { error } = await supabase.from('tiles').insert(batch);
+    const { error } = await seedQuery('tiles').insert(batch);
     if (error) {
       console.log(`  ⚠️  Batch ${i / BATCH_SIZE + 1} failed: ${error.message}`);
     } else {
@@ -212,7 +218,7 @@ async function main() {
     { key: 'FACTORY_SLOT_REGEN_PER_HOUR', value: '416.67', type: 'number', category: 'factory', description: 'Factory slot regeneration per hour' },
   ];
 
-  const { error: configError } = await supabase.from('game_config').insert(gameConfig);
+  const { error: configError } = await seedQuery('game_config').insert(gameConfig);
   if (configError) {
     console.log(`  ⚠️  Game config: ${configError.message}`);
   } else {
@@ -235,7 +241,7 @@ async function main() {
     { discoveryId: 'master_tactician', name: 'Master Tactician', description: 'Combat power +5%', effect: { type: 'combatPowerBonus', value: 0.05 }, rarity: 5 },
   ];
 
-  const { error: discError } = await supabase.from('discoveries').insert(discoveries);
+  const { error: discError } = await seedQuery('discoveries').insert(discoveries);
   if (discError) {
     console.log(`  ⚠️  Discoveries: ${discError.message}`);
   } else {

@@ -7,6 +7,7 @@ import { useChatPanelSize } from '@/context/ChatPanelContext';
 import { MessageCircle, Send, Smile, Users, HelpCircle, ArrowDown, Loader2, Wifi, Zap, X, Mail, Search, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChannelType } from '@/lib/channelService';
+import ChatMessage from '@/components/chat/ChatMessage';
 import type { DMConversation, DirectMessage, ConversationPreview } from '@/types/directMessage';
 
 interface ChatPanelProps { userId: string; username: string; level: number; isVIP: boolean; clanId?: string; clanName?: string; defaultCollapsed?: boolean; initialTab?: 'CHAT' | 'DM'; onTabChange?: (tab: 'CHAT' | 'DM') => void; onDMUnreadCountChange?: (count: number) => void; }
@@ -281,19 +282,14 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
             {currentMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-[--text-3]"><MessageCircle className="w-8 h-8 mb-2 opacity-50" /><p className="text-xs">No messages yet</p></div>
-            ) : currentMessages.map(msg => {
-              const isOwn = msg.senderId === userId;
-              return (
-                <div key={msg.id} className={`rounded px-2 py-1.5 ${isOwn ? 'bg-[--electric]/5' : 'bg-white/[0.02]'}`}>
-                  <div className="flex items-baseline gap-1.5 mb-0.5">
-                    <span className="text-xs font-semibold text-[--text-1]">{msg.senderUsername}</span>
-                    {msg.senderIsVIP && <span className="text-[8px] font-bold text-[--neon-yellow] bg-[--neon-yellow]/10 px-1 rounded">VIP</span>}
-                    <span className="text-[10px] text-[--text-3] ml-auto">{formatTime(msg.timestamp)}</span>
-                  </div>
-                  <p className="text-xs text-[--text-2] break-words">{msg.content}</p>
-                </div>
-              );
-            })}
+            ) : currentMessages.map(msg => (
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  currentUserId={userId}
+                  channelType={activeChannel}
+                />
+              ))}
             <div ref={messagesEndRef} />
           </div>
           <div className="px-2 py-2 border-t border-[--border]">
@@ -332,20 +328,14 @@ export default function ChatPanel({ userId, username, level, clanId, clanName, i
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                 {currentMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-[--text-3]"><MessageCircle className="w-8 h-8 mb-2 opacity-50" /><p className="text-xs">No messages yet. Start the conversation!</p></div>
-                ) : currentMessages.map(msg => {
-                  const isOwn = msg.senderId === userId;
-                  return (
-                    <div key={msg.id} className={`rounded px-2 py-1.5 ${isOwn ? 'bg-[--electric]/5' : 'bg-white/[0.02]'}`}>
-                      <div className="flex items-baseline gap-1.5 mb-0.5">
-                        <span className="text-xs font-semibold text-[--text-1]">{msg.senderUsername}</span>
-                        {msg.senderIsVIP && <span className="text-[8px] font-bold text-[--neon-yellow] bg-[--neon-yellow]/10 px-1 rounded">VIP</span>}
-                        <span className="text-[10px] text-[--text-3] ml-auto">{formatTime(msg.timestamp)}</span>
-                        {msg.edited && <span className="text-[9px] text-[--text-3] italic">(edited)</span>}
-                      </div>
-                      <p className="text-xs text-[--text-2] break-words whitespace-pre-wrap">{msg.content}</p>
-                    </div>
-                  );
-                })}
+                ) : currentMessages.map(msg => (
+                  <ChatMessage
+                    key={msg.id}
+                    message={msg}
+                    currentUserId={userId}
+                    channelType={activeChannel}
+                  />
+                ))}
                 <div ref={messagesEndRef} />
               </div>
               {/* Input */}
