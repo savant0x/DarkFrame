@@ -5,29 +5,27 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
-import { createRateLimiter, ENDPOINT_RATE_LIMITS, logger } from '@/lib';
+import { getCollection } from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { Tile } from '@/types';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = rateLimiter(async (request: NextRequest) => {
-  const auth = await requireAdminAuth(request);
-  if (auth instanceof NextResponse) return auth;
-
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = request.nextUrl;
+    const user = await getAuthenticatedUser();
     
+    if (!user || user.username !== 'FAME') {
+      return NextResponse.json(
+        { success: false, error: 'Admin only' },
+        { status: 403 }
+      );
+    }
+    
+    const { searchParams } = new URL(request.url);
     const x = parseInt(searchParams.get('x') || '0');
     const y = parseInt(searchParams.get('y') || '0');
     
-    const supabase = createServiceClient();
-    const { data: tile, error } = await supabase
-      .from('tiles')
-      .select('*')
-      .eq('x', x)
-      .eq('y', y)
-      .maybeSingle();
+    const tilesCollection = await getCollection<Tile>('tiles');
+    const tile = await tilesCollection.findOne({ x, y });
     
     return NextResponse.json({ 
       success: true, 
@@ -35,10 +33,10 @@ export const GET = rateLimiter(async (request: NextRequest) => {
     });
     
   } catch (error) {
-    logger.error('Debug tile error:', error);
+    console.error('Debug tile error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch tile' },
       { status: 500 }
     );
   }
-});
+}

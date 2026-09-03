@@ -17,7 +17,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 
@@ -70,11 +70,26 @@ export default function BotScannerPanel() {
   const [sortBy, setSortBy] = useState<'distance' | 'resources' | 'reputation'>('distance');
 
   // Load scanner status
+  const fetchStatus = useCallback(async () => {
+    if (!player?.username) return;
+
+    try {
+      const response = await fetch(`/api/bot-scanner?username=${player.username}&action=status`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setStatus(data.status);
+      }
+    } catch (error) {
+      console.error('Failed to fetch scanner status:', error);
+    }
+  }, [player?.username]);
+
   useEffect(() => {
     if (player?.username) {
       fetchStatus();
     }
-  }, [player]);
+  }, [player, fetchStatus]);
 
   // Keyboard shortcut
   useEffect(() => {
@@ -123,29 +138,14 @@ export default function BotScannerPanel() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [status?.cooldownUntil, status?.onCooldown]);
-
-  const fetchStatus = async () => {
-    if (!player?.username) return;
-
-    try {
-      const response = await fetch(`/api/bot-scanner?action=status`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setStatus(data.status);
-      }
-    } catch (error) {
-      console.error('Failed to fetch scanner status:', error);
-    }
-  };
+  }, [status?.cooldownUntil, status?.onCooldown, fetchStatus]);
 
   const executeScan = async () => {
     if (!player?.username || scanning || status?.onCooldown) return;
 
     setScanning(true);
     try {
-      const response = await fetch(`/api/bot-scanner`);
+      const response = await fetch(`/api/bot-scanner?username=${player.username}`);
       const data = await response.json();
       
       if (data.success) {

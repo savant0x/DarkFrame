@@ -1,51 +1,106 @@
+/**
+ * Tutorial API Route
+ * Created: 2025-10-25
+ * Feature: FID-20251025-101 - Interactive Tutorial Quest System
+ * 
+ * OVERVIEW:
+ * RESTful API endpoints for tutorial system operations including:
+ * - GET: Fetch current tutorial state
+ * - POST: Complete steps, skip quests, claim rewards
+ * 
+ * ENDPOINTS:
+ * GET  /api/tutorial?playerId={id}  - Get current tutorial state
+ * POST /api/tutorial                 - Perform tutorial actions
+ * 
+ * ACTIONS:
+ * - complete_step: Mark step as complete and advance
+ * - skip: Skip quest or entire tutorial
+ * - restart: Reset tutorial progress
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import clientPromise from '@/lib/mongodb';
+import type { Player } from '@/types/game.types';
 import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
-  createErrorFromException,
-  ErrorCode,
-  shouldShowTutorial,
   getCurrentQuestAndStep,
   completeStep,
-  getActionTracking,
   skipTutorial,
-  logger,
-} from '@/lib';
-import type { TutorialValidationRequest } from '@/types';
+  shouldShowTutorial,
+} from '@/lib/tutorialService';
+import type { TutorialValidationRequest } from '@/types/tutorial.types';
 
-const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+/** Body of a complete_step action request. */
+interface CompleteStepBody {
+  playerId?: string;
+  questId?: string;
+  stepId?: string;
+  validationData?: Record<string, string | number | boolean>;
+}
+/** Body of a skip action request. */
+interface SkipBody {
+  playerId?: string;
+  skipType?: string;
+  questId?: string;
+}
+/** Body of a restart action request. */
+interface RestartBody {
+  playerId?: string;
+}
 
-export const dynamic = 'force-dynamic';
+/**
+ * GET /api/tutorial
+ * Fetch current tutorial state for player
+ * 
+ * Query Params:
+ * - playerId: Player ID
+ * - checkEligibility: Optional boolean to check if player should see tutorial
+ * 
+ * Response:
+ * {
+ *   quest: TutorialQuest | null,
+ *   step: TutorialStep | null,
+ *   progress: TutorialProgress,
+ *   shouldShow?: boolean
+ * }
+ * 
+ * Note: Logging suppressed for this endpoint to prevent terminal spam from 1-second polling
+ */
+export const dynamic = 'force-dynamic'; // Prevent caching, ensure fresh data
 
-export const GET = getRateLimiter(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const playerId = auth.playerId;
-
     const searchParams = request.nextUrl.searchParams;
+    const playerId = searchParams.get('playerId');
     const checkEligibility = searchParams.get('checkEligibility') === 'true';
 
-    const supabase = createServiceClient();
+    if (!playerId) {
+      return NextResponse.json(
+        { error: 'Player ID is required' },
+        { status: 400 }
+      );
+    }
 
+    // Initialize MongoDB connection
+    const mongoClient = await clientPromise;
+    const db = mongoClient.db('darkframe');
+    
+
+    // Check eligibility if requested
     if (checkEligibility) {
-      const { data: player } = await supabase
-        .from('players')
-        .select('username, level')
-        .eq('username', playerId)
-        .maybeSingle();
-
+      // Get player's actual level from database
+      const playersCollection = db.collection<Player>('players');
+      const player = await playersCollection.findOne({ username: playerId });
+      
       if (!player) {
-        return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
+        return NextResponse.json(
+          { error: 'Player not found' },
+          { status: 404 }
+        );
       }
-
+      
       const playerLevel = player.level || 1;
       const shouldShow = await shouldShowTutorial(playerId, playerLevel);
-
+      
       if (!shouldShow) {
         return NextResponse.json({
           shouldShow: false,
@@ -56,93 +111,30 @@ export const GET = getRateLimiter(async (request: NextRequest) => {
       }
     }
 
+    // Get current quest and step
     const { quest, step, progress } = await getCurrentQuestAndStep(playerId);
 
+    // SERVER-SIDE AUTO-COMPLETE: Auto-complete READ_INFO steps after delay
     if (quest && step && step.action === 'READ_INFO' && step.autoComplete && progress) {
-      const stepStartTime = progress.currentStepStartedAt || progress.startedAt;
-      const autoCompleteDelay = step.autoCompleteDelay || 5000;
-
+      const stepStartTime = progress.currentStepStartedAt || progress.startedAt; // Fallback to startedAt for migration
+      const autoCompleteDelay = step.autoCompleteDelay || 5000; // Default 5 seconds
+      
       if (stepStartTime) {
         const elapsedTime = Date.now() - new Date(stepStartTime).getTime();
-
+        
         if (elapsedTime >= autoCompleteDelay) {
+          // Auto-complete the step
           const completionResult = await completeStep({
             playerId,
-            questId: quest._id!,
+            questId: quest._id!, // Non-null assertion safe here (quest exists from condition check)
             stepId: step.id,
             validationData: { autoCompleted: true }
           });
-
+          
           if (completionResult.success) {
+            // Return the NEXT step instead
             const updated = await getCurrentQuestAndStep(playerId);
-            return NextResponse.json({
-              quest: updated.quest,
-              step: updated.step,
-              progress: updated.progress,
-              shouldShow: true,
-              autoCompleted: true,
-            });
-          }
-        }
-      }
-    }
-
-    if (quest && step && step.action === 'MOVE_TO_COORDS' && progress) {
-      const stepValidation = step.validationData || {};
-      if (stepValidation.targetX !== undefined && stepValidation.targetY !== undefined) {
-        const { data: posCheck } = await supabase
-          .from('players')
-          .select('current_x, current_y')
-          .eq('username', playerId)
-          .maybeSingle();
-
-        if (posCheck) {
-          const px = Number(posCheck.current_x);
-          const py = Number(posCheck.current_y);
-          const tx = Number(stepValidation.targetX);
-          const ty = Number(stepValidation.targetY);
-
-          if (px === tx && py === ty) {
-            const completionResult = await completeStep({
-              playerId,
-              questId: quest._id!,
-              stepId: step.id,
-              validationData: { targetX: px, targetY: py, autoCompleted: true }
-            });
-
-            if (completionResult.success) {
-              const updated = await getCurrentQuestAndStep(playerId);
-              return NextResponse.json({
-                quest: updated.quest,
-                step: updated.step,
-                progress: updated.progress,
-                shouldShow: true,
-                autoCompleted: true,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    if (quest && step && ['MOVE', 'HARVEST', 'ATTACK'].includes(step.action) && progress) {
-      const stepValidation = step.validationData || {};
-      const targetCount = stepValidation.requiredMoves || stepValidation.requiredHarvests || stepValidation.requiredAttacks;
-
-      if (targetCount) {
-        const tracking = await getActionTracking(playerId, step.id);
-        const currentCount = tracking?.currentCount || 0;
-
-        if (currentCount >= targetCount) {
-          const completionResult = await completeStep({
-            playerId,
-            questId: quest._id!,
-            stepId: step.id,
-            validationData: { currentCount, targetCount, autoCompleted: true }
-          });
-
-          if (completionResult.success) {
-            const updated = await getCurrentQuestAndStep(playerId);
+            
             return NextResponse.json({
               quest: updated.quest,
               step: updated.step,
@@ -163,25 +155,47 @@ export const GET = getRateLimiter(async (request: NextRequest) => {
     });
 
   } catch (error) {
-    logger.error('Error in GET /api/tutorial:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error in GET /api/tutorial:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
-});
+}
 
-export const POST = postRateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/tutorial
+ * Perform tutorial actions
+ * 
+ * Body:
+ * {
+ *   action: 'complete_step' | 'skip' | 'restart',
+ *   playerId: string,
+ *   questId?: string,
+ *   stepId?: string,
+ *   validationData?: object,
+ *   skipType?: 'ENTIRE_TUTORIAL' | 'QUEST'
+ * }
+ * 
+ * Response varies by action
+ */
+export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
     const body = await request.json();
-    const { action } = body;
-    const playerId = auth.playerId;
-    body.playerId = playerId;
+    const { action, playerId } = body;
 
-    if (!action) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Action is required');
+    if (!action || !playerId) {
+      return NextResponse.json(
+        { error: 'Action and playerId are required' },
+        { status: 400 }
+      );
     }
 
+    // Initialize MongoDB connection
+    const mongoClient = await clientPromise;
+    mongoClient.db('darkframe');
+
+    // Route to appropriate handler
     switch (action) {
       case 'complete_step':
         return await handleCompleteStep(body);
@@ -193,19 +207,32 @@ export const POST = postRateLimiter(async (request: NextRequest) => {
         return await handleRestart(body);
 
       default:
-        return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid action');
+        return NextResponse.json(
+          { error: 'Invalid action' },
+          { status: 400 }
+        );
     }
-  } catch (error) {
-    logger.error('Error in POST /api/tutorial:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
-  }
-});
 
-async function handleCompleteStep(body: Record<string, unknown>) {
+  } catch (error) {
+    console.error('Error in POST /api/tutorial:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Handle step completion action
+ */
+async function handleCompleteStep(body: CompleteStepBody) {
   const { playerId, questId, stepId, validationData } = body;
 
-  if (!questId || !stepId) {
-    return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'questId and stepId are required for complete_step action');
+  if (!playerId || !questId || !stepId) {
+    return NextResponse.json(
+      { error: 'playerId, questId and stepId are required for complete_step action' },
+      { status: 400 }
+    );
   }
 
   const validationRequest: TutorialValidationRequest = {
@@ -220,32 +247,55 @@ async function handleCompleteStep(body: Record<string, unknown>) {
   return NextResponse.json(result);
 }
 
-async function handleSkip(body: Record<string, unknown>) {
+/**
+ * Handle skip action (quest or entire tutorial)
+ */
+async function handleSkip(body: SkipBody) {
   const { playerId, skipType, questId } = body;
 
   if (!skipType) {
-    return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'skipType is required for skip action');
+    return NextResponse.json(
+      { error: 'skipType is required for skip action' },
+      { status: 400 }
+    );
+  }
+
+  if (!playerId) {
+    return NextResponse.json(
+      { error: 'playerId is required for skip action' },
+      { status: 400 }
+    );
   }
 
   if (skipType === 'QUEST' && !questId) {
-    return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'questId is required for quest skip');
+    return NextResponse.json(
+      { error: 'questId is required for quest skip' },
+      { status: 400 }
+    );
   }
 
-  const result = await skipTutorial(playerId, skipType, questId);
+  const result = await skipTutorial(
+    playerId,
+    skipType === 'QUEST' ? 'QUEST' : 'ENTIRE_TUTORIAL',
+    questId
+  );
 
   return NextResponse.json(result);
 }
 
-async function handleRestart(body: Record<string, unknown>) {
+/**
+ * Handle tutorial restart
+ */
+async function handleRestart(body: RestartBody) {
   const { playerId } = body;
 
   try {
-    const supabase = createServiceClient();
+    const mongoClient = await clientPromise;
+    const db = mongoClient.db('darkframe');
+      const progressCollection = db.collection('tutorial_progress');
 
-    await supabase
-      .from('tutorial_progress')
-      .delete()
-      .eq('player_username', playerId);
+    // Delete existing progress
+    await progressCollection.deleteOne({ playerId });
 
     return NextResponse.json({
       success: true,
@@ -253,7 +303,10 @@ async function handleRestart(body: Record<string, unknown>) {
     });
 
   } catch (error) {
-    logger.error('Error restarting tutorial:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error restarting tutorial:', error);
+    return NextResponse.json(
+      { error: 'Failed to restart tutorial' },
+      { status: 500 }
+    );
   }
 }

@@ -12,9 +12,16 @@
  * - Progress loss mechanics
  * - Resource destruction
  * - Sabotage detection
+ * 
+ * Dependencies:
+ * - /types/wmd for sabotage types
+ * - Drizzle ORM for target data
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { eq, desc, and } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { missiles, playerResearch, wmdSabotageOperations } from '@/lib/db/schema/wmd';
+import { factories } from '@/lib/db/schema/factories';
 
 /**
  * Sabotage result interface
@@ -38,11 +45,9 @@ export async function executeSabotage(
   sabotageSkill: number
 ): Promise<SabotageResult> {
   try {
-    // Calculate success chance
     const successChance = calculateSuccessChance(targetType, sabotageSkill);
     const success = Math.random() < successChance;
     
-    // Calculate detection risk
     const detectionRisk = calculateDetectionRisk(targetType, sabotageSkill);
     const detected = Math.random() < detectionRisk;
     
@@ -56,12 +61,10 @@ export async function executeSabotage(
     };
     
     if (success) {
-      // Apply sabotage damage
       const damage = await applySabotageDamage(targetType, targetId, sabotageSkill);
       Object.assign(result, damage);
     }
     
-    // Record sabotage operation
     await recordSabotage(spyId, targetType, targetId, result);
     
     return result;
@@ -83,12 +86,12 @@ export async function executeSabotage(
  * Calculate sabotage success chance
  */
 function calculateSuccessChance(targetType: string, sabotageSkill: number): number {
-  const baseChance = sabotageSkill / 100; // 0-100 skill maps to 0-100% base
+  const baseChance = sabotageSkill / 100;
   
   const difficultyMap: Record<string, number> = {
-    'MISSILE': 0.7,    // Easier
-    'FACTORY': 0.5,    // Moderate
-    'RESEARCH': 0.3,   // Harder
+    'MISSILE': 0.7,
+    'FACTORY': 0.5,
+    'RESEARCH': 0.3,
   };
   
   const difficulty = difficultyMap[targetType] || 0.5;
@@ -117,7 +120,6 @@ async function applySabotageDamage(
   targetId: string,
   sabotageSkill: number
 ): Promise<Partial<SabotageResult>> {
-  const supabase = createServiceClient();
   const damage: Partial<SabotageResult> = {
     damageDealt: 0,
     componentsDestroyed: [],
@@ -126,8 +128,7 @@ async function applySabotageDamage(
   };
   
   if (targetType === 'MISSILE') {
-    // Damage missile assembly
-    const progressLost = Math.floor((sabotageSkill / 100) * 25); // Up to 25%
+    const progressLost = Math.floor((sabotageSkill / 100) * 25);
     damage.progressLost = progressLost;
     damage.damageDealt = progressLost * 1000;
     damage.resourcesWasted = {
@@ -135,47 +136,27 @@ async function applySabotageDamage(
       energy: progressLost * 15000,
     };
     
-    // Update missile in database
-    const { data: missile } = await supabase
-      .from('wmd_missiles')
-      .select('*')
-      .eq('missile_id', targetId)
-      .single();
-    
-    if (missile) {
-      await supabase
-        .from('wmd_missiles')
-        .update({ 
-          damage_radius: (missile.damage_radius || 0) + progressLost 
-        })
-        .eq('missile_id', targetId);
-    }
+    await db.update(missiles)
+      .set({ updatedAt: new Date() })
+      .where(eq(missiles.id, targetId));
   } else if (targetType === 'FACTORY') {
-    // Damage factory production
     damage.damageDealt = sabotageSkill * 100;
     damage.resourcesWasted = {
       metal: sabotageSkill * 500,
       energy: sabotageSkill * 750,
     };
     
-    const { data: factory } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('id', targetId)
-      .single();
-    
-    if (factory) {
-      await supabase
-        .from('factories')
-        .update({ 
-          production_rate: Math.max(0, factory.production_rate - Math.floor(sabotageSkill / 10)) 
-        })
-        .eq('id', targetId);
-    }
+    const [factoryX, factoryY] = targetId.split(',').map(Number);
+    await db.update(factories)
+      .set({ defense: 0 })
+      .where(and(eq(factories.x, factoryX), eq(factories.y, factoryY)));
   } else if (targetType === 'RESEARCH') {
-    // Delay research progress
-    damage.progressLost = Math.floor(sabotageSkill / 5); // Slow down research
+    damage.progressLost = Math.floor(sabotageSkill / 5);
     damage.damageDealt = sabotageSkill * 50;
+    
+    await db.update(playerResearch)
+      .set({ updatedAt: new Date() })
+      .where(eq(playerResearch.playerId, targetId));
   }
   
   return damage;
@@ -191,16 +172,30 @@ async function recordSabotage(
   result: SabotageResult
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
-    await supabase.from('wmd_sabotage_events').insert({
-      event_id: `sab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      saboteur_id: spyId,
-      target_player_id: targetId,
-      sabotage_type: targetType,
-      severity: result.damageDealt,
-      successful: result.success,
-      detected: result.detected,
-      damage_description: `Damage: ${result.damageDealt}, Progress Lost: ${result.progressLost}`,
+    await db.insert(wmdSabotageOperations).values({
+      id: `sabop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      sabotageId: `sab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      spyId,
+      targetType,
+      targetId,
+      operatorId: spyId,
+      operatorUsername: '',
+      targetPlayerId: targetId,
+      success: result.success ? 1 : 0,
+      detected: result.detected ? 1 : 0,
+      damageDealt: {
+        sabotageId: `sab_${Date.now()}`,
+        missionId: '',
+        saboteurId: spyId,
+        saboteurName: '',
+        targetId,
+        damage: result.damageDealt,
+        componentsDestroyed: result.componentsDestroyed,
+        progressLost: result.progressLost,
+        resourcesWasted: result.resourcesWasted,
+      },
+      executedAt: new Date(),
+      createdAt: new Date(),
     });
   } catch (error) {
     console.error('Error recording sabotage:', error);
@@ -213,16 +208,13 @@ async function recordSabotage(
 export async function getSabotageHistory(
   playerId: string,
   limit: number = 20
-): Promise<any[]> {
+): Promise<Array<typeof wmdSabotageOperations.$inferSelect>> {
   try {
-    const supabase = createServiceClient();
-    const { data } = await supabase
-      .from('wmd_sabotage_events')
-      .select('*')
-      .eq('target_player_id', playerId)
-      .order('created_at', { ascending: false })
+    return await db.select()
+      .from(wmdSabotageOperations)
+      .where(eq(wmdSabotageOperations.targetPlayerId, playerId))
+      .orderBy(desc(wmdSabotageOperations.executedAt))
       .limit(limit);
-    return data || [];
   } catch (error) {
     console.error('Error getting sabotage history:', error);
     return [];

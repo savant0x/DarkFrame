@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { getAuctions } from '@/lib/auctionService';
 import { logger } from '@/lib/logger';
 import {
@@ -53,13 +54,17 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('my-listings');
   
   try {
+    // Verify authentication
+    const tokenPayload = await getAuthenticatedUser();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
+
+    const username = tokenPayload.username;
+
     // Parse pagination parameters
     const url = new URL(request.url);
     const params = url.searchParams;
-    const username = params.get('username');
-    if (!username) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, 'Username required');
-    }
     const page = parseInt(params.get('page') || '1', 10);
     const limit = Math.min(parseInt(params.get('limit') || '20', 10), 100);
 

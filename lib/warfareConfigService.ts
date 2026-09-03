@@ -4,239 +4,289 @@
  * Created: 2025-10-18
  * 
  * OVERVIEW:
- * Manages warfare system configuration stored in Supabase. Allows admin
+ * Manages warfare system configuration stored in Drizzle ORM. Allows admin
  * to modify war costs, rewards, durations, territory limits, and passive
  * income parameters in real-time without server restart.
+ * 
+ * Features:
+ * - Load configuration from database (with defaults)
+ * - Save/update configuration
+ * - Validate configuration parameters
+ * - Real-time config application
+ * - Config versioning and history
+ * 
+ * Default Config Structure:
+ * - warCosts: Metal/Energy costs, scaling factors
+ * - warRewards: Spoils percentages, XP bonuses
+ * - warDuration: Minimum duration, cooldowns
+ * - warRequirements: Level, member minimums
+ * - territoryCosts: Base costs, tiered pricing
+ * - passiveIncome: Base income, scaling factors
+ * - territoryLimits: Max territories by level
+ * 
+ * @module lib/warfareConfigService
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import { fromJsonb, toJsonb } from '@/lib/supabase/jsonb';
-import type { Database } from '@/types/database';
+import { db } from '@/lib/db';
+import { gameConfig } from '@/lib/db/schema';
+import { eq, desc, sql } from 'drizzle-orm';
+import crypto from 'node:crypto';
 
+/**
+ * Warfare configuration interface
+ */
 export interface WarfareConfig {
+  _id?: string;
   version: number;
-  last_updated: string;
-  updated_by: string;
+  lastUpdated: Date;
+  updatedBy: string;
   
-  war_costs: {
-    base_metal: number;
-    base_energy: number;
-    scaling_per_territory: number;
+  warCosts: {
+    baseMetal: number;
+    baseEnergy: number;
+    scalingPerTerritory: number;
   };
   
-  war_rewards: {
-    metal_spoils_percent: number;
-    energy_spoils_percent: number;
-    rp_spoils_percent: number;
-    victory_xp: number;
-    defeat_xp_penalty: number;
+  warRewards: {
+    metalSpoilsPercent: number;
+    energySpoilsPercent: number;
+    rpSpoilsPercent: number;
+    victoryXP: number;
+    defeatXPPenalty: number;
   };
   
-  war_duration: {
-    minimum_hours: number;
-    cooldown_hours: number;
+  warDuration: {
+    minimumHours: number;
+    cooldownHours: number;
   };
   
-  war_requirements: {
-    minimum_level: number;
-    minimum_members: number;
+  warRequirements: {
+    minimumLevel: number;
+    minimumMembers: number;
   };
   
-  territory_costs: {
-    base_metal: number;
-    base_energy: number;
-    cost_tiers: Array<{
-      up_to: number;
-      cost_metal: number;
-      cost_energy: number;
+  territoryCosts: {
+    baseMetal: number;
+    baseEnergy: number;
+    costTiers: Array<{
+      upTo: number;
+      costMetal: number;
+      costEnergy: number;
     }>;
   };
   
-  passive_income: {
-    base_metal: number;
-    base_energy: number;
-    scaling_factor: number;
-    collection_hour: number;
+  passiveIncome: {
+    baseMetal: number;
+    baseEnergy: number;
+    scalingFactor: number;
+    collectionHour: number;
   };
   
-  territory_limits: {
-    absolute_max: number;
-    level_based_caps: Array<{
-      min_level: number;
-      max_territories: number;
+  territoryLimits: {
+    absoluteMax: number;
+    levelBasedCaps: Array<{
+      minLevel: number;
+      maxTerritories: number;
     }>;
   };
 }
 
-export const DEFAULT_WARFARE_CONFIG: Omit<WarfareConfig, 'last_updated' | 'updated_by'> = {
+/**
+ * Default warfare configuration
+ */
+export const DEFAULT_WARFARE_CONFIG: Omit<WarfareConfig, '_id' | 'lastUpdated' | 'updatedBy'> = {
   version: 1,
   
-  war_costs: {
-    base_metal: 50000,
-    base_energy: 50000,
-    scaling_per_territory: 400,
+  warCosts: {
+    baseMetal: 50000,
+    baseEnergy: 50000,
+    scalingPerTerritory: 400,
   },
   
-  war_rewards: {
-    metal_spoils_percent: 15,
-    energy_spoils_percent: 15,
-    rp_spoils_percent: 10,
-    victory_xp: 50000,
-    defeat_xp_penalty: 25000,
+  warRewards: {
+    metalSpoilsPercent: 15,
+    energySpoilsPercent: 15,
+    rpSpoilsPercent: 10,
+    victoryXP: 50000,
+    defeatXPPenalty: 25000,
   },
   
-  war_duration: {
-    minimum_hours: 48,
-    cooldown_hours: 168,
+  warDuration: {
+    minimumHours: 48,
+    cooldownHours: 168,
   },
   
-  war_requirements: {
-    minimum_level: 10,
-    minimum_members: 5,
+  warRequirements: {
+    minimumLevel: 10,
+    minimumMembers: 5,
   },
   
-  territory_costs: {
-    base_metal: 2500,
-    base_energy: 2500,
-    cost_tiers: [
-      { up_to: 10, cost_metal: 2500, cost_energy: 2500 },
-      { up_to: 25, cost_metal: 3000, cost_energy: 3000 },
-      { up_to: 50, cost_metal: 3500, cost_energy: 3500 },
-      { up_to: 100, cost_metal: 4000, cost_energy: 4000 },
-      { up_to: 250, cost_metal: 5000, cost_energy: 5000 },
-      { up_to: 500, cost_metal: 6000, cost_energy: 6000 },
-      { up_to: 750, cost_metal: 7000, cost_energy: 7000 },
-      { up_to: 1000, cost_metal: 8000, cost_energy: 8000 },
+  territoryCosts: {
+    baseMetal: 2500,
+    baseEnergy: 2500,
+    costTiers: [
+      { upTo: 10, costMetal: 2500, costEnergy: 2500 },
+      { upTo: 25, costMetal: 3000, costEnergy: 3000 },
+      { upTo: 50, costMetal: 3500, costEnergy: 3500 },
+      { upTo: 100, costMetal: 4000, costEnergy: 4000 },
+      { upTo: 250, costMetal: 5000, costEnergy: 5000 },
+      { upTo: 500, costMetal: 6000, costEnergy: 6000 },
+      { upTo: 750, costMetal: 7000, costEnergy: 7000 },
+      { upTo: 1000, costMetal: 8000, costEnergy: 8000 },
     ],
   },
   
-  passive_income: {
-    base_metal: 1000,
-    base_energy: 1000,
-    scaling_factor: 0.1,
-    collection_hour: 0,
+  passiveIncome: {
+    baseMetal: 1000,
+    baseEnergy: 1000,
+    scalingFactor: 0.1,
+    collectionHour: 0,
   },
   
-  territory_limits: {
-    absolute_max: 1000,
-    level_based_caps: [
-      { min_level: 1, max_territories: 25 },
-      { min_level: 6, max_territories: 50 },
-      { min_level: 11, max_territories: 100 },
-      { min_level: 16, max_territories: 200 },
-      { min_level: 21, max_territories: 400 },
-      { min_level: 26, max_territories: 700 },
-      { min_level: 31, max_territories: 1000 },
+  territoryLimits: {
+    absoluteMax: 1000,
+    levelBasedCaps: [
+      { minLevel: 1, maxTerritories: 25 },
+      { minLevel: 6, maxTerritories: 50 },
+      { minLevel: 11, maxTerritories: 100 },
+      { minLevel: 16, maxTerritories: 200 },
+      { minLevel: 21, maxTerritories: 400 },
+      { minLevel: 26, maxTerritories: 700 },
+      { minLevel: 31, maxTerritories: 1000 },
     ],
   },
 };
 
-const TABLE = 'bot_config';
-const CONFIG_KEY = 'warfare_config';
-
+/**
+ * Load warfare configuration from database
+ * Returns default config if none exists
+ * 
+ * @returns Current warfare configuration
+ */
 export async function loadWarfareConfig(): Promise<WarfareConfig> {
-  const supabase = createServiceClient();
-  
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select('config_value')
-    .eq('config_key', CONFIG_KEY)
-    .maybeSingle();
-  
-  if (error) {
-    console.error('[WarfareConfig] Failed to load config:', error);
+  const results = await db
+    .select()
+    .from(gameConfig)
+    .where(eq(gameConfig.type, 'warfare'))
+    .orderBy(desc(sql`JSON_EXTRACT(${gameConfig.config}, '$.version')`))
+    .limit(1);
+
+  if (results.length > 0) {
+    const row = results[0];
+    const configData = row.config as WarfareConfig;
+    return configData;
   }
-  
-  if (data && data.config_value) {
-    return fromJsonb<WarfareConfig>(data.config_value) ?? { ...DEFAULT_WARFARE_CONFIG, last_updated: '', updated_by: 'system' };
-  }
-  
-  return { ...DEFAULT_WARFARE_CONFIG, version: 1, last_updated: '', updated_by: 'system' };
+
+  const defaultConfig: WarfareConfig = {
+    ...DEFAULT_WARFARE_CONFIG,
+    lastUpdated: new Date(),
+    updatedBy: 'system',
+  };
+
+  await db.insert(gameConfig).values({
+    id: crypto.randomUUID().slice(0, 24),
+    type: 'warfare',
+    config: JSON.parse(JSON.stringify(defaultConfig)),
+  });
+
+  return defaultConfig;
 }
 
+/**
+ * Save warfare configuration to database
+ * Validates config before saving
+ * 
+ * @param config - Configuration to save
+ * @param updatedBy - Username of admin making the change
+ * @returns Saved configuration
+ * @throws Error if validation fails
+ */
 export async function saveWarfareConfig(
-  config: Omit<WarfareConfig, 'last_updated' | 'updated_by'>,
+  config: Omit<WarfareConfig, '_id' | 'lastUpdated' | 'updatedBy'>,
   updatedBy: string
 ): Promise<WarfareConfig> {
-  const supabase = createServiceClient();
-  
   const validation = validateWarfareConfig(config);
   if (!validation.valid) {
     throw new Error(`Invalid configuration: ${validation.errors.join(', ')}`);
   }
-  
+
   const currentConfig = await loadWarfareConfig();
   const newVersion = (currentConfig.version || 0) + 1;
-  
-  const newConfig = {
+
+  const newConfig: WarfareConfig = {
     ...config,
     version: newVersion,
-    last_updated: new Date().toISOString(),
-    updated_by: updatedBy,
+    lastUpdated: new Date(),
+    updatedBy,
   };
-  
-  const { error: upsertErr } = await supabase
-    .from(TABLE)
-    .upsert({
-      config_key: CONFIG_KEY,
-      config_value: newConfig,
-    });
-  
-  if (upsertErr) {
-    console.error('[WarfareConfig] Failed to save config:', upsertErr);
-    throw new Error(`Failed to save warfare config: ${upsertErr.message}`);
-  }
-  
+
+  await db.insert(gameConfig).values({
+    id: crypto.randomUUID().slice(0, 24),
+    type: 'warfare',
+    config: JSON.parse(JSON.stringify(newConfig)),
+  });
+
+  await db.execute(sql`
+    INSERT INTO system_logs (type, timestamp, updatedBy, version, changes)
+    VALUES ('WARFARE_CONFIG_UPDATED', NOW(), ${updatedBy}, ${newVersion}, ${JSON.stringify(newConfig)})
+  `);
+
   return newConfig;
 }
 
+/**
+ * Validate warfare configuration
+ * 
+ * @param config - Configuration to validate
+ * @returns Validation result
+ */
 export function validateWarfareConfig(
-  config: Omit<WarfareConfig, 'last_updated' | 'updated_by'>
+  config: Omit<WarfareConfig, '_id' | 'lastUpdated' | 'updatedBy'>
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   
-  if (config.war_costs.base_metal < 0) {
+  if (config.warCosts.baseMetal < 0) {
     errors.push('War cost (metal) must be non-negative');
   }
-  if (config.war_costs.base_energy < 0) {
+  if (config.warCosts.baseEnergy < 0) {
     errors.push('War cost (energy) must be non-negative');
   }
-  if (config.war_costs.scaling_per_territory < 0) {
+  if (config.warCosts.scalingPerTerritory < 0) {
     errors.push('War cost scaling must be non-negative');
   }
   
-  if (config.war_rewards.metal_spoils_percent < 0 || config.war_rewards.metal_spoils_percent > 100) {
+  if (config.warRewards.metalSpoilsPercent < 0 || config.warRewards.metalSpoilsPercent > 100) {
     errors.push('Metal spoils percent must be between 0 and 100');
   }
-  if (config.war_rewards.energy_spoils_percent < 0 || config.war_rewards.energy_spoils_percent > 100) {
+  if (config.warRewards.energySpoilsPercent < 0 || config.warRewards.energySpoilsPercent > 100) {
     errors.push('Energy spoils percent must be between 0 and 100');
   }
-  if (config.war_rewards.rp_spoils_percent < 0 || config.war_rewards.rp_spoils_percent > 100) {
+  if (config.warRewards.rpSpoilsPercent < 0 || config.warRewards.rpSpoilsPercent > 100) {
     errors.push('RP spoils percent must be between 0 and 100');
   }
   
-  if (config.war_duration.minimum_hours < 1) {
+  if (config.warDuration.minimumHours < 1) {
     errors.push('Minimum war duration must be at least 1 hour');
   }
-  if (config.war_duration.cooldown_hours < 0) {
+  if (config.warDuration.cooldownHours < 0) {
     errors.push('Cooldown hours must be non-negative');
   }
   
-  if (config.war_requirements.minimum_level < 1) {
+  if (config.warRequirements.minimumLevel < 1) {
     errors.push('Minimum level must be at least 1');
   }
-  if (config.war_requirements.minimum_members < 1) {
+  if (config.warRequirements.minimumMembers < 1) {
     errors.push('Minimum members must be at least 1');
   }
   
-  if (config.territory_limits.absolute_max < 1) {
+  if (config.territoryLimits.absoluteMax < 1) {
     errors.push('Absolute max territories must be at least 1');
   }
   
-  if (config.passive_income.scaling_factor < 0 || config.passive_income.scaling_factor > 1) {
+  if (config.passiveIncome.scalingFactor < 0 || config.passiveIncome.scalingFactor > 1) {
     errors.push('Scaling factor must be between 0 and 1');
   }
-  if (config.passive_income.collection_hour < 0 || config.passive_income.collection_hour > 23) {
+  if (config.passiveIncome.collectionHour < 0 || config.passiveIncome.collectionHour > 23) {
     errors.push('Collection hour must be between 0 and 23');
   }
   
@@ -246,7 +296,19 @@ export function validateWarfareConfig(
   };
 }
 
-export async function getConfigHistory(_limit = 10): Promise<WarfareConfig[]> {
-  const config = await loadWarfareConfig();
-  return [config];
+/**
+ * Get configuration history
+ * 
+ * @param limit - Maximum number of versions to return
+ * @returns Array of past configurations
+ */
+export async function getConfigHistory(limit = 10): Promise<WarfareConfig[]> {
+  const results = await db
+    .select()
+    .from(gameConfig)
+    .where(eq(gameConfig.type, 'warfare'))
+    .orderBy(desc(sql`JSON_EXTRACT(${gameConfig.config}, '$.version')`))
+    .limit(limit);
+
+  return results.map(row => row.config as WarfareConfig);
 }

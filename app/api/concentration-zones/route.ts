@@ -15,8 +15,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import { createServiceClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   setConcentrationZones,
   getConcentrationZones,
@@ -43,19 +45,16 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('concentration-zones-get');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    if (error || !player) {
+    if (!player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
@@ -86,27 +85,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('concentration-zones-post');
 
   try {
-    const body = await request.json();
-    const { zones, username } = body;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    if (error || !player) {
+    if (!player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
     // Check tech requirement
-    const unlockedTechs = player.unlocked_techs || [];
+    const unlockedTechs = player.unlockedTechs || [];
     if (!unlockedTechs.includes('bot-concentration-zones')) {
       return NextResponse.json({ error: 'Requires Bot Concentration Zones technology' }, { status: 403 });
     }
+
+    const body = await request.json();
+    const { zones } = body;
 
     // Validate zones array
     if (!Array.isArray(zones)) {
@@ -158,19 +157,16 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('concentration-zones-delete');
 
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    if (error || !player) {
+    if (!player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 

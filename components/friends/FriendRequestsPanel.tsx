@@ -352,7 +352,7 @@ function ReceivedRequestsList({
         </svg>
         <div className="text-center">
           <div className="text-lg mb-1">No pending requests</div>
-          <div className="text-sm">You're all caught up!</div>
+          <div className="text-sm">You{"'"}re all caught up!</div>
         </div>
       </div>
     );
@@ -395,7 +395,7 @@ function ReceivedRequestsList({
           {/* Optional Message */}
           {request.message && (
             <div className="p-2 bg-gray-900/50 rounded text-sm text-gray-300 italic">
-              "{request.message}"
+              &quot;{request.message}&quot;
             </div>
           )}
 

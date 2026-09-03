@@ -1,7 +1,6 @@
 /**
  * @file lib/referralService.ts
  * Created: 2025-10-24
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * 
  * OVERVIEW:
  * Core business logic for player referral and recruitment system.
@@ -16,11 +15,10 @@
  * - Welcome package distribution
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, TablesInsert } from '@/types/database';
-import { pickRandomName } from './itemUtils';
+import { db } from '@/lib/db';
+import { players, referrals } from '@/lib/db/schema';
+import { eq, and, gte, sql, gt, lt } from 'drizzle-orm';
 import type {
-  ReferralRecord,
   ReferralReward,
   WelcomePackage,
   AbuseCheckResult,
@@ -29,19 +27,12 @@ import type {
 } from '@/types/referral.types';
 import type { Player } from '@/types/game.types';
 
-type ReferralRow = Tables<'referrals'>;
-type PlayerRow = Tables<'players'>;
-
-function getSupabase() {
-  return createServiceClient();
-}
-
 /**
  * Generate unique referral code for player
  * Format: DF-XXXXXXXX (8 alphanumeric characters)
  */
 export function generateReferralCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude ambiguous chars (0, O, I, 1)
   let code = 'DF-';
   
   for (let i = 0; i < 8; i++) {
@@ -63,16 +54,16 @@ export function generateReferralLink(code: string): string {
  * Validate referral code exists and is active
  */
 export async function validateReferralCode(code: string): Promise<ReferralCodeValidation> {
-  const supabase = getSupabase();
+  const referrerRows = await db.select().from(players).where(
+    and(
+      eq(players.referralCode, code),
+      gt(players.isBot, 0)
+    )
+  ).limit(1);
   
-  const { data: referrer, error } = await supabase
-    .from('players')
-    .select('username, referral_code, is_bot')
-    .eq('referral_code', code)
-    .neq('is_bot', true)
-    .single();
+  const referrer = referrerRows[0];
   
-  if (error || !referrer) {
+  if (!referrer) {
     return {
       valid: false,
       error: 'Invalid referral code'
@@ -230,8 +221,8 @@ export function calculateReferralReward(
   globalMultiplier: number = 1.0,
   currentVIPDays: number = 0
 ): ReferralReward {
-  const VIP_CAP = 30;
-  const PROGRESSIVE_CAP = 2.0;
+  const VIP_CAP = 30; // Maximum 30 days VIP from referrals
+  const PROGRESSIVE_CAP = 2.0; // Cap multiplier at 2.0x (prevents extreme scaling)
   
   const baseReward = {
     metal: 10000,
@@ -241,6 +232,7 @@ export function calculateReferralReward(
     vipDays: 1
   };
   
+  // Progressive multiplier: 1.05x per referral, capped at 2.0x
   const progressiveFactor = Math.min(
     Math.pow(1.05, referralCount - 1),
     PROGRESSIVE_CAP
@@ -254,6 +246,7 @@ export function calculateReferralReward(
     vipDays: Math.floor(baseReward.vipDays * globalMultiplier)
   };
   
+  // Check for milestone bonus
   const milestone = REFERRAL_MILESTONES.find(m => m.count === referralCount);
   if (milestone) {
     reward.metal += milestone.rewards.metal;
@@ -265,10 +258,11 @@ export function calculateReferralReward(
     reward.milestone = milestone.count;
   }
   
+  // Apply VIP cap: limit total VIP days to 30
   if (currentVIPDays >= VIP_CAP) {
-    reward.vipDays = 0;
+    reward.vipDays = 0; // Already at cap
   } else if (currentVIPDays + reward.vipDays > VIP_CAP) {
-    reward.vipDays = VIP_CAP - currentVIPDays;
+    reward.vipDays = VIP_CAP - currentVIPDays; // Partial award to reach cap
   }
   
   return reward;
@@ -286,13 +280,13 @@ export function getWelcomePackage(): WelcomePackage {
     items: [
       {
         id: 'digger_legendary',
-        name: pickRandomName('UNIVERSAL_DIGGER', 'Legendary'),
+        name: 'Legendary Digger',
         type: 'digger',
         quantity: 1
       }
     ],
     xpBoostPercent: 25,
-    xpBoostDuration: 7,
+    xpBoostDuration: 7, // days
     vipTrialDays: 3,
     title: 'Recruit'
   };
@@ -310,7 +304,7 @@ export function getStarterPackage(): WelcomePackage {
     items: [
       {
         id: 'digger_rare',
-        name: pickRandomName('UNIVERSAL_DIGGER', 'Rare'),
+        name: 'Rare Digger',
         type: 'digger',
         quantity: 1
       }
@@ -333,20 +327,21 @@ export async function checkForAbuse(
   ip: string,
   referralCode: string
 ): Promise<AbuseCheckResult> {
-  const supabase = getSupabase();
   const flags: string[] = [];
   let riskLevel: 'low' | 'medium' | 'high' = 'low';
   
-  const { count: sameIPReferrals, error: ipErr } = await supabase
-    .from('referrals')
-    .select('*', { count: 'exact', head: true })
-    .eq('referrer_code', referralCode)
-    .eq('new_player_ip', ip);
-
-  const ipCount = sameIPReferrals || 0;
+  // Check how many accounts from this IP used the same referral code
+  const sameIPReferralsResult = await db.select({ count: sql<number>`count(*)` }).from(referrals).where(
+    and(
+      eq(referrals.referrerCode, referralCode),
+      eq(referrals.newPlayerIP, ip)
+    )
+  );
   
-  if (ipCount >= 3) {
-    flags.push(`IP ${ip} has already created ${ipCount} accounts with this referral code`);
+  const sameIPReferrals = sameIPReferralsResult[0]?.count || 0;
+  
+  if (sameIPReferrals >= 3) {
+    flags.push(`IP ${ip} has already created ${sameIPReferrals} accounts with this referral code`);
     riskLevel = 'high';
     return {
       allowed: false,
@@ -356,11 +351,12 @@ export async function checkForAbuse(
     };
   }
   
-  if (ipCount >= 2) {
-    flags.push(`IP ${ip} has created ${ipCount} accounts with this code`);
+  if (sameIPReferrals >= 2) {
+    flags.push(`IP ${ip} has created ${sameIPReferrals} accounts with this code`);
     riskLevel = 'medium';
   }
   
+  // Check for temporary email domains
   const tempEmailDomains = [
     'tempmail.com', 'guerrillamail.com', '10minutemail.com', 'throwaway.email',
     'mailinator.com', 'temp-mail.org', 'getnada.com', 'maildrop.cc'
@@ -372,17 +368,19 @@ export async function checkForAbuse(
     riskLevel = 'medium';
   }
   
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count: recentSignups, error: recentErr } = await supabase
-    .from('referrals')
-    .select('*', { count: 'exact', head: true })
-    .eq('referrer_code', referralCode)
-    .gte('signup_date', oneHourAgo);
-
-  const recentCount = recentSignups || 0;
+  // Check for rapid signups (more than 5 in last hour from same code)
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentSignupsResult = await db.select({ count: sql<number>`count(*)` }).from(referrals).where(
+    and(
+      eq(referrals.referrerCode, referralCode),
+      gte(referrals.signupDate, oneHourAgo)
+    )
+  );
   
-  if (recentCount >= 5) {
-    flags.push(`${recentCount} signups in last hour from this referral code`);
+  const recentSignups = recentSignupsResult[0]?.count || 0;
+  
+  if (recentSignups >= 5) {
+    flags.push(`${recentSignups} signups in last hour from this referral code`);
     riskLevel = 'high';
   }
   
@@ -398,71 +396,66 @@ export async function checkForAbuse(
  */
 export async function createReferralRecord(
   referrerCode: string,
-  newPlayer: { username: string; email: string },
+  newPlayer: Player,
   ip: string
 ): Promise<string> {
-  const supabase = getSupabase();
+  // Get referrer info
+  const referrerRows = await db.select().from(players).where(eq(players.referralCode, referrerCode)).limit(1);
+  const referrer = referrerRows[0];
   
-  const { data: referrer, error: referrerErr } = await supabase
-    .from('players')
-    .select('*')
-    .eq('referral_code', referrerCode)
-    .single();
-
-  if (referrerErr || !referrer) {
+  if (!referrer) {
     throw new Error('Referrer not found');
   }
   
-  const currentVIPDays = referrer.referral_rewards_vip_days || 0;
+  // Calculate current VIP days from referrals (for cap enforcement)
+  const currentVIPDays = Number(referrer.referralRewardsVipDays) || 0;
   
+  // Calculate what rewards referrer will get when this validates
   const futureRewards = calculateReferralReward(
-    (referrer.total_referrals || 0) + (referrer.pending_referrals || 0) + 1,
-    1.0,
+    (referrer.totalReferrals || 0) + (referrer.pendingReferrals || 0) + 1,
+    Number(referrer.referralMultiplier) || 1.0,
     currentVIPDays
   );
   
-  const now = new Date().toISOString();
-  const insertRow: TablesInsert<'referrals'> = {
-    referrer_code: referrerCode,
-    referrer_username: referrer.username,
-    new_player_username: newPlayer.username,
-    new_player_email: newPlayer.email,
-    new_player_ip: ip,
-    signup_date: now,
-    validation_date: null,
-    validated: false,
-    login_count: 1,
-    last_login: now,
-    days_active: 0,
-    rewards_claimed: false,
-    reward_metal: futureRewards.metal,
-    reward_energy: futureRewards.energy,
-    reward_rp: futureRewards.rp,
-    reward_xp: futureRewards.xp,
-    reward_vip_days: futureRewards.vipDays,
-    welcome_package_given: false,
-    flagged_for_abuse: false,
-    flag_reason: null,
-    admin_notes: null,
-  };
+  // 24 hex chars: fits the varchar(24) primary key (the old `ref_`-prefixed id was 27 chars and would have failed the insert)
+  const referralId = `${Date.now().toString(16)}${Math.random().toString(36).slice(2, 12)}`.padEnd(24, '0').slice(0, 24);
   
-  const { data: insertedRow, error: insertErr } = await supabase
-    .from('referrals')
-    .insert(insertRow)
-    .select('id')
-    .single();
-
-  if (insertErr || !insertedRow) {
-    throw new Error('Failed to create referral record');
-  }
+  await db.insert(referrals).values({
+    id: referralId,
+    referrerCode,
+    referrerUsername: referrer.username,
+    referrerPlayerId: referrer.username,
+    newPlayerUsername: newPlayer.username,
+    newPlayerEmail: newPlayer.email,
+    newPlayerIP: ip,
+    signupDate: new Date(),
+    validationDate: null,
+    validated: 0,
+    loginCount: 1,
+    lastLogin: new Date(),
+    daysActive: 0,
+    rewardsClaimed: 0,
+    rewardsDataMetal: futureRewards.metal,
+    rewardsDataEnergy: futureRewards.energy,
+    rewardsDataRp: futureRewards.rp,
+    rewardsDataXp: futureRewards.xp,
+    rewardsDataVipDays: futureRewards.vipDays,
+    rewardsDataSpecialReward: futureRewards.specialReward || null,
+    rewardsDataMilestone: futureRewards.milestone || null,
+    welcomePackageGiven: 0,
+    flaggedForAbuse: 0,
+    flagReason: null,
+    adminNotes: null,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
   
-  const currentPending = referrer.pending_referrals || 0;
-  await supabase
-    .from('players')
-    .update({ pending_referrals: currentPending + 1 })
-    .eq('username', referrer.username);
+  // Update referrer's pending count
+  await db.update(players).set({
+    pendingReferrals: sql`COALESCE(${players.pendingReferrals}, 0) + 1`
+  }).where(eq(players.username, referrer.username));
   
-  return insertedRow.id;
+  return referralId;
 }
 
 /**
@@ -471,126 +464,117 @@ export async function createReferralRecord(
  * - Must have logged in at least 4 times
  */
 export async function checkReferralValidation(referralId: string): Promise<boolean> {
-  const supabase = getSupabase();
+  const recordRows = await db.select().from(referrals).where(eq(referrals.id, referralId)).limit(1);
+  const record = recordRows[0];
   
-  const { data: record, error } = await supabase
-    .from('referrals')
-    .select('*')
-    .eq('id', referralId)
-    .single();
-
-  if (error || !record || record.validated) {
+  if (!record || record.validated) {
     return false;
   }
   
-  const daysSinceSignup = (Date.now() - new Date(record.signup_date).getTime()) / (1000 * 60 * 60 * 24);
+  const daysSinceSignup = (Date.now() - new Date(record.signupDate).getTime()) / (1000 * 60 * 60 * 24);
   
-  return daysSinceSignup >= 7 && record.login_count >= 4;
+  // Must be 7+ days and 4+ logins
+  return daysSinceSignup >= 7 && record.loginCount >= 4;
 }
 
 /**
  * Validate a referral and distribute rewards to referrer
  */
 export async function validateReferral(referralId: string): Promise<boolean> {
-  const supabase = getSupabase();
+  const recordRows = await db.select().from(referrals).where(eq(referrals.id, referralId)).limit(1);
+  const record = recordRows[0];
   
-  const { data: record, error: fetchErr } = await supabase
-    .from('referrals')
-    .select('*')
-    .eq('id', referralId)
-    .single();
-
-  if (fetchErr || !record || record.validated) {
+  if (!record || record.validated) {
     return false;
   }
   
-  const now = new Date().toISOString();
+  const now = new Date();
   
-  await supabase
-    .from('referrals')
-    .update({
-      validated: true,
-      validation_date: now,
-      updated_at: now,
-    })
-    .eq('id', referralId);
+  // Mark referral as validated
+  await db.update(referrals).set({
+    validated: 1,
+    validationDate: now,
+    updatedAt: now
+  }).where(eq(referrals.id, referralId));
   
-  await supabase
-    .from('players')
-    .update({
-      referral_validated: true,
-      referral_validated_at: now,
-    })
-    .eq('username', record.new_player_username);
+  // Update new player status
+  await db.update(players).set({
+    referralValidated: 1,
+    referralValidatedAt: now
+  }).where(eq(players.username, record.newPlayerUsername));
   
-  const { data: referrer, error: refErr } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', record.referrer_username)
-    .single();
-
-  if (refErr || !referrer) {
+  // Update referrer stats and pending count
+  const referrerRows = await db.select().from(players).where(eq(players.username, record.referrerPlayerId)).limit(1);
+  const referrer = referrerRows[0];
+  
+  if (!referrer) {
     return false;
   }
   
-  const newTotalReferrals = (referrer.total_referrals || 0) + 1;
-  const newPendingReferrals = Math.max(0, (referrer.pending_referrals || 1) - 1);
+  const newTotalReferrals = (referrer.totalReferrals || 0) + 1;
+  const newPendingReferrals = Math.max(0, (referrer.pendingReferrals || 1) - 1);
   
-  const newMetal = (referrer.resources_metal || 0) + (record.reward_metal || 0);
-  const newEnergy = (referrer.resources_energy || 0) + (record.reward_energy || 0);
-  const newRp = (referrer.research_points || 0) + (record.reward_rp || 0);
-  const newXp = (referrer.xp || 0) + (record.reward_xp || 0);
-  const newRewardsMetal = (referrer.referral_rewards_metal || 0) + (record.reward_metal || 0);
-  const newRewardsEnergy = (referrer.referral_rewards_energy || 0) + (record.reward_energy || 0);
-  const newRewardsRp = (referrer.referral_rewards_rp || 0) + (record.reward_rp || 0);
-  const newRewardsXp = (referrer.referral_rewards_xp || 0) + (record.reward_xp || 0);
-  const newRewardsVip = (referrer.referral_rewards_vip_days || 0) + (record.reward_vip_days || 0);
-  
+  // Check for milestone achievement
   const milestone = REFERRAL_MILESTONES.find(m => m.count === newTotalReferrals);
-
-  const currentMilestones = referrer.referral_milestones_reached || [];
-  const newMilestones = milestone ? [...currentMilestones, newTotalReferrals] : currentMilestones;
   
-  let vipExpiration: string | null = referrer.vip_expiration;
-  if ((record.reward_vip_days || 0) > 0) {
-    const currentExpiration = referrer.vip_expiration 
-      ? new Date(referrer.vip_expiration).getTime() 
-      : Date.now();
-    const newExpiration = new Date(
-      Math.max(currentExpiration, Date.now()) + 
-      ((record.reward_vip_days || 0) * 24 * 60 * 60 * 1000)
-    );
-    vipExpiration = newExpiration.toISOString();
+  const rewardsMetal = Number(record.rewardsDataMetal);
+  const rewardsEnergy = Number(record.rewardsDataEnergy);
+  const rewardsRp = record.rewardsDataRp;
+  const rewardsXp = record.rewardsDataXp;
+  const rewardsVipDays = record.rewardsDataVipDays;
+  
+  await db.update(players).set({
+    totalReferrals: newTotalReferrals,
+    pendingReferrals: newPendingReferrals,
+    lastReferralValidated: now,
+    referralRewardsMetal: sql`COALESCE(${players.referralRewardsMetal}, 0) + ${rewardsMetal}`,
+    referralRewardsEnergy: sql`COALESCE(${players.referralRewardsEnergy}, 0) + ${rewardsEnergy}`,
+    referralRewardsRp: sql`COALESCE(${players.referralRewardsRp}, 0) + ${rewardsRp}`,
+    referralRewardsXp: sql`COALESCE(${players.referralRewardsXp}, 0) + ${rewardsXp}`,
+    referralRewardsVipDays: sql`COALESCE(${players.referralRewardsVipDays}, 0) + ${rewardsVipDays}`,
+    resourcesMetal: sql`COALESCE(${players.resourcesMetal}, 0) + ${rewardsMetal}`,
+    resourcesEnergy: sql`COALESCE(${players.resourcesEnergy}, 0) + ${rewardsEnergy}`,
+    researchPoints: sql`COALESCE(${players.researchPoints}, 0) + ${rewardsRp}`,
+    xp: sql`COALESCE(${players.xp}, 0) + ${rewardsXp}`
+  }).where(eq(players.username, record.referrerPlayerId));
+  
+  // Add milestone achievements
+  if (milestone) {
+    if (milestone.title) {
+      await db.update(players).set({
+        referralTitles: sql`JSON_ARRAY_APPEND(COALESCE(${players.referralTitles}, '[]'), '$', ${milestone.title})`
+      }).where(eq(players.username, record.referrerPlayerId));
+    }
+    if (milestone.badge) {
+      await db.update(players).set({
+        referralBadges: sql`JSON_ARRAY_APPEND(COALESCE(${players.referralBadges}, '[]'), '$', ${milestone.badge})`
+      }).where(eq(players.username, record.referrerPlayerId));
+    }
+    await db.update(players).set({
+      referralMilestonesReached: sql`JSON_ARRAY_APPEND(COALESCE(${players.referralMilestonesReached}, '[]'), '$', ${newTotalReferrals})`
+    }).where(eq(players.username, record.referrerPlayerId));
   }
-
-  await supabase
-    .from('players')
-    .update({
-      total_referrals: newTotalReferrals,
-      pending_referrals: newPendingReferrals,
-      resources_metal: newMetal,
-      resources_energy: newEnergy,
-      research_points: newRp,
-      xp: newXp,
-      referral_rewards_metal: newRewardsMetal,
-      referral_rewards_energy: newRewardsEnergy,
-      referral_rewards_rp: newRewardsRp,
-      referral_rewards_xp: newRewardsXp,
-      referral_rewards_vip_days: newRewardsVip,
-      referral_milestones_reached: newMilestones,
-      is_vip: vipExpiration ? true : referrer.is_vip,
-      vip_expiration: vipExpiration,
-      vip_last_updated: now,
-    })
-    .eq('username', record.referrer_username);
   
-  await supabase
-    .from('referrals')
-    .update({
-      rewards_claimed: true,
-      updated_at: now,
-    })
-    .eq('id', referralId);
+  // Add VIP days if any
+  if (rewardsVipDays > 0) {
+    const currentVIPExpiration = referrer.vipExpiration || new Date();
+    const newVIPExpiration = new Date(
+      Math.max(new Date(currentVIPExpiration).getTime(), Date.now()) + 
+      (rewardsVipDays * 24 * 60 * 60 * 1000)
+    );
+    
+    await db.update(players).set({
+      vipExpiration: newVIPExpiration,
+      vip: 1,
+      vipLastUpdated: now
+    }).where(eq(players.username, record.referrerPlayerId));
+  }
+  
+  // Mark rewards as claimed
+  await db.update(referrals).set({
+    rewardsClaimed: 1,
+    updatedAt: now
+  }).where(eq(referrals.id, referralId));
   
   return true;
 }
@@ -608,7 +592,7 @@ export function getNextMilestone(currentReferrals: number): ReferralMilestone | 
 export function calculateMilestoneProgress(currentReferrals: number): number {
   const nextMilestone = getNextMilestone(currentReferrals);
   if (!nextMilestone) {
-    return 100;
+    return 100; // All milestones reached
   }
   
   const previousMilestoneCount = REFERRAL_MILESTONES

@@ -59,9 +59,9 @@ export default function BotMagnetPanel() {
 
   // Set default coordinates to player position
   useEffect(() => {
-    if (player?.currentPosition && !deployX && !deployY) {
-      setDeployX(player.currentPosition.x.toString());
-      setDeployY(player.currentPosition.y.toString());
+    if (player?.currentPosition) {
+      setDeployX(prev => prev || player.currentPosition!.x.toString());
+      setDeployY(prev => prev || player.currentPosition!.y.toString());
     }
   }, [player?.currentPosition]);
 

@@ -28,7 +28,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface IncomeProjection {
   totalTerritories: number;
@@ -65,24 +65,7 @@ export function PassiveIncomeDisplay({ clanId, playerId, role, onIncomeCollected
 
   const canCollect = ['LEADER', 'CO_LEADER'].includes(role);
 
-  useEffect(() => {
-    loadProjection();
-    
-    const interval = setInterval(() => {
-      loadProjection();
-      updateCountdown();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [clanId]);
-
-  useEffect(() => {
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [projection]);
-
-  const loadProjection = async () => {
+  const loadProjection = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -100,7 +83,7 @@ export function PassiveIncomeDisplay({ clanId, playerId, role, onIncomeCollected
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clanId]);
 
   const collectIncome = async () => {
     try {
@@ -140,7 +123,7 @@ export function PassiveIncomeDisplay({ clanId, playerId, role, onIncomeCollected
     }
   };
 
-  const updateCountdown = () => {
+  const updateCountdown = useCallback(() => {
     if (!projection?.nextCollectionTime) {
       setTimeUntilNext('');
       return;
@@ -160,7 +143,24 @@ export function PassiveIncomeDisplay({ clanId, playerId, role, onIncomeCollected
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
     
     setTimeUntilNext(`${hours}h ${minutes}m ${seconds}s`);
-  };
+  }, [projection]);
+
+  useEffect(() => {
+    loadProjection();
+    
+    const interval = setInterval(() => {
+      loadProjection();
+      updateCountdown();
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [clanId, loadProjection, updateCountdown]);
+
+  useEffect(() => {
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [projection, updateCountdown]);
 
   if (!projection && !isLoading) {
     return (

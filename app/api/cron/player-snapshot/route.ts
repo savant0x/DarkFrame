@@ -1,7 +1,6 @@
 /**
  * @file app/api/cron/player-snapshot/route.ts
  * @created 2025-10-25
- * @updated 2026-05-15 — Fixed POST auth bypass: use requireAdminAuth
  * 
  * OVERVIEW:
  * Daily cron job to capture player level snapshots.
@@ -14,44 +13,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { capturePlayerSnapshot } from '@/lib/playerHistoryService';
 import { logger } from '@/lib/logger';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { connectToDatabase } from '@/lib/mongodb';
+import type { Player } from '@/types/game.types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = request.headers.get('x-cron-secret') || request.nextUrl.searchParams.get('secret');
-    if (!cronSecret || providedSecret !== cronSecret) {
+    // Verify cron secret
+    const authHeader = request.headers.get('authorization');
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      logger.warn('Unauthorized cron access attempt', { path: '/api/cron/player-snapshot' });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     logger.info('Starting daily player snapshot...');
 
-    const supabase = createServiceClient();
+    const db = await connectToDatabase();
+    const playersCollection = db.collection<Player & { _id: string; level?: number }>('players');
 
+    // Get all active players (logged in within last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const { data: activePlayers, error } = await supabase
-      .from('players')
-      .select('username, level')
-      .gte('last_login_date', thirtyDaysAgo.toISOString().split('T')[0]);
-
-    if (error) {
-      logger.error('Failed to fetch active players', error);
-      return NextResponse.json({ error: 'Failed to fetch players' }, { status: 500 });
-    }
+    const activePlayers = await playersCollection.find({
+      lastActive: { $gte: thirtyDaysAgo }
+    }).toArray();
 
     logger.info(`Found ${activePlayers.length} active players to snapshot`);
 
+    // Capture snapshot for each player
     let successCount = 0;
     let errorCount = 0;
 
     for (const player of activePlayers) {
       try {
-        await capturePlayerSnapshot(player.username, player.level);
+        await capturePlayerSnapshot(player._id.toString(), player.level);
         successCount++;
       } catch (error) {
         errorCount++;
@@ -87,32 +84,33 @@ export async function GET(request: NextRequest) {
 // POST endpoint for manual trigger (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Manual trigger endpoint can use regular auth
+    const { getAuthenticatedUser } = await import('@/lib/authService');
+    const currentUser = await getAuthenticatedUser();
+    
+    if (!currentUser || !currentUser.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    logger.info('Manual player snapshot triggered', { admin: auth.username });
+    logger.info('Manual player snapshot triggered', { admin: currentUser.username });
 
-    const supabase = createServiceClient();
+    // Re-use GET logic
+    const db = await connectToDatabase();
+    const playersCollection = db.collection<Player & { _id: string; level?: number }>('players');
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const { data: activePlayers, error } = await supabase
-      .from('players')
-      .select('username, level')
-      .gte('last_login_date', thirtyDaysAgo.toISOString().split('T')[0]);
-
-    if (error) {
-      logger.error('Failed to fetch active players', error);
-      return NextResponse.json({ error: 'Failed to fetch players' }, { status: 500 });
-    }
+    const activePlayers = await playersCollection.find({
+      lastActive: { $gte: thirtyDaysAgo }
+    }).toArray();
 
     let successCount = 0;
     let errorCount = 0;
 
     for (const player of activePlayers) {
       try {
-        await capturePlayerSnapshot(player.username, player.level);
+        await capturePlayerSnapshot(player._id.toString(), player.level);
         successCount++;
       } catch (error) {
         errorCount++;

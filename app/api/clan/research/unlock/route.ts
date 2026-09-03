@@ -23,24 +23,40 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  unlockResearch,
-  logger,
-} from '@/lib';
+import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import { unlockResearch } from '@/lib/clanResearchService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/research/unlock
+ * Unlock a research node in the clan tech tree
+ * 
+ * @param request - NextRequest with authentication cookie and research ID in body
+ * @returns NextResponse with unlocked research details and updated bonuses
+ * 
+ * @example
+ * POST /api/clan/research/unlock
+ * Body: { researchId: "resource_efficiency_1" }
+ * Response: { success: true, research: {...}, totalBonuses: { harvestBonus: 5 }, message: "Successfully unlocked..." }
+ * 
+ * @throws {400} Research ID required
+ * @throws {400} Already unlocked
+ * @throws {400} Prerequisites not met
+ * @throws {400} Insufficient research points
+ * @throws {400} Level requirement not met
+ * @throws {401} Unauthorized
+ * @throws {403} Insufficient permissions (Leader/Officer only)
+ * @throws {404} Research not found
+ * @throws {500} Failed to unlock research
+ */
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
+    const { client, db } = await getClientAndDatabase();
 
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clanId } = result;
+
+    
 
     const body = await request.json();
     const { researchId } = body;
@@ -61,58 +77,56 @@ export const POST = rateLimiter(async (request: NextRequest) => {
         totalBonuses: unlockResult.totalBonuses,
         message: `Successfully unlocked ${unlockResult.research.name}`,
       });
-    } catch (err: unknown) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      if (errMessage.includes('not found')) {
+    } catch (err: any) {
+      if (err.message.includes('not found')) {
         return NextResponse.json(
           { error: 'Research node not found' },
           { status: 404 }
         );
       }
-      if (errMessage.includes('not a member')) {
+      if (err.message.includes('not a member')) {
         return NextResponse.json(
           { error: 'You are not a member of this clan' },
           { status: 400 }
         );
       }
-      if (errMessage.includes('Insufficient permissions')) {
+      if (err.message.includes('Insufficient permissions')) {
         return NextResponse.json(
           { error: 'Only Leaders, Co-Leaders, and Officers can unlock research' },
           { status: 403 }
         );
       }
-      if (errMessage.includes('already unlocked')) {
+      if (err.message.includes('already unlocked')) {
         return NextResponse.json(
           { error: 'Research already unlocked' },
           { status: 400 }
         );
       }
-      if (errMessage.includes('level') && errMessage.includes('required')) {
+      if (err.message.includes('level') && err.message.includes('required')) {
         return NextResponse.json(
-          { error: errMessage },
+          { error: err.message },
           { status: 400 }
         );
       }
-      if (errMessage.includes('Prerequisite not met')) {
+      if (err.message.includes('Prerequisite not met')) {
         return NextResponse.json(
-          { error: errMessage },
+          { error: err.message },
           { status: 400 }
         );
       }
-      if (errMessage.includes('Insufficient research points')) {
+      if (err.message.includes('Insufficient research points')) {
         return NextResponse.json(
-          { error: errMessage },
+          { error: err.message },
           { status: 400 }
         );
       }
       throw err;
     }
-  } catch (error: unknown) {
-    logger.error('Error unlocking research:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to unlock research';
+  } catch (error: any) {
+    console.error('Error unlocking research:', error);
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error.message || 'Failed to unlock research' },
       { status: 500 }
     );
   }
-});
+}

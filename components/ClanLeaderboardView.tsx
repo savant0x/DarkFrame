@@ -33,7 +33,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { StaggerChildren, StaggerItem } from '@/components/transitions';
@@ -83,16 +83,9 @@ export default function ClanLeaderboardView() {
   const totalPages = Math.ceil(totalClans / clansPerPage);
 
   /**
-   * Fetch leaderboard data when category, page, or search changes
-   */
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [category, currentPage, searchQuery]);
-
-  /**
    * Fetches leaderboard data from API
    */
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -115,7 +108,14 @@ export default function ClanLeaderboardView() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [category, currentPage, clansPerPage, searchQuery]);
+
+  /**
+   * Fetch leaderboard data when category, page, or search changes
+   */
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   /**
    * Handles category change and resets to page 1

@@ -1,21 +1,33 @@
 /**
  * @file app/api/move/route.ts
  * @created 2025-10-16
- * @updated 2026-05-04 — Use mapCamelCase, eliminate ...player spread
+ * @updated 2025-10-24 (Phase 2: Production infrastructure - validation, errors, rate limiting)
  * @overview Player movement API endpoint
+ * 
+ * OVERVIEW:
+ * POST endpoint for player movement in 9 directions with wrap-around.
+ * Returns updated player data and new tile information.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { movePlayer } from '@/lib/movementService';
-import { createServiceClient } from '@/lib/supabase/server';
-import { MovementDirection } from '@/types';
-import type { Tables } from '@/types/database';
-import { mapCamelCase } from '@/lib/supabase/mapCamelCase';
+import { ApiResponse, MoveResponse, Player, MovementDirection } from '@/types';
+
+/** Tutorial move-tracking doc as read/written by this route. */
+interface TutorialMoveTracking {
+  playerId: string;
+  stepId: string;
+  actionType?: string;
+  currentCount?: number;
+  targetX?: number;
+  targetY?: number;
+}
 import { logMovement } from '@/lib/activityLogger';
 import { updateSession } from '@/lib/sessionTracker';
+import { getCollection } from '@/lib/mongodb';
 import { detectSpeedHack } from '@/lib/antiCheatDetector';
-import {
-  withRequestLogging,
+import { 
+  withRequestLogging, 
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
@@ -23,163 +35,473 @@ import {
   createErrorResponse,
   createErrorFromException,
   createValidationErrorResponse,
-  ErrorCode,
+  ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
-
-type PlayerRow = Tables<'players'>;
-type TileRow = Tables<'tiles'>;
+import clientPromise from '@/lib/mongodb';
+import {
+  
+  getCurrentQuestAndStep,
+  updateActionTracking,
+} from '@/lib/tutorialService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.movement);
 
+/**
+ * POST /api/move
+ * 
+ * Move player in specified direction
+ * 
+ * Request body:
+ * ```json
+ * {
+ *   "username": "Commander42",
+ *   "direction": "N"
+ * }
+ * ```
+ * 
+ * Response:
+ * ```json
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "player": { ... },
+ *     "currentTile": { ... }
+ *   }
+ * }
+ * ```
+ */
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('MovementAPI');
   const endTimer = log.time('playerMovement');
-
+  
   try {
+    // Parse and validate request body
     const body = await request.json();
     const validated = MoveSchema.parse(body);
     const { username, direction } = validated;
-
+    
     log.debug('Movement initiated', { username, direction });
-
+    
+    // Get player's current position before moving
+    const playersCollection = await getCollection<Player>('players');
+    const playerBefore = await playersCollection.findOne({ username });
+    const oldPosition = playerBefore ? { x: playerBefore.currentPosition.x, y: playerBefore.currentPosition.y } : null;
+    
+    // Move player
     const { player, tile } = await movePlayer(username, direction as MovementDirection);
 
-    const playerCurrentX = player.current_x;
-    const playerCurrentY = player.current_y;
-
-    log.info('Player moved', {
-      username,
-      to: { x: playerCurrentX, y: playerCurrentY },
-      tileData: tile.terrain,
-    });
-
-    // Update flag position if player holds the flag
-    try {
-      const supabase = createServiceClient();
-      const { data: flag } = await supabase
-        .from('flags')
-        .select('id, bearer_username')
-        .limit(1)
-        .maybeSingle();
-
-      if (flag && flag.bearer_username === player.username) {
-        await supabase
-          .from('flags')
-          .update({ position_x: playerCurrentX, position_y: playerCurrentY })
-          .eq('id', flag.id);
-      }
-    } catch {
-      log.error('Flag update error', new Error('Flag update failed'));
+    // Defensive: Ensure player.currentPosition is always present and valid
+    if (!player.currentPosition || typeof player.currentPosition.x !== 'number' || typeof player.currentPosition.y !== 'number') {
+      // Fallback: Use tile position if available, else oldPosition, else (1,1)
+      const fallbackPosition = tile && typeof tile.x === 'number' && typeof tile.y === 'number'
+        ? { x: tile.x, y: tile.y }
+        : (oldPosition || { x: 1, y: 1 });
+      log.error('[MoveAPI] player.currentPosition missing or invalid. Applying fallback. Details: ' +
+        JSON.stringify({ username, original: player.currentPosition, fallback: fallbackPosition })
+      );
+      player.currentPosition = fallbackPosition;
     }
 
-    // Log movement activity and anti-cheat
-    try {
-      const sessionId = request.cookies.get('sessionId')?.value;
-      if (sessionId) {
-        const posObj = { x: playerCurrentX, y: playerCurrentY };
-        await logMovement(username, sessionId, posObj, posObj);
-        await updateSession(sessionId);
+    // Enhanced logging: Log outgoing response structure for diagnostics
+    const responseData: MoveResponse = {
+      player,
+      currentTile: tile
+    };
+    const successResponse: ApiResponse<MoveResponse> = {
+      success: true,
+      data: responseData
+    };
+    log.info('[MoveAPI] Outgoing response', {
+      username,
+      response: successResponse,
+      playerCurrentPosition: player.currentPosition,
+      tilePosition: tile ? { x: tile.x, y: tile.y } : null
+    });
 
-        const speedCheck = await detectSpeedHack(
-          username,
-          posObj,
-          posObj,
-          Date.now()
-        );
-        if (speedCheck.suspicious) {
-          log.warn('Speed hack detected', { username, evidence: speedCheck.evidence });
+    // (Rest of function continues as before)
+    log.debug('Player moved', {
+      username,
+      from: oldPosition,
+      to: { x: player.currentPosition.x, y: player.currentPosition.y },
+      tileData: tile.terrain
+    });
+    
+    // Track tutorial progress (if in tutorial) - Direct function call
+    try {
+      log.info('🎓 Tutorial tracking START', { username: player.username, direction });
+      
+      const mongoClient = await clientPromise;
+      const db = mongoClient.db('darkframe');
+      
+      const { quest, step, progress } = await getCurrentQuestAndStep(player.username);
+      log.info('🎓 Tutorial step retrieved', { 
+        hasStep: !!step, 
+        stepId: step?.id,
+        stepAction: step?.action,
+        hasValidationData: !!step?.validationData 
+      });
+      
+      if (step && step.action === 'MOVE' && step.validationData) {
+        const { requiredMoves, anyDirection, direction: requiredDirection } = step.validationData;
+        
+        log.info('🎓 Tutorial MOVE step detected', { 
+          requiredMoves, 
+          anyDirection, 
+          requiredDirection,
+          playerDirection: direction
+        });
+        
+        if (requiredMoves) {
+          // Get current tracking
+          const trackingCollection = db.collection<TutorialMoveTracking>('tutorial_action_tracking');
+          const tracking = await trackingCollection.findOne({ 
+            playerId: player.username, 
+            stepId: step.id 
+          });
+          
+          const currentCount = (tracking?.currentCount ?? 0) + 1;
+          
+          log.info('🎓 Current tracking state', { 
+            hadTracking: !!tracking,
+            previousCount: tracking?.currentCount || 0,
+            newCount: currentCount,
+            target: requiredMoves
+          });
+          
+          // Check direction if specified (with normalization)
+          let countThis = true;
+          if (!anyDirection && requiredDirection) {
+            const normalizeDirection = (dir: string) => {
+              const dirMap: Record<string, string> = {
+                // Cardinal directions
+                'n': 'north', 'north': 'north',
+                's': 'south', 'south': 'south',
+                'e': 'east', 'east': 'east',
+                'w': 'west', 'west': 'west',
+                // Diagonal directions
+                'ne': 'northeast', 'northeast': 'northeast',
+                'nw': 'northwest', 'northwest': 'northwest',
+                'se': 'southeast', 'southeast': 'southeast',
+                'sw': 'southwest', 'southwest': 'southwest',
+              };
+              return dirMap[dir.toLowerCase()] || dir.toLowerCase();
+            };
+            
+            const normalizedPlayerDirection = normalizeDirection(direction);
+            const normalizedRequiredDirection = normalizeDirection(requiredDirection);
+            countThis = normalizedPlayerDirection === normalizedRequiredDirection;
+            
+            log.info('🎓 Direction check', {
+              rawPlayerDir: direction,
+              normalizedPlayerDir: normalizedPlayerDirection,
+              rawRequiredDir: requiredDirection,
+              normalizedRequiredDir: normalizedRequiredDirection,
+              matches: countThis
+            });
+          }
+          
+          if (countThis) {
+            await updateActionTracking(player.username, step.id, currentCount, requiredMoves);
+            log.info('✅ Tutorial move TRACKED!', { 
+              stepId: step.id, 
+              progress: `${currentCount}/${requiredMoves}`,
+              completed: currentCount >= requiredMoves
+            });
+            
+            // Auto-complete step when target reached
+            if (currentCount >= requiredMoves) {
+              const tutorialService = await import('@/lib/tutorialService');
+              const result = await tutorialService.completeStep({
+                playerId: player.username,
+                questId: progress.currentQuestId!,
+                stepId: step.id,
+                validationData: { moveCount: currentCount }
+              });
+              
+              log.info('🎉 Tutorial MOVE step AUTO-COMPLETED!', {
+                stepId: step.id,
+                success: result.success,
+                nextStep: result.nextStep,
+                questComplete: result.questComplete
+              });
+            }
+          } else {
+            log.warn('⚠️ Tutorial move NOT counted (wrong direction)', {
+              stepId: step.id,
+              required: requiredDirection,
+              actual: direction
+            });
+          }
+        } else {
+          log.debug('🎓 No requiredMoves in validation data');
+        }
+      } else {
+        log.debug('🎓 Not a tutorial MOVE step or no validation data');
+      }
+
+      // Handle MOVE_TO_COORDS tutorial action (coordinate-based navigation)
+      if (step && step.action === 'MOVE_TO_COORDS' && step.validationData) {
+        const { dynamicTarget, minDistance, maxDistance, requireDiagonalPath, targetX: staticTargetX, targetY: staticTargetY, locationName } = step.validationData;
+        const currentX = player.currentPosition.x;
+        const currentY = player.currentPosition.y;
+        
+        log.info('🎓 Tutorial MOVE_TO_COORDS step detected', { 
+          stepId: step.id,
+          dynamicTarget,
+          staticTarget: staticTargetX !== undefined ? { x: staticTargetX, y: staticTargetY } : null,
+          locationName,
+          currentPos: { x: currentX, y: currentY },
+          hasValidationData: !!step.validationData
+        });
+        
+        let targetX: number;
+        let targetY: number;
+        
+        // Check if this is a static target (predefined coordinates) or dynamic
+        if (staticTargetX !== undefined && staticTargetY !== undefined) {
+          // Static target - use predefined coordinates
+          targetX = staticTargetX;
+          targetY = staticTargetY;
+          
+          log.info('🎯 Using STATIC target coordinates', {
+            stepId: step.id,
+            locationName,
+            target: { x: targetX, y: targetY },
+            current: { x: currentX, y: currentY },
+            distance: Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2)).toFixed(1)
+          });
+        } else {
+          // Dynamic target - generate on first move
+          const trackingCollection = db.collection<TutorialMoveTracking>('tutorial_action_tracking');
+          const tracking = await trackingCollection.findOne({ 
+            playerId: player.username, 
+            stepId: step.id 
+          });
+          
+          if (!tracking || !tracking.targetX || !tracking.targetY) {
+            // Generate target coordinates on first move
+            const offsetX = Math.floor(Math.random() * ((maxDistance || 15) - (minDistance || 8)) + (minDistance || 8));
+            const offsetY = Math.floor(Math.random() * ((maxDistance || 15) - (minDistance || 8)) + (minDistance || 8));
+            
+            // Randomize direction (positive or negative)
+            targetX = currentX + (Math.random() > 0.5 ? offsetX : -offsetX);
+            targetY = currentY + (Math.random() > 0.5 ? offsetY : -offsetY);
+            
+            // If requireDiagonalPath, ensure both X and Y offsets are significant
+            if (requireDiagonalPath) {
+              const minDiag = Math.floor((minDistance || 8) * 0.7); // At least 70% offset in each direction
+              if (Math.abs(targetX - currentX) < minDiag) {
+                targetX = currentX + (targetX > currentX ? minDiag : -minDiag);
+              }
+              if (Math.abs(targetY - currentY) < minDiag) {
+                targetY = currentY + (targetY > currentY ? minDiag : -minDiag);
+              }
+            }
+            
+            // Enforce map boundaries (1-150 for both X and Y)
+            targetX = Math.max(1, Math.min(150, targetX));
+            targetY = Math.max(1, Math.min(150, targetY));
+            
+            // If boundary clamping reduced the distance too much, try opposite direction
+            const finalDistance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
+            if (finalDistance < (minDistance || 8)) {
+              // Try flipping the direction if we hit a boundary
+              const altTargetX = currentX + (targetX < currentX ? offsetX : -offsetX);
+              const altTargetY = currentY + (targetY < currentY ? offsetY : -offsetY);
+              const clampedAltX = Math.max(1, Math.min(150, altTargetX));
+              const clampedAltY = Math.max(1, Math.min(150, altTargetY));
+              const altDistance = Math.sqrt(Math.pow(clampedAltX - currentX, 2) + Math.pow(clampedAltY - currentY, 2));
+              
+              if (altDistance > finalDistance) {
+                targetX = clampedAltX;
+                targetY = clampedAltY;
+              }
+            }
+          
+            // Store target in tracking
+            await trackingCollection.updateOne(
+              { playerId: player.username, stepId: step.id },
+              { 
+                $set: { 
+                  targetX, 
+                  targetY,
+                  startX: currentX,
+                  startY: currentY,
+                  moveCount: 0,
+                  createdAt: new Date()
+                } 
+              },
+              { upsert: true }
+            );
+            
+            log.info('🎯 Target coordinates GENERATED', {
+              stepId: step.id,
+              start: { x: currentX, y: currentY },
+              target: { x: targetX, y: targetY },
+              distance: Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2))
+            });
+          } else {
+            targetX = tracking.targetX;
+            targetY = tracking.targetY;
+            
+            // Increment move count
+            await trackingCollection.updateOne(
+              { playerId: player.username, stepId: step.id },
+              { $inc: { moveCount: 1 } }
+            );
+          }
+        }
+        
+        // Check if player reached target
+        const reachedTarget = currentX === targetX && currentY === targetY;
+        
+        log.info('🎯 Position check', {
+          stepId: step.id,
+          locationName,
+          currentX,
+          currentY,
+          targetX,
+          targetY,
+          reachedTarget,
+          exactMatch: `(${currentX},${currentY}) === (${targetX},${targetY})`
+        });
+        
+        if (reachedTarget) {
+          const tutorialService = await import('@/lib/tutorialService');
+          const result = await tutorialService.completeStep({
+            playerId: player.username,
+            questId: progress.currentQuestId!,
+            stepId: step.id,
+            validationData: { 
+              targetX, 
+              targetY,
+              finalX: currentX,
+              finalY: currentY,
+              locationName
+            }
+          });
+          
+          log.info('🎉 Tutorial MOVE_TO_COORDS step AUTO-COMPLETED!', {
+            stepId: step.id,
+            locationName,
+            target: { x: targetX, y: targetY },
+            success: result.success,
+            nextStep: result.nextStep,
+            questComplete: result.questComplete
+          });
+        } else {
+          const distance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
+          log.info('🎯 Moving toward target', {
+            stepId: step.id,
+            locationName,
+            current: { x: currentX, y: currentY },
+            target: { x: targetX, y: targetY },
+            distance: distance.toFixed(1)
+          });
         }
       }
-    } catch {
-      log.error('Activity logging error', new Error('Activity logging failed'));
+    } catch (error) {
+      // Tutorial tracking is non-critical, log and continue
+      log.error('❌ Tutorial tracking ERROR', error as Error);
     }
-
-    log.info('Movement completed', {
-      username,
-      direction,
-      position: { x: playerCurrentX, y: playerCurrentY },
-    });
-
-    // Full camelCase conversion — no ...player spread
-    const mappedPlayer = mapCamelCase(player);
-    const mappedTile = mapCamelCase(tile) as Record<string, unknown>;
-
-    // Query harvest records for cooldown status on destination tile
-    const tileCurrentX = player.current_x!;
-    const tileCurrentY = player.current_y!;
-    const currentResetPeriod = tileCurrentX >= 1 && tileCurrentX <= 75 ? 'AM' : 'PM';
-    try {
-      const supabaseHarvest = createServiceClient();
-      const { data: harvestRecords } = await supabaseHarvest
-        .from('tile_harvest_records')
-        .select('player_id, harvested_at')
-        .eq('tile_x', tileCurrentX)
-        .eq('tile_y', tileCurrentY)
-        .eq('reset_period', currentResetPeriod);
-
-      if (harvestRecords && harvestRecords.length > 0) {
-        mappedTile.lastHarvestedBy = harvestRecords.map(r => ({
-          playerId: r.player_id,
-          harvestedAt: r.harvested_at,
-        }));
-      }
-    } catch {
-      // Non-critical, continue without cooldown data
-    }
-
-    // Check for bots (including beer bases) at destination tile
-    try {
-      const supabaseBot = createServiceClient();
-      const { data: botAtTile } = await supabaseBot
-        .from('players')
-        .select('username, is_special_base, total_strength, total_defense, resources_metal, resources_energy, spec_doctrine')
-        .eq('is_bot', true)
-        .eq('current_x', tileCurrentX)
-        .eq('current_y', tileCurrentY)
-        .maybeSingle();
-
-      if (botAtTile) {
-        const tierMatch = botAtTile.username?.match(/-(WEAK|MID|STRONG|ELITE|ULTRA|LEGENDARY)-/);
-        mappedTile.botAtLocation = {
-          username: botAtTile.username,
-          isBeerBase: botAtTile.is_special_base || false,
-          tier: tierMatch ? tierMatch[1] : 'WEAK',
-          specialization: botAtTile.spec_doctrine || 'balanced',
-          strength: botAtTile.total_strength || 0,
-          defense: botAtTile.total_defense || 0,
-          resources: { metal: botAtTile.resources_metal || 0, energy: botAtTile.resources_energy || 0 },
-        };
-      }
-    } catch {
-      // Non-critical
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        player: {
-          ...mappedPlayer,
-          currentPosition: { x: player.current_x || 0, y: player.current_y || 0 },
-          base: { x: player.base_x || 0, y: player.base_y || 0 },
-          resources: { metal: player.resources_metal || 0, energy: player.resources_energy || 0 },
-          gatheringBonus: {
-            metalBonus: player.gathering_metal_bonus || 0,
-            energyBonus: player.gathering_energy_bonus || 0,
+    
+    // If player holds the flag, update flag position AND add trail tile
+    const flagsCollection = await getCollection<{
+      currentHolder?: { username?: string; playerId?: string; botId?: string; position?: { x: number; y: number } };
+      trail?: unknown[];
+    }>('flags');
+    const flagDoc = await flagsCollection.findOne({});
+    
+    if (flagDoc?.currentHolder?.username === player.username) {
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 8 * 60 * 1000); // 8 minutes from now
+      
+      await flagsCollection.updateOne(
+        {},
+        {
+          $set: {
+            'currentHolder.position': player.currentPosition,
+            lastUpdate: new Date()
           },
-          totalStrength: player.total_strength || 0,
-          totalDefense: player.total_defense || 0,
-        },
-        currentTile: mappedTile,
-      },
+          $push: {
+            trail: {
+              $each: [{
+                x: player.currentPosition.x,
+                y: player.currentPosition.y,
+                timestamp: now,
+                expiresAt: expiresAt
+              }],
+              $slice: -200 // Keep only last 200 trail tiles (performance optimization)
+            }
+          } as any
+        }
+      );
+      
+      // Clean up expired trail tiles (older than 8 minutes)
+      await flagsCollection.updateOne(
+        {},
+        {
+          $pull: {
+            trail: {
+              expiresAt: { $lt: now }
+            }
+          } as any
+        }
+      );
+    }
+    
+    // Log movement activity
+    const sessionId = request.cookies.get('sessionId')?.value;
+    if (sessionId && oldPosition) {
+      await logMovement(
+        username,
+        sessionId,
+        oldPosition,
+        { x: player.currentPosition.x, y: player.currentPosition.y }
+      );
+      await updateSession(sessionId); // Increment action count
+      
+      // Anti-cheat: Check for speed hacking
+      const speedCheck = await detectSpeedHack(
+        username,
+        oldPosition,
+        { x: player.currentPosition.x, y: player.currentPosition.y },
+        Date.now()
+      );
+      
+      if (speedCheck.suspicious) {
+        log.warn('Speed hack detected', { 
+          username, 
+          evidence: speedCheck.evidence 
+        });
+      }
+    }
+    
+    log.info('Movement completed', { 
+      username, 
+      direction,
+      position: { x: player.currentPosition.x, y: player.currentPosition.y }
     });
+    
+    // Build response
+    return NextResponse.json(successResponse);
+    
   } catch (error) {
-    log.error('Movement error', error instanceof Error ? error : new Error(String(error)));
+    log.error('Movement error', error as Error);
+    // Enhanced logging: Log error response for diagnostics
+    log.error('[MoveAPI] Error response: ' + (error instanceof Error ? error.message : String(error)));
+    // Handle validation errors
     if (error instanceof ZodError) {
       return createValidationErrorResponse(error);
     }
+    // Handle all other errors
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
     endTimer();
   }
 }));
+
+// ============================================================
+// END OF FILE
+// ============================================================

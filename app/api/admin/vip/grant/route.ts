@@ -1,14 +1,13 @@
 /**
  * @file app/api/admin/vip/grant/route.ts
  * @created 2025-10-19
- * @updated 2026-05-03 — Migrated to Supabase
- * @updated 2026-05-15 — Added requireAdmin auth + audit logging
  * @overview Admin API - Grant VIP status to user
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -24,81 +23,57 @@ import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminVIPGrant);
 
-export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
   const log = createRouteLogger('AdminVIPGrantAPI');
   const endTimer = log.time('grantVIP');
   
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
     const body = await request.json();
     const validated = GrantVIPSchema.parse(body);
 
+    // TODO: Add admin authentication check
+    // const adminUsername = request.headers.get('x-admin-username');
+    // if (!await isAdmin(adminUsername)) {
+    //   return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    // }
+
     log.debug('VIP grant request', { 
-      adminUsername: auth.username,
-      targetUsername: validated.username, 
+      username: validated.username, 
       days: validated.days 
     });
 
-    const supabase = createServiceClient();
-    
-    const { data: user, error: findError } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', validated.username)
-      .single();
-
-    if (findError || !user) {
+    const userRecord = await db.select().from(players).where(eq(players.username, validated.username)).limit(1);
+    if (!userRecord || userRecord.length === 0) {
       log.warn('User not found for VIP grant', { username: validated.username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'User not found'
       });
     }
 
-    const now = new Date();
-    const expirationDate = new Date(now.getTime() + validated.days * 24 * 60 * 60 * 1000);
+    const now = Date.now();
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const expirationTime = new Date(now + (validated.days * millisecondsPerDay));
 
-    const { error: updateError } = await supabase
-      .from('players')
-      .update({
-        is_vip: true,
-        vip_expiration: expirationDate.toISOString(),
-        vip_last_updated: now.toISOString(),
+    await db.update(players)
+      .set({
+        vip: 1,
+        vipExpiration: expirationTime
       })
-      .eq('username', validated.username);
+      .where(eq(players.username, validated.username));
 
-    if (updateError) {
-      log.error('Failed to grant VIP', new Error('Database update failed'), { 
-        username: validated.username 
-      });
-      return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
-        message: 'Failed to grant VIP'
-      });
-    }
-
-    await supabase.from('admin_logs').insert({
-      admin_username: auth.username,
-      action: 'VIP_GRANT',
-      target: validated.username,
-      details: {
-        days: validated.days,
-        expiresAt: expirationDate.toISOString(),
-        grantedAt: now.toISOString(),
-      }
-    });
+    // TODO: Log VIP grant in analytics
+    // await logVIPGrant({ username, days, grantedBy: adminUsername, grantedAt: new Date() });
 
     log.info('VIP granted successfully', { 
-      adminUsername: auth.username,
-      targetUsername: validated.username, 
+      username: validated.username, 
       days: validated.days,
-      expiresAt: expirationDate.toISOString()
+      expiresAt: expirationTime.toISOString()
     });
 
     return NextResponse.json({
       success: true,
       message: `VIP granted to ${validated.username} for ${validated.days} days`,
-      expiresAt: expirationDate.toISOString()
+      expiresAt: expirationTime.toISOString()
     });
 
   } catch (error) {

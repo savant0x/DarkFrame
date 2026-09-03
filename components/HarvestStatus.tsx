@@ -40,7 +40,7 @@ export default function HarvestStatus({ onHarvestClick, isHarvesting }: HarvestS
     // Check harvest status via API
     async function checkStatus() {
       try {
-        const response = await fetch(`/api/harvest/status`);
+        const response = await fetch(`/api/harvest/status?username=${player!.username}`);
         const data = await response.json();
         
         if (data.canHarvest) {

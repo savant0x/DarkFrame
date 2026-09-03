@@ -1,7 +1,6 @@
 /**
  * @file app/api/shrine/status/route.ts
  * @created 2025-10-25
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
  * @overview Shrine status endpoint - returns active buffs and available items
  * 
  * OVERVIEW:
@@ -11,9 +10,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import type { Tables } from '@/types/database';
+import { connectToDatabase } from '@/lib/mongodb';
+import { Player } from '@/types/game.types';
 import { 
   withRequestLogging, 
   createRouteLogger, 
@@ -23,10 +21,6 @@ import {
   createErrorFromException,
   ErrorCode
 } from '@/lib';
-
-type PlayerRow = Tables<'players'>;
-type ShrineBoostRow = Tables<'player_shrine_boosts'>;
-type InventoryRow = Tables<'player_inventory'>;
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
@@ -40,52 +34,55 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('shrine-status');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    // Get username from query params
+    const { searchParams } = new URL(request.url);
+    const username = searchParams.get('username');
 
-    const supabase = createServiceClient();
+    if (!username) {
+      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username parameter is required');
+    }
+
+    const db = await connectToDatabase();
     
     // Get player
-    const { data: player } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', username)
-      .maybeSingle();
+    const player = await db.collection<Player>('players').findOne({ username });
     
     if (!player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
-    // Filter active buffs (expires_at > now)
-    const now = new Date().toISOString();
-    const { data: activeBuffs } = await supabase
-      .from('player_shrine_boosts')
-      .select('*')
-      .eq('player_username', username)
-      .gt('expires_at', now);
+    // Filter active buffs (expiresAt > now)
+    const now = new Date();
+    const activeBuffs = (player.shrineBoosts || []).filter((buff: any) => {
+      if (!buff.expiresAt) return false;
+      const expiresAt = new Date(buff.expiresAt);
+      return expiresAt > now;
+    });
 
     // Get available items from inventory that can be sacrificed
-    const sacrificeableTypes = ['TRADEABLE_ITEM'];
-    const { data: inventoryItems } = await supabase
-      .from('player_inventory')
-      .select('*')
-      .eq('player_username', username);
+    // Items with categories like 'consumable', 'offering', or specific shrine-sacrificeable items
+    const inventoryItems = player.inventory?.items || [];
+    const availableItems = inventoryItems.filter((item: any) => {
+      // Allow consumables and items that can be sacrificed
+      // You can adjust this logic based on your game's item categories
+      const sacrificeableCategories = ['consumable', 'offering', 'treasure', 'relic'];
+      return item.category && sacrificeableCategories.includes(item.category.toLowerCase());
+    });
 
-    const availableItems = (inventoryItems || []).filter(
-      (item: InventoryRow) => sacrificeableTypes.includes(item.item_type)
-    );
+    // If no specific categories exist, allow all inventory items
+    // (You can make this more restrictive based on your game design)
+    const itemsToReturn = availableItems.length > 0 ? availableItems : inventoryItems;
 
     log.info('Shrine status retrieved', { 
       username, 
-      activeBuffs: activeBuffs?.length || 0,
-      availableItems: availableItems.length 
+      activeBuffs: activeBuffs.length,
+      availableItems: itemsToReturn.length 
     });
 
     return NextResponse.json({
       success: true,
-      activeBuffs: activeBuffs || [],
-      availableItems
+      activeBuffs,
+      availableItems: itemsToReturn
     });
 
   } catch (error) {
@@ -95,3 +92,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     endTimer();
   }
 }));
+
+// ============================================================
+// END OF FILE
+// ============================================================

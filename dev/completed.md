@@ -1,73 +1,64 @@
-# DarkFrame — Completed Features
+# DarkFrame - Completed Features
 
-> Features that have been successfully implemented and verified.
+> Features that have been successfully implemented and tested
 
-**Last Updated:** 2026-05-11
-**Total Completed:** 100+ features across 30+ phases
-**Current Phase:** Factory & Unit Redesign — Complete
-
----
-
-## 2026-05-11 — Factory & Unit System Overhaul
-
-### FID-20260511-FACTORY-UNIT-REDESIGN
-- Complete redesign of factory cycling, unit production, and combat systems
-- 65 unit types → 20 focused units (4 archetypes × 5 tiers)
-- Linear slot regen → Burst+Decay model (80% capture, 20% asymptotic)
-- Simple STR vs DEF combat → Multi-phase algorithm
-- Added Operational Data currency, terrain modifiers, factory archetypes
-- All FIDs archived, TSC 0 errors, Next.js build passes
-- 20+ files modified across types, services, API routes, components, scripts
+**Last Updated:** 2026-01-18 (Baseline Reset)  
+**Total Completed:** 0 features  
+**Status:** ✅ Clean baseline - Ready for new development
 
 ---
 
-## 2026-05-07 — Day Session Summary
+## 📚 **ARCHIVE NAVIGATION**
 
-### Components Created/Modified (54 files)
-- `components/FlagBearerPanel.tsx` — New flag bearer status panel
-- `components/ui/design.tsx` — Shared design token constants
-- `lib/multiplierService.ts` — Additive diminishing returns
-- `lib/upkeepService.ts` — Hourly unit upkeep
-- `lib/toolDurabilityService.ts` — Auto-farm tool durability
-- `lib/staminaService.ts` — Daily action efficiency
-- `lib/resourceDecayService.ts` — Resource rot above 1M
-- `lib/territoryDecayService.ts` — Territory reversion after 14-day grace
-- `lib/diggerService.ts` — Digger bonus calculation
-- `lib/pvpBurnService.ts` — PvP resource destruction (20% burned)
+> **All previous work (99 features) has been archived:**
+> - `dev/archives/2026-01-18/completed_pre_baseline_reset.md` (99 features from Oct-Nov 2025)
+> - `dev/archives/2025-10-26/completed_archive_2025-10-25-and-earlier.md` (75 features)
+> 
+> **Project History:**
+> - **Sprint 1:** Interactive Tutorial System (FID-20251025-101 + 6 related FIDs)
+> - **Sprint 2:** Social & Communication System (FID-20251026-019)
+> - **Sprint 3:** ECHO Architecture Compliance (FID-20251026-001)
+> - **Total Features Delivered:** 99 features across 3 months (Oct-Nov 2025)
 
-### Visual/Theme Fixes
-- Removed all `bg-[--shadow]` → `bg-[--card]` across all panels
-- Removed all `border-white/10` → `border border-white/[0.06]`
-- Standardized card chrome: `bg-[--card] border border-white/[0.06] rounded-lg overflow-hidden`
-- Removed all `backdrop-blur-*`, `text-shadow`, `drop-shadow-*`
-- Standardized text hierarchy: white/white:60/white:40/white:25 only
-- Standardized font sizes: xs(12)/sm(14)/base(16)/lg(18)/xl(20) only
-- Fix: FlagTrackerPanel — remove border-2, use proper table design
-- Fix: AutoFarmPanel — use table layout instead of divs
-- Fix: ShrineStatusPanel — use table layout
-- Fix: WMDMiniStatus — consistent card design
+---
 
-### Bug Fixes
-- BountyBoardPanel — null-safety on `bountyData.stats`
-- AchievementPanel — null-safety on `achievement.requirement.value`
-- BeerBasePanel — null-safety on `base.resources.metal/energy`
-- StatsPanel XP — always shows with loading state instead of disappearing
-- Harvest results — consolidated into single display, removed duplication
-- Military Power penalties/bonuses — proper table layout with label + effect columns
-- BalanceIndicator — proper STR/DEF bar colors, muted text
-- ControlsPanel — terrain tag color-coded, gap/padding fixed
-- MovementControls — proper button sizes (w-14 h-14), glow on hover
-- Foldable sidebars — working toggle buttons with proper positioning
+## 🎯 **READY FOR NEW WORK**
 
-### Design System
-- `app/globals.css` — cleaned up, proper CSS custom properties
-- `tailwind.config.ts` — updated synth palette, glow shadows
-- `components/ui/design.tsx` — shared tokens (CARD, CARD_HEADER, TABLE, BTN_*)
+## 🔴 **FID-20260403-001: Code Review & Project Health Fix**
+**Status:** COMPLETED **Priority:** HIGH **Complexity:** 4/5
+**Created:** 2026-04-03 **Completed:** 2026-04-03T23:25:00 **Estimated:** 2-3h **Actual:** ~1.5h
 
-### Remaining Known Issues
-- Other pages (leaderboard, stats, tech, WMD, clans, admin) still use old design system
-- TileRenderer center view styling
-- Modal panels use old palette colors
-- DB data is stale from pre-balance era — needs wipe and re-seed before launch
-- ChatPanel uses old cyan/slate palette (out of scope for this session)
-- `app/game/page.tsx` loading screen uses `bg-[--void]` (correct)
+**Description:** Comprehensive code review and health fix after ~2 years of inactivity.
+
+**Results:**
+- TypeScript: 0 errors (was 0, stayed 0 after fixes)
+- ESLint: 0 errors, 0 warnings (was 80 errors, 68 warnings)
+- Tests: 283/325 pass (87%) — 42 failures are pre-existing
+- Dead code: 12 files + 2 deps removed
+- Battle API: auth middleware added
+- Server entry: switched from server.js to server.ts
+- Middleware: proxy.ts deleted, middleware.ts confirmed working
+
+**Files Modified:** ~50 files across app/, components/, lib/
+**Files Deleted:** server.js, proxy.ts, DarkFrame.zip, 10 _OLD components
+
+**Metrics:**
+- Lines changed: ~200+ (ESLint fixes, TS fixes, auth)
+- Lines deleted: ~1,200 (dead code)
+- Quality: TypeScript ✓ ESLint ✓ Tests 87% ✓
+
+---
+
+No completed features yet. Use this space to track new completions moving forward.
+
+When features are completed, they will appear here with:
+- Feature ID (FID-YYYYMMDD-XXX)
+- Completion date and metrics
+- Implementation details
+- Lessons learned
+
+---
+
+*ECHO v1.3.4 - Clean Baseline Established*
+*Auto-archived by ECHO on 2026-01-18*
+

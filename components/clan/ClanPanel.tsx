@@ -25,7 +25,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { 
   Panel, 
@@ -61,6 +61,7 @@ import {
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
 import { ClanRole } from '@/types/clan.types';
+import CreateClanModal from './CreateClanModal';
 import JoinClanModal from './JoinClanModal';
 import ClanMembersPanel from './ClanMembersPanel';
 import ClanBankPanel from './ClanBankPanel';
@@ -79,17 +80,10 @@ export default function ClanPanel({ isOpen, onClose }: ClanPanelProps) {
   const [clanData, setClanData] = useState<Clan | null>(null);
   const [viewMode, setViewMode] = useState<'main' | 'create' | 'join'>('main');
 
-  // Fetch clan data if player is in a clan
-  useEffect(() => {
-    if (player?.clanId && isOpen) {
-      fetchClanData();
-    }
-  }, [player?.clanId, isOpen]);
-
   /**
    * Fetches comprehensive clan data from API
    */
-  const fetchClanData = async () => {
+  const fetchClanData = useCallback(async () => {
     if (!player?.clanId) return;
 
     setIsLoading(true);
@@ -105,7 +99,14 @@ export default function ClanPanel({ isOpen, onClose }: ClanPanelProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [player?.clanId]);
+
+  // Fetch clan data if player is in a clan
+  useEffect(() => {
+    if (player?.clanId && isOpen) {
+      fetchClanData();
+    }
+  }, [player?.clanId, isOpen, fetchClanData]);
 
   /**
    * Handles successful clan creation or join
@@ -218,7 +219,7 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
           
           <div>
             <h3 className="text-xl font-bold text-white mb-2">
-              You're Not in a Clan
+              You{"'"}re Not in a Clan
             </h3>
             <p className="text-gray-400 text-sm max-w-md mx-auto">
               Join forces with other players or create your own clan to unlock exclusive benefits,
@@ -664,15 +665,13 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
   const [nameAvailable, setNameAvailable] = useState<boolean | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    tag: '',
     description: '',
     isPublic: true,
     minLevel: 1
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const METAL_COST = 1500000;
-  const ENERGY_COST = 1500000;
+  const CREATION_COSTS = { metal: 50000, energy: 50000, researchPoints: 100 };
 
   const validateName = (name: string): string | null => {
     if (name.length < 3) return 'Name must be at least 3 characters';
@@ -719,8 +718,9 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
     const nameError = validateName(formData.name);
     if (nameError) newErrors.name = nameError;
     if (nameAvailable === false) newErrors.name = 'Clan name already taken';
-    if (player.resources.metal < METAL_COST) newErrors.submit = 'Insufficient metal';
-    if (player.resources.energy < ENERGY_COST) newErrors.submit = 'Insufficient energy';
+    if (player.resources.metal < CREATION_COSTS.metal) newErrors.submit = 'Insufficient metal';
+    if (player.resources.energy < CREATION_COSTS.energy) newErrors.submit = 'Insufficient energy';
+    if (player.researchPoints < CREATION_COSTS.researchPoints) newErrors.submit = 'Insufficient RP';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -733,11 +733,12 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          username: player.username,
           name: formData.name.trim(),
-          tag: formData.tag.trim() || undefined,
           description: formData.description.trim(),
           isPublic: formData.isPublic,
           minLevel: formData.minLevel,
+          minPower: 0
         })
       });
 
@@ -754,8 +755,9 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
     }
   };
 
-  const canAfford = player.resources.metal >= METAL_COST &&
-    player.resources.energy >= ENERGY_COST;
+  const canAfford = player.resources.metal >= CREATION_COSTS.metal &&
+    player.resources.energy >= CREATION_COSTS.energy &&
+    player.researchPoints >= CREATION_COSTS.researchPoints;
 
   return (
     <StaggerChildren className="space-y-6 p-6">
@@ -781,17 +783,24 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="text-xs text-gray-400 mb-1">Metal</div>
-              <div className={`text-lg font-bold ${player.resources.metal >= METAL_COST ? 'text-green-400' : 'text-red-400'}`}>
-                {METAL_COST.toLocaleString()}
+              <div className={`text-lg font-bold ${player.resources.metal >= CREATION_COSTS.metal ? 'text-green-400' : 'text-red-400'}`}>
+                {CREATION_COSTS.metal.toLocaleString()}
               </div>
               <div className="text-xs text-gray-500">Have: {player.resources.metal.toLocaleString()}</div>
             </div>
             <div className="text-center">
               <div className="text-xs text-gray-400 mb-1">Energy</div>
-              <div className={`text-lg font-bold ${player.resources.energy >= ENERGY_COST ? 'text-green-400' : 'text-red-400'}`}>
-                {ENERGY_COST.toLocaleString()}
+              <div className={`text-lg font-bold ${player.resources.energy >= CREATION_COSTS.energy ? 'text-green-400' : 'text-red-400'}`}>
+                {CREATION_COSTS.energy.toLocaleString()}
               </div>
               <div className="text-xs text-gray-500">Have: {player.resources.energy.toLocaleString()}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xs text-gray-400 mb-1">RP</div>
+              <div className={`text-lg font-bold ${player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-green-400' : 'text-red-400'}`}>
+                {CREATION_COSTS.researchPoints}
+              </div>
+              <div className="text-xs text-gray-500">Have: {player.researchPoints}</div>
             </div>
           </div>
         </div>
@@ -831,21 +840,6 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
             </p>
           )}
           <p className="text-gray-400 text-xs mt-1">{formData.name.length}/30 characters</p>
-        </StaggerItem>
-
-        {/* Clan Tag */}
-        <StaggerItem>
-          <label className="block text-sm font-semibold text-white mb-2">
-            Clan Tag <span className="text-gray-400 text-xs">(optional, auto-generated from name)</span>
-          </label>
-          <Input
-            type="text"
-            value={formData.tag}
-            onChange={(e) => handleChange('tag', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))}
-            placeholder="e.g. DARKW"
-            maxLength={5}
-          />
-          <p className="text-gray-400 text-xs mt-1">2-5 uppercase letters/numbers</p>
         </StaggerItem>
 
         {/* Description */}

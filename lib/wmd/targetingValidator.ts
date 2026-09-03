@@ -1,13 +1,13 @@
 /**
  * @file lib/wmd/targetingValidator.ts
  * @created 2025-10-22
- * @overview WMD Targeting Validator - Range and Target Validation
- * 
- * OVERVIEW:
- * Validates missile targeting including range, eligibility, and restrictions.
+ * @updated 2026-04-04 (Migrated to Drizzle ORM)
+ * @overview WMD Targeting Validator
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema/players';
 import { WarheadType } from '@/types/wmd';
 
 export interface TargetingValidation {
@@ -16,51 +16,40 @@ export interface TargetingValidation {
   warnings: string[];
 }
 
-/**
- * Validate missile targeting
- */
 export async function validateTargeting(
   launcherId: string,
   targetId: string,
-  warheadType: WarheadType
+  _warheadType: WarheadType
 ): Promise<TargetingValidation> {
   const errors: string[] = [];
   const warnings: string[] = [];
   
-  // Self-targeting check
   if (launcherId === targetId) {
     errors.push('Cannot target yourself');
   }
   
-  // Get target data
   const target = await getPlayerData(targetId);
   if (!target) {
     errors.push('Target not found');
     return { isValid: false, errors, warnings };
   }
   
-  // Protection check
   if (target.protectionUntil && new Date(target.protectionUntil) > new Date()) {
     errors.push('Target is under protection');
   }
   
-  // Level check
   if (target.level < 10) {
     errors.push('Target must be at least level 10');
   }
   
-  // Clan check
   const launcher = await getPlayerData(launcherId);
-  if (launcher && launcher.clan_id && launcher.clan_id === target.clan_id) {
+  if (launcher && launcher.clanId && launcher.clanId === target.clanId) {
     errors.push('Cannot attack own clan members');
   }
   
   return { isValid: errors.length === 0, errors, warnings };
 }
 
-/**
- * Get warhead maximum range
- */
 export function getWarheadMaxRange(warheadType: WarheadType): number {
   const rangeMap: Partial<Record<WarheadType, number>> = {
     [WarheadType.TACTICAL]: 50,
@@ -72,19 +61,14 @@ export function getWarheadMaxRange(warheadType: WarheadType): number {
   return rangeMap[warheadType] || 50;
 }
 
-/**
- * Get player data
- */
-async function getPlayerData(playerId: string): Promise<any> {
+/** The real shape stored in the `players` table. */
+type PlayerRow = typeof players.$inferSelect;
+
+async function getPlayerData(playerId: string): Promise<PlayerRow | null> {
   try {
-    const supabase = createServiceClient();
-    const { data } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', playerId)
-      .single();
-    return data;
-  } catch (error) {
+    const result = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    return result[0] || null;
+  } catch {
     return null;
   }
 }

@@ -36,6 +36,7 @@ import {
 } from '@/lib';
 import { SwitchSpecializationSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
+import { verifyAuth } from '@/lib/authMiddleware';
 import { respecSpecialization, canRespec, SpecializationDoctrine, SPECIALIZATION_CONFIG, RESPEC_CONFIG } from '@/lib/specializationService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
@@ -53,10 +54,18 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('specialization-switch');
   
   try {
-    const body = await req.json();
-    const validated = SwitchSpecializationSchema.parse(body);
-    const username = body.username;
-    if (!username) return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Username required' });
+    // Verify authentication
+    const user = await verifyAuth();
+    if (!user || !user.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
+
+    const username = user.username;
+
+    // Validate request
+    const validated = SwitchSpecializationSchema.parse(await req.json());
 
     // Normalize doctrine to enum value
     const normalizedDoctrine = validated.newDoctrine.toLowerCase() as SpecializationDoctrine;
@@ -93,8 +102,8 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
         icon: config.icon,
         description: config.description,
         bonuses: config.bonuses,
-        masteryLevel: result.specialization?.mastery_level || 0,
-        masteryXP: result.specialization?.mastery_xp || 0
+        masteryLevel: result.specialization?.masteryLevel || 0,
+        masteryXP: result.specialization?.masteryXP || 0
       },
       costs: {
         rpSpent: RESPEC_CONFIG.rpCost,
@@ -136,8 +145,15 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('specialization-respec-eligibility');
   
   try {
-    const username = req.nextUrl.searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Username parameter required' });
+    // Verify authentication
+    const user = await verifyAuth();
+    if (!user || !user.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
+
+    const username = user.username;
 
     // Check eligibility
     const eligibility = await canRespec(username);

@@ -19,7 +19,7 @@
  * - MongoDB for data persistence
  */
 
-type ObjectId = string;
+import { ObjectId } from 'mongodb';
 import { MissileComponent, WarheadType } from './missile.types';
 
 // ============================================================================
@@ -303,44 +303,34 @@ export interface IntelligenceLeak {
   diplomaticIncident: boolean;
   
   leakedAt: Date;
-}
-
-/**
- * Spy agent profile
+}/**
+ * Spy agent profile — mirrors the wmd_spies row/service shape exactly
+ * (lib/wmd/spyService.ts mapDrizzleSpyToAgent is the single writer).
  */
+export type SpySpecialization = 'SURVEILLANCE' | 'SABOTAGE' | 'INFILTRATION' | 'CYBER';
+export type SpyStatus = 'AVAILABLE' | 'ON_MISSION' | 'COMPROMISED' | 'RETIRED';
+
 export interface SpyAgent {
-  _id?: ObjectId;
+  id?: string;
   spyId: string;
-  spyName: string;                 // Code name
-  ownerId: string;                 // Player who owns spy
-  ownerClanId: string;
-  
-  // Rank and experience
+  ownerId: string;
+  ownerUsername: string;
+  clanId: string | null;
+  codename: string;
   rank: SpyRank;
-  experience: number;              // XP for promotions
-  nextRankAt: number;              // XP needed for next rank
-  
-  // Success stats
-  missionsCompleted: number;
-  missionsSuccessful: number;
-  missionsFailed: number;
-  successRate: number;             // Percentage
-  
-  // Specialization
-  specialty?: MissionType;         // +20% success for this mission type
-  
-  // Status
-  available: boolean;
-  currentMission?: string;         // Mission ID if on assignment
-  cooldownUntil?: Date;
-  
-  // Equipment
-  equipment: {
-    disguise: number;              // 0-10 (reduces detection)
-    tools: number;                 // 0-10 (increases success)
-    communication: number;         // 0-10 (faster missions)
+  experience: number;
+  specialization: SpySpecialization;
+  status: SpyStatus;
+  currentMissionId: string | null;
+  missionHistory: string[];
+  skills: {
+    stealth: number;
+    hacking: number;
+    sabotage: number;
+    intelligence: number;
   };
-  
+  lastMissionAt: Date | null;
+  recruitedAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }

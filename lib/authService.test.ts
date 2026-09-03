@@ -59,11 +59,10 @@ describe('authService', () => {
       const payload: TokenPayload = {
         username: 'testuser',
         email: 'test@example.com',
-        id: 'test-user-id',
       };
-
+      
       const token = generateToken(payload.username, payload.email);
-
+      
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
       expect(token.split('.')).toHaveLength(3); // JWT has 3 parts
@@ -73,7 +72,6 @@ describe('authService', () => {
       const payload: TokenPayload = {
         username: 'testuser',
         email: 'test@example.com',
-        id: 'test-user-id',
       };
       
       const token = generateToken(payload.username, payload.email, true);

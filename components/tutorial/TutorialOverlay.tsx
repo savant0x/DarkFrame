@@ -23,7 +23,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Joyride, { Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import type { TutorialQuest, TutorialStep, TutorialProgress, TutorialUIState } from '@/types/tutorial.types';
 
@@ -61,21 +61,36 @@ export default function TutorialOverlay({
   const [runJoyride, setRunJoyride] = useState(false);
 
   /**
-   * Load initial tutorial state from server
+   * Handle tutorial skip
    */
-  useEffect(() => {
-    if (!isEnabled) {
-      setUiState(prev => ({ ...prev, isActive: false, isLoading: false }));
-      return;
-    }
+  const handleSkip = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tutorial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'skip',
+          playerId,
+          skipType: 'ENTIRE_TUTORIAL',
+        }),
+      });
 
-    loadTutorialState();
-  }, [playerId, isEnabled]);
+      const result = await response.json();
+
+      if (result.success) {
+        setUiState(prev => ({ ...prev, isActive: false, showOverlay: false }));
+        setRunJoyride(false);
+        onSkip?.();
+      }
+    } catch (error) {
+      console.error('Error skipping tutorial:', error);
+    }
+  }, [playerId, onSkip]);
 
   /**
-   * Fetch current tutorial state from API
+   * Load initial tutorial state from server
    */
-  const loadTutorialState = async () => {
+  const loadTutorialState = useCallback(async () => {
     try {
       const response = await fetch(`/api/tutorial?playerId=${playerId}`);
       
@@ -111,7 +126,7 @@ export default function TutorialOverlay({
         error: null,
       });
 
-      setProgressPercent(calculateProgress(progress, quest));
+      setProgressPercent(calculateProgress(progress));
       setJoyrideSteps([joyrideStep]);
       setRunJoyride(true);
 
@@ -119,7 +134,16 @@ export default function TutorialOverlay({
       console.error('Error loading tutorial state:', error);
       setUiState(prev => ({ ...prev, isLoading: false, isActive: false }));
     }
-  };
+  }, [playerId]);
+
+  useEffect(() => {
+    if (!isEnabled) {
+      setUiState(prev => ({ ...prev, isActive: false, isLoading: false }));
+      return;
+    }
+
+    loadTutorialState();
+  }, [playerId, isEnabled, loadTutorialState]);
 
   /**
    * Convert TutorialStep to Joyride Step format
@@ -162,14 +186,12 @@ export default function TutorialOverlay({
           overlayColor: 'rgba(0, 0, 0, 0.7)',
           primaryColor: '#8b5cf6',
           textColor: '#f3f4f6',
-          width: 'auto',
-          zIndex: 1000,
+          width: 400,
+          zIndex: 10000,
         },
         tooltip: {
           borderRadius: 8,
-          maxWidth: 380,
-          fontSize: 14,
-          padding: 16,
+          padding: 20,
         },
       },
     };
@@ -178,48 +200,17 @@ export default function TutorialOverlay({
   /**
    * Calculate overall tutorial progress percentage
    */
-  const calculateProgress = (progress: TutorialProgress, currentQuest?: TutorialQuest | null): number => {
-    if (currentQuest && currentQuest.steps.length > 0) {
-      return Math.round(((progress.currentStepIndex || 0) / currentQuest.steps.length) * 100);
-    }
+  const calculateProgress = (progress: TutorialProgress): number => {
     const totalSteps = progress.totalStepsCompleted;
-    const maxSteps = 22;
+    const maxSteps = 17; // Total steps across all quests (from service definition)
     return Math.round((totalSteps / maxSteps) * 100);
   };
-
-  /**
-   * Handle joyride callback events
-   */
-  const handleJoyrideCallback = useCallback(async (data: CallBackProps) => {
-    const { status, action, type, index } = data;
-
-    // Handle tutorial completion
-    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-      setRunJoyride(false);
-      
-      if (status === STATUS.SKIPPED) {
-        await handleSkip();
-      }
-      return;
-    }
-
-    // Handle step completion on "next" click
-    if (type === EVENTS.STEP_AFTER && action === ACTIONS.NEXT) {
-      await handleStepComplete();
-    }
-
-    // Handle step skip
-    if (action === ACTIONS.SKIP) {
-      await handleSkip();
-    }
-
-  }, [uiState.currentQuest, uiState.currentStep]);
 
   /**
    * Handle step completion
    * Validates action and moves to next step
    */
-  const handleStepComplete = async () => {
+  const handleStepComplete = useCallback(async () => {
     if (!uiState.currentQuest || !uiState.currentStep) return;
 
     try {
@@ -262,34 +253,36 @@ export default function TutorialOverlay({
     } catch (error) {
       console.error('Error completing step:', error);
     }
-  };
+  }, [uiState.currentQuest, uiState.currentStep, playerId, onComplete, loadTutorialState]);
 
   /**
-   * Handle tutorial skip
+   * Handle joyride callback events
    */
-  const handleSkip = async () => {
-    try {
-      const response = await fetch('/api/tutorial', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'skip',
-          playerId,
-          skipType: 'ENTIRE_TUTORIAL',
-        }),
-      });
+  const handleJoyrideCallback = useCallback(async (data: CallBackProps) => {
+    const { status, action, type, index } = data;
 
-      const result = await response.json();
-
-      if (result.success) {
-        setUiState(prev => ({ ...prev, isActive: false, showOverlay: false }));
-        setRunJoyride(false);
-        onSkip?.();
+    // Handle tutorial completion
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      setRunJoyride(false);
+      
+      if (status === STATUS.SKIPPED) {
+        await handleSkip();
       }
-    } catch (error) {
-      console.error('Error skipping tutorial:', error);
+      return;
     }
-  };
+
+    // Handle step completion on "next" click
+    if (type === EVENTS.STEP_AFTER && action === ACTIONS.NEXT) {
+      await handleStepComplete();
+    }
+
+    // Handle step skip
+    if (action === ACTIONS.SKIP) {
+      await handleSkip();
+    }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- uiState.currentQuest and currentStep are intentionally included for tutorial step tracking
+  }, [uiState.currentQuest, uiState.currentStep, handleSkip, handleStepComplete]);
 
   // Don't render anything if tutorial is not active
   if (!uiState.isActive || uiState.isLoading) {
@@ -300,7 +293,7 @@ export default function TutorialOverlay({
     <>
       {/* Tutorial Progress Bar (top of screen) */}
       {uiState.showOverlay && (
-        <div className="tutorial-progress-bar fixed top-14 left-80 right-80 z-40 bg-gray-900/95 backdrop-blur-sm border-b border-purple-500/30 rounded-b-lg">
+        <div className="tutorial-progress-bar fixed top-14 left-80 right-80 z-[9999] bg-gray-900/95 backdrop-blur-sm border-b border-purple-500/30 rounded-b-lg">
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">

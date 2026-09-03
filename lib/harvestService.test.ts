@@ -254,38 +254,44 @@ describe('harvestService', () => {
     });
   });
 
-  describe('DIGGER_TIERS Bonus Calculation', () => {
-    it('should give 2% per digger for first 10 diggers', () => {
-      // Tier 1: first 10 diggers each give +2%
-      const bonus5 = 5 * 2; // 5 diggers = +10%
-      expect(bonus5).toBe(10);
+  describe('Diminishing Returns for Diggers', () => {
+    it('should apply diminishing returns formula', () => {
+      const diggerCount = 5;
+      const baseBonus = 0.05; // 5% per digger
       
-      const bonus10 = 10 * 2; // 10 diggers = +20%
-      expect(bonus10).toBe(20);
-    });
-
-    it('should give 1% per digger for diggers 11-30', () => {
-      // Tier 2: next 20 diggers each give +1%
-      const bonus20 = (10 * 2) + (10 * 1); // 20 diggers = 20% + 10% = 30%
-      expect(bonus20).toBe(30);
+      // Formula: bonus = baseBonus * count * (1 - count/20)
+      const diminishedBonus = baseBonus * diggerCount * (1 - diggerCount / 20);
       
-      const bonus30 = (10 * 2) + (20 * 1); // 30 diggers = 20% + 20% = 40%
-      expect(bonus30).toBe(40);
+      expect(diminishedBonus).toBeLessThan(baseBonus * diggerCount);
+      expect(diminishedBonus).toBeCloseTo(0.1875, 4); // 5% * 5 * 0.75 = 18.75%
     });
 
-    it('should give 0.5% per digger for diggers 31-70', () => {
-      const bonus70 = (10 * 2) + (20 * 1) + (40 * 0.5); // 70 diggers = 20% + 20% + 20% = 60%
-      expect(bonus70).toBe(60);
+    it('should have maximum diminishing at 20 diggers', () => {
+      const diggerCount = 20;
+      const baseBonus = 0.05;
+      
+      const diminishedBonus = baseBonus * diggerCount * (1 - diggerCount / 20);
+      
+      expect(diminishedBonus).toBe(0); // Completely diminished
     });
 
-    it('should give 0.25% per digger for diggers 71-150', () => {
-      const bonus150 = (10 * 2) + (20 * 1) + (40 * 0.5) + (80 * 0.25); // 150 diggers = 20% + 20% + 20% + 20% = 80%
-      expect(bonus150).toBe(80);
+    it('should have no diminishing at 0 diggers', () => {
+      const diggerCount = 0;
+      const baseBonus = 0.05;
+      
+      const diminishedBonus = baseBonus * diggerCount * (1 - diggerCount / 20);
+      
+      expect(diminishedBonus).toBe(0);
     });
 
-    it('should give 0.1% per digger for diggers beyond 150', () => {
-      const bonus200 = (10 * 2) + (20 * 1) + (40 * 0.5) + (80 * 0.25) + (50 * 0.1); // 200 diggers = 80% + 5% = 85%
-      expect(bonus200).toBe(85);
+    it('should calculate correctly for 10 diggers', () => {
+      const diggerCount = 10;
+      const baseBonus = 0.05;
+      
+      const diminishedBonus = baseBonus * diggerCount * (1 - diggerCount / 20);
+      // 5% * 10 * (1 - 10/20) = 5% * 10 * 0.5 = 25%
+      
+      expect(diminishedBonus).toBe(0.25);
     });
   });
 

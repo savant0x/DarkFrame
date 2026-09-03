@@ -1,82 +1,16 @@
-# 📚 Lessons Learned — Severity-Ranked Reference
+# 📚 Lessons Learned - Severity-Ranked Reference# DarkFrame - Lessons Learned
 
-**Last Updated:** 2026-05-06
-**Total Lessons:** 23+ (consolidated)
-**Organization:** 🔴 CRITICAL → 🟡 IMPORTANT → 🟢 GOOD PRACTICE
 
----
 
-## 🔴 CRITICAL — Economy Balance Lessons
+**Last Updated:** 2025-10-26  > Critical insights ranked by severity - Most damaging violations at top
 
-### L-🔴-01: Multiplicative Stacking Destroys Game Economies
-**Date:** 2026-05-06
-**Severity:** CRITICAL
-**Lesson:** When multiple bonus sources stack multiplicatively (VIP 2x × Flag 2x × Shrine 2x × Diggers 10x+), the result is exponential runaway. A player reached +973% gathering bonus in one session. Always use additive stacking with diminishing returns for game balance.
-**Action:** Convert all multipliers to additive with soft diminishing returns. First +100% full value, next +100% at 75%, then 50%, then 10%.
+**Total Lessons:** 35 (consolidated from 41)  
 
-### L-🔴-02: Unbounded Collectibles Break Progression
-**Date:** 2026-05-06
-**Severity:** CRITICAL
-**Lesson:** Diggers with 30% drop rate and unbounded diminishing returns (+0.1% per digger forever) allowed players to collect thousands. Use exponential decay with a hard asymptote (e.g., `M × (1 - e^(-C×x))`) to cap total bonus while keeping each find meaningful.
-**Action:** Reduce drop rate to 2.5%, implement exponential decay with M=200% cap, add guaranteed drop every 75 caves.
+**Organization:** CRITICAL → IMPORTANT → GOOD PRACTICE  **Last Updated:** 2025-10-26  
 
-### L-🔴-03: No Sinks = Infinite Hoarding
-**Date:** 2026-05-06
-**Severity:** CRITICAL
-**Lesson:** When resources can only be gained (faucets) but never destroyed (sinks), players accumulate infinite wealth. The game had zero sinks — no unit upkeep, no tool decay, no PvP burn, no resource decay.
-**Action:** Implement unit upkeep (exponential past supply cap), auto-farm tool durability, PvP resource burn (20%), resource decay (0.25% daily above 1M).
+**Purpose:** Prevent repeated mistakes, ranked by impact severity**Organization:** Severity-based (🔴 CRITICAL → 🟡 IMPORTANT → 🟢 GOOD PRACTICE)  
 
-### L-🔴-04: Flat XP Curves Exhaust Content Instantly
-**Date:** 2026-05-06
-**Severity:** CRITICAL
-**Lesson:** Linear 1,000 XP per level for 30 levels meant a player reached level 36 in one session. Use polynomial curves (e.g., `250 × L^2.5`) for multi-year progression pacing.
-**Action:** Reduce harvest XP from 20 to 3, implement polynomial curve.
-
-### L-🔴-05: Auto-Farm Without Friction Breaks the Game
-**Date:** 2026-05-06
-**Severity:** CRITICAL
-**Lesson:** Auto-farm that can sweep 22,500 tiles per day with zero cost, zero decay, and zero maintenance removes all engagement from the core loop. Players don't need to interact with the game.
-**Action:** Add tool durability (decay with use, exponential repair costs), stamina system (soft diminishing, never zero), and tie auto-farm speed to tool condition.
-
----
-
-## 🟡 IMPORTANT — Design Principles
-
-### L-🟡-01: Shrine as Engagement Loop
-**Date:** 2026-05-06
-**Severity:** IMPORTANT
-**Lesson:** Time-limited boosts that require active resource gathering create a compelling FOMO loop. When shrine buffs expire, players feel the loss and return to cave exploration. This is the core daily engagement loop.
-**Action:** Reduce tradeable drop rate to make shrine items scarce. Costs: 2/5/12/25 items. Diminishing stacking: +70% max.
-
-### L-🟡-02: VIP Should Be Convenience, Not Power
-**Date:** 2026-05-06
-**Severity:** IMPORTANT
-**Lesson:** VIP 2x multiplicative bonus was too strong when combined with other multipliers. Target: VIP is 2-3x more effective than F2P, not 100x. Two coordinated F2P players should beat one whale.
-**Action:** VIP: +50% additive, 2x auto-farm speed, premium tool, cosmetics, analytics. Not raw power multipliers.
-
-### L-🟡-03: No Forced Resets — Ever
-**Date:** 2026-05-06
-**Severity:** IMPORTANT
-**Lesson:** Wiping player progress on a schedule kills growth and retention. Players who invest months of time will quit if it can be taken away. Use natural decay (territory, resources) and new content drops instead.
-**Action:** Territory decay (5%/day after 14-day grace), resource decay (0.25%/day above 1M), content drops every 3-6 months.
-
----
-
-## 🟢 GOOD PRACTICES — Confirmed
-
-### L-🟢-01: Diminishing Returns Feel Better Than Hard Caps
-**Date:** 2026-05-06
-**Severity:** GOOD PRACTICE
-**Lesson:** Players always feel like they're progressing with diminishing returns. Hard caps feel punishing. Use soft curves (exponential decay, additive diminishing) instead of hard walls.
-
-### L-🟢-02: Referrals Drive Organic Growth
-**Date:** 2026-05-06
-**Severity:** GOOD PRACTICE
-**Lesson:** Referral rewards should be tiered (small at level 5, medium at level 15, large at level 25) to reward quality referrals without hard-gating. Anti-fraud via IP/device fingerprinting, not level requirements.
-
----
-
-*Last Updated: May 6, 2026 — Economy Balance Lessons Added*
+**Total Lessons:** 23 (consolidated from 41 duplicates/overlaps)
 
 ---
 

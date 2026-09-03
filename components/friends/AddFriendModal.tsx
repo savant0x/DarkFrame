@@ -191,14 +191,14 @@ export default function AddFriendModal({
   /**
    * Close modal and reset state
    */
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setSearchQuery('');
     setSearchResults([]);
     setSelectedUser(null);
     setMessage('');
     setError(null);
     onClose();
-  };
+  }, [onClose]);
 
   /**
    * Handle escape key
@@ -212,6 +212,19 @@ export default function AddFriendModal({
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, handleClose]);
+
+  // Reset transient state whenever the modal closes (prop-driven closes don't go
+  // through handleClose). Without this, stale search results/messages leak into
+  // the next open. (SESSION-2026-09-02-006)
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery('');
+      setSearchResults([]);
+      setSelectedUser(null);
+      setMessage('');
+      setError(null);
+    }
   }, [isOpen]);
 
   // ============================================================================
@@ -311,7 +324,7 @@ export default function AddFriendModal({
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       />
                     </svg>
-                    <p>No players found matching "{searchQuery}"</p>
+                    <p>No players found matching &quot;{searchQuery}&quot;</p>
                   </div>
                 )}
 

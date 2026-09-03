@@ -21,8 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { logger } from '@/lib';
+import { getAuthenticatedUser } from '@/lib/authService';
 import { addSchedule, updateSchedule, deleteSchedule, getSchedules } from '@/lib/beerBaseService';
 import type { RespawnSchedule } from '@/lib/beerBaseService';
 
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error fetching schedules:', error);
+    console.error('Error fetching schedules:', error);
     return NextResponse.json(
       { error: 'Failed to fetch schedules' },
       { status: 500 }
@@ -128,7 +127,6 @@ export async function POST(request: NextRequest) {
 
     // Create schedule
     const schedule = await addSchedule({
-      id: crypto.randomUUID(),
       enabled: body.enabled,
       dayOfWeek: body.dayOfWeek,
       hour: body.hour,
@@ -144,7 +142,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error creating schedule:', error);
+    console.error('Error creating schedule:', error);
     return NextResponse.json(
       { error: 'Failed to create schedule' },
       { status: 500 }
@@ -247,7 +245,7 @@ export async function PUT(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error updating schedule:', error);
+    console.error('Error updating schedule:', error);
     return NextResponse.json(
       { error: 'Failed to update schedule' },
       { status: 500 }
@@ -298,7 +296,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Error deleting schedule:', error);
+    console.error('Error deleting schedule:', error);
     return NextResponse.json(
       { error: 'Failed to delete schedule' },
       { status: 500 }

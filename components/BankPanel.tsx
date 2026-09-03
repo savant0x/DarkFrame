@@ -29,7 +29,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { BankStorage, Resources } from '@/types';
 import { Panel } from './ui/Panel';
 import { StatCard } from './ui/StatCard';
@@ -59,7 +59,6 @@ import {
 interface BankPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  username: string;
   playerResources: Resources;
   bankStorage: BankStorage;
   bankType: 'metal' | 'energy' | 'exchange';
@@ -89,7 +88,6 @@ const BANK_TITLES: Record<'metal' | 'energy' | 'exchange', string> = {
 export default function BankPanel({
   isOpen,
   onClose,
-  username,
   playerResources,
   bankStorage,
   bankType,
@@ -98,12 +96,7 @@ export default function BankPanel({
   // ============================================================
   // STATE
   // ============================================================
-  const [activeTab, setActiveTab] = useState<TabType>(bankType === 'exchange' ? 'exchange' : 'deposit');
-
-  // Sync activeTab when bankType changes
-  useEffect(() => {
-    setActiveTab(bankType === 'exchange' ? 'exchange' : 'deposit');
-  }, [bankType]);
+  const [activeTab, setActiveTab] = useState<TabType>('deposit');
   const [amount, setAmount] = useState('');
   const [resourceType, setResourceType] = useState<ResourceType>('metal');
   const [loading, setLoading] = useState(false);
@@ -195,7 +188,7 @@ export default function BankPanel({
       const response = await fetch('/api/bank/deposit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceType, amount: depositAmount, username })
+        body: JSON.stringify({ resourceType, amount: depositAmount })
       });
 
       const data = await response.json();
@@ -232,7 +225,7 @@ export default function BankPanel({
       const response = await fetch('/api/bank/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resourceType, amount: withdrawAmount, username })
+        body: JSON.stringify({ resourceType, amount: withdrawAmount })
       });
 
       const data = await response.json();
@@ -269,7 +262,7 @@ export default function BankPanel({
       const response = await fetch('/api/bank/exchange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fromResource: resourceType, amount: exchangeAmount, username })
+        body: JSON.stringify({ fromResource: resourceType, amount: exchangeAmount })
       });
 
       const data = await response.json();
@@ -376,30 +369,26 @@ export default function BankPanel({
 
         {/* Transaction Tabs */}
         <div className="flex gap-2 mb-6">
-          {bankType !== 'exchange' && (
-            <>
-              <Button
-                onClick={() => setActiveTab('deposit')}
-                variant={activeTab === 'deposit' ? 'primary' : 'secondary'}
-                className="flex-1"
-              >
-                <ArrowDownToLine className="w-4 h-4 mr-1" />
-                Deposit
-              </Button>
-              <Button
-                onClick={() => setActiveTab('withdraw')}
-                variant={activeTab === 'withdraw' ? 'primary' : 'secondary'}
-                className="flex-1"
-              >
-                <ArrowUpFromLine className="w-4 h-4 mr-1" />
-                Withdraw
-              </Button>
-            </>
-          )}
+          <Button
+            onClick={() => setActiveTab('deposit')}
+            variant={activeTab === 'deposit' ? 'primary' : 'secondary'}
+            className="flex-1"
+          >
+            <ArrowDownToLine className="w-4 h-4 mr-1" />
+            Deposit
+          </Button>
+          <Button
+            onClick={() => setActiveTab('withdraw')}
+            variant={activeTab === 'withdraw' ? 'primary' : 'secondary'}
+            className="flex-1"
+          >
+            <ArrowUpFromLine className="w-4 h-4 mr-1" />
+            Withdraw
+          </Button>
           {bankType === 'exchange' && (
             <Button
               onClick={() => setActiveTab('exchange')}
-              variant="primary"
+              variant={activeTab === 'exchange' ? 'primary' : 'secondary'}
               className="flex-1"
             >
               <ArrowLeftRight className="w-4 h-4 mr-1" />
@@ -441,7 +430,7 @@ export default function BankPanel({
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 bg-gray-200 text-gray-900 px-4 py-2 rounded-lg border border-border-main focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+                className="flex-1 bg-bg-tertiary text-text-primary px-4 py-2 rounded-lg border border-border-main focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
                 placeholder="Enter amount"
                 min="0"
               />

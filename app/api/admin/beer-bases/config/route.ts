@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authService';
 import { getBeerBaseConfig, updateBeerBaseConfig, BeerBaseConfig } from '@/lib/beerBaseService';
 import {
   withRequestLogging,

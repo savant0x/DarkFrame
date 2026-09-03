@@ -1,6 +1,6 @@
 /**
  * 📅 Created: 2025-01-18
- * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth
+ * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
  * 🎯 OVERVIEW:
  * Clear Flag Admin Endpoint
  * 
@@ -9,13 +9,14 @@
  * - Marks a specific anti-cheat flag as resolved
  * - Requires admin notes explaining resolution
  * - Records which admin cleared the flag and when
- * - Admin-only access
+ * - Admin-only access (rank >= 5)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
-
+import { getAuthenticatedUser } from '@/lib/authService';
+import { db } from '@/lib/db';
+import { playerFlags, modLog } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -36,56 +37,79 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clear-flag');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Admin authentication check
+    const user = await getAuthenticatedUser();
+    if (!user || !user.rank || user.rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin access required (rank 5+)',
+      });
+    }
 
     const body = await request.json();
-
     const validated = ClearFlagSchema.parse(body);
     const { flagId, adminNotes } = validated;
 
-    const supabase = createServiceClient();
+    // Find flag
+    const flagResult = await db.select().from(playerFlags).where(eq(playerFlags.id, flagId)).limit(1);
 
-    // Update flag to resolved
-    const { data: result, error: updateError } = await supabase
-      .from('player_flags')
-      .update({
-        resolved: true
-      })
-      .eq('id', flagId)
-      .select('*')
-      .single();
-
-    if (updateError || !result) {
+    if (flagResult.length === 0) {
       return createErrorResponse(ErrorCode.ADMIN_FLAG_NOT_FOUND, {
         message: 'Flag not found',
         flagId,
       });
     }
 
+    const flag = flagResult[0];
+    const details = (flag.details as Record<string, any>) || {};
+
+    // Update flag as resolved
+    const updatedDetails = {
+      ...details,
+      resolved: true,
+      resolvedBy: user.username,
+      resolvedAt: new Date().toISOString(),
+      adminNotes: adminNotes.trim(),
+    };
+
+    await db.update(playerFlags)
+      .set({ details: updatedDetails })
+      .where(eq(playerFlags.id, flagId));
+
     // Log admin action
-    await supabase.from('admin_logs').insert({
-      admin_username: auth.username,
+    await db.insert(modLog).values({
+      id: `modlog_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      moderatorId: user.username,
       action: 'CLEAR_FLAG',
-      target: result.player_username,
-      details: { admin_notes: adminNotes.trim(), flag_id: flagId }
+      targetId: flag.playerId,
+      reason: adminNotes.trim(),
+      details: JSON.stringify({
+        flagType: details.flagType,
+        flagSeverity: details.severity,
+        flagId,
+      }),
+      createdAt: new Date(),
     });
 
     log.info('Flag cleared successfully', {
       flagId,
-      player_username: result.player_username,
-      adminUser: auth.username,
+      username: details.username || flag.playerId,
+      flagType: details.flagType,
+      severity: details.severity,
+      adminUser: user.username,
     });
 
     return NextResponse.json({
       success: true,
       message: 'Flag cleared successfully',
       data: {
-        flagId: result.id,
-        player_username: result.player_username,
-        resolvedBy: auth.username,
-        adminNotes: adminNotes.trim()
-      }
+        flagId: flag.id,
+        username: details.username || flag.playerId,
+        flagType: details.flagType,
+        severity: details.severity,
+        resolvedBy: user.username,
+        resolvedAt: updatedDetails.resolvedAt,
+        adminNotes: updatedDetails.adminNotes,
+      },
     });
 
   } catch (error) {
@@ -98,3 +122,28 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     endTimer();
   }
 }));
+
+/**
+ * 📝 IMPLEMENTATION NOTES:
+ * - Marks flag as resolved, not deleted (maintains history)
+ * - Requires meaningful admin notes for accountability
+ * - Logs all admin actions in modLog table
+ * - Returns updated flag data for UI refresh
+ * 
+ * 🔐 SECURITY:
+ * - Admin-only access (rank >= 5)
+ * - Validates flag ID and notes
+ * - Audit trail via admin logs
+ * 
+ * 📊 REQUEST BODY:
+ * {
+ *   flagId: string,
+ *   adminNotes: string (min 10 characters)
+ * }
+ * 
+ * 🚀 FUTURE ENHANCEMENTS:
+ * - Bulk flag clearing for same issue
+ * - Flag reinstatement if player reoffends
+ * - Automatic notifications to player
+ * - Admin action history view
+ */

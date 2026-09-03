@@ -20,7 +20,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { type ZoomLevel, ZOOM_SCALES } from '@/types';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 
@@ -73,8 +73,8 @@ export function ZoomControls({
   className = ''
 }: ZoomControlsProps): React.JSX.Element {
   
-  // Zoom level configurations
-  const zoomLevels: ZoomLevelConfig[] = [
+  // Zoom level configurations - memoized to prevent recreation every render
+  const zoomLevels: ZoomLevelConfig[] = useMemo(() => [
     {
       level: 'FullMap',
       label: 'Full Map',
@@ -103,7 +103,7 @@ export function ZoomControls({
       description: 'See 18x18 tiles (detailed view)',
       icon: '🔍'
     }
-  ];
+  ], []);
 
   // Keyboard shortcuts for zoom
   React.useEffect(() => {

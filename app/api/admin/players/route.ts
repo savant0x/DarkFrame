@@ -1,62 +1,92 @@
 /**
- * Admin Player List API — Supabase backend
- * Updated 2026-05-15: Added requireAdminAuth
+ * @file app/api/admin/players/route.ts
+ * @created 2025-10-18
+ * @overview Admin player list API endpoint
+ * 
+ * OVERVIEW:
+ * Returns list of all players with basic info for admin panel.
+ * Access restricted to level 10+ players.
  */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { desc, asc } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
-export const GET = withRequestLogging(rateLimiter(async (_req: NextRequest) => {
-  const log = createRouteLogger('AdminPlayerListAPI');
-  const endTimer = log.time('admin-players');
+/**
+ * GET /api/admin/players
+ * 
+ * Get list of all players for admin panel
+ * Requires level 10+
+ */
+export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+  const log = createRouteLogger('admin/players');
+  const endTimer = log.time('get-players');
 
   try {
-    const auth = await requireAdminAuth(_req);
-    if (auth instanceof NextResponse) return auth;
+    const user = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!user) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
 
-    const { data: players } = await supabase
-      .from('players')
-      .select('username, level, rank, total_strength, total_defense, resources_metal, resources_energy, research_points, is_admin, is_bot, is_vip, clan_id, created_at, current_x, current_y')
-      .order('created_at', { ascending: false })
-      .limit(200);
+    if (user.isAdmin !== true) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
+    }
 
-    log.info('Admin players list retrieved', { count: players?.length || 0 });
+    const playersList = await db.select({
+      username: players.username,
+      level: players.level,
+      rank: players.rank,
+      resourcesMetal: players.resourcesMetal,
+      resourcesEnergy: players.resourcesEnergy,
+      baseX: players.baseX,
+      baseY: players.baseY,
+      createdAt: players.createdAt,
+    })
+      .from(players)
+      .orderBy(desc(players.level), asc(players.username));
+
+    const playerList = playersList.map(p => ({
+      username: p.username,
+      level: p.level || 1,
+      rank: p.rank || 1,
+      metal: Number(p.resourcesMetal || 0),
+      energy: Number(p.resourcesEnergy || 0),
+      baseLocation: `(${p.baseX}, ${p.baseY})`,
+      lastActive: p.createdAt ? new Date(p.createdAt).toISOString() : undefined
+    }));
+
+    log.info('Player list retrieved', {
+      totalPlayers: playerList.length,
+      requestedBy: user.username,
+    });
 
     return NextResponse.json({
       success: true,
-      data: (players || []).map(p => ({
-        username: p.username,
-        level: p.level || 1,
-        rank: p.rank || 1,
-        totalStrength: p.total_strength || 0,
-        totalDefense: p.total_defense || 0,
-        resources: { metal: p.resources_metal || 0, energy: p.resources_energy || 0 },
-        researchPoints: p.research_points || 0,
-        isAdmin: Boolean(p.is_admin),
-        isBot: Boolean(p.is_bot),
-        isVip: Boolean(p.is_vip),
-        clanId: p.clan_id,
-        createdAt: p.created_at,
-        current_x: p.current_x,
-        current_y: p.current_y,
-      })),
+      data: playerList
     });
+
   } catch (error) {
-    log.error('Admin players error', error instanceof Error ? error : new Error(String(error)));
+    log.error('Failed to load player list', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
     endTimer();
   }
 }));
+
+// ============================================================
+// END OF FILE
+// ============================================================

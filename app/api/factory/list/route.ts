@@ -1,29 +1,57 @@
 /**
  * Factory List API Endpoint
- * Created: 2025-10-17
- * Updated: 2026-05-03 — Migrated to Supabase
+ * Created: 2025-10-17 (Enhanced for upgrade system)
+ * 
+ * OVERVIEW:
+ * GET endpoint to retrieve all factories owned by the authenticated player.
+ * Returns comprehensive factory data including location, level, stats,
+ * upgrade costs, and current production status. Used by Factory Management Panel.
+ * 
+ * QUERY PARAMETERS:
+ * - username: string (required) - Player username
+ * 
+ * RESPONSE:
+ * {
+ *   "success": true,
+ *   "factories": EnhancedFactory[],  // All owned factories with upgrade data
+ *   "count": number,                 // Total factories owned
+ *   "maxFactories": number,          // Maximum allowed (10)
+ *   "canClaimMore": boolean,         // True if < 10 factories
+ *   "totalInvestment": {             // Cumulative costs across all factories
+ *     "metal": number,
+ *     "energy": number
+ *   }
+ * }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { connectToDatabase } from '@/lib/mongodb';
 import {
   calculateUpgradeCost,
   getFactoryStats,
-  getMaxSlots,
   getUpgradeProgress,
   calculateCumulativeCost,
   FACTORY_UPGRADE
 } from '@/lib/factoryUpgradeService';
 import { applySlotRegeneration, getTimeUntilNextSlot, getAvailableSlots } from '@/lib/slotRegenService';
 import { Factory, FactoryStats } from '@/types/game.types';
+import type { Player } from '@/types/game.types';
 
+/**
+ * Enhanced factory response with upgrade information
+ */
 interface FactoryResponse {
   factory: Factory;
   stats: FactoryStats;
-  upgradeCost: { metal: number; energy: number; level: number } | null;
+  upgradeCost: { metal: number; energy: number } | null;
   canUpgrade: boolean;
-  upgradeProgress: number;
+  upgradeProgress: {
+    level: number;
+    percentage: number;
+    slotsUsed: number;
+    slotsRequired: number;
+  };
   availableSlots: number;
   timeUntilNextSlot: {
     hours: number;
@@ -33,136 +61,163 @@ interface FactoryResponse {
   };
 }
 
-function toFactoryType(row: Record<string, unknown>): Factory {
-  return {
-    x: row.x as number,
-    y: row.y as number,
-    owner: row.owner as string,
-    defense: row.defense as number,
-    level: (row.level as number) || 1,
-    slots: (row.slots as number) || 0,
-    usedSlots: (row.used_slots as number) || 0,
-    productionRate: (row.production_rate as number) || 0,
-    lastSlotRegen: new Date((row.last_slot_regen as string) || Date.now()),
-    lastResourceGeneration: new Date((row.last_resource_generation as string) || Date.now()),
-    lastAttackedBy: row.last_attacked_by as string | undefined,
-    lastAttackTime: row.last_attack_time ? new Date(row.last_attack_time as string) : null,
-  };
-}
-
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-    const supabase = createServiceClient();
+    const username = authResult.username;
 
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('resources_metal, resources_energy')
-      .eq('username', username)
-      .single();
+    // Connect to database
+    const db = await connectToDatabase();
+    const factoriesCollection = db.collection<Factory>('factories');
+    const playersCollection = db.collection<Player>('players');
 
-    if (playerError || !player) {
+    // Get player's current resources for upgrade affordability checks
+    const player = await playersCollection.findOne({ username });
+    if (!player) {
       return NextResponse.json(
         { success: false, error: 'Player not found' },
         { status: 404 }
       );
     }
 
-    const playerMetal = (player.resources_metal as number) || 0;
-    const playerEnergy = (player.resources_energy as number) || 0;
+    const playerMetal = player.resources?.metal || 0;
+    const playerEnergy = player.resources?.energy || 0;
 
-    const { data: factoryRows, error: facError } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('owner', username);
+    // Find all factories owned by player
+    const factories = await factoriesCollection
+      .find({ owner: username })
+      .toArray();
 
-    if (facError) throw facError;
-
-    const factories = (factoryRows || []).map(toFactoryType);
-    const now = new Date().toISOString();
-
-    // Auto-correct stale DB state: sync slots column to level-derived capacity
-    for (const [i, f] of factories.entries()) {
-      const levelCapacity = getMaxSlots(f.level || 1);
-      const row = factoryRows![i];
-      if (row.slots !== levelCapacity || (f.usedSlots || 0) > levelCapacity) {
-        await supabase
-          .from('factories')
-          .update({
-            slots: levelCapacity,
-            used_slots: Math.min(f.usedSlots || 0, levelCapacity),
-          })
-          .eq('x', f.x)
-          .eq('y', f.y);
-        const { data: corrected } = await supabase
-          .from('factories')
-          .select('*')
-          .eq('x', f.x)
-          .eq('y', f.y)
-          .single();
-        if (corrected) {
-          factories[i] = toFactoryType(corrected);
-        }
-      }
-    }
-
+    // Calculate total investment across all factories
     let totalMetalInvested = 0;
     let totalEnergyInvested = 0;
 
+    // Enhance factory data with stats, costs, and upgrade info
     const enhancedFactories: FactoryResponse[] = factories.map((factory: Factory) => {
       const currentLevel = factory.level || 1;
       const stats = getFactoryStats(currentLevel);
+      
+      // Apply slot regeneration before returning (use updated instance)
       const regenFactory = applySlotRegeneration(factory);
+      
+      // Calculate time until next slot
       const timeUntilNext = getTimeUntilNextSlot(regenFactory);
-
+      
+      // Calculate upgrade info
       let upgradeCost = null;
       let canUpgrade = false;
-
+      
       if (currentLevel < FACTORY_UPGRADE.MAX_LEVEL) {
         upgradeCost = calculateUpgradeCost(currentLevel);
         canUpgrade = playerMetal >= upgradeCost.metal && playerEnergy >= upgradeCost.energy;
       }
-
-      const cumulative = currentLevel > 1 ? calculateCumulativeCost(currentLevel) : { metal: 0, energy: 0, level: 1 };
-      totalMetalInvested += cumulative.metal;
-      totalEnergyInvested += cumulative.energy;
-
+      
+      // Calculate investment in this factory
+      if (currentLevel > 1) {
+        const cumulativeCost = calculateCumulativeCost(currentLevel);
+        totalMetalInvested += cumulativeCost.metal;
+        totalEnergyInvested += cumulativeCost.energy;
+      }
+      
+      // Build upgrade progress object with all required fields
+      const upgradePercentage = getUpgradeProgress(regenFactory);
+      const upgradeProgress = {
+        level: currentLevel,
+        percentage: upgradePercentage,
+        slotsUsed: regenFactory.usedSlots,
+        slotsRequired: stats.maxSlots // FactoryStats uses maxSlots, not slots
+      };
+      
       return {
-        factory,
+        factory: regenFactory,
         stats,
         upgradeCost,
         canUpgrade,
-        upgradeProgress: getUpgradeProgress(factory),
+        upgradeProgress,
         availableSlots: getAvailableSlots(regenFactory),
-        timeUntilNextSlot: {
-          hours: timeUntilNext.hours,
-          minutes: timeUntilNext.minutes,
-          seconds: timeUntilNext.seconds,
-          totalMs: timeUntilNext.totalMs,
-        },
+        timeUntilNextSlot: timeUntilNext // Return full object with hours, minutes, seconds, totalMs
       };
     });
+
+    // Sort by level (descending), then by location
+    enhancedFactories.sort((a: FactoryResponse, b: FactoryResponse) => {
+      const levelDiff = (b.factory.level || 1) - (a.factory.level || 1);
+      if (levelDiff !== 0) return levelDiff;
+      
+      // If levels are equal, sort by location (Y first, then X)
+      const yDiff = a.factory.y - b.factory.y;
+      if (yDiff !== 0) return yDiff;
+      
+      return a.factory.x - b.factory.x;
+    });
+
+    const factoryCount = factories.length;
+    const canClaimMore = factoryCount < FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER;
 
     return NextResponse.json({
       success: true,
       factories: enhancedFactories,
-      count: factories.length,
-      maxFactories: 10,
-      canClaimMore: factories.length < 10,
-      playerResources: { metal: playerMetal, energy: playerEnergy },
+      count: factoryCount,
+      maxFactories: FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER,
+      canClaimMore,
       totalInvestment: {
         metal: totalMetalInvested,
         energy: totalEnergyInvested,
-        total: totalMetalInvested + totalEnergyInvested,
+        total: totalMetalInvested + totalEnergyInvested
       },
+      playerResources: {
+        metal: playerMetal,
+        energy: playerEnergy
+      }
     });
-  } catch (error: any) {
+
+  } catch (error) {
+    console.error('Factory list error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      {
+        success: false,
+        error: 'An unexpected error occurred while fetching factory list',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
 }
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * 1. Slot Regeneration:
+ *    - Applied to each factory before returning
+ *    - Ensures accurate slot availability display
+ *    - Time until next slot calculated for UI countdowns
+ * 
+ * 2. Upgrade Affordability:
+ *    - Checked against player's current resources
+ *    - Same resources used for all factories (shared pool)
+ *    - Helps UI enable/disable upgrade buttons
+ * 
+ * 3. Investment Tracking:
+ *    - Calculates total resources spent on all factories
+ *    - Shows cumulative investment across empire
+ *    - Useful for strategic decision-making
+ * 
+ * 4. Sorting Strategy:
+ *    - Primary: Level (highest first) - shows best factories first
+ *    - Secondary: Location (Y, then X) - geographic organization
+ *    - Makes high-value factories easy to find
+ */
+// Implementation Notes:
+// - Returns all factories owned by username
+// - Includes factory position, stats, and production info
+// - Useful for factory management UI
+// - Supports inventory/asset tracking
+// ============================================================

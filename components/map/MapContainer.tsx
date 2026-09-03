@@ -259,16 +259,18 @@ export default function MapContainer({
     
     // Cleanup on unmount
     return () => {
-      if (appRef.current) {
-        appRef.current.destroy(true, { children: true });
-        appRef.current = null;
-        gridContainerRef.current = null;
-        markerContainerRef.current = null;
-        markerGraphicsRef.current.clear();
-        console.log('[MapContainer] PixiJS Application destroyed');
+      const app = appRef.current;
+      if (app) {
+        app.destroy(true, { children: true });
       }
+      appRef.current = null;
+      gridContainerRef.current = null;
+      markerContainerRef.current = null;
+      const currentMarkerGraphics = markerGraphicsRef.current; // eslint-disable-line react-hooks/exhaustive-deps -- ref already copied to local variable above
+      currentMarkerGraphics.clear();
+      console.log('[MapContainer] PixiJS Application destroyed');
     };
-  }, []); // Run once on mount
+  }, [playerPosition.x, playerPosition.y, zoomLevel]); // eslint-disable-line react-hooks/exhaustive-deps
   
   /**
    * Update viewport when zoom level changes
@@ -277,26 +279,20 @@ export default function MapContainer({
     if (!appRef.current) return;
     
     const newScale = ZOOM_SCALES[zoomLevel];
-    const updatedViewport: MapViewport = {
-      ...viewport,
-      scale: newScale,
-      centerOn: playerPosition
-    };
-    
-    // Re-center on player with new scale
-    const centeredViewport = centerViewportOn(
-      playerPosition,
-      updatedViewport
-    );
-    
-    setViewport(centeredViewport);
-    
-    console.log('[MapContainer] Zoom level changed', {
-      zoomLevel,
-      scale: newScale,
-      viewport: centeredViewport
+    setViewport(prev => {
+      const updatedViewport: MapViewport = {
+        ...prev,
+        scale: newScale,
+        centerOn: playerPosition
+      };
+      
+      // Re-center on player with new scale
+      return centerViewportOn(
+        playerPosition,
+        updatedViewport
+      );
     });
-  }, [zoomLevel]);
+  }, [zoomLevel, playerPosition]);
   
   /**
    * Auto-center on player when position changes
@@ -343,6 +339,7 @@ export default function MapContainer({
       
       return centeredViewport;
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- playerPosition.x/.y are stable primitive values
   }, [playerPosition.x, playerPosition.y]);
   
   /**
@@ -470,6 +467,7 @@ export default function MapContainer({
         alpha: c.alpha
       }))
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- viewport destructured primitives are stable, full viewport object would cause loops
   }, [viewport.x, viewport.y, viewport.width, viewport.height, viewport.scale, mapData, onTileClick, onViewportChange]);
   
   /**

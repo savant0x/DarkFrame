@@ -202,7 +202,7 @@ export default function LeaderboardView() {
           />
           {searchQuery && (
             <p className="text-sm text-gray-400 mt-2">
-              Found {filteredLeaderboard.length} player(s) matching "{searchQuery}"
+              Found {filteredLeaderboard.length} player(s) matching &quot;{searchQuery}&quot;
             </p>
           )}
         </div>

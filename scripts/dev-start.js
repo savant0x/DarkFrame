@@ -1,35 +1,44 @@
 /**
  * @file scripts/dev-start.js
  * @created 2025-10-24
- * @updated 2026-05-06 — Standard Next.js dev server
- * @overview Development server startup script
- *
- * Starts the Next.js development server with Turbopack hot reload.
- * Stripe listener removed — run manually with `npm run stripe:listen` when needed.
+ * @overview Development server startup script with PATH fix for Windows
+ * 
+ * This script ensures System32 is in PATH before starting concurrently,
+ * preventing "spawn cmd.exe ENOENT" errors on Windows.
  */
 
 const { spawn } = require('child_process');
+const path = require('path');
 
-// Ensure System32 is in PATH on Windows
+// Add System32 to PATH if on Windows and not already present
 if (process.platform === 'win32') {
   const system32 = 'C:\\Windows\\System32';
   if (!process.env.PATH.includes(system32)) {
+    console.log('🔧 Adding System32 to PATH...');
     process.env.PATH = `${process.env.PATH};${system32}`;
   }
 }
 
-const command = 'next dev';
+// Start concurrently with the dev servers
+// Using single command string with shell to fix DEP0190 warning
+// (DEP0190: Passing args array with shell: true is deprecated)
+const command = 'npx concurrently --kill-others --names "SERVER,STRIPE" --prefix-colors "cyan,magenta" npm:dev:server npm:stripe:listen';
 
-const child = spawn(command, {
-  stdio: 'inherit',
-  shell: true,
-  env: process.env,
-});
+const concurrently = spawn(
+  command,
+  {
+    stdio: 'inherit',
+    shell: true,
+    env: process.env
+  }
+);
 
-child.on('close', (code) => {
+// Handle exit
+concurrently.on('close', (code) => {
   process.exit(code);
 });
 
+// Handle Ctrl+C
 process.on('SIGINT', () => {
-  child.kill('SIGINT');
+  concurrently.kill('SIGINT');
 });

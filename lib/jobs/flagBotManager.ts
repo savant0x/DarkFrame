@@ -18,7 +18,7 @@
  * Integration:
  * - Called by server.ts on startup
  * - Integrates with flagBotService.ts for bot operations
- * - Uses Supabase for flag state persistence
+ * - Uses Drizzle ORM for flag state persistence
  * 
  * Related Files:
  * - /lib/flagBotService.ts - Bot lifecycle management
@@ -28,7 +28,9 @@
  * @implements Background Job Pattern
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { players, flags } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   getFlagBot,
   moveFlagBot,
@@ -54,7 +56,7 @@ interface FlagBotJobStats {
  * Global job state
  */
 let jobInterval: NodeJS.Timeout | null = null;
-let jobStats: FlagBotJobStats = {
+const jobStats: FlagBotJobStats = {
   lastRun: null,
   nextRun: null,
   executionCount: 0,
@@ -122,11 +124,9 @@ async function flagBotManagerJob(): Promise<number> {
       // Bot holds flag - move to random position
       console.log(`[Flag Bot Job] 🎯 Moving flag bot: ${flagBot.username}`);
       
-      // Get bot ID from database query (Player type doesn't include id in interface)
-      const supabase = createServiceClient();
-      const { data: botDoc } = await supabase.from('players').select('*').eq('username', flagBot.username).single();
-      if (botDoc) {
-        const newPosition = await moveFlagBot(botDoc.username);
+      const botDoc = await db.select().from(players).where(eq(players.username, flagBot.username)).limit(1);
+      if (botDoc.length > 0) {
+        const newPosition = await moveFlagBot(botDoc[0].username);
         jobStats.movementCount++;
         operationsPerformed++;
         console.log(
@@ -135,10 +135,9 @@ async function flagBotManagerJob(): Promise<number> {
       }
     } else {
       // No bot found - check if flag exists at all
-      const supabase = createServiceClient();
-      const { data: flagDoc } = await supabase.from('flags').select('*').single();
+      const flagDoc = await db.select().from(flags).limit(1);
       
-      if (!flagDoc || !flagDoc.bearer_username) {
+      if (!flagDoc[0] || !flagDoc[0].currentHolder) {
         // No flag system initialized - initialize it
         console.log('[Flag Bot Job] 🏴 No flag found, initializing system...');
         await initializeFlagSystem();
@@ -147,7 +146,7 @@ async function flagBotManagerJob(): Promise<number> {
       } else {
         // Player holds flag - skip movement
         console.log(
-          `[Flag Bot Job] 👤 Player holds flag: ${flagDoc.bearer_username || 'unknown'} - skipping movement`
+          `[Flag Bot Job] 👤 Player holds flag: ${flagDoc[0].currentHolderUsername} - skipping movement`
         );
       }
     }
@@ -348,7 +347,7 @@ export function getFlagBotJobInfo(): {
 // Testing:
 // - Change interval to 2 minutes for testing (line 78)
 // - Monitor console logs for execution confirmations
-// - Check Supabase flags table for bot movements
+// - Check MySQL flags table for bot movements
 // - Verify flag transfers work with attack API
 // 
 // Production Considerations:
@@ -358,7 +357,7 @@ export function getFlagBotJobInfo(): {
 // - Can be integrated with external monitoring tools
 // 
 // Related Lessons:
-// - Lesson #35: Zero mocks - all data from Supabase
+// - Lesson #35: Zero mocks - all data from MySQL
 // - Lesson #37: Complete file reading before implementation
 // 
 // ============================================================

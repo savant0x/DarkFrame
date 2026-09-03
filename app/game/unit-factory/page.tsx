@@ -86,50 +86,29 @@ import { useGameContext } from '@/context/GameContext';
 import { BackButton, StatsPanel, ControlsPanel } from '@/components';
 import GameLayout from '@/components/GameLayout';
 import TopNavBar from '@/components/TopNavBar';
-import { UNIT_CONFIGS } from '@/types/game.types';
-import { UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
+import { UNIT_BLUEPRINTS, UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
 
 interface UnitWithStatus extends UnitBlueprint {
   isUnlocked: boolean;
   playerOwned: number;
-  slotCost: number;
 }
 
-// Convert new UNIT_CONFIGS to the old UnitBlueprint format
-function buildBlueprints(): UnitBlueprint[] {
-  return Object.values(UNIT_CONFIGS).map(cfg => {
-    // Map archetype → category (STRENGTH or DEFENSE)
-    const category = cfg.archetype === 'BULWARK' ? UnitCategory.Defense : UnitCategory.Strength;
-    // Map tier → rarity (T1=Common ... T5=Legendary)
-    const rarity = cfg.tier as unknown as UnitRarity;
-
-    return {
-      id: cfg.type,
-      name: cfg.name,
-      category,
-      rarity,
-      strength: cfg.strength,
-      defense: cfg.defense,
-      metalCost: cfg.metalCost,
-      energyCost: cfg.energyCost,
-      description: cfg.description,
-      unlockRequirement: {
-        researchPoints: cfg.rpRequired,
-        level: cfg.levelRequired,
-      },
-    };
-  });
+interface PlayerStats {
+  level: number;
+  researchPoints: number;
+  resources: { metal: number; energy: number };
+  totalStrength: number;
+  totalDefense: number;
+  availableSlots: number;
+  usedSlots: number;
+  factoryBuildSlots: number; // NEW: Total available building slots across all factories
 }
-
-const BLUEPRINTS = buildBlueprints();
-
-import type { UnitFactoryStatsPayload } from '@/types/api-responses';
 
 export default function UnitFactoryPage() {
   const router = useRouter();
   const { player, refreshPlayer } = useGameContext();
   const [units, setUnits] = useState<UnitWithStatus[]>([]);
-  const [playerStats, setPlayerStats] = useState<UnitFactoryStatsPayload | null>(null);
+  const [playerStats, setPlayerStats] = useState<PlayerStats | null>(null);
   const [activeTab, setActiveTab] = useState<'strength' | 'defense'>('strength');
   const [selectedUnit, setSelectedUnit] = useState<UnitWithStatus | null>(null);
   const [buildQuantity, setBuildQuantity] = useState(1);
@@ -144,13 +123,15 @@ export default function UnitFactoryPage() {
     }
   }, [player, router]);
 
-  // Fetch player stats and merge with local blueprints
+  // Fetch available units and player stats
   useEffect(() => {
     if (!player) return;
 
+    const username = player.username; // Capture for null-safety
+
     async function fetchUnits() {
       try {
-        const response = await fetch(`/api/player/build-unit`);
+        const response = await fetch(`/api/player/build-unit?username=${username}`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -159,21 +140,8 @@ export default function UnitFactoryPage() {
         const data = await response.json();
 
         if (data.success) {
+          setUnits(data.units);
           setPlayerStats(data.playerStats);
-          // Merge API unit data (owned counts, unlock status) with local blueprints
-          const apiUnits: Record<string, any> = {};
-          (data.units || []).forEach((u: any) => { apiUnits[u.id] = u; });
-          
-          const merged: UnitWithStatus[] = BLUEPRINTS.map(bp => {
-            const api = apiUnits[bp.id];
-            return {
-              ...bp,
-              slotCost: 0,
-              isUnlocked: api?.isUnlocked ?? false,
-              playerOwned: api?.playerOwned ?? 0,
-            };
-          });
-          setUnits(merged);
         } else {
           console.error('API returned error:', data.message || 'Unknown error');
         }
@@ -257,7 +225,7 @@ export default function UnitFactoryPage() {
         await refreshPlayer();
         
         // Reload units to update owned counts
-        const unitsResponse = await fetch(`/api/player/build-unit`);
+        const unitsResponse = await fetch(`/api/player/build-unit?username=${player.username}`);
         const unitsData = await unitsResponse.json();
         if (unitsData.success) {
           setUnits(unitsData.units);
@@ -314,13 +282,13 @@ export default function UnitFactoryPage() {
                 <div className="text-right">
                   <div className="text-sm text-gray-400">Army Tier</div>
                   <div className="text-2xl font-bold text-blue-400">
-                    {Math.max(playerStats.totalStrength ?? 0, playerStats.totalDefense ?? 0).toLocaleString()}
+                    {Math.max(playerStats.totalStrength, playerStats.totalDefense).toLocaleString()}
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-sm text-gray-400">Factory Build Slots</div>
                   <div className="text-2xl font-bold text-green-400">
-                    {(playerStats.factoryBuildSlots ?? 0).toLocaleString()}
+                    {playerStats.factoryBuildSlots.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -335,25 +303,25 @@ export default function UnitFactoryPage() {
             <div>
               <div className="text-sm text-gray-400">Metal</div>
               <div className="text-2xl font-bold text-orange-400">
-                {playerStats?.resources?.metal?.toLocaleString() ?? '0'}
+                {playerStats.resources.metal.toLocaleString()}
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-400">Energy</div>
               <div className="text-2xl font-bold text-cyan-400">
-                {playerStats?.resources?.energy?.toLocaleString() ?? '0'}
+                {playerStats.resources.energy.toLocaleString()}
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-400">Total Strength</div>
               <div className="text-2xl font-bold text-red-400">
-                {playerStats?.totalStrength?.toLocaleString() ?? '0'}
+                {playerStats.totalStrength.toLocaleString()}
               </div>
             </div>
             <div>
               <div className="text-sm text-gray-400">Total Defense</div>
               <div className="text-2xl font-bold text-blue-400">
-                {playerStats?.totalDefense?.toLocaleString() ?? '0'}
+                {playerStats.totalDefense.toLocaleString()}
               </div>
             </div>
           </div>
@@ -433,10 +401,12 @@ export default function UnitFactoryPage() {
                   </div>
                 </div>
 
-                {/* Owned Count — always visible */}
-                <div className="text-xs text-green-400 mb-2">
-                  Owned: {unit.playerOwned}
-                </div>
+                {/* Owned Count */}
+                {unit.playerOwned > 0 && (
+                  <div className="text-xs text-green-400 mb-2">
+                    Owned: {unit.playerOwned}
+                  </div>
+                )}
 
                 {/* Lock Status */}
                 {!unit.isUnlocked && unit.unlockRequirement && (
@@ -490,18 +460,19 @@ export default function UnitFactoryPage() {
                       if (!playerStats || !selectedUnit) return;
                       
                       // Calculate max based on resources
-                       const maxByMetal = Math.floor((playerStats.resources?.metal ?? 0) / selectedUnit.metalCost);
-                       const maxByEnergy = Math.floor((playerStats.resources?.energy ?? 0) / selectedUnit.energyCost);
-                       const slotCost = selectedUnit.slotCost || 1;
-                       const remainingSlots = Math.max(0, (playerStats.factoryBuildSlots ?? playerStats.availableSlots ?? 0) - (playerStats.usedSlots ?? 0));
-                       const maxBySlots = Math.floor(remainingSlots / slotCost);
-
-                       const maxAffordable = Math.min(maxByMetal, maxByEnergy, maxBySlots);
+                      const maxByMetal = Math.floor(playerStats.resources.metal / selectedUnit.metalCost);
+                      const maxByEnergy = Math.floor(playerStats.resources.energy / selectedUnit.energyCost);
+                      
+                      // Use factory build slots (total available across all owned factories)
+                      const factorySlots = playerStats.factoryBuildSlots || 0;
+                      
+                      // Take the minimum of all three constraints
+                      const maxAffordable = Math.min(maxByMetal, maxByEnergy, factorySlots);
                       
                       // Handle edge cases
                       if (maxAffordable <= 0) {
-                        if (remainingSlots <= 0) {
-                          setMessage('❌ No army slots available! Build or capture factories to increase capacity.');
+                        if (factorySlots <= 0) {
+                          setMessage(`❌ No factory slots available! All factories are full.`);
                         } else {
                           setMessage('❌ Insufficient resources to build any units!');
                         }
@@ -535,20 +506,16 @@ export default function UnitFactoryPage() {
 
               {/* Stats Gained */}
               <div className="bg-gray-900 rounded-lg p-4">
-                <div className="text-sm text-gray-400 mb-2">Stats Gained (×{buildQuantity})</div>
-                {selectedUnit.strength > 0 && (
+                <div className="text-sm text-gray-400 mb-2">Stats Gained</div>
+                {selectedUnit.category === UnitCategory.Strength ? (
                   <div className="text-red-400 font-bold">
-                    +{(selectedUnit.strength * buildQuantity).toLocaleString()} STR
+                    +{(selectedUnit.strength * buildQuantity).toLocaleString()} Strength
                   </div>
-                )}
-                {selectedUnit.defense > 0 && (
+                ) : (
                   <div className="text-blue-400 font-bold">
-                    +{(selectedUnit.defense * buildQuantity).toLocaleString()} DEF
+                    +{(selectedUnit.defense * buildQuantity).toLocaleString()} Defense
                   </div>
                 )}
-                <div className="text-purple-400 font-bold mt-1 border-t border-gray-700 pt-1">
-                  Total Power: +{((selectedUnit.strength + selectedUnit.defense) * buildQuantity).toLocaleString()}
-                </div>
               </div>
             </div>
 

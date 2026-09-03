@@ -27,7 +27,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { 
   MapPin, 
@@ -64,15 +64,10 @@ export default function ClanTerritoryPanel({
   // Permission check
   const canManage = ROLE_PERMISSIONS[currentUserRole].canManageTerritories;
 
-  // Fetch territories on mount
-  useEffect(() => {
-    fetchTerritories();
-  }, [clan._id]);
-
   /**
    * Fetches all territories owned by the clan
    */
-  const fetchTerritories = async () => {
+  const fetchTerritories = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/clan/territory/list?clanId=${clan._id}`);
@@ -86,7 +81,12 @@ export default function ClanTerritoryPanel({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clan._id]);
+
+  // Fetch territories on mount
+  useEffect(() => {
+    fetchTerritories();
+  }, [fetchTerritories]);
 
   /**
    * Filters territories based on search query
@@ -186,7 +186,7 @@ export default function ClanTerritoryPanel({
           </p>
           {!searchQuery && canManage && (
             <p className="text-sm text-gray-500">
-              Click "Claim Territory" to expand your clan's domain
+              Click &quot;Claim Territory&quot; to expand your clan{"'"}s domain
             </p>
           )}
         </div>

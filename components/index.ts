@@ -123,10 +123,6 @@ export { default as ReferralLeaderboard } from './ReferralLeaderboard';
 
 // Flag tracking
 export { default as FlagTrackerPanel } from './FlagTrackerPanel';
-export { default as FlagBearerPanel } from './FlagBearerPanel';
-
-// Shrine system
-export { default as ShrineStatusPanel } from './ShrineStatusPanel';
 
 // Hotkey manager
 export { default as HotkeyManagerPanel } from './HotkeyManagerPanel';

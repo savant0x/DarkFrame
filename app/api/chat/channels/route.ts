@@ -20,8 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { requireAuth } from '@/lib/authMiddleware';
 import { getUserChannelBans } from '@/lib/moderationService';
 import {
   getPlayerChannels,
@@ -58,31 +57,13 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-
     // Authenticate user
-    const tokenPayload = await getAuthenticatedUser();
-    if (!tokenPayload) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) {
+      return auth; // Return 401 error
     }
 
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', tokenPayload.username)
-      .single();
-
-    if (playerError || !player) {
-      return NextResponse.json(
-        { success: false, error: 'Player not found' },
-        { status: 404 }
-      );
-    }
-
-    const username = player.username;
+    const { username, player } = auth;
 
     // Get user's channel bans
     const channelBans = await getUserChannelBans(username);
@@ -91,8 +72,8 @@ export async function GET(request: NextRequest) {
     const user: PlayerContext = {
       username,
       level: player.level || 1,
-      isVIP: player.is_vip === true,
-      clanId: player.clan_id?.toString(),
+      isVIP: player.vip === true || player.isVIP === true,
+      clanId: player.clanId?.toString(),
       isMuted: false, // Will be checked by chatService when needed
       channelBans,
     };

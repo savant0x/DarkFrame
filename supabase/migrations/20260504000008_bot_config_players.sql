@@ -1,1 +1,0 @@
-ALTER TABLE players ADD COLUMN IF NOT EXISTS bot_config JSONB DEFAULT '{}'::jsonb;

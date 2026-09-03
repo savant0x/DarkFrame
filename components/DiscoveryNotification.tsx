@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Discovery, DiscoveryCategory } from '@/types';
 
 interface DiscoveryNotificationProps {
@@ -61,6 +61,14 @@ export default function DiscoveryNotification({
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  const handleClose = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => {
+      setIsVisible(false);
+      onClose();
+    }, 300);
+  }, [onClose]);
+
   useEffect(() => {
     if (discovery) {
       // Trigger entrance animation
@@ -73,15 +81,7 @@ export default function DiscoveryNotification({
 
       return () => clearTimeout(dismissTimer);
     }
-  }, [discovery]);
-
-  const handleClose = () => {
-    setIsExiting(true);
-    setTimeout(() => {
-      setIsVisible(false);
-      onClose();
-    }, 300);
-  };
+  }, [discovery, handleClose]);
 
   if (!discovery) return null;
 

@@ -72,16 +72,6 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     windowMs: 60 * 60 * 1000,
     message: 'Password reset limit reached. Please check your email for the reset link that was already sent. If you didn\'t receive it, please wait before requesting another.',
   },
-
-  /**
-   * Auth endpoints (logout, session, etc.)
-   * 30 requests per minute
-   */
-  AUTH: {
-    maxRequests: 30,
-    windowMs: 60 * 1000,
-    message: 'Too many auth operations. Please wait a moment.',
-  },
   
   // ==========================================================================
   // PAYMENTS (VERY STRICT)
@@ -199,17 +189,6 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     windowMs: 60 * 1000,
     trackByUser: true,
     message: 'Harvesting too rapidly. Please slow down your resource gathering to maintain game balance and server performance.',
-  },
-
-  /**
-   * Fast travel
-   * 20 per minute — prevent abuse but allow quick navigation
-   */
-  FAST_TRAVEL: {
-    maxRequests: 20,
-    windowMs: 60 * 1000,
-    trackByUser: true,
-    message: 'Fast travel limit reached. Please wait before traveling again.',
   },
   
   // ==========================================================================
@@ -379,6 +358,81 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     trackByUser: true,
     message: 'Admin action limit reached. Please slow down configuration changes to prevent accidental system disruption.',
   },
+
+  /**
+   * Dangerous admin operations (system reset, bulk deletion)
+   * 20 operations per hour, tracked per user
+   */
+  ADMIN_OPERATIONS: {
+    maxRequests: 20,
+    windowMs: 60 * 60 * 1000,
+    trackByUser: true,
+    message: 'Admin operation limit reached. Wait before executing further dangerous operations.',
+  },
+
+  /**
+   * Authentication session endpoints (login/session/refresh family)
+   * 30 requests per minute
+   */
+  AUTH: {
+    maxRequests: 30,
+    windowMs: 60 * 1000,
+    skipIPs: ['127.0.0.1', '::1'],
+    message: 'Too many authentication attempts. Please wait a moment and try again.',
+  },
+
+  /**
+   * Bank deposit/withdraw/exchange
+   * 60 actions per minute
+   */
+  BANK: {
+    maxRequests: 60,
+    windowMs: 60 * 1000,
+    message: 'Bank action limit reached. Please wait before making another transaction.',
+  },
+
+  /**
+   * Fast travel between tiles
+   * 30 travels per minute
+   */
+  FAST_TRAVEL: {
+    maxRequests: 30,
+    windowMs: 60 * 1000,
+    message: 'Fast travel limit reached. Please wait before traveling again.',
+  },
+
+  /**
+   * Tech tree tier unlock purchases
+   * 10 unlocks per minute
+   */
+  TIER_UNLOCK: {
+    maxRequests: 10,
+    windowMs: 60 * 1000,
+    trackByUser: true,
+    message: 'Tier unlock limit reached. Please wait before purchasing another tier.',
+  },
+
+  /**
+   * Admin VIP grant
+   * 20 grants per hour per admin
+   */
+  adminVIPGrant: {
+    maxRequests: 20,
+    windowMs: 60 * 60 * 1000,
+    trackByUser: true,
+    message: 'VIP grant limit reached. Please wait before granting more VIP status.',
+  },
+
+  /**
+   * Admin VIP revoke
+   * 20 revocations per hour per admin
+   */
+  adminVIPRevoke: {
+    maxRequests: 20,
+    windowMs: 60 * 60 * 1000,
+    trackByUser: true,
+    message: 'VIP revoke limit reached. Please wait before revoking more VIP status.',
+  },
   
   /**
    * Admin bot management
@@ -400,50 +454,6 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     windowMs: 60 * 60 * 1000,
     trackByUser: true,
     message: 'VIP management limit reached. Please slow down VIP status changes.',
-  },
-
-  /**
-   * Admin VIP grants (separate from revokes for finer control)
-   * 100 per hour
-   */
-  adminVIPGrant: {
-    maxRequests: 100,
-    windowMs: 60 * 60 * 1000,
-    trackByUser: true,
-    message: 'VIP grant limit reached. Please slow down.',
-  },
-
-  /**
-   * Admin system reset — very strict
-   * 5 per hour
-   */
-  ADMIN_OPERATIONS: {
-    maxRequests: 5,
-    windowMs: 60 * 60 * 1000,
-    trackByUser: true,
-    message: 'System operations limit reached. Please wait before performing more admin actions.',
-  },
-
-  /**
-   * Bank operations (deposit/withdraw)
-   * 60 per minute
-   */
-  BANK: {
-    maxRequests: 60,
-    windowMs: 60 * 1000,
-    trackByUser: true,
-    message: 'Bank operation limit reached. Please wait before performing another transaction.',
-  },
-
-  /**
-   * Tier unlock operations
-   * 20 per hour
-   */
-  TIER_UNLOCK: {
-    maxRequests: 20,
-    windowMs: 60 * 60 * 1000,
-    trackByUser: true,
-    message: 'Tier unlock limit reached. Please wait before unlocking more tiers.',
   },
 
   /**
@@ -517,18 +527,7 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     windowMs: 60 * 1000,
     message: 'Rate limit exceeded. Please slow down your requests.',
   },
-
-  /**
-   * Strict rate limit for sensitive write operations
-   * 60 requests per minute
-   * Used for friend requests, permissions, session verification
-   */
-  STRICT: {
-    maxRequests: 60,
-    windowMs: 60 * 1000,
-    message: 'Rate limit exceeded. Please wait before sending more requests.',
-  },
-
+  
   // ==========================================================================
   // DEFAULT LIMITS
   // ==========================================================================

@@ -1,13 +1,14 @@
 /**
  * @file app/api/admin/vip/list/route.ts
  * @created 2025-10-19
- * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth instead of self-check
  * @overview Admin API - List all users with VIP status
  */
 
-import { requireAdminAuth } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { asc } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -25,31 +26,34 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('list-vip-users');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const user = await getAuthenticatedUser();
+    if (!user?.isAdmin) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
+    }
 
-    const supabase = createServiceClient();
-    
-    const { data: users, error } = await supabase
-      .from('players')
-      .select('username, email, is_vip, vip_expiration, created_at')
-      .eq('is_vip', true)
-      .order('username');
+    const allPlayers = await db.select({
+      username: players.username,
+      email: players.email,
+      vip: players.vip,
+      vipExpiration: players.vipExpiration,
+      createdAt: players.createdAt,
+    }).from(players).orderBy(asc(players.username));
 
-    if (error) throw error;
+    const vipUsers = allPlayers.filter(u => u.vip === 1);
 
     log.info('VIP users list retrieved', {
-      vipUsers: (users || []).length,
+      totalUsers: allPlayers.length,
+      vipUsers: vipUsers.length,
     });
 
     return NextResponse.json({
       success: true,
-      users: (users || []).map(user => ({
-        username: user.username,
-        email: user.email,
-        vip: user.is_vip || false,
-        vipExpiration: user.vip_expiration || null,
-        createdAt: user.created_at || null
+      users: allPlayers.map(player => ({
+        username: player.username,
+        email: player.email,
+        vip: player.vip === 1,
+        vipExpiration: player.vipExpiration || null,
+        createdAt: player.createdAt || null
       }))
     });
 

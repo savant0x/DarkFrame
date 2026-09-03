@@ -33,20 +33,6 @@ export * from './flagBotManager';
 export * from './factorySlotRegeneration';
 
 // ============================================================================
-// FACTORY DAILY RESET
-// ============================================================================
-
-// Re-export factory daily reset (full slot refresh every 24h)
-export { executeFactoryDailyReset, startFactoryDailyReset, dailyResetStats } from './factoryDailyReset';
-
-// ============================================================================
-// FLAG RESPAWN
-// ============================================================================
-
-// Re-export flag auto-drop respawner
-export { startFlagRespawner } from './flagRespawner';
-
-// ============================================================================
 // IMPLEMENTATION NOTES
 // ============================================================================
 /**

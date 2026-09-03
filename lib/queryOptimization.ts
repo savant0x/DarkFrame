@@ -1,63 +1,102 @@
-/**
- * Query Optimization Utilities
- * 
- * Provides helper functions for optimized Supabase queries with projections,
- * pagination, and performance monitoring.
- * 
- * Created: 2025-10-18
- * Feature: FID-20251018-040 (Database Query Optimization)
- * 
- * OVERVIEW:
- * This module contains utility functions that enforce best practices for
- * Supabase queries: using projections to reduce data transfer, implementing
- * pagination for large result sets, and monitoring query performance.
- * 
- * All query functions should use these utilities to maintain consistent
- * performance standards across the application.
- */
+import { db } from '@/lib/db';
+import {
+  players,
+  clans,
+  tiles,
+  factories,
+  battleLogs,
+  auctions,
+} from '@/lib/db/schema';
+import { eq, inArray, count, asc, desc } from 'drizzle-orm';
 
-import { createServiceClient } from '@/lib/supabase/server';
-
-/**
- * Common projection patterns for frequently queried tables
- * Only select fields that are actually needed
- */
 export const projections = {
-  playerBasic: 'username,level,power,clan_id',
-  playerStats: 'username,level,power,current_hp,max_hp,x,y',
+  playerBasic: {
+    username: true,
+    level: true,
+    totalStrength: true,
+    clanId: true,
+  },
+  playerStats: {
+    username: true,
+    level: true,
+    totalStrength: true,
+    totalDefense: true,
+    currentHP: true,
+    maxHP: true,
+    currentPositionX: true,
+    currentPositionY: true,
+  },
+  playerFull: {},
 
-  clanBasic: 'name,tag,level,power',
-  clanLeaderboard: 'name,tag,level,power,territory_count,member_count',
+  clanBasic: {
+    id: true,
+    name: true,
+    tag: true,
+    levelCurrentLevel: true,
+    statsTotalPower: true,
+  },
+  clanLeaderboard: {
+    id: true,
+    name: true,
+    tag: true,
+    levelCurrentLevel: true,
+    statsTotalPower: true,
+    statsTotalTerritories: true,
+    members: true,
+  },
+  clanFull: {},
 
-  territoryBasic: 'x,y,clan_id',
+  territoryBasic: {
+    id: true,
+    x: true,
+    y: true,
+    clanId: true,
+  },
 
-  battleSummary: 'attacker_id,defender_id,winner,timestamp,attacker_losses,defender_losses',
+  battleSummary: {
+    id: true,
+    attackerId: true,
+    defenderId: true,
+    winner: true,
+    timestamp: true,
+    attackerLosses: true,
+    defenderLosses: true,
+  },
 
-  auctionListing: 'item_type,item_name,quantity,starting_bid,current_bid,current_bidder,end_time,status',
+  auctionListing: {
+    id: true,
+    itemType: true,
+    itemName: true,
+    quantity: true,
+    startingBid: true,
+    currentBid: true,
+    currentBidder: true,
+    endTime: true,
+    status: true,
+  },
 
-  factoryBasic: 'x,y,owner_id,clan_id,level,resource_type',
+  factoryBasic: {
+    id: true,
+    x: true,
+    y: true,
+    ownerId: true,
+    clanId: true,
+    level: true,
+    resourceType: true,
+  },
 } as const;
 
-/**
- * Pagination options for query results
- */
 export interface PaginationOptions {
   page?: number;
   limit?: number;
   skip?: number;
 }
 
-/**
- * Query performance thresholds
- */
 export const PERFORMANCE_THRESHOLDS = {
   SLOW_QUERY_MS: 50,
   CRITICAL_QUERY_MS: 100,
 } as const;
 
-/**
- * Calculate skip value from pagination options
- */
 export function getSkipValue(options: PaginationOptions): number {
   if (options.skip !== undefined) {
     return options.skip;
@@ -68,241 +107,159 @@ export function getSkipValue(options: PaginationOptions): number {
   return (page - 1) * limit;
 }
 
-type SupabaseFromFn = (relation: string) => ReturnType<ReturnType<typeof createServiceClient>['from']>;
-
-/**
- * Paginated select query with performance monitoring
- */
-export async function paginatedSelect<T extends Record<string, unknown>>(
-  table: string,
-  filter: Record<string, unknown>,
+export async function paginatedFind<T>(
+  table: any,
+  whereClause: any,
   pagination: PaginationOptions = {},
-  sort?: { column: string; ascending: boolean },
-  select?: string
+  orderBy?: any,
+  columns?: any
 ): Promise<T[]> {
   const startTime = Date.now();
   const limit = pagination.limit || 20;
   const skip = getSkipValue(pagination);
 
   try {
-    const supabase = createServiceClient();
-    const from = supabase.from as SupabaseFromFn;
+    let query: any = db.select(columns || {}).from(table);
 
-    let query = from(table)
-      .select(select || '*', { count: 'exact' });
-
-    for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
-      }
+    if (whereClause) {
+      query = query.where(whereClause);
     }
 
-    if (sort) {
-      query = query.order(sort.column, { ascending: sort.ascending }) as typeof query;
+    if (orderBy) {
+      query = query.orderBy(orderBy);
     }
 
-    query = query.range(skip, skip + limit - 1) as typeof query;
+    if (skip > 0) {
+      query = query.offset(skip);
+    }
 
-    const { data, error } = await query;
+    const results = await query.limit(limit);
     const duration = Date.now() - startTime;
-
-    if (error) {
-      console.error('Query error:', {
-        table,
-        filter,
-        error,
-      });
-      throw error;
-    }
 
     if (duration > PERFORMANCE_THRESHOLDS.SLOW_QUERY_MS) {
       console.warn(`⚠️ Slow query detected (${duration}ms):`, {
-        table,
-        filter: JSON.stringify(filter),
+        table: table.tsName,
         limit,
         skip,
-        sort: JSON.stringify(sort),
       });
     }
 
-    return (data as T[]) || [];
+    return results as T[];
   } catch (error) {
     console.error('Query error:', {
-      table,
-      filter,
+      table: table.tsName,
       error,
     });
     throw error;
   }
 }
 
-/**
- * Count documents with caching hint
- */
-export async function countDocuments<T extends Record<string, unknown>>(
-  table: string,
-  filter: Record<string, unknown>,
-  _useEstimate = false
+export async function countDocuments(
+  table: any,
+  whereClause?: any,
+  useEstimate = false
 ): Promise<number> {
   const startTime = Date.now();
 
   try {
-    const supabase = createServiceClient();
-    const from = supabase.from as SupabaseFromFn;
+    let query: any = db.select({ count: count() }).from(table);
 
-    let query = from(table)
-      .select('*', { count: 'exact', head: true });
-
-    for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
-      }
+    if (whereClause) {
+      query = query.where(whereClause);
     }
 
-    const { count, error } = await query;
+    const result = await query;
+    const countValue = result[0]?.count || 0;
+
     const duration = Date.now() - startTime;
-
-    if (error) {
-      console.error('Count error:', {
-        table,
-        filter,
-        error,
-      });
-      throw error;
-    }
 
     if (duration > PERFORMANCE_THRESHOLDS.SLOW_QUERY_MS) {
       console.warn(`⚠️ Slow count query (${duration}ms):`, {
-        table,
-        filter: JSON.stringify(filter),
+        table: table.tsName,
       });
     }
 
-    return count || 0;
+    return countValue as number;
   } catch (error) {
     console.error('Count error:', {
-      table,
-      filter,
+      table: table.tsName,
       error,
     });
     throw error;
   }
 }
 
-/**
- * Find one row with performance monitoring
- */
-export async function findOne<T extends Record<string, unknown>>(
-  table: string,
-  filter: Record<string, unknown>,
-  select?: string
+export async function findOne<T>(
+  table: any,
+  whereClause: any,
+  columns?: any
 ): Promise<T | null> {
   const startTime = Date.now();
 
   try {
-    const supabase = createServiceClient();
-    const from = supabase.from as SupabaseFromFn;
-
-    let query = from(table)
-      .select(select || '*');
-
-    for (const [key, value] of Object.entries(filter)) {
-      if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
-      }
-    }
-
-    const { data, error } = await query.maybeSingle();
+    const result = await db.select(columns || {}).from(table).where(whereClause).limit(1);
     const duration = Date.now() - startTime;
-
-    if (error) {
-      console.error('FindOne error:', {
-        table,
-        filter,
-        error,
-      });
-      throw error;
-    }
 
     if (duration > PERFORMANCE_THRESHOLDS.SLOW_QUERY_MS) {
       console.warn(`⚠️ Slow findOne query (${duration}ms):`, {
-        table,
-        filter: JSON.stringify(filter),
+        table: table.tsName,
       });
     }
 
-    return (data as T) || null;
+    return (result[0] as T) || null;
   } catch (error) {
     console.error('FindOne error:', {
-      table,
-      filter,
+      table: table.tsName,
       error,
     });
     throw error;
   }
 }
 
-/**
- * Leaderboard query helper
- */
-export async function getLeaderboard<T extends Record<string, unknown>>(
-  table: string,
-  filter: Record<string, unknown>,
-  sort: { column: string; ascending: boolean },
+export async function getLeaderboard<T>(
+  table: any,
+  whereClause: any,
+  orderBy: any,
   limit = 100,
-  select?: string
+  columns?: any
 ): Promise<T[]> {
-  return paginatedSelect<T>(
+  return paginatedFind(
     table,
-    filter,
+    whereClause,
     { limit, skip: 0 },
-    sort,
-    select
+    orderBy,
+    columns
   );
 }
 
-/**
- * Batch find by IDs
- */
-export async function findByIds<T extends Record<string, unknown>>(
-  table: string,
+export async function findByIds<T>(
+  table: any,
   ids: string[],
-  select?: string
+  columns?: any
 ): Promise<T[]> {
   if (ids.length === 0) return [];
 
   const startTime = Date.now();
 
   try {
-    const supabase = createServiceClient();
-    const from = supabase.from as SupabaseFromFn;
-
-    const { data, error } = await from(table)
-      .select(select || '*')
-      .in('id', ids);
+    const results = await db
+      .select(columns || {})
+      .from(table)
+      .where(inArray(table.id, ids));
 
     const duration = Date.now() - startTime;
 
-    if (error) {
-      console.error('Batch find error:', {
-        table,
-        idCount: ids.length,
-        error,
-      });
-      throw error;
-    }
-
     if (duration > PERFORMANCE_THRESHOLDS.SLOW_QUERY_MS) {
       console.warn(`⚠️ Slow batch find (${duration}ms):`, {
-        table,
+        table: table.tsName,
         idCount: ids.length,
       });
     }
 
-    return (data as T[]) || [];
+    return results as T[];
   } catch (error) {
     console.error('Batch find error:', {
-      table,
+      table: table.tsName,
       idCount: ids.length,
       error,
     });
@@ -310,9 +267,6 @@ export async function findByIds<T extends Record<string, unknown>>(
   }
 }
 
-/**
- * Query performance logger
- */
 export function logQueryPerformance(
   tableName: string,
   queryType: string,
@@ -322,8 +276,8 @@ export function logQueryPerformance(
   const level = duration > PERFORMANCE_THRESHOLDS.CRITICAL_QUERY_MS
     ? 'CRITICAL'
     : duration > PERFORMANCE_THRESHOLDS.SLOW_QUERY_MS
-      ? 'SLOW'
-      : 'NORMAL';
+    ? 'SLOW'
+    : 'NORMAL';
 
   if (level !== 'NORMAL') {
     const emoji = level === 'CRITICAL' ? '🚨' : '⚠️';
@@ -335,9 +289,6 @@ export function logQueryPerformance(
   }
 }
 
-/**
- * Build pagination metadata for API responses
- */
 export interface PaginationMeta {
   currentPage: number;
   pageSize: number;
@@ -364,68 +315,29 @@ export function buildPaginationMeta(
   };
 }
 
-/**
- * Aggregate query helper with performance monitoring
- */
-export async function aggregate(
-  table: string,
-  filters: Record<string, unknown>[],
+export async function aggregate<T>(
+  table: any,
+  pipeline: any[],
   tableName?: string
-): Promise<Record<string, unknown>[]> {
+): Promise<T[]> {
   const startTime = Date.now();
 
   try {
-    const supabase = createServiceClient();
-    const from = supabase.from as SupabaseFromFn;
-
-    const mergedFilter: Record<string, unknown> = {};
-    for (const filter of filters) {
-      for (const [key, value] of Object.entries(filter)) {
-        if (value !== undefined && value !== null) {
-          if (mergedFilter[key] !== undefined) {
-            if (key.startsWith('$')) continue;
-            if (typeof mergedFilter[key] === 'object' && typeof value === 'object' && !Array.isArray(value)) {
-              mergedFilter[key] = { ...(mergedFilter[key] as Record<string, unknown>), ...(value as Record<string, unknown>) };
-            }
-          } else {
-            mergedFilter[key] = value;
-          }
-        }
-      }
-    }
-
-    let query = from(table).select('*');
-
-    for (const [key, value] of Object.entries(mergedFilter)) {
-      if (value !== undefined && value !== null) {
-        query = query.eq(key, value);
-      }
-    }
-
-    const { data, error } = await query;
+    const results = await db.select().from(table);
     const duration = Date.now() - startTime;
-
-    if (error) {
-      console.error('Aggregation error:', {
-        table: tableName || table,
-        filters,
-        error,
-      });
-      throw error;
-    }
 
     if (duration > PERFORMANCE_THRESHOLDS.SLOW_QUERY_MS) {
       console.warn(`⚠️ Slow aggregation (${duration}ms):`, {
-        table: tableName || table,
-        filterCount: filters.length,
+        table: tableName || table.tsName,
+        pipelineStages: pipeline.length,
       });
     }
 
-    return (data as Record<string, unknown>[]) || [];
+    return results as T[];
   } catch (error) {
     console.error('Aggregation error:', {
-      table: tableName || table,
-      filters,
+      table: tableName || table.tsName,
+      pipeline,
       error,
     });
     throw error;

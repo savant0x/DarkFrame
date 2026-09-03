@@ -22,7 +22,7 @@ import { wmdHandlers } from '@/lib/websocket/handlers/wmdHandler';
 // EXAMPLE 1: Missile Launch (in /app/api/wmd/missiles/route.ts)
 // ============================================================================
 
-async function exampleMissileLaunch(io: Server) {
+export async function exampleMissileLaunch(io: Server) {
   // After successfully creating and launching a missile...
   
   await wmdHandlers.broadcastMissileLaunch(io, {
@@ -40,7 +40,7 @@ async function exampleMissileLaunch(io: Server) {
 // EXAMPLE 2: Research Completion (in background job)
 // ============================================================================
 
-async function exampleResearchComplete(io: Server) {
+export async function exampleResearchComplete(io: Server) {
   // After marking research as completed...
   
   await wmdHandlers.broadcastResearchComplete(io, {
@@ -55,7 +55,7 @@ async function exampleResearchComplete(io: Server) {
 // EXAMPLE 3: Spy Mission Complete (in background job)
 // ============================================================================
 
-async function exampleSpyMissionComplete(io: Server) {
+export async function exampleSpyMissionComplete(io: Server) {
   // After spy mission finishes...
   
   await wmdHandlers.broadcastSpyMissionComplete(io, {
@@ -73,7 +73,7 @@ async function exampleSpyMissionComplete(io: Server) {
 // EXAMPLE 4: Clan Vote Update (in /app/api/wmd/voting/route.ts)
 // ============================================================================
 
-async function exampleVoteUpdate(io: Server) {
+export async function exampleVoteUpdate(io: Server) {
   // After a vote is cast or status changes...
   
   await wmdHandlers.broadcastClanVoteUpdate(io, {
@@ -93,7 +93,7 @@ async function exampleVoteUpdate(io: Server) {
 // EXAMPLE 5: Defense Battery Deployed (in /app/api/wmd/defense/route.ts)
 // ============================================================================
 
-async function exampleBatteryDeployed(io: Server) {
+export async function exampleBatteryDeployed(io: Server) {
   // After successfully deploying a battery...
   
   await wmdHandlers.broadcastBatteryDeployed(io, {

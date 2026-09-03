@@ -148,7 +148,7 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
 
         const data = await response.json();
         setDiscoveries(data.discoveries || []);
-        setProgress(data.progress || progress);
+        setProgress(data.progress || ((prev) => prev));
       } catch (err) {
         console.error('Discovery fetch error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');

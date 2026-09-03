@@ -1,7 +1,6 @@
 /**
  * app/api/shrine/activate/route.ts
  * Created: 2025-01-15
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * 
  * OVERVIEW:
  * API endpoint for activating individual shrine boosts with direct time purchase system.
@@ -10,11 +9,10 @@
  * Replaces old activation/extension model with direct purchase model.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import type { Tables, TablesInsert } from '@/types/database';
-import { ItemRarity } from '@/types';
+import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { getCollection } from '@/lib/mongodb';
+import type { Player, InventoryItem, ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
 import {
   withRequestLogging,
@@ -26,13 +24,8 @@ import {
   ErrorCode
 } from '@/lib';
 
-type InventoryRow = Tables<'player_inventory'>;
-type ShrineBoostRow = Tables<'player_shrine_boosts'>;
-
-const ALL_TIERS = ['spade', 'heart', 'diamond', 'club'] as const;
-type ShrineBoostTier = typeof ALL_TIERS[number];
-
-const BOOST_CONFIGS: Record<string, { yieldBonus: number }> = {
+// Boost configuration (matches client-side BOOST_CONFIGS)
+const BOOST_CONFIGS: Record<ShrineBoostTier, { yieldBonus: number }> = {
   spade: { yieldBonus: 0.25 },
   heart: { yieldBonus: 0.25 },
   diamond: { yieldBonus: 0.25 },
@@ -41,112 +34,130 @@ const BOOST_CONFIGS: Record<string, { yieldBonus: number }> = {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.SHRINE_SACRIFICE);
 
-export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/shrine/activate
+ * 
+ * Activate individual shrine boost with direct time purchase
+ */
+export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
   const log = createRouteLogger('ShrineActivateAPI');
   const endTimer = log.time('shrineActivate');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      log.warn('Unauthenticated shrine activate attempt');
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required'
+      });
+    }
 
-    const body = await request.json();
-    const { tier, itemCount } = body;
+    const username = authResult.username;
 
-    if (!tier || !BOOST_CONFIGS[tier]) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Invalid boost tier' });
+    // Parse request body
+    const { tier, itemCount } = await request.json();
+
+    // Validate inputs
+    if (!tier || !BOOST_CONFIGS[tier as ShrineBoostTier]) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Invalid boost tier'
+      });
     }
 
     if (!itemCount || itemCount <= 0 || !Number.isInteger(itemCount)) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Item count must be a positive integer' });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Item count must be a positive integer'
+      });
     }
 
-    const supabase = createServiceClient();
-
-    // Get player
-    const { data: player } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', username)
-      .maybeSingle();
+    // Get database collections
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username });
 
     if (!player) {
-      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, { message: 'Player not found' });
+      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
+        message: 'Player not found'
+      });
     }
 
     // Get tradeable items from inventory
-    const { data: tradeableItems } = await supabase
-      .from('player_inventory')
-      .select('*')
-      .eq('player_username', username)
-      .eq('item_type', 'TRADEABLE_ITEM');
+    const tradeableItems = (player.inventory?.items || []).filter(
+      (i: InventoryItem) => i.type === 'TRADEABLE_ITEM'
+    );
 
-    const items = tradeableItems || [];
-
-    if (items.length < itemCount) {
+    // Check if player has enough items
+    if (tradeableItems.length < itemCount) {
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: `Not enough items. You have ${items.length}, need ${itemCount}.`
+        message: `Not enough items. You have ${tradeableItems.length}, need ${itemCount}.`
       });
     }
 
     // Calculate duration based on item rarities
-    const itemsToConsume = items.slice(0, itemCount);
-    const durationMinutes = calculateDuration(itemsToConsume.map(i => ({
-      rarity: i.rarity as unknown as ItemRarity,
-      type: i.item_type,
-      id: i.item_id,
-      name: i.name,
-    })));
+    const itemsToConsume = tradeableItems.slice(0, itemCount);
+    const durationMinutes = calculateDuration(itemsToConsume);
     const durationMs = durationMinutes * 60 * 1000;
+    
+    // Calculate expiration time
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationMs);
 
-    // Get existing boosts
-    const { data: existingBoosts } = await supabase
-      .from('player_shrine_boosts')
-      .select('*')
-      .eq('player_username', username);
-
-    const existingBoost = (existingBoosts || []).find(b => b.boost_tier === tier);
+    // Check if boost already exists
+    const existingBoosts = player.shrineBoosts || [];
+    const existingBoostIndex = existingBoosts.findIndex(
+      (b: ShrineBoost) => b.tier === tier
+    );
 
     let finalExpiresAt = expiresAt;
 
-    if (existingBoost) {
-      const currentExpiry = new Date(existingBoost.expires_at);
+    if (existingBoostIndex >= 0) {
+      // Replace/extend existing boost
+      const existingBoost = existingBoosts[existingBoostIndex];
+      const currentExpiry = new Date(existingBoost.expiresAt);
       const timeRemaining = Math.max(0, currentExpiry.getTime() - now.getTime());
       const newDuration = timeRemaining + durationMs;
+      
+      // Cap at 8 hours (480 minutes)
       const MAX_DURATION_MS = 8 * 60 * 60 * 1000;
       const finalDuration = Math.min(newDuration, MAX_DURATION_MS);
       finalExpiresAt = new Date(now.getTime() + finalDuration);
 
-      await supabase
-        .from('player_shrine_boosts')
-        .update({ expires_at: finalExpiresAt.toISOString(), yield_bonus: BOOST_CONFIGS[tier].yieldBonus })
-        .eq('id', existingBoost.id);
+      existingBoosts[existingBoostIndex] = {
+        ...existingBoost,
+        expiresAt: finalExpiresAt
+      };
     } else {
-      await supabase
-        .from('player_shrine_boosts')
-        .insert({
-          player_username: username,
-          boost_tier: tier as TablesInsert<'player_shrine_boosts'>['boost_tier'],
-          yield_bonus: BOOST_CONFIGS[tier].yieldBonus,
-          expires_at: finalExpiresAt.toISOString(),
-        });
+      // Create new boost
+      existingBoosts.push({
+        tier: tier as ShrineBoostTier,
+        yieldBonus: BOOST_CONFIGS[tier as ShrineBoostTier].yieldBonus,
+        expiresAt: finalExpiresAt
+      });
     }
 
     // Remove consumed items from inventory
-    const consumedIds = itemsToConsume.map(i => i.id);
-    await supabase
-      .from('player_inventory')
-      .delete()
-      .in('id', consumedIds);
+    const remainingItems = (player.inventory?.items || []).filter(
+      (item: InventoryItem) => !itemsToConsume.some((consumed: InventoryItem) => consumed.id === item.id)
+    );
+
+    // Update player in database
+    await playersCollection.updateOne(
+      { username },
+      {
+        $set: {
+          'inventory.items': remainingItems,
+          shrineBoosts: existingBoosts
+        }
+      }
+    );
 
     endTimer();
-    log.info(`${username} ${existingBoost ? 'extended' : 'activated'} ${tier} boost with ${itemCount} items`);
+    log.info(`${username} ${existingBoostIndex >= 0 ? 'extended' : 'activated'} ${tier} boost with ${itemCount} items`);
 
+    // Return success response
     return NextResponse.json({
       success: true,
-      message: `✅ ${tier} boost ${existingBoost ? 'extended' : 'activated'}!`,
+      message: `✅ ${tier} boost ${existingBoostIndex >= 0 ? 'extended' : 'activated'}!`,
       itemsConsumed: itemCount,
       durationMinutes,
       expiresAt: finalExpiresAt,
@@ -155,6 +166,23 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   } catch (error) {
     endTimer();
     log.error('Error activating shrine boost:', error as Error);
-    return createErrorResponse(ErrorCode.INTERNAL_ERROR, createErrorFromException(error as Error));
+    return createErrorResponse(
+      ErrorCode.INTERNAL_ERROR,
+      createErrorFromException(error as Error)
+    );
   }
 }));
+
+/**
+ * IMPLEMENTATION NOTES:
+ * - Uses shrineHelpers.calculateDuration() for rarity-based time calculation
+ * - Automatically caps total duration at 8 hours (480 minutes)
+ * - Extends existing boosts by adding new duration to remaining time
+ * - Consumes items immediately upon activation (no refunds)
+ * - Returns detailed response with duration and expiration info
+ * 
+ * FUTURE CONSIDERATIONS:
+ * - Add transaction logging for item consumption tracking
+ * - Consider adding cooldowns or rate limiting
+ * - Potentially add achievement tracking for shrine usage
+ */

@@ -166,7 +166,7 @@ async function getUserId(request: NextRequest): Promise<string | null> {
     // return decoded.userId;
     
     return null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -238,7 +238,7 @@ if (typeof setInterval !== 'undefined') {
  */
 type RouteHandler = (
   request: NextRequest,
-  context?: { params: any }
+  context: { params: Promise<Record<string, string>> }
 ) => Promise<NextResponse> | NextResponse;
 
 /**
@@ -265,7 +265,7 @@ export function createRateLimiter(config: RateLimitConfig) {
   } = config;
 
   return (handler: RouteHandler): RouteHandler => {
-    return async (request: NextRequest, context?: { params: any }) => {
+    return async (request: NextRequest, context: { params: Promise<Record<string, string>> }) => {
       const ip = getClientIP(request);
 
       // Skip rate limiting for whitelisted IPs

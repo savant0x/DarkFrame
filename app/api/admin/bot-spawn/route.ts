@@ -1,89 +1,187 @@
 /**
- * Admin Bot Spawn API — Full implementation
- * Creates real bot player records in the database.
+ * @fileoverview Admin Bot Spawn Control API - Manual bot creation
+ * @module app/api/admin/bot-spawn/route
+ * @created 2025-10-18
+ * @updated 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 
+ * OVERVIEW:
+ * Admin-only endpoint for manually spawning bots with custom configurations.
+ * Allows admins to create bots of specific types, tiers, and positions.
  */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
-import { logger } from '@/lib';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import {
+  withRequestLogging,
+  createRouteLogger,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createValidationErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+} from '@/lib';
+import { BotSpawnSchema } from '@/lib/validation/schemas';
+import { ZodError } from 'zod';
 
-const BOT_NAMES = ['Bot_Alpha', 'Bot_Beta', 'Bot_Gamma', 'Bot_Delta', 'Bot_Epsilon', 'Bot_Zeta', 'Bot_Eta', 'Bot_Theta', 'Bot_Iota', 'Bot_Kappa'];
-const BOT_SPECS: Array<'offensive' | 'defensive' | 'tactical'> = ['offensive', 'defensive', 'tactical'];
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
-function generateBotUsername(): string {
-  const base = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-  const suffix = crypto.randomUUID().replace(/-/g, '').substring(0, 6);
-  return `${base}_${suffix}`;
-}
+// ============================================================================
+// POST - Spawn Bot
+// ============================================================================
 
-function generateBotEmail(username: string): string {
-  return `bot_${username.toLowerCase()}@darkframe.internal`;
-}
+/**
+ * POST /api/admin/bot-spawn
+ * Rate Limited: 30 req/hour (admin bot management)
+ * Manually spawn a bot with custom configuration
+ * Requires admin privileges (rank >= 5)
+ * 
+ * Request body:
+ * {
+ *   specialization: 'Hoarder' | 'Fortress' | 'Raider' | 'Balanced' | 'Ghost',
+ *   tier: 1-6,
+ *   position?: { x: number, y: number },
+ *   isSpecialBase?: boolean,
+ *   count?: number (default 1, max 10)
+ * }
+ */
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+  const log = createRouteLogger('AdminBotSpawnAPI');
+  const endTimer = log.time('bot-spawn');
 
-export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdminAuth(req);
-    if (auth instanceof NextResponse) return auth;
-
-    const body = await req.json();
-    const username = auth.username;
-    const count = Math.min(body.count || 10, 50);
-    const specialization = body.specialization || 'random';
-    const supabase = createServiceClient();
-
-    const spawned: string[] = [];
-    const spec = specialization === 'random'
-      ? BOT_SPECS[Math.floor(Math.random() * BOT_SPECS.length)]
-      : specialization;
-
-    for (let i = 0; i < count; i++) {
-      const botUsername = generateBotUsername();
-      const email = generateBotEmail(botUsername);
-      const x = Math.floor(Math.random() * 150) + 1;
-      const y = Math.floor(Math.random() * 150) + 1;
-
-      const { error } = await supabase.from('players').insert({
-        username: botUsername,
-        email,
-        password: 'supabase_auth',
-        current_x: x,
-        current_y: y,
-        base_x: x,
-        base_y: y,
-        is_bot: true,
-        level: Math.floor(Math.random() * 20) + 1,
-        rank: Math.floor(Math.random() * 5) + 1,
-        spec_doctrine: spec,
-        resources_metal: Math.floor(Math.random() * 10000),
-        resources_energy: Math.floor(Math.random() * 10000),
-        total_strength: Math.floor(Math.random() * 500),
-        total_defense: Math.floor(Math.random() * 500),
+    // Authenticate user
+    const tokenPayload = await getAuthenticatedUser();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
       });
-
-      if (error) {
-        logger.error('Bot insert failed:', error.message);
-        continue;
-      }
-      spawned.push(botUsername);
     }
 
-    const { count: totalAfter } = await supabase
-      .from('players').select('*', { count: 'exact', head: true }).eq('is_bot', true);
+    // Check admin privileges
+    const player = await db.select()
+      .from(players)
+      .where(eq(players.username, tokenPayload.username))
+      .limit(1);
 
-    await supabase.from('admin_logs').insert({
-      admin_username: username,
-      action: 'spawn_bots',
-      target: 'bot_ecosystem',
-      details: { count: spawned.length, specialization: spec },
+    if (!player.length || !player[0].rank || player[0].rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin privileges required (rank 5+)',
+      });
+    }
+
+    // Parse request body
+    const body = await request.json();
+    const validated = BotSpawnSchema.parse(body);
+    const { specialization, tier, position, isSpecialBase, count = 1 } = validated;
+
+    // Generate bots
+    const spawnedBots: string[] = [];
+    const MAP_SIZE = 5000;
+
+    for (let i = 0; i < count; i++) {
+      // Generate bot username
+      const botNumber = Math.floor(Math.random() * 100000);
+      const username = `${specialization}Bot_${botNumber}`;
+
+      // Determine position
+      const botPosition = position || {
+        x: Math.floor(Math.random() * MAP_SIZE),
+        y: Math.floor(Math.random() * MAP_SIZE),
+      };
+
+      // Calculate resources based on tier
+      const baseResources = [10000, 25000, 50000, 100000, 200000, 400000];
+      const resourceAmount = baseResources[tier - 1] || 10000;
+      const multiplier = isSpecialBase ? 3 : 1;
+
+      // Create bot document
+      const botDoc = {
+        username,
+        email: `${username}@bot.local`,
+        password: 'BOT_NO_LOGIN',
+        isBot: 1,
+        currentPositionX: botPosition.x,
+        currentPositionY: botPosition.y,
+        resourcesMetal: BigInt(resourceAmount * multiplier),
+        resourcesEnergy: BigInt(Math.floor(resourceAmount * 0.6 * multiplier)),
+        units: JSON.stringify([
+          { soldiers: { ATK: 0, DEF: 0, count: 0 } },
+          { tanks: { ATK: 0, DEF: 0, count: 0 } },
+          { aircraft: { ATK: 0, DEF: 0, count: 0 } },
+        ]),
+        totalStrength: 0,
+        totalDefense: 0,
+        xp: 0,
+        level: 1,
+        researchPoints: 0,
+        unlockedTiers: [1],
+        botConfig: JSON.stringify({
+          specialization,
+          tier,
+          lastGrowth: new Date(),
+          lastResourceRegen: new Date(),
+          attackCooldown: new Date(0),
+          revengeTarget: null,
+          isSpecialBase: isSpecialBase || false,
+        }),
+        createdAt: new Date(),
+      };
+
+      // Insert bot
+      await (db as any).insert(players).values(botDoc);
+      spawnedBots.push(username);
+    }
+
+    log.info('Bots spawned successfully', {
+      count,
+      specialization,
+      tier,
+      bots: spawnedBots,
+      adminUser: tokenPayload.username,
     });
 
     return NextResponse.json({
       success: true,
-      data: { spawned: spawned.length, totalBefore: (totalAfter || 0) - spawned.length, totalAfter: totalAfter || 0 },
-      message: `${spawned.length} bots spawned with spec: ${spec}`,
+      message: `Spawned ${count} bot(s) successfully`,
+      bots: spawnedBots,
     });
   } catch (error) {
-    logger.error('Bot spawn error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to spawn bots' }, { status: 500 });
+    if (error instanceof ZodError) {
+      return createValidationErrorResponse(error);
+    }
+    log.error('Failed to spawn bot', error instanceof Error ? error : new Error(String(error)));
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+  } finally {
+    endTimer();
   }
-}
+}));
+
+// ============================================================================
+// IMPLEMENTATION NOTES
+// ============================================================================
+
+/**
+ * ADMIN PERMISSIONS:
+ * - Requires rank >= 5 to spawn bots
+ * - Max 10 bots per request to prevent abuse
+ * - Special bases have 3x resources
+ * 
+ * USAGE:
+ * Spawn a single Raider bot at position:
+ * POST /api/admin/bot-spawn
+ * { "specialization": "Raider", "tier": 4, "position": { "x": 1000, "y": 1000 } }
+ * 
+ * Spawn 5 random Hoarder bots:
+ * POST /api/admin/bot-spawn
+ * { "specialization": "Hoarder", "tier": 3, "count": 5 }
+ * 
+ * FUTURE ENHANCEMENTS:
+ * - Custom bot names
+ * - Predefined bot templates
+ * - Spawn in formations (circle, line, grid)
+ * - Immediate army composition
+ */

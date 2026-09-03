@@ -29,7 +29,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { AuctionListing, AuctionItemType, AuctionSearchFilters } from '@/types/auction.types';
 import { UnitType } from '@/types';
 import { AuctionListingCard } from './AuctionListingCard';
@@ -105,35 +105,26 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   // API FUNCTIONS
   // ============================================================
 
-  /**
-   * Fetch auctions from marketplace with current filters
-   */
-  const fetchAuctions = async () => {
+  const fetchAuctions = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
 
-      // Category filter
       if (activeTab === 'units') params.append('itemType', 'unit');
       if (activeTab === 'resources') params.append('itemType', 'resource');
       if (activeTab === 'items') params.append('itemType', 'tradeable');
 
-      // Price filters
       if (priceMin) params.append('minPrice', priceMin);
       if (priceMax) params.append('maxPrice', priceMax);
 
-      // Buyout filter
       if (hasBuyout !== undefined) params.append('hasBuyout', hasBuyout.toString());
 
-      // Seller filter
       if (sellerFilter.trim()) params.append('seller', sellerFilter.trim());
 
-      // Sorting
       params.append('sortBy', sortBy);
 
-      // Pagination
       params.append('page', currentPage.toString());
       params.append('limit', '12');
 
@@ -153,12 +144,9 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, priceMin, priceMax, hasBuyout, sellerFilter, sortBy, currentPage]);
 
-  /**
-   * Fetch user's active listings
-   */
-  const fetchMyListings = async () => {
+  const fetchMyListings = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -179,12 +167,9 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage]);
 
-  /**
-   * Fetch user's active bids
-   */
-  const fetchMyBids = async () => {
+  const fetchMyBids = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -193,7 +178,6 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Transform bid data to include winning status
         const auctionsWithStatus = (data.bids || []).map((bid: any) => ({
           ...bid.auction,
           myBidAmount: bid.myBid.bidAmount,
@@ -211,15 +195,8 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage]);
 
-  // ============================================================
-  // EFFECTS
-  // ============================================================
-
-  /**
-   * Fetch data when view mode, filters, or page changes
-   */
   useEffect(() => {
     if (viewMode === 'myListings') {
       fetchMyListings();
@@ -228,7 +205,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
     } else {
       fetchAuctions();
     }
-  }, [viewMode, activeTab, currentPage, sortBy]);
+  }, [viewMode, activeTab, currentPage, sortBy, fetchAuctions, fetchMyListings, fetchMyBids]);
 
   // ============================================================
   // EVENT HANDLERS

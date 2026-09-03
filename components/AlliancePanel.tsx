@@ -30,7 +30,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface Alliance {
   _id: string;
@@ -106,17 +106,7 @@ export function AlliancePanel({ clanId, playerId, role, clanName, treasuryMetal 
     FEDERATION: ['RESOURCE_SHARING', 'DEFENSE_PACT', 'WAR_SUPPORT', 'JOINT_RESEARCH'],
   };
 
-  useEffect(() => {
-    loadAlliances();
-    
-    const interval = setInterval(() => {
-      loadAlliances();
-    }, 15000);
-    
-    return () => clearInterval(interval);
-  }, [clanId]);
-
-  const loadAlliances = async () => {
+  const loadAlliances = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -140,7 +130,17 @@ export function AlliancePanel({ clanId, playerId, role, clanName, treasuryMetal 
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clanId]);
+
+  useEffect(() => {
+    loadAlliances();
+    
+    const interval = setInterval(() => {
+      loadAlliances();
+    }, 15000);
+    
+    return () => clearInterval(interval);
+  }, [clanId, loadAlliances]);
 
   const proposeAlliance = async () => {
     try {

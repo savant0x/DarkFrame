@@ -26,7 +26,7 @@
 
 import type { Server, Socket } from 'socket.io';
 import type { AuthenticatedUser } from './auth';
-import { createServiceClient } from '@/lib/supabase/server';
+import { connectToDatabase } from '@/lib/mongodb';
 import {
   sendGlobalChatMessage,
   type SendMessageRequest,
@@ -128,9 +128,9 @@ async function toPlayerContext(
   // Check if user is VIP from database
   let isVIP = false;
   try {
-    const supabase = createServiceClient();
-    const { data: player } = await supabase.from('players').select('is_vip').eq('username', user.username).single();
-    isVIP = player?.is_vip === true;
+    const db = await connectToDatabase();
+    const player = await db.collection('players').findOne({ username: user.username });
+    isVIP = player?.vip === true || player?.isVIP === true;
   } catch (error) {
     console.error('[ChatHandlers] Failed to check VIP status:', error);
   }
@@ -220,6 +220,8 @@ export async function handleChatMessage(
       });
       return;
     }
+    
+    playerContext.isMuted = false;
 
     // Send message via chat service
     const request: SendMessageRequest = {
@@ -236,20 +238,9 @@ export async function handleChatMessage(
       return;
     }
 
-    // Broadcast message to channel room (transform to ChatMessagePayload)
+    // Broadcast message to channel room
     const room = getChannelRoom(channelId, clanId);
-    const payload = {
-      messageId: result.message.id,
-      channelId: result.message.channelId,
-      userId: result.message.senderId,
-      username: result.message.senderUsername,
-      level: result.message.senderLevel,
-      isVIP: result.message.isVIP,
-      content: result.message.message,
-      timestamp: result.message.timestamp?.getTime?.() || Date.now(),
-      isEdited: result.message.edited,
-    };
-    io.to(room).emit('chat:message', payload);
+    io.to(room).emit('chat:message', result.message);
 
     callback?.({ success: true, message: result.message });
 

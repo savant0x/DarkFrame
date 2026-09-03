@@ -10,7 +10,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -23,6 +22,7 @@ import {
 } from '@/lib';
 import { AuctionCancelSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
+import { verifyAuth } from '@/lib/authMiddleware';
 import { cancelAuction } from '@/lib/auctionService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
@@ -57,13 +57,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('auction-cancel');
   
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
 
-    const body = await request.json();
-    const validated = AuctionCancelSchema.parse(body);
+    const username = authResult.username;
 
-    const result = await cancelAuction(auth.playerId, validated.auctionId);
+    // Validate request
+    const validated = AuctionCancelSchema.parse(await request.json());
+
+    // Cancel auction
+    const result = await cancelAuction(username, validated.auctionId);
 
     if (!result.success) {
       return createErrorResponse(ErrorCode.AUCTION_NOT_FOUND, {
@@ -72,7 +80,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    log.info('Auction cancelled', { username: auth.playerId, auctionId: validated.auctionId });
+    log.info('Auction cancelled', { username, auctionId: validated.auctionId });
 
     return NextResponse.json(result);
 

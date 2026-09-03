@@ -7,10 +7,18 @@
  * Generates a static 150×150 tile map with precise terrain distribution.
  * Uses Fisher-Yates shuffle to ensure exact counts for each terrain type.
  * Idempotent: safe to run multiple times without duplicating data.
+ *
+ * Distribution (random pool, exact counts):
+ * - Metal: 4,500 · Energy: 4,500 · Cave: 1,800 · Forest: 450 · Factory: 2,250 · Wasteland: 8,994
+ * Six coordinates are reserved for fixed special tiles (1 Shrine + 4 Banks + 1 Auction
+ * House), and the same six wasteland slots are removed from the pool so every random
+ * terrain keeps its exact count regardless of shuffle order.
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { TablesInsert } from '@/types/database';
+import { getCollection } from './mongodb';
+import { db } from '@/lib/db';
+import { tiles } from '@/lib/db/schema';
+import { sql } from 'drizzle-orm';
 import { Tile, TerrainType, GAME_CONSTANTS } from '@/types';
 
 /**
@@ -35,36 +43,55 @@ function shuffle<T>(array: T[]): T[] {
 }
 
 /**
- * Generate array of terrain types with exact distribution
- * 
- * Creates exactly 22,500 terrain type values:
- * - Metal: 4,500
- * - Energy: 4,500
- * - Cave: 2,250
- * - Factory: 2,250
- * - Wasteland: 9,000
- * 
- * @returns Array of terrain types in exact quantities
+ * Fixed special tiles that replace random map cells.
+ * (1 Shrine + 4 Banks + 1 Auction House = 6 of the 22,500 coordinates.)
  */
-function generateTerrainArray(): TerrainType[] {
+const FIXED_TILE_COUNT = 6;
+
+/**
+ * Generate the random terrain pool with exact distribution.
+ *
+ * Creates one terrain value per non-fixed coordinate: TERRAIN_COUNTS totals minus
+ * six wasteland slots (the cells the fixed special tiles occupy). Removing only
+ * wasteland keeps every harvestable terrain (metal/energy/cave/forest/factory) at
+ * its exact configured count regardless of where the fixed tiles land.
+ *
+ * @returns Shuffled terrain array of length TOTAL_TILES - FIXED_TILE_COUNT
+ */
+function generateTerrainPool(): TerrainType[] {
   const terrains: TerrainType[] = [];
-  
+
   // Add exact count for each terrain type
   for (const [terrain, count] of Object.entries(GAME_CONSTANTS.TERRAIN_COUNTS)) {
     for (let i = 0; i < count; i++) {
       terrains.push(terrain as TerrainType);
     }
   }
-  
-  // Verify total count
+
+  // Verify configured counts sum to the full map size
   if (terrains.length !== GAME_CONSTANTS.TOTAL_TILES) {
     throw new Error(
       `Terrain array length mismatch: expected ${GAME_CONSTANTS.TOTAL_TILES}, got ${terrains.length}`
     );
   }
-  
-  // Shuffle to randomize positions
-  return shuffle(terrains);
+
+  // Shuffle, then drop exactly FIXED_TILE_COUNT wasteland slots (any positions)
+  const shuffled = shuffle(terrains);
+  const pool: TerrainType[] = [];
+  let removed = 0;
+  for (const terrain of shuffled) {
+    if (terrain === TerrainType.Wasteland && removed < FIXED_TILE_COUNT) {
+      removed++;
+      continue;
+    }
+    pool.push(terrain);
+  }
+  if (pool.length !== GAME_CONSTANTS.TOTAL_TILES - FIXED_TILE_COUNT) {
+    throw new Error(
+      `Terrain pool length mismatch: expected ${GAME_CONSTANTS.TOTAL_TILES - FIXED_TILE_COUNT}, got ${pool.length}`
+    );
+  }
+  return pool;
 }
 
 /**
@@ -73,14 +100,10 @@ function generateTerrainArray(): TerrainType[] {
 const FIXED_LOCATIONS = {
   SHRINE: { x: 1, y: 1 },
   BANKS: [
-    { x: 38, y: 38, type: 'metal' as const },
-    { x: 112, y: 38, type: 'energy' as const },
-    { x: 38, y: 112, type: 'exchange' as const },
-    { x: 112, y: 112, type: 'exchange' as const },
-    { x: 75, y: 25, type: 'metal' as const },
-    { x: 25, y: 75, type: 'energy' as const },
-    { x: 75, y: 125, type: 'exchange' as const },
-    { x: 125, y: 75, type: 'exchange' as const }
+    { x: 25, y: 25, type: 'metal' as const },
+    { x: 75, y: 75, type: 'energy' as const },
+    { x: 50, y: 50, type: 'exchange' as const },
+    { x: 100, y: 100, type: 'exchange' as const }
   ],
   AUCTION_HOUSE: { x: 10, y: 10 }
 };
@@ -98,7 +121,7 @@ function isFixedLocation(x: number, y: number): {
   }
   
   // Check banks
-  const bank = FIXED_LOCATIONS.BANKS.find(b => b.x === x && b.y === y);
+  const bank = FIXED_LOCATIONS.BANKS.find((b) => b.x === x && b.y === y);
   if (bank) {
     return { type: 'bank', bankType: bank.type };
   }
@@ -126,36 +149,38 @@ function isFixedLocation(x: number, y: number): {
  * 
  * @returns Array of 22,500 tile objects
  */
-function generateTiles(): Record<string, unknown>[] {
-  const terrains = generateTerrainArray();
-  const tiles: Record<string, unknown>[] = [];
-  
-  let terrainIndex = 0;
-  
+function generateTiles(): Tile[] {
+  const pool = generateTerrainPool();
+  const tiles: Tile[] = [];
+
+  let poolIndex = 0;
+
+  // Generate tiles for each coordinate
   for (let y = 1; y <= GAME_CONSTANTS.MAP_HEIGHT; y++) {
     for (let x = 1; x <= GAME_CONSTANTS.MAP_WIDTH; x++) {
       const fixedLoc = isFixedLocation(x, y);
-      const base: Record<string, unknown> = { x, y, occupied_by_base: false };
-      
+
       if (fixedLoc.type === 'shrine') {
-        base.terrain = TerrainType.Shrine;
-        terrainIndex++;
+        // Shrine of Remembrance at (1,1) — fixed, does not consume the pool
+        tiles.push({ x, y, terrain: TerrainType.Shrine });
       } else if (fixedLoc.type === 'bank') {
-        base.terrain = TerrainType.Bank;
-        base.bank_type = fixedLoc.bankType;
-        terrainIndex++;
+        // Bank at fixed location — fixed, does not consume the pool
+        tiles.push({ x, y, terrain: TerrainType.Bank, bankType: fixedLoc.bankType });
       } else if (fixedLoc.type === 'auction') {
-        base.terrain = TerrainType.AuctionHouse;
-        terrainIndex++;
+        // Auction House at (10,10) — fixed, does not consume the pool
+        tiles.push({ x, y, terrain: TerrainType.AuctionHouse });
       } else {
-        base.terrain = terrains[terrainIndex];
-        terrainIndex++;
+        // Regular terrain from the randomized pool
+        tiles.push({ x, y, terrain: pool[poolIndex] });
+        poolIndex++;
       }
-      
-      tiles.push(base);
     }
   }
-  
+
+  if (poolIndex !== pool.length) {
+    throw new Error(`Terrain pool under-consumed: used ${poolIndex} of ${pool.length}`);
+  }
+
   return tiles;
 }
 
@@ -166,12 +191,8 @@ function generateTiles(): Record<string, unknown>[] {
  */
 export async function mapExists(): Promise<boolean> {
   try {
-    const supabase = createServiceClient();
-    const { count, error } = await supabase
-      .from('tiles')
-      .select('*', { count: 'exact', head: true });
-    
-    if (error) throw error;
+    const tilesCollection = await getCollection<Tile>('tiles');
+    const count = await tilesCollection.countDocuments();
     
     console.log(`📊 Current tile count in database: ${count}`);
     
@@ -190,17 +211,25 @@ export async function mapExists(): Promise<boolean> {
  */
 export async function createTileIndexes(): Promise<void> {
   try {
-    const supabase = createServiceClient();
+    const tilesCollection = await getCollection<Tile>('tiles');
     
-    // Indexes must be created via SQL — use raw query via supabase
-    // NOTE: These are placeholder index creation calls.
-    // Actual implemention requires supabase.sql method or direct DB access.
-    console.log('⚠️  Tile index creation must be done via Supabase dashboard or SQL migration');
-    console.log('   Recommended SQL:');
-    console.log('   CREATE UNIQUE INDEX IF NOT EXISTS coordinate_index ON tiles (x, y);');
-    console.log('   CREATE INDEX IF NOT EXISTS terrain_index ON tiles (terrain);');
-    console.log('   CREATE INDEX IF NOT EXISTS spawn_index ON tiles (occupied_by_base, terrain);');
-    return;
+    // Create unique compound index on (x, y) coordinates
+    await tilesCollection.createIndex(
+      { x: 1, y: 1 },
+      { unique: true, name: 'coordinate_index' }
+    );
+    
+    // Create index on terrain type for efficient filtering
+    await tilesCollection.createIndex(
+      { terrain: 1 },
+      { name: 'terrain_index' }
+    );
+    
+    // Create index on occupiedByBase for spawn queries
+    await tilesCollection.createIndex(
+      { occupiedByBase: 1, terrain: 1 },
+      { name: 'spawn_index' }
+    );
     
     console.log('✅ Tile indexes created successfully');
   } catch (error) {
@@ -242,19 +271,11 @@ export async function initializeMap(): Promise<void> {
     
     console.log(`📦 Generated ${tiles.length} tiles`);
     
-    // Insert tiles into database in batches (Supabase has no insertMany, use upsert-style batch)
-    const supabase = createServiceClient();
+    // Insert tiles into database
+    const tilesCollection = await getCollection<Tile>('tiles');
     
-    // Batch insert tiles in chunks of 1000
-    const batchSize = 1000;
-    for (let i = 0; i < tiles.length; i += batchSize) {
-      const batch = tiles.slice(i, i + batchSize);
-      const { error } = await supabase.from('tiles').insert(batch as unknown as TablesInsert<'tiles'>);
-      if (error) {
-        console.error(`❌ Batch insert failed at offset ${i}:`, error);
-        throw error;
-      }
-    }
+    // Use ordered: false to continue on duplicate key errors (shouldn't happen, but safety measure)
+    await tilesCollection.insertMany(tiles, { ordered: false });
     
     console.log('✅ Tiles inserted successfully');
     
@@ -262,37 +283,16 @@ export async function initializeMap(): Promise<void> {
     await createTileIndexes();
     
     // Verify final count
-    const { count: finalCount } = await supabase
-      .from('tiles')
-      .select('*', { count: 'exact', head: true });
+    const finalCount = await tilesCollection.countDocuments();
     console.log(`✅ Map initialization complete! Total tiles: ${finalCount}`);
     
-    // Verify terrain distribution (requires count_terrain_distribution RPC function)
-    const rpcClient = supabase as unknown as { rpc: (fn: string) => Promise<{ data: unknown; error: unknown }> };
-    const rpcResult = await rpcClient.rpc('count_terrain_distribution');
-    const distribution = (rpcResult.data ?? []) as { terrain: string; count: number }[];
-    
-    if (distribution) {
-      console.log('📊 Terrain distribution:');
-      (distribution as Array<{ terrain: string; count: number }>).forEach(({ terrain: terrainType, count: distCount }) => {
-        // Bank and Shrine are fixed locations, not in TERRAIN_COUNTS
-        if (terrainType === 'Bank') {
-          const match = distCount === 4 ? '✅' : '❌';
-          console.log(`  ${match} ${terrainType}: ${distCount} (expected: 4 fixed locations)`);
-        } else if (terrainType === 'Shrine') {
-          const match = distCount === 1 ? '✅' : '❌';
-          console.log(`  ${match} ${terrainType}: ${distCount} (expected: 1 fixed location)`);
-        } else {
-          // Type guard for original terrain types
-          if (terrainType in GAME_CONSTANTS.TERRAIN_COUNTS) {
-            const expected = GAME_CONSTANTS.TERRAIN_COUNTS[terrainType as keyof typeof GAME_CONSTANTS.TERRAIN_COUNTS];
-            // Wasteland count will be 5 less (replaced by 1 shrine + 4 banks)
-            const adjustedExpected = (terrainType === TerrainType.Wasteland) ? expected - 5 : expected;
-            const match = distCount === adjustedExpected ? '✅' : '❌';
-            console.log(`  ${match} ${terrainType}: ${distCount} (expected: ${adjustedExpected})`);
-          }
-        }
-      });
+    // Verify terrain distribution
+    const distribution = await fetchDistribution();
+    console.log('📊 Terrain distribution:');
+    for (const [terrain, count] of Object.entries(distribution)) {
+      const expected = expectedTerrainCount(terrain as TerrainType);
+      const match = count === expected ? '✅' : '❌';
+      console.log(`  ${match} ${terrain}: ${count} (expected: ${expected})`);
     }
     
   } catch (error) {
@@ -302,24 +302,42 @@ export async function initializeMap(): Promise<void> {
 }
 
 /**
+ * Expected count of a terrain type after generation.
+ * Random types keep their exact TERRAIN_COUNTS value except Wasteland, which
+ * gives up six slots to the fixed special tiles; Bank/Shrine/AuctionHouse are
+ * the fixed tiles themselves.
+ */
+function expectedTerrainCount(terrain: TerrainType): number {
+  if (terrain === TerrainType.Bank) return 4;
+  if (terrain === TerrainType.Shrine || terrain === TerrainType.AuctionHouse) return 1;
+  const configured = GAME_CONSTANTS.TERRAIN_COUNTS[terrain as keyof typeof GAME_CONSTANTS.TERRAIN_COUNTS];
+  if (configured === undefined) return 0;
+  return terrain === TerrainType.Wasteland ? configured - FIXED_TILE_COUNT : configured;
+}
+
+/**
+ * Terrain counts by type, read straight from the database (GROUP BY terrain).
+ */
+async function fetchDistribution(): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ terrain: tiles.terrain, count: sql<number>`count(*)::int` })
+    .from(tiles)
+    .groupBy(tiles.terrain);
+  const result: Record<string, number> = {};
+  for (const row of rows) {
+    result[row.terrain] = row.count;
+  }
+  return result;
+}
+
+/**
  * Get terrain distribution statistics from database
  * 
  * @returns Promise that resolves to terrain count distribution
  */
 export async function getTerrainDistribution(): Promise<Record<TerrainType, number>> {
   try {
-    const supabase = createServiceClient();
-    
-    const { data: rows, error } = await supabase.from('tiles').select('terrain');
-    
-    if (error) throw error;
-    
-    const result: Record<string, number> = {};
-    (rows || []).forEach((row: any) => {
-      result[row.terrain] = (result[row.terrain] || 0) + 1;
-    });
-    
-    return result as Record<TerrainType, number>;
+    return (await fetchDistribution()) as Record<TerrainType, number>;
   } catch (error) {
     console.error('❌ Error getting terrain distribution:', error);
     throw error;

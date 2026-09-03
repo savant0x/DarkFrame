@@ -1,33 +1,13 @@
 /**
- * Bot Magnet beacon system for attracting bots to strategic locations.
- * 
- * Created: 2025-01-18
- * 
- * FEATURES:
- * - Deploy beacons at chosen coordinates (requires bot-magnet tech)
- * - Attract 30% of bots within 100-tile radius during spawn
- * - 7-day beacon duration (168 hours)
- * - 14-day cooldown between deployments
- * - Single active beacon per player
- * - Automatic beacon expiration cleanup
+ * @file lib/botMagnetService.ts
+ * @created 2025-01-18
+ * @updated 2026-04-04 (Migrated to Drizzle ORM)
+ * @overview Bot Magnet beacon system for attracting bots to strategic locations.
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-
-export interface BotMagnetBeacon {
-  id?: string;
-  player_id: string;
-  player_name: string;
-  x: number;
-  y: number;
-  deployed_at: string | null;
-  expires_at: string;
-  cooldown_until: string | null;
-  attraction_radius: number | null;
-  attraction_chance: number | null;
-  bots_attracted: number | null;
-  active: boolean | null;
-}
+import { eq, and, lt, desc, sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { botMagnetBeacons } from '@/lib/db/schema/config';
 
 const BEACON_CONFIG = {
   DURATION_HOURS: 168,
@@ -37,349 +17,160 @@ const BEACON_CONFIG = {
   MAX_BEACONS_PER_PLAYER: 1,
 } as const;
 
-const TABLE = 'bot_magnet_beacons';
+export interface BotMagnetBeacon {
+  id: string;
+  playerId: string;
+  playerName: string;
+  x: number;
+  y: number;
+  deployedAt: Date;
+  expiresAt: Date;
+  cooldownUntil: Date;
+  attractionRadius: number;
+  attractionChance: number;
+  botsAttracted: number;
+  active: boolean;
+}
 
 export async function deployBeacon(
   playerId: string,
   playerName: string,
   x: number,
   y: number
-): Promise<{
-  success: boolean;
-  message: string;
-  beacon?: BotMagnetBeacon;
-  cooldownRemaining?: number;
-}> {
-  const supabase = createServiceClient();
+): Promise<{ success: boolean; message: string; beacon?: BotMagnetBeacon; cooldownRemaining?: number }> {
+  const existingBeacon = await db.select().from(botMagnetBeacons)
+    .where(and(eq(botMagnetBeacons.playerId, playerId), eq(botMagnetBeacons.active, 1))).limit(1);
 
-  const { data: existingBeacon, error: findErr } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('player_id', playerId)
-    .eq('active', true)
-    .single();
-
-  if (findErr && findErr.code !== 'PGRST116') {
-    console.error('[BotMagnet] Failed to check existing beacon:', findErr);
+  if (existingBeacon.length > 0) {
+    return { success: false, message: 'You already have an active beacon. Wait for it to expire or cooldown to complete.' };
   }
 
-  if (existingBeacon) {
-    return {
-      success: false,
-      message: 'You already have an active beacon. Wait for it to expire or cooldown to complete.',
-    };
-  }
+  await cleanupExpiredBeacons();
 
-  const { data: lastBeaconArr } = await supabase
-    .from(TABLE)
-    .select('cooldown_until')
-    .eq('player_id', playerId)
-    .order('deployed_at', { ascending: false })
-    .limit(1);
+  const lastBeacon = await db.select().from(botMagnetBeacons)
+    .where(eq(botMagnetBeacons.playerId, playerId))
+    .orderBy(desc(botMagnetBeacons.deployedAt)).limit(1);
 
-  if (lastBeaconArr && lastBeaconArr.length > 0 && lastBeaconArr[0].cooldown_until) {
+  if (lastBeacon.length > 0) {
     const now = new Date();
-    const cooldownUntil = new Date(lastBeaconArr[0].cooldown_until);
-    if (now < cooldownUntil) {
-      const cooldownRemaining = Math.ceil(
-        (cooldownUntil.getTime() - now.getTime()) / (1000 * 60 * 60)
-      );
-      return {
-        success: false,
-        message: `Beacon on cooldown. ${cooldownRemaining} hours remaining.`,
-        cooldownRemaining,
-      };
+    if (now < lastBeacon[0].cooldownUntil) {
+      const cooldownRemaining = Math.ceil((lastBeacon[0].cooldownUntil.getTime() - now.getTime()) / (1000 * 60 * 60));
+      return { success: false, message: `Beacon on cooldown. ${cooldownRemaining} hours remaining.`, cooldownRemaining };
     }
   }
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + BEACON_CONFIG.DURATION_HOURS * 60 * 60 * 1000);
   const cooldownUntil = new Date(now.getTime() + BEACON_CONFIG.COOLDOWN_HOURS * 60 * 60 * 1000);
+  const beaconId = `beacon_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  const beaconData = {
-    player_id: playerId,
-    player_name: playerName,
+  await db.insert(botMagnetBeacons).values({
+    id: beaconId,
+    playerId,
+    playerName,
     x,
     y,
-    deployed_at: now.toISOString(),
-    expires_at: expiresAt.toISOString(),
-    cooldown_until: cooldownUntil.toISOString(),
-    attraction_radius: BEACON_CONFIG.ATTRACTION_RADIUS,
-    attraction_chance: BEACON_CONFIG.ATTRACTION_CHANCE,
-    bots_attracted: 0,
-    active: true,
-  };
+    deployedAt: now,
+    expiresAt,
+    cooldownUntil,
+    attractionRadius: BEACON_CONFIG.ATTRACTION_RADIUS,
+    attractionChance: Math.round(BEACON_CONFIG.ATTRACTION_CHANCE * 100),
+    botsAttracted: 0,
+    active: 1,
+  });
 
-  const { data: inserted, error: insertErr } = await supabase
-    .from(TABLE)
-    .insert(beaconData)
-    .select()
-    .single();
-
-  if (insertErr || !inserted) {
-    console.error('[BotMagnet] Failed to deploy beacon:', insertErr);
-    return {
-      success: false,
-      message: 'Failed to deploy beacon',
-    };
-  }
-
-  const beacon: BotMagnetBeacon = {
-    ...beaconData,
-    id: inserted.id,
-  };
-
-  return {
-    success: true,
-    message: `Beacon deployed at (${x}, ${y}). Active for ${BEACON_CONFIG.DURATION_HOURS} hours.`,
-    beacon,
+  return { success: true, message: `Beacon deployed at (${x}, ${y}). Active for ${BEACON_CONFIG.DURATION_HOURS} hours.`,
+    beacon: { id: beaconId, playerId, playerName, x, y, deployedAt: now, expiresAt, cooldownUntil, attractionRadius: BEACON_CONFIG.ATTRACTION_RADIUS, attractionChance: BEACON_CONFIG.ATTRACTION_CHANCE, botsAttracted: 0, active: true }
   };
 }
 
-export async function getBeaconStatus(playerId: string): Promise<{
-  hasActiveBeacon: boolean;
-  beacon?: BotMagnetBeacon;
-  cooldownRemaining?: number;
-  canDeploy: boolean;
-}> {
+export async function getBeaconStatus(playerId: string): Promise<{ hasActiveBeacon: boolean; beacon?: BotMagnetBeacon; cooldownRemaining?: number; canDeploy: boolean }> {
   await cleanupExpiredBeacons();
 
-  const supabase = createServiceClient();
+  const activeBeacon = await db.select().from(botMagnetBeacons)
+    .where(and(eq(botMagnetBeacons.playerId, playerId), eq(botMagnetBeacons.active, 1))).limit(1);
 
-  const { data: activeBeacon, error: findErr } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('player_id', playerId)
-    .eq('active', true)
-    .single();
-
-  if (findErr && findErr.code !== 'PGRST116') {
-    console.error('[BotMagnet] Failed to get beacon status:', findErr);
-  }
-
-  if (activeBeacon) {
-    return {
-      hasActiveBeacon: true,
-      beacon: {
-        id: activeBeacon.id,
-        player_id: activeBeacon.player_id,
-        player_name: activeBeacon.player_name,
-        x: activeBeacon.x,
-        y: activeBeacon.y,
-        deployed_at: activeBeacon.deployed_at,
-        expires_at: activeBeacon.expires_at,
-        cooldown_until: activeBeacon.cooldown_until,
-        attraction_radius: activeBeacon.attraction_radius,
-        attraction_chance: activeBeacon.attraction_chance,
-        bots_attracted: activeBeacon.bots_attracted,
-        active: activeBeacon.active,
-      },
-      canDeploy: false,
+  if (activeBeacon.length > 0) {
+    const b = activeBeacon[0];
+    return { hasActiveBeacon: true, canDeploy: false,
+      beacon: { id: b.id, playerId: b.playerId, playerName: b.playerName, x: b.x, y: b.y, deployedAt: b.deployedAt, expiresAt: b.expiresAt, cooldownUntil: b.cooldownUntil, attractionRadius: b.attractionRadius, attractionChance: b.attractionChance / 100, botsAttracted: b.botsAttracted, active: b.active === 1 }
     };
   }
 
-  const { data: lastBeaconArr } = await supabase
-    .from(TABLE)
-    .select('cooldown_until')
-    .eq('player_id', playerId)
-    .order('deployed_at', { ascending: false })
-    .limit(1);
+  const lastBeacon = await db.select().from(botMagnetBeacons)
+    .where(eq(botMagnetBeacons.playerId, playerId)).orderBy(desc(botMagnetBeacons.deployedAt)).limit(1);
 
-  if (lastBeaconArr && lastBeaconArr.length > 0 && lastBeaconArr[0].cooldown_until) {
+  if (lastBeacon.length > 0) {
     const now = new Date();
-    const cooldownUntil = new Date(lastBeaconArr[0].cooldown_until);
-    if (now < cooldownUntil) {
-      const cooldownRemaining = Math.ceil(
-        (cooldownUntil.getTime() - now.getTime()) / (1000 * 60 * 60)
-      );
-      return {
-        hasActiveBeacon: false,
-        cooldownRemaining,
-        canDeploy: false,
+    if (now < lastBeacon[0].cooldownUntil) {
+      return { hasActiveBeacon: false, canDeploy: false,
+        cooldownRemaining: Math.ceil((lastBeacon[0].cooldownUntil.getTime() - now.getTime()) / (1000 * 60 * 60))
       };
     }
   }
 
-  return {
-    hasActiveBeacon: false,
-    canDeploy: true,
-  };
+  return { hasActiveBeacon: false, canDeploy: true };
 }
 
 export async function getActiveBeacons(): Promise<BotMagnetBeacon[]> {
   await cleanupExpiredBeacons();
-
-  const supabase = createServiceClient();
-
-  const { data } = await supabase
-    .from(TABLE)
-    .select('*')
-    .eq('active', true);
-
-  return (data || []).map(row => ({
-    id: row.id,
-    player_id: row.player_id,
-    player_name: row.player_name,
-    x: row.x,
-    y: row.y,
-    deployed_at: row.deployed_at,
-    expires_at: row.expires_at,
-    cooldown_until: row.cooldown_until,
-    attraction_radius: row.attraction_radius,
-    attraction_chance: row.attraction_chance,
-    bots_attracted: row.bots_attracted,
-    active: row.active,
+  const results = await db.select().from(botMagnetBeacons).where(eq(botMagnetBeacons.active, 1));
+  return results.map(b => ({
+    id: b.id, playerId: b.playerId, playerName: b.playerName, x: b.x, y: b.y,
+    deployedAt: b.deployedAt, expiresAt: b.expiresAt, cooldownUntil: b.cooldownUntil,
+    attractionRadius: b.attractionRadius, attractionChance: b.attractionChance / 100,
+    botsAttracted: b.botsAttracted, active: b.active === 1
   }));
 }
 
-export async function shouldAttractToBeacon(
-  x: number,
-  y: number
-): Promise<{
-  attracted: boolean;
-  targetX?: number;
-  targetY?: number;
-  beaconId?: string;
-}> {
+export async function shouldAttractToBeacon(x: number, y: number): Promise<{ attracted: boolean; targetX?: number; targetY?: number; beaconId?: string }> {
   const beacons = await getActiveBeacons();
-
   for (const beacon of beacons) {
-    const distance = Math.sqrt(
-      Math.pow(x - beacon.x, 2) + Math.pow(y - beacon.y, 2)
-    );
-
-    if (distance <= (beacon.attraction_radius || 0)) {
-      if (Math.random() < (beacon.attraction_chance || 0)) {
-        const offsetX = Math.floor(Math.random() * 41) - 20;
-        const offsetY = Math.floor(Math.random() * 41) - 20;
-
-        return {
-          attracted: true,
-          targetX: beacon.x + offsetX,
-          targetY: beacon.y + offsetY,
-          beaconId: beacon.id,
-        };
-      }
+    const distance = Math.sqrt(Math.pow(x - beacon.x, 2) + Math.pow(y - beacon.y, 2));
+    if (distance <= beacon.attractionRadius && Math.random() < beacon.attractionChance) {
+      const offsetX = Math.floor(Math.random() * 41) - 20;
+      const offsetY = Math.floor(Math.random() * 41) - 20;
+      return { attracted: true, targetX: beacon.x + offsetX, targetY: beacon.y + offsetY, beaconId: beacon.id };
     }
   }
-
   return { attracted: false };
 }
 
 export async function incrementAttractedCount(beaconId: string): Promise<void> {
-  const supabase = createServiceClient();
-
-  const { data: beacon } = await supabase
-    .from(TABLE)
-    .select('bots_attracted')
-    .eq('id', beaconId)
-    .single();
-
-  if (beacon) {
-    await supabase
-      .from(TABLE)
-      .update({ bots_attracted: (beacon.bots_attracted || 0) + 1 })
-      .eq('id', beaconId);
-  }
+  await db.update(botMagnetBeacons)
+    .set({ botsAttracted: sql`bots_attracted + 1` } as any)
+    .where(eq(botMagnetBeacons.id, beaconId));
 }
 
 export async function cleanupExpiredBeacons(): Promise<number> {
-  const supabase = createServiceClient();
-  const now = new Date().toISOString();
-
-  const { count } = await supabase
-    .from(TABLE)
-    .select('*', { count: 'exact', head: true })
-    .eq('active', true)
-    .lt('expires_at', now);
-
-  if (count) {
-    await supabase
-      .from(TABLE)
-      .update({ active: false })
-      .eq('active', true)
-      .lt('expires_at', now);
-  }
-
-  return count || 0;
+  const now = new Date();
+  const result = await db.update(botMagnetBeacons)
+    .set({ active: 0 })
+    .where(and(eq(botMagnetBeacons.active, 1), lt(botMagnetBeacons.expiresAt, now)));
+  return 0;
 }
 
-export async function deactivateBeacon(playerId: string): Promise<{
-  success: boolean;
-  message: string;
-}> {
-  const supabase = createServiceClient();
-
-  const { data: updated, error } = await supabase
-    .from(TABLE)
-    .update({ active: false })
-    .eq('player_id', playerId)
-    .eq('active', true)
-    .select();
-
-  if (error) {
-    console.error('[BotMagnet] Failed to deactivate beacon:', error);
-    return {
-      success: false,
-      message: 'Failed to deactivate beacon.',
-    };
+export async function deactivateBeacon(playerId: string): Promise<{ success: boolean; message: string }> {
+  const result = await db.update(botMagnetBeacons)
+    .set({ active: 0 })
+    .where(and(eq(botMagnetBeacons.playerId, playerId), eq(botMagnetBeacons.active, 1))) as any;
+  if ((result as any)?.affectedRows === 0) {
+    return { success: false, message: 'No active beacon found.' };
   }
-
-  if (!updated || updated.length === 0) {
-    return {
-      success: false,
-      message: 'No active beacon found.',
-    };
-  }
-
-  return {
-    success: true,
-    message: 'Beacon deactivated successfully.',
-  };
+  return { success: true, message: 'Beacon deactivated successfully.' };
 }
 
-export async function getBeaconStats(): Promise<{
-  totalBeacons: number;
-  activeBeacons: number;
-  totalBotsAttracted: number;
-  averageAttraction: number;
-  topBeacons: Array<{
-    playerName: string;
-    location: string;
-    botsAttracted: number;
-    deployedAt: string;
-  }>;
-}> {
-  const supabase = createServiceClient();
-
-  const { count: total } = await supabase
-    .from(TABLE)
-    .select('*', { count: 'exact', head: true });
-
-  const { count: active } = await supabase
-    .from(TABLE)
-    .select('*', { count: 'exact', head: true })
-    .eq('active', true);
-
-  const { data: beacons } = await supabase
-    .from(TABLE)
-    .select('*')
-    .order('bots_attracted', { ascending: false })
-    .limit(10);
-
-  const beaconList = beacons || [];
-  const totalAttracted = beaconList.reduce((sum, b) => sum + (b.bots_attracted || 0), 0);
-
+export async function getBeaconStats(): Promise<{ totalBeacons: number; activeBeacons: number; totalBotsAttracted: number; averageAttraction: number; topBeacons: Array<{ playerName: string; location: string; botsAttracted: number; deployedAt: Date }> }> {
+  const all = await db.select().from(botMagnetBeacons).orderBy(desc(botMagnetBeacons.botsAttracted)).limit(10);
+  const active = await db.select({ count: sql`count(*)` }).from(botMagnetBeacons).where(eq(botMagnetBeacons.active, 1));
+  const total = all.length;
+  const activeCount = Number((active[0] as any)?.count || 0);
+  const totalAttracted = all.reduce((sum, b) => sum + b.botsAttracted, 0);
   return {
-    totalBeacons: total || 0,
-    activeBeacons: active || 0,
+    totalBeacons: total,
+    activeBeacons: activeCount,
     totalBotsAttracted: totalAttracted,
-    averageAttraction: (total || 0) > 0 ? totalAttracted / (total || 1) : 0,
-    topBeacons: beaconList.map(b => ({
-      playerName: b.player_name,
-      location: `(${b.x}, ${b.y})`,
-      botsAttracted: b.bots_attracted || 0,
-      deployedAt: b.deployed_at || '',
-    })),
+    averageAttraction: total > 0 ? totalAttracted / total : 0,
+    topBeacons: all.map(b => ({ playerName: b.playerName, location: `(${b.x}, ${b.y})`, botsAttracted: b.botsAttracted, deployedAt: b.deployedAt })),
   };
 }

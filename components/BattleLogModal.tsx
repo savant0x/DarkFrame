@@ -46,7 +46,7 @@ export default function BattleLogModal({ isOpen, onClose, logType, username }: B
     const fetchLogs = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`/api/combat/logs?type=${logType}`);
+        const response = await fetch(`/api/combat/logs?username=${username}&type=${logType}`);
         if (response.ok) {
           const data = await response.json();
           setLogs(data.logs || []);

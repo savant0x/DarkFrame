@@ -28,8 +28,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 import {
+  getClientAndDatabase,
   requireClanMembership,
   withRequestLogging,
   createRouteLogger,
@@ -74,11 +74,13 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-level');
   
   try {
-    const supabase = createServiceClient();
+    const { client, db } = await getClientAndDatabase();
 
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { clan, clanId } = result;
+
+    
 
     const { searchParams } = new URL(request.url);
     const includeDetailed = searchParams.get('detailed') === 'true';
@@ -176,7 +178,9 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
       );
     }
 
-    const supabase = createServiceClient();
+    const { client, db } = await getClientAndDatabase();
+
+    
 
     const result = await awardClanXP(clanId, source, amount, playerId);
 

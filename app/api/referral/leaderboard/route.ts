@@ -1,103 +1,111 @@
 /**
  * @file app/api/referral/leaderboard/route.ts
  * Created: 2025-10-24
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * 
  * OVERVIEW:
  * Get top recruiters leaderboard showing players ranked by total validated referrals.
+ * Public endpoint (no auth required).
+ * 
+ * ENDPOINTS:
+ * GET /api/referral/leaderboard?limit=100
+ *   - Returns: Top recruiters with stats
+ *   - Optional: username param to get specific player's rank
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireAuth,
-  logger,
-} from '@/lib';
+import { getDatabase } from '@/lib/mongodb';
+import type { ReferralLeaderboardEntry } from '@/types/referral.types';
+import type { Player } from '@/types/game.types';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = rateLimiter(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
     const searchParams = request.nextUrl.searchParams;
     const limitParam = searchParams.get('limit');
-    const username = auth.playerId;
+    const username = searchParams.get('username');
     
     const limit = limitParam ? Math.min(parseInt(limitParam, 10), 500) : 100;
     
-    const supabase = createServiceClient();
+    const db = await getDatabase();
     
     // Get top recruiters
-    const { data: topRecruiters } = await supabase
-      .from('players')
-      .select('username, total_referrals, pending_referrals, level, referral_milestones_reached, created_at')
-      .eq('is_bot', false)
-      .gt('total_referrals', 0)
-      .order('total_referrals', { ascending: false })
-      .limit(limit);
+    const topRecruiters = await db.collection<Player>('players').find({
+      isBot: { $ne: true },
+      totalReferrals: { $gt: 0 }
+    })
+    .sort({ totalReferrals: -1, lastReferralValidated: -1 })
+    .limit(limit)
+    .project({
+      username: 1,
+      totalReferrals: 1,
+      pendingReferrals: 1,
+      level: 1,
+      referralTitles: 1,
+      referralBadges: 1,
+      createdAt: 1
+    })
+    .toArray();
     
-    const leaderboard = (topRecruiters || []).map((player, index) => ({
+    // Build leaderboard entries with ranks
+    const leaderboard: ReferralLeaderboardEntry[] = topRecruiters.map((player: any, index: any) => ({
       rank: index + 1,
       username: player.username,
-      totalReferrals: player.total_referrals || 0,
-      pendingReferrals: player.pending_referrals || 0,
+      totalReferrals: player.totalReferrals || 0,
+      pendingReferrals: player.pendingReferrals || 0,
       level: player.level || 1,
-      titles: [],
-      badges: [],
-      joinedDate: player.created_at || new Date().toISOString()
+      titles: player.referralTitles || [],
+      badges: player.referralBadges || [],
+      joinedDate: player.createdAt || new Date()
     }));
     
+    // If username provided, get their rank
     let currentPlayerRank: number | null = null;
-    let currentPlayerData: typeof leaderboard[0] | null = null;
+    let currentPlayerData: ReferralLeaderboardEntry | null = null;
     
     if (username) {
-      const playerEntry = leaderboard.find(entry => entry.username === username);
+      const playerEntry = leaderboard.find((entry: any) => entry.username === username);
       
       if (playerEntry) {
         currentPlayerRank = playerEntry.rank;
         currentPlayerData = playerEntry;
       } else {
-        // Player not in top list - get their stats
-        const { data: player } = await supabase
-          .from('players')
-          .select('username, total_referrals, pending_referrals, level, created_at')
-          .eq('username', username)
-          .eq('is_bot', false)
-          .maybeSingle();
+        // Player not in top list - calculate actual rank
+        const player = await db.collection<Player>('players').findOne({
+          username,
+          isBot: { $ne: true }
+        });
         
-        if (player && (player.total_referrals || 0) > 0) {
-          // Count players ahead
-          const { count: playersAhead } = await supabase
-            .from('players')
-            .select('*', { count: 'exact', head: true })
-            .eq('is_bot', false)
-            .gt('total_referrals', player.total_referrals || 0);
+        if (player && (player.totalReferrals || 0) > 0) {
+          const playersAhead = await db.collection<Player>('players').countDocuments({
+            isBot: { $ne: true },
+            $or: [
+              { totalReferrals: { $gt: player.totalReferrals || 0 } },
+              {
+                totalReferrals: player.totalReferrals || 0,
+                lastReferralValidated: { $gt: player.lastReferralValidated || new Date(0) }
+              }
+            ]
+          });
           
-          currentPlayerRank = (playersAhead || 0) + 1;
+          currentPlayerRank = playersAhead + 1;
           currentPlayerData = {
             rank: currentPlayerRank,
             username: player.username,
-            totalReferrals: player.total_referrals || 0,
-            pendingReferrals: player.pending_referrals || 0,
+            totalReferrals: player.totalReferrals || 0,
+            pendingReferrals: player.pendingReferrals || 0,
             level: player.level || 1,
-            titles: [],
-            badges: [],
-            joinedDate: player.created_at || new Date().toISOString()
+            titles: player.referralTitles || [],
+            badges: player.referralBadges || [],
+            joinedDate: player.createdAt || new Date()
           };
         }
       }
     }
     
     // Get total count of players with referrals
-    const { count: totalRecruiters } = await supabase
-      .from('players')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_bot', false)
-      .gt('total_referrals', 0);
+    const totalRecruiters = await db.collection('players').countDocuments({
+      isBot: { $ne: true },
+      totalReferrals: { $gt: 0 }
+    });
     
     return NextResponse.json({
       success: true,
@@ -105,15 +113,18 @@ export const GET = rateLimiter(async (request: NextRequest) => {
         leaderboard,
         currentPlayerRank,
         currentPlayerData,
-        totalRecruiters: totalRecruiters || 0,
+        totalRecruiters,
         lastUpdated: new Date().toISOString()
       }
     });
   } catch (error) {
-    logger.error('[Referral Leaderboard] Error:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Internal server error'
-    }, { status: 500 });
+    console.error('[Referral Leaderboard] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal server error'
+      },
+      { status: 500 }
+    );
   }
-});
+}

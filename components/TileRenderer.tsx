@@ -16,9 +16,8 @@ import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
-import { getMaxSlots, getFactoryDefense, getRegenRate } from '@/lib/factoryUpgradeService';
 import { useGameContext } from '@/context/GameContext';
-import { getTerrainImage, getBankImage, getBaseImage, getBeerBaseImagePath } from '@/lib/imageService';
+import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
 import { logger } from '@/lib/logger';
 import { SafeHtmlRenderer } from '@/components/SafeHtmlRenderer';
 
@@ -33,8 +32,7 @@ interface TileRendererProps {
   isHarvesting?: boolean;
   onAttackClick?: () => void;
   isAttacking?: boolean;
-  onManageClick?: () => void;
-  onFlagChallenge?: (bearer: FlagBearer) => void;
+  onFlagAttack?: (bearer: FlagBearer) => void;
   onBankClick?: () => void;
   onShrineClick?: () => void;
 }
@@ -44,16 +42,26 @@ interface TileRendererProps {
  */
 function getTerrainColor(terrain: TerrainType): string {
   switch (terrain) {
-    case TerrainType.Metal: return 'bg-gradient-to-br from-[--electric]/20 to-[--electric]/5';
-    case TerrainType.Energy: return 'bg-gradient-to-br from-[--neon-yellow]/20 to-[--neon-yellow]/5';
-    case TerrainType.Cave: return 'bg-gradient-to-br from-[--neon-pink]/20 to-[--neon-pink]/5';
-    case TerrainType.Forest: return 'bg-gradient-to-br from-[--synth]/20 to-[--synth]/5';
-    case TerrainType.Factory: return 'bg-gradient-to-br from-[--solar]/20 to-[--solar]/5';
-    case TerrainType.Wasteland: return 'bg-gradient-to-br from-amber-900/30 to-yellow-800/20';
-    case TerrainType.Bank: return 'bg-gradient-to-br from-[--neon-yellow]/15 to-[--neon-yellow]/5';
-    case TerrainType.Shrine: return 'bg-gradient-to-br from-[--neon-pink]/15 to-[--neon-pink]/5';
-    case TerrainType.AuctionHouse: return 'bg-gradient-to-br from-[--electric]/15 to-[--electric]/5';
-    default: return 'bg-gradient-to-br from-white/5 to-white/[0.02]';
+    case TerrainType.Metal:
+      return 'bg-gradient-to-br from-gray-400 to-gray-600';
+    case TerrainType.Energy:
+      return 'bg-gradient-to-br from-cyan-400 to-blue-600';
+    case TerrainType.Cave:
+      return 'bg-gradient-to-br from-purple-900 to-black';
+    case TerrainType.Forest:
+      return 'bg-gradient-to-br from-green-700 to-green-900';
+    case TerrainType.Factory:
+      return 'bg-gradient-to-br from-red-600 to-orange-700';
+    case TerrainType.Wasteland:
+      return 'bg-gradient-to-br from-amber-900 to-yellow-800';
+    case TerrainType.Bank:
+      return 'bg-gradient-to-br from-yellow-500 to-yellow-700';
+    case TerrainType.Shrine:
+      return 'bg-gradient-to-br from-purple-500 to-purple-900';
+    case TerrainType.AuctionHouse:
+      return 'bg-gradient-to-br from-emerald-500 to-teal-700';
+    default:
+      return 'bg-gray-500';
   }
 }
 
@@ -77,7 +85,7 @@ function getTerrainDescription(
   return getConsistentTileMessage(terrain, x, y, bankType);
 }
 
-export default function TileRenderer({ tile, harvestResult, factoryData, attackResult, flagBearer, onDiscovery, onHarvestClick, isHarvesting, onAttackClick, isAttacking, onManageClick, onFlagChallenge, onBankClick, onShrineClick }: TileRendererProps) {
+export default function TileRenderer({ tile, harvestResult, factoryData, attackResult, flagBearer, onDiscovery, onHarvestClick, isHarvesting, onAttackClick, isAttacking, onFlagAttack, onBankClick, onShrineClick }: TileRendererProps) {
   const { player, refreshGameState } = useGameContext();
   const router = useRouter();
   
@@ -87,8 +95,6 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const [baseImagePath, setBaseImagePath] = React.useState<string | null>(null);
   const [baseImageError, setBaseImageError] = React.useState(false);
   const [factoryImageError, setFactoryImageError] = React.useState(false);
-  const [beerBaseImagePath, setBeerBaseImagePath] = React.useState<string | null>(null);
-  const [beerBaseImageError, setBeerBaseImageError] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   
   // Check if current player is the flag bearer
@@ -274,19 +280,9 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
     return () => {
       cancelled = true;
     };
-  }, [player?.rank]);
-
-  // Load beer base overlay image when a bot is at this tile
-  React.useEffect(() => {
-    if (tile.botAtLocation?.tier) {
-      const imgPath = getBeerBaseImagePath(tile.botAtLocation.tier, tile.x, tile.y);
-      setBeerBaseImagePath(imgPath);
-      setBeerBaseImageError(false);
-    } else {
-      setBeerBaseImagePath(null);
-    }
-  }, [tile.botAtLocation?.tier, tile.x, tile.y]);
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player]);
+  
   // Determine if this tile is the player's base (YOUR base)
   const isPlayerBase = tile.occupiedByBase && player && 
     tile.x === player.base.x && tile.y === player.base.y;
@@ -310,15 +306,14 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
   return (
     <div className="w-full max-w-2xl">
-      {/* Tile Display — square image */}
-      <div className="relative w-full aspect-square rounded-t-lg overflow-hidden border-2 border-b-0 border-[--synth]/30 shadow-[0_0_20px_rgba(0,200,83,0.15)]">
+      {/* Tile Display */}
+      <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-cyan-500/40 shadow-[0_0_30px_rgba(0,240,255,0.3)]">
         {/* Terrain Layer (Background) */}
         {!imageError && imagePath ? (
           <Image
             src={imagePath}
             alt={`${tile.terrain} tile`}
             fill
-            sizes="(max-width: 672px) 100vw, 672px"
             className="object-cover"
             onError={() => {
               logger.warn('Failed to load tile image', { path: imagePath });
@@ -358,7 +353,6 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             src={baseImagePath}
             alt={`Rank ${playerRank} base`}
             fill
-            sizes="(max-width: 672px) 100vw, 672px"
             className="object-cover z-10"
             onError={() => setBaseImageError(true)}
             priority
@@ -371,22 +365,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             src={factoryImagePath}
             alt={`Level ${factoryData.level} factory`}
             fill
-            sizes="(max-width: 672px) 100vw, 672px"
             className="object-cover z-10"
             onError={() => setFactoryImageError(true)}
-            priority
-          />
-        )}
-
-        {/* Beer Base Overlay Layer (tier-based) */}
-        {tile.botAtLocation && beerBaseImagePath && !beerBaseImageError && (
-          <Image
-            src={beerBaseImagePath}
-            alt={`${tile.botAtLocation.tier || 'Base'} beer base`}
-            fill
-            sizes="(max-width: 672px) 100vw, 672px"
-            className="object-cover z-10"
-            onError={() => setBeerBaseImageError(true)}
             priority
           />
         )}
@@ -596,12 +576,12 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 <div className="text-xs">HP: {flagBearer.currentHP}/{flagBearer.maxHP}</div>
               )}
               {/* Only show attack button if player is NOT the bearer */}
-              {onFlagChallenge && !isCurrentPlayerBearer && (
+              {onFlagAttack && !isCurrentPlayerBearer && (
                 <button
-                  onClick={() => onFlagChallenge(flagBearer)}
+                  onClick={() => onFlagAttack(flagBearer)}
                   className="mt-2 w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white px-3 py-1 rounded-md text-xs font-semibold transition-all hover:scale-105 active:scale-95 border border-red-400 shadow-lg"
                 >
-                  ⚔️ Challenge Bearer
+                  ⚔️ Attack Bearer
                 </button>
               )}
               {/* Show status message if player IS the bearer */}
@@ -612,13 +592,6 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               )}
             </div>
           </>
-        )}
-
-        {/* Beer Base Indicator */}
-        {tile.botAtLocation?.isBeerBase && (
-          <div className="absolute top-4 right-4 bg-amber-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg z-20">
-            🍺 BEER BASE
-          </div>
         )}
 
         {/* Flag Bearer Proximity Indicator for Nearby Tiles */}
@@ -882,47 +855,28 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
       </div>
 
       {/* Tile Info */}
-      <div className="mt-4 bg-[--card] border-2 border-[--synth]/30 rounded-lg p-4 space-y-2 shadow-[0_0_15px_rgba(0,200,83,0.1)]">
+      <div className="mt-4 bg-gray-800/60 backdrop-blur-md rounded-lg p-4 space-y-2 border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
         <div className="flex justify-between items-center">
-          <h3 className="text-xl font-bold">
-            {tile.botAtLocation?.isBeerBase ? (
-              <span className="text-amber-400">🍺 {tile.botAtLocation.username || 'Beer Base'}</span>
-            ) : isAnyBase ? (
+          <h3 className="text-xl font-bold text-blue-400">
+            {isAnyBase ? (
               <>
-                <span className="text-[--synth]">🏠 {isPlayerBase ? 'Your Base' : 'Player Base'}</span>
-                <span className="text-sm text-white/40 ml-2">({tile.terrain} terrain)</span>
+                <span className="text-green-400">🏠 {isPlayerBase ? 'Your Base' : 'Player Base'}</span>
+                <span className="text-sm text-gray-400 ml-2">({tile.terrain} terrain)</span>
               </>
             ) : (
-              <span className={`${
-                tile.terrain === TerrainType.Metal ? 'text-[--solar]' :
-                tile.terrain === TerrainType.Energy ? 'text-[--electric]' :
-                tile.terrain === TerrainType.Cave ? 'text-[--neon-pink]' :
-                tile.terrain === TerrainType.Forest ? 'text-[--synth]' :
-                tile.terrain === TerrainType.Factory ? 'text-[--neon-red]' :
-                tile.terrain === TerrainType.Wasteland ? 'text-white/60' :
-                tile.terrain === TerrainType.Bank ? 'text-[--neon-yellow]' :
-                tile.terrain === TerrainType.Shrine ? 'text-[--neon-pink]' :
-                tile.terrain === TerrainType.AuctionHouse ? 'text-[--electric]' :
-                'text-white'
-              }`}>
-                {tile.terrain}
-              </span>
+              tile.terrain
             )}
           </h3>
-          <span className="font-mono text-sm text-white/40">
+          <span className="font-mono text-sm text-gray-400">
             ({tile.x}, {tile.y})
           </span>
         </div>
-        <p className="text-white/60 text-sm">
-          {tile.botAtLocation?.isBeerBase
-            ? `A ${tile.botAtLocation.tier || 'Unknown'}-tier NPC base. Attack to claim resources!`
-            : getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}
-        </p>
+        <p className="text-gray-300 text-sm">{getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}</p>
         
         {/* Base Greeting Display */}
         {isAnyBase && tile.baseGreeting && (
-          <div className="mt-3 bg-[--void] border border-[--border] rounded-lg p-3">
-            <p className="text-xs text-white/40 mb-1">📜 Base Message:</p>
+          <div className="mt-3 bg-gray-900/80 border border-cyan-500/40 rounded-lg p-3">
+            <p className="text-xs text-gray-400 mb-1">📜 Base Message:</p>
             <SafeHtmlRenderer 
               html={tile.baseGreeting}
               fallback="Welcome to my base!"
@@ -937,7 +891,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {tile.terrain === TerrainType.Bank && onBankClick && (
             <button
               onClick={onBankClick}
-              className="flex-1 bg-[--electric]/15 border border-[--electric]/25 text-[--electric] font-semibold px-4 py-2 rounded transition-colors hover:bg-[--electric]/25"
+              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded transition-colors"
             >
               🏦 Open Bank
             </button>
@@ -947,153 +901,90 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {tile.terrain === TerrainType.Shrine && onShrineClick && (
             <button
               onClick={onShrineClick}
-              className="flex-1 bg-[--neon-pink]/15 border border-[--neon-pink]/25 text-[--neon-pink] font-semibold px-4 py-2 rounded transition-colors hover:bg-[--neon-pink]/25"
+              className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-4 py-2 rounded transition-colors"
             >
-              ⛩️ Open Shrine
+              ⛩️ Visit Shrine
             </button>
           )}
 
-          {/* Auction House Button */}
-          {tile.terrain === TerrainType.AuctionHouse && (
+          {/* Factory Management Button - TODO: Create factory management page */}
+          {/* {tile.terrain === TerrainType.Factory && factoryData?.owner === player?.username && (
             <button
-              onClick={() => window.location.href = '/game/auction-house'}
-              className="flex-1 bg-[--electric]/15 text-[--electric] font-semibold px-4 py-2 rounded transition-colors hover:bg-[--electric]/25"
+              onClick={() => router.push('/game/factory-management')}
+              className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold px-4 py-2 rounded transition-colors"
             >
-              🏛️ Enter Auction House
+              🏭 Manage Factory
             </button>
-          )}
+          )} */}
 
-          {/* Flag Challenge Button */}
-          {tile.terrain === TerrainType.Shrine && flagBearer && flagBearer.username !== player?.username && (
-            <button
-              onClick={() => onFlagChallenge?.(flagBearer)}
-              className="flex-1 bg-[--neon-yellow]/15 border border-[--neon-yellow]/25 text-[--neon-yellow] font-semibold px-4 py-2 rounded transition-colors hover:bg-[--neon-yellow]/25"
-            >
-              🏴 Challenge Bearer
-            </button>
-          )}
-        </div>
-
-        {/* Harvest Button OR Harvest Result — mutually exclusive */}
-        {onHarvestClick && (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy || tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) && (
-          !harvestResult ? (
+          {/* Harvest Button - Shows on harvestable tiles */}
+          {onHarvestClick && (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy || tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) && (
             <button
               onClick={onHarvestClick}
               disabled={isHarvesting}
               className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
-                isHarvesting
-                  ? 'bg-white/10 text-white/30 cursor-not-allowed'
-                  : 'bg-[--synth]/15 text-[--synth] hover:bg-[--synth]/25'
+                isHarvesting 
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-500 text-white hover:shadow-lg'
               }`}
             >
               {isHarvesting ? 'HARVESTING...' : `HARVEST (${tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest ? 'F' : 'G'})`}
             </button>
-          ) : (
-            <div className="bg-[--card] border border-[--border] rounded-lg p-4 animate-fade-in">
-              {/* Resource Results */}
-              {harvestResult.success && ((harvestResult.metalGained || 0) > 0 || (harvestResult.energyGained || 0) > 0) && (
-                <div className="flex justify-center gap-4 mb-3">
-                  {(harvestResult.metalGained || 0) > 0 && (
-                    <div className="flex items-center gap-1.5 bg-white/[0.03] border border-[--border] rounded px-3 py-2">
-                      <span className="text-base">⛏️</span>
-                      <span className="text-[--neon-yellow] font-bold text-sm">+{(harvestResult.metalGained || 0).toLocaleString()}</span>
-                      <span className="text-white/40 text-xs">Metal</span>
-                    </div>
-                  )}
-                  {(harvestResult.energyGained || 0) > 0 && (
-                    <div className="flex items-center gap-1.5 bg-white/[0.03] border border-[--border] rounded px-3 py-2">
-                      <span className="text-base">⚡</span>
-                      <span className="text-[--electric] font-bold text-sm">+{(harvestResult.energyGained || 0).toLocaleString()}</span>
-                      <span className="text-white/40 text-xs">Energy</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Item Result */}
-              {harvestResult.success && harvestResult.item && (
-                <div className="flex items-center justify-center gap-2 mb-3 bg-white/[0.03] border border-[--border] rounded p-2">
-                  <span className="text-xl">🎁</span>
-                  <div>
-                    <div className="text-white font-bold text-xs">{harvestResult.item.name}</div>
-                    {harvestResult.item.description && <div className="text-white/30 text-[10px]">{harvestResult.item.description}</div>}
-                  </div>
-                </div>
-              )}
-
-              {/* Flavor Message */}
-              <div className="text-white/60 text-sm text-center whitespace-pre-line border-t border-[--border] pt-3 mt-2">
-                {harvestResult.message}
-                {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
-                  <span className="text-[--synth] font-bold ml-1">+{harvestResult.bonusApplied.toFixed(0)}% bonus</span>
-                )}
-              </div>
-            </div>
-          )
-        )}
-
+          )}
+        </div>
+        
         {/* Bank/Shrine Controls Hint */}
-        {!harvestResult && tile.terrain === TerrainType.Bank && (
-          <div className="mt-2 text-[--neon-yellow] text-sm font-semibold">
-            Press 'K' to open Bank interface
+        {tile.terrain === TerrainType.Bank && (
+          <div className="mt-2 text-yellow-400 text-sm font-semibold">
+            Press {"'"}B{"'"} to open Bank interface
           </div>
         )}
-        {!harvestResult && tile.terrain === TerrainType.Shrine && (
-          <div className="mt-2 text-[--neon-pink] text-sm font-semibold">
-            Press 'N' to open Shrine interface
+        {tile.terrain === TerrainType.Shrine && (
+          <div className="mt-2 text-purple-400 text-sm font-semibold">
+            Press {"'"}S{"'"} to open Shrine interface
           </div>
         )}
       </div>
 
       {/* Factory Info (if factory tile) */}
       {tile.terrain === TerrainType.Factory && factoryData && (
-        <div className="mt-4 bg-[--card] border-2 border-white/20 rounded-lg p-3 space-y-2 shadow-[0_0_15px_rgba(255,255,255,0.05)]">
+        <div className="mt-4 bg-gray-800 border-2 border-red-600 rounded-lg p-4 space-y-3">
           <div className="flex justify-between items-center">
-            <h4 className="text-[13px] font-bold text-[--text-1]">🏭 Factory Status</h4>
+            <h4 className="text-lg font-bold text-red-400">🏭 Factory Status</h4>
             {factoryData.owner && (
-              <span className={`text-xs font-semibold ${factoryData.owner === player?.username ? 'text-[--synth]' : 'text-[--solar]'}`}>
+              <span className={`text-sm font-semibold ${factoryData.owner === player?.username ? 'text-green-400' : 'text-orange-400'}`}>
                 {factoryData.owner === player?.username ? '✓ Your Factory' : `Owned by ${factoryData.owner}`}
               </span>
             )}
           </div>
           
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-white/[0.03] border border-[--border] rounded p-2">
-              <div className="text-[--text-3]">Defense</div>
-              <div className="text-[--text-1] font-bold">{getFactoryDefense(factoryData.level || 1).toLocaleString()}</div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Defense</div>
+              <div className="text-white font-bold">{factoryData.defense.toLocaleString()}</div>
             </div>
-            <div className="bg-white/[0.03] border border-[--border] rounded p-2">
-              <div className="text-[--text-3">Production</div>
-              <div className="text-[--text-1] font-bold">{getRegenRate(factoryData.level || 1).toFixed(1)}/hr</div>
+            <div className="bg-gray-900 p-2 rounded">
+              <div className="text-gray-400">Production</div>
+              <div className="text-white font-bold">{factoryData.productionRate}/hr</div>
             </div>
-            <div className="bg-white/[0.03] border border-[--border] rounded p-2 col-span-2">
+            <div className="bg-gray-900 p-2 rounded col-span-2">
+              <div className="text-gray-400">Unit Slots</div>
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[--text-3]">Available Slots</div>
-                  <div className="text-[--text-1] font-bold">
-                    {Math.max(getMaxSlots(factoryData.level || 1) - (factoryData.usedSlots ?? 0), 0).toLocaleString()} / {getMaxSlots(factoryData.level || 1).toLocaleString()}
-                  </div>
-                </div>
-                <div className="w-24 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                <div className="text-white font-bold">{factoryData.usedSlots} / {factoryData.slots}</div>
+                <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-[--synth] rounded-full"
-                    style={{ width: `${Math.max(((getMaxSlots(factoryData.level || 1) - (factoryData.usedSlots ?? 0)) / Math.max(getMaxSlots(factoryData.level || 1), 1)) * 100, 0)}%` }}
+                    className="h-full bg-blue-500"
+                    style={{ width: `${(factoryData.usedSlots / factoryData.slots) * 100}%` }}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Factory Action Button */}
+          {/* Attack Factory Button */}
           {onAttackClick && (
             <button
-              onClick={() => {
-                if (factoryData.owner === player?.username) {
-                  onManageClick?.();
-                } else {
-                  onAttackClick();
-                }
-              }}
+              onClick={onAttackClick}
               disabled={isAttacking}
               className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
                 isAttacking 
@@ -1109,60 +1000,62 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
         </div>
       )}
 
-      {/* Beer Base Info (if bot at tile) */}
-      {tile.botAtLocation?.isBeerBase && (
-        <div className="mt-4 bg-[--card] border-2 border-amber-600/30 rounded-lg p-3 space-y-2 shadow-[0_0_15px_rgba(251,191,36,0.1)]">
-          <div className="flex justify-between items-center">
-            <h4 className="text-[13px] font-bold text-amber-400">🍺 Beer Base</h4>
-            <span className="text-xs font-bold text-amber-300">
-              {tile.botAtLocation.tier || 'WEAK'} TIER
-            </span>
+      {/* Harvest Result Display (below tile image) */}
+      {harvestResult && (
+        <div className="mt-4 bg-gray-900 border-2 border-gray-700 rounded-lg p-4 animate-fade-in">
+          {/* Success/Failure Message */}
+          <div className={`font-bold text-center text-lg mb-3 ${harvestResult.success ? 'text-green-400' : 'text-red-400'}`}>
+            {harvestResult.message || (harvestResult.success ? '✅ Success' : '❌ Failed')}
           </div>
-
-          <div className="text-xs text-[--text-2]">
-            {tile.botAtLocation.username && (
-              <div className="mb-1">Name: <span className="text-[--text-1] font-bold">{tile.botAtLocation.username}</span></div>
-            )}
-            <div className="mb-1">
-              Specialization: <span className="text-[--text-1]">
-                {tile.botAtLocation.specialization || 'Balanced'}
-              </span>
+          
+          {/* Resource Results */}
+          {harvestResult.success && (harvestResult.metalGained || harvestResult.energyGained) && (
+            <div className="flex justify-center gap-6 mb-3">
+              {harvestResult.metalGained && harvestResult.metalGained > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">⛏️</span>
+                  <span className="text-yellow-400 font-bold text-xl">
+                    +{harvestResult.metalGained.toLocaleString()}
+                  </span>
+                  <span className="text-gray-400">Metal</span>
+                </div>
+              )}
+              {harvestResult.energyGained && harvestResult.energyGained > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">⚡</span>
+                  <span className="text-blue-400 font-bold text-xl">
+                    +{harvestResult.energyGained.toLocaleString()}
+                  </span>
+                  <span className="text-gray-400">Energy</span>
+                </div>
+              )}
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-white/[0.03] border border-[--border] rounded p-2">
-              <div className="text-[--text-3]">Threat Level</div>
-              <div className="text-[--text-1] font-bold">
-                {tile.botAtLocation.tier === 'LEGENDARY' ? '🔴 EXTREME' :
-                 tile.botAtLocation.tier === 'ULTRA' ? '🔴 VERY HIGH' :
-                 tile.botAtLocation.tier === 'ELITE' ? '🟠 HIGH' :
-                 tile.botAtLocation.tier === 'STRONG' ? '🟡 MEDIUM' :
-                 tile.botAtLocation.tier === 'MID' ? '🟢 LOW' : '⚪ UNKNOWN'}
-              </div>
-            </div>
-            <div className="bg-white/[0.03] border border-[--border] rounded p-2">
-              <div className="text-[--text-3]">Specialization</div>
-              <div className="text-[--text-1] font-bold capitalize">
-                {tile.botAtLocation.specialization || 'Balanced'}
-              </div>
-            </div>
-          </div>
-
-          {/* Attack Button */}
-          {onAttackClick && (
-            <button
-              onClick={onAttackClick}
-              disabled={isAttacking}
-              className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
-                isAttacking
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-amber-700 hover:bg-amber-600 text-white hover:shadow-lg'
-              }`}
-            >
-              {isAttacking ? 'ATTACKING...' : 'ATTACK BEER BASE'}
-            </button>
           )}
+
+          {/* Cave Item Result */}
+          {harvestResult.success && harvestResult.item && (
+            <div className="flex items-center justify-center gap-3 mb-3 bg-purple-900 bg-opacity-30 p-3 rounded">
+              <span className="text-3xl">🎁</span>
+              <div>
+                <div className="text-purple-400 font-bold">{harvestResult.item.name}</div>
+                {harvestResult.item.description && (
+                  <div className="text-gray-400 text-sm">{harvestResult.item.description}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Bonus Applied */}
+          {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
+            <div className="text-center text-green-400 text-sm mb-2">
+              💎 +{harvestResult.bonusApplied.toFixed(2)}% Bonus Applied
+            </div>
+          )}
+
+          {/* Result Message */}
+          <div className="text-gray-300 text-center text-sm whitespace-pre-line border-t border-gray-700 pt-3 mt-2">
+            {harvestResult.message}
+          </div>
         </div>
       )}
 

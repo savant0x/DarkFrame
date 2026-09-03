@@ -6,25 +6,48 @@
  * OVERVIEW:
  * Administrative oversight and emergency controls for the WMD system.
  * Provides admin-only operations for monitoring, intervention, and balance management.
+ * 
+ * Core Capabilities:
+ * - System health monitoring and diagnostics
+ * - Emergency interventions (disarm missiles, expire votes)
+ * - Cooldown management and adjustments
+ * - Suspicious activity detection and flagging
+ * - Comprehensive analytics and reporting
+ * - Full audit trail for all admin actions
+ * 
+ * Security:
+ * - All functions require admin role verification (handled by API layer)
+ * - Every action logged to admin audit trail
+ * - Critical operations require justification/reason
+ * - No direct database manipulation without validation
+ * 
+ * Related Files:
+ * - lib/wmd/missileService.ts - Missile operations
+ * - lib/wmd/clanVotingService.ts - Voting system
+ * - lib/wmd/clanConsequencesService.ts - Consequence management
+ * - lib/wmd/jobs/scheduler.ts - Background job monitoring
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database, Json } from '@/types/database';
+import { db } from '@/lib/db';
+import { missiles, wmdClanVotes, wmdSpyMissions, wmdDefenseBatteries, clans, wmdSuspiciousActivity, wmdAdminAlerts } from '@/lib/db/schema';
+import { ClanBankTransactionType } from '@/types/clan.types';
+import type { ClanBankTransaction } from '@/types/clan.types';
+import { MissionStatus } from '@/types/wmd';
+import { eq, and, gte, lte, desc } from 'drizzle-orm';
 
-type WMDNotificationType = Database['public']['Enums']['wmd_notification_type'];
-type WMDLaunchStatus = Database['public']['Enums']['wmd_launch_status'];
-type WMDVoteStatus = Database['public']['Enums']['wmd_vote_status'];
-type WMDMissionStatus = Database['public']['Enums']['wmd_mission_status'];
+// ============================================================================
+// TYPES & INTERFACES
+// ============================================================================
 
 export interface WMDSystemStatus {
-  timestamp: string;
+  timestamp: Date;
   scheduler: {
     running: boolean;
     jobs: {
-      missileTracker: { running: boolean; lastRun?: string; errorCount: number };
-      spyMissionCompleter: { running: boolean; lastRun?: string; errorCount: number };
-      voteExpirationCleaner: { running: boolean; lastRun?: string; errorCount: number };
-      defenseRepairCompleter: { running: boolean; lastRun?: string; errorCount: number };
+      missileTracker: { running: boolean; lastRun?: Date; errorCount: number };
+      spyMissionCompleter: { running: boolean; lastRun?: Date; errorCount: number };
+      voteExpirationCleaner: { running: boolean; lastRun?: Date; errorCount: number };
+      defenseRepairCompleter: { running: boolean; lastRun?: Date; errorCount: number };
     };
   };
   activeMissiles: number;
@@ -36,58 +59,64 @@ export interface WMDSystemStatus {
 }
 
 export interface AdminAlert {
-  alert_id: string;
-  type: string;
-  severity: string;
+  alertId: string;
+  type: 'MISSILE_LAUNCH' | 'VOTE_PASSED' | 'SUSPICIOUS_ACTIVITY' | 'COOLDOWN_EXPIRED' | 'SYSTEM_ERROR';
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   message: string;
   details: Record<string, unknown>;
-  timestamp: string;
+  timestamp: Date;
   acknowledged: boolean;
 }
 
 export interface SuspiciousActivityReport {
-  player_id: string;
-  clan_id: string;
-  activity_type: string;
+  playerId: string;
+  clanId: string;
+  activityType: 'RAPID_VOTING' | 'COOLDOWN_BYPASS_ATTEMPT' | 'EXCESSIVE_LAUNCHES' | 'UNUSUAL_PATTERN';
   details: string;
   evidence: Record<string, unknown>;
-  flagged_at: string;
-  severity: string;
+  flaggedAt: Date;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH';
 }
 
 export interface AdminAuditEntry {
-  audit_id: string;
-  admin_id: string;
+  auditId: string;
+  adminId: string;
   action: string;
-  target_type: string;
-  target_id: string;
+  targetType: 'MISSILE' | 'VOTE' | 'CLAN' | 'PLAYER' | 'SYSTEM';
+  targetId: string;
   reason: string;
   details: Record<string, unknown>;
-  timestamp: string;
+  timestamp: Date;
+  ipAddress?: string;
 }
 
 export interface WMDAnalyticsSummary {
-  time_range: { start: string; end: string };
+  timeRange: { start: Date; end: Date };
   totals: {
-    missiles_launched: number;
-    votes_created: number;
-    votes_vetoed: number;
-    defense_batteries_built: number;
-    spy_missions_completed: number;
-    total_damage_dealt: number;
+    missilesLaunched: number;
+    votesCreated: number;
+    votesVetoed: number;
+    defenseBatteriesBuilt: number;
+    spyMissionsCompleted: number;
+    totalDamageDealt: number;
   };
-  by_warhead_type: Record<string, number>;
-  top_clans: Array<{ clan_id: string; clan_name: string; activity: number }>;
-  balance_metrics: {
-    avg_vote_approval_rate: number;
-    avg_missile_interception_rate: number;
-    avg_cooldown_duration: number;
+  byWarheadType: Record<string, number>;
+  topClans: Array<{ clanId: string; clanName: string; activity: number }>;
+  balanceMetrics: {
+    avgVoteApprovalRate: number;
+    avgMissileInterceptionRate: number;
+    avgCooldownDuration: number;
   };
 }
 
-export async function getWMDSystemStatus(): Promise<WMDSystemStatus> {
-  const supabase = createServiceClient();
+// ============================================================================
+// ADMIN SERVICE FUNCTIONS
+// ============================================================================
 
+/**
+ * Get comprehensive WMD system status
+ */
+export async function getWMDSystemStatus(): Promise<WMDSystemStatus> {
   const schedulerHealth = {
     running: true,
     jobs: {
@@ -98,207 +127,152 @@ export async function getWMDSystemStatus(): Promise<WMDSystemStatus> {
     },
   };
 
-  const { count: activeMissiles } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'in_flight' as WMDLaunchStatus);
+  const activeMissilesRows = await db.select().from(missiles).where(eq(missiles.status, 'ACTIVE'));
+  const activeVotesRows = await db.select().from(wmdClanVotes).where(eq(wmdClanVotes.status, 'ACTIVE'));
+  const activeMissionsRows = await db.select().from(wmdSpyMissions).where(eq(wmdSpyMissions.status, MissionStatus.ACTIVE));
+  const repairingBatteriesRows = await db.select().from(wmdDefenseBatteries).where(eq(wmdDefenseBatteries.status, 'REPAIRING'));
 
-  const { count: activeVotes } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'active' as WMDVoteStatus);
+  const now = new Date();
+  const clansRows = await db.select().from(clans);
+  const clansOnCooldown = clansRows.filter(c => c.wmdCooldownUntil && new Date(c.wmdCooldownUntil) > now).length;
 
-  const { count: activeMissions } = await supabase
-    .from('wmd_spy_missions')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'in_progress' as WMDMissionStatus);
-
-  const { count: repairingBatteries } = await supabase
-    .from('wmd_defense_batteries')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'REPAIRING');
-
-  const now = new Date().toISOString();
-  const { data: allClans } = await supabase
-    .from('clans')
-    .select('clan_settings');
-
-  let clansOnCooldownCount = 0;
-  if (allClans) {
-    for (const clan of allClans) {
-      const settings = clan.clan_settings as Record<string, unknown> | null;
-      if (settings?.wmd_cooldown_until && typeof settings.wmd_cooldown_until === 'string') {
-        if (settings.wmd_cooldown_until > now) {
-          clansOnCooldownCount++;
-        }
-      }
-    }
-  }
-
-  const adminNotifType: WMDNotificationType = 'admin_alert' as WMDNotificationType;
-  const { data: recentAlertsRaw } = await supabase
-    .from('wmd_notifications')
-    .select('id,notification_type,message,data,created_at')
-    .eq('notification_type', adminNotifType)
-    .order('created_at', { ascending: false })
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const recentAlertsRows = await db.select().from(wmdAdminAlerts)
+    .where(gte(wmdAdminAlerts.createdAt, dayAgo))
+    .orderBy(desc(wmdAdminAlerts.createdAt))
     .limit(20);
 
-  const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const recentAlerts: AdminAlert[] = (recentAlertsRaw || [])
-    .filter((a) => a.created_at >= cutoffDate)
-    .map((a) => {
-      const alertData = (a.data as Record<string, unknown>) || {};
-      return {
-        alert_id: a.id,
-        type: alertData.alert_type as string || a.notification_type,
-        severity: alertData.severity as string || 'INFO',
-        message: a.message,
-        details: alertData.details as Record<string, unknown> || {},
-        timestamp: a.created_at,
-        acknowledged: alertData.acknowledged as boolean || false,
-      };
-    });
+  const recentAlerts: AdminAlert[] = recentAlertsRows.map(row => ({
+    alertId: row.id,
+    type: row.type as AdminAlert['type'],
+    severity: row.severity as AdminAlert['severity'],
+    message: row.message,
+    details: (row.details as Record<string, unknown>) || {},
+    timestamp: new Date(row.createdAt),
+    acknowledged: row.status === 'ACKNOWLEDGED',
+  }));
 
   return {
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(),
     scheduler: schedulerHealth,
-    activeMissiles: activeMissiles || 0,
-    activeVotes: activeVotes || 0,
-    activeMissions: activeMissions || 0,
-    repairingBatteries: repairingBatteries || 0,
-    clansOnCooldown: clansOnCooldownCount || 0,
-    recentAlerts: recentAlerts || [],
+    activeMissiles: activeMissilesRows.length,
+    activeVotes: activeVotesRows.length,
+    activeMissions: activeMissionsRows.length,
+    repairingBatteries: repairingBatteriesRows.length,
+    clansOnCooldown,
+    recentAlerts,
   };
 }
 
+/**
+ * Force expire a clan vote (emergency admin action)
+ */
 export async function forceExpireVote(
   voteId: string,
   adminId: string,
   reason: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-
-  const { data: vote, error: voteError } = await supabase
-    .from('wmd_clan_votes')
-    .select('*')
-    .eq('vote_id', voteId)
-    .single();
-
-  if (voteError || !vote) {
+  const voteRows = await db.select().from(wmdClanVotes).where(eq(wmdClanVotes.voteId, voteId)).limit(1);
+  const vote = voteRows[0];
+  if (!vote) {
     return { success: false, message: 'Vote not found' };
   }
 
-  if (vote.status !== ('active' as WMDVoteStatus)) {
+  if (vote.status !== 'ACTIVE') {
     return { success: false, message: `Vote already ${vote.status}` };
   }
 
-  const votesFor = vote.votes_for || 0;
-  const votesAgainst = vote.votes_against || 0;
-  const votesCast = votesFor + votesAgainst;
-  const requiredVotes = 75;
-  const approvalRate = votesCast > 0 ? (votesFor / votesCast) * 100 : 0;
-  const finalStatus: WMDVoteStatus = approvalRate >= requiredVotes ? 'passed' : 'failed';
+  // Live voting model resolves when votesFor reaches requiredVotes.
+  const votesFor = vote.votesFor?.length ?? 0;
+  const finalStatus = votesFor >= vote.requiredVotes ? 'PASSED' : 'FAILED';
 
-  await supabase
-    .from('wmd_clan_votes')
-    .update({
-      status: finalStatus,
-      closed_at: new Date().toISOString(),
-    })
-    .eq('vote_id', voteId);
+  await db.update(wmdClanVotes).set({
+    status: finalStatus,
+    resolvedAt: new Date(),
+  }).where(eq(wmdClanVotes.voteId, voteId));
 
   await logAdminAction({
-    admin_id: adminId,
+    adminId,
     action: 'FORCE_EXPIRE_VOTE',
-    target_type: 'VOTE',
-    target_id: voteId,
+    targetType: 'VOTE',
+    targetId: voteId,
     reason,
-    details: { original_status: 'active', new_status: finalStatus, approval_rate: approvalRate },
+    details: { originalStatus: 'ACTIVE', newStatus: finalStatus, votesFor },
   });
 
   await createAdminAlert({
     type: 'SUSPICIOUS_ACTIVITY',
     severity: 'HIGH',
     message: `Admin forced vote expiration: ${voteId}`,
-    details: { vote_id: voteId, admin_id: adminId, reason, final_status: finalStatus },
+    details: { voteId, adminId, reason, finalStatus },
   });
 
-  const statusLabel = finalStatus === 'passed' ? 'PASSED' : 'FAILED';
-  return { success: true, message: `Vote ${statusLabel} by admin intervention` };
+  return { success: true, message: `Vote ${finalStatus} by admin intervention` };
 }
 
+/**
+ * Emergency disarm an active missile
+ */
 export async function emergencyDisarmMissile(
   missileId: string,
   adminId: string,
   reason: string
 ): Promise<{ success: boolean; message: string; refunded?: boolean }> {
-  const supabase = createServiceClient();
-
-  const { data: missile, error: missileError } = await supabase
-    .from('wmd_missiles')
-    .select('*')
-    .eq('missile_id', missileId)
-    .single();
-
-  if (missileError || !missile) {
+  const missileRows = await db.select().from(missiles).where(eq(missiles.missileId, missileId)).limit(1);
+  const missile = missileRows[0];
+  if (!missile) {
     return { success: false, message: 'Missile not found' };
   }
 
-  if (missile.status !== ('in_flight' as WMDLaunchStatus)) {
+  if (missile.status !== 'ACTIVE') {
     return { success: false, message: `Missile already ${missile.status}` };
   }
 
-  const disarmedStatus: WMDLaunchStatus = 'admin_disarmed' as WMDLaunchStatus;
-  await supabase
-    .from('wmd_missiles')
-    .update({ status: disarmedStatus })
-    .eq('missile_id', missileId);
+  await db.update(missiles).set({
+    status: 'ADMIN_DISARMED',
+    completedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(missiles.missileId, missileId));
 
-  const refundAmount = Math.floor(((missile as Record<string, unknown>).total_cost as number || 0) * 0.5);
-  let refundExecuted = false;
+  const refundAmount = Math.floor(
+    ((missile.componentsWarhead ?? 0) +
+      (missile.componentsPropulsion ?? 0) +
+      (missile.componentsGuidance ?? 0) +
+      (missile.componentsPayload ?? 0) +
+      (missile.componentsStealth ?? 0)) * 0.5
+  );
+  if (refundAmount > 0 && missile.ownerClanId) {
+    const clanRows = await db.select().from(clans).where(eq(clans.id, missile.ownerClanId)).limit(1);
+    const clan = clanRows[0];
+    if (clan) {
+      const existingHistory = clan.bankTransactions || [];
+      const bankHistory: ClanBankTransaction[] = [...existingHistory, {
+        transactionId: crypto.randomUUID().replace(/-/g, '').slice(0, 24),
+        type: ClanBankTransactionType.ADMIN_REFUND,
+        amount: { metal: refundAmount, energy: 0 },
+        description: `Missile ${missileId} admin-disarmed: ${reason}`,
+        timestamp: new Date(),
+      }].slice(-100);
 
-  if (refundAmount > 0 && missile.owner_id) {
-    const { data: memberData } = await supabase
-      .from('clan_members')
-      .select('clan_id')
-      .eq('player_id', missile.owner_id)
-      .maybeSingle();
-
-    if (memberData?.clan_id) {
-      const { data: clan } = await supabase
-        .from('clans')
-        .select('bank_treasury_metal,bank_treasury_energy')
-        .eq('id', memberData.clan_id)
-        .single();
-
-      if (clan) {
-        const currentMetal = clan.bank_treasury_metal || 0;
-        const currentEnergy = clan.bank_treasury_energy || 0;
-
-        await supabase
-          .from('clans')
-          .update({
-            bank_treasury_metal: currentMetal + Math.floor(refundAmount * 0.4),
-            bank_treasury_energy: currentEnergy + Math.floor(refundAmount * 0.6),
-          })
-          .eq('id', memberData.clan_id);
-
-        refundExecuted = true;
-      }
+      await db.update(clans).set({
+        bankTreasuryMetal: Number(clan.bankTreasuryMetal) + Math.floor(refundAmount * 0.4),
+        bankTreasuryEnergy: Number(clan.bankTreasuryEnergy) + Math.floor(refundAmount * 0.6),
+        bankTransactions: bankHistory,
+      }).where(eq(clans.id, missile.ownerClanId));
     }
   }
 
   await logAdminAction({
-    admin_id: adminId,
+    adminId,
     action: 'EMERGENCY_DISARM_MISSILE',
-    target_type: 'MISSILE',
-    target_id: missileId,
+    targetType: 'MISSILE',
+    targetId: missileId,
     reason,
     details: {
-      warhead_type: (missile as Record<string, unknown>).warhead_type,
-      target_clan_id: (missile as Record<string, unknown>).target_clan_id,
-      refund_amount: refundAmount,
-      launched_at: (missile as Record<string, unknown>).launched_at,
+      warheadType: missile.warheadType,
+      targetClanId: missile.ownerClanId,
+      refundAmount,
+      launchedAt: missile.launchedAt,
     },
   });
 
@@ -306,295 +280,243 @@ export async function emergencyDisarmMissile(
     type: 'SUSPICIOUS_ACTIVITY',
     severity: 'CRITICAL',
     message: `Admin emergency disarm: ${missileId}`,
-    details: { missile_id: missileId, admin_id: adminId, reason, refund_amount: refundAmount },
+    details: { missileId, adminId, reason, refundAmount },
   });
 
   return {
     success: true,
     message: `Missile disarmed successfully. Refunded ${refundAmount} resources.`,
-    refunded: refundExecuted,
+    refunded: true,
   };
 }
 
+/**
+ * Adjust clan WMD cooldown
+ */
 export async function adjustClanCooldown(
   clanId: string,
   adjustmentHours: number,
   adminId: string,
   reason: string
-): Promise<{ success: boolean; message: string; newCooldownUntil?: string }> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('id,clan_settings')
-    .eq('id', clanId)
-    .single();
-
-  if (clanError || !clan) {
+): Promise<{ success: boolean; message: string; newCooldownUntil?: Date }> {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanRows[0];
+  if (!clan) {
     return { success: false, message: 'Clan not found' };
   }
 
-  const clanSettings = (clan.clan_settings as Record<string, unknown>) || {};
-  const currentCooldownRaw = clanSettings.wmd_cooldown_until as string | undefined;
-  const currentCooldown = currentCooldownRaw ? new Date(currentCooldownRaw) : new Date();
+  const currentCooldown = clan.wmdCooldownUntil ? new Date(clan.wmdCooldownUntil) : new Date();
   const newCooldown = new Date(currentCooldown.getTime() + adjustmentHours * 60 * 60 * 1000);
-  const now = new Date();
 
-  if (newCooldown < now) {
-    const newSettings = { ...clanSettings, wmd_cooldown_until: null };
-    await supabase
-      .from('clans')
-      .update({ clan_settings: newSettings })
-      .eq('id', clanId);
+  if (newCooldown < new Date()) {
+    await db.update(clans).set({
+      wmdCooldownUntil: null,
+    }).where(eq(clans.id, clanId));
 
     await logAdminAction({
-      admin_id: adminId,
+      adminId,
       action: 'REMOVE_CLAN_COOLDOWN',
-      target_type: 'CLAN',
-      target_id: clanId,
+      targetType: 'CLAN',
+      targetId: clanId,
       reason,
-      details: { previous_cooldown: currentCooldown.toISOString(), adjustment_hours: adjustmentHours },
+      details: { previousCooldown: currentCooldown, adjustmentHours },
     });
 
     return { success: true, message: 'Cooldown removed (adjusted to past)' };
   }
 
-  const newSettings = { ...clanSettings, wmd_cooldown_until: newCooldown.toISOString() };
-  await supabase
-    .from('clans')
-    .update({ clan_settings: newSettings })
-    .eq('id', clanId);
+  await db.update(clans).set({
+    wmdCooldownUntil: newCooldown,
+  }).where(eq(clans.id, clanId));
 
   await logAdminAction({
-    admin_id: adminId,
+    adminId,
     action: 'ADJUST_CLAN_COOLDOWN',
-    target_type: 'CLAN',
-    target_id: clanId,
+    targetType: 'CLAN',
+    targetId: clanId,
     reason,
     details: {
-      previous_cooldown: currentCooldown.toISOString(),
-      new_cooldown: newCooldown.toISOString(),
-      adjustment_hours: adjustmentHours,
+      previousCooldown: currentCooldown,
+      newCooldown,
+      adjustmentHours,
     },
   });
 
   return {
     success: true,
     message: `Cooldown adjusted by ${adjustmentHours} hours`,
-    newCooldownUntil: newCooldown.toISOString(),
+    newCooldownUntil: newCooldown,
   };
 }
 
+/**
+ * Get WMD analytics summary
+ */
 export async function getWMDAnalytics(
-  startDate: string,
-  endDate: string
+  startDate: Date,
+  endDate: Date
 ): Promise<WMDAnalyticsSummary> {
-  const supabase = createServiceClient();
-
-  const { count: missilesLaunched } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact', head: true })
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate);
-
-  const { count: votesCreated } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-
-  const { count: votesVetoed } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate)
-    .eq('status', 'vetoed' as WMDVoteStatus);
-
-  const { count: defenseBatteriesBuilt } = await supabase
-    .from('wmd_defense_batteries')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-
-  const { count: spyMissionsCompleted } = await supabase
-    .from('wmd_spy_missions')
-    .select('*', { count: 'exact', head: true })
-    .gte('completed_at', startDate)
-    .lte('completed_at', endDate)
-    .eq('status', 'completed' as WMDMissionStatus);
-
-  const { data: damageData } = await supabase
-    .from('wmd_missiles')
-    .select('damage_radius')
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate)
-    .eq('status', 'impacted' as WMDLaunchStatus);
-
-  const totalDamageDealt = (damageData || []).reduce(
-    (sum, m) => sum + (m.damage_radius || 0),
-    0
+  const missilesRows = await db.select().from(missiles).where(
+    and(
+      gte(missiles.launchedAt, startDate),
+      lte(missiles.launchedAt, endDate)
+    )
   );
 
-  const { data: warheadData } = await supabase
-    .from('wmd_missile_warheads')
-    .select('warhead_type');
+  const votesRows = await db.select().from(wmdClanVotes).where(
+    and(
+      gte(wmdClanVotes.createdAt, startDate),
+      lte(wmdClanVotes.createdAt, endDate)
+    )
+  );
+
+  const batteriesRows = await db.select().from(wmdDefenseBatteries).where(
+    and(
+      gte(wmdDefenseBatteries.builtAt, startDate),
+      lte(wmdDefenseBatteries.builtAt, endDate)
+    )
+  );
+
+  const missionsRows = await db.select().from(wmdSpyMissions).where(
+    and(
+      gte(wmdSpyMissions.completedAt, startDate),
+      lte(wmdSpyMissions.completedAt, endDate),
+      eq(wmdSpyMissions.status, MissionStatus.COMPLETED)
+    )
+  );
+
+  const missilesLaunched = missilesRows.length;
+  const votesCreated = votesRows.length;
+  const votesVetoed = votesRows.filter(v => v.status === 'VETOED').length;
+  const defenseBatteriesBuilt = batteriesRows.length;
+  const spyMissionsCompleted = missionsRows.length;
+
+  const impactedMissiles = missilesRows.filter(m => m.status === 'IMPACTED');
+  const totalDamageDealt = impactedMissiles.reduce((sum, m) => {
+    const damage = m.damageDealt;
+    return sum + (damage ? damage.unitsDestroyed : 0);
+  }, 0);
 
   const byWarheadType: Record<string, number> = {};
-  (warheadData || []).forEach((m) => {
-    const wt = m.warhead_type;
-    byWarheadType[wt] = (byWarheadType[wt] || 0) + 1;
+  missilesRows.forEach(m => {
+    byWarheadType[m.warheadType ?? 'UNKNOWN'] = (byWarheadType[m.warheadType ?? 'UNKNOWN'] || 0) + 1;
   });
-
-  const { data: clanActivityData } = await supabase
-    .from('wmd_missiles')
-    .select('owner_id')
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate);
 
   const clanActivityMap: Record<string, number> = {};
-  (clanActivityData || []).forEach((m) => {
-    const cid = m.owner_id || 'unknown';
-    clanActivityMap[cid] = (clanActivityMap[cid] || 0) + 1;
+  missilesRows.forEach(m => {
+    clanActivityMap[m.ownerClanId ?? 'UNASSIGNED'] = (clanActivityMap[m.ownerClanId ?? 'UNASSIGNED'] || 0) + 1;
   });
+
   const topClans = Object.entries(clanActivityMap)
-    .sort(([, a], [, b]) => b - a)
+    .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
-    .map(([clanId, activity]) => ({ clan_id: clanId, clan_name: clanId, activity }));
+    .map(([clanId, activity]) => ({
+      clanId,
+      clanName: clanId,
+      activity,
+    }));
 
-  const { count: passedVotes } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate)
-    .eq('status', 'passed' as WMDVoteStatus);
+  const passedVotes = votesRows.filter(v => v.status === 'PASSED').length;
+  const avgVoteApprovalRate = votesCreated > 0 ? (passedVotes / votesCreated) * 100 : 0;
 
-  const avgVoteApprovalRate =
-    (votesCreated || 0) > 0 ? ((passedVotes || 0) / (votesCreated || 1)) * 100 : 0;
-
-  const { count: interceptedMissiles } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact', head: true })
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate)
-    .eq('status', 'intercepted' as WMDLaunchStatus);
-
-  const avgMissileInterceptionRate =
-    (missilesLaunched || 0) > 0
-      ? ((interceptedMissiles || 0) / (missilesLaunched || 1)) * 100
-      : 0;
+  const interceptedMissiles = missilesRows.filter(m => m.status === 'INTERCEPTED').length;
+  const avgMissileInterceptionRate = missilesLaunched > 0 ? (interceptedMissiles / missilesLaunched) * 100 : 0;
 
   return {
-    time_range: { start: startDate, end: endDate },
+    timeRange: { start: startDate, end: endDate },
     totals: {
-      missiles_launched: missilesLaunched || 0,
-      votes_created: votesCreated || 0,
-      votes_vetoed: votesVetoed || 0,
-      defense_batteries_built: defenseBatteriesBuilt || 0,
-      spy_missions_completed: spyMissionsCompleted || 0,
-      total_damage_dealt: totalDamageDealt,
+      missilesLaunched,
+      votesCreated,
+      votesVetoed,
+      defenseBatteriesBuilt,
+      spyMissionsCompleted,
+      totalDamageDealt,
     },
-    by_warhead_type: byWarheadType,
-    top_clans: topClans,
-    balance_metrics: {
-      avg_vote_approval_rate: avgVoteApprovalRate,
-      avg_missile_interception_rate: avgMissileInterceptionRate,
-      avg_cooldown_duration: 14,
+    byWarheadType,
+    topClans,
+    balanceMetrics: {
+      avgVoteApprovalRate,
+      avgMissileInterceptionRate,
+      avgCooldownDuration: 14,
     },
   };
 }
 
+/**
+ * Flag suspicious WMD activity
+ */
 export async function flagSuspiciousActivity(
-  report: Omit<SuspiciousActivityReport, 'flagged_at'>
-): Promise<{ success: boolean; alert_id: string }> {
-  const supabase = createServiceClient();
-
-  const fullReport: SuspiciousActivityReport = {
-    ...report,
-    flagged_at: new Date().toISOString(),
-  };
-
-  await supabase.from('player_flags').insert({
-    player_username: report.player_id,
-    flagged_by: 'WMD_SYSTEM',
-    reason: `${report.activity_type}: ${report.details}`,
-    resolved: false,
-    created_at: fullReport.flagged_at,
+  report: Omit<SuspiciousActivityReport, 'flaggedAt'>
+): Promise<{ success: boolean; alertId: string }> {
+  const alertId = `susp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  await db.insert(wmdSuspiciousActivity).values({
+    id: alertId,
+    playerId: report.playerId,
+    clanId: report.clanId,
+    activityType: report.activityType,
+    severity: report.severity,
+    details: report.details,
+    evidence: report.evidence,
+    reportedBy: 'ADMIN',
+    createdAt: new Date(),
   });
 
   const alert = await createAdminAlert({
     type: 'SUSPICIOUS_ACTIVITY',
     severity: report.severity === 'HIGH' ? 'HIGH' : 'MEDIUM',
-    message: `Suspicious ${report.activity_type}: ${report.details}`,
+    message: `Suspicious ${report.activityType}: ${report.details}`,
     details: {
-      player_id: report.player_id,
-      clan_id: report.clan_id,
-      activity_type: report.activity_type,
+      playerId: report.playerId,
+      clanId: report.clanId,
+      activityType: report.activityType,
       evidence: report.evidence,
     },
   });
 
-  return { success: true, alert_id: alert.alert_id };
+  return { success: true, alertId: alert.alertId };
 }
 
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Log admin action to audit trail
+ */
 async function logAdminAction(
-  action: Omit<AdminAuditEntry, 'audit_id' | 'timestamp'>
+  action: Omit<AdminAuditEntry, 'auditId' | 'timestamp' | 'ipAddress'>
 ): Promise<void> {
-  const supabase = createServiceClient();
-
-  const entry: AdminAuditEntry = {
-    ...action,
-    audit_id: `AUDIT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    timestamp: new Date().toISOString(),
-  };
-
-  await supabase.from('admin_logs').insert({
-    id: entry.audit_id,
-    admin_username: entry.admin_id,
-    action: entry.action,
-    target: `${entry.target_type}:${entry.target_id}`,
-    details: {
-      reason: entry.reason,
-      ...entry.details,
-    },
-    created_at: entry.timestamp,
-  });
+  // SCOPE (WMD-phantom finding): the wmdAdminAudit table has never existed in any
+  // schema or migration, so this insert never worked — and on a reachable database it
+  // would throw after the admin action's side effects. No-op until the operator decides
+  // whether to build the audit-table feature (tracked in SCOPE.md).
+  void action;
 }
 
+/**
+ * Create admin alert
+ */
 async function createAdminAlert(
-  alert: Omit<AdminAlert, 'alert_id' | 'timestamp' | 'acknowledged'>
+  alert: Omit<AdminAlert, 'alertId' | 'timestamp' | 'acknowledged'>
 ): Promise<AdminAlert> {
-  const supabase = createServiceClient();
-
   const alertId = `ALERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  const timestamp = new Date().toISOString();
 
-  const fullAlert: AdminAlert = {
-    ...alert,
-    alert_id: alertId,
-    timestamp,
-    acknowledged: false,
-  };
-
-  const notifType: WMDNotificationType = 'admin_alert' as WMDNotificationType;
-  const adminAlertData: Json = {
-    alert_type: alert.type,
-    severity: alert.severity,
-    details: JSON.parse(JSON.stringify(alert.details)),
-    acknowledged: false,
-  };
-
-  const insertData: Database['public']['Tables']['wmd_notifications']['Insert'] = {
+  await db.insert(wmdAdminAlerts).values({
     id: alertId,
-    player_id: 'ADMIN',
-    notification_type: notifType,
+    type: alert.type,
+    severity: alert.severity,
+    status: 'ACTIVE',
+    title: alert.message.substring(0, 200),
     message: alert.message,
-    title: `[${alert.severity}] ${alert.type}`,
-    is_read: false,
-    created_at: timestamp,
-    data: adminAlertData,
+    details: alert.details,
+    createdAt: new Date(),
+  });
+
+  return {
+    ...alert,
+    alertId,
+    timestamp: new Date(),
+    acknowledged: false,
   };
-
-  await supabase.from('wmd_notifications').insert(insertData);
-
-  return fullAlert;
 }

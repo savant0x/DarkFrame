@@ -25,9 +25,9 @@
  * - Falls back to normal spawn if no zones or 30% chance
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import { toJsonb, fromJsonbArray } from '@/lib/supabase/jsonb';
-import type { Json } from '@/types/database';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { type Player } from '@/types/game.types';
 
 /**
@@ -128,13 +128,11 @@ export async function setConcentrationZones(
   }
 
   // Update player document
-  const supabase = createServiceClient();
-  const { error } = await supabase
-    .from('players')
-    .update({ concentration_zones: toJsonb({ zones } as Record<string, unknown>) })
-    .eq('username', playerId);
+  const result = await db.update(players).set({
+    concentrationZones: zones as any
+  }).where(eq(players.username, playerId));
 
-  if (error) {
+  if ((result as any).affectedRows === 0) {
     return {
       success: false,
       message: 'Failed to update zones',
@@ -154,14 +152,12 @@ export async function setConcentrationZones(
 export async function getConcentrationZones(
   playerId: string
 ): Promise<ConcentrationZone[]> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('concentration_zones')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select({
+    concentrationZones: players.concentrationZones
+  }).from(players).where(eq(players.username, playerId)).limit(1);
 
-  return fromJsonbArray<ConcentrationZone>(player?.concentration_zones);
+  const player = playerRows[0];
+  return (player?.concentrationZones as ConcentrationZone[]) || [];
 }
 
 /**
@@ -170,11 +166,9 @@ export async function getConcentrationZones(
 export async function clearConcentrationZones(
   playerId: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  const { error } = await supabase
-    .from('players')
-    .update({ concentration_zones: null })
-    .eq('username', playerId);
+  await db.update(players).set({
+    concentrationZones: null
+  }).where(eq(players.username, playerId));
 
   return {
     success: true,
@@ -197,20 +191,20 @@ export async function getZoneSpawnPosition(): Promise<{
   }
 
   // Get all players with concentration zones
-  const supabase = createServiceClient();
-  const { data: playersWithZones } = await supabase
-    .from('players')
-    .select('username, concentration_zones')
-    .not('concentration_zones', 'is', null)
-    .neq('concentration_zones', '[]');
+  const playersWithZones = await db.select({
+    username: players.username,
+    concentrationZones: players.concentrationZones,
+  }).from(players).where(
+    isNotNull(players.concentrationZones)
+  );
 
-  if (!playersWithZones || playersWithZones.length === 0) {
+  if (playersWithZones.length === 0) {
     return null;
   }
 
   // Pick random player
   const player = playersWithZones[Math.floor(Math.random() * playersWithZones.length)];
-  const zones = fromJsonbArray<ConcentrationZone>(player.concentration_zones);
+  const zones = player.concentrationZones as ConcentrationZone[];
 
   if (!zones || zones.length === 0) {
     return null;
@@ -254,15 +248,15 @@ export async function isInConcentrationZone(
   x: number,
   y: number
 ): Promise<{ inZone: boolean; playerId?: string; zoneName?: string }> {
-  const supabase = createServiceClient();
-  const { data: playersWithZones } = await supabase
-    .from('players')
-    .select('username, concentration_zones')
-    .not('concentration_zones', 'is', null)
-    .neq('concentration_zones', '[]');
+  const playersWithZones = await db.select({
+    username: players.username,
+    concentrationZones: players.concentrationZones,
+  }).from(players).where(
+    isNotNull(players.concentrationZones)
+  );
 
-  for (const player of (playersWithZones || [])) {
-    const zones = fromJsonbArray<ConcentrationZone>(player.concentration_zones);
+  for (const player of playersWithZones) {
+    const zones = (player.concentrationZones as ConcentrationZone[]) || [];
     
     for (const zone of zones) {
       const bounds = getZoneBoundaries(zone);
@@ -298,22 +292,20 @@ export async function getZoneStats(): Promise<{
     zones: Array<{ center: string; name?: string }>;
   }>;
 }> {
-  const supabase = createServiceClient();
-  const { data: playersWithZones } = await supabase
-    .from('players')
-    .select('username, concentration_zones')
-    .not('concentration_zones', 'is', null)
-    .neq('concentration_zones', '[]');
+  const playersWithZones = await db.select({
+    username: players.username,
+    concentrationZones: players.concentrationZones,
+  }).from(players).where(
+    isNotNull(players.concentrationZones)
+  );
 
-  const players = playersWithZones || [];
-
-  const totalZones = players.reduce((sum, p) => {
-    const zones = fromJsonbArray<ConcentrationZone>(p.concentration_zones);
+  const totalZones = playersWithZones.reduce((sum, p) => {
+    const zones = (p.concentrationZones as ConcentrationZone[]) || [];
     return sum + zones.length;
   }, 0);
 
-  const distribution = players.map((p: any) => {
-    const zones = fromJsonbArray<ConcentrationZone>(p.concentration_zones);
+  const distribution = playersWithZones.map((p) => {
+    const zones = (p.concentrationZones as ConcentrationZone[]) || [];
     return {
       playerName: p.username,
       zoneCount: zones.length,
@@ -326,16 +318,16 @@ export async function getZoneStats(): Promise<{
 
   return {
     totalZones,
-    playersWithZones: players.length,
+    playersWithZones: playersWithZones.length,
     averageZonesPerPlayer:
-      players.length > 0 ? totalZones / players.length : 0,
+      playersWithZones.length > 0 ? totalZones / playersWithZones.length : 0,
     zoneDistribution: distribution,
   };
 }
 
 /**
  * IMPLEMENTATION NOTES:
- * - Zones stored directly in player document (concentration_zones field)
+ * - Zones stored directly in player document (concentrationZones field)
  * - Each zone is 30×30 tiles (±15 from center)
  * - Maximum 3 zones per player
  * - 70% of new bot spawns directed to random zone from random player

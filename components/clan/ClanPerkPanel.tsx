@@ -26,7 +26,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button, Badge, Divider } from '@/components/ui';
 import { Sparkles, Lock, TrendingUp, Shield, Coins, Users, Target } from 'lucide-react';
 import { toast } from 'sonner';
@@ -174,7 +174,7 @@ export default function ClanPerkPanel({
   const tiers = ['BRONZE', 'SILVER', 'GOLD', 'LEGENDARY'];
 
   // Fetch available perks
-  const fetchPerks = async () => {
+  const fetchPerks = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (selectedCategory) params.append('category', selectedCategory);
@@ -209,11 +209,11 @@ export default function ClanPerkPanel({
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory, selectedTier]);
 
   useEffect(() => {
     fetchPerks();
-  }, [selectedCategory, selectedTier]);
+  }, [fetchPerks]);
 
   // Activate perk
   const handleActivate = async (perkId: string) => {

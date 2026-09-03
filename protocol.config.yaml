@@ -1,0 +1,152 @@
+# ECHO Protocol — Project Configuration
+#
+# Machine-readable contract for single-agent sessions.
+# The `single_agent.protocol` block is the authoritative machine-readable contract for
+# single-agent operation (dev/echo-v0.1.2-single-agent.md, v0.1.2-single-agent).
+# OPERATOR DECISION (2026-09-01): the single-agent ECHO is the ONLY permitted ECHO. The
+# former harness protocol dev/ECHO.md (v1.3.4, GUARDIAN) is RETIRED and archived at
+# dev/archive/ECHO-v1.3.4-SUPERSEDED-2026-09-01.md. The top-level `protocol` block is
+# retained only as a dead key so legacy tooling does not fail; it has no authority here.
+
+version: "0.1.2"
+
+# ---------------------------------------------------------------------------
+# RETIRED harness protocol block (NO AUTHORITY — operator decision 2026-09-01)
+# ---------------------------------------------------------------------------
+protocol:
+  name: ECHO
+  version: "1.3.4"
+  config_source: dev/archive/ECHO-v1.3.4-SUPERSEDED-2026-09-01.md
+  status: RETIRED   # superseded by single_agent.protocol (v0.1.2) per operator decision
+
+# ---------------------------------------------------------------------------
+# Single-agent protocol block (authoritative for single-agent sessions)
+# ---------------------------------------------------------------------------
+single_agent:
+  protocol:
+    name: ECHO
+    version: "0.1.2"
+    spec_document: dev/echo-v0.1.2-single-agent.md
+    status: ACTIVE
+    non_negotiable: true
+
+    # Extended Code Laws (5-15) enforcement. true is the REQUIRED default for every
+    # autonomous or unattended run. false is permitted ONLY for interactive debugging
+    # with the operator at the keyboard. A scope decision made under strict_mode: false
+    # is not a lawful basis to drop approved work.
+    strict_mode: true
+
+    core_laws: [1, 2, 3, 4]        # Immutable Process Laws — always active
+    extended_laws: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # active while strict_mode is true
+
+    language: typescript           # primary project language (Next.js + TypeScript)
+    language_agnostic: true        # language-specific details live in coding-standards/
+
+    # -----------------------------------------------------------------
+    # Verification commands (Law 3 / Double Audit Method 1)
+    # These are the project's own scripts from package.json — do not substitute.
+    # -----------------------------------------------------------------
+    verification:
+      typecheck: "npx tsc --noEmit"       # Law 3 gate: zero errors
+      lint: "npm run lint"                # Law 3/15 gate: zero errors, zero warnings
+      tests: "npm run test:ci"            # vitest run — Law 3 gate: all suites pass
+      build: "npm run build"              # run when the change touches build-affecting config
+
+    # -----------------------------------------------------------------
+    # Canonical paths. NEVER create top-level directories that shadow these
+    # (e.g. `fids/`, `archive/`, `templates/` conflicts are protocol violations).
+    # -----------------------------------------------------------------
+    paths:
+      protocol_spec: dev/echo-v0.1.2-single-agent.md
+      harness_protocol: dev/archive/ECHO-v1.3.4-SUPERSEDED-2026-09-01.md   # retired — see operator decision above
+      fid_directory: dev/fids
+      fid_archive_directory: dev/fids/archive
+      fid_template: templates/FID-TEMPLATE.md
+      session_summaries: dev/session-summaries
+      scope_file: SCOPE.md
+      changelog: CHANGELOG.md             # not yet present in repo — create on first FID closure
+      version_file: VERSION               # not yet present in repo
+      learnings: dev/LEARNINGS.md         # not yet present in repo
+      coding_standards: coding-standards  # not yet present in repo
+
+    # -----------------------------------------------------------------
+    # FID rules (FID Lifecycle)
+    # -----------------------------------------------------------------
+    fid:
+      filename_format: "FID-YYYY-MMDD-NNN-{kebab-case-title}.md"
+      allowed_statuses: [created, analyzed, fixed, verified, converged, closed]
+      live_location: dev/fids             # FIDs live ONLY here while active
+      archive_on_close: true              # move to dev/fids/archive + CHANGELOG entry + session log
+      number_allocation: scan             # scan live + archive for next NNN on the date; never reuse
+      ground_truth_verification: true     # metadata is a claim; verify against the codebase before reporting
+      required_metadata_fields: [Filename, ID, Severity, Status, Created]
+      # NOTE: the protocol text also lists "Author" as a required field, but the Document
+      # Signing & Attribution rule forbids Author/attribution fields in repository artifacts.
+      # The attribution rule is non-negotiable and wins; the template omits the field.
+      author_field_forbidden: true
+
+    # -----------------------------------------------------------------
+    # Perfection Loop circuit breakers
+    # -----------------------------------------------------------------
+    perfection_loop:
+      max_change_percent_per_pass: 10
+      convergence_delta_percent: 2
+      convergence_passes: 2
+      oscillation_reappearances: 3
+      max_iterations: 10
+      flag_for_review_after_iterations: 5
+
+    # -----------------------------------------------------------------
+    # Scope boundary markers (SCOPE.md audit trail)
+    # -----------------------------------------------------------------
+    scope:
+      markers:
+        deferred: "[DEFERRED]"
+        out_of_scope: "[OUT-OF-SCOPE]"
+        open_out_of_scope: "[OPEN-OUT-OF-SCOPE]"
+      step_statuses: [implemented, blocked, deferred, skipped]
+      drop_requires_operator_confirmation: true   # blocking presentation, not log-and-move-on
+
+    # -----------------------------------------------------------------
+    # Attribution rule
+    # -----------------------------------------------------------------
+    attribution:
+      signatures_forbidden: true
+      forbidden_fields: ["Author:", "Fixed By:", "Signed by:", "Co-Authored-By"]
+      no_agent_names_in_documents: true
+
+    # -----------------------------------------------------------------
+    # Version-control constraints (ECHO.md G-laws, applied in single-agent sessions)
+    # -----------------------------------------------------------------
+    version_control:
+      agent_executes_git: false          # G1: the agent never runs git; prepares staging plans
+      commit_message_format: "<type>(<scope>): <desc> (<FID-ID>)"   # G8
+      commits_logical_atomic: true       # G3
+      commits_path_scoped: true          # G4
+      fid_close_requires_commit: true    # G2: closed FIDs reference a committed hash
+
+  task_routing:
+    simple_task:
+      max_lines: 10
+      max_files: 1
+      new_apis: false
+      flow: [read, write, verify, call_graph_check, done_or_fix]
+    complex_task:
+      min_lines: 75
+      triggers: [new_apis, novel_architecture, verification_failed_twice]
+      fid_bound: true                    # code is written only after the FID converges
+      flow: [red, green, audit, complete, implement, audit_implementation]
+
+  double_audit:
+    method_1: static_analysis            # verification.commands above
+    method_2: manual_reread              # re-read changed code, verify against FID
+    self_reporting_prohibited: true      # paste tool output as evidence
+
+  anti_patterns:
+    - pseudo_code
+    - todos_or_placeholders
+    - type_safety_shortcuts              # TS: any, @ts-ignore, bare unknown (see coding-standards)
+    - partial_file_reads                 # Law 1: read 0-EOF before touch
+    - scope_reduction_without_presentation
+    - silent_deferrals                   # "not done" always means blocked, never silent
+    - swallowed_errors                   # Law 14

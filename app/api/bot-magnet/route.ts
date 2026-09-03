@@ -15,9 +15,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
-
-import { createServiceClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   deployBeacon,
   getBeaconStatus,
@@ -43,19 +44,17 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('bot-magnet-get');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    // Fetch full player from database
+    const playerResult = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerResult[0];
 
-    if (error || !player) {
+    if (!player || !player.username) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
@@ -86,28 +85,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('bot-magnet-post');
 
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    // Fetch full player from database
+    const playerResult = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerResult[0];
 
-    if (error || !player) {
+    if (!player || !player.username) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
     // Check tech requirement
-    const unlockedTechs = player.unlocked_techs || [];
+    const unlockedTechs = player.unlockedTechs || [];
     if (!unlockedTechs.includes('bot-magnet')) {
       return NextResponse.json({ error: 'Requires Bot Magnet technology' }, { status: 403 });
     }
 
+    const body = await request.json();
     const { x, y } = body;
 
     // Validate coordinates
@@ -160,19 +158,17 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('bot-magnet-delete');
 
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    // Fetch full player from database
+    const playerResult = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerResult[0];
 
-    if (error || !player) {
+    if (!player || !player.username) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 

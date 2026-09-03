@@ -1,20 +1,26 @@
 /**
  * @file app/api/player/build-unit/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 (FID-20260503-SUPABASE: Supabase backend, snake_case properties)
  * @overview API endpoint for building units from the unit factory
+ * 
+ * OVERVIEW:
+ * Handles unit building requests from the unit factory interface.
+ * Validates resources, unlock status, and slot capacity before creating units.
+ * Updates player's unit array and total STR/DEF stats.
+ * 
+ * Endpoints:
+ * - POST: Build unit(s) by spending resources
+ * - GET: Fetch available units and player unlock status
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import clientPromise from '@/lib/mongodb';
 import { getPlayer } from '@/lib/playerService';
-import { getMaxSlots } from '@/lib/factoryUpgradeService';
 import { UNIT_BLUEPRINTS, UnitBlueprint, UnitCategory } from '@/types/units.types';
 import { UNIT_CONFIGS, UnitType } from '@/types/game.types';
-import type { Tables, Enums } from '@/types/database';
-import {
-  withRequestLogging,
+import type { Player, Factory } from '@/types/game.types';
+import { 
+  withRequestLogging, 
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
@@ -22,95 +28,46 @@ import {
   createErrorResponse,
   createErrorFromException,
   createValidationErrorResponse,
-  ErrorCode,
+  ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
 
-type PlayerRow = Tables<'players'>;
-type FactoryRow = Tables<'factories'>;
-type UnitTypeEnum = NonNullable<Enums<'unit_type'>>;
-
-/** Maps unit blueprint IDs to Supabase unit_type enum values */
-const BLUEPRINT_TO_DB: Record<string, UnitTypeEnum> = {
-  infantry: 'T1_RIFLEMAN',
-  scout: 'T1_SCOUT',
-  militia: 'T1_RIFLEMAN',
-  rifleman: 'T1_RIFLEMAN',
-  marksman: 'T1_SNIPER',
-  cavalry: 'T1_RIFLEMAN',
-  grenadier: 'T1_GRENADIER',
-  saboteur: 'T1_SCOUT',
-  sniper: 'T1_SNIPER',
-  commando: 'T2_COMMANDO',
-  artillery: 'T2_CANNON',
-  bombardier: 'T2_DEMOLISHER',
-  tank: 'T2_COMMANDO',
-  bomber: 'T2_DEMOLISHER',
-  juggernaut: 'T3_STRIKER',
-  gunship: 'T3_RAIDER',
-  titan: 'T4_TITAN',
-  warlord: 'T3_WARLORD',
-  dreadnought: 'T4_DREADNOUGHT',
-  annihilator: 'T4_ANNIHILATOR',
-  barricade: 'T1_BARRIER',
-  watchman: 'T1_BARRIER',
-  palisade: 'T1_BUNKER',
-  trench: 'T1_BUNKER',
-  wall: 'T1_BUNKER',
-  guardian: 'T3_GUARDIAN',
-  turret: 'T1_TURRET',
-  rampart: 'T2_BARRICADE',
-  bunker: 'T1_BUNKER',
-  fortress: 'T2_FORTRESS',
-  sentinel: 'T2_SENTINEL',
-  pillbox: 'T1_TURRET',
-  citadel: 'T3_CITADEL',
-  aegis: 'T1_SHIELD',
-  stronghold: 'T4_STRONGHOLD',
-  guardian_array: 'T3_GUARDIAN',
-  bastion: 'T5_BASTION',
-  colossus: 'T4_COLOSSUS',
-  sentinel_prime: 'T2_SENTINEL',
-  invincible: 'T5_IMMORTAL',
-  basic_training: 'T1_RIFLEMAN',
-  advanced_weapons: 'T2_COMMANDO',
-  elite_forces: 'T3_STRIKER',
-  heavy_artillery: 'T3_ARTILLERY',
-  mechanized_warfare: 'T4_TITAN',
-  titan_project: 'T5_OVERLORD',
-  fortification: 'T1_BUNKER',
-  defensive_positions: 'T2_FORTRESS',
-  automated_defense: 'T3_CITADEL',
-  hardened_structures: 'T4_STRONGHOLD',
-  fortress_engineering: 'T5_BASTION',
-  advanced_defense: 'T5_MONOLITH',
-  bastion_protocol: 'T5_IMMORTAL',
-} as const;
-
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.buildUnit);
 
+/**
+ * GET /api/player/build-unit
+ * Fetches available units and player's unlock status
+ */
 export const GET = withRequestLogging(async (request: NextRequest) => {
   const log = createRouteLogger('PlayerBuildUnitAPI');
   const endTimer = log.time('fetchUnitData');
-
+  
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    const { searchParams } = new URL(request.url);
+    const username = searchParams.get('username');
+
+    if (!username) {
+      log.warn('Unit data request without username');
+      return NextResponse.json(
+        { success: false, error: 'Username is required' },
+        { status: 400 }
+      );
+    }
+
+    log.debug('Fetching unit data', { username });
 
     const player = await getPlayer(username);
     if (!player) {
-      return NextResponse.json({ success: false, error: 'Player not found' }, { status: 404 });
+      log.warn('Player not found', { username });
+      return NextResponse.json(
+        { success: false, error: 'Player not found' },
+        { status: 404 }
+      );
     }
 
+    // Calculate which units are unlocked
     const playerLevel = player.level || 1;
-    const playerRP = player.research_points || 0;
-
-    const supabase = createServiceClient();
-    const { data: playerUnits } = await supabase
-      .from('player_units')
-      .select('unit_type, quantity')
-      .eq('player_username', username);
+    const playerRP = player.researchPoints || 0;
 
     const unitsWithStatus = Object.values(UNIT_BLUEPRINTS).map(unit => {
       const isUnlocked = !unit.unlockRequirement || (
@@ -118,34 +75,39 @@ export const GET = withRequestLogging(async (request: NextRequest) => {
         (!unit.unlockRequirement.level || playerLevel >= unit.unlockRequirement.level)
       );
 
-      const dbType = BLUEPRINT_TO_DB[unit.id];
-      const owned = dbType
-        ? playerUnits?.find((u: { unit_type: string; quantity: number }) => u.unit_type === dbType)
-        : undefined;
-      const slotCost = dbType ? (UNIT_CONFIGS[dbType as UnitType]?.slotCost || 1) : 1;
-
       return {
         ...unit,
         isUnlocked,
-        playerOwned: owned?.quantity || 0,
-        slotCost,
+        playerOwned: player.units?.filter((u) => u.unitId === unit.id).length || 0
       };
     });
 
-    const { data: factories } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('owner', username);
+    // Calculate unit slots: 100 base + (factoryCount * 50) additional slots (total unit capacity)
+    const baseSlots = 100;
+    const factoryBonus = (player.factoryCount || 0) * 50;
+    const totalSlots = baseSlots + factoryBonus;
+    const usedSlots = player.units?.length || 0;
 
-    const factoryBuildSlots = (factories ?? []).reduce((total: number, f: FactoryRow) => {
-      const capacity = getMaxSlots(f.level || 1);
-      const available = Math.max(0, capacity - (f.used_slots || 0));
-      return total + available;
+    // Calculate factory build slots: Sum of available slots across all owned factories
+    const client = await clientPromise;
+    const db = client.db('darkframe');
+    const factories = await db.collection<Factory>('factories')
+      .find({ owner: username })
+      .toArray();
+    
+    const factoryBuildSlots = factories.reduce((total: number, factory: any) => {
+      const availableInFactory = Math.max(0, (factory.slots || 20) - (factory.usedSlots || 0));
+      return total + availableInFactory;
     }, 0);
 
-    const factoryUsedSlots = (factories ?? []).reduce((total: number, f: FactoryRow) => {
-      return total + (f.used_slots || 0);
-    }, 0);
+    log.info('Unit data fetched', { 
+      username, 
+      unitsCount: unitsWithStatus.length, 
+      usedSlots, 
+      totalSlots,
+      factoryBuildSlots,
+      factoryCount: factories.length
+    });
 
     return NextResponse.json({
       success: true,
@@ -153,232 +115,307 @@ export const GET = withRequestLogging(async (request: NextRequest) => {
       playerStats: {
         level: playerLevel,
         researchPoints: playerRP,
-        resources: {
-          metal: player.resources_metal || 0,
-          energy: player.resources_energy || 0,
-        },
-        totalStrength: player.total_strength || 0,
-        totalDefense: player.total_defense || 0,
-        availableSlots: factoryBuildSlots,
-        usedSlots: factoryUsedSlots,
-        factoryBuildSlots,
-        factoryCount: factories?.length || 0,
-      },
+        resources: player.resources,
+        totalStrength: player.totalStrength || 0,
+        totalDefense: player.totalDefense || 0,
+        availableSlots: totalSlots,
+        usedSlots: usedSlots,
+        factoryBuildSlots: factoryBuildSlots // NEW: Total available building slots across all factories
+      }
     });
   } catch (error) {
     log.error('Failed to fetch unit data', error as Error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch unit data' }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to fetch unit data' },
+      { status: 500 }
+    );
   } finally {
     endTimer();
   }
 });
 
+/**
+ * POST /api/player/build-unit
+ * Builds unit(s) by spending resources
+ */
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('PlayerBuildUnitAPI');
   const endTimer = log.time('buildUnit');
-
+  
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
     const body = await request.json();
     const validated = BuildUnitSchema.parse(body);
 
+    log.debug('Unit build request', { 
+      username: validated.username, 
+      unitTypeId: validated.unitTypeId, 
+      quantity: validated.quantity 
+    });
+
+    // Get unit blueprint
     const unitBlueprint = UNIT_BLUEPRINTS[validated.unitTypeId];
-    const isNewUnit = !unitBlueprint && !!UNIT_CONFIGS[validated.unitTypeId];
-    if (!unitBlueprint && !isNewUnit) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Invalid unit type' });
+    if (!unitBlueprint) {
+      log.warn('Invalid unit type', { 
+        username: validated.username, 
+        unitTypeId: validated.unitTypeId 
+      });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Invalid unit type'
+      });
     }
 
-    const newUnitCfg = isNewUnit ? UNIT_CONFIGS[validated.unitTypeId] : null;
-
-    const player = await getPlayer(auth.playerId);
+    // Get player data with factory count
+    const player = await getPlayer(validated.username);
     if (!player) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Player not found' });
+      log.warn('Player not found for unit build', { username: validated.username });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Player not found'
+      });
     }
 
+    // Check unlock status
     const playerLevel = player.level || 1;
-    const playerRP = player.research_points || 0;
+    const playerRP = player.researchPoints || 0;
 
-    // Check unlock requirements (support both old and new unit types)
-    if (isNewUnit && newUnitCfg) {
-      if (playerRP < newUnitCfg.rpRequired) {
-        return createErrorResponse(ErrorCode.INSUFFICIENT_RP, { required: newUnitCfg.rpRequired, have: playerRP });
-      }
-      if (playerLevel < newUnitCfg.levelRequired) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
-          message: `Requires level ${newUnitCfg.levelRequired} (you are level ${playerLevel})`,
-        });
-      }
-    } else if (unitBlueprint?.unlockRequirement) {
+    if (unitBlueprint.unlockRequirement) {
       const rpRequired = unitBlueprint.unlockRequirement.researchPoints;
       const levelRequired = unitBlueprint.unlockRequirement.level || 0;
 
       if (playerRP < rpRequired) {
-        return createErrorResponse(ErrorCode.INSUFFICIENT_RP, { required: rpRequired, have: playerRP });
+        log.warn('Insufficient research points', { 
+          username: validated.username, 
+          required: rpRequired, 
+          have: playerRP 
+        });
+        return createErrorResponse(ErrorCode.INSUFFICIENT_RP, {
+          required: rpRequired,
+          have: playerRP
+        });
       }
+
       if (playerLevel < levelRequired) {
+        log.warn('Insufficient level', { 
+          username: validated.username, 
+          required: levelRequired, 
+          have: playerLevel 
+        });
         return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
-          message: `Requires level ${levelRequired} (you are level ${playerLevel})`,
+          message: `Requires level ${levelRequired} (you are level ${playerLevel})`
         });
       }
     }
 
-    const supabase = createServiceClient();
-    const { data: factories } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('owner', auth.playerId)
-      .order('x', { ascending: true })
-      .order('y', { ascending: true });
+    // Get all player factories for sequential slot consumption
+    const client = await clientPromise;
+    const factoriesDb = client.db('darkframe');
+    const factories = await factoriesDb.collection<Factory>('factories')
+      .find({ owner: validated.username })
+      .sort({ x: 1, y: 1 }) // Sort by coordinates for consistent ordering
+      .toArray();
 
-    if (!factories || factories.length === 0) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'You must own at least one factory to build units' });
-    }
-
-    const totalFactoryBuildSlots = factories.reduce((total: number, f: FactoryRow) => {
-      return total + Math.max(0, getMaxSlots(f.level || 1) - (f.used_slots || 0));
-    }, 0);
-
-    if (validated.quantity > totalFactoryBuildSlots) {
+    if (factories.length === 0) {
+      log.warn('No factories owned', { username: validated.username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
-        message: `Insufficient factory slots (${totalFactoryBuildSlots} available, ${validated.quantity} needed)`,
+        message: 'You must own at least one factory to build units'
       });
     }
 
-    const totalMetalCost = isNewUnit && newUnitCfg
-      ? newUnitCfg.metalCost * validated.quantity
-      : unitBlueprint!.metalCost * validated.quantity;
-    const totalEnergyCost = isNewUnit && newUnitCfg
-      ? newUnitCfg.energyCost * validated.quantity
-      : unitBlueprint!.energyCost * validated.quantity;
+    // Calculate total available factory build slots
+    const totalFactoryBuildSlots = factories.reduce((total: number, factory: any) => {
+      const availableInFactory = Math.max(0, (factory.slots || 20) - (factory.usedSlots || 0));
+      return total + availableInFactory;
+    }, 0);
 
-    const playerMetal = player.resources_metal || 0;
-    const playerEnergy = player.resources_energy || 0;
+    if (validated.quantity > totalFactoryBuildSlots) {
+      log.warn('Insufficient factory build slots', { 
+        username: validated.username, 
+        available: totalFactoryBuildSlots, 
+        needed: validated.quantity 
+      });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: `Insufficient factory slots (${totalFactoryBuildSlots} available, ${validated.quantity} needed)`
+      });
+    }
 
+    // Calculate total cost
+    const totalMetalCost = unitBlueprint.metalCost * validated.quantity;
+    const totalEnergyCost = unitBlueprint.energyCost * validated.quantity;
+
+    const playerMetal = player.resources?.metal || 0;
+    const playerEnergy = player.resources?.energy || 0;
+
+    // Check resources
     if (playerMetal < totalMetalCost) {
-      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, { resourceType: 'metal', needed: totalMetalCost, have: playerMetal });
+      log.warn('Insufficient metal', { 
+        username: validated.username, 
+        needed: totalMetalCost, 
+        have: playerMetal 
+      });
+      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
+        resourceType: 'metal',
+        needed: totalMetalCost,
+        have: playerMetal
+      });
     }
+
     if (playerEnergy < totalEnergyCost) {
-      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, { resourceType: 'energy', needed: totalEnergyCost, have: playerEnergy });
+      log.warn('Insufficient energy', { 
+        username: validated.username, 
+        needed: totalEnergyCost, 
+        have: playerEnergy 
+      });
+      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
+        resourceType: 'energy',
+        needed: totalEnergyCost,
+        have: playerEnergy
+      });
     }
 
-    const dbUnitType: string = isNewUnit ? validated.unitTypeId : BLUEPRINT_TO_DB[validated.unitTypeId];
-    if (!dbUnitType) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: `Unknown unit type: ${validated.unitTypeId}` });
-    }
-
-    const slotCostPerUnit = newUnitCfg?.slotCost || (UNIT_CONFIGS[dbUnitType as UnitType]?.slotCost) || 1;
-
+    // Sequential factory slot consumption logic
+    const newUnits = [];
     let remainingUnits = validated.quantity;
+    const factoryUpdates: Array<{ factoryId: string; slotsUsed: number; newUsedSlots: number }> = []; // Track factory slot updates
+
+    // Get slotCost from UNIT_CONFIGS for exponential slot cost system
+    const unitType = unitBlueprint.id as UnitType;
+    const unitConfig = UNIT_CONFIGS[unitType];
+    const slotCostPerUnit = unitConfig?.slotCost || 1; // Fallback to 1 if not found
 
     for (const factory of factories) {
       if (remainingUnits <= 0) break;
 
-      const capacity = getMaxSlots(factory.level || 1);
-      const available = Math.max(0, capacity - (factory.used_slots || 0));
-      const maxUnitsForFactory = Math.floor(available / slotCostPerUnit);
-      const unitsToAssign = Math.min(remainingUnits, maxUnitsForFactory);
+      const availableInFactory = Math.max(0, (factory.slots || 20) - (factory.usedSlots || 0));
+      const unitsToAssignHere = Math.min(remainingUnits, availableInFactory);
 
-      if (unitsToAssign > 0) {
-        const slotsNeeded = unitsToAssign * slotCostPerUnit;
-        await supabase
-          .from('factories')
-          .update({
-            used_slots: (factory.used_slots || 0) + slotsNeeded,
-            last_slot_regen: new Date().toISOString(),
-          })
-          .eq('id', factory.id);
+      if (unitsToAssignHere > 0) {
+        // Create units for this factory
+        for (let i = 0; i < unitsToAssignHere; i++) {
+          newUnits.push({
+            unitId: unitBlueprint.id,
+            name: unitBlueprint.name,
+            category: unitBlueprint.category,
+            rarity: unitBlueprint.rarity,
+            strength: unitBlueprint.strength,
+            defense: unitBlueprint.defense,
+            createdAt: new Date()
+          });
+        }
 
-        remainingUnits -= unitsToAssign;
+        // Calculate slots needed using exponential slot cost
+        const slotsNeeded = unitsToAssignHere * slotCostPerUnit;
+
+        // Track factory slot update
+        factoryUpdates.push({
+          factoryId: (factory as Factory & { _id?: string })._id ?? `${factory.x},${factory.y}`,
+          slotsUsed: slotsNeeded,
+          newUsedSlots: (factory.usedSlots || 0) + slotsNeeded
+        });
+
+        remainingUnits -= unitsToAssignHere;
       }
     }
 
-    const cfg = isNewUnit ? newUnitCfg : (dbUnitType ? UNIT_CONFIGS[dbUnitType as UnitType] : null);
-    const unitStrength = cfg?.strength ?? unitBlueprint?.strength ?? 0;
-    const unitDefense = cfg?.defense ?? unitBlueprint?.defense ?? 0;
+    // Calculate new totals
+    const strengthGained = unitBlueprint.strength * validated.quantity;
+    const defenseGained = unitBlueprint.defense * validated.quantity;
 
-    const strengthGained = unitStrength * validated.quantity;
-    const defenseGained = unitDefense * validated.quantity;
+    const newTotalStrength = (player.totalStrength || 0) + strengthGained;
+    const newTotalDefense = (player.totalDefense || 0) + defenseGained;
 
-    const newTotalStrength = (player.total_strength || 0) + strengthGained;
-    const newTotalDefense = (player.total_defense || 0) + defenseGained;
+    // Get database collections for update
+    const playersDb = client.db('darkframe');
+    const playersCollection = playersDb.collection<Player>('players');
+    const factoriesCollection = factoriesDb.collection<Factory>('factories');
 
-    await supabase
-      .from('players')
-      .update({
-        resources_metal: playerMetal - totalMetalCost,
-        resources_energy: playerEnergy - totalEnergyCost,
-        total_strength: newTotalStrength,
-        total_defense: newTotalDefense,
-        stat_total_units_built: (player.stat_total_units_built || 0) + validated.quantity,
-      })
-      .eq('username', auth.playerId);
+    // Update player in database
+    const updateResult = await playersCollection.updateOne(
+      { username: validated.username },
+      {
+        $push: { units: { $each: newUnits } } as any,
+        $inc: {
+          'resources.metal': -totalMetalCost,
+          'resources.energy': -totalEnergyCost
+        },
+        $set: {
+          totalStrength: newTotalStrength,
+          totalDefense: newTotalDefense
+        }
+      }
+    );
 
-    const { data: existingUnit } = await supabase
-      .from('player_units')
-      .select('id, quantity, strength, defense')
-      .eq('player_username', auth.playerId)
-      .eq('unit_type', dbUnitType as UnitTypeEnum)
-      .maybeSingle();
-
-    if (existingUnit) {
-      await supabase
-        .from('player_units')
-        .update({
-          quantity: existingUnit.quantity + validated.quantity,
-          strength: unitStrength,
-          defense: unitDefense,
-        })
-        .eq('id', existingUnit.id);
-    } else {
-      await supabase
-        .from('player_units')
-        .insert({
-          player_username: auth.playerId,
-          unit_type: dbUnitType as UnitTypeEnum,
-          quantity: validated.quantity,
-          strength: unitStrength,
-          defense: unitDefense,
-        });
+    if (updateResult.modifiedCount === 0) {
+      log.error('Failed to update player for unit build', new Error('Database update failed'), { 
+        username: validated.username 
+      });
+      return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
+        message: 'Failed to build units'
+      });
     }
 
-    const { data: updatedUnits } = await supabase
-      .from('player_units')
-      .select('quantity')
-      .eq('player_username', auth.playerId);
-    const newUsedSlots = updatedUnits?.reduce((sum: number, u: { quantity: number }) => sum + u.quantity, 0) || 0;
+    // Update factory slots sequentially
+    for (const update of factoryUpdates) {
+      await factoriesCollection.updateOne(
+        { _id: update.factoryId },
+        { $set: { usedSlots: update.newUsedSlots } }
+      );
+    }
 
+    log.info('Units built successfully', { 
+      username: validated.username, 
+      unitType: unitBlueprint.name, 
+      quantity: validated.quantity, 
+      strengthGained, 
+      defenseGained,
+      factoriesUsed: factoryUpdates.length
+    });
+
+    // Calculate new factory build slots after updates
+    const newFactoryBuildSlots = totalFactoryBuildSlots - validated.quantity;
+
+    // Return success with updated data
     return NextResponse.json({
       success: true,
       message: `Successfully built ${validated.quantity}x ${unitBlueprint.name}!`,
-      unitsBuilt: Array(validated.quantity).fill({
-        unitId: unitBlueprint.id,
-        name: unitBlueprint.name,
-        category: unitBlueprint.category,
-        rarity: unitBlueprint.rarity,
-        strength: unitBlueprint.strength,
-        defense: unitBlueprint.defense,
-      }),
-      costPaid: { metal: totalMetalCost, energy: totalEnergyCost },
+      unitsBuilt: newUnits,
+      costPaid: {
+        metal: totalMetalCost,
+        energy: totalEnergyCost
+      },
       newStats: {
         totalStrength: newTotalStrength,
         totalDefense: newTotalDefense,
-        resources_metal: playerMetal - totalMetalCost,
-        resources_energy: playerEnergy - totalEnergyCost,
-        usedSlots: newUsedSlots,
-        availableSlots: 100 + ((player.factory_count || 0) * 50),
-        factoryBuildSlots: totalFactoryBuildSlots - validated.quantity,
+        resources: {
+          metal: playerMetal - totalMetalCost,
+          energy: playerEnergy - totalEnergyCost
+        },
+        usedSlots: (player.units?.length || 0) + validated.quantity,
+        availableSlots: (100 + ((player.factoryCount || 0) * 50)),
+        factoryBuildSlots: newFactoryBuildSlots
       },
-      statsGained: { strength: strengthGained, defense: defenseGained },
+      statsGained: {
+        strength: strengthGained,
+        defense: defenseGained
+      }
     });
   } catch (error) {
     if (error instanceof ZodError) {
+      log.warn('Unit build validation failed', { issues: error.issues });
       return createValidationErrorResponse(error);
     }
+
     log.error('Unit build error', error as Error);
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
     endTimer();
   }
 }));
+
+// ============================================================
+// END OF FILE
+// Implementation Notes:
+// - Validates unlock requirements (RP + level)
+// - Checks resource availability and slot capacity
+// - Creates multiple unit instances for quantity > 1
+// - Updates totalStrength/totalDefense immediately
+// - Returns detailed success response with new stats
+// ============================================================

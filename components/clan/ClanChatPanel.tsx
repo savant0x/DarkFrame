@@ -48,7 +48,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { 
   MessageCircle, 
@@ -131,28 +131,30 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
 
   const maxMessageLength = 500;
 
-  useEffect(() => {
-    fetchMessages();
-    fetchActivities();
+  /**
+   * Checks for new important events and triggers toast notifications
+   */
+  const checkForNewEvents = useCallback((newActivities: ActivityEvent[]) => {
+    if (activities.length === 0) return; // Skip on initial load
 
-    // Auto-refresh every 10 seconds
-    const refreshInterval = setInterval(() => {
-      fetchMessages();
-      fetchActivities();
-    }, 10000);
+    const latestActivityTime = activities[0]?.timestamp.getTime() || 0;
+    const importantEvents = newActivities.filter(a => 
+      a.timestamp.getTime() > latestActivityTime &&
+      ['WAR_DECLARED', 'WAR_VICTORY', 'WAR_DEFEAT', 'ALLIANCE_FORMED', 'PERK_ACTIVATED'].includes(a.type)
+    );
 
-    return () => clearInterval(refreshInterval);
-  }, [clanId]);
-
-  useEffect(() => {
-    // Auto-scroll to bottom on new messages
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    importantEvents.forEach(event => {
+      toast.info(event.description, {
+        description: `${event.actorUsername} • ${formatTimeAgo(event.timestamp)}`,
+        duration: 5000
+      });
+    });
+  }, [activities]);
 
   /**
    * Fetches chat message history
    */
-  const fetchMessages = async () => {
+  const fetchMessages = useCallback(async () => {
     setIsLoadingMessages(true);
     try {
       const response = await fetch(`/api/clan/chat/messages?clanId=${clanId}&limit=100`);
@@ -168,12 +170,12 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
     } finally {
       setIsLoadingMessages(false);
     }
-  };
+  }, [clanId]);
 
   /**
    * Fetches clan activity feed
    */
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     setIsLoadingActivities(true);
     try {
       const response = await fetch(`/api/clan/activity?clanId=${clanId}&limit=50`);
@@ -194,27 +196,25 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
     } finally {
       setIsLoadingActivities(false);
     }
-  };
+  }, [clanId, checkForNewEvents]);
 
-  /**
-   * Checks for new important events and triggers toast notifications
-   */
-  const checkForNewEvents = (newActivities: ActivityEvent[]) => {
-    if (activities.length === 0) return; // Skip on initial load
+  useEffect(() => {
+    fetchMessages();
+    fetchActivities();
 
-    const latestActivityTime = activities[0]?.timestamp.getTime() || 0;
-    const importantEvents = newActivities.filter(a => 
-      a.timestamp.getTime() > latestActivityTime &&
-      ['WAR_DECLARED', 'WAR_VICTORY', 'WAR_DEFEAT', 'ALLIANCE_FORMED', 'PERK_ACTIVATED'].includes(a.type)
-    );
+    // Auto-refresh every 10 seconds
+    const refreshInterval = setInterval(() => {
+      fetchMessages();
+      fetchActivities();
+    }, 10000);
 
-    importantEvents.forEach(event => {
-      toast.info(event.description, {
-        description: `${event.actorUsername} • ${formatTimeAgo(event.timestamp)}`,
-        duration: 5000
-      });
-    });
-  };
+    return () => clearInterval(refreshInterval);
+  }, [fetchMessages, fetchActivities]);
+
+  useEffect(() => {
+    // Auto-scroll to bottom on new messages
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   /**
    * Sends a chat message
@@ -227,12 +227,12 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
 
     setIsSending(true);
     try {
-      const response = await fetch('/api/clan/chat', {
+      const response = await fetch('/api/clan/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clanId,
-          message: messageInput.trim()
+          content: messageInput.trim()
         })
       });
 
@@ -266,10 +266,10 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
     }
 
     try {
-      const response = await fetch(`/api/clan/chat?messageId=${messageId}`, {
+      const response = await fetch('/api/clan/chat/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clanId })
+        body: JSON.stringify({ clanId, messageId })
       });
 
       if (!response.ok) throw new Error('Failed to delete message');

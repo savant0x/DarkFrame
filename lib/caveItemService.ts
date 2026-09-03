@@ -1,203 +1,743 @@
-import { createServiceClient } from '@/lib/supabase/server';
-import { ItemType, ItemRarity, TerrainType, GAME_CONSTANTS } from '@/types/game.types';
-import { canHarvestTile, getCurrentResetPeriod } from './harvestService';
-import { getHarvestSuccessMessage } from './harvestMessages';
-import { pickRandomName, getRarityEffect } from './itemUtils';
-import { FLAG_CONFIG } from '@/types/flag.types';
+/**
+ * @file lib/caveItemService.ts
+ * @created 2025-10-16
+ * @overview Cave item generation service with diminishing returns
+ * 
+ * OVERVIEW:
+ * Handles cave exploration rewards including permanent digger items and
+ * tradeable items for temporary boosts. Implements Option 4 diminishing
+ * returns system to prevent veteran player dominance.
+ */
 
+import { getCollection, type MongoUpdate } from './mongodb';
+import { 
+  Player,
+  Tile,
+  TerrainType,
+  ItemType,
+  ItemRarity,
+  InventoryItem,
+  GAME_CONSTANTS
+} from '@/types';
+import { canHarvestTile, getCurrentResetPeriod } from './harvestService';
+import { generateId } from './utils';
+import { getHarvestSuccessMessage } from './harvestMessages';
+
+/**
+ * Cave harvest result
+ */
 export interface CaveHarvestResult {
   success: boolean;
   message: string;
-  item?: {
-    id: string;
-    name: string;
-    type: ItemType;
-    rarity: ItemRarity;
-    description: string;
-    sacrificeValue: { metal: number; energy: number };
-    foundAt: { x: number; y: number };
-    foundDate: Date;
-  };
-  diggerCount?: number;
-}
-
-function generateItemId() {
-  return crypto.randomUUID ? crypto.randomUUID() : `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  item?: InventoryItem;
+  bonusApplied?: number; // Bonus amount added to player's total
+  updatedPlayer?: Player;
 }
 
 /**
- * Generate a cave/forest item for the new sacrifice system.
- * Diggers no longer auto-stack — they go into inventory for manual sacrifice at the Shrine.
+ * Calculate digger bonus based on diminishing returns tier
+ * 
+ * Tier System (Option 4):
+ * - Diggers 1-10: +2% each
+ * - Diggers 11-30: +1% each
+ * - Diggers 31-70: +0.5% each
+ * - Diggers 71-150: +0.25% each
+ * - Diggers 151+: +0.1% each
+ * 
+ * @param currentCount - Number of diggers player already has for this resource
+ * @returns Bonus percentage for next digger
+ * 
+ * @example
+ * ```typescript
+ * getDiggerBonus(5);   // Returns 2.0 (5th digger, still in tier 1)
+ * getDiggerBonus(25);  // Returns 1.0 (25th digger, in tier 2)
+ * getDiggerBonus(100); // Returns 0.25 (100th digger, in tier 4)
+ * ```
  */
-function generateCaveItem(dropRateMultiplier = 1, isForest = false): CaveHarvestResult['item'] | null {
-  const roll = Math.random();
-  const baseRate = GAME_CONSTANTS.HARVEST.CAVE_DROP_RATE; // 1.5%
-  const effectiveDropRate = isForest ? baseRate * 2 * dropRateMultiplier : baseRate * dropRateMultiplier;
-  if (roll > effectiveDropRate) return null;
+export function getDiggerBonus(currentCount: number): number {
+  const nextDiggerNumber = currentCount + 1;
+  
+  for (const tier of GAME_CONSTANTS.DIGGER_TIERS) {
+    if (nextDiggerNumber >= tier.min && nextDiggerNumber <= tier.max) {
+      return tier.bonusPercent;
+    }
+  }
+  
+  // Fallback to lowest tier (should never reach here)
+  return 0.1;
+}
 
-  const typeRoll = Math.random();
-  let itemType: ItemType;
-  let rarity: ItemRarity;
-  let sacrificeMetal = 0;
-  let sacrificeEnergy = 0;
-
-  if (isForest) {
-    // Forests: tradeables only, no diggers
-    itemType = ItemType.TradeableItem;
-    rarity = typeRoll < 0.6 ? ItemRarity.Uncommon : typeRoll < 0.9 ? ItemRarity.Rare : ItemRarity.Epic;
-  } else {
-    // Caves: rarity-weighted distribution
-    // 60% Common, 25% Uncommon, 10% Rare, 4% Epic, 1% Legendary
-    if (typeRoll < 0.60) {
+/**
+ * Generate a random cave item
+ * 
+ * Drop rates:
+ * - 30% chance for ANY item
+ * - Of that 30%: 80% tradeable, 20% digger
+ * 
+ * @returns Item or null if no drop
+ */
+export function generateCaveItem(): InventoryItem | null {
+  // 30% chance for ANY item drop
+  if (Math.random() > GAME_CONSTANTS.HARVEST.CAVE_DROP_RATE) {
+    return null; // No item this time
+  }
+  
+  // Determine if tradeable or digger (80/20 split)
+  const isTradeableItem = Math.random() < GAME_CONSTANTS.HARVEST.TRADEABLE_ITEM_RATE;
+  
+  if (isTradeableItem) {
+    // Generate tradeable item with rarity (affects shrine duration)
+    // Rarity distribution: 60% Common, 25% Uncommon, 10% Rare, 4% Epic, 1% Legendary
+    const rarityRoll = Math.random();
+    let rarity: ItemRarity;
+    
+    if (rarityRoll < 0.60) {
       rarity = ItemRarity.Common;
-    } else if (typeRoll < 0.85) {
+    } else if (rarityRoll < 0.85) {
       rarity = ItemRarity.Uncommon;
-    } else if (typeRoll < 0.95) {
+    } else if (rarityRoll < 0.95) {
       rarity = ItemRarity.Rare;
-    } else if (typeRoll < 0.99) {
+    } else if (rarityRoll < 0.99) {
       rarity = ItemRarity.Epic;
     } else {
       rarity = ItemRarity.Legendary;
     }
-
-    // Determine digger type: 45% metal, 40% energy, 15% universal
-    const typeDice = Math.random();
-    if (typeDice < 0.45) {
+    
+    return {
+      id: generateId(),
+      type: ItemType.TradeableItem,
+      name: `${rarity} Tradeable Item`,
+      description: 'A valuable item that can be used at the Shrine for gathering boosts',
+      rarity,
+      bonusPercent: 0, // No passive bonus for tradeable items
+      foundAt: { x: 0, y: 0 }, // Will be filled in by caller
+      foundDate: new Date()
+    };
+  } else {
+    // Generate digger item (permanent boost)
+    // Randomly choose between Metal, Energy, or Universal digger
+    const roll = Math.random();
+    let itemType: ItemType;
+    
+    if (roll < 0.40) {
       itemType = ItemType.MetalDigger;
-      sacrificeMetal = getSacrificeValue(rarity);
-    } else if (typeDice < 0.85) {
+    } else if (roll < 0.80) {
       itemType = ItemType.EnergyDigger;
-      sacrificeEnergy = getSacrificeValue(rarity);
     } else {
       itemType = ItemType.UniversalDigger;
-      const half = getSacrificeValue(rarity) / 2;
-      sacrificeMetal = half;
-      sacrificeEnergy = half;
     }
+    
+    // Rarity is for flavor only (actual bonus determined by diminishing returns)
+    const rarityRoll = Math.random();
+    let rarity: ItemRarity;
+    
+    if (rarityRoll < 0.60) {
+      rarity = ItemRarity.Common;
+    } else if (rarityRoll < 0.85) {
+      rarity = ItemRarity.Uncommon;
+    } else if (rarityRoll < 0.95) {
+      rarity = ItemRarity.Rare;
+    } else if (rarityRoll < 0.99) {
+      rarity = ItemRarity.Epic;
+    } else {
+      rarity = ItemRarity.Legendary;
+    }
+    
+    // Generate name based on type
+    let name: string;
+    let description: string;
+    
+    if (itemType === ItemType.MetalDigger) {
+      name = 'Metal Digger';
+      description = 'Permanently increases metal gathering efficiency';
+    } else if (itemType === ItemType.EnergyDigger) {
+      name = 'Energy Digger';
+      description = 'Permanently increases energy gathering efficiency';
+    } else {
+      name = 'Universal Digger';
+      description = 'Permanently increases all gathering efficiency';
+    }
+    
+    return {
+      id: generateId(),
+      type: itemType,
+      name,
+      description,
+      rarity,
+      bonusPercent: 0, // Will be calculated based on player's current count
+      foundAt: { x: 0, y: 0 }, // Will be filled in by caller
+      foundDate: new Date()
+    };
   }
-
-  return {
-    id: generateItemId(),
-    name: pickRandomName(itemType, rarity),
-    type: itemType,
-    rarity,
-    description: getRarityEffect(rarity),
-    sacrificeValue: { metal: sacrificeMetal, energy: sacrificeEnergy },
-    foundAt: { x: 0, y: 0 },
-    foundDate: new Date(),
-  };
 }
 
-/** Sacrifice value by rarity */
-function getSacrificeValue(rarity: ItemRarity): number {
-  switch (rarity) {
-    case ItemRarity.Common: return 0.5;
-    case ItemRarity.Uncommon: return 1.5;
-    case ItemRarity.Rare: return 4.0;
-    case ItemRarity.Epic: return 10.0;
-    case ItemRarity.Legendary: return 25.0;
-    default: return 0.5;
+/**
+ * Generate a random forest item (BETTER than cave items)
+ * 
+ * Drop rates:
+ * - 50% chance for ANY item (vs 30% for caves)
+ * - Of that 50%: 70% tradeable, 30% digger (more diggers than caves!)
+ * - Better rarity distribution for diggers
+ * 
+ * @returns Item or null if no drop
+ */
+export function generateForestItem(): InventoryItem | null {
+  // 50% chance for ANY item drop (much better than caves!)
+  if (Math.random() > 0.50) {
+    return null; // No item this time
+  }
+  
+  // Determine if tradeable or digger (70/30 split - more diggers than caves!)
+  const isTradeableItem = Math.random() < 0.70;
+  
+  if (isTradeableItem) {
+    // Generate tradeable item (for future trading system)
+    return {
+      id: generateId(),
+      type: ItemType.TradeableItem,
+      name: 'Premium Tradeable Item',
+      description: 'A highly valuable item that can be traded at the Boost Station',
+      rarity: ItemRarity.Uncommon, // Forest items start at Uncommon rarity
+      bonusPercent: 0, // No bonus for tradeable items
+      foundAt: { x: 0, y: 0 }, // Will be filled in by caller
+      foundDate: new Date()
+    };
+  } else {
+    // Generate digger item (permanent boost)
+    // Randomly choose between Metal, Energy, or Universal digger
+    const roll = Math.random();
+    let itemType: ItemType;
+    
+    if (roll < 0.35) {
+      itemType = ItemType.MetalDigger;
+    } else if (roll < 0.70) {
+      itemType = ItemType.EnergyDigger;
+    } else {
+      itemType = ItemType.UniversalDigger; // 30% chance for universal (vs 20% in caves)
+    }
+    
+    // BETTER rarity distribution than caves
+    const rarityRoll = Math.random();
+    let rarity: ItemRarity;
+    
+    if (rarityRoll < 0.30) {
+      rarity = ItemRarity.Common; // 30% common (vs 60% in caves)
+    } else if (rarityRoll < 0.65) {
+      rarity = ItemRarity.Uncommon; // 35% uncommon (vs 25% in caves)
+    } else if (rarityRoll < 0.85) {
+      rarity = ItemRarity.Rare; // 20% rare (vs 10% in caves)
+    } else if (rarityRoll < 0.97) {
+      rarity = ItemRarity.Epic; // 12% epic (vs 4% in caves)
+    } else {
+      rarity = ItemRarity.Legendary; // 3% legendary (vs 1% in caves)
+    }
+    
+    // Generate name based on type
+    let name: string;
+    let description: string;
+    
+    if (itemType === ItemType.MetalDigger) {
+      name = 'Ancient Metal Digger';
+      description = 'A rare and powerful metal gathering artifact from the old forests';
+    } else if (itemType === ItemType.EnergyDigger) {
+      name = 'Ancient Energy Digger';
+      description = 'A rare and powerful energy gathering artifact from the old forests';
+    } else {
+      name = 'Ancient Universal Digger';
+      description = 'A legendary gathering artifact that enhances all resource collection';
+    }
+    
+    return {
+      id: generateId(),
+      type: itemType,
+      name,
+      description,
+      rarity,
+      bonusPercent: 0, // Will be calculated based on player's current count
+      foundAt: { x: 0, y: 0 }, // Will be filled in by caller
+      foundDate: new Date()
+    };
   }
 }
 
-async function getInventoryItemCount(username: string): Promise<number> {
-  const supabase = createServiceClient();
-  const { count } = await supabase.from('player_inventory').select('*', { count: 'exact', head: true }).eq('player_username', username);
-  return count || 0;
+/**
+ * Apply digger item bonus to player
+ * 
+ * Calculates bonus based on diminishing returns and updates player's
+ * gathering bonus and digger counts
+ * 
+ * @param player - Player object
+ * @param item - Digger item to apply
+ * @returns Updated bonus amount
+ */
+export function applyDiggerBonus(player: Player, item: InventoryItem): number {
+  let bonusAmount = 0;
+  
+  if (item.type === ItemType.MetalDigger) {
+    bonusAmount = getDiggerBonus(player.inventory.metalDiggerCount);
+    player.gatheringBonus.metalBonus += bonusAmount;
+    player.inventory.metalDiggerCount += 1;
+  } else if (item.type === ItemType.EnergyDigger) {
+    bonusAmount = getDiggerBonus(player.inventory.energyDiggerCount);
+    player.gatheringBonus.energyBonus += bonusAmount;
+    player.inventory.energyDiggerCount += 1;
+  } else if (item.type === ItemType.UniversalDigger) {
+    // Universal diggers apply to BOTH resources
+    // Use average of both counts for diminishing returns calculation
+    const avgCount = Math.floor(
+      (player.inventory.metalDiggerCount + player.inventory.energyDiggerCount) / 2
+    );
+    bonusAmount = getDiggerBonus(avgCount);
+    
+    player.gatheringBonus.metalBonus += bonusAmount;
+    player.gatheringBonus.energyBonus += bonusAmount;
+    player.inventory.metalDiggerCount += 1;
+    player.inventory.energyDiggerCount += 1;
+  }
+  
+  // Update item with actual bonus amount
+  item.bonusPercent = bonusAmount;
+  
+  return bonusAmount;
 }
 
-export async function harvestCaveTile(username: string, tile: { x: number; y: number; terrain: TerrainType }): Promise<CaveHarvestResult> {
-  const supabase = createServiceClient();
-  if (tile.terrain !== TerrainType.Cave && tile.terrain !== TerrainType.Forest) return { success: false, message: 'Not a cave/forest tile' };
-  if (!(await canHarvestTile(username, tile))) return { success: false, message: 'Already harvested. Wait for refresh.' };
-
-  const { data: player } = await supabase
-    .from('players')
-    .select('inventory_capacity')
-    .eq('username', username)
-    .single();
-  if (!player) return { success: false, message: 'Player not found' };
-
-  const currentCount = await getInventoryItemCount(username);
-  if (currentCount >= (player.inventory_capacity || GAME_CONSTANTS.HARVEST.DEFAULT_INVENTORY_CAPACITY)) return { success: false, message: 'Inventory full!' };
-
-  const currentPeriod = getCurrentResetPeriod(tile.x);
-  await supabase.from('tile_harvest_records').insert({
-    tile_x: tile.x, tile_y: tile.y, player_id: username,
-    harvested_at: new Date().toISOString(), reset_period: currentPeriod,
-  });
-
-  let dropRateMultiplier = 1;
+/**
+ * Harvest a cave tile
+ * 
+ * Randomly generates items with diminishing returns for diggers
+ * 
+ * @param playerId - Player's username
+ * @param tile - Cave tile to harvest
+ * @returns Cave harvest result
+ */
+export async function harvestCaveTile(
+  playerId: string,
+  tile: Tile
+): Promise<CaveHarvestResult> {
   try {
-    const { data: flag } = await supabase.from('flags').select('bearer_username').limit(1).maybeSingle();
-    if (flag?.bearer_username === username) dropRateMultiplier = FLAG_CONFIG.FLAG_BONUSES.caveDropBoost;
-  } catch {}
+    // Verify tile type
+    if (tile.terrain !== TerrainType.Cave) {
+      return {
+        success: false,
+        message: 'This is not a cave tile'
+      };
+    }
+    
+    // Check if can harvest
+    const canHarvest = await canHarvestTile(playerId, tile);
+    if (!canHarvest) {
+      return {
+        success: false,
+        message: 'You have already explored this cave. It will refresh later.'
+      };
+    }
+    
+    // Get player data
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username: playerId });
+    
+    if (!player) {
+      return {
+        success: false,
+        message: 'Player not found'
+      };
+    }
+    
+    // Check inventory capacity
+    if (player.inventory.items.length >= player.inventory.capacity) {
+      return {
+        success: false,
+        message: 'Your inventory is full! You cannot carry any more items.'
+      };
+    }
+    
+    // Generate item (30% chance)
+    const item = generateCaveItem();
+    
+    if (!item) {
+      // No item dropped (70% of the time)
+      // Mark tile as harvested
+      const tilesCollection = await getCollection<Tile>('tiles');
+      const currentPeriod = getCurrentResetPeriod(tile.x);
+      
+      await tilesCollection.updateOne(
+        { x: tile.x, y: tile.y },
+        {
+          $push: {
+            lastHarvestedBy: {
+              playerId,
+              timestamp: new Date(),
+              resetPeriod: currentPeriod
+            }
+          }
+        }
+      );
+      
+      return {
+        success: true,
+        message: getHarvestSuccessMessage(TerrainType.Cave, undefined, 'none')
+      };
+    }
+    
+    // Item dropped! Fill in location
+    item.foundAt = { x: tile.x, y: tile.y };
+    
+    let bonusApplied = 0;
+    let updateQuery: MongoUpdate = {
+      $push: {
+        'inventory.items': item
+      }
+    };
+    
+    // If it's a digger, apply bonus
+    if ([ItemType.MetalDigger, ItemType.EnergyDigger, ItemType.UniversalDigger].includes(item.type)) {
+      bonusApplied = applyDiggerBonus(player, item);
+      
+      // Update player's gathering bonus and digger counts
+      updateQuery = {
+        $push: {
+          'inventory.items': item
+        },
+        $set: {
+          'gatheringBonus.metalBonus': player.gatheringBonus.metalBonus,
+          'gatheringBonus.energyBonus': player.gatheringBonus.energyBonus,
+          'inventory.metalDiggerCount': player.inventory.metalDiggerCount,
+          'inventory.energyDiggerCount': player.inventory.energyDiggerCount
+        }
+      };
+    }
+    
+    // Update player
+    await playersCollection.updateOne(
+      { username: playerId },
+      updateQuery
+    );
+    
+    // Mark tile as harvested
+    const tilesCollection = await getCollection<Tile>('tiles');
+    const currentPeriod = getCurrentResetPeriod(tile.x);
+    
+    await tilesCollection.updateOne(
+      { x: tile.x, y: tile.y },
+      {
+        $push: {
+          lastHarvestedBy: {
+            playerId,
+            timestamp: new Date(),
+            resetPeriod: currentPeriod
+          }
+        }
+      }
+    );
+    
+    // Get updated player
+    const updatedPlayer = await playersCollection.findOne({ username: playerId });
+    
+    // Generate success message
+    let message = '';
+    if (item.type === ItemType.TradeableItem) {
+      message = getHarvestSuccessMessage(TerrainType.Cave, undefined, 'tradeable');
+    } else {
+      const baseMessage = getHarvestSuccessMessage(TerrainType.Cave, undefined, 'digger');
+      const itemName = item.type === ItemType.UniversalDigger 
+        ? 'Universal Digger' 
+        : item.type === ItemType.MetalDigger 
+          ? 'Metal Digger' 
+          : 'Energy Digger';
+      message = `${baseMessage}\n${itemName} (+${bonusApplied.toFixed(2)}%)`;
+    }
+    
+    console.log(`✅ Player ${playerId} found ${item.type} at cave (${tile.x}, ${tile.y})`);
+    
+    return {
+      success: true,
+      message,
+      item,
+      bonusApplied,
+      updatedPlayer: updatedPlayer || undefined
+    };
+    
+  } catch (error) {
+    console.error('❌ Error harvesting cave tile:', error);
+    return {
+      success: false,
+      message: 'An error occurred while exploring the cave'
+    };
+  }
+}
 
-  const isForest = tile.terrain === TerrainType.Forest;
-  const item = generateCaveItem(dropRateMultiplier, isForest);
-  if (!item) return { success: true, message: getHarvestSuccessMessage(TerrainType.Cave, undefined, 'none') };
+/**
+ * Harvest a forest tile (BETTER rewards than caves!)
+ * 
+ * Randomly generates items with better drop rates and quality than caves
+ * 
+ * @param playerId - Player's username
+ * @param tile - Forest tile to harvest
+ * @returns Cave harvest result (same structure as cave)
+ */
+export async function harvestForestTile(
+  playerId: string,
+  tile: Tile
+): Promise<CaveHarvestResult> {
+  try {
+    // Verify tile type
+    if (tile.terrain !== TerrainType.Forest) {
+      return {
+        success: false,
+        message: 'This is not a forest tile'
+      };
+    }
+    
+    // Check if can harvest
+    const canHarvest = await canHarvestTile(playerId, tile);
+    if (!canHarvest) {
+      return {
+        success: false,
+        message: 'You have already explored this forest. It will refresh later.'
+      };
+    }
+    
+    // Get player data
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username: playerId });
+    
+    if (!player) {
+      return {
+        success: false,
+        message: 'Player not found'
+      };
+    }
+    
+    // Check inventory capacity
+    if (player.inventory.items.length >= player.inventory.capacity) {
+      return {
+        success: false,
+        message: 'Your inventory is full! You cannot carry any more items.'
+      };
+    }
+    
+    // Generate item (50% chance - much better than caves!)
+    const item = generateForestItem();
+    
+    if (!item) {
+      // No item dropped (50% of the time, better than caves at 70%)
+      // Mark tile as harvested
+      const tilesCollection = await getCollection<Tile>('tiles');
+      const currentPeriod = getCurrentResetPeriod(tile.x);
+      
+      await tilesCollection.updateOne(
+        { x: tile.x, y: tile.y },
+        {
+          $push: {
+            lastHarvestedBy: {
+              playerId,
+              timestamp: new Date(),
+              resetPeriod: currentPeriod
+            }
+          }
+        }
+      );
+      
+      return {
+        success: true,
+        message: '🌲 You explored the ancient forest but found nothing this time. The dense foliage whispers of hidden treasures...'
+      };
+    }
+    
+    // Item dropped! Fill in location
+    item.foundAt = { x: tile.x, y: tile.y };
+    
+    let bonusApplied = 0;
+    let updateQuery: MongoUpdate = {
+      $push: {
+        'inventory.items': item
+      }
+    };
+    
+    // If it's a digger, apply bonus
+    if ([ItemType.MetalDigger, ItemType.EnergyDigger, ItemType.UniversalDigger].includes(item.type)) {
+      bonusApplied = applyDiggerBonus(player, item);
+      
+      // Update player's gathering bonus and digger counts
+      updateQuery = {
+        $push: {
+          'inventory.items': item
+        },
+        $set: {
+          'gatheringBonus.metalBonus': player.gatheringBonus.metalBonus,
+          'gatheringBonus.energyBonus': player.gatheringBonus.energyBonus,
+          'inventory.metalDiggerCount': player.inventory.metalDiggerCount,
+          'inventory.energyDiggerCount': player.inventory.energyDiggerCount
+        }
+      };
+    }
+    
+    // Update player
+    await playersCollection.updateOne(
+      { username: playerId },
+      updateQuery
+    );
+    
+    // Mark tile as harvested
+    const tilesCollection = await getCollection<Tile>('tiles');
+    const currentPeriod = getCurrentResetPeriod(tile.x);
+    
+    await tilesCollection.updateOne(
+      { x: tile.x, y: tile.y },
+      {
+        $push: {
+          lastHarvestedBy: {
+            playerId,
+            timestamp: new Date(),
+            resetPeriod: currentPeriod
+          }
+        }
+      }
+    );
+    
+    // Get updated player
+    const updatedPlayer = await playersCollection.findOne({ username: playerId });
+    
+    // Generate success message
+    let message = '';
+    if (item.type === ItemType.TradeableItem) {
+      message = '🌲✨ You discovered a premium item in the ancient forest! This rare artifact will fetch a high price.';
+    } else {
+      const itemName = item.type === ItemType.UniversalDigger 
+        ? 'Ancient Universal Digger' 
+        : item.type === ItemType.MetalDigger 
+          ? 'Ancient Metal Digger' 
+          : 'Ancient Energy Digger';
+      message = `🌲🎉 FOREST TREASURE! You found an ${itemName}!\nGathering Bonus: +${bonusApplied.toFixed(2)}%\nRarity: ${item.rarity}`;
+    }
+    
+    console.log(`✅ Player ${playerId} found ${item.type} at forest (${tile.x}, ${tile.y})`);
+    
+    return {
+      success: true,
+      message,
+      item,
+      bonusApplied,
+      updatedPlayer: updatedPlayer || undefined
+    };
+    
+  } catch (error) {
+    console.error('❌ Error harvesting forest tile:', error);
+    return {
+      success: false,
+      message: 'An error occurred while exploring the forest'
+    };
+  }
+}
 
-  item.foundAt = { x: tile.x, y: tile.y };
-
-  await supabase.from('player_inventory').insert({
-    player_username: username,
-    item_id: item.id,
-    name: item.name,
-    item_type: item.type,
-    rarity: item.rarity,
-    quantity: 1,
-    description: item.description,
-    bonus_percent: item.sacrificeValue.metal + item.sacrificeValue.energy,
-    digger_weight: item.type === ItemType.TradeableItem ? 0 : 1,
-    found_at_x: item.foundAt.x,
-    found_at_y: item.foundAt.y,
-    found_date: new Date().toISOString(),
-  });
-
-  const isDigger = [ItemType.MetalDigger, ItemType.EnergyDigger, ItemType.UniversalDigger].includes(item.type);
+/**
+ * Create guaranteed tutorial Universal Digger
+ * 
+ * TUTORIAL-ONLY: Creates a fixed 5% Universal Digger for tutorial reward
+ * This bypasses RNG and diminishing returns to ensure new players get the exact
+ * boost promised in the tutorial.
+ * 
+ * @returns Tutorial Universal Digger with fixed 5% bonus
+ */
+export function createTutorialDigger(): InventoryItem {
   return {
-    success: true,
-    message: getHarvestSuccessMessage(TerrainType.Cave, item.sacrificeValue.metal + item.sacrificeValue.energy, isDigger ? 'digger' : 'tradeable'),
-    item,
-    diggerCount: 0,
-  };
-}
-
-export async function awardTutorialDigger(username: string): Promise<{ success: boolean; message: string; digger?: CaveHarvestResult['item'] }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('inventory_capacity').eq('username', username).single();
-  if (!player) return { success: false, message: 'Player not found' };
-  const currentCount = await getInventoryItemCount(username);
-  if (currentCount >= (player.inventory_capacity || GAME_CONSTANTS.HARVEST.DEFAULT_INVENTORY_CAPACITY)) return { success: false, message: 'Inventory full!' };
-
-  const digger: CaveHarvestResult['item'] = {
-    id: `tutorial-digger-${Date.now()}`,
-    name: pickRandomName('UNIVERSAL_DIGGER', 'Rare'),
+    id: generateId(),
     type: ItemType.UniversalDigger,
+    name: 'Tutorial Universal Digger',
+    description: 'A special training digger that permanently increases all gathering efficiency by 5%',
     rarity: ItemRarity.Rare,
-    description: 'A gift from the wasteland guides. Sacrifice at the Shrine for permanent gathering bonus.',
-    sacrificeValue: { metal: 2.0, energy: 2.0 },
-    foundAt: { x: 0, y: 0 },
-    foundDate: new Date(),
+    bonusPercent: 5.0, // Fixed 5% bonus (not subject to diminishing returns)
+    foundAt: { x: 0, y: 0 }, // Tutorial location
+    foundDate: new Date()
   };
-
-  await supabase.from('player_inventory').insert({
-    player_username: username,
-    item_id: digger.id,
-    name: digger.name,
-    item_type: digger.type,
-    rarity: digger.rarity,
-    quantity: 1,
-    description: digger.description,
-    bonus_percent: digger.sacrificeValue.metal + digger.sacrificeValue.energy,
-    digger_weight: 1,
-    found_at_x: null,
-    found_at_y: null,
-    found_date: new Date().toISOString(),
-  });
-
-  return { success: true, message: 'Tutorial Universal Digger awarded!', digger };
 }
 
-export const harvestForestTile = harvestCaveTile;
-export const awardTutorialDiggerToPlayer = awardTutorialDigger;
+/**
+ * Award tutorial digger to player with full database updates
+ * 
+ * TUTORIAL-ONLY: Awards guaranteed 5% Universal Digger during tutorial
+ * Updates ALL related fields:
+ * - Adds digger to player.inventory.items
+ * - Increments player.inventory.metalDiggerCount
+ * - Increments player.inventory.energyDiggerCount
+ * - Adds 5% to player.gatheringBonus.metalBonus
+ * - Adds 5% to player.gatheringBonus.energyBonus
+ * 
+ * @param username - Player username (not _id)
+ * @returns Result with success status, message, and digger item
+ */
+export async function awardTutorialDiggerToPlayer(
+  username: string
+): Promise<{ success: boolean; message: string; digger?: InventoryItem }> {
+  try {
+    // Get player
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username });
+    
+    if (!player) {
+      return { 
+        success: false, 
+        message: 'Player not found' 
+      };
+    }
+    
+    // Check inventory capacity
+    if (player.inventory.items.length >= player.inventory.capacity) {
+      return {
+        success: false,
+        message: 'Inventory is full! Cannot receive tutorial digger.'
+      };
+    }
+    
+    // Create tutorial digger with fixed 5% bonus
+    const digger = createTutorialDigger();
+    
+    // Update player with ALL digger-related fields
+    await playersCollection.updateOne(
+      { username },
+      {
+        $push: {
+          'inventory.items': digger
+        },
+        $inc: {
+          // Universal digger increments BOTH counts
+          'inventory.metalDiggerCount': 1,
+          'inventory.energyDiggerCount': 1,
+          // Add 5% to BOTH bonuses
+          'gatheringBonus.metalBonus': 5.0,
+          'gatheringBonus.energyBonus': 5.0
+        }
+      }
+    );
+    
+    console.log(`🎓 Tutorial digger awarded to ${username}: +5% metal & energy gathering`);
+    
+    return {
+      success: true,
+      message: 'Tutorial Universal Digger awarded! Your gathering efficiency increased by 5%!',
+      digger
+    };
+    
+  } catch (error) {
+    console.error('❌ Error awarding tutorial digger:', error);
+    return {
+      success: false,
+      message: 'An error occurred while awarding the tutorial digger'
+    };
+  }
+}
+
+// ============================================================
+// IMPLEMENTATION NOTES:
+// ============================================================
+// - Implements Option 4 diminishing returns system
+// - First 10 diggers: +2% each = +20% total
+// - After 150+ diggers: +0.1% each (soft cap)
+// - Tradeable items have no bonus (used for trading system)
+// - Universal diggers boost BOTH metal and energy
+// - Inventory capacity enforced (default 2000 items)
+// - Cave tiles follow same reset system as resource tiles
+// - Tutorial digger: Fixed 5% bonus, not subject to diminishing returns
+// ============================================================
+// END OF FILE
+// ============================================================

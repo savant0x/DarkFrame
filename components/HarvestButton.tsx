@@ -114,7 +114,7 @@ export default function HarvestButton({ onHarvestResult }: HarvestButtonProps) {
     
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isHarvesting, isLoading, player, currentTile]);
+  }, [isHarvesting, isLoading, player, currentTile, handleHarvest]);
   
   // Early returns AFTER all hooks
   if (!player || !currentTile) return null;

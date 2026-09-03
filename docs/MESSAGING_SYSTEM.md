@@ -26,7 +26,7 @@
 
 ## 🎯 Overview
 
-The Private Messaging System provides a complete real-time communication platform for DarkFrame players. It combines **persistent Supabase PostgreSQL storage** with **real-time Socket.io delivery**, enabling both instant chat and traditional messaging functionality.
+The Private Messaging System provides a complete real-time communication platform for DarkFrame players. It combines **persistent MongoDB storage** with **real-time Socket.io delivery**, enabling both instant chat and traditional messaging functionality.
 
 ### Key Capabilities
 
@@ -34,13 +34,13 @@ The Private Messaging System provides a complete real-time communication platfor
 - **Rich Features**: Emoji picker, typing indicators, read receipts, message search
 - **Security First**: Profanity filtering, rate limiting (20 msgs/min), input validation
 - **Responsive Design**: Split-pane (desktop) and stacked (mobile) layouts
-- **Performance**: Optimized database indexes for fast queries
+- **Performance**: Optimized MongoDB indexes for fast queries
 
 ### Technology Stack
 
 - **Frontend**: React, Next.js 15, TypeScript, Tailwind CSS
 - **Real-time**: Socket.io (custom HTTP server with JWT auth)
-- **Storage**: Supabase PostgreSQL (conversations + messages tables)
+- **Storage**: MongoDB (conversations + messages collections)
 - **Packages**: @emoji-mart/react, bad-words, linkify-react, react-mentions, string-similarity
 
 ---
@@ -132,13 +132,13 @@ The Private Messaging System provides a complete real-time communication platfor
 └────────────────────────────────────────┼────────────────────┘
                                          │
                     ┌────────────────────┼────────────────────┐
-                    │    Supabase Client     │                    │
+                    │    MongoDB Driver  │                    │
                     └────────────────────┼────────────────────┘
                                          │
 ┌────────────────────────────────────────┼────────────────────┐
 │                   DATABASE             │                    │
 ├────────────────────────────────────────┼────────────────────┤
-│  Supabase Tables                      │                    │
+│  MongoDB Collections                   │                    │
 │  ├── conversations (metadata)          │                    │
 │  │   └── Indexes: participants, updatedAt                   │
 │  └── messages (content)                │                    │
@@ -151,7 +151,7 @@ The Private Messaging System provides a complete real-time communication platfor
 **Sending a Message:**
 1. User types in MessageThread → clicks Send
 2. MessageThread POST to `/api/messages` → returns message object
-3. API route calls `messagingService.sendMessage()` → saves to Supabase
+3. API route calls `messagingService.sendMessage()` → saves to MongoDB
 4. Client emits Socket.io `message:send` event
 5. Server `handleMessageSend()` validates → broadcasts `message:receive` to recipient
 6. Recipient's MessageThread receives event → updates UI instantly
@@ -170,7 +170,7 @@ The Private Messaging System provides a complete real-time communication platfor
 ### Prerequisites
 
 - Node.js 18+ installed
-- Supabase account (free tier works)
+- MongoDB Atlas account or local MongoDB instance
 - NPM packages installed (see package.json)
 
 ### Installation Steps
@@ -187,21 +187,23 @@ npm install --save-dev @types/string-similarity @types/web-push
 Add to `.env.local`:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+MONGODB_URI=REDACTED_MONGO_URI_username:password@cluster.mongodb.net/darkframe?retryWrites=true&w=majority
 ```
 
-**3. Create Database Tables**
+**3. Create MongoDB Indexes**
+
+Run the automated setup script:
 
 ```bash
-npx supabase db push
+node scripts/setup-messaging-indexes.js
+```
 
 Expected output:
 ```
 ✅ Successfully created 7 new indexes!
 ```
 
-Verify tables in Supabase Dashboard:
+Verify indexes in MongoDB Atlas or MongoDB Compass:
 - **conversations**: `participants_index`, `participants_updated_index`, `updated_at_index`
 - **messages**: `conversation_messages_index`, `sender_recipient_index`, `status_index`, `created_at_index`
 
@@ -219,7 +221,7 @@ Server will start on `http://localhost:3000` with Socket.io enabled.
 2. Login as User B in incognito window → Navigate to `/messages`
 3. User A sends message to User B
 4. Verify real-time delivery
-5. Check database to confirm persistence
+5. Check MongoDB to confirm persistence
 
 ---
 
@@ -868,7 +870,7 @@ Replace in-memory storage with Redis for distributed rate limiting.
 **User Validation:**
 - Cannot send messages to self
 - Sender and recipient must be non-empty strings
-- UUID validation for conversationId
+- MongoDB ObjectId validation for conversationId
 
 **Example:**
 ```typescript
@@ -889,7 +891,7 @@ if (senderId === recipientId) {
 
 ## ⚡ Performance Optimization
 
-### Database Indexes
+### MongoDB Indexes
 
 **Impact:** 10-100x faster queries
 
@@ -1010,7 +1012,7 @@ console.log('Connection state:', connectionState);
 
 ---
 
-### Issue: Database indexes missing
+### Issue: MongoDB indexes missing
 
 **Symptoms:** Slow query performance, timeout errors
 
@@ -1026,7 +1028,7 @@ Look for output like:
 
 **Solutions:**
 - **Run setup:** `node scripts/setup-messaging-indexes.js`
-- **Verify in Supabase Dashboard:** Check table indexes
+- **Verify in MongoDB Compass:** Check indexes tab for collections
 - **Manual creation:** See script for index definitions
 
 ---
@@ -1149,7 +1151,7 @@ Look for output like:
 - WebSocket connection uptime
 - API response times
 
-**Database Queries:**
+**MongoDB Queries:**
 ```javascript
 // Total messages
 db.messages.countDocuments({});
@@ -1201,14 +1203,14 @@ db.conversations.countDocuments({
 - 3 REST API routes (send, fetch, mark read)
 - 6 Socket.io event handlers (send, read, typing, join/leave)
 - Messages page with responsive layout
-- Database indexes for performance
+- MongoDB indexes for performance
 - Comprehensive documentation
 
 📊 **Statistics:**
 - Total lines of code: 3,900+
 - Files created/modified: 14
 - TypeScript errors: 0
-- Database indexes: 7
+- MongoDB indexes: 7
 - Socket.io events: 12 (6 client→server, 6 server→client)
 - API endpoints: 4
 

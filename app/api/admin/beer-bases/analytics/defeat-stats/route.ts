@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authService';
 import { getDefeatStats } from '@/lib/beerBaseAnalytics';
 import { logger } from '@/lib/logger';
 

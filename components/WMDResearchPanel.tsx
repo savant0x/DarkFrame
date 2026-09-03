@@ -328,7 +328,7 @@ export default function WMDResearchPanel() {
       {research && research.availableTechs?.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-400 text-lg">All research complete!</p>
-          <p className="text-gray-500 text-sm">You've unlocked all WMD technologies</p>
+          <p className="text-gray-500 text-sm">You{"'"}ve unlocked all WMD technologies</p>
         </div>
       )}
     </div>

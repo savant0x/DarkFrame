@@ -1,146 +1,266 @@
 /**
  * @file app/api/harvest/route.ts
- * @overview Harvest API endpoint — Supabase backend
+ * @created 2025-10-16
+ * @modified 2025-10-24 - Phase 2: Production infrastructure - validation, errors, rate limiting
+ * @overview Harvest API endpoint for resource and cave tiles
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import { getCollection } from '@/lib/mongodb';
 import { harvestResourceTile, getHarvestStatus } from '@/lib/harvestService';
 import { harvestCaveTile, harvestForestTile } from '@/lib/caveItemService';
-import type { Tables } from '@/types/database';
-import { ItemRarity, TerrainType } from '@/types';
+import { Player, Tile, TerrainType } from '@/types';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { checkDiscoveryDrop } from '@/lib/discoveryService';
 import { trackResourcesGathered, trackCaveExplored } from '@/lib/statTrackingService';
 import { logHarvest, logCaveExplore } from '@/lib/activityLogger';
 import { updateSession } from '@/lib/sessionTracker';
 import { detectResourceHack, detectCooldownViolation } from '@/lib/antiCheatDetector';
-import {
-  withRequestLogging, createRouteLogger, createRateLimiter, ENDPOINT_RATE_LIMITS,
-  HarvestSchema, createErrorResponse, createErrorFromException, createValidationErrorResponse, ErrorCode, logger
+import { 
+  withRequestLogging, 
+  createRouteLogger,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  HarvestSchema,
+  createErrorResponse,
+  createErrorFromException,
+  createValidationErrorResponse,
+  ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
 
-interface TileServiceData { x: number; y: number; terrain: TerrainType; occupied_by_base: boolean | null; }
-interface ResourceResult { success: boolean; message: string; metalGained?: number; energyGained?: number; bonusApplied?: number; }
-interface CaveResult { success: boolean; message: string; item?: { name: string; rarity: ItemRarity }; bonusApplied?: number; }
-type HarvestResult = ResourceResult | CaveResult;
-
-type PlayerRow = Tables<'players'>;
-type TileRow = Tables<'tiles'>;
-
-function isResourceResult(r: HarvestResult): r is ResourceResult { return 'metalGained' in r || 'energyGained' in r; }
-function isCaveResult(r: HarvestResult): r is CaveResult { return 'item' in r; }
-
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.harvest);
 
+/**
+ * POST /api/harvest
+ * 
+ * Harvest the tile at player's current position
+ * 
+ * Request body:
+ * {
+ *   username: string
+ * }
+ * 
+ * Response:
+ * {
+ *   success: boolean,
+ *   message: string,
+ *   metalGained?: number,
+ *   energyGained?: number,
+ *   item?: InventoryItem,
+ *   player: Player,
+ *   tile: Tile,
+ *   harvestStatus: {
+ *     canHarvest: boolean,
+ *     timeUntilReset: number,
+ *     resetPeriod: string
+ *   }
+ * }
+ */
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('HarvestAPI');
   const endTimer = log.time('harvestOperation');
-
+  
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
+    // Parse and validate request body
     const body = await request.json();
     const validated = HarvestSchema.parse(body);
     const { username } = validated;
-
-    if (username !== auth.playerId) {
-      log.warn('Harvest attempted as different user', { authenticated: auth.playerId, requested: username });
-      return createErrorResponse(ErrorCode.AUTH_FORBIDDEN, { message: 'You can only harvest as yourself' });
-    }
-
+    
     log.debug('Processing harvest request', { username });
-
-    const supabase = createServiceClient();
-    const { data: player } = await supabase.from('players').select('*').eq('username', username).maybeSingle();
-    if (!player) { log.warn('Player not found', { username }); return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED); }
-
-    const { data: tile } = await supabase.from('tiles').select('*').eq('x', player.current_x).eq('y', player.current_y).maybeSingle();
-    if (!tile) { log.warn('Tile not found'); return createErrorResponse(ErrorCode.INTERNAL_ERROR); }
-
-    const tileForService: TileServiceData = { x: tile.x, y: tile.y, terrain: tile.terrain as TerrainType, occupied_by_base: tile.occupied_by_base };
-    let result: HarvestResult;
-
-    if (tile.terrain === 'Metal' || tile.terrain === 'Energy') {
-      result = await harvestResourceTile(username, tileForService);
-    } else if (tile.terrain === 'Cave') {
-      result = await harvestCaveTile(username, tileForService);
-    } else if (tile.terrain === 'Forest') {
-      result = await harvestForestTile(username, tileForService);
+    
+    // Get player
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username });
+    
+    if (!player) {
+      log.warn('Player not found', { username });
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
+    
+    // Get tile at player's current position
+    const tilesCollection = await getCollection<Tile>('tiles');
+    const tile = await tilesCollection.findOne({
+      x: player.currentPosition.x,
+      y: player.currentPosition.y
+    });
+    
+    if (!tile) {
+      log.warn('Tile not found', { position: player.currentPosition });
+      return createErrorResponse(ErrorCode.INTERNAL_ERROR);
+    }
+    
+    // Check tile type and harvest accordingly
+    let result;
+    
+    if (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy) {
+      // Harvest resource tile
+      result = await harvestResourceTile(username, tile);
+    } else if (tile.terrain === TerrainType.Cave) {
+      // Harvest cave tile
+      result = await harvestCaveTile(username, tile);
+    } else if (tile.terrain === TerrainType.Forest) {
+      // Harvest forest tile (BETTER loot than caves!)
+      result = await harvestForestTile(username, tile);
     } else {
-      log.warn('Cannot harvest tile', { terrain: tile.terrain });
+      log.warn('Cannot harvest tile', { terrain: tile.terrain, position: { x: tile.x, y: tile.y } });
       return createErrorResponse(ErrorCode.HARVEST_INVALID_TILE, { terrain: tile.terrain });
     }
-
-    const harvestStatus = await getHarvestStatus(username, tileForService);
-
+    
+    // Get updated harvest status
+    const harvestStatus = await getHarvestStatus(username, tile);
+    
+    // Check for discovery drop on cave harvests
     let discoveryResult;
-    if (result.success && (tile.terrain === 'Cave' || tile.terrain === 'Forest')) {
+    if (result.success && (tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest)) {
       discoveryResult = await checkDiscoveryDrop(username, { x: tile.x, y: tile.y });
     }
-
+    
+    // Award XP for successful harvest
     let xpResult;
     if (result.success) {
-      if (isResourceResult(result)) {
+      // Track resources gathered for achievements
+      if ('metalGained' in result || 'energyGained' in result) {
         const totalGained = (result.metalGained || 0) + (result.energyGained || 0);
         await trackResourcesGathered(username, totalGained);
       }
-      if (tile.terrain === 'Cave' || tile.terrain === 'Forest') {
+      
+      // Track cave exploration for achievements
+      if (tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) {
         await trackCaveExplored(username);
       }
-
+      
+      // Log activity for admin tracking
       const sessionId = request.cookies.get('sessionId')?.value || 'unknown';
-
-      if (tile.terrain === 'Cave' || tile.terrain === 'Forest') {
-        const itemNames = isCaveResult(result) && result.item ? [result.item.name] : [];
-        await logCaveExplore(username, sessionId, { x: tile.x, y: tile.y }, itemNames);
-      } else if (isResourceResult(result)) {
-        const harvestDuration = 5;
-        const metalGained = result.metalGained || 0;
-        const energyGained = result.energyGained || 0;
-        await logHarvest(username, sessionId, { metal: metalGained, energy: energyGained }, { x: tile.x, y: tile.y }, harvestDuration);
-        await updateSession(sessionId, { metal: metalGained, energy: energyGained });
-        const totalGained = metalGained + energyGained;
+      
+      if (tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) {
+        // Log cave/forest exploration
+        await logCaveExplore(
+          username,
+          sessionId,
+          { x: tile.x, y: tile.y },
+          'item' in result && result.item ? [result.item.name] : []
+        );
+      } else if ('metalGained' in result || 'energyGained' in result) {
+        // Log resource harvest (only for resource tiles)
+        const harvestDuration = 5; // Default cooldown
+        const metalGained = 'metalGained' in result ? result.metalGained : 0;
+        const energyGained = 'energyGained' in result ? result.energyGained : 0;
+        
+        await logHarvest(
+          username,
+          sessionId,
+          {
+            metal: metalGained || 0,
+            energy: energyGained || 0
+          },
+          { x: tile.x, y: tile.y },
+          harvestDuration
+        );
+        
+        // Update session with resources gained
+        await updateSession(sessionId, {
+          metal: metalGained || 0,
+          energy: energyGained || 0
+        });
+        
+        // Anti-cheat: Check for resource hacking
+        const totalGained = (metalGained || 0) + (energyGained || 0);
         if (totalGained > 0) {
-          const resourceCheck = await detectResourceHack(username, metalGained > energyGained ? 'metal' : 'energy', totalGained, player.level || 1);
-          if (resourceCheck.suspicious) logger.warn(`Resource hack detected for ${username}`);
+          const resourceCheck = await detectResourceHack(
+            username,
+            (metalGained || 0) > (energyGained || 0) ? 'metal' : 'energy',
+            totalGained,
+            (player as any).tier || 1
+          );
+          
+          if (resourceCheck.suspicious) {
+            console.warn(`⚠️ Resource hack detected for ${username}:`, resourceCheck.evidence);
+          }
         }
-        const cooldownCheck = await detectCooldownViolation(username, 'harvest', Date.now());
-        if (cooldownCheck.suspicious) logger.warn(`Cooldown violation detected for ${username}`);
+        
+        // Anti-cheat: Check for cooldown violations
+        const cooldownCheck = await detectCooldownViolation(
+          username,
+          'harvest',
+          Date.now()
+        );
+        
+        if (cooldownCheck.suspicious) {
+          console.warn(`⚠️ Cooldown violation detected for ${username}:`, cooldownCheck.evidence);
+        }
       }
-
-      if (tile.terrain === 'Cave') {
+      
+      if (tile.terrain === TerrainType.Cave) {
+        // Cave exploration XP
         xpResult = await awardXP(username, XPAction.CAVE_EXPLORATION);
-        if (isCaveResult(result) && result.item) {
-          const rarity = result.item.rarity;
-          if (rarity === ItemRarity.Legendary) await awardXP(username, XPAction.CAVE_ITEM_LEGENDARY);
-          else if (rarity === ItemRarity.Rare) await awardXP(username, XPAction.CAVE_ITEM_RARE);
+        
+        // Bonus XP if rare/legendary item found
+        if ('item' in result && result.item) {
+          const itemRarity = result.item.rarity;
+          if (itemRarity === 'LEGENDARY') {
+            await awardXP(username, XPAction.CAVE_ITEM_LEGENDARY);
+          } else if (itemRarity === 'RARE') {
+            await awardXP(username, XPAction.CAVE_ITEM_RARE);
+          }
         }
       } else {
+        // Resource harvesting XP
         xpResult = await awardXP(username, XPAction.HARVEST_RESOURCE);
       }
     }
-
-    const { data: updatedPlayer } = await supabase.from('players').select('resources_metal, resources_energy').eq('username', username).maybeSingle();
-
+    
+    // Get updated player data (includes new XP/level and discoveries)
+    const updatedPlayer = await playersCollection.findOne({ username });
+    
+    const resultSummary = {
+      success: result.success,
+      metalGained: 'metalGained' in result ? result.metalGained : undefined,
+      energyGained: 'energyGained' in result ? result.energyGained : undefined,
+      itemFound: 'item' in result ? result.item?.name : undefined,
+    };
+    log.info('Harvest completed', { username, ...resultSummary });
+    
+    // Return harvest results WITHOUT player data to prevent auto-refresh
+    // Player can manually refresh if needed, but page should stay as-is
     return NextResponse.json({
-      success: result.success, message: result.message,
-      metalGained: isResourceResult(result) ? result.metalGained : undefined,
-      energyGained: isResourceResult(result) ? result.energyGained : undefined,
-      item: isCaveResult(result) ? result.item : undefined,
-      bonusApplied: result.bonusApplied,
-      xpAwarded: xpResult?.xpAwarded, levelUp: xpResult?.levelUp, newLevel: xpResult?.newLevel,
+      success: result.success,
+      message: result.message,
+      metalGained: 'metalGained' in result ? result.metalGained : undefined,
+      energyGained: 'energyGained' in result ? result.energyGained : undefined,
+      item: 'item' in result ? result.item : undefined,
+      bonusApplied: 'bonusApplied' in result ? result.bonusApplied : undefined,
+      xpAwarded: xpResult?.xpAwarded,
+      levelUp: xpResult?.levelUp,
+      newLevel: xpResult?.newLevel,
       discovery: discoveryResult?.isNew ? discoveryResult.discovery : undefined,
-      totalDiscoveries: discoveryResult?.totalDiscoveries, harvestStatus,
-      player: { resources: { metal: updatedPlayer?.resources_metal || 0, energy: updatedPlayer?.resources_energy || 0 } },
-      tile: { x: tile.x, y: tile.y, terrain: tile.terrain },
+      totalDiscoveries: discoveryResult?.totalDiscoveries,
+      // DO NOT return player or tile - prevents auto-refresh
+      harvestStatus
     });
+    
   } catch (error) {
     log.error('Harvest API error', error as Error);
-    if (error instanceof ZodError) return createValidationErrorResponse(error);
+    
+    // Handle validation errors
+    if (error instanceof ZodError) {
+      return createValidationErrorResponse(error);
+    }
+    
+    // Handle all other errors
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
-  } finally { endTimer(); }
+  } finally {
+    endTimer();
+  }
 }));
+
+// ============================================================
+// IMPLEMENTATION NOTES:
+// ============================================================
+// - Unified endpoint for metal, energy, and cave harvesting
+// - Returns updated player data and harvest status
+// - Validates player position and tile type
+// - Handles errors gracefully with detailed messages
+// ============================================================
+// END OF FILE
+// ============================================================

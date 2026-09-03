@@ -1,25 +1,46 @@
+/**
+ * Messages API Route
+ * Created: 2025-10-25
+ * Feature: FID-20251025-102
+ * 
+ * OVERVIEW:
+ * RESTful API endpoints for private messaging operations.
+ * Handles sending messages, fetching conversations, message history,
+ * and marking messages as read.
+ * 
+ * ENDPOINTS:
+ * - GET  /api/messages - Get message history for a conversation
+ * - POST /api/messages - Send a new message
+ * - GET  /api/messages/conversations - Get all conversations for a player
+ * - POST /api/messages/read - Mark messages as read
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import { getMessageHistory, sendDirectMessage } from '@/lib/messagingService';
-import { createRateLimiter, ENDPOINT_RATE_LIMITS, createErrorResponse, ErrorCode, createErrorFromException, logger } from '@/lib';
+import {
+  sendDirectMessage,
+  getMessageHistory,
+  getConversations,
+  markMessagesAsRead,
+} from '@/lib/messagingService';
 
-const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
+// ============================================================================
+// GET - Fetch Message History
+// ============================================================================
 
-export const GET = getRateLimiter(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const playerId = auth.playerId;
-
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
+    const playerId = searchParams.get('playerId');
     const limit = searchParams.get('limit');
     const before = searchParams.get('before');
     const after = searchParams.get('after');
 
     if (!conversationId) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'conversationId is required');
+      return NextResponse.json(
+        { success: false, error: 'conversationId is required' },
+        { status: 400 }
+      );
     }
 
     const result = await getMessageHistory({
@@ -30,23 +51,29 @@ export const GET = getRateLimiter(async (request: NextRequest) => {
     });
 
     return NextResponse.json(result);
-  } catch (error) {
-    logger.error('Error in GET /api/messages:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+  } catch (error: any) {
+    console.error('Error in GET /api/messages:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
-});
+}
 
-export const POST = postRateLimiter(async (request: NextRequest) => {
+// ============================================================================
+// POST - Send Message
+// ============================================================================
+
+export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const senderId = auth.playerId;
-
     const body = await request.json();
-    const { recipientId, content, contentType } = body;
+    const { senderId, recipientId, content, contentType } = body;
 
-    if (!recipientId || !content) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'recipientId and content are required');
+    if (!senderId || !recipientId || !content) {
+      return NextResponse.json(
+        { success: false, error: 'senderId, recipientId, and content are required' },
+        { status: 400 }
+      );
     }
 
     const result = await sendDirectMessage(senderId, {
@@ -60,8 +87,11 @@ export const POST = postRateLimiter(async (request: NextRequest) => {
     }
 
     return NextResponse.json(result);
-  } catch (error) {
-    logger.error('Error in POST /api/messages:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+  } catch (error: any) {
+    console.error('Error in POST /api/messages:', error);
+    return NextResponse.json(
+      { success: false, error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
   }
-});
+}

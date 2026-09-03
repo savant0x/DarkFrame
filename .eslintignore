@@ -1,0 +1,7 @@
+# Dependencies and build output
+node_modules
+.next
+out
+
+# Unlintable Windows reserved-name artifact in repo root (breaks directory walkers)
+nul

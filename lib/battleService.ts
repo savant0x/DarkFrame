@@ -1,29 +1,28 @@
 /**
  * @file lib/battleService.ts
  * @created 2025-10-17
- * @updated 2026-05-15 — FID-20260515-BATTLE-SYSTEM-FIX
- * @overview PVP Battle Resolution Service with multi-phase archetype combat
+ * @overview PVP Battle Resolution Service with HP-based combat
  * 
  * OVERVIEW:
  * Handles all PVP combat encounters including Infantry battles (player vs player),
- * Base attacks (home base raids), and Factory battles. Uses a multi-phase
- * combat resolution system with archetype counters and unit capture mechanics.
+ * Base attacks (home base raids), and enhanced Factory battles. Uses HP-based
+ * combat resolution with unit capture mechanics and resource theft.
  * 
- * COMBAT PHASES:
- * Phase 1 — Artillery Strike: Artillery units target Support units first (1.5x damage)
- * Phase 2 — Support Buff: Support units amplify allied STR/DEF (diminishing returns, max +60%)
- * Phase 3 — Vanguard Clash: Striker vs Bulwark counter system (Striker 1.3x vs Bulwark, Bulwark absorbs 70%)
- * Phase 4 — Casualty Distribution: Weighted by archetype (Bulwarks absorb frontline damage)
- * 
- * INTRANSITIVE COUNTERS:
- * Striker > Bulwark > Artillery > Support > Striker
+ * COMBAT MECHANICS:
+ * - Each unit contributes to total HP pool (STR units = 10 HP each, DEF units = 15 HP each)
+ * - Damage dealt per round = (AttackerSTR - DefenderDEF/2) for attacker
+ * - Damage dealt per round = (DefenderDEF - AttackerSTR/2) for defender
+ * - Battle continues until one side reaches 0 HP
+ * - HP loss translates to unit casualties (distributed across unit types)
+ * - Winners capture 10-15% of defeated enemy units
+ * - Base attacks allow 20% resource theft (capped)
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, Database } from '@/types/database';
-import { mapDbBattleLogToDomain } from './battleLogService';
-import type { BattleLog as ActivityBattleLog } from '@/types/activityLog.types';
+import { db } from '@/lib/db';
+import { players, battleLogs } from '@/lib/db/schema';
+import { eq, or, desc, sql, and } from 'drizzle-orm';
 import {
+  Player,
   Unit,
   PlayerUnit,
   UnitType,
@@ -31,26 +30,30 @@ import {
   BattleOutcome,
   BattleLog,
   BattleResult,
-  CombatRound,
-  UNIT_CONFIGS,
-  UNIT_TYPE_ARCHETYPE,
-  UnitArchetype,
+  BattleParticipant,
+  CombatRound
 } from '@/types';
 import { awardXP, XPAction } from './xpService';
 import { trackBattleWon } from './statTrackingService';
 
 /**
  * Convert PlayerUnit (inventory) to Unit (combat)
+ * Expands quantity into individual Unit objects for battle resolution
+ * Each unit gets a unique ID based on its type and index
+ * 
+ * @param playerUnit - Player inventory unit
+ * @param owner - Owner username
+ * @returns Array of Unit objects for combat
  */
 function playerUnitToUnits(playerUnit: PlayerUnit, owner: string): Unit[] {
   const units: Unit[] = [];
   for (let i = 0; i < playerUnit.quantity; i++) {
     units.push({
-      id: `${playerUnit.unitType}-${i}-${Date.now()}`,
+      id: `${playerUnit.unitType}-${i}`, // Type-based ID for tracking
       type: playerUnit.unitType,
       strength: playerUnit.strength,
       defense: playerUnit.defense,
-      producedAt: { x: 0, y: 0 },
+      producedAt: { x: 0, y: 0 }, // Placeholder - not relevant for infantry battles
       producedDate: playerUnit.createdAt,
       owner
     });
@@ -59,92 +62,16 @@ function playerUnitToUnits(playerUnit: PlayerUnit, owner: string): Unit[] {
 }
 
 /**
- * Load player units from player_units table.
- * Respects the quantity field — each row is expanded into N Unit objects.
- * If strength/defense are NULL (legacy rows), falls back to UNIT_CONFIGS.
- */
-export async function loadPlayerUnits(
-  supabase: ReturnType<typeof createServiceClient>,
-  username: string,
-  unitIds?: string[]
-): Promise<Unit[]> {
-  let query = supabase.from('player_units').select('*').eq('player_username', username);
-  if (unitIds && unitIds.length > 0) {
-    query = query.in('id', unitIds);
-  }
-  const { data, error } = await query;
-  if (error) throw new Error(`Failed to load units for ${username}: ${error.message}`);
-
-  const units: Unit[] = [];
-  for (const row of data || []) {
-    const quantity = row.quantity || 1;
-    const unitType = row.unit_type as UnitType;
-    const config = UNIT_CONFIGS[unitType];
-    const strength = row.strength ?? config?.strength ?? 0;
-    const defense = row.defense ?? config?.defense ?? 0;
-
-    for (let i = 0; i < quantity; i++) {
-      units.push({
-        id: `${row.id}-${i}`,
-        type: unitType,
-        strength,
-        defense,
-        producedAt: { x: row.produced_at_x || 0, y: row.produced_at_y || 0 },
-        producedDate: row.produced_date ? new Date(row.produced_date) : new Date(),
-        owner: row.player_username,
-      });
-    }
-  }
-  return units;
-}
-
-/**
- * Save player units to player_units table.
- * Uses aggregated upsert model: groups units by type, sums quantities,
- * and upserts rows with quantity/strength/defense. Preserves the quantity model.
- */
-export async function savePlayerUnits(
-  supabase: ReturnType<typeof createServiceClient>,
-  username: string,
-  units: Unit[]
-): Promise<void> {
-  const { error: deleteError } = await supabase.from('player_units').delete().eq('player_username', username);
-  if (deleteError) throw new Error(`Failed to delete units for ${username}: ${deleteError.message}`);
-
-  if (units.length === 0) return;
-
-  const byType = new Map<UnitType, { count: number; strength: number; defense: number; producedAt: { x: number; y: number }; producedDate: Date }>();
-  for (const u of units) {
-    const existing = byType.get(u.type);
-    if (existing) {
-      existing.count++;
-      existing.strength += u.strength;
-      existing.defense += u.defense;
-    } else {
-      byType.set(u.type, { count: 1, strength: u.strength, defense: u.defense, producedAt: u.producedAt, producedDate: u.producedDate });
-    }
-  }
-
-  const now = new Date().toISOString();
-  const rows = Array.from(byType.entries()).map(([unitType, agg]) => ({
-    player_username: username,
-    unit_type: unitType,
-    quantity: agg.count,
-    strength: Math.round(agg.strength / agg.count),
-    defense: Math.round(agg.defense / agg.count),
-    produced_at_x: agg.producedAt.x,
-    produced_at_y: agg.producedAt.y,
-    produced_date: now,
-  }));
-
-  const { error: insertError } = await supabase.from('player_units').insert(rows as never);
-  if (insertError) throw new Error(`Failed to insert units for ${username}: ${insertError.message}`);
-}
-
-/**
  * Convert Units back to PlayerUnit inventory format
+ * Collapses individual Unit objects back into quantity-based PlayerUnits
+ * Groups by unitType and aggregates quantities
+ * 
+ * @param units - Array of Unit objects from battle
+ * @param ownerPlayerUnits - Original PlayerUnit array for metadata (name, category, rarity, etc.)
+ * @returns Array of PlayerUnit objects with updated quantities
  */
 function unitsToPlayerUnits(units: Unit[], ownerPlayerUnits: PlayerUnit[]): PlayerUnit[] {
+  // Group units by type and count quantities
   const unitsByType = new Map<UnitType, Unit[]>();
   
   for (const unit of units) {
@@ -153,26 +80,29 @@ function unitsToPlayerUnits(units: Unit[], ownerPlayerUnits: PlayerUnit[]): Play
     unitsByType.set(unit.type, existing);
   }
 
+  // Convert back to PlayerUnit format, preserving metadata from original PlayerUnits
   const playerUnits: PlayerUnit[] = [];
   
   for (const [unitType, typeUnits] of unitsByType.entries()) {
+    // Find original PlayerUnit to get metadata
     const originalPlayerUnit = ownerPlayerUnits.find(pu => pu.unitType === unitType);
     
     if (originalPlayerUnit) {
+      // Update existing PlayerUnit with new quantity
       playerUnits.push({
         ...originalPlayerUnit,
         quantity: typeUnits.length
       });
     } else {
+      // New unit type (captured from enemy) - create new PlayerUnit
       const sampleUnit = typeUnits[0];
-      const archetype = UNIT_TYPE_ARCHETYPE[unitType] || 'STRIKER';
       playerUnits.push({
         id: `${unitType}-playerunit`,
         unitId: `${unitType}-playerunit`,
         unitType: unitType,
-        name: unitType,
-        archetype,
-        rarity: 'common',
+        name: unitType, // TODO: Look up proper name from UNIT_CONFIGS
+        category: sampleUnit.strength > sampleUnit.defense ? 'STR' : 'DEF',
+        rarity: 'common', // TODO: Look up proper rarity from UNIT_CONFIGS
         strength: sampleUnit.strength,
         defense: sampleUnit.defense,
         quantity: typeUnits.length,
@@ -187,53 +117,30 @@ function unitsToPlayerUnits(units: Unit[], ownerPlayerUnits: PlayerUnit[]): Play
 /**
  * HP contribution constants
  */
-const HP_PER_UNIT = 10;
+const HP_PER_STR_UNIT = 10;  // Offensive units are glass cannons
+const HP_PER_DEF_UNIT = 15;  // Defensive units have more HP
 
 /**
  * Unit capture constants
  */
-const MIN_CAPTURE_RATE = 0.10;
-const MAX_CAPTURE_RATE = 0.15;
+const MIN_CAPTURE_RATE = 0.10; // Minimum 10% of defeated units
+const MAX_CAPTURE_RATE = 0.15; // Maximum 15% of defeated units
 
 /**
  * Resource theft constants
  */
-const RESOURCE_THEFT_RATE = 0.20;
-
-/**
- * Archetype counter damage modifiers
- */
-const COUNTER_MULTIPLIER = 1.3;
-const BULWARK_ABSORPTION = 0.70;
-const ARTILLERY_VS_SUPPORT_MULTIPLIER = 1.5;
-const SUPPORT_MAX_BUFF = 0.60;
-
-/**
- * Get archetype for a unit
- */
-function getArchetype(unit: Unit): UnitArchetype {
-  return UNIT_TYPE_ARCHETYPE[unit.type] || 'STRIKER';
-}
-
-/**
- * Group units by archetype
- */
-function groupByArchetype(units: Unit[]): Map<UnitArchetype, Unit[]> {
-  const groups = new Map<UnitArchetype, Unit[]>();
-  for (const unit of units) {
-    const arch = getArchetype(unit);
-    const group = groups.get(arch) || [];
-    group.push(unit);
-    groups.set(arch, group);
-  }
-  return groups;
-}
+const RESOURCE_THEFT_RATE = 0.20; // 20% of defender's resources (capped)
 
 /**
  * Calculate total HP for a set of units
+ * STR units: 10 HP each
+ * DEF units: 15 HP each
  */
 function calculateTotalHP(units: Unit[]): number {
-  return units.length * HP_PER_UNIT;
+  return units.reduce((total, unit) => {
+    const hpValue = unit.strength > 0 ? HP_PER_STR_UNIT : HP_PER_DEF_UNIT;
+    return total + hpValue;
+  }, 0);
 }
 
 /**
@@ -250,174 +157,82 @@ function calculateCombatStats(units: Unit[]): { totalSTR: number; totalDEF: numb
 }
 
 /**
- * Calculate support buff with diminishing returns.
- * Each support unit adds a buff, but with diminishing returns capped at SUPPORT_MAX_BUFF.
- * Formula: buff = maxBuff * (1 - (1 - perUnitBuff)^supportCount)
- */
-function calculateSupportBuff(supportUnits: Unit[], statType: 'STR' | 'DEF'): number {
-  if (supportUnits.length === 0) return 0;
-  const perUnitContribution = 0.15;
-  const rawBuff = supportUnits.length * perUnitContribution;
-  return Math.min(SUPPORT_MAX_BUFF, rawBuff);
-}
-
-/**
- * Apply support buffs to attacker and defender units.
- * Returns modified STR/DEF totals after support amplification.
- */
-function applySupportBuffs(
-  attackerUnits: Unit[],
-  defenderUnits: Unit[]
-): { attackerSTR: number; attackerDEF: number; defenderSTR: number; defenderDEF: number } {
-  const attackerGroups = groupByArchetype(attackerUnits);
-  const defenderGroups = groupByArchetype(defenderUnits);
-
-  const attackerSupport = attackerGroups.get('SUPPORT') || [];
-  const defenderSupport = defenderGroups.get('SUPPORT') || [];
-
-  const attackerStrBuff = calculateSupportBuff(attackerSupport, 'STR');
-  const attackerDefBuff = calculateSupportBuff(attackerSupport, 'DEF');
-  const defenderStrBuff = calculateSupportBuff(defenderSupport, 'STR');
-  const defenderDefBuff = calculateSupportBuff(defenderSupport, 'DEF');
-
-  const baseAttackerStats = calculateCombatStats(attackerUnits);
-  const baseDefenderStats = calculateCombatStats(defenderUnits);
-
-  return {
-    attackerSTR: Math.floor(baseAttackerStats.totalSTR * (1 + attackerStrBuff)),
-    attackerDEF: Math.floor(baseAttackerStats.totalDEF * (1 + attackerDefBuff)),
-    defenderSTR: Math.floor(baseDefenderStats.totalSTR * (1 + defenderStrBuff)),
-    defenderDEF: Math.floor(baseDefenderStats.totalDEF * (1 + defenderDefBuff)),
-  };
-}
-
-/**
- * Phase 1: Artillery Strike
- * Artillery units target Support units first, dealing ARTILLERY_VS_SUPPORT_MULTIPLIER damage.
- * Returns the number of support units killed and remaining artillery damage.
- */
-function artilleryPhase(
-  attackerUnits: Unit[],
-  defenderUnits: Unit[]
-): { attackerSupportLost: number; defenderSupportLost: number } {
-  const attackerArtillery = groupByArchetype(attackerUnits).get('ARTILLERY') || [];
-  const defenderArtillery = groupByArchetype(defenderUnits).get('ARTILLERY') || [];
-  const attackerSupport = groupByArchetype(attackerUnits).get('SUPPORT') || [];
-  const defenderSupport = groupByArchetype(defenderUnits).get('SUPPORT') || [];
-
-  let attackerSupportLost = 0;
-  let defenderSupportLost = 0;
-
-  const attackerArtillerySTR = attackerArtillery.reduce((sum, u) => sum + u.strength, 0);
-  const defenderArtillerySTR = defenderArtillery.reduce((sum, u) => sum + u.strength, 0);
-
-  if (defenderSupport.length > 0 && attackerArtillerySTR > 0) {
-    const damage = Math.floor(attackerArtillerySTR * ARTILLERY_VS_SUPPORT_MULTIPLIER);
-    const hpPerUnit = HP_PER_UNIT;
-    attackerSupportLost = Math.min(Math.floor(damage / hpPerUnit), defenderSupport.length);
-  }
-
-  if (attackerSupport.length > 0 && defenderArtillerySTR > 0) {
-    const damage = Math.floor(defenderArtillerySTR * ARTILLERY_VS_SUPPORT_MULTIPLIER);
-    const hpPerUnit = HP_PER_UNIT;
-    defenderSupportLost = Math.min(Math.floor(damage / hpPerUnit), attackerSupport.length);
-  }
-
-  return { attackerSupportLost, defenderSupportLost };
-}
-
-/**
- * Calculate damage with archetype counters and level gap protection.
+ * Calculate damage dealt per round with level gap protection
+ * Attacker damage = max(5, AttackerSTR - DefenderDEF/2)
+ * Defender damage = max(5, DefenderDEF - AttackerSTR/2)
  * 
- * Base formula: damage = attackerSTR × (1 - defenderDEF / (defenderDEF + attackerSTR))
- * This produces a sigmoid-like curve where damage scales with the STR/DEF ratio.
+ * LEVEL GAP PROTECTION:
+ * - If level difference > 20, damage is capped with progressive reduction
+ * - Reduction: 5% per level above 20 (e.g., 30-level gap = 50% damage)
+ * - Minimum damage: 25% of calculated damage (prevents complete immunity)
+ * - Preserves fairness for high-level vs. low-level matchups
  * 
- * Counter modifiers:
- * - Striker vs Bulwark: 1.3x damage
- * - Bulwark: absorbs 70% of incoming damage (applied as 0.3x multiplier on received damage)
+ * @param attackerSTR - Attacker's total strength
+ * @param defenderDEF - Defender's total defense
+ * @param attackerLevel - Attacker's player level (for gap protection)
+ * @param defenderLevel - Defender's player level (for gap protection)
+ * @returns Damage per round (minimum 5)
  */
 function calculateDamage(
   attackerSTR: number,
   defenderDEF: number,
-  attackerArchetype: UnitArchetype,
-  defenderArchetype: UnitArchetype,
   attackerLevel: number,
   defenderLevel: number
 ): number {
-  const denominator = defenderDEF + attackerSTR;
-  if (denominator === 0) {
-    return 5;
-  }
-  const baseDamage = attackerSTR * (1 - defenderDEF / denominator);
-
-  let counterMultiplier = 1.0;
-  if (attackerArchetype === 'STRIKER' && defenderArchetype === 'BULWARK') {
-    counterMultiplier = COUNTER_MULTIPLIER;
-  }
-
-  let effectiveDamage = baseDamage * counterMultiplier;
-
-  if (defenderArchetype === 'BULWARK') {
-    effectiveDamage *= (1 - BULWARK_ABSORPTION);
-  }
-
+  const baseDamage = attackerSTR - defenderDEF / 2;
   const levelGap = Math.abs(attackerLevel - defenderLevel);
+  
+  // Apply level gap protection if gap > 20 levels
   if (levelGap > 20) {
-    const damageReduction = 1 - ((levelGap - 20) * 0.05);
-    effectiveDamage *= Math.max(0.25, damageReduction);
+    const damageReduction = 1 - ((levelGap - 20) * 0.05); // -5% per level above 20
+    const cappedDamage = baseDamage * Math.max(0.25, damageReduction); // Min 25% damage
+    return Math.max(5, Math.floor(cappedDamage));
   }
-
-  return Math.max(5, Math.floor(effectiveDamage));
+  
+  return Math.max(5, Math.floor(baseDamage)); // Minimum 5 damage per round
 }
 
 /**
- * Phase 4: Weighted casualty distribution.
- * Bulwarks absorb frontline damage first, then remaining damage distributes to other units.
+ * Convert HP loss to unit casualties
+ * Distributes damage across units proportionally
  */
-function calculateWeightedCasualties(
-  hpLost: number,
-  units: Unit[]
-): { casualties: Unit[]; survivors: Unit[] } {
-  if (units.length === 0 || hpLost <= 0) {
-    return { casualties: [], survivors: [...units] };
-  }
+function calculateUnitLosses(hpLost: number, units: Unit[]): { casualties: Unit[]; survivors: Unit[] } {
+  const avgHPPerUnit = units.length > 0 ? calculateTotalHP(units) / units.length : 0;
+  const unitsToKill = Math.min(Math.floor(hpLost / avgHPPerUnit), units.length);
 
-  const bulwarks = units.filter(u => getArchetype(u) === 'BULWARK');
-  const nonBulwarks = units.filter(u => getArchetype(u) !== 'BULWARK');
-
-  const unitsToKill = Math.min(Math.floor(hpLost / HP_PER_UNIT), units.length);
-
-  const shuffledBulwarks = [...bulwarks].sort(() => Math.random() - 0.5);
-  const shuffledNonBulwarks = [...nonBulwarks].sort(() => Math.random() - 0.5);
-
-  const bulwarksToKill = Math.min(unitsToKill, bulwarks.length);
-  const remainingKills = Math.max(0, unitsToKill - bulwarksToKill);
-  const nonBulwarksToKill = Math.min(remainingKills, nonBulwarks.length);
-
-  const casualties = [
-    ...shuffledBulwarks.slice(0, bulwarksToKill),
-    ...shuffledNonBulwarks.slice(0, nonBulwarksToKill)
-  ];
-
-  const survivorBulwarks = shuffledBulwarks.slice(bulwarksToKill);
-  const survivorNonBulwarks = shuffledNonBulwarks.slice(nonBulwarksToKill);
-  const survivors = [...survivorBulwarks, ...survivorNonBulwarks];
+  // Randomly select units to kill (simulate battle chaos)
+  const shuffled = [...units].sort(() => Math.random() - 0.5);
+  const casualties = shuffled.slice(0, unitsToKill);
+  const survivors = shuffled.slice(unitsToKill);
 
   return { casualties, survivors };
 }
 
 /**
  * Select units to capture from defeated army
+ * Captures 10-15% of defeated units randomly
  */
 function selectCapturedUnits(defeatedUnits: Unit[]): Unit[] {
   const captureRate = MIN_CAPTURE_RATE + Math.random() * (MAX_CAPTURE_RATE - MIN_CAPTURE_RATE);
-  const captureCount = Math.max(0, Math.floor(defeatedUnits.length * captureRate));
+  const captureCount = Math.floor(defeatedUnits.length * captureRate);
+
+  // Randomly select units to capture
   const shuffled = [...defeatedUnits].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, captureCount);
 }
 
 /**
- * Resolve battle between two armies using multi-phase archetype combat
+ * Resolve battle between two armies using HP-based combat
+ * 
+ * @param attackerUnits - Attacker's units
+ * @param defenderUnits - Defender's units
+ * @param attackerName - Attacker username
+ * @param defenderName - Defender username
+ * @param battleType - Type of battle (Infantry/Base/Factory)
+ * @param location - Battle location (optional)
+ * @param attackerLevel - Attacker's player level (for level gap protection)
+ * @param defenderLevel - Defender's player level (for level gap protection)
+ * @returns Complete battle result with logs
  */
 export async function resolveBattle(
   attackerUnits: Unit[],
@@ -429,56 +244,48 @@ export async function resolveBattle(
   attackerLevel: number = 1,
   defenderLevel: number = 1
 ): Promise<BattleLog> {
-  const initialAttackerUnits = [...attackerUnits];
-  const initialDefenderUnits = [...defenderUnits];
-
-  const initialAttackerStats = calculateCombatStats(attackerUnits);
-  const initialDefenderStats = calculateCombatStats(defenderUnits);
+  // Calculate initial combat stats
+  const attackerStats = calculateCombatStats(attackerUnits);
+  const defenderStats = calculateCombatStats(defenderUnits);
 
   let attackerHP = calculateTotalHP(attackerUnits);
   let defenderHP = calculateTotalHP(defenderUnits);
+
   const initialAttackerHP = attackerHP;
   const initialDefenderHP = defenderHP;
 
+  // Combat rounds
   const rounds: CombatRound[] = [];
   let roundNumber = 0;
 
+  // Track surviving units
   let attackerSurvivors = [...attackerUnits];
   let defenderSurvivors = [...defenderUnits];
-  let attackerCasualties: Unit[] = [];
-  let defenderCasualties: Unit[] = [];
+  const attackerCasualties: Unit[] = [];
+  const defenderCasualties: Unit[] = [];
 
-  let totalAttackerDamage = 0;
-  let totalDefenderDamage = 0;
-
+  // Battle loop
   while (attackerHP > 0 && defenderHP > 0 && roundNumber < 100) {
     roundNumber++;
 
-    const { attackerSTR, attackerDEF, defenderSTR, defenderDEF } = applySupportBuffs(attackerSurvivors, defenderSurvivors);
+    // Calculate damage for this round WITH LEVEL GAP PROTECTION
+    const attackerDamage = calculateDamage(attackerStats.totalSTR, defenderStats.totalDEF, attackerLevel, defenderLevel);
+    const defenderDamage = calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel);
 
-    const attackerGroups = groupByArchetype(attackerSurvivors);
-    const defenderGroups = groupByArchetype(defenderSurvivors);
-
-    const dominantAttackerArch: UnitArchetype = attackerGroups.get('STRIKER')?.length ? 'STRIKER' : attackerGroups.get('ARTILLERY')?.length ? 'ARTILLERY' : 'BULWARK';
-    const dominantDefenderArch: UnitArchetype = defenderGroups.get('BULWARK')?.length ? 'BULWARK' : defenderGroups.get('ARTILLERY')?.length ? 'ARTILLERY' : 'STRIKER';
-
-    const attackerDamage = calculateDamage(attackerSTR, defenderDEF, dominantAttackerArch, dominantDefenderArch, attackerLevel, defenderLevel);
-    const defenderDamage = calculateDamage(defenderSTR, attackerDEF, dominantDefenderArch, dominantAttackerArch, defenderLevel, attackerLevel);
-
+    // Apply damage
     defenderHP = Math.max(0, defenderHP - attackerDamage);
     attackerHP = Math.max(0, attackerHP - defenderDamage);
 
-    totalAttackerDamage += attackerDamage;
-    totalDefenderDamage += defenderDamage;
-
-    const attackerLosses = calculateWeightedCasualties(defenderDamage, attackerSurvivors);
-    const defenderLosses = calculateWeightedCasualties(attackerDamage, defenderSurvivors);
+    // Calculate unit losses for this round
+    const attackerLosses = calculateUnitLosses(defenderDamage, attackerSurvivors);
+    const defenderLosses = calculateUnitLosses(attackerDamage, defenderSurvivors);
 
     attackerCasualties.push(...attackerLosses.casualties);
     defenderCasualties.push(...defenderLosses.casualties);
     attackerSurvivors = attackerLosses.survivors;
     defenderSurvivors = defenderLosses.survivors;
 
+    // Record round
     rounds.push({
       roundNumber,
       attackerDamage,
@@ -489,12 +296,14 @@ export async function resolveBattle(
       defenderUnitsLost: defenderLosses.casualties.length
     });
 
+    // Safety limit
     if (roundNumber >= 100) {
       console.warn('⚠️ Battle exceeded 100 rounds, forcing draw');
       break;
     }
   }
 
+  // Determine outcome
   let outcome: BattleOutcome;
   if (attackerHP > 0 && defenderHP === 0) {
     outcome = BattleOutcome.AttackerWin;
@@ -504,6 +313,7 @@ export async function resolveBattle(
     outcome = BattleOutcome.Draw;
   }
 
+  // Unit captures (winner captures from loser)
   let attackerCapturedUnits: Unit[] = [];
   let defenderCapturedUnits: Unit[] = [];
 
@@ -513,37 +323,44 @@ export async function resolveBattle(
     defenderCapturedUnits = selectCapturedUnits(attackerCasualties);
   }
 
+  // Calculate total damage dealt by each side (sum of all rounds)
+  const attackerTotalDamage = rounds.reduce((sum, r) => sum + r.attackerDamage, 0);
+  const defenderTotalDamage = rounds.reduce((sum, r) => sum + r.defenderDamage, 0);
+
+  // Create battle log with complete participant data
   const battleLog: BattleLog = {
     battleId: `BATTLE-${Date.now()}-${Math.random().toString(36).substring(7)}`,
     battleType,
     timestamp: new Date(),
     attacker: {
       username: attackerName,
-      units: initialAttackerUnits,
-      totalSTR: initialAttackerStats.totalSTR,
-      totalDEF: initialAttackerStats.totalDEF,
+      units: attackerUnits,
+      totalSTR: attackerStats.totalSTR,
+      totalDEF: attackerStats.totalDEF,
       initialHP: initialAttackerHP,
       finalHP: attackerHP,
       unitsLost: attackerCasualties.length,
       unitsCaptured: attackerCapturedUnits.length,
+      // Aliases for component compatibility
       startingHP: initialAttackerHP,
       endingHP: attackerHP,
-      damageDealt: totalAttackerDamage,
-      xpEarned: 0
+      damageDealt: attackerTotalDamage,
+      xpEarned: 0 // Will be set by caller after XP calculation
     },
     defender: {
       username: defenderName,
-      units: initialDefenderUnits,
-      totalSTR: initialDefenderStats.totalSTR,
-      totalDEF: initialDefenderStats.totalDEF,
+      units: defenderUnits,
+      totalSTR: defenderStats.totalSTR,
+      totalDEF: defenderStats.totalDEF,
       initialHP: initialDefenderHP,
       finalHP: defenderHP,
       unitsLost: defenderCasualties.length,
       unitsCaptured: defenderCapturedUnits.length,
+      // Aliases for component compatibility
       startingHP: initialDefenderHP,
       endingHP: defenderHP,
-      damageDealt: totalDefenderDamage,
-      xpEarned: 0
+      damageDealt: defenderTotalDamage,
+      xpEarned: 0 // Will be set by caller after XP calculation
     },
     outcome,
     rounds,
@@ -552,55 +369,102 @@ export async function resolveBattle(
       attackerCaptured: attackerCapturedUnits,
       defenderCaptured: defenderCapturedUnits
     },
-    attackerXP: 0,
-    defenderXP: 0,
-    location,
-    _attackerCasualties: attackerCasualties,
-    _defenderCasualties: defenderCasualties,
-    _attackerSurvivors: attackerSurvivors,
-    _defenderSurvivors: defenderSurvivors,
+    attackerXP: 0, // Will be set by caller
+    defenderXP: 0, // Will be set by caller
+    location
   };
 
   return battleLog;
 }
 
 /**
+ * Helper: Convert BattleLog to DB insert format for battleLogs table
+ */
+function battleLogToDbInsert(battleLog: BattleLog) {
+  return {
+    battleId: battleLog.battleId,
+    battleType: battleLog.battleType,
+    timestamp: battleLog.timestamp,
+    attackerUsername: battleLog.attacker.username,
+    attackerUnits: battleLog.attacker.units,
+    attackerTotalSTR: battleLog.attacker.totalSTR,
+    attackerTotalDEF: battleLog.attacker.totalDEF,
+    attackerInitialHP: battleLog.attacker.initialHP,
+    attackerFinalHP: battleLog.attacker.finalHP,
+    attackerUnitsLost: battleLog.attacker.unitsLost,
+    attackerUnitsCaptured: battleLog.attacker.unitsCaptured,
+    attackerStartingHP: battleLog.attacker.startingHP,
+    attackerEndingHP: battleLog.attacker.endingHP,
+    attackerDamageDealt: battleLog.attacker.damageDealt,
+    attackerXpEarned: battleLog.attacker.xpEarned,
+    defenderUsername: battleLog.defender.username,
+    defenderUnits: battleLog.defender.units,
+    defenderTotalSTR: battleLog.defender.totalSTR,
+    defenderTotalDEF: battleLog.defender.totalDEF,
+    defenderInitialHP: battleLog.defender.initialHP,
+    defenderFinalHP: battleLog.defender.finalHP,
+    defenderUnitsLost: battleLog.defender.unitsLost,
+    defenderUnitsCaptured: battleLog.defender.unitsCaptured,
+    defenderStartingHP: battleLog.defender.startingHP,
+    defenderEndingHP: battleLog.defender.endingHP,
+    defenderDamageDealt: battleLog.defender.damageDealt,
+    defenderXpEarned: battleLog.defender.xpEarned,
+    outcome: battleLog.outcome,
+    rounds: battleLog.rounds,
+    totalRounds: battleLog.totalRounds,
+    unitsCapturedAttackerCaptured: battleLog.unitsCaptured?.attackerCaptured || [],
+    unitsCapturedDefenderCaptured: battleLog.unitsCaptured?.defenderCaptured || [],
+    attackerXP: battleLog.attackerXP,
+    defenderXP: battleLog.defenderXP,
+    resourcesStolenResourceType: battleLog.resourcesStolen?.resourceType || null,
+    resourcesStolenAmount: battleLog.resourcesStolen?.amount || null,
+    locationX: battleLog.location?.x || null,
+    locationY: battleLog.location?.y || null,
+  };
+}
+
+/**
  * Execute Infantry Battle (Player vs Player direct combat)
+ * 
+ * @param attackerId - Attacker username
+ * @param defenderId - Defender username
+ * @param attackerUnitIds - Unit IDs attacker brings to battle
+ * @returns Battle result with XP awards
  */
 export async function executeInfantryAttack(
   attackerId: string,
   defenderId: string,
   attackerUnitIds: string[]
 ): Promise<BattleResult> {
-  const supabase = createServiceClient();
+  // Get both players
+  const [attackerResult] = await db.select().from(players).where(eq(players.username, attackerId)).limit(1);
+  const [defenderResult] = await db.select().from(players).where(eq(players.username, defenderId)).limit(1);
 
-  const { data: attacker, error: attackerError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', attackerId)
-    .single();
-
-  const { data: defender, error: defenderError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', defenderId)
-    .single();
-
-  if (attackerError || !attacker || defenderError || !defender) {
+  if (!attackerResult || !defenderResult) {
     throw new Error('Player not found');
   }
 
-  const attackerUnits = await loadPlayerUnits(supabase, attackerId, attackerUnitIds);
-  const defenderUnits = await loadPlayerUnits(supabase, defenderId);
+  const attacker: Player = playerRowToPlayer(attackerResult);
+  const defender: Player = playerRowToPlayer(defenderResult);
 
-  if (attackerUnits.length === 0) {
+  // Validate attacker units (PlayerUnit format)
+  const attackerPlayerUnits = attacker.units.filter(u => attackerUnitIds.includes(u.unitId));
+  if (attackerPlayerUnits.length === 0) {
     throw new Error('No valid units selected for attack');
   }
 
-  if (defenderUnits.length === 0) {
+  // Convert PlayerUnits to Units for battle resolution
+  const attackerUnits = attackerPlayerUnits.flatMap(pu => playerUnitToUnits(pu, attackerId));
+  
+  // Defender brings ALL their units to defend
+  const defenderPlayerUnits = defender.units;
+  if (defenderPlayerUnits.length === 0) {
     throw new Error('Defender has no units to defend with');
   }
+  
+  const defenderUnits = defenderPlayerUnits.flatMap(pu => playerUnitToUnits(pu, defenderId));
 
+  // Resolve battle WITH LEVEL GAP PROTECTION
   const battleLog = await resolveBattle(
     attackerUnits,
     defenderUnits,
@@ -612,8 +476,10 @@ export async function executeInfantryAttack(
     defender.level
   );
 
+  // Apply battle results to database
   await applyBattleResults(battleLog);
 
+  // Award XP
   const attackerXPAction = battleLog.outcome === BattleOutcome.AttackerWin 
     ? XPAction.INFANTRY_ATTACK_WIN 
     : XPAction.INFANTRY_ATTACK_LOSS;
@@ -625,6 +491,7 @@ export async function executeInfantryAttack(
   const attackerXPResult = await awardXP(attackerId, attackerXPAction);
   const defenderXPResult = await awardXP(defenderId, defenderXPAction);
 
+  // Track battle wins for achievements (Infantry Battle)
   if (battleLog.outcome === BattleOutcome.AttackerWin) {
     await trackBattleWon(attackerId);
   } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
@@ -634,73 +501,72 @@ export async function executeInfantryAttack(
   battleLog.attackerXP = attackerXPResult.xpAwarded;
   battleLog.defenderXP = defenderXPResult.xpAwarded;
 
+  // Award RP for PvP battle victory
   try {
     const { awardRP } = await import('./researchPointService');
     
     if (battleLog.outcome === BattleOutcome.AttackerWin) {
+      // Base RP: 100, +20 per defender level above attacker
       const levelDifference = Math.max(0, defender.level - attacker.level);
       const rpAmount = 100 + (levelDifference * 20);
-      const result = await awardRP(attackerId, rpAmount, 'battle', `Victory against ${defenderId} (Infantry Battle)`, { 
-        battleType: 'infantry', opponentLevel: defender.level, levelDifference, outcome: 'victory'
-      });
+      
+      const result = await awardRP(
+        attackerId,
+        rpAmount,
+        'battle',
+        `Victory against ${defenderId} (Infantry Battle)`,
+        { 
+          battleType: 'infantry',
+          opponentLevel: defender.level,
+          levelDifference,
+          outcome: 'victory'
+        }
+      );
+      
       if (result.success) {
         console.log(`⚔️ Battle RP awarded! ${attackerId} earned ${result.rpAwarded} RP for defeating ${defenderId}`);
       }
     } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
+      // Base RP: 100, +20 per attacker level above defender
       const levelDifference = Math.max(0, attacker.level - defender.level);
       const rpAmount = 100 + (levelDifference * 20);
-      const result = await awardRP(defenderId, rpAmount, 'battle', `Defended against ${attackerId} (Infantry Battle)`, { 
-        battleType: 'infantry', opponentLevel: attacker.level, levelDifference, outcome: 'defense'
-      });
+      
+      const result = await awardRP(
+        defenderId,
+        rpAmount,
+        'battle',
+        `Defended against ${attackerId} (Infantry Battle)`,
+        { 
+          battleType: 'infantry',
+          opponentLevel: attacker.level,
+          levelDifference,
+          outcome: 'defense'
+        }
+      );
+      
       if (result.success) {
         console.log(`🛡️ Battle RP awarded! ${defenderId} earned ${result.rpAwarded} RP for defending against ${attackerId}`);
       }
     }
   } catch (error) {
     console.error('❌ Error awarding RP for infantry battle:', error);
+    // Battle still succeeds even if RP award fails
   }
 
-  const { error: logError } = await supabase
-    .from('battle_logs')
-    .insert({
-      attacker_username: battleLog.attacker.username,
-      attacker_strength: battleLog.attacker.totalSTR,
-      defender_username: battleLog.defender.username,
-      defender_defense: battleLog.defender.totalDEF,
-      damage_dealt: battleLog.attacker.damageDealt,
-      outcome: battleLog.outcome,
-      battle_type: battleLog.battleType,
-      total_rounds: battleLog.totalRounds,
-      rounds: battleLog.rounds as never,
-      attacker_units_lost: battleLog.attacker.unitsLost,
-      defender_units_lost: battleLog.defender.unitsLost,
-      attacker_units_captured: battleLog.attacker.unitsCaptured,
-      defender_units_captured: battleLog.defender.unitsCaptured,
-      attacker_hp_start: battleLog.attacker.startingHP,
-      attacker_hp_end: battleLog.attacker.endingHP,
-      defender_hp_start: battleLog.defender.startingHP,
-      defender_hp_end: battleLog.defender.endingHP,
-      attacker_xp: battleLog.attackerXP,
-      defender_xp: battleLog.defenderXP,
-      location_x: battleLog.location?.x ?? null,
-      location_y: battleLog.location?.y ?? null,
-      resources_stolen: battleLog.resourcesStolen || null,
-      created_at: new Date().toISOString()
-    });
-
-  if (logError) {
-    console.error('❌ Error saving battle log:', logError);
-  }
+  // Save battle log to database
+  await db.insert(battleLogs).values(battleLogToDbInsert(battleLog));
 
   return {
     success: true,
     message: generateBattleMessage(battleLog),
     battleLog,
+    // Flattened properties for convenience
     outcome: battleLog.outcome,
     rounds: battleLog.totalRounds,
     battleType: battleLog.battleType,
     attacker: battleLog.attacker,
     defender: battleLog.defender,
+    // Level up info
     attackerLevelUp: attackerXPResult.levelUp,
     defenderLevelUp: defenderXPResult.levelUp,
     attackerNewLevel: attackerXPResult.newLevel,
@@ -710,6 +576,12 @@ export async function executeInfantryAttack(
 
 /**
  * Execute Base Attack (Attack enemy home base for resources)
+ * 
+ * @param attackerId - Attacker username
+ * @param defenderId - Defender username (base owner)
+ * @param attackerUnitIds - Unit IDs attacker brings
+ * @param resourceToSteal - 'metal' or 'energy'
+ * @returns Battle result with resource theft if victorious
  */
 export async function executeBaseAttack(
   attackerId: string,
@@ -717,47 +589,45 @@ export async function executeBaseAttack(
   attackerUnitIds: string[],
   resourceToSteal: 'metal' | 'energy'
 ): Promise<BattleResult> {
-  const supabase = createServiceClient();
+  // Get both players
+  const [attackerResult] = await db.select().from(players).where(eq(players.username, attackerId)).limit(1);
+  const [defenderResult] = await db.select().from(players).where(eq(players.username, defenderId)).limit(1);
 
-  const { data: attacker, error: attackerError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', attackerId)
-    .single();
-
-  const { data: defender, error: defenderError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', defenderId)
-    .single();
-
-  if (attackerError || !attacker || defenderError || !defender) {
+  if (!attackerResult || !defenderResult) {
     throw new Error('Player not found');
   }
 
-  const attackerUnits = await loadPlayerUnits(supabase, attackerId, attackerUnitIds);
-  const defenderUnits = await loadPlayerUnits(supabase, defenderId);
+  const attacker: Player = playerRowToPlayer(attackerResult);
+  const defender: Player = playerRowToPlayer(defenderResult);
 
-  if (attackerUnits.length === 0) {
+  // Validate attacker units (PlayerUnit format)
+  const attackerPlayerUnits = attacker.units.filter(u => attackerUnitIds.includes(u.unitId));
+  if (attackerPlayerUnits.length === 0) {
     throw new Error('No valid units selected for attack');
   }
 
-  const defenderBase = { x: defender.base_x, y: defender.base_y };
+  // Convert PlayerUnits to Units for battle resolution
+  const attackerUnits = attackerPlayerUnits.flatMap(pu => playerUnitToUnits(pu, attackerId));
 
+  // Defender brings ALL units to defend base
+  const defenderPlayerUnits = defender.units;
+  const defenderUnits = defenderPlayerUnits.flatMap(pu => playerUnitToUnits(pu, defenderId));
+
+  // Resolve battle at defender's base WITH LEVEL GAP PROTECTION
   const battleLog = await resolveBattle(
     attackerUnits,
     defenderUnits,
     attackerId,
     defenderId,
     BattleType.Base,
-    defenderBase,
+    defender.base,
     attacker.level,
     defender.level
   );
 
+  // If attacker wins, steal resources
   if (battleLog.outcome === BattleOutcome.AttackerWin) {
-    const resourceColumn = resourceToSteal === 'metal' ? 'resources_metal' : 'resources_energy';
-    const defenderResources = resourceToSteal === 'metal' ? defender.resources_metal : defender.resources_energy;
+    const defenderResources = defender.resources[resourceToSteal] || 0;
     const stolenAmount = Math.floor(defenderResources * RESOURCE_THEFT_RATE);
 
     if (stolenAmount > 0) {
@@ -766,56 +636,24 @@ export async function executeBaseAttack(
         amount: stolenAmount
       };
 
-      const { data: defenderCurrent } = await supabase
-        .from('players')
-        .select(resourceColumn)
-        .eq('username', defenderId)
-        .single();
+      // Transfer resources
+      const defenderResourceCol = resourceToSteal === 'metal' ? 'resourcesMetal' : 'resourcesEnergy';
+      const attackerResourceCol = resourceToSteal === 'metal' ? 'resourcesMetal' : 'resourcesEnergy';
 
-      if (defenderCurrent) {
-        const actualDefenderResources = (defenderCurrent[resourceColumn as keyof typeof defenderCurrent] as number) || 0;
-        const actualStolen = Math.min(stolenAmount, Math.max(0, actualDefenderResources));
+      await db.update(players)
+        .set({ [defenderResourceCol]: BigInt(Number(defenderResult[defenderResourceCol]) - stolenAmount) })
+        .where(eq(players.username, defenderId));
 
-        if (actualStolen > 0) {
-          const updateDefData: Database['public']['Tables']['players']['Update'] = {};
-          if (resourceColumn === 'resources_metal') {
-            updateDefData.resources_metal = actualDefenderResources - actualStolen;
-          } else {
-            updateDefData.resources_energy = actualDefenderResources - actualStolen;
-          }
-          const { error: updateDefError } = await supabase
-            .from('players')
-            .update(updateDefData)
-            .eq('username', defenderId);
-
-          if (!updateDefError) {
-            const { data: attackerCurrent } = await supabase
-              .from('players')
-              .select(resourceColumn)
-              .eq('username', attackerId)
-              .single();
-
-            if (attackerCurrent) {
-              const actualAttackerResources = (attackerCurrent[resourceColumn as keyof typeof attackerCurrent] as number) || 0;
-              const updateAttData: Database['public']['Tables']['players']['Update'] = {};
-              if (resourceColumn === 'resources_metal') {
-                updateAttData.resources_metal = actualAttackerResources + actualStolen;
-              } else {
-                updateAttData.resources_energy = actualAttackerResources + actualStolen;
-              }
-              await supabase
-                .from('players')
-                .update(updateAttData)
-                .eq('username', attackerId);
-            }
-          }
-        }
-      }
+      await db.update(players)
+        .set({ [attackerResourceCol]: BigInt(Number(attackerResult[attackerResourceCol]) + stolenAmount) })
+        .where(eq(players.username, attackerId));
     }
   }
 
+  // Apply battle results
   await applyBattleResults(battleLog);
 
+  // Award XP
   const attackerXPAction = battleLog.outcome === BattleOutcome.AttackerWin 
     ? XPAction.BASE_ATTACK_WIN 
     : XPAction.BASE_ATTACK_LOSS;
@@ -827,6 +665,7 @@ export async function executeBaseAttack(
   const attackerXPResult = await awardXP(attackerId, attackerXPAction);
   const defenderXPResult = await awardXP(defenderId, defenderXPAction);
 
+  // Track battle wins for achievements (Base Attack)
   if (battleLog.outcome === BattleOutcome.AttackerWin) {
     await trackBattleWon(attackerId);
   } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
@@ -836,195 +675,74 @@ export async function executeBaseAttack(
   battleLog.attackerXP = attackerXPResult.xpAwarded;
   battleLog.defenderXP = defenderXPResult.xpAwarded;
 
+  // Award RP for base attack victory
   try {
     const { awardRP } = await import('./researchPointService');
     
     if (battleLog.outcome === BattleOutcome.AttackerWin) {
+      // Base RP: 150 (higher for base raids), +20 per defender level above attacker
       const levelDifference = Math.max(0, defender.level - attacker.level);
       const rpAmount = 150 + (levelDifference * 20);
-      const result = await awardRP(attackerId, rpAmount, 'battle', `Raided ${defenderId}'s base`, { 
-        battleType: 'base_attack', opponentLevel: defender.level, levelDifference,
-        resourcesStolen: battleLog.resourcesStolen?.amount || 0, outcome: 'victory'
-      });
+      
+      const result = await awardRP(
+        attackerId,
+        rpAmount,
+        'battle',
+        `Raided ${defenderId}'s base`,
+        { 
+          battleType: 'base_attack',
+          opponentLevel: defender.level,
+          levelDifference,
+          resourcesStolen: battleLog.resourcesStolen?.amount || 0,
+          outcome: 'victory'
+        }
+      );
+      
       if (result.success) {
         console.log(`🏰 Base Raid RP awarded! ${attackerId} earned ${result.rpAwarded} RP for raiding ${defenderId}'s base`);
       }
     } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
+      // Base RP: 150, +20 per attacker level above defender
       const levelDifference = Math.max(0, attacker.level - defender.level);
       const rpAmount = 150 + (levelDifference * 20);
-      const result = await awardRP(defenderId, rpAmount, 'battle', `Defended base against ${attackerId}`, { 
-        battleType: 'base_defense', opponentLevel: attacker.level, levelDifference, outcome: 'defense'
-      });
+      
+      const result = await awardRP(
+        defenderId,
+        rpAmount,
+        'battle',
+        `Defended base against ${attackerId}`,
+        { 
+          battleType: 'base_defense',
+          opponentLevel: attacker.level,
+          levelDifference,
+          outcome: 'defense'
+        }
+      );
+      
       if (result.success) {
         console.log(`🏰 Base Defense RP awarded! ${defenderId} earned ${result.rpAwarded} RP for defending their base`);
       }
     }
   } catch (error) {
     console.error('❌ Error awarding RP for base battle:', error);
+    // Battle still succeeds even if RP award fails
   }
 
-  const { error: logError } = await supabase
-    .from('battle_logs')
-    .insert({
-      attacker_username: battleLog.attacker.username,
-      attacker_strength: battleLog.attacker.totalSTR,
-      defender_username: battleLog.defender.username,
-      defender_defense: battleLog.defender.totalDEF,
-      damage_dealt: battleLog.attacker.damageDealt,
-      outcome: battleLog.outcome,
-      battle_type: battleLog.battleType,
-      total_rounds: battleLog.totalRounds,
-      rounds: battleLog.rounds as never,
-      attacker_units_lost: battleLog.attacker.unitsLost,
-      defender_units_lost: battleLog.defender.unitsLost,
-      attacker_units_captured: battleLog.attacker.unitsCaptured,
-      defender_units_captured: battleLog.defender.unitsCaptured,
-      attacker_hp_start: battleLog.attacker.startingHP,
-      attacker_hp_end: battleLog.attacker.endingHP,
-      defender_hp_start: battleLog.defender.startingHP,
-      defender_hp_end: battleLog.defender.endingHP,
-      attacker_xp: battleLog.attackerXP,
-      defender_xp: battleLog.defenderXP,
-      location_x: battleLog.location?.x ?? null,
-      location_y: battleLog.location?.y ?? null,
-      resources_stolen: battleLog.resourcesStolen || null,
-      created_at: new Date().toISOString()
-    });
-
-  if (logError) {
-    console.error('❌ Error saving battle log:', logError);
-  }
+  // Save battle log to database
+  await db.insert(battleLogs).values(battleLogToDbInsert(battleLog));
 
   return {
     success: true,
     message: generateBattleMessage(battleLog),
     battleLog,
+    // Flattened properties for convenience
     outcome: battleLog.outcome,
     rounds: battleLog.totalRounds,
     battleType: battleLog.battleType,
     attacker: battleLog.attacker,
     defender: battleLog.defender,
     resourcesStolen: battleLog.resourcesStolen,
-    attackerLevelUp: attackerXPResult.levelUp,
-    defenderLevelUp: defenderXPResult.levelUp,
-    attackerNewLevel: attackerXPResult.newLevel,
-    defenderNewLevel: defenderXPResult.newLevel
-  };
-}
-
-/**
- * Execute Factory Battle (Attack enemy factory for ownership)
- * Uses the same multi-phase combat system as Infantry battles.
- */
-export async function executeFactoryAttack(
-  attackerId: string,
-  defenderId: string,
-  attackerUnitIds: string[],
-  factoryLocation: { x: number; y: number }
-): Promise<BattleResult> {
-  const supabase = createServiceClient();
-
-  const { data: attacker, error: attackerError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', attackerId)
-    .single();
-
-  const { data: defender, error: defenderError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', defenderId)
-    .single();
-
-  if (attackerError || !attacker || defenderError || !defender) {
-    throw new Error('Player not found');
-  }
-
-  const attackerUnits = await loadPlayerUnits(supabase, attackerId, attackerUnitIds);
-  const defenderUnits = await loadPlayerUnits(supabase, defenderId);
-
-  if (attackerUnits.length === 0) {
-    throw new Error('No valid units selected for attack');
-  }
-
-  if (defenderUnits.length === 0) {
-    throw new Error('Defender has no units to defend factory with');
-  }
-
-  const battleLog = await resolveBattle(
-    attackerUnits,
-    defenderUnits,
-    attackerId,
-    defenderId,
-    BattleType.Factory,
-    factoryLocation,
-    attacker.level,
-    defender.level
-  );
-
-  await applyBattleResults(battleLog);
-
-  const attackerXPAction = battleLog.outcome === BattleOutcome.AttackerWin
-    ? XPAction.FACTORY_CAPTURE
-    : XPAction.BASE_ATTACK_LOSS;
-
-  const defenderXPAction = battleLog.outcome === BattleOutcome.DefenderWin
-    ? XPAction.FACTORY_DEFENSE
-    : XPAction.BASE_ATTACK_LOSS;
-
-  const attackerXPResult = await awardXP(attackerId, attackerXPAction);
-  const defenderXPResult = await awardXP(defenderId, defenderXPAction);
-
-  if (battleLog.outcome === BattleOutcome.AttackerWin) {
-    await trackBattleWon(attackerId);
-  } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
-    await trackBattleWon(defenderId);
-  }
-
-  battleLog.attackerXP = attackerXPResult.xpAwarded;
-  battleLog.defenderXP = defenderXPResult.xpAwarded;
-
-  const { error: logError } = await supabase
-    .from('battle_logs')
-    .insert({
-      attacker_username: battleLog.attacker.username,
-      attacker_strength: battleLog.attacker.totalSTR,
-      defender_username: battleLog.defender.username,
-      defender_defense: battleLog.defender.totalDEF,
-      damage_dealt: battleLog.attacker.damageDealt,
-      outcome: battleLog.outcome,
-      battle_type: battleLog.battleType,
-      total_rounds: battleLog.totalRounds,
-      rounds: battleLog.rounds as never,
-      attacker_units_lost: battleLog.attacker.unitsLost,
-      defender_units_lost: battleLog.defender.unitsLost,
-      attacker_units_captured: battleLog.attacker.unitsCaptured,
-      defender_units_captured: battleLog.defender.unitsCaptured,
-      attacker_hp_start: battleLog.attacker.startingHP,
-      attacker_hp_end: battleLog.attacker.endingHP,
-      defender_hp_start: battleLog.defender.startingHP,
-      defender_hp_end: battleLog.defender.endingHP,
-      attacker_xp: battleLog.attackerXP,
-      defender_xp: battleLog.defenderXP,
-      location_x: battleLog.location?.x ?? null,
-      location_y: battleLog.location?.y ?? null,
-      resources_stolen: null,
-      created_at: new Date().toISOString()
-    });
-
-  if (logError) {
-    console.error('❌ Error saving battle log:', logError);
-  }
-
-  return {
-    success: true,
-    message: generateBattleMessage(battleLog),
-    battleLog,
-    outcome: battleLog.outcome,
-    rounds: battleLog.totalRounds,
-    battleType: battleLog.battleType,
-    attacker: battleLog.attacker,
-    defender: battleLog.defender,
+    // Level up info
     attackerLevelUp: attackerXPResult.levelUp,
     defenderLevelUp: defenderXPResult.levelUp,
     attackerNewLevel: attackerXPResult.newLevel,
@@ -1034,53 +752,88 @@ export async function executeFactoryAttack(
 
 /**
  * Apply battle results to player armies
- * Uses the _attackerCasualties/_defenderCasualties stored in BattleLog
- * to correctly identify which units were lost.
+ * - Remove casualties (reduce quantities)
+ * - Transfer captured units (add to winner's army)
+ * - Update total STR/DEF
+ * 
+ * This function properly handles the Unit → PlayerUnit conversion after battle.
  */
-export async function applyBattleResults(battleLog: BattleLog): Promise<void> {
-  const supabase = createServiceClient();
+async function applyBattleResults(battleLog: BattleLog): Promise<void> {
+  // Get current player states
+  const [attackerResult] = await db.select().from(players).where(eq(players.username, battleLog.attacker.username)).limit(1);
+  const [defenderResult] = await db.select().from(players).where(eq(players.username, battleLog.defender.username)).limit(1);
 
-  const { data: attacker, error: attackerError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', battleLog.attacker.username)
-    .single();
-
-  const { data: defender, error: defenderError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', battleLog.defender.username)
-    .single();
-
-  if (attackerError || !attacker || defenderError || !defender) {
+  if (!attackerResult || !defenderResult) {
     throw new Error('Player not found during battle result application');
   }
 
-  const attackerCasualtyIds = new Set((battleLog as any)._attackerCasualties?.map((u: Unit) => u.id) || []);
-  const defenderCasualtyIds = new Set((battleLog as any)._defenderCasualties?.map((u: Unit) => u.id) || []);
+  const attacker: Player = playerRowToPlayer(attackerResult);
+  const defender: Player = playerRowToPlayer(defenderResult);
 
-  const attackerSurvivorUnits = battleLog.attacker.units.filter(u => !attackerCasualtyIds.has(u.id));
-  const defenderSurvivorUnits = battleLog.defender.units.filter(u => !defenderCasualtyIds.has(u.id));
+  // Get casualty IDs from battle log
+  const attackerCasualtyIds = battleLog.attacker.units
+    .slice(0, battleLog.attacker.unitsLost)
+    .map(u => u.id);
+  
+  const defenderCasualtyIds = battleLog.defender.units
+    .slice(0, battleLog.defender.unitsLost)
+    .map(u => u.id);
 
-  const attackerCapturedUnits = (battleLog as any)._defenderCasualties
-    ? selectCapturedUnits((battleLog as any)._defenderCasualties)
-    : [];
-  const defenderCapturedUnits = (battleLog as any)._attackerCasualties
-    ? selectCapturedUnits((battleLog as any)._attackerCasualties)
-    : [];
+  // Get survivor Units from battle
+  const attackerSurvivorUnits = battleLog.attacker.units.filter(u => !attackerCasualtyIds.includes(u.id));
+  const defenderSurvivorUnits = battleLog.defender.units.filter(u => !defenderCasualtyIds.includes(u.id));
 
+  // Get captured Units from battle
+  const attackerCapturedUnits = battleLog.unitsCaptured?.attackerCaptured || [];
+  const defenderCapturedUnits = battleLog.unitsCaptured?.defenderCaptured || [];
+
+  // Combine survivors + captured for each side
   const attackerFinalUnits = [...attackerSurvivorUnits, ...attackerCapturedUnits];
   const defenderFinalUnits = [...defenderSurvivorUnits, ...defenderCapturedUnits];
 
-  await savePlayerUnits(supabase, battleLog.attacker.username, attackerFinalUnits);
-  await savePlayerUnits(supabase, battleLog.defender.username, defenderFinalUnits);
+  // Convert Units back to PlayerUnit format (collapse quantities)
+  const attackerFinalPlayerUnits = unitsToPlayerUnits(attackerFinalUnits, attacker.units);
+  const defenderFinalPlayerUnits = unitsToPlayerUnits(defenderFinalUnits, defender.units);
 
-  const attackerNewStats = calculateCombatStats(attackerFinalUnits);
-  const defenderNewStats = calculateCombatStats(defenderFinalUnits);
-  await supabase.from('players').update({ total_strength: attackerNewStats.totalSTR, total_defense: attackerNewStats.totalDEF }).eq('username', battleLog.attacker.username);
-  await supabase.from('players').update({ total_strength: defenderNewStats.totalSTR, total_defense: defenderNewStats.totalDEF }).eq('username', battleLog.defender.username);
+  // Calculate new totals from final PlayerUnit arrays
+  const attackerNewStats = calculatePlayerUnitStats(attackerFinalPlayerUnits);
+  const defenderNewStats = calculatePlayerUnitStats(defenderFinalPlayerUnits);
 
-  console.log(`⚔️ Battle applied: ${battleLog.attacker.username} (${attackerSurvivorUnits.length} survivors + ${attackerCapturedUnits.length} captured) vs ${battleLog.defender.username} (${defenderSurvivorUnits.length} survivors + ${defenderCapturedUnits.length} captured)`);
+  // Update databases with PlayerUnit arrays
+  await db.update(players)
+    .set({
+      units: attackerFinalPlayerUnits as any,
+      totalStrength: attackerNewStats.totalSTR,
+      totalDefense: attackerNewStats.totalDEF
+    })
+    .where(eq(players.username, battleLog.attacker.username));
+
+  await db.update(players)
+    .set({
+      units: defenderFinalPlayerUnits as any,
+      totalStrength: defenderNewStats.totalSTR,
+      totalDefense: defenderNewStats.totalDEF
+    })
+    .where(eq(players.username, battleLog.defender.username));
+}
+
+/**
+ * Calculate combat stats from PlayerUnit array
+ * Similar to calculateCombatStats but works with PlayerUnits
+ * 
+ * @param playerUnits - Array of PlayerUnits
+ * @returns Combat statistics
+ */
+function calculatePlayerUnitStats(playerUnits: PlayerUnit[]): { totalSTR: number; totalDEF: number } {
+  let totalSTR = 0;
+  let totalDEF = 0;
+
+  for (const playerUnit of playerUnits) {
+    totalSTR += playerUnit.strength * playerUnit.quantity;
+    totalDEF += playerUnit.defense * playerUnit.quantity;
+  }
+
+  return { totalSTR, totalDEF };
 }
 
 /**
@@ -1133,51 +886,211 @@ function generateBattleMessage(battleLog: BattleLog): string {
 export async function getPlayerCombatHistory(
   username: string,
   limit: number = 10
-): Promise<ActivityBattleLog[]> {
-  const supabase = createServiceClient();
-
-  const { data, error } = await supabase
-    .from('battle_logs')
-    .select('*')
-    .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
-    .order('created_at', { ascending: false })
+): Promise<BattleLog[]> {
+  const rows = await db.select().from(battleLogs)
+    .where(or(
+      eq(battleLogs.attackerUsername, username),
+      eq(battleLogs.defenderUsername, username)
+    ))
+    .orderBy(desc(battleLogs.timestamp))
     .limit(limit);
 
-  if (error) throw new Error(error.message);
+  return rows.map(dbBattleLogToBattleLog);
+}
 
-  return (data || []).map((row) => mapDbBattleLogToDomain(row));
+/**
+ * Convert a DB battle log row to a BattleLog object
+ */
+function dbBattleLogToBattleLog(row: typeof battleLogs.$inferSelect): BattleLog {
+  return {
+    battleId: row.battleId,
+    battleType: row.battleType as BattleType,
+    timestamp: row.timestamp,
+    attacker: {
+      username: row.attackerUsername,
+      units: (row.attackerUnits || []) as Unit[],
+      totalSTR: row.attackerTotalSTR,
+      totalDEF: row.attackerTotalDEF,
+      initialHP: row.attackerInitialHP,
+      finalHP: row.attackerFinalHP,
+      unitsLost: row.attackerUnitsLost,
+      unitsCaptured: row.attackerUnitsCaptured,
+      startingHP: row.attackerStartingHP,
+      endingHP: row.attackerEndingHP,
+      damageDealt: row.attackerDamageDealt,
+      xpEarned: row.attackerXpEarned
+    },
+    defender: {
+      username: row.defenderUsername,
+      units: (row.defenderUnits || []) as Unit[],
+      totalSTR: row.defenderTotalSTR,
+      totalDEF: row.defenderTotalDEF,
+      initialHP: row.defenderInitialHP,
+      finalHP: row.defenderFinalHP,
+      unitsLost: row.defenderUnitsLost,
+      unitsCaptured: row.defenderUnitsCaptured,
+      startingHP: row.defenderStartingHP,
+      endingHP: row.defenderEndingHP,
+      damageDealt: row.defenderDamageDealt,
+      xpEarned: row.defenderXpEarned
+    },
+    outcome: row.outcome as BattleOutcome,
+    rounds: (row.rounds || []) as CombatRound[],
+    totalRounds: row.totalRounds,
+    unitsCaptured: {
+      attackerCaptured: (row.unitsCapturedAttackerCaptured || []) as Unit[],
+      defenderCaptured: (row.unitsCapturedDefenderCaptured || []) as Unit[]
+    },
+    attackerXP: row.attackerXP,
+    defenderXP: row.defenderXP,
+    resourcesStolen: row.resourcesStolenResourceType
+      ? { resourceType: row.resourcesStolenResourceType as 'metal' | 'energy', amount: row.resourcesStolenAmount || 0 }
+      : undefined,
+    location: row.locationX != null && row.locationY != null
+      ? { x: row.locationX, y: row.locationY }
+      : undefined
+  };
+}
+
+/**
+ * Convert a player DB row to a Player object
+ */
+function playerRowToPlayer(row: typeof players.$inferSelect): Player {
+  let units: PlayerUnit[] = [];
+  try {
+    units = typeof row.units === 'string' ? JSON.parse(row.units) : (row.units || []);
+  } catch {
+    units = [];
+  }
+
+  return {
+    username: row.username,
+    email: row.email,
+    password: row.password,
+    base: { x: row.baseX, y: row.baseY },
+    currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
+    resources: {
+      metal: Number(row.resourcesMetal),
+      energy: Number(row.resourcesEnergy)
+    },
+    bank: {
+      metal: Number(row.bankMetal),
+      energy: Number(row.bankEnergy),
+      lastDeposit: row.bankLastDeposit
+    },
+    rank: row.rank,
+    inventoryItems: row.inventoryItems || [],
+    inventoryCapacity: row.inventoryCapacity,
+    inventoryMetalDiggerCount: row.inventoryMetalDiggerCount,
+    inventoryEnergyDiggerCount: row.inventoryEnergyDiggerCount,
+    gatheringBonus: {
+      metalBonus: Number(row.gatheringBonusMetalBonus),
+      energyBonus: Number(row.gatheringBonusEnergyBonus)
+    },
+    activeBoosts: {
+      gatheringBoost: row.activeBoostsGatheringBoost ? Number(row.activeBoostsGatheringBoost) : undefined,
+      expiresAt: row.activeBoostsExpiresAt
+    },
+    shrineBoosts: row.shrineBoosts || [],
+    units,
+    totalStrength: row.totalStrength,
+    totalDefense: row.totalDefense,
+    balanceEffects: row.balanceEffects,
+    xp: row.xp,
+    level: row.level,
+    researchPoints: row.researchPoints,
+    unlockedTiers: row.unlockedTiers || [],
+    unlockedTechs: row.unlockedTechs,
+    concentrationZones: row.concentrationZones,
+    lastBotSummon: row.lastBotSummon,
+    fastTravelWaypoints: row.fastTravelWaypoints,
+    lastFastTravel: row.lastFastTravel,
+    dailyBounties: row.dailyBounties,
+    specialization: row.specialization,
+    discoveries: row.discoveries,
+    achievements: row.achievements,
+    stats: row.stats,
+    factoryCount: row.factoryCount,
+    lastXPAward: row.lastXPAward,
+    lastLevelUp: row.lastLevelUp,
+    rpHistory: row.rpHistory,
+    baseGreeting: row.baseGreeting,
+    battleStats: row.battleStats,
+    isBot: row.isBot === 1,
+    isSpecialBase: row.isSpecialBase === 1,
+    botConfig: row.botConfig,
+    clanId: row.clanId,
+    clanName: row.clanName,
+    clanRole: row.clanRole,
+    clanLevel: row.clanLevel,
+    isAdmin: row.isAdmin === 1,
+    vip: row.vip === 1,
+    vipExpiration: row.vipExpiration,
+    vipTier: row.vipTier,
+    stripeCustomerId: row.stripeCustomerId,
+    stripeSubscriptionId: row.stripeSubscriptionId,
+    vipLastUpdated: row.vipLastUpdated,
+    lastLoginDate: row.lastLoginDate,
+    loginStreak: row.loginStreak,
+    lastStreakReward: row.lastStreakReward,
+    currentHP: row.currentHP,
+    maxHP: row.maxHP,
+    lastFlagAttack: row.lastFlagAttack,
+    referralCode: row.referralCode,
+    referralLink: row.referralLink,
+    referredBy: row.referredBy,
+    referredByUsername: row.referredByUsername,
+    referralValidated: row.referralValidated === 1,
+    referralValidatedAt: row.referralValidatedAt,
+    totalReferrals: row.totalReferrals,
+    pendingReferrals: row.pendingReferrals,
+    referralRewards: {
+      metal: row.referralRewardsMetal ? Number(row.referralRewardsMetal) : 0,
+      energy: row.referralRewardsEnergy ? Number(row.referralRewardsEnergy) : 0,
+      rp: row.referralRewardsRp || 0,
+      xp: row.referralRewardsXp || 0,
+      vipDays: row.referralRewardsVipDays || 0
+    },
+    referralTitles: row.referralTitles,
+    referralBadges: row.referralBadges,
+    referralMultiplier: row.referralMultiplier || '1.0',
+    lastReferralValidated: row.lastReferralValidated,
+    referralMilestonesReached: row.referralMilestonesReached,
+    signupIP: row.signupIP,
+    createdAt: row.createdAt
+  } as unknown as Player;
 }
 
 // ============================================================
 // IMPLEMENTATION NOTES
 // ============================================================
 /**
- * MULTI-PHASE COMBAT SYSTEM (FID-20260515):
+ * COMBAT SYSTEM:
  * 
- * PHASE 1 — ARTILLERY STRIKE:
- * - Artillery units target Support units first
- * - Deals 1.5x damage to Support units
- * - Reduces enemy support buffs before main combat
+ * HP CALCULATION:
+ * - STR units: 10 HP each (glass cannons)
+ * - DEF units: 15 HP each (tanks)
+ * - Total army HP = sum of all unit HP
  * 
- * PHASE 2 — SUPPORT BUFF:
- * - Support units amplify allied STR/DEF
- * - Diminishing returns: buff = min(0.60, supportCount * 0.15)
- * - Max +60% buff regardless of support count
+ * DAMAGE FORMULA:
+ * - Attacker Damage = max(5, AttackerSTR - DefenderDEF/2)
+ * - Defender Damage = max(5, DefenderDEF - AttackerSTR/2)
+ * - Minimum 5 damage ensures battles don't stalemate
  * 
- * PHASE 3 — VANGUARD CLASH:
- * - Damage formula: attackerSTR × (1 - defenderDEF / (defenderDEF + attackerSTR))
- * - Striker vs Bulwark: 1.3x counter damage
- * - Bulwark absorbs 70% of incoming damage
- * - Level gap protection: 5% reduction per level above 20
- * 
- * PHASE 4 — CASUALTY DISTRIBUTION:
- * - Bulwarks absorb frontline damage first
- * - Remaining damage distributes to other archetypes
- * - Weighted random selection within each archetype group
+ * UNIT CASUALTIES:
+ * - HP loss converts to unit deaths
+ * - Deaths distributed randomly (battle chaos)
+ * - Casualties permanent (units removed from army)
  * 
  * UNIT CAPTURE:
  * - Winner captures 10-15% of defeated units
  * - Captured units change ownership
+ * - Adds strategic value to winning battles
+ * 
+ * RESOURCE THEFT (Base Attacks Only):
+ * - Attacker steals 20% of chosen resource
+ * - Only on attacker victory
+ * - Encourages base defense preparation
  * 
  * XP INTEGRATION:
  * - Infantry Win: +150 XP | Loss: +25 XP

@@ -10,7 +10,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getCollection } from '@/lib/mongodb';
+import { AuctionListing } from '@/types/auction.types';
+import { logger } from '@/lib/logger';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -56,12 +59,17 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('my-bids');
   
   try {
+    // Verify authentication
+    const tokenPayload = await getAuthenticatedUser();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
+
+    const username = tokenPayload.username;
+
+    // Parse pagination parameters
     const url = new URL(request.url);
     const params = url.searchParams;
-    const username = params.get('username');
-    if (!username) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, 'Username required');
-    }
     const page = parseInt(params.get('page') || '1', 10);
     const limit = Math.min(parseInt(params.get('limit') || '20', 10), 100);
 
@@ -72,71 +80,50 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       );
     }
 
-    const supabase = createServiceClient();
+    // Get auctions where user has bid
+    const auctionsCollection = await getCollection<AuctionListing>('auctions');
+    
+    // Find auctions with user's bids
+    const query = {
+      'bids.bidderUsername': username
+    };
 
-    // Get all bids placed by this user, ordered by most recent first
-    const { data: userBids, count: totalCount, error: bidsError } = await supabase
-      .from('auction_bids')
-      .select('*', { count: 'exact' })
-      .eq('bidder_username', username)
-      .order('created_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
+    // Get total count
+    const totalCount = await auctionsCollection.countDocuments(query);
 
-    if (bidsError) {
-      log.error('Failed to fetch user bids', bidsError);
-      return createErrorFromException(bidsError, ErrorCode.INTERNAL_ERROR);
-    }
+    // Get paginated results
+    const auctions = await auctionsCollection
+      .find(query)
+      .sort({ 'bids.timestamp': -1 }) // Most recent bid first
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray();
 
-    if (!userBids || userBids.length === 0) {
-      return NextResponse.json({
-        success: true,
-        bids: [],
-        totalCount: 0,
-        page,
-        totalPages: 0
-      });
-    }
-
-    // Get the unique auction IDs from the bids
-    const auctionIds = [...new Set(userBids.map((bid) => bid.auction_id))];
-
-    // Fetch the corresponding auction listings
-    const { data: auctions, error: auctionsError } = await supabase
-      .from('auction_listings')
-      .select('*')
-      .in('auction_id', auctionIds);
-
-    if (auctionsError) {
-      log.error('Failed to fetch auction listings', auctionsError);
-      return createErrorFromException(auctionsError, ErrorCode.INTERNAL_ERROR);
-    }
-
-    const auctionMap = new Map(
-      (auctions || []).map((a) => [a.auction_id, a])
-    );
-
-    // Build response: for each bid, pair with its auction and determine winning status
-    const bids = userBids.map((bid) => {
-      const auction = auctionMap.get(bid.auction_id);
-
+    // Transform results to include user's bid and winning status
+    const bids = auctions.map((auction: any) => {
       // Find user's highest bid on this auction
-      const isWinning = auction
-        ? auction.highest_bidder === username
-        : false;
+      const userBids = auction.bids.filter((bid: any) => bid.bidderUsername === username);
+      const myBid = userBids.reduce((highest: any, current: any) => 
+        current.bidAmount > highest.bidAmount ? current : highest
+      , userBids[0]);
+
+      // Check if user is currently winning
+      const isWinning = auction.highestBidder === username;
 
       return {
         auction,
-        myBid: bid,
+        myBid,
         isWinning
       };
     });
 
-    const totalPages = Math.ceil((totalCount || 0) / limit);
+    // Calculate total pages
+    const totalPages = Math.ceil(totalCount / limit);
 
     return NextResponse.json({
       success: true,
       bids,
-      totalCount: totalCount || 0,
+      totalCount,
       page,
       totalPages
     });
@@ -160,7 +147,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 // - Useful for tracking outbid notifications
 // - Helps player decide whether to increase bid
 // - Pagination support for active bidders
-// - Uses Supabase auction_listings and auction_bids tables
 // ============================================================
 // END OF FILE
 // ============================================================

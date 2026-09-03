@@ -31,6 +31,7 @@ import {
 } from '@/lib';
 import { AwardMasteryXPSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
+import { verifyAuth } from '@/lib/authMiddleware';
 import { getSpecializationStatus, awardMasteryXP, MASTERY_MILESTONES, MASTERY_XP_PER_LEVEL, SpecializationDoctrine } from '@/lib/specializationService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
@@ -47,8 +48,15 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('mastery-status');
   
   try {
-    const username = req.nextUrl.searchParams.get('username');
-    if (!username) return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Username parameter required' });
+    // Verify authentication
+    const user = await verifyAuth();
+    if (!user || !user.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
+
+    const username = user.username;
 
     // Get specialization status
     const status = await getSpecializationStatus(username);
@@ -72,8 +80,8 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     }
 
     // Calculate next level requirements
-    const currentLevel = spec.mastery_level;
-    const currentXP = spec.mastery_xp;
+    const currentLevel = spec.masteryLevel;
+    const currentXP = spec.masteryXP;
     const xpForNextLevel = (currentLevel + 1) * MASTERY_XP_PER_LEVEL;
     const xpProgress = currentXP - (currentLevel * MASTERY_XP_PER_LEVEL);
     const xpNeeded = xpForNextLevel - currentXP;
@@ -115,11 +123,11 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
         } : null
       },
       stats: {
-        totalUnitsBuilt: spec.total_units_built,
-        totalBattlesWon: spec.total_battles_won
+        totalUnitsBuilt: spec.totalUnitsBuilt,
+        totalBattlesWon: spec.totalBattlesWon
       },
-      selectedAt: spec.selected_at,
-      respecHistory: spec.respec_history
+      selectedAt: spec.selectedAt,
+      respecHistory: spec.respecHistory
     });
 
   } catch (error) {
@@ -144,10 +152,18 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('mastery-award-xp');
   
   try {
-    const body = await req.json();
-    const validated = AwardMasteryXPSchema.parse(body);
-    const username = body.username;
-    if (!username) return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Username required' });
+    // Verify authentication
+    const user = await verifyAuth();
+    if (!user || !user.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
+
+    const username = user.username;
+
+    // Validate request
+    const validated = AwardMasteryXPSchema.parse(await req.json());
 
     // Award mastery XP
     const result = await awardMasteryXP(username, validated.xpAmount, validated.reason);

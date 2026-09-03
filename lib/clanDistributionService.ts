@@ -30,8 +30,10 @@
  * @module lib/clanDistributionService
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import crypto from 'crypto';
+import { db } from '@/lib/db';
+import { clans, players } from '@/lib/db/schema';
+import { eq, sql, gte, desc } from 'drizzle-orm';
+import type { Clan, ClanMember, ClanRole } from '@/types/clan.types';
 
 export enum DistributionMethod {
   EQUAL_SPLIT = 'EQUAL_SPLIT',
@@ -41,21 +43,19 @@ export enum DistributionMethod {
 }
 
 export interface DistributionRecord {
-  id?: string;
-  clan_id: string;
+  _id?: string;
+  clanId: string;
   method: DistributionMethod;
-  distributed_by: string;
-  distributed_by_username: string;
-  timestamp: string;
-  
+  distributedBy: string;
+  distributedByUsername: string;
+  timestamp: Date;
   resources: {
     metal?: number;
     energy?: number;
     rp?: number;
   };
-  
   recipients: Array<{
-    player_id: string;
+    playerId: string;
     username: string;
     amount: {
       metal?: number;
@@ -64,13 +64,11 @@ export interface DistributionRecord {
     };
     percentage?: number;
   }>;
-  
-  total_distributed: {
+  totalDistributed: {
     metal: number;
     energy: number;
     rp: number;
   };
-  
   notes?: string;
 }
 
@@ -98,150 +96,71 @@ export const CO_LEADER_DAILY_LIMITS: DistributionLimits = {
   dailyRP: 50000,
 };
 
-type ResourceType = 'metal' | 'energy' | 'rp';
-
-function playerResourceColumn(rt: ResourceType): 'resources_metal' | 'resources_energy' | 'research_points' {
-  if (rt === 'metal') return 'resources_metal';
-  if (rt === 'energy') return 'resources_energy';
-  return 'research_points';
-}
-
-function clanTreasuryColumn(rt: ResourceType): 'bank_treasury_metal' | 'bank_treasury_energy' | 'bank_treasury_rp' {
-  if (rt === 'metal') return 'bank_treasury_metal';
-  if (rt === 'energy') return 'bank_treasury_energy';
-  return 'bank_treasury_rp';
-}
-
-function txAmountColumn(rt: ResourceType): 'amount_metal' | 'amount_energy' | 'amount_rp' {
-  if (rt === 'metal') return 'amount_metal';
-  if (rt === 'energy') return 'amount_energy';
-  return 'amount_rp';
-}
-
-async function addPlayerResource(
-  supabase: ReturnType<typeof createServiceClient>,
-  playerUsername: string,
-  resourceType: ResourceType,
-  amount: number
-): Promise<void> {
-  const { data: existing } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', playerUsername)
-    .single();
-
-  if (!existing) return;
-
-  const col = playerResourceColumn(resourceType);
-  const current = (existing as Record<string, unknown>)[col] as number || 0;
-  const newValue = current + amount;
-
-  if (resourceType === 'metal') {
-    await supabase.from('players').update({ resources_metal: newValue }).eq('username', playerUsername);
-  } else if (resourceType === 'energy') {
-    await supabase.from('players').update({ resources_energy: newValue }).eq('username', playerUsername);
-  } else {
-    await supabase.from('players').update({ research_points: newValue }).eq('username', playerUsername);
-  }
-}
-
-async function deductClanTreasury(
-  supabase: ReturnType<typeof createServiceClient>,
-  clanId: string,
-  resourceType: ResourceType,
-  amount: number
-): Promise<void> {
-  const { data: clan } = await supabase
-    .from('clans')
-    .select('bank_treasury_metal, bank_treasury_energy, bank_treasury_rp')
-    .eq('id', clanId)
-    .single();
-
-  if (!clan) return;
-
-  const col = clanTreasuryColumn(resourceType);
-  const current = (clan as Record<string, unknown>)[col] as number || 0;
-
-  if (resourceType === 'metal') {
-    await supabase.from('clans').update({ bank_treasury_metal: current - amount }).eq('id', clanId);
-  } else if (resourceType === 'energy') {
-    await supabase.from('clans').update({ bank_treasury_energy: current - amount }).eq('id', clanId);
-  } else {
-    await supabase.from('clans').update({ bank_treasury_rp: current - amount }).eq('id', clanId);
-  }
-}
-
 export async function distributeEqualSplit(
   clanId: string,
   distributorId: string,
   resourceType: 'metal' | 'energy' | 'rp',
   totalAmount: number
 ): Promise<DistributionRecord> {
-  const supabase = createServiceClient();
-  
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-  
-  if (clanError || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
-
-  const { data: members, error: membersError } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
   
-  if (membersError || !members) {
-    throw new Error('Failed to load clan members');
-  }
-
-  await verifyDistributionPermission(clanId, members, distributorId, DistributionMethod.EQUAL_SPLIT, totalAmount, resourceType);
+  const clan = clanRows[0];
+  await verifyDistributionPermission(clan, distributorId, DistributionMethod.EQUAL_SPLIT, totalAmount, resourceType);
   
-  const treasuryCol = clanTreasuryColumn(resourceType);
-  const currentBalance = (clan as Record<string, unknown>)[treasuryCol] as number || 0;
+  const treasuryKey = resourceType === 'rp' ? 'researchPoints' : resourceType;
+  const currentBalance = Number((clan as any)[`bankTreasury${treasuryKey.charAt(0).toUpperCase() + treasuryKey.slice(1)}`] || 0);
   if (currentBalance < totalAmount) {
     throw new Error(`Insufficient ${resourceType} in clan bank (have ${currentBalance}, need ${totalAmount})`);
   }
   
-  const memberCount = members.length;
+  const memberCount = clan.members.length;
   const amountPerMember = Math.floor(totalAmount / memberCount);
   const remainder = totalAmount - (amountPerMember * memberCount);
   
   const recipients: DistributionRecord['recipients'] = [];
-  
-  for (let i = 0; i < members.length; i++) {
-    const member = members[i];
+  for (let i = 0; i < clan.members.length; i++) {
+    const member = clan.members[i];
+    const playerRows = await db.select().from(players).where(eq(players.username, member.playerId)).limit(1);
+    const player = playerRows[0];
+    
     const amount = i === 0 ? amountPerMember + remainder : amountPerMember;
     
     recipients.push({
-      player_id: member.player_id,
-      username: member.username,
+      playerId: member.playerId,
+      username: player?.username || 'Unknown',
       amount: {
         [resourceType]: amount,
       },
     });
     
-    await addPlayerResource(supabase, member.player_id, resourceType, amount);
+    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
+    await db.update(players).set({
+      [playerField]: sql`${(players as any)[playerField]} + ${amount}`,
+    }).where(eq(players.username, member.playerId));
   }
   
-  await deductClanTreasury(supabase, clanId, resourceType, totalAmount);
+  const clanField = resourceType === 'metal' ? 'bankTreasuryMetal' : resourceType === 'energy' ? 'bankTreasuryEnergy' : 'bankTreasuryResearchPoints';
+  await db.update(clans).set({
+    [clanField]: sql`${(clans as any)[clanField]} - ${totalAmount}`,
+  }).where(eq(clans.id, clanId));
   
-  const distributorMember = members.find((m) => m.player_id === distributorId);
+  const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
+  const distributor = distributorRows[0];
   
   const record: DistributionRecord = {
-    clan_id: clanId,
+    clanId,
     method: DistributionMethod.EQUAL_SPLIT,
-    distributed_by: distributorId,
-    distributed_by_username: distributorMember?.username || 'Unknown',
-    timestamp: new Date().toISOString(),
+    distributedBy: distributorId,
+    distributedByUsername: distributor?.username || 'Unknown',
+    timestamp: new Date(),
     resources: {
       [resourceType]: totalAmount,
     },
     recipients,
-    total_distributed: {
+    totalDistributed: {
       metal: resourceType === 'metal' ? totalAmount : 0,
       energy: resourceType === 'energy' ? totalAmount : 0,
       rp: resourceType === 'rp' ? totalAmount : 0,
@@ -249,34 +168,29 @@ export async function distributeEqualSplit(
     notes: `Equal split: ${amountPerMember} ${resourceType} per member (${memberCount} members)`,
   };
   
-  await supabase.from('clan_bank_transactions').insert({
-    id: crypto.randomUUID(),
-    clan_id: clanId,
-    player_id: distributorId,
-    username: distributorMember?.username || null,
-    transaction_type: 'WITHDRAWAL',
-    amount_metal: resourceType === 'metal' ? totalAmount : 0,
-    amount_energy: resourceType === 'energy' ? totalAmount : 0,
-    amount_rp: resourceType === 'rp' ? totalAmount : 0,
-    description: `Equal split distribution to ${memberCount} members`,
-    created_at: new Date().toISOString(),
-  });
+  await db.execute(sql`
+    INSERT INTO clan_distributions
+    (clan_id, method, distributed_by, distributed_by_username, timestamp, resources,
+     recipients, total_distributed, notes)
+    VALUES (${record.clanId}, ${record.method}, ${record.distributedBy},
+            ${record.distributedByUsername}, ${record.timestamp}, ${JSON.stringify(record.resources)},
+            ${JSON.stringify(record.recipients)}, ${JSON.stringify(record.totalDistributed)},
+            ${record.notes || null})
+  `);
   
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'FUND_DISTRIBUTION',
-    player_id: distributorId,
-    username: distributorMember?.username || null,
-    created_at: new Date().toISOString(),
-    details: {
-      method: 'EQUAL_SPLIT',
-      resource_type: resourceType,
-      total_amount: totalAmount,
-      member_count: memberCount,
-      amount_per_member: amountPerMember,
-      distributed_by: distributorMember?.username,
-    },
-  });
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${clanId}, 'FUND_DISTRIBUTION', ${new Date()},
+            ${JSON.stringify({
+              method: 'EQUAL_SPLIT',
+              resourceType,
+              totalAmount,
+              memberCount,
+              amountPerMember,
+              distributedBy: distributor?.username,
+            })})
+  `);
   
   return record;
 }
@@ -288,36 +202,21 @@ export async function distributeByPercentage(
   percentageMap: Record<string, number>,
   totalAmount: number
 ): Promise<DistributionRecord> {
-  const supabase = createServiceClient();
-  
   const totalPercentage = Object.values(percentageMap).reduce((sum, pct) => sum + pct, 0);
   if (Math.abs(totalPercentage - 100) > 0.01) {
     throw new Error(`Percentages must total 100% (currently ${totalPercentage}%)`);
   }
   
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-  
-  if (clanError || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
   
-  const { data: members, error: membersError } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
+  const clan = clanRows[0];
+  await verifyDistributionPermission(clan, distributorId, DistributionMethod.PERCENTAGE, totalAmount, resourceType);
   
-  if (membersError || !members) {
-    throw new Error('Failed to load clan members');
-  }
-
-  await verifyDistributionPermission(clanId, members, distributorId, DistributionMethod.PERCENTAGE, totalAmount, resourceType);
-  
-  const treasuryCol = clanTreasuryColumn(resourceType);
-  const currentBalance = (clan as Record<string, unknown>)[treasuryCol] as number || 0;
+  const treasuryKey = resourceType === 'rp' ? 'researchPoints' : resourceType;
+  const currentBalance = Number((clan as any)[`bankTreasury${treasuryKey.charAt(0).toUpperCase() + treasuryKey.slice(1)}`] || 0);
   if (currentBalance < totalAmount) {
     throw new Error(`Insufficient ${resourceType} in clan bank`);
   }
@@ -329,14 +228,11 @@ export async function distributeByPercentage(
     const amount = Math.floor(totalAmount * (percentage / 100));
     distributed += amount;
     
-    const { data: player } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', playerId)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const player = playerRows[0];
     
     recipients.push({
-      player_id: playerId,
+      playerId,
       username: player?.username || 'Unknown',
       amount: {
         [resourceType]: amount,
@@ -344,32 +240,40 @@ export async function distributeByPercentage(
       percentage,
     });
     
-    await addPlayerResource(supabase, playerId, resourceType, amount);
+    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
+    await db.update(players).set({
+      [playerField]: sql`${(players as any)[playerField]} + ${amount}`,
+    }).where(eq(players.username, playerId));
   }
   
   if (distributed < totalAmount && recipients.length > 0) {
     const remainder = totalAmount - distributed;
-    if (recipients[0].amount[resourceType] !== undefined) {
-      recipients[0].amount[resourceType] = (recipients[0].amount[resourceType] || 0) + remainder;
-    }
-    await addPlayerResource(supabase, recipients[0].player_id, resourceType, remainder);
+    recipients[0].amount[resourceType]! += remainder;
+    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
+    await db.update(players).set({
+      [playerField]: sql`${(players as any)[playerField]} + ${remainder}`,
+    }).where(eq(players.username, recipients[0].playerId));
   }
   
-  await deductClanTreasury(supabase, clanId, resourceType, totalAmount);
+  const clanField = resourceType === 'metal' ? 'bankTreasuryMetal' : resourceType === 'energy' ? 'bankTreasuryEnergy' : 'bankTreasuryResearchPoints';
+  await db.update(clans).set({
+    [clanField]: sql`${(clans as any)[clanField]} - ${totalAmount}`,
+  }).where(eq(clans.id, clanId));
   
-  const distributorMember = members.find((m) => m.player_id === distributorId);
+  const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
+  const distributor = distributorRows[0];
   
   const record: DistributionRecord = {
-    clan_id: clanId,
+    clanId,
     method: DistributionMethod.PERCENTAGE,
-    distributed_by: distributorId,
-    distributed_by_username: distributorMember?.username || 'Unknown',
-    timestamp: new Date().toISOString(),
+    distributedBy: distributorId,
+    distributedByUsername: distributor?.username || 'Unknown',
+    timestamp: new Date(),
     resources: {
       [resourceType]: totalAmount,
     },
     recipients,
-    total_distributed: {
+    totalDistributed: {
       metal: resourceType === 'metal' ? totalAmount : 0,
       energy: resourceType === 'energy' ? totalAmount : 0,
       rp: resourceType === 'rp' ? totalAmount : 0,
@@ -377,33 +281,28 @@ export async function distributeByPercentage(
     notes: `Percentage-based distribution to ${recipients.length} members`,
   };
   
-  await supabase.from('clan_bank_transactions').insert({
-    id: crypto.randomUUID(),
-    clan_id: clanId,
-    player_id: distributorId,
-    username: distributorMember?.username || null,
-    transaction_type: 'WITHDRAWAL',
-    amount_metal: resourceType === 'metal' ? totalAmount : 0,
-    amount_energy: resourceType === 'energy' ? totalAmount : 0,
-    amount_rp: resourceType === 'rp' ? totalAmount : 0,
-    description: `Percentage distribution to ${recipients.length} members`,
-    created_at: new Date().toISOString(),
-  });
+  await db.execute(sql`
+    INSERT INTO clan_distributions
+    (clan_id, method, distributed_by, distributed_by_username, timestamp, resources,
+     recipients, total_distributed, notes)
+    VALUES (${record.clanId}, ${record.method}, ${record.distributedBy},
+            ${record.distributedByUsername}, ${record.timestamp}, ${JSON.stringify(record.resources)},
+            ${JSON.stringify(record.recipients)}, ${JSON.stringify(record.totalDistributed)},
+            ${record.notes || null})
+  `);
   
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'FUND_DISTRIBUTION',
-    player_id: distributorId,
-    username: distributorMember?.username || null,
-    created_at: new Date().toISOString(),
-    details: {
-      method: 'PERCENTAGE',
-      resource_type: resourceType,
-      total_amount: totalAmount,
-      recipient_count: recipients.length,
-      distributed_by: distributorMember?.username,
-    },
-  });
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${clanId}, 'FUND_DISTRIBUTION', ${new Date()},
+            ${JSON.stringify({
+              method: 'PERCENTAGE',
+              resourceType,
+              totalAmount,
+              recipientCount: recipients.length,
+              distributedBy: distributor?.username,
+            })})
+  `);
   
   return record;
 }
@@ -415,56 +314,43 @@ export async function distributeByMerit(
   totalAmount: number,
   weights: MeritWeights = DEFAULT_MERIT_WEIGHTS
 ): Promise<DistributionRecord> {
-  const supabase = createServiceClient();
-  
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-  
-  if (clanError || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
   
-  const { data: members, error: membersError } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
-  
-  if (membersError || !members) {
-    throw new Error('Failed to load clan members');
-  }
-
-  const distributor = members.find((m) => m.player_id === distributorId);
+  const clan = clanRows[0];
+  const distributor = clan.members.find((m: any) => m.playerId === distributorId);
   if (!distributor || distributor.role !== 'LEADER') {
     throw new Error('Only clan leaders can use merit-based distribution');
   }
   
-  const treasuryCol = clanTreasuryColumn(resourceType);
-  const currentBalance = (clan as Record<string, unknown>)[treasuryCol] as number || 0;
+  const treasuryKey = resourceType === 'rp' ? 'researchPoints' : resourceType;
+  const currentBalance = Number((clan as any)[`bankTreasury${treasuryKey.charAt(0).toUpperCase() + treasuryKey.slice(1)}`] || 0);
   if (currentBalance < totalAmount) {
     throw new Error(`Insufficient ${resourceType} in clan bank`);
   }
   
   const meritScores: Array<{ playerId: string; username: string; score: number }> = [];
   
-  for (const member of members) {
-    const contributionData = (member as Record<string, unknown>) as { contributions_donated?: number; contributions_territories?: number; contributions_wars?: number };
-    const contributions = {
-      resources_donated: contributionData.contributions_donated || 0,
-      territories_claimed: contributionData.contributions_territories || 0,
-      wars_participated: contributionData.contributions_wars || 0,
+  for (const member of clan.members) {
+    const contributions = (member as any).contributions || {
+      resourcesDonated: 0,
+      territoriesClaimed: 0,
+      warsParticipated: 0,
     };
     
     const score =
-      (contributions.territories_claimed || 0) * weights.territoriesClaimed +
-      (contributions.wars_participated || 0) * weights.warsParticipated +
-      ((contributions.resources_donated || 0) / 1000) * weights.resourcesDonated;
+      (contributions.territoriesClaimed || 0) * weights.territoriesClaimed +
+      (contributions.warsParticipated || 0) * weights.warsParticipated +
+      ((contributions.resourcesDonated || 0) / 1000) * weights.resourcesDonated;
+    
+    const playerRows = await db.select().from(players).where(eq(players.username, member.playerId)).limit(1);
+    const player = playerRows[0];
     
     meritScores.push({
-      playerId: member.player_id,
-      username: member.username,
+      playerId: member.playerId,
+      username: player?.username || 'Unknown',
       score: Math.max(score, 1),
     });
   }
@@ -474,13 +360,14 @@ export async function distributeByMerit(
   const recipients: DistributionRecord['recipients'] = [];
   let distributed = 0;
   
-  for (const merit of meritScores) {
+  for (let i = 0; i < meritScores.length; i++) {
+    const merit = meritScores[i];
     const percentage = (merit.score / totalMeritScore) * 100;
     const amount = Math.floor(totalAmount * (merit.score / totalMeritScore));
     distributed += amount;
     
     recipients.push({
-      player_id: merit.playerId,
+      playerId: merit.playerId,
       username: merit.username,
       amount: {
         [resourceType]: amount,
@@ -488,32 +375,40 @@ export async function distributeByMerit(
       percentage,
     });
     
-    await addPlayerResource(supabase, merit.playerId, resourceType, amount);
+    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
+    await db.update(players).set({
+      [playerField]: sql`${(players as any)[playerField]} + ${amount}`,
+    }).where(eq(players.username, merit.playerId));
   }
   
   if (distributed < totalAmount && recipients.length > 0) {
     const remainder = totalAmount - distributed;
-    if (recipients[0].amount[resourceType] !== undefined) {
-      recipients[0].amount[resourceType] = (recipients[0].amount[resourceType] || 0) + remainder;
-    }
-    await addPlayerResource(supabase, recipients[0].player_id, resourceType, remainder);
+    recipients[0].amount[resourceType]! += remainder;
+    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
+    await db.update(players).set({
+      [playerField]: sql`${(players as any)[playerField]} + ${remainder}`,
+    }).where(eq(players.username, recipients[0].playerId));
   }
   
-  await deductClanTreasury(supabase, clanId, resourceType, totalAmount);
+  const clanField = resourceType === 'metal' ? 'bankTreasuryMetal' : resourceType === 'energy' ? 'bankTreasuryEnergy' : 'bankTreasuryResearchPoints';
+  await db.update(clans).set({
+    [clanField]: sql`${(clans as any)[clanField]} - ${totalAmount}`,
+  }).where(eq(clans.id, clanId));
   
-  const distributorPlayer = members.find((m) => m.player_id === distributorId)?.username || 'Unknown';
+  const distributorPlayerRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
+  const distributorPlayer = distributorPlayerRows[0];
   
   const record: DistributionRecord = {
-    clan_id: clanId,
+    clanId,
     method: DistributionMethod.MERIT,
-    distributed_by: distributorId,
-    distributed_by_username: distributorPlayer,
-    timestamp: new Date().toISOString(),
+    distributedBy: distributorId,
+    distributedByUsername: distributorPlayer?.username || 'Unknown',
+    timestamp: new Date(),
     resources: {
       [resourceType]: totalAmount,
     },
     recipients,
-    total_distributed: {
+    totalDistributed: {
       metal: resourceType === 'metal' ? totalAmount : 0,
       energy: resourceType === 'energy' ? totalAmount : 0,
       rp: resourceType === 'rp' ? totalAmount : 0,
@@ -521,38 +416,29 @@ export async function distributeByMerit(
     notes: `Merit-based: Territories ${weights.territoriesClaimed * 100}%, Wars ${weights.warsParticipated * 100}%, Donations ${weights.resourcesDonated * 100}%`,
   };
   
-  await supabase.from('clan_bank_transactions').insert({
-    id: crypto.randomUUID(),
-    clan_id: clanId,
-    player_id: distributorId,
-    username: distributorPlayer || null,
-    transaction_type: 'WITHDRAWAL',
-    amount_metal: resourceType === 'metal' ? totalAmount : 0,
-    amount_energy: resourceType === 'energy' ? totalAmount : 0,
-    amount_rp: resourceType === 'rp' ? totalAmount : 0,
-    description: `Merit-based distribution to ${recipients.length} members`,
-    created_at: new Date().toISOString(),
-  });
+  await db.execute(sql`
+    INSERT INTO clan_distributions
+    (clan_id, method, distributed_by, distributed_by_username, timestamp, resources,
+     recipients, total_distributed, notes)
+    VALUES (${record.clanId}, ${record.method}, ${record.distributedBy},
+            ${record.distributedByUsername}, ${record.timestamp}, ${JSON.stringify(record.resources)},
+            ${JSON.stringify(record.recipients)}, ${JSON.stringify(record.totalDistributed)},
+            ${record.notes || null})
+  `);
   
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'FUND_DISTRIBUTION',
-    player_id: distributorId,
-    username: distributorPlayer || null,
-    created_at: new Date().toISOString(),
-    details: {
-      method: 'MERIT',
-      resource_type: resourceType,
-      total_amount: totalAmount,
-      recipient_count: recipients.length,
-      distributed_by: distributorPlayer,
-      weights: {
-        territoriesClaimed: weights.territoriesClaimed,
-        warsParticipated: weights.warsParticipated,
-        resourcesDonated: weights.resourcesDonated,
-      },
-    },
-  });
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${clanId}, 'FUND_DISTRIBUTION', ${new Date()},
+            ${JSON.stringify({
+              method: 'MERIT',
+              resourceType,
+              totalAmount,
+              recipientCount: recipients.length,
+              distributedBy: distributorPlayer?.username,
+              weights,
+            })})
+  `);
   
   return record;
 }
@@ -562,44 +448,30 @@ export async function directGrant(
   distributorId: string,
   grants: Array<{ playerId: string; metal?: number; energy?: number; rp?: number }>
 ): Promise<DistributionRecord> {
-  const supabase = createServiceClient();
-  
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-  
-  if (clanError || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
   
-  const { data: members, error: membersError } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
+  const clan = clanRows[0];
   
-  if (membersError || !members) {
-    throw new Error('Failed to load clan members');
-  }
-
   const totalMetal = grants.reduce((sum, g) => sum + (g.metal || 0), 0);
   const totalEnergy = grants.reduce((sum, g) => sum + (g.energy || 0), 0);
   const totalRP = grants.reduce((sum, g) => sum + (g.rp || 0), 0);
   
   if (totalMetal > 0) {
-    await verifyDistributionPermission(clanId, members, distributorId, DistributionMethod.DIRECT_GRANT, totalMetal, 'metal');
+    await verifyDistributionPermission(clan, distributorId, DistributionMethod.DIRECT_GRANT, totalMetal, 'metal');
   }
   if (totalEnergy > 0) {
-    await verifyDistributionPermission(clanId, members, distributorId, DistributionMethod.DIRECT_GRANT, totalEnergy, 'energy');
+    await verifyDistributionPermission(clan, distributorId, DistributionMethod.DIRECT_GRANT, totalEnergy, 'energy');
   }
   if (totalRP > 0) {
-    await verifyDistributionPermission(clanId, members, distributorId, DistributionMethod.DIRECT_GRANT, totalRP, 'rp');
+    await verifyDistributionPermission(clan, distributorId, DistributionMethod.DIRECT_GRANT, totalRP, 'rp');
   }
   
-  const bankMetal = (clan as Record<string, unknown>).bank_treasury_metal as number || 0;
-  const bankEnergy = (clan as Record<string, unknown>).bank_treasury_energy as number || 0;
-  const bankRP = (clan as Record<string, unknown>).bank_treasury_rp as number || 0;
+  const bankMetal = Number(clan.bankTreasuryMetal || 0);
+  const bankEnergy = Number(clan.bankTreasuryEnergy || 0);
+  const bankRP = clan.bankTreasuryResearchPoints || 0;
   
   if (bankMetal < totalMetal) {
     throw new Error(`Insufficient metal in clan bank (have ${bankMetal}, need ${totalMetal})`);
@@ -614,14 +486,11 @@ export async function directGrant(
   const recipients: DistributionRecord['recipients'] = [];
   
   for (const grant of grants) {
-    const { data: player } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', grant.playerId)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, grant.playerId)).limit(1);
+    const player = playerRows[0];
     
     recipients.push({
-      player_id: grant.playerId,
+      playerId: grant.playerId,
       username: player?.username || 'Unknown',
       amount: {
         metal: grant.metal || 0,
@@ -630,40 +499,39 @@ export async function directGrant(
       },
     });
     
-    for (const resourceType of ['metal', 'energy', 'rp'] as const) {
-      const amount = grant[resourceType];
-      if (amount) {
-        await addPlayerResource(supabase, grant.playerId, resourceType, amount);
-      }
+    const updates: any = {};
+    if (grant.metal) updates.resourcesMetal = sql`${players.resourcesMetal} + ${grant.metal}`;
+    if (grant.energy) updates.resourcesEnergy = sql`${players.resourcesEnergy} + ${grant.energy}`;
+    if (grant.rp) updates.researchPoints = sql`${players.researchPoints} + ${grant.rp}`;
+    
+    if (Object.keys(updates).length > 0) {
+      await db.update(players).set(updates).where(eq(players.username, grant.playerId));
     }
   }
   
-  // Deduct from clan treasury
-  if (totalMetal > 0) {
-    await supabase.from('clans').update({ bank_treasury_metal: bankMetal - totalMetal }).eq('id', clanId);
-  }
-  if (totalEnergy > 0) {
-    await supabase.from('clans').update({ bank_treasury_energy: bankEnergy - totalEnergy }).eq('id', clanId);
-  }
-  if (totalRP > 0) {
-    await supabase.from('clans').update({ bank_treasury_rp: bankRP - totalRP }).eq('id', clanId);
-  }
+  const clanUpdates: any = {};
+  if (totalMetal > 0) clanUpdates.bankTreasuryMetal = sql`${clans.bankTreasuryMetal} - ${totalMetal}`;
+  if (totalEnergy > 0) clanUpdates.bankTreasuryEnergy = sql`${clans.bankTreasuryEnergy} - ${totalEnergy}`;
+  if (totalRP > 0) clanUpdates.bankTreasuryResearchPoints = sql`${clans.bankTreasuryResearchPoints} - ${totalRP}`;
   
-  const distributorMember = members.find((m) => m.player_id === distributorId);
+  await db.update(clans).set(clanUpdates).where(eq(clans.id, clanId));
+  
+  const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
+  const distributor = distributorRows[0];
   
   const record: DistributionRecord = {
-    clan_id: clanId,
+    clanId,
     method: DistributionMethod.DIRECT_GRANT,
-    distributed_by: distributorId,
-    distributed_by_username: distributorMember?.username || 'Unknown',
-    timestamp: new Date().toISOString(),
+    distributedBy: distributorId,
+    distributedByUsername: distributor?.username || 'Unknown',
+    timestamp: new Date(),
     resources: {
       metal: totalMetal,
       energy: totalEnergy,
       rp: totalRP,
     },
     recipients,
-    total_distributed: {
+    totalDistributed: {
       metal: totalMetal,
       energy: totalEnergy,
       rp: totalRP,
@@ -671,52 +539,46 @@ export async function directGrant(
     notes: `Direct grants to ${grants.length} members`,
   };
   
-  await supabase.from('clan_bank_transactions').insert({
-    id: crypto.randomUUID(),
-    clan_id: clanId,
-    player_id: distributorId,
-    username: distributorMember?.username || null,
-    transaction_type: 'WITHDRAWAL',
-    amount_metal: totalMetal,
-    amount_energy: totalEnergy,
-    amount_rp: totalRP,
-    description: `Direct grants to ${grants.length} members`,
-    created_at: new Date().toISOString(),
-  });
+  await db.execute(sql`
+    INSERT INTO clan_distributions
+    (clan_id, method, distributed_by, distributed_by_username, timestamp, resources,
+     recipients, total_distributed, notes)
+    VALUES (${record.clanId}, ${record.method}, ${record.distributedBy},
+            ${record.distributedByUsername}, ${record.timestamp}, ${JSON.stringify(record.resources)},
+            ${JSON.stringify(record.recipients)}, ${JSON.stringify(record.totalDistributed)},
+            ${record.notes || null})
+  `);
   
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'FUND_DISTRIBUTION',
-    player_id: distributorId,
-    username: distributorMember?.username || null,
-    created_at: new Date().toISOString(),
-    details: {
-      method: 'DIRECT_GRANT',
-      total_metal: totalMetal,
-      total_energy: totalEnergy,
-      total_rp: totalRP,
-      recipient_count: grants.length,
-      distributed_by: distributorMember?.username,
-    },
-  });
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${clanId}, 'FUND_DISTRIBUTION', ${new Date()},
+            ${JSON.stringify({
+              method: 'DIRECT_GRANT',
+              totalMetal,
+              totalEnergy,
+              totalRP,
+              recipientCount: grants.length,
+              distributedBy: distributor?.username,
+            })})
+  `);
   
   return record;
 }
 
 async function verifyDistributionPermission(
-  clanId: string,
-  members: Array<{ player_id: string; username: string; role: string }>,
+  clan: any,
   distributorId: string,
   method: DistributionMethod,
   amount: number,
   resourceType: 'metal' | 'energy' | 'rp'
 ): Promise<void> {
-  const member = members.find((m) => m.player_id === distributorId);
+  const member = clan.members.find((m: any) => m.playerId === distributorId);
   if (!member) {
     throw new Error('Player is not a member of this clan');
   }
   
-  const role = member.role;
+  const role = member.role as string;
   
   if (role === 'LEADER') {
     return;
@@ -727,9 +589,8 @@ async function verifyDistributionPermission(
       throw new Error('Co-Leaders can only use Equal Split or Direct Grant methods');
     }
     
-    const limitKey = `daily${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)}` as keyof DistributionLimits;
-    const limit = CO_LEADER_DAILY_LIMITS[limitKey];
-    const todayDistributed = await getTodayDistributedByPlayer(clanId, distributorId, resourceType);
+    const limit = CO_LEADER_DAILY_LIMITS[`daily${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)}` as keyof DistributionLimits];
+    const todayDistributed = await getTodayDistributedByPlayer(clan.id, distributorId, resourceType);
     
     if (todayDistributed + amount > limit) {
       throw new Error(`Co-Leader daily limit exceeded for ${resourceType} (${limit} per day, already distributed ${todayDistributed})`);
@@ -746,66 +607,48 @@ async function getTodayDistributedByPlayer(
   playerId: string,
   resourceType: 'metal' | 'energy' | 'rp'
 ): Promise<number> {
-  const supabase = createServiceClient();
-  
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   
-  const amountCol = txAmountColumn(resourceType);
+  const result = await db.execute(sql`
+    SELECT recipients FROM clan_distributions
+    WHERE clan_id = ${clanId}
+      AND distributed_by = ${playerId}
+      AND timestamp >= ${todayStart}
+  `);
   
-  const { data: distributions, error } = await supabase
-    .from('clan_bank_transactions')
-    .select(amountCol)
-    .eq('clan_id', clanId)
-    .eq('player_id', playerId)
-    .eq('transaction_type', 'WITHDRAWAL')
-    .gte('created_at', todayStart.toISOString());
-  
-  if (error || !distributions) {
-    return 0;
+  let total = 0;
+  for (const row of (result as any) as any[]) {
+    const dist = JSON.parse(row.recipients);
+    for (const recipient of dist) {
+      total += recipient.amount[resourceType] || 0;
+    }
   }
   
-  return (distributions as Array<Record<string, number>>).reduce((sum, d) => {
-    return sum + (d[amountCol] || 0);
-  }, 0);
+  return total;
 }
 
 export async function getDistributionHistory(
   clanId: string,
   limit = 100
 ): Promise<DistributionRecord[]> {
-  const supabase = createServiceClient();
+  const result = await db.execute(sql`
+    SELECT * FROM clan_distributions
+    WHERE clan_id = ${clanId}
+    ORDER BY timestamp DESC
+    LIMIT ${limit}
+  `);
   
-  const { data, error } = await supabase
-    .from('clan_bank_transactions')
-    .select('*')
-    .eq('clan_id', clanId)
-    .eq('transaction_type', 'WITHDRAWAL')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  
-  if (error || !data) {
-    return [];
-  }
-  
-  return data.map((tx) => ({
-    id: (tx as Record<string, unknown>).id as string,
-    clan_id: (tx as Record<string, unknown>).clan_id as string,
-    method: DistributionMethod.EQUAL_SPLIT,
-    distributed_by: ((tx as Record<string, unknown>).player_id as string) || '',
-    distributed_by_username: ((tx as Record<string, unknown>).username as string) || 'Unknown',
-    timestamp: (tx as Record<string, unknown>).created_at as string,
-    resources: {
-      metal: (tx as Record<string, unknown>).amount_metal as number || 0,
-      energy: (tx as Record<string, unknown>).amount_energy as number || 0,
-      rp: (tx as Record<string, unknown>).amount_rp as number || 0,
-    },
-    recipients: [],
-    total_distributed: {
-      metal: (tx as Record<string, unknown>).amount_metal as number || 0,
-      energy: (tx as Record<string, unknown>).amount_energy as number || 0,
-      rp: (tx as Record<string, unknown>).amount_rp as number || 0,
-    },
-    notes: ((tx as Record<string, unknown>).description as string) || undefined,
-  })) as DistributionRecord[];
+  return (result.rows as any[]).map((row: any) => ({
+    _id: row.id,
+    clanId: row.clan_id,
+    method: row.method,
+    distributedBy: row.distributed_by,
+    distributedByUsername: row.distributed_by_username,
+    timestamp: new Date(row.timestamp),
+    resources: typeof row.resources === 'string' ? JSON.parse(row.resources) : row.resources,
+    recipients: typeof row.recipients === 'string' ? JSON.parse(row.recipients) : row.recipients,
+    totalDistributed: typeof row.total_distributed === 'string' ? JSON.parse(row.total_distributed) : row.total_distributed,
+    notes: row.notes,
+  }));
 }

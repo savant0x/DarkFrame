@@ -1,89 +1,110 @@
-# DarkFrame — Planned Features
+# DarkFrame - Planned Features
 
 > Future enhancements and potential features
 
-**Last Updated:** 2026-05-11
-**Status:** Factory & Unit Redesign Complete — Awaiting DB Reset & Testing
+**Last Updated:** 2026-01-18 (Baseline Reset)  
+**Status:** ✅ Clean baseline - Ready for planning
 
 ---
 
-## ✅ COMPLETED — May 11, 2026
+## 🎯 **HIGH PRIORITY OPTIONS**
 
-### Factory & Unit System Overhaul (FID-20260511-FACTORY-UNIT-REDESIGN)
-- 65 unit types → 20 focused units (4 archetypes × 5 tiers)
-- Linear slot regen → Burst+Decay model
-- Simple STR vs DEF combat → Multi-phase algorithm
-- Map entropy, terrain modifiers, factory archetypes
-- Operational Data currency
-- TSC 0 errors, Next.js build passes
+### Option 1: Sprint 2 - Social Features Testing
+**Status:** 🔵 CODE COMPLETE (75%) - Needs Testing  
+**Estimate:** 3-4 hours  
+**Complexity:** 3/5
 
-### Economy Rebalance V2 (FID-20260508-BALANCE-V2)
-- 16 changes across XP, factory defense, resource decay, diggers, RP, PvP, army balance, flag, terrain, auto-farm, banks, forests, achievements
+**What's Ready:**
+- Chat enhancements with HTTP polling
+- Private messaging system
+- Friend management
+- 8 NPM packages already installed
 
-### Page Structure & Synth Palette (FID-20260508-PAGE-STRUCTURE)
-- All 20 pages under GameLayout wrapper
-- Synth palette applied globally
-
-### Digger Balance (FID-20260510-DIGGER-BALANCE)
-- Exponential decay formula corrected
-- Asymptotic cost curve implemented
-
-### Inventory Redesign (FID-20260510-INVENTORY-REDESIGN)
-- Visual hierarchy, item grouping, sacrifice values
+**What's Needed:**
+- Comprehensive testing (48 test cases)
+- Integration testing
+- Bug fixes if any found
 
 ---
 
-## 📋 IMMEDIATE (Before Next Session)
+### Option 2: Test Coverage Expansion
+**Status:** 🔵 PLANNED  
+**Estimate:** 8-10 hours  
+**Complexity:** 4/5
 
-These must be done before the game is playable with the new systems:
+**Current State:**
+- Test coverage: 15%
+- Target: 60%
+- Framework: Vitest with React Testing Library
 
-1. **DB Wipe & Re-seed** — Required for all balance changes to take effect
-   - Run `supabase db reset` or apply migration `20260511000001_factory_unit_redesign.sql`
-   - Run `npx tsx scripts/reset-and-seed.ts`
-2. **Test factory capture → build → abandon cycle**
-3. **Test unit production with new UNIT_CONFIGS**
-4. **Test PvP combat with multi-phase algorithm**
-5. **Verify map entropy degrades unoccupied factories after 72h**
-
----
-
-## 📋 POST-RESET PLANNING
-
-After DB reset and testing confirms systems work:
-
-### High Priority
-- **Battle Service Full Implementation** — Multi-phase combat algorithm partially implemented (phase structure exists, needs full resolution logic + After-Action Report text generation)
-- **After-Action Report** — Generate readable text from combat results
-- **Factory Archetype Assignment** — Assign archetypes during map generation based on terrain
-- **Shrine Sacrifice-Digger Route** — Asymptotic curve route exists, needs testing
-
-### Medium Priority
-- **Bot Dynamic Scaling** — Bots should scale with player progression
-- **Clan Bank Upgrade RP Costs** — New feature
-- **WMD Component RP Surcharge** — New feature
-- **Real-Time Systems** — WebSocket for live updates (replace polling)
-- **Mobile Responsive** — Mobile-friendly UI
-
-### Lower Priority
-- **World Events** — Server-wide events that create FOMO
-- **Alliance System** — Multi-clan cooperation
-- **Map Expansions** — New terrain types, new areas
-- **Admin Tools** — Economy balancing dashboard, player moderation
-- **Payment Integration** — Stripe for VIP purchases (route exists)
-- **Production Deployment** — Vercel/Railway hosting
+**What's Needed:**
+- Service layer tests
+- Component tests
+- Integration tests
+- API endpoint tests
 
 ---
 
-## 🆕 NEW FEATURE REQUESTS
+### Option 3: Production Infrastructure
+**Status:** 🔵 PLANNED  
+**Estimate:** 8-12 hours  
+**Complexity:** 4/5
+
+**What's Needed:**
+- Performance monitoring
+- Error logging and tracking
+- CI/CD pipeline setup
+- Database backups and recovery
+- Load testing
+
+---
+
+### Option 4: ECHO Architecture Migration
+**Status:** 🔵 PLANNED  
+**Estimate:** 4-5 hours  
+**Complexity:** 3/5
+
+**Current State:**
+- 85% ECHO compliant
+- 18/26 required index.ts files exist
+- Some import pattern inconsistencies
+
+**What's Needed:**
+- Create 8 missing barrel exports
+- Update imports to use barrel exports
+- Code duplication audit
+- Documentation compliance
+
+---
+
+## 📝 **ARCHIVED PLANNING NOTES**
+
+Previous planning documentation (1,099 lines) has been archived to:
+- `dev/archives/2026-01-18/planned_pre_baseline_reset.md`
+
+This includes:
+- Sprint 2 detailed planning
+- ECHO compliance refactor details
+- Previous FID planning notes
+
+---
+
+## 🆕 **NEW FEATURE REQUESTS**
 
 Describe what you need and I'll enter planning mode:
 
-1. **Feature Description** — What should it do?
-2. **Business Value** — Why is it important?
-3. **Technical Details** — Any specific requirements?
+1. **Feature Description** - What should it do?
+2. **Business Value** - Why is it important?
+3. **Technical Details** - Any specific requirements?
 
 I'll create a detailed FID with:
 - Implementation approach
 - File changes needed
 - Time estimate
 - Acceptance criteria
+
+---
+
+*ECHO v1.3.4 - Clean Baseline Established*
+*Say "resume" anytime to restore context*
+

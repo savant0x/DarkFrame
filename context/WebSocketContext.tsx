@@ -142,8 +142,6 @@ export function WebSocketProvider({
         } else {
           console.warn('[WebSocket] Authentication failed after retries:', err.message);
         }
-      } else if (err.message === 'timeout' || err.message === 'websocket error') {
-        // Expected in dev mode — no custom WebSocket server running
       } else {
         console.error('[WebSocket] Connection error:', err.message);
       }
@@ -167,7 +165,7 @@ export function WebSocketProvider({
           newSocket.connect();
         }, delay);
       } else {
-        console.warn('[WebSocket] Skipping reconnection — server not available');
+        console.error('[WebSocket] Max reconnection attempts reached');
         setError('Failed to connect after multiple attempts. Please refresh the page.');
       }
     });

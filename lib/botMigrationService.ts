@@ -22,21 +22,12 @@
  * - Collision avoidance (don't spawn on players)
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import { parseBotMigrationConfig } from '@/lib/supabase/jsonb';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, sql, desc } from 'drizzle-orm';
 
-// ============================================================================
-// TYPES & INTERFACES
-// ============================================================================
-
-/**
- * Bot specialization types
- */
 export type BotSpecialization = 'Hoarder' | 'Fortress' | 'Raider' | 'Balanced' | 'Ghost';
 
-/**
- * Migration event record
- */
 export interface MigrationEvent {
   timestamp: Date;
   botsMigrated: number;
@@ -48,36 +39,23 @@ export interface MigrationEvent {
     Ghost: number;
   };
   triggeredBy: 'automatic' | 'manual';
-  triggeredByUser?: string; // Admin username if manual
+  triggeredByUser?: string;
 }
 
-/**
- * Position on the map
- */
 interface Position {
   x: number;
   y: number;
 }
 
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
-/**
- * Migration system configuration
- */
 const MIGRATION_CONFIG = {
-  MIGRATION_PERCENTAGE: 0.3,   // 30% of bots migrate
-  MAP_SIZE: 5000,              // Map dimensions (0-5000)
-  SAFE_DISTANCE: 50,           // Min distance from players
-  NEST_ATTRACTION_RANGE: 300,  // Range for Fortress bots to move toward nests
-  RAIDER_TARGET_RANGE: 500,    // Range for Raiders to detect player activity
-  HOARDER_AVOID_RANGE: 500,    // Range for Hoarders to avoid player activity
+  MIGRATION_PERCENTAGE: 0.3,
+  MAP_SIZE: 5000,
+  SAFE_DISTANCE: 50,
+  NEST_ATTRACTION_RANGE: 300,
+  RAIDER_TARGET_RANGE: 500,
+  HOARDER_AVOID_RANGE: 500,
 } as const;
 
-/**
- * Nest locations (from spawnBots.ts)
- */
 const NEST_LOCATIONS: Position[] = [
   { x: 500, y: 500 },
   { x: 1500, y: 1500 },
@@ -86,20 +64,10 @@ const NEST_LOCATIONS: Position[] = [
   { x: 4500, y: 4500 },
 ];
 
-// ============================================================================
-// POSITION CALCULATION
-// ============================================================================
-
-/**
- * Calculate distance between two positions
- */
 function calculateDistance(pos1: Position, pos2: Position): number {
   return Math.sqrt(Math.pow(pos2.x - pos1.x, 2) + Math.pow(pos2.y - pos1.y, 2));
 }
 
-/**
- * Get random position on the map
- */
 function getRandomPosition(): Position {
   return {
     x: Math.floor(Math.random() * MIGRATION_CONFIG.MAP_SIZE),
@@ -107,60 +75,44 @@ function getRandomPosition(): Position {
   };
 }
 
-/**
- * Check if position is safe (not too close to players)
- */
-async function isSafePosition(supabase: ReturnType<typeof createServiceClient>, position: Position): Promise<boolean> {
-  const { count } = await supabase
-    .from('players')
-    .select('*', { count: 'exact', head: true })
-    .neq('is_bot', true)
-    .gte('current_position->x', position.x - MIGRATION_CONFIG.SAFE_DISTANCE)
-    .lte('current_position->x', position.x + MIGRATION_CONFIG.SAFE_DISTANCE)
-    .gte('current_position->y', position.y - MIGRATION_CONFIG.SAFE_DISTANCE)
-    .lte('current_position->y', position.y + MIGRATION_CONFIG.SAFE_DISTANCE);
-
-  return count === 0;
+async function isSafePosition(position: Position): Promise<boolean> {
+  const result = await db.execute(sql`
+    SELECT COUNT(*) as cnt FROM players
+    WHERE is_bot != 1
+      AND current_position_x >= ${position.x - MIGRATION_CONFIG.SAFE_DISTANCE}
+      AND current_position_x <= ${position.x + MIGRATION_CONFIG.SAFE_DISTANCE}
+      AND current_position_y >= ${position.y - MIGRATION_CONFIG.SAFE_DISTANCE}
+      AND current_position_y <= ${position.y + MIGRATION_CONFIG.SAFE_DISTANCE}
+  `);
+  const cnt = Number(((result as any)[0] as any).cnt);
+  return cnt === 0;
 }
 
-/**
- * Find safe position with retries
- */
-async function findSafePosition(supabase: ReturnType<typeof createServiceClient>, maxRetries = 10): Promise<Position> {
+async function findSafePosition(maxRetries = 10): Promise<Position> {
   for (let i = 0; i < maxRetries; i++) {
     const position = getRandomPosition();
-    if (await isSafePosition(supabase, position)) {
+    if (await isSafePosition(position)) {
       return position;
     }
   }
-  
-  // Fallback: return random position anyway
   return getRandomPosition();
 }
 
-// ============================================================================
-// SPECIALIZATION-BASED MIGRATION
-// ============================================================================
+async function getMigrationPositionRaider(): Promise<Position> {
+  const playerResult = await db.execute(sql`
+    SELECT username, current_position_x, current_position_y FROM players
+    WHERE is_bot != 1
+    LIMIT 20
+  `);
+  const playerRows = playerResult.rows as any[];
 
-/**
- * Calculate migration position for Raider bots (move toward players)
- */
-async function getMigrationPositionRaider(supabase: ReturnType<typeof createServiceClient>): Promise<Position> {
-  // Get random active player
-  const { data: players } = await supabase
-    .from('players')
-    .select('*')
-    .neq('is_bot', true)
-    .limit(20);
-
-  if (!players || players.length === 0) {
+  if (playerRows.length === 0) {
     return getRandomPosition();
   }
 
-  const targetPlayer = players[Math.floor(Math.random() * players.length)];
-  const targetPos: Position = { x: targetPlayer.current_x, y: targetPlayer.current_y };
+  const targetPlayer = playerRows[Math.floor(Math.random() * playerRows.length)];
+  const targetPos: Position = { x: targetPlayer.current_position_x, y: targetPlayer.current_position_y };
 
-  // Move within range of player, but not too close
   const angle = Math.random() * 2 * Math.PI;
   const distance = MIGRATION_CONFIG.SAFE_DISTANCE + Math.random() * (MIGRATION_CONFIG.RAIDER_TARGET_RANGE - MIGRATION_CONFIG.SAFE_DISTANCE);
 
@@ -170,22 +122,13 @@ async function getMigrationPositionRaider(supabase: ReturnType<typeof createServ
   };
 }
 
-/**
- * Calculate migration position for Hoarder bots (move away from players)
- */
-async function getMigrationPositionHoarder(supabase: ReturnType<typeof createServiceClient>): Promise<Position> {
-  // Find low-activity zones (away from players)
-  const position = await findSafePosition(supabase);
+async function getMigrationPositionHoarder(): Promise<Position> {
+  const position = await findSafePosition();
   return position;
 }
 
-/**
- * Calculate migration position for Fortress bots (near nests)
- */
 function getMigrationPositionFortress(): Position {
   const nest = NEST_LOCATIONS[Math.floor(Math.random() * NEST_LOCATIONS.length)];
-  
-  // Spawn within attraction range of nest
   const angle = Math.random() * 2 * Math.PI;
   const distance = Math.random() * MIGRATION_CONFIG.NEST_ATTRACTION_RANGE;
 
@@ -195,19 +138,12 @@ function getMigrationPositionFortress(): Position {
   };
 }
 
-/**
- * Calculate migration position for Ghost bots (random teleport)
- */
 function getMigrationPositionGhost(): Position {
   return getRandomPosition();
 }
 
-/**
- * Calculate migration position for Balanced bots (evenly distributed)
- */
 function getMigrationPositionBalanced(): Position {
-  // Grid-based distribution for even coverage
-  const gridSize = MIGRATION_CONFIG.MAP_SIZE / 10; // 10x10 grid
+  const gridSize = MIGRATION_CONFIG.MAP_SIZE / 10;
   const gridX = Math.floor(Math.random() * 10);
   const gridY = Math.floor(Math.random() * 10);
 
@@ -217,15 +153,12 @@ function getMigrationPositionBalanced(): Position {
   };
 }
 
-/**
- * Get migration position based on bot specialization
- */
-async function getMigrationPosition(supabase: ReturnType<typeof createServiceClient>, specialization: BotSpecialization): Promise<Position> {
+async function getMigrationPosition(specialization: BotSpecialization): Promise<Position> {
   switch (specialization) {
     case 'Raider':
-      return await getMigrationPositionRaider(supabase);
+      return await getMigrationPositionRaider();
     case 'Hoarder':
-      return await getMigrationPositionHoarder(supabase);
+      return await getMigrationPositionHoarder();
     case 'Fortress':
       return getMigrationPositionFortress();
     case 'Ghost':
@@ -237,38 +170,17 @@ async function getMigrationPosition(supabase: ReturnType<typeof createServiceCli
   }
 }
 
-// ============================================================================
-// MIGRATION EXECUTION
-// ============================================================================
-
-/**
- * Execute bot migration event
- * @param triggeredBy - How migration was triggered
- * @param triggeredByUser - Admin username if manual trigger
- * @returns Migration event results
- */
 export async function executeMigration(
   triggeredBy: 'automatic' | 'manual' = 'automatic',
   triggeredByUser?: string
 ): Promise<MigrationEvent> {
-  const supabase = createServiceClient();
+  const allBots = await db.select().from(players).where(eq(players.isBot, 1));
 
-  // Get all bots
-  const { data: allBots } = await supabase
-    .from('players')
-    .select('*')
-    .eq('is_bot', true);
+  const migrateCount = Math.floor(allBots.length * MIGRATION_CONFIG.MIGRATION_PERCENTAGE);
 
-  const bots = allBots || [];
-
-  // Calculate how many bots to migrate
-  const migrateCount = Math.floor(bots.length * MIGRATION_CONFIG.MIGRATION_PERCENTAGE);
-
-  // Randomly select bots to migrate
-  const shuffled = [...bots].sort(() => 0.5 - Math.random());
+  const shuffled = [...allBots].sort(() => 0.5 - Math.random());
   const botsToMigrate = shuffled.slice(0, migrateCount);
 
-  // Track migrations by specialization
   const bySpecialization = {
     Hoarder: 0,
     Fortress: 0,
@@ -277,26 +189,20 @@ export async function executeMigration(
     Ghost: 0,
   };
 
-  // Migrate each bot
   for (const bot of botsToMigrate) {
-    const botData = bot;
-    const config = botData.bot_config ? parseBotMigrationConfig(botData.bot_config) : { specialization: '' as string };
-    const specialization = config.specialization as BotSpecialization;
-    const validSpecs: readonly string[] = ['Hoarder', 'Fortress', 'Raider', 'Balanced', 'Ghost'];
-    if (!specialization || !validSpecs.includes(specialization)) continue;
+    const specialization = bot.botConfig?.specialization as BotSpecialization;
+    if (!specialization) continue;
 
-    bySpecialization[specialization]++;
-    
-    const newX = Math.floor(Math.random() * 150) + 1;
-    const newY = Math.floor(Math.random() * 150) + 1;
-    await supabase.from('players')
-      .update({ current_x: newX, current_y: newY })
-      .eq('username', bot.username);
+    const newPosition = await getMigrationPosition(specialization);
+
+    await db.update(players).set({
+      currentPositionX: newPosition.x,
+      currentPositionY: newPosition.y,
+    }).where(eq(players.username, bot.username));
 
     bySpecialization[specialization]++;
   }
 
-  // Create migration event record
   const event: MigrationEvent = {
     timestamp: new Date(),
     botsMigrated: botsToMigrate.length,
@@ -305,42 +211,44 @@ export async function executeMigration(
     triggeredByUser,
   };
 
-  // Store migration history (unsupported table: use logging instead)
-  console.log('[Bot Migration] Event:', event);
+  await db.execute(sql`
+    INSERT INTO bot_migration_history
+    (timestamp, bots_migrated, by_specialization, triggered_by, triggered_by_user)
+    VALUES (${event.timestamp}, ${event.botsMigrated}, ${JSON.stringify(event.bySpecialization)},
+            ${event.triggeredBy}, ${event.triggeredByUser || null})
+  `);
 
   return event;
 }
 
-// ============================================================================
-// MIGRATION HISTORY
-// ============================================================================
-
-/**
- * Get recent migration events
- * @param limit - Number of events to retrieve
- * @returns Array of migration events
- */
 export async function getMigrationHistory(limit = 10): Promise<MigrationEvent[]> {
-  // bot_migration_history table not in schema — return empty
-  return [];
+  const rows = await db.execute(sql`
+    SELECT * FROM bot_migration_history
+    ORDER BY timestamp DESC
+    LIMIT ${limit}
+  `);
+
+  return (rows.rows as any[]).map((row: any) => ({
+    timestamp: new Date(row.timestamp),
+    botsMigrated: row.bots_migrated,
+    bySpecialization: typeof row.by_specialization === 'string'
+      ? JSON.parse(row.by_specialization)
+      : row.by_specialization,
+    triggeredBy: row.triggered_by,
+    triggeredByUser: row.triggered_by_user || undefined,
+  }));
 }
 
-/**
- * Get next scheduled migration time (Sundays at 8 AM UTC)
- * @returns Next migration timestamp
- */
 export function getNextMigrationTime(): Date {
   const now = new Date();
   const nextSunday = new Date(now);
 
-  // Find next Sunday
   const dayOfWeek = now.getUTCDay();
   const daysUntilSunday = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
 
   nextSunday.setUTCDate(now.getUTCDate() + daysUntilSunday);
   nextSunday.setUTCHours(8, 0, 0, 0);
 
-  // If it's Sunday and past 8 AM, schedule for next week
   if (dayOfWeek === 0 && now.getUTCHours() >= 8) {
     nextSunday.setUTCDate(nextSunday.getUTCDate() + 7);
   }
@@ -348,38 +256,10 @@ export function getNextMigrationTime(): Date {
   return nextSunday;
 }
 
-/**
- * Check if it's time for automatic migration (Sunday 8 AM UTC)
- * @returns True if migration should run
- */
 export function shouldRunAutoMigration(): boolean {
   const now = new Date();
   const isSunday = now.getUTCDay() === 0;
-  const isEightAM = now.getUTCHours() === 8 && now.getUTCMinutes() < 15; // 15-minute window
+  const isEightAM = now.getUTCHours() === 8 && now.getUTCMinutes() < 15;
 
   return isSunday && isEightAM;
 }
-
-// ============================================================================
-// IMPLEMENTATION NOTES
-// ============================================================================
-
-/**
- * INTEGRATION:
- * - Call executeMigration() from scheduled cron job or admin endpoint
- * - Run shouldRunAutoMigration() check in background process
- * - Migration history stored in bot_migration_history collection
- * 
- * SPECIALIZATION BEHAVIORS:
- * - Raiders: Aggressive, move toward player activity
- * - Hoarders: Defensive, avoid player activity
- * - Fortress: Territorial, cluster near nests
- * - Ghost: Unpredictable, random teleportation
- * - Balanced: Strategic, evenly distributed
- * 
- * FUTURE ENHANCEMENTS:
- * - Migration notification system for players
- * - Seasonal migration patterns
- * - Event-triggered migrations (player milestones)
- * - Migration impact on bot reputation
- */

@@ -24,7 +24,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface Activity {
   _id: string;
@@ -50,69 +50,39 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
 
-  useEffect(() => {
-    loadActivities();
-    
-    // Poll for updates every 10 seconds
-    const interval = setInterval(() => {
-      pollNewActivities();
-    }, 10000);
-    
-    return () => clearInterval(interval);
-  }, [clanId]);
-
-  useEffect(() => {
-    applyFilter();
-  }, [activities, filter]);
-
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async (pageNum: number = 1) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/clan/activities?clanId=${clanId}&limit=50`);
+      const offset = (pageNum - 1) * 50;
+      const response = await fetch(`/api/clan/activities?clanId=${clanId}&limit=50&offset=${offset}`);
       const data = await response.json();
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to load activities');
       }
       
-      setActivities(data.activities || []);
-      setHasMore(data.activities?.length === 50);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadMore = async () => {
-    if (!hasMore || isLoading) return;
-    
-    try {
-      setIsLoading(true);
-      const nextPage = page + 1;
-      
-      const response = await fetch(
-        `/api/clan/activities?clanId=${clanId}&limit=50&page=${nextPage}`
-      );
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to load more activities');
+      if (pageNum === 1) {
+        setActivities(data.activities || []);
+      } else {
+        setActivities(prev => [...prev, ...(data.activities || [])]);
       }
-      
-      setActivities([...activities, ...(data.activities || [])]);
       setHasMore(data.activities?.length === 50);
-      setPage(nextPage);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clanId]);
 
-  const pollNewActivities = async () => {
+  const loadMore = useCallback(async () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    await loadActivities(nextPage);
+  }, [page, loadActivities]);
+
+  const pollNewActivities = useCallback(async () => {
     if (activities.length === 0) return;
     
     try {
@@ -129,9 +99,9 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
     } catch (err) {
       console.error('Failed to poll activities:', err);
     }
-  };
+  }, [clanId, activities]);
 
-  const applyFilter = () => {
+  const applyFilter = useCallback(() => {
     if (filter === 'ALL') {
       setFilteredActivities(activities);
       return;
@@ -151,7 +121,22 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
 
     const types = filterMap[filter] || [];
     setFilteredActivities(activities.filter(a => types.includes(a.type)));
-  };
+  }, [activities, filter]);
+
+  useEffect(() => {
+    loadActivities();
+    
+    // Poll for updates every 10 seconds
+    const interval = setInterval(() => {
+      pollNewActivities();
+    }, 10000);
+    
+    return () => clearInterval(interval);
+  }, [clanId, loadActivities, pollNewActivities]);
+
+  useEffect(() => {
+    applyFilter();
+  }, [activities, filter, applyFilter]);
 
   const getActivityIcon = (type: string): string => {
     if (type.startsWith('WAR')) return '⚔️';

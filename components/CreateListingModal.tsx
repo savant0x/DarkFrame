@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuctionItemType, ResourceType, AUCTION_CONFIG, CreateAuctionRequest, AuctionItem } from '@/types/auction.types';
-import { UnitType, UNIT_CONFIGS } from '@/types';
+import { UnitType } from '@/types';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -32,7 +32,7 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
   const [resourceAmount, setResourceAmount] = useState('1000');
   
   // Unit listing state (Phase 4 - simplified, full implementation needs player's units)
-  const [unitType, setUnitType] = useState<UnitType>(UnitType.S_T1_VanguardInfantry);
+  const [unitType, setUnitType] = useState<UnitType>(UnitType.T1_Rifleman);
   
   // Pricing state
   const [startingBid, setStartingBid] = useState('1000');
@@ -99,12 +99,11 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
         resourceAmount: parseInt(resourceAmount, 10)
       };
     } else if (itemType === AuctionItemType.Unit) {
-      const config = UNIT_CONFIGS[unitType];
       return {
         itemType: AuctionItemType.Unit,
         unitType,
-        unitStrength: config?.strength || 100,
-        unitDefense: config?.defense || 50
+        unitStrength: 100, // TODO: Get from actual unit data
+        unitDefense: 50
       };
     } else {
       // TradeableItem (Phase 5)
@@ -289,12 +288,12 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
                 onChange={(e) => setUnitType(e.target.value as UnitType)}
                 className="w-full bg-gray-800 text-white border-2 border-gray-700 rounded px-4 py-3 focus:border-yellow-600 outline-none"
               >
-                <option value={UnitType.S_T1_VanguardInfantry}>T1 Vanguard Infantry (Striker)</option>
-                <option value={UnitType.B_T1_AegisDrone}>T1 Aegis Drone (Bulwark)</option>
-                <option value={UnitType.A_T1_MortarSquad}>T1 Mortar Squad (Artillery)</option>
-                <option value={UnitType.U_T1_CommsRelay}>T1 Comms Relay (Support)</option>
-                <option value={UnitType.S_T2_AssaultArmor}>T2 Assault Armor (Striker)</option>
-                <option value={UnitType.B_T2_PhalanxMech}>T2 Phalanx Mech (Bulwark)</option>
+                <option value={UnitType.T1_Rifleman}>T1 Rifleman</option>
+                <option value={UnitType.T1_Scout}>T1 Scout</option>
+                <option value={UnitType.T1_Grenadier}>T1 Grenadier</option>
+                <option value={UnitType.T2_Commando}>T2 Commando</option>
+                <option value={UnitType.T2_Ranger}>T2 Ranger</option>
+                <option value={UnitType.T3_Striker}>T3 Striker</option>
               </select>
               <p className="text-xs text-gray-400 mt-1">
                 Full unit selection from inventory coming in Phase 4 enhancement

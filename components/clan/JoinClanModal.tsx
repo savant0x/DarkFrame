@@ -21,7 +21,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { Button, Input, Badge } from '@/components/ui';
 import { 
@@ -80,7 +80,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
   /**
    * Fetches clans from API based on filters
    */
-  const fetchClans = async (page: number = 1) => {
+  const fetchClans = useCallback(async (page: number = 1) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -111,63 +111,23 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filters.name, filters.publicOnly, filters.minLevel, filters.maxLevel, filters.minMembers, filters.maxMembers]);
 
-  /**
-   * Handles joining a clan
-   */
-  const handleJoinClan = async (clanId: string, clanName: string) => {
-    if (!player) {
-      toast.error('Player data not loaded');
-      return;
+  // Load clans on mount
+  useEffect(() => {
+    if (isOpen) {
+      fetchClans(1);
     }
+  }, [isOpen, fetchClans]);
 
-    setJoiningClanId(clanId);
-    try {
-      const response = await fetch('/api/clan/join', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: player.username,
-          clanId
-        })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to join clan');
-      }
-
-      toast.success(`Successfully joined ${clanName}!`);
-      await refreshPlayer();
-      onSuccess();
-    } catch (error: any) {
-      console.error('Error joining clan:', error);
-      toast.error(error.message || 'Failed to join clan');
-    } finally {
-      setJoiningClanId(null);
-    }
+  const handleFilterChange = (key: keyof SearchFilters, value: SearchFilters[keyof SearchFilters]) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  /**
-   * Handles filter changes
-   */
-  const handleFilterChange = (field: keyof SearchFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [field]: value }));
-  };
-
-  /**
-   * Applies filters and resets to page 1
-   */
   const applyFilters = () => {
-    setCurrentPage(1);
     fetchClans(1);
   };
 
-  /**
-   * Resets all filters to defaults
-   */
   const resetFilters = () => {
     setFilters({
       name: '',
@@ -177,29 +137,36 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
       minMembers: 0,
       maxMembers: 100
     });
-    setCurrentPage(1);
     fetchClans(1);
   };
 
-  /**
-   * Checks if player meets clan requirements
-   */
-  const meetsRequirements = (clan: Clan): { eligible: boolean; reason?: string } => {
+  const meetsRequirements = (clan: Clan) => {
     if (!player) return { eligible: false, reason: 'Player data not loaded' };
-
-    if (player.level < clan.settings.minLevelToJoin) {
-      return { eligible: false, reason: `Requires level ${clan.settings.minLevelToJoin}` };
-    }
-
-    return { eligible: true };
+    const minLevel = clan.settings?.minLevelToJoin || 1;
+    if (player.level < minLevel) return { eligible: false, reason: `Requires level ${minLevel}` };
+    if (clan.members.length >= clan.maxMembers) return { eligible: false, reason: 'Clan is full' };
+    return { eligible: true, reason: '' };
   };
 
-  // Load clans on mount
-  useEffect(() => {
-    if (isOpen) {
-      fetchClans(1);
+  const handleJoinClan = async (clanId: string, clanName: string) => {
+    setJoiningClanId(clanId);
+    try {
+      const response = await fetch('/api/clan/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clanId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to join clan');
+      toast.success(`Successfully joined ${clanName}`);
+      refreshPlayer?.();
+      onSuccess();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to join clan');
+    } finally {
+      setJoiningClanId(null);
     }
-  }, [isOpen]);
+  };
 
   if (!isOpen) return null;
 

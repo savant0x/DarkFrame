@@ -18,54 +18,33 @@
  * - Original content preserved in database
  * 
  * DEPENDENCIES:
- * - Supabase for persistence
+ * - Drizzle ORM for persistence
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { chatMessages } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import type { PlayerContext } from '@/lib/channelService';
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-interface ChatMessage {
-  id: string;
-  channel: string;
-  clan_id?: string;
-  sender_id: string;
-  sender_username: string;
-  sender_level: number;
-  sender_is_vip: boolean;
-  content: string;
-  timestamp: string;
-  edited: boolean;
-  edited_at?: string;
-  is_deleted?: boolean;
-  deleted_at?: string;
-  deleted_by?: string;
-}
-
-interface MessageSoftDeleteData {
-  is_deleted: boolean;
-  deleted_at: string;
-  deleted_by: string;
-}
-
-// ============================================================================
-// CONFIGURATION
-// ============================================================================
-
-const TABLE_MESSAGES = 'clan_chat_messages';
 
 // ============================================================================
 // AUTHENTICATION (PLACEHOLDER)
 // ============================================================================
 
+/**
+ * Get authenticated user from request
+ * 
+ * TODO: Replace with actual authentication once next-auth is installed
+ * For now, this is a placeholder that returns mock user data
+ * 
+ * @param request - Next.js request object
+ * @returns Player context or null if not authenticated
+ */
 async function getAuthenticatedUser(
   request: NextRequest
 ): Promise<PlayerContext | null> {
   // PLACEHOLDER: Mock user for development
+  // Replace this entire function when authentication is ready
   return {
     username: 'TestUser',
     level: 10,
@@ -80,8 +59,19 @@ async function getAuthenticatedUser(
 // DELETE /api/chat/delete - Delete Message
 // ============================================================================
 
+/**
+ * DELETE /api/chat/delete
+ * Soft-delete a chat message (user's own message)
+ * 
+ * Query Parameters:
+ * - messageId (required): ID of message to delete
+ * 
+ * @example
+ * DELETE /api/chat/delete?messageId=msg_abc123
+ */
 export async function DELETE(request: NextRequest) {
   try {
+    // Authenticate user
     const user = await getAuthenticatedUser(request);
     if (!user) {
       return NextResponse.json(
@@ -90,9 +80,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Parse query parameters
     const { searchParams } = new URL(request.url);
     const messageId = searchParams.get('messageId');
 
+    // Validate required parameters
     if (!messageId) {
       return NextResponse.json(
         { success: false, error: 'messageId is required' },
@@ -100,62 +92,53 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (messageId.length < 8 || messageId.length > 50) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid message ID' },
-        { status: 400 }
-      );
-    }
+    // Find message
+    const messageResult = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).limit(1);
 
-    const supabase = createServiceClient();
-
-    const { data: message } = await supabase
-      .from(TABLE_MESSAGES)
-      .select('*')
-      .eq('id', messageId)
-      .single();
-
-    if (!message) {
+    if (messageResult.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Message not found' },
         { status: 404 }
       );
     }
 
-    if (message.deleted) {
+    const message = messageResult[0];
+
+    // Check if already deleted
+    if (message.deleted === 1) {
       return NextResponse.json(
         { success: false, error: 'Message is already deleted' },
         { status: 400 }
       );
     }
 
-    // Check ownership via sender_id (resolve to username from players table)
-    const { data: sender } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', message.sender_id)
-      .maybeSingle();
-
-    if (!sender || sender.username !== user.username) {
+    // Check if user owns the message
+    if (message.senderUsername !== user.username) {
       return NextResponse.json(
         { success: false, error: 'You can only delete your own messages' },
         { status: 403 }
       );
     }
 
-    const now = new Date().toISOString();
-    
-    const { error } = await supabase
-      .from(TABLE_MESSAGES)
-      .update({ deleted: true })
-      .eq('id', messageId);
+    // Soft-delete message (preserve original content for moderation)
+    const now = new Date();
+    const result = await db.update(chatMessages)
+      .set({
+        deleted: 1,
+        deletedBy: user.username,
+        deletionReason: 'Deleted by user',
+      })
+      .where(eq(chatMessages.id, messageId));
 
-    if (error) {
+    if ((result as any).affectedRows === 0) {
       return NextResponse.json(
         { success: false, error: 'Failed to delete message' },
         { status: 500 }
       );
     }
+
+    // TODO: Emit WebSocket event to remove message from all clients
+    // Example: io.to(channelId).emit('message:deleted', { messageId });
 
     return NextResponse.json(
       {
@@ -176,3 +159,46 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * 1. Soft Delete:
+ *    - Sets deleted: 1 (preserves original content)
+ *    - Stores deletedBy username
+ *    - Original content remains in database for moderation review
+ * 
+ * 2. Ownership Validation:
+ *    - Only message sender can delete
+ *    - Checked via senderUsername matching
+ *    - TODO: Use userId once authentication is implemented
+ * 
+ * 3. Client Display:
+ *    - Deleted messages show "[deleted]" text
+ *    - Original sender info preserved
+ *    - Timestamp preserved
+ *    - "(deleted)" badge shown
+ * 
+ * 4. Moderation Access:
+ *    - Moderators can see original content
+ *    - Helps identify abuse patterns
+ *    - Can restore message if deleted in error
+ *    - TODO: Add moderator undelete endpoint
+ * 
+ * 5. WebSocket Integration:
+ *    - TODO: Emit 'message:deleted' event to channel
+ *    - All clients remove/hide message in real-time
+ *    - Prevents stale content display
+ * 
+ * 6. Query Filtering:
+ *    - GET /api/chat excludes deleted messages by default
+ *    - Use filter: { deleted: 0 }
+ *    - Moderators can optionally include deleted messages
+ * 
+ * 7. Future Enhancements:
+ *    - Hard delete after 30 days (GDPR compliance)
+ *    - Moderator ability to delete any message
+ *    - Bulk delete (delete all messages by user)
+ *    - Delete reason tracking
+ *    - Notification to moderators if user deletes many messages
+ */

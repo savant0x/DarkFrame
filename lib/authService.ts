@@ -1,154 +1,187 @@
 /**
- * Supabase-Aware Auth Service
- * 
- * Validation helpers retained. Auth operations delegated to Supabase client.
- * Cookie management handled by @supabase/ssr middleware.
+ * @file lib/authService.ts
+ * @created 2025-10-16
+ * @overview Authentication utilities with bcrypt and JWT + cookie management
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables } from '@/types/database';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { cookies } from 'next/headers';
 
-type PlayerRow = Tables<'players'>;
+const JWT_SECRET = process.env.JWT_SECRET || 'darkframe-secret-change-in-production';
+const SALT_ROUNDS = 10;
 
-// ============================================================================
-// TYPES
-// ============================================================================
+// Cookie configuration
+const COOKIE_NAME = 'darkframe_session';
+const SESSION_DURATION = 60 * 60; // 1 hour in seconds
+const REMEMBER_ME_DURATION = 30 * 24 * 60 * 60; // 30 days in seconds
 
 export interface TokenPayload {
   username: string;
   email: string;
-  id: string;
   rank?: number;
   isAdmin?: boolean;
   iat?: number;
   exp?: number;
 }
 
-// ============================================================================
-// VALIDATION HELPERS
-// ============================================================================
+/**
+ * Hash a password using bcrypt
+ */
+export async function hashPassword(password: string): Promise<string> {
+  return await bcrypt.hash(password, SALT_ROUNDS);
+}
 
+/**
+ * Verify a password against a hash
+ */
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return await bcrypt.compare(password, hash);
+}
+
+/**
+ * Generate JWT token for a user
+ * 
+ * @param username - User's username
+ * @param email - User's email
+ * @param rememberMe - If true, token lasts 30 days; else 1 hour
+ * @returns Signed JWT token
+ */
+/**
+ * Generate JWT token with user information
+ */
+export function generateToken(username: string, email: string, rememberMe: boolean = false, isAdmin: boolean = false): string {
+  const expiresIn = rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION;
+  
+  return jwt.sign(
+    { username, email, isAdmin },
+    JWT_SECRET,
+    { expiresIn }
+  );
+}
+
+/**
+ * Verify and decode JWT token
+ */
+export function verifyToken(token: string): TokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return decoded;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Validate email format
+ */
 export function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
+/**
+ * Validate password strength
+ * Requirements: At least 8 characters, 1 uppercase, 1 lowercase, 1 number
+ */
 export function isValidPassword(password: string): { valid: boolean; message?: string } {
   if (password.length < 8) {
     return { valid: false, message: 'Password must be at least 8 characters' };
   }
+  
   if (!/[A-Z]/.test(password)) {
     return { valid: false, message: 'Password must contain at least one uppercase letter' };
   }
+  
   if (!/[a-z]/.test(password)) {
     return { valid: false, message: 'Password must contain at least one lowercase letter' };
   }
+  
   if (!/[0-9]/.test(password)) {
     return { valid: false, message: 'Password must contain at least one number' };
   }
+  
   return { valid: true };
 }
 
+/**
+ * Validate username format
+ */
 export function isValidUsername(username: string): { valid: boolean; message?: string } {
   if (username.length < 3 || username.length > 20) {
     return { valid: false, message: 'Username must be 3-20 characters' };
   }
+  
   if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
     return { valid: false, message: 'Username can only contain letters, numbers, hyphens, and underscores' };
   }
+  
   return { valid: true };
 }
 
-// ============================================================================
-// SUPABASE AUTH WRAPPERS
-// ============================================================================
+// ============================================================
+// COOKIE MANAGEMENT FUNCTIONS
+// ============================================================
 
-export async function signUpWithEmail(email: string, password: string, username: string) {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { username } },
+/**
+ * Set authentication cookie
+ * 
+ * @param token - JWT token to store
+ * @param rememberMe - If true, cookie lasts 30 days; else 1 hour
+ */
+export async function setAuthCookie(token: string, rememberMe: boolean = false): Promise<void> {
+  const cookieStore = await cookies();
+  const maxAge = rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION;
+  
+  cookieStore.set(COOKIE_NAME, token, {
+    httpOnly: true, // Prevent JavaScript access (XSS protection)
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    sameSite: 'lax', // CSRF protection
+    maxAge,
+    path: '/',
   });
-  return { data, error };
+  
+  console.log(`🍪 Auth cookie set for ${rememberMe ? '30 days' : '1 hour'}`);
 }
 
-export async function signInWithEmail(email: string, password: string) {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  return { data, error };
-}
-
-export async function signOut() {
-  const supabase = createServiceClient();
-  const { error } = await supabase.auth.signOut();
-  return { error };
-}
-
-export async function getAuthenticatedUser(): Promise<TokenPayload | null> {
-  const supabase = createServiceClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
-
-  const username = (user.user_metadata?.username as string) ?? user.email!;
-  const { data: player } = await supabase
-    .from('players')
-    .select('is_admin, rank')
-    .eq('username', username)
-    .maybeSingle();
-
-  return {
-    id: user.id,
-    username,
-    email: user.email!,
-    isAdmin: Boolean(player?.is_admin),
-    rank: player?.rank ?? 1,
-  };
-}
-
-export async function getAuthenticatedPlayer() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) return null;
-
-  const supabase = createServiceClient();
-  const { data: player, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', auth.username)
-    .single();
-
-  if (error || !player) return null;
-
-  return {
-    username: player.username,
-    email: player.email,
-    player,
-    isAdmin: player.is_admin,
-  };
-}
-
-// ============================================================================
-// BACKWARD COMPATIBILITY (deprecated, replaced by Supabase Auth)
-// ============================================================================
-
-export const getCurrentUser = getAuthenticatedUser;
-export const loginUser = signInWithEmail;
-export const registerUser = signUpWithEmail;
-
-export function generateToken(_username: string, _email: string, _rememberMe: boolean = false, _isAdmin: boolean = false): string {
-  return '';
-}
-export function verifyToken(_token: string): TokenPayload | null {
-  return null;
-}
-export async function hashPassword(_password: string): Promise<string> {
-  return 'supabase_auth';
-}
-export async function verifyPassword(_password: string, _hash: string): Promise<boolean> {
-  return true;
-}
-export async function setAuthCookie(_token: string, _rememberMe: boolean = false): Promise<void> {}
+/**
+ * Get authentication cookie
+ * 
+ * @returns JWT token from cookie or null if not found
+ */
 export async function getAuthCookie(): Promise<string | null> {
-  return null;
+  const cookieStore = await cookies();
+  const cookie = cookieStore.get(COOKIE_NAME);
+  return cookie?.value || null;
 }
-export async function clearAuthCookie(): Promise<void> {}
+
+/**
+ * Clear authentication cookie (logout)
+ */
+export async function clearAuthCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(COOKIE_NAME);
+  console.log('🍪 Auth cookie cleared');
+}
+
+/**
+ * Get authenticated user from cookie
+ * 
+ * @returns User payload from token or null if not authenticated
+ */
+export async function getAuthenticatedUser(): Promise<TokenPayload | null> {
+  const token = await getAuthCookie();
+  if (!token) return null;
+  
+  return verifyToken(token);
+}
+
+// ============================================================
+// IMPLEMENTATION NOTES:
+// - Uses bcrypt for secure password hashing
+// - JWT tokens valid for 7 days
+// - Email and password validation
+// - Username validation reused from original system
+// - JWT_SECRET should be set in .env for production
+// ============================================================

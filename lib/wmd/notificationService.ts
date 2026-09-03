@@ -1,26 +1,18 @@
 /**
  * @file lib/wmd/notificationService.ts
  * @created 2025-10-22
+ * @updated 2026-04-04 (Migrated to Drizzle ORM)
  * @overview WMD Notification Service - Event Broadcasting
- * 
- * OVERVIEW:
- * Creates and manages WMD notifications using the proper type structure.
- * Production notification service with complete database integration.
- * 
- * Features:
- * - Proper notification structure matching WMDNotification type
- * - Helper functions for common notification scenarios
- * - Query functions for retrieving notifications
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
-
+import { eq, desc } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { wmdNotifications } from '@/lib/db/schema/wmd';
 import { WMDNotification, WMDEventType, NotificationPriority, NotificationScope } from '@/types/wmd';
 
-/**
- * Create a WMD notification
- */
+/** Event-specific payload stored in wmd_notifications.details. */
+type WmdNotificationDetails = Record<string, string | number | boolean | null | undefined>;
+
 export async function createWMDNotification(
   eventType: WMDEventType,
   priority: NotificationPriority,
@@ -29,51 +21,41 @@ export async function createWMDNotification(
   sourceName: string,
   title: string,
   message: string,
-  details: any = {},
+  details: WmdNotificationDetails = {},
   targetId?: string,
   targetName?: string
 ): Promise<{ success: boolean; notificationId?: string }> {
   try {
-    const supabase = createServiceClient();
     const notificationId = `wmd_notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    const { data, error } = await supabase
-      .from('wmd_notifications')
-      .insert({
-        player_id: sourceId,
-        notification_type: eventType,
-        title,
-        message,
-        data: {
-          priority,
-          scope,
-          sourceId,
-          sourceName,
-          targetId,
-          targetName,
-          ...details,
-        },
-        is_read: false,
-      })
-      .select('id')
-      .single();
-
-    if (error) {
-      console.error('Error creating WMD notification:', error);
-      return { success: false };
-    }
+    const notification = {
+      id: notificationId,
+      notificationId,
+      eventType,
+      priority,
+      scope,
+      sourceId,
+      sourceName,
+      targetId: targetId || null,
+      targetName: targetName || null,
+      details,
+      title,
+      message,
+      broadcastAt: new Date(),
+      viewCount: 0,
+      viewedBy: [],
+      createdAt: new Date(),
+    };
     
-    return { success: true, notificationId: data?.id || notificationId };
+    await db.insert(wmdNotifications).values(notification);
     
+    return { success: true, notificationId };
   } catch (error) {
     console.error('Error creating WMD notification:', error);
     return { success: false };
   }
 }
 
-/**
- * Quick helper: Missile launched notification
- */
 export async function notifyMissileLaunch(
   launcherId: string,
   launcherName: string,
@@ -96,9 +78,6 @@ export async function notifyMissileLaunch(
   );
 }
 
-/**
- * Quick helper: Research completed notification
- */
 export async function notifyResearchComplete(
   playerId: string,
   playerName: string,
@@ -118,40 +97,22 @@ export async function notifyResearchComplete(
   );
 }
 
-/**
- * Get notifications for display
- */
 export async function getNotifications(
   scope: NotificationScope,
   limit: number = 50
 ): Promise<WMDNotification[]> {
   try {
-    const supabase = createServiceClient();
-    const { data } = await supabase
-      .from('wmd_notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const results = await db.select()
+      .from(wmdNotifications)
+      .where(eq(wmdNotifications.scope, scope))
+      .orderBy(desc(wmdNotifications.broadcastAt))
       .limit(limit);
     
-    if (!data) return [];
-    
-    return data.map((n: any) => ({
-      notificationId: n.id,
-      eventType: n.notification_type as WMDEventType,
-      priority: n.data?.priority || NotificationPriority.INFO,
-      scope: n.data?.scope || NotificationScope.PERSONAL,
-      sourceId: n.player_id,
-      sourceName: n.data?.sourceName || '',
-      targetId: n.data?.targetId,
-      targetName: n.data?.targetName,
-      details: n.data || {},
-      title: n.title,
-      message: n.message,
-      broadcastAt: new Date(n.created_at),
-      viewCount: 0,
-      viewedBy: [],
-      createdAt: new Date(n.created_at),
-    })) as WMDNotification[];
+    return results.map(r => ({
+      ...r,
+      details: typeof r.details === 'string' ? JSON.parse(r.details) : r.details,
+      viewedBy: typeof r.viewedBy === 'string' ? JSON.parse(r.viewedBy) : r.viewedBy,
+    })) as unknown as WMDNotification[];
   } catch (error) {
     console.error('Error getting notifications:', error);
     return [];

@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/create/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
  * 
  * OVERVIEW:
  * Clan creation endpoint. Allows players to create new clans with unique names and tags.
@@ -24,6 +24,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { 
+  getClientAndDatabase, 
   requireAuth,
   withRequestLogging,
   createRouteLogger,
@@ -66,6 +67,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clanCreate');
   
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) {
       log.warn('Unauthenticated clan creation attempt');
@@ -75,34 +78,24 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const body = await request.json();
     const validated = CreateClanSchema.parse(body);
 
-    const tag = validated.tag
-      ? validated.tag.toUpperCase().trim()
-      : validated.name
-          .replace(/[^a-zA-Z ]/g, '')
-          .split(' ')
-          .filter(w => w.length > 0)
-          .map(w => w[0].toUpperCase())
-          .join('')
-          .slice(0, 5) || validated.name.substring(0, 5).toUpperCase();
-
     log.debug('Creating clan', { 
       playerId: auth.playerId, 
       name: validated.name,
-      tag,
+      tag: validated.tag 
     });
+
+    
 
     const clan = await createClan(
       auth.playerId,
       validated.name.trim(),
-      tag,
-      validated.description?.trim() || '',
-      validated.isPublic ?? false,
-      validated.minLevel ?? 1,
+      validated.tag.toUpperCase().trim(),
+      validated.description?.trim() || ''
     );
 
     log.info('Clan created successfully', { 
       playerId: auth.playerId,
-      clanId: clan.id,
+      clanId: clan._id,
       clanName: clan.name,
       clanTag: clan.tag
     });

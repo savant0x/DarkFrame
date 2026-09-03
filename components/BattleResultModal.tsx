@@ -170,7 +170,7 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
 
           {/* Defender's Losses (for reference) */}
           <div className="bg-gray-800 rounded-lg p-4 mb-6">
-            <h4 className="font-bold text-blue-400 mb-3">🛡️ Defender's Casualties</h4>
+            <h4 className="font-bold text-blue-400 mb-3">🛡️ Defender{"'"}s Casualties</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <p className="text-gray-400 text-sm mb-2">Units Lost</p>

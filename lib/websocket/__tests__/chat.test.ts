@@ -18,11 +18,11 @@
  * - Error handling and validation
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, Socket as ClientSocket } from 'socket.io-client';
-import type { Server as HTTPServer } from 'http';
-import { createServer } from 'http';
+import type { Server as HTTPServer } from 'node:http';
+import { createServer } from 'node:http';
 
 /**
  * Test server setup
@@ -34,8 +34,8 @@ describe('WebSocket Chat Integration', () => {
   let client1: ClientSocket;
   let client2: ClientSocket;
 
-  beforeAll(async () => {
-    // Create HTTP server for Socket.io
+  beforeEach(async () => {
+    // Create fresh HTTP server for Socket.io per test
     httpServer = createServer();
     
     ioServer = new SocketIOServer(httpServer, {
@@ -57,7 +57,7 @@ describe('WebSocket Chat Integration', () => {
     });
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     // Clean up
     if (client1?.connected) client1.disconnect();
     if (client2?.connected) client2.disconnect();
@@ -67,12 +67,6 @@ describe('WebSocket Chat Integration', () => {
         httpServer.close(() => resolve());
       });
     });
-  });
-
-  beforeEach(() => {
-    // Disconnect clients between tests
-    if (client1?.connected) client1.disconnect();
-    if (client2?.connected) client2.disconnect();
   });
 
   describe('Connection & Authentication', () => {
@@ -163,11 +157,10 @@ describe('WebSocket Chat Integration', () => {
   describe('Message Broadcasting', () => {
     it('should broadcast messages to channel members only', async () => {
       // Setup two clients
-      ioServer.removeAllListeners(); // Clear previous listeners
-
       ioServer.use((socket, next) => {
+        const clientId = socket.handshake.query.clientId;
         socket.data.user = {
-          username: socket.id.includes('client1') ? 'user1' : 'user2',
+          username: clientId === 'client1' ? 'user1' : 'user2',
           level: 20,
         };
         next();
@@ -227,8 +220,6 @@ describe('WebSocket Chat Integration', () => {
 
   describe('Channel Join/Leave', () => {
     it('should allow joining a channel', async () => {
-      ioServer.removeAllListeners();
-
       ioServer.on('connection', (socket) => {
         socket.on('chat:join_channel', (data, callback) => {
           socket.join(`chat_${data.channelId}`);
@@ -253,8 +244,6 @@ describe('WebSocket Chat Integration', () => {
     });
 
     it('should allow leaving a channel', async () => {
-      ioServer.removeAllListeners();
-
       ioServer.on('connection', (socket) => {
         socket.on('chat:leave_channel', (data) => {
           socket.leave(`chat_${data.channelId}`);
@@ -281,11 +270,10 @@ describe('WebSocket Chat Integration', () => {
 
   describe('Typing Indicators', () => {
     it('should broadcast typing start to other users', async () => {
-      ioServer.removeAllListeners();
-
       ioServer.use((socket, next) => {
+        const clientId = socket.handshake.query.clientId;
         socket.data.user = {
-          username: socket.id.includes('client1') ? 'typingUser' : 'observerUser',
+          username: clientId === 'client1' ? 'typingUser' : 'observerUser',
         };
         next();
       });
@@ -330,13 +318,11 @@ describe('WebSocket Chat Integration', () => {
 
   describe('Ask Veterans Feature', () => {
     it('should broadcast veteran help request to level 50+ players', async () => {
-      ioServer.removeAllListeners();
-
       ioServer.use((socket, next) => {
-        const isVeteran = socket.id.includes('veteran');
+        const clientId = socket.handshake.query.clientId;
         socket.data.user = {
-          username: isVeteran ? 'veteranPlayer' : 'newbiePlayer',
-          level: isVeteran ? 55 : 5,
+          username: clientId === 'veteran' ? 'veteranPlayer' : 'newbiePlayer',
+          level: clientId === 'veteran' ? 55 : 5,
         };
         next();
       });

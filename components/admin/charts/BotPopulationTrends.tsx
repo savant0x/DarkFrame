@@ -50,11 +50,11 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
     {
       timestamp: Date.now(),
       date: new Date().toISOString(),
-      Hoarder: currentStats?.bySpecialization?.Hoarder || 0,
-      Fortress: currentStats?.bySpecialization?.Fortress || 0,
-      Raider: currentStats?.bySpecialization?.Raider || 0,
-      Balanced: currentStats?.bySpecialization?.Balanced || 0,
-      Ghost: currentStats?.bySpecialization?.Ghost || 0,
+      Hoarder: currentStats?.bySpecialization.Hoarder || 0,
+      Fortress: currentStats?.bySpecialization.Fortress || 0,
+      Raider: currentStats?.bySpecialization.Raider || 0,
+      Balanced: currentStats?.bySpecialization.Balanced || 0,
+      Ghost: currentStats?.bySpecialization.Ghost || 0,
       Total: currentStats?.total || 0,
     }
   ];

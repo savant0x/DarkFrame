@@ -74,30 +74,18 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // Item type filter
     const itemType = params.get('itemType');
     if (itemType) {
-      if (!['unit', 'resource', 'tradeable_item'].includes(itemType)) {
-          if (itemType === 'tradeable') {
-            // Legacy alias: map 'tradeable' to DB value 'tradeable_item'
-            filters.itemType = 'tradeable_item' as AuctionItemType;
-          } else {
-            return NextResponse.json(
-              { success: false, message: 'Invalid itemType. Must be: unit, resource, or tradeable_item' },
-              { status: 400 }
-            );
-          }
-        } else {
-          filters.itemType = itemType as AuctionItemType;
-        }
+      if (!['unit', 'resource', 'tradeable'].includes(itemType)) {
+        return NextResponse.json(
+          { success: false, message: 'Invalid itemType. Must be: unit, resource, or tradeable' },
+          { status: 400 }
+        );
+      }
+      filters.itemType = itemType as AuctionItemType;
     }
 
     // Unit type filter (only valid if itemType=unit)
     const unitType = params.get('unitType');
     if (unitType) {
-      if (!Object.values(UnitType).includes(unitType as UnitType)) {
-        return NextResponse.json(
-          { success: false, message: `Invalid unitType: ${unitType}` },
-          { status: 400 }
-        );
-      }
       filters.unitType = unitType as UnitType;
     }
 

@@ -19,8 +19,9 @@
  * - 100% mastery unlocks the 5th specialized unit for that path
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, sql, and, gte } from 'drizzle-orm';
 import { logger } from './logger';
 import { triggerAchievementCheck } from './statTrackingService';
 
@@ -35,25 +36,23 @@ export enum SpecializationDoctrine {
 }
 
 /**
- * Specialization data structure (assembled from flat players columns)
+ * Specialization data structure
  */
 export interface Specialization {
   doctrine: SpecializationDoctrine;
-  selected_at: string | null;
-  mastery_level: number;
-  mastery_xp: number;
-  total_units_built: number;
-  total_battles_won: number;
-  respec_history: RespecHistoryEntry[];
-  last_respec_at: string | null;
-}
-
-export interface RespecHistoryEntry {
-  from_doctrine: SpecializationDoctrine;
-  to_doctrine: SpecializationDoctrine;
-  timestamp: string;
-  rp_spent: number;
-  resources_spent: { metal: number; energy: number };
+  selectedAt: Date;
+  masteryLevel: number; // 0-100
+  masteryXP: number; // XP towards next mastery level
+  totalUnitsBuilt: number; // Specialized units built
+  totalBattlesWon: number; // Battles won with specialized units
+  respecHistory: Array<{
+    fromDoctrine: SpecializationDoctrine;
+    toDoctrine: SpecializationDoctrine;
+    timestamp: Date;
+    rpSpent: number;
+    resourcesSpent: { metal: number; energy: number };
+  }>;
+  lastRespecAt: Date | null;
 }
 
 /**
@@ -65,10 +64,10 @@ export const SPECIALIZATION_CONFIG = {
     icon: '🗡️',
     description: 'Maximum damage output and aggressive tactics. Dominate the battlefield with overwhelming firepower.',
     unlockLevel: 15,
-    unlockCost: 25,
+    unlockCost: 25, // RP
     bonuses: {
-      strengthMultiplier: 1.15,
-      metalCostMultiplier: 0.90,
+      strengthMultiplier: 1.15, // +15% STR to offensive units
+      metalCostMultiplier: 0.90, // -10% metal cost for offensive units
     },
     color: 'text-red-400',
     bgColor: 'bg-red-900/30',
@@ -79,10 +78,10 @@ export const SPECIALIZATION_CONFIG = {
     icon: '🛡️',
     description: 'Impenetrable fortifications and attrition warfare. Outlast any enemy through superior defense.',
     unlockLevel: 15,
-    unlockCost: 25,
+    unlockCost: 25, // RP
     bonuses: {
-      defenseMultiplier: 1.15,
-      energyCostMultiplier: 0.90,
+      defenseMultiplier: 1.15, // +15% DEF to defensive units
+      energyCostMultiplier: 0.90, // -10% energy cost for defensive units
     },
     color: 'text-blue-400',
     bgColor: 'bg-blue-900/30',
@@ -93,11 +92,11 @@ export const SPECIALIZATION_CONFIG = {
     icon: '⚖️',
     description: 'Balanced warfare and versatility. Adapt to any situation with hybrid units and efficiency.',
     unlockLevel: 15,
-    unlockCost: 25,
+    unlockCost: 25, // RP
     bonuses: {
-      balancedMultiplier: 1.10,
-      metalCostMultiplier: 0.95,
-      energyCostMultiplier: 0.95,
+      balancedMultiplier: 1.10, // +10% STR and DEF for balanced units (within 20% ratio)
+      metalCostMultiplier: 0.95, // -5% metal cost
+      energyCostMultiplier: 0.95, // -5% energy cost
     },
     color: 'text-purple-400',
     bgColor: 'bg-purple-900/30',
@@ -131,27 +130,11 @@ export const MASTERY_MILESTONES = {
   100: { bonusPercent: 20, description: '+20% bonus stats, 5th specialized unit unlocked, prestige available' }
 };
 
-// Player row type from database
-type PlayerRow = Database['public']['Tables']['players']['Row'];
-
-/**
- * Build a Specialization object from a player's flat columns
- */
-function buildSpecializationFromPlayer(player: PlayerRow): Specialization {
-  return {
-    doctrine: player.spec_doctrine as SpecializationDoctrine,
-    selected_at: player.spec_selected_at,
-    mastery_level: player.spec_mastery_level,
-    mastery_xp: player.spec_mastery_xp,
-    total_units_built: player.spec_total_units_built,
-    total_battles_won: player.spec_total_battles_won,
-    respec_history: [],
-    last_respec_at: player.spec_last_respec_at,
-  };
-}
-
 /**
  * Check if player can choose a specialization
+ * 
+ * @param playerId - Player username
+ * @returns Eligibility check with requirements
  */
 export async function canChooseSpecialization(
   playerId: string
@@ -163,26 +146,25 @@ export async function canChooseSpecialization(
   currentRP?: number;
   requiredRP?: number;
 }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('spec_doctrine, level, research_points')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
   if (!player) {
     return { canChoose: false, reason: 'Player not found' };
   }
 
-  if (player.spec_doctrine !== 'none') {
+  // Check if already has a specialization
+  const spec = player.specialization as Specialization | null;
+  if (spec && spec.doctrine !== SpecializationDoctrine.None) {
     return { canChoose: false, reason: 'Already has a specialization. Use respec to change.' };
   }
 
   const currentLevel = player.level || 1;
   const requiredLevel = 15;
-  const currentRP = player.research_points || 0;
+  const currentRP = player.researchPoints || 0;
   const requiredRP = 25;
 
+  // Check level requirement
   if (currentLevel < requiredLevel) {
     return {
       canChoose: false,
@@ -194,6 +176,7 @@ export async function canChooseSpecialization(
     };
   }
 
+  // Check RP requirement
   if (currentRP < requiredRP) {
     return {
       canChoose: false,
@@ -210,6 +193,10 @@ export async function canChooseSpecialization(
 
 /**
  * Choose a specialization for the player
+ * 
+ * @param playerId - Player username
+ * @param doctrine - Chosen doctrine
+ * @returns Success status and updated specialization
  */
 export async function chooseSpecialization(
   playerId: string,
@@ -220,61 +207,60 @@ export async function chooseSpecialization(
   specialization?: Specialization;
   rpRemaining?: number;
 }> {
+  // Validate doctrine
   if (doctrine === SpecializationDoctrine.None || !SPECIALIZATION_CONFIG[doctrine]) {
     return { success: false, message: 'Invalid specialization doctrine' };
   }
 
+  // Check eligibility
   const eligibility = await canChooseSpecialization(playerId);
   if (!eligibility.canChoose) {
     return { success: false, message: eligibility.reason || 'Cannot choose specialization' };
   }
 
-  const supabase = createServiceClient();
   const config = SPECIALIZATION_CONFIG[doctrine];
 
-  const { data: player } = await supabase
-    .from('players')
-    .select('research_points')
-    .eq('username', playerId)
-    .single();
+  // Create new specialization
+  const newSpecialization: Specialization = {
+    doctrine,
+    selectedAt: new Date(),
+    masteryLevel: 0,
+    masteryXP: 0,
+    totalUnitsBuilt: 0,
+    totalBattlesWon: 0,
+    respecHistory: [],
+    lastRespecAt: null
+  };
 
-  if (!player || (player.research_points || 0) < config.unlockCost) {
+  // Update player with specialization and deduct RP
+  const updateResult = await db.update(players).set({
+    researchPoints: sql`${players.researchPoints} - ${config.unlockCost}`,
+    specialization: newSpecialization as any
+  }).where(
+    and(
+      eq(players.username, playerId),
+      gte(players.researchPoints, config.unlockCost)
+    )
+  );
+
+  if ((updateResult.rowCount ?? 0) === 0) {
     return { success: false, message: 'Failed to choose specialization. Insufficient RP or player not found.' };
   }
 
-  const now = new Date().toISOString();
-  const newRp = (player.research_points || 0) - config.unlockCost;
+  // Update RP history manually
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const updatedPlayer = playerRows[0];
 
-  const { data: updated, error } = await supabase
-    .from('players')
-    .update({
-      research_points: newRp,
-      spec_doctrine: doctrine,
-      spec_selected_at: now,
-      spec_mastery_level: 0,
-      spec_mastery_xp: 0,
-      spec_total_units_built: 0,
-      spec_total_battles_won: 0,
-      spec_last_respec_at: null,
-    })
-    .eq('username', playerId)
-    .select('research_points, spec_doctrine, spec_selected_at, spec_mastery_level, spec_mastery_xp, spec_total_units_built, spec_total_battles_won, spec_last_respec_at')
-    .single();
-
-  if (error || !updated) {
-    return { success: false, message: 'Failed to choose specialization.' };
-  }
-
-  const newSpecialization: Specialization = {
-    doctrine,
-    selected_at: now,
-    mastery_level: 0,
-    mastery_xp: 0,
-    total_units_built: 0,
-    total_battles_won: 0,
-    respec_history: [],
-    last_respec_at: null,
+  const rpHistoryEntry = {
+    amount: -config.unlockCost,
+    reason: `Specialized in ${config.name}`,
+    timestamp: new Date(),
+    balance: updatedPlayer?.researchPoints || 0
   };
+
+  await db.update(players).set({
+    rpHistory: sql`JSON_ARRAY_APPEND(COALESCE(${players.rpHistory}, '[]'), '$', ${JSON.stringify(rpHistoryEntry)})`
+  }).where(eq(players.username, playerId));
 
   logger.success('Specialization chosen', { username: playerId, doctrine, rpSpent: config.unlockCost });
 
@@ -282,12 +268,15 @@ export async function chooseSpecialization(
     success: true,
     message: `Successfully specialized in ${config.name}!`,
     specialization: newSpecialization,
-    rpRemaining: updated.research_points
+    rpRemaining: updatedPlayer?.researchPoints || 0
   };
 }
 
 /**
  * Check if player can respec (change specialization)
+ * 
+ * @param playerId - Player username
+ * @returns Eligibility check with cooldown info
  */
 export async function canRespec(
   playerId: string
@@ -297,27 +286,25 @@ export async function canRespec(
   currentRP?: number;
   currentMetal?: number;
   currentEnergy?: number;
-  cooldownRemaining?: number;
+  cooldownRemaining?: number; // hours
 }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('spec_doctrine, spec_last_respec_at, research_points, resources_metal, resources_energy')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
   if (!player) {
     return { canRespec: false, reason: 'Player not found' };
   }
 
-  if (!player.spec_doctrine || player.spec_doctrine === 'none') {
+  const spec = player.specialization as Specialization | null;
+  if (!spec || spec.doctrine === SpecializationDoctrine.None) {
     return { canRespec: false, reason: 'No specialization to respec from' };
   }
 
-  const currentRP = player.research_points || 0;
-  const currentMetal = player.resources_metal || 0;
-  const currentEnergy = player.resources_energy || 0;
+  const currentRP = player.researchPoints || 0;
+  const currentMetal = Number(player.resourcesMetal) || 0;
+  const currentEnergy = Number(player.resourcesEnergy) || 0;
 
+  // Check resources
   if (currentRP < RESPEC_CONFIG.rpCost) {
     return { 
       canRespec: false, 
@@ -348,9 +335,10 @@ export async function canRespec(
     };
   }
 
-  if (player.spec_last_respec_at) {
+  // Check cooldown
+  if (spec.lastRespecAt) {
     const cooldownMs = RESPEC_CONFIG.cooldownHours * 60 * 60 * 1000;
-    const timeSinceRespec = Date.now() - new Date(player.spec_last_respec_at).getTime();
+    const timeSinceRespec = Date.now() - new Date(spec.lastRespecAt).getTime();
     
     if (timeSinceRespec < cooldownMs) {
       const remainingMs = cooldownMs - timeSinceRespec;
@@ -372,6 +360,10 @@ export async function canRespec(
 
 /**
  * Respec player to a new specialization
+ * 
+ * @param playerId - Player username
+ * @param newDoctrine - New doctrine to spec into
+ * @returns Success status and updated specialization
  */
 export async function respecSpecialization(
   playerId: string,
@@ -384,27 +376,26 @@ export async function respecSpecialization(
   metalRemaining?: number;
   energyRemaining?: number;
 }> {
+  // Validate doctrine
   if (newDoctrine === SpecializationDoctrine.None || !SPECIALIZATION_CONFIG[newDoctrine]) {
     return { success: false, message: 'Invalid specialization doctrine' };
   }
 
+  // Check eligibility
   const eligibility = await canRespec(playerId);
   if (!eligibility.canRespec) {
     return { success: false, message: eligibility.reason || 'Cannot respec' };
   }
 
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('spec_doctrine, spec_last_respec_at, research_points, resources_metal, resources_energy')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
-  if (!player || !player.spec_doctrine || player.spec_doctrine === 'none') {
+  if (!player || !player.specialization) {
     return { success: false, message: 'Player or specialization not found' };
   }
 
-  const oldDoctrine = player.spec_doctrine as SpecializationDoctrine;
+  const oldSpec = player.specialization as Specialization;
+  const oldDoctrine = oldSpec.doctrine;
   if (oldDoctrine === newDoctrine) {
     return { success: false, message: 'Already specialized in this doctrine' };
   }
@@ -412,96 +403,77 @@ export async function respecSpecialization(
   const oldConfig = SPECIALIZATION_CONFIG[oldDoctrine as keyof typeof SPECIALIZATION_CONFIG];
   const newConfig = SPECIALIZATION_CONFIG[newDoctrine as keyof typeof SPECIALIZATION_CONFIG];
 
-  const now = new Date().toISOString();
+  const respecEntry = {
+    fromDoctrine: oldDoctrine,
+    toDoctrine: newDoctrine,
+    timestamp: new Date(),
+    rpSpent: RESPEC_CONFIG.rpCost,
+    resourcesSpent: {
+      metal: RESPEC_CONFIG.metalCost,
+      energy: RESPEC_CONFIG.energyCost
+    }
+  };
 
-  const currentRp = player.research_points || 0;
-  const currentMetal = player.resources_metal || 0;
-  const currentEnergy = player.resources_energy || 0;
-
-  const newRp = currentRp - RESPEC_CONFIG.rpCost;
-  const newMetal = Math.max(0, currentMetal - RESPEC_CONFIG.metalCost);
-  const newEnergy = Math.max(0, currentEnergy - RESPEC_CONFIG.energyCost);
-
-  const { data: updated, error } = await supabase
-    .from('players')
-    .update({
-      research_points: newRp,
-      resources_metal: newMetal,
-      resources_energy: newEnergy,
-      spec_doctrine: newDoctrine,
-      spec_selected_at: now,
-      spec_mastery_level: 0,
-      spec_mastery_xp: 0,
-      spec_total_units_built: 0,
-      spec_total_battles_won: 0,
-      spec_last_respec_at: now,
-    })
-    .eq('username', playerId)
-    .select('research_points, resources_metal, resources_energy, spec_doctrine, spec_selected_at, spec_mastery_level, spec_mastery_xp, spec_total_units_built, spec_total_battles_won, spec_last_respec_at')
-    .single();
-
-  if (error || !updated) {
-    return { success: false, message: 'Failed to respec.' };
-  }
-
-  // Record respec history
-  await supabase
-    .from('player_respec_history')
-    .insert({
-      player_username: playerId,
-      from_doctrine: oldDoctrine,
-      to_doctrine: newDoctrine,
-      rp_spent: RESPEC_CONFIG.rpCost,
-      resources_metal: RESPEC_CONFIG.metalCost,
-      resources_energy: RESPEC_CONFIG.energyCost,
-      changed_at: now,
-    });
-
-  // Fetch respec history for the response
-  const { data: historyRows } = await supabase
-    .from('player_respec_history')
-    .select('from_doctrine, to_doctrine, changed_at, rp_spent, resources_metal, resources_energy')
-    .eq('player_username', playerId)
-    .order('changed_at', { ascending: false });
-
-  const respecHistory: RespecHistoryEntry[] = (historyRows || []).map(r => ({
-    from_doctrine: r.from_doctrine as SpecializationDoctrine,
-    to_doctrine: r.to_doctrine as SpecializationDoctrine,
-    timestamp: r.changed_at,
-    rp_spent: r.rp_spent,
-    resources_spent: { metal: r.resources_metal, energy: r.resources_energy },
-  }));
-
+  // Update specialization (keep mastery progress, reset to 0 for new spec)
   const updatedSpecialization: Specialization = {
     doctrine: newDoctrine,
-    selected_at: now,
-    mastery_level: 0,
-    mastery_xp: 0,
-    total_units_built: 0,
-    total_battles_won: 0,
-    respec_history: respecHistory,
-    last_respec_at: now,
+    selectedAt: new Date(),
+    masteryLevel: 0,
+    masteryXP: 0,
+    totalUnitsBuilt: 0,
+    totalBattlesWon: 0,
+    respecHistory: [...(oldSpec.respecHistory || []), respecEntry],
+    lastRespecAt: new Date()
   };
+
+  // Deduct costs and update specialization
+  const updateResult = await db.update(players).set({
+    researchPoints: sql`${players.researchPoints} - ${RESPEC_CONFIG.rpCost}`,
+    resourcesMetal: sql`${players.resourcesMetal} - ${RESPEC_CONFIG.metalCost}`,
+    resourcesEnergy: sql`${players.resourcesEnergy} - ${RESPEC_CONFIG.energyCost}`,
+    specialization: updatedSpecialization
+  }).where(
+    and(
+      eq(players.username, playerId),
+      gte(players.researchPoints, RESPEC_CONFIG.rpCost),
+      gte(players.resourcesMetal, RESPEC_CONFIG.metalCost),
+      gte(players.resourcesEnergy, RESPEC_CONFIG.energyCost)
+    )
+  );
+
+  if ((updateResult.rowCount ?? 0) === 0) {
+    return { success: false, message: 'Failed to respec. Insufficient resources.' };
+  }
 
   logger.success('Specialization respec completed', {
     username: playerId,
     from: oldDoctrine,
     to: newDoctrine,
-    costs: { metal: RESPEC_CONFIG.metalCost, energy: RESPEC_CONFIG.energyCost }
+    costs: respecEntry.resourcesSpent
   });
+
+  // Fetch updated player for return values
+  const updatedPlayerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const updatedPlayer = updatedPlayerRows[0];
+  const updatedResources = updatedPlayer ? { metal: Number(updatedPlayer.resourcesMetal), energy: Number(updatedPlayer.resourcesEnergy) } : null;
 
   return {
     success: true,
     message: `Successfully respecialized from ${oldConfig.name} to ${newConfig.name}!`,
     specialization: updatedSpecialization,
-    rpRemaining: updated.research_points,
-    metalRemaining: updated.resources_metal,
-    energyRemaining: updated.resources_energy
+    rpRemaining: updatedPlayer?.researchPoints || 0,
+    metalRemaining: updatedResources?.metal || 0,
+    energyRemaining: updatedResources?.energy || 0
   };
 }
 
 /**
  * Award mastery XP and check for level-ups
+ * 
+ * @param playerId - Player username
+ * @param xpAmount - Mastery XP to award
+ * @param reason - Reason for mastery gain
+ * @returns Mastery level-up info
  */
 export async function awardMasteryXP(
   playerId: string,
@@ -515,40 +487,41 @@ export async function awardMasteryXP(
   leveledUp?: boolean;
   milestonesReached?: number[];
 }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('spec_doctrine, spec_mastery_level, spec_mastery_xp')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
-  if (!player || !player.spec_doctrine || player.spec_doctrine === 'none') {
+  const spec = player?.specialization as Specialization | null;
+  if (!player || !spec || spec.doctrine === SpecializationDoctrine.None) {
     return { success: false, message: 'Player has no specialization' };
   }
 
-  const oldMasteryLevel = player.spec_mastery_level || 0;
-  const oldMasteryXp = player.spec_mastery_xp || 0;
-  const currentMasteryXP = oldMasteryXp + xpAmount;
-  let newMasteryLevel = oldMasteryLevel;
+  const currentMasteryXP = spec.masteryXP + xpAmount;
+  const currentMasteryLevel = spec.masteryLevel;
+  let newMasteryLevel = currentMasteryLevel;
   const milestonesReached: number[] = [];
 
+  // Calculate level-ups (max level 100)
   while (newMasteryLevel < 100 && currentMasteryXP >= (newMasteryLevel + 1) * MASTERY_XP_PER_LEVEL) {
     newMasteryLevel++;
+    
+    // Check for milestones (25, 50, 75, 100)
     if ([25, 50, 75, 100].includes(newMasteryLevel)) {
       milestonesReached.push(newMasteryLevel);
     }
   }
 
-  const leveledUp = newMasteryLevel > oldMasteryLevel;
+  const leveledUp = newMasteryLevel > currentMasteryLevel;
 
-  await supabase
-    .from('players')
-    .update({
-      spec_mastery_xp: currentMasteryXP,
-      spec_mastery_level: newMasteryLevel,
-    })
-    .eq('username', playerId);
+  // Update player
+  await db.update(players).set({
+    specialization: {
+      ...spec,
+      masteryXP: currentMasteryXP,
+      masteryLevel: newMasteryLevel
+    } as any
+  }).where(eq(players.username, playerId));
 
+  // Check achievements if mastery level changed or hit 100%
   if (leveledUp || newMasteryLevel === 100) {
     await triggerAchievementCheck(playerId);
   }
@@ -556,7 +529,7 @@ export async function awardMasteryXP(
   if (leveledUp) {
     logger.success('Mastery level-up', {
       username: playerId,
-      oldLevel: oldMasteryLevel,
+      oldLevel: currentMasteryLevel,
       newLevel: newMasteryLevel,
       reason
     });
@@ -576,55 +549,42 @@ export async function awardMasteryXP(
 
 /**
  * Get player's specialization status
+ * 
+ * @param playerId - Player username
+ * @returns Full specialization info
  */
 export async function getSpecializationStatus(playerId: string) {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('spec_doctrine, spec_selected_at, spec_mastery_level, spec_mastery_xp, spec_total_units_built, spec_total_battles_won, spec_last_respec_at, level, research_points, resources_metal, resources_energy')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
   if (!player) {
     return null;
   }
 
-  const { data: historyRows } = await supabase
-    .from('player_respec_history')
-    .select('from_doctrine, to_doctrine, changed_at, rp_spent, resources_metal, resources_energy')
-    .eq('player_username', playerId)
-    .order('changed_at', { ascending: false });
-
-  const respecHistory: RespecHistoryEntry[] = (historyRows || []).map(r => ({
-    from_doctrine: r.from_doctrine as SpecializationDoctrine,
-    to_doctrine: r.to_doctrine as SpecializationDoctrine,
-    timestamp: r.changed_at,
-    rp_spent: r.rp_spent,
-    resources_spent: { metal: r.resources_metal, energy: r.resources_energy },
-  }));
-
-  const doctrine = player.spec_doctrine as SpecializationDoctrine;
-  const specialization: Specialization = {
-    doctrine,
-    selected_at: player.spec_selected_at,
-    mastery_level: player.spec_mastery_level,
-    mastery_xp: player.spec_mastery_xp,
-    total_units_built: player.spec_total_units_built,
-    total_battles_won: player.spec_total_battles_won,
-    respec_history: respecHistory,
-    last_respec_at: player.spec_last_respec_at,
+  const spec = player.specialization as Specialization | null;
+  const specialization = spec || {
+    doctrine: SpecializationDoctrine.None,
+    selectedAt: null,
+    masteryLevel: 0,
+    masteryXP: 0,
+    totalUnitsBuilt: 0,
+    totalBattlesWon: 0,
+    respecHistory: [],
+    lastRespecAt: null
   };
 
-  const config = doctrine !== SpecializationDoctrine.None && doctrine in SPECIALIZATION_CONFIG
-    ? SPECIALIZATION_CONFIG[doctrine]
+  const config = specialization.doctrine !== SpecializationDoctrine.None 
+    ? SPECIALIZATION_CONFIG[specialization.doctrine as keyof typeof SPECIALIZATION_CONFIG]
     : null;
+
+  const resources = { metal: Number(player.resourcesMetal), energy: Number(player.resourcesEnergy) };
 
   return {
     specialization,
     config,
     playerLevel: player.level || 1,
-    playerRP: player.research_points || 0,
-    playerResources: { metal: player.resources_metal || 0, energy: player.resources_energy || 0 },
+    playerRP: player.researchPoints || 0,
+    playerResources: resources || { metal: 0, energy: 0 },
     canChoose: await canChooseSpecialization(playerId),
     canRespec: await canRespec(playerId)
   };

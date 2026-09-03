@@ -13,24 +13,20 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   executeMigration,
   getMigrationHistory,
   getNextMigrationTime,
 } from '@/lib/botMigrationService';
-import { createServiceClient } from '@/lib/supabase/server';
-import { logger } from '@/lib';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 // ============================================================================
 // GET - Migration History and Status
 // ============================================================================
 
-/**
- * GET /api/bot-migration
- * Returns migration history and next scheduled migration time
- * Public endpoint (no auth required)
- */
 export async function GET(request: NextRequest) {
   try {
     const history = await getMigrationHistory(10);
@@ -44,7 +40,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    logger.error('Migration history fetch error:', error);
+    console.error('Migration history fetch error:', error);
     return NextResponse.json(
       {
         error: 'Failed to fetch migration history',
@@ -59,20 +55,34 @@ export async function GET(request: NextRequest) {
 // POST - Manually Trigger Migration (Admin Only)
 // ============================================================================
 
-/**
- * POST /api/bot-migration
- * Manually triggers a bot migration event
- * Requires admin privileges
- */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminAuth(request);
-  if (auth instanceof NextResponse) return auth;
-
   try {
-    const body = await request.json();
+    const tokenPayload = await getAuthenticatedUser();
+    if (!tokenPayload) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-    // Execute migration
-    const result = await executeMigration('manual', auth.username);
+    const playerResult = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerResult[0];
+
+    if (!player) {
+      return NextResponse.json(
+        { error: 'Player not found' },
+        { status: 404 }
+      );
+    }
+
+    if (!player.rank || player.rank < 5) {
+      return NextResponse.json(
+        { error: 'Admin privileges required (rank 5+)' },
+        { status: 403 }
+      );
+    }
+
+    const result = await executeMigration('manual', tokenPayload.username);
 
     return NextResponse.json({
       success: true,
@@ -80,7 +90,7 @@ export async function POST(request: NextRequest) {
       data: result,
     });
   } catch (error) {
-    logger.error('Migration execution error:', error);
+    console.error('Migration execution error:', error);
     return NextResponse.json(
       {
         error: 'Failed to execute migration',

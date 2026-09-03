@@ -1,7 +1,6 @@
 /**
  * @file app/api/auction/buyout/route.ts
  * @created 2025-01-17
- * @updated 2026-05-15 — Fixed auth bypass: use requireAuth instead of body-supplied username
  * @overview Instant purchase via buyout price
  * 
  * OVERVIEW:
@@ -11,7 +10,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -24,6 +22,7 @@ import {
 } from '@/lib';
 import { AuctionBuyoutSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
+import { verifyAuth } from '@/lib/authMiddleware';
 import { buyoutAuction } from '@/lib/auctionService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.auctionBid);
@@ -59,12 +58,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('auction-buyout');
   
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.username;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
 
-    const body = await request.json();
-    const validated = AuctionBuyoutSchema.parse(body);
+    const username = authResult.username;
+
+    // Validate request
+    const validated = AuctionBuyoutSchema.parse(await request.json());
 
     // Execute buyout
     const result = await buyoutAuction(username, validated.auctionId);

@@ -42,17 +42,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import { Factory } from '@/types';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { connectToDatabase } from '@/lib/mongodb';
 import {
   calculateUpgradeCost,
   getFactoryStats,
-  getMaxSlots,
   canUpgradeFactory,
   getFactoryDefense,
   FACTORY_UPGRADE
 } from '@/lib/factoryUpgradeService';
+import { Factory, Player } from '@/types/game.types';
 import { awardXP, XPAction } from '@/lib/xpService';
 import {
   withRequestLogging,
@@ -74,11 +73,16 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('upgradeFactory');
   
   try {
-    // Parse and validate request body
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      log.warn('Unauthenticated factory upgrade attempt');
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
 
+    const username = authResult.username;
+
+    // Parse and validate request body
     const body = await request.json();
     const validated = FactoryUpgradeSchema.parse(body);
 
@@ -88,17 +92,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       factoryY: validated.factoryY 
     });
 
-    const supabase = createServiceClient();
+    // Connect to database
+    // Connect to database
+    const db = await connectToDatabase();
+    const factoriesCollection = db.collection<Factory>('factories');
+    const playersCollection = db.collection<Player>('players');
 
     // Find the factory
-    const { data: factory, error: factoryError } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('x', validated.factoryX)
-      .eq('y', validated.factoryY)
-      .single();
+    const factory = await factoriesCollection.findOne({
+      x: validated.factoryX,
+      y: validated.factoryY
+    });
 
-    if (factoryError || !factory) {
+    if (!factory) {
       log.warn('Factory not found', { 
         username, 
         x: validated.factoryX, 
@@ -122,7 +128,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Initialize level if missing (backwards compatibility)
-    const currentLevel = (factory.level as number) || 1;
+    const currentLevel = factory.level || 1;
 
     // Check if already at max level
     if (currentLevel >= FACTORY_UPGRADE.MAX_LEVEL) {
@@ -137,28 +143,23 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Get player's current resources
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('resources_metal, resources_energy')
-      .eq('username', username)
-      .single();
-
-    if (playerError || !player) {
+    const player = await playersCollection.findOne({ username });
+    if (!player) {
       log.warn('Player not found', { username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'Player not found'
       });
     }
 
-    const playerMetal = (player.resources_metal as number) || 0;
-    const playerEnergy = (player.resources_energy as number) || 0;
+    const playerMetal = player.resources?.metal || 0;
+    const playerEnergy = player.resources?.energy || 0;
 
     // Calculate upgrade cost
     const upgradeCost = calculateUpgradeCost(currentLevel);
 
     // Check if player can afford upgrade
     const affordabilityCheck = canUpgradeFactory(
-      { ...factory, level: currentLevel } as unknown as Factory,
+      { ...factory, level: currentLevel },
       playerMetal,
       playerEnergy
     );
@@ -181,45 +182,52 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const newStats = getFactoryStats(newLevel);
 
     // Perform atomic update: deduct resources and upgrade factory
-    const now = new Date().toISOString();
+    const now = new Date();
 
     // Update player resources
-    const { error: playerUpdateError } = await supabase
-      .from('players')
-      .update({
-        resources_metal: playerMetal - upgradeCost.metal,
-        resources_energy: playerEnergy - upgradeCost.energy
-      })
-      .eq('username', username);
+    const playerUpdateResult = await playersCollection.updateOne(
+      { username },
+      {
+        $inc: {
+          'resources.metal': -upgradeCost.metal,
+          'resources.energy': -upgradeCost.energy
+        }
+      }
+    );
 
-    if (playerUpdateError) {
+    if (playerUpdateResult.modifiedCount === 0) {
       log.error('Failed to deduct resources', new Error('Database update failed'), { username });
       return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
         message: 'Failed to deduct resources'
       });
     }
 
-    // Update factory level and stats
-    const { error: factoryUpdateError } = await supabase
-      .from('factories')
-      .update({
-        level: newLevel,
-        slots: getMaxSlots(newLevel),
-        defense: getFactoryDefense(newLevel),
-        last_slot_regen: now
-      })
-      .eq('x', validated.factoryX)
-      .eq('y', validated.factoryY);
+    // Update factory level and max slots
+    // Note: Current slots are not changed, only max capacity
+    // Defense is recalculated based on new level
+    const factoryUpdateResult = await factoriesCollection.updateOne(
+      { x: validated.factoryX, y: validated.factoryY },
+      {
+        $set: {
+          level: newLevel,
+          defense: getFactoryDefense(newLevel), // Update defense to match new level
+          // Don't modify current slots, just the capacity increases
+          lastSlotRegen: now // Reset regen timer for new rate
+        }
+      }
+    );
 
-    if (factoryUpdateError) {
+    if (factoryUpdateResult.modifiedCount === 0) {
       // Rollback: refund resources
-      await supabase
-        .from('players')
-        .update({
-          resources_metal: playerMetal,
-          resources_energy: playerEnergy
-        })
-        .eq('username', username);
+      await playersCollection.updateOne(
+        { username },
+        {
+          $inc: {
+            'resources.metal': upgradeCost.metal,
+            'resources.energy': upgradeCost.energy
+          }
+        }
+      );
 
       log.error('Failed to upgrade factory', new Error('Database update failed'), { 
         username, 
@@ -231,19 +239,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Fetch updated factory
-    const { data: updatedFactory } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('x', validated.factoryX)
-      .eq('y', validated.factoryY)
-      .single();
+    const updatedFactory = await factoriesCollection.findOne({
+      x: validated.factoryX,
+      y: validated.factoryY
+    });
 
     // Fetch updated player resources
-    const { data: updatedPlayer } = await supabase
-      .from('players')
-      .select('resources_metal, resources_energy')
-      .eq('username', username)
-      .single();
+    const updatedPlayer = await playersCollection.findOne({ username });
 
     // Award XP for factory upgrade
     const xpResult = await awardXP(username, XPAction.FACTORY_UPGRADE);
@@ -265,8 +267,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         regenRate: newStats.regenRate
       },
       playerResources: {
-        metal: (updatedPlayer?.resources_metal as number) || 0,
-        energy: (updatedPlayer?.resources_energy as number) || 0
+        metal: updatedPlayer?.resources?.metal || 0,
+        energy: updatedPlayer?.resources?.energy || 0
       },
       xpAwarded: xpResult.xpAwarded,
       levelUp: xpResult.levelUp,

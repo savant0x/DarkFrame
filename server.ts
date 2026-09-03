@@ -34,7 +34,7 @@ import type { NextServer } from 'next/dist/server/next';
 import { getSocketIOServer } from './lib/websocket/server';
 import { startWMDJobs, stopWMDJobs } from './lib/wmd/jobs/scheduler';
 import { startFlagBotJob, stopFlagBotJob } from './lib/jobs/flagBotManager';
-import { createServiceClient } from './lib/supabase/server';
+import { connectToDatabase } from './lib/mongodb';
 
 // Environment configuration
 const dev = process.env.NODE_ENV !== 'production';
@@ -102,14 +102,30 @@ async function startServer(): Promise<void> {
     }
 
     // ============================================================
-    // FACTORY SLOTS STARTUP MIGRATION (SKIPPED — Supabase)
+    // RUN FACTORY SLOTS STARTUP MIGRATION (Idempotent)
     // ============================================================
-    console.log('[Server] ℹ️  Factory Slots migration skipped (one-time migration already applied to Supabase; factories table has correct slots)');
+    try {
+      console.log('[Server] 🔄 Running Factory Slots startup migration...');
+      const db = await connectToDatabase();
+      const { runFactorySlotsMigration } = await import('./lib/migrations/factorySlots');
+      const result = await runFactorySlotsMigration();
+      console.log('[Server] ✅ Factory Slots migration:', result.message, {
+        modified: result.modified,
+        matched: result.matched,
+        alreadyApplied: result.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Factory Slots migration failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
 
-    // WMD background jobs deferred — need Supabase rewrite of 5 job modules
     // Initialize WMD Background Jobs
     try {
       console.log('[Server] 🔄 Starting WMD background jobs...');
+      const db = await connectToDatabase();
       const jobsResult = startWMDJobs();
       
       if (jobsResult.success) {
@@ -117,7 +133,6 @@ async function startServer(): Promise<void> {
       } else {
         console.error('[Server] ⚠️  WMD jobs failed to start:', jobsResult.message);
       }
-      console.log('[Server] ⚠️  WMD background jobs deferred — need Supabase rewrite of 5 job modules');
     } catch (err) {
       console.error('[Server] ⚠️  WMD jobs initialization failed:', {
         error: err instanceof Error ? err.message : String(err),
@@ -129,6 +144,7 @@ async function startServer(): Promise<void> {
     // Initialize Flag Bot Background Job
     try {
       console.log('[Server] 🔄 Starting Flag Bot background job...');
+      const db = await connectToDatabase();
       const flagJobResult = await startFlagBotJob();
       
       if (flagJobResult.success) {
@@ -149,6 +165,7 @@ async function startServer(): Promise<void> {
     // ============================================================
     try {
       console.log('[Server] 🔄 Starting Factory Slot Regeneration background job...');
+      const db = await connectToDatabase();
       const { startFactorySlotRegenJob } = await import('./lib/jobs/factorySlotRegeneration');
       const factoryJobResult = await startFactorySlotRegenJob();
       
@@ -206,7 +223,7 @@ async function startServer(): Promise<void> {
       // Stop Factory Slot Regeneration background job
       try {
         const { stopFactorySlotRegenJob } = await import('./lib/jobs/factorySlotRegeneration');
-        const factoryStopResult = stopFactorySlotRegenJob();
+        const factoryStopResult = await stopFactorySlotRegenJob();
         console.log('[Server] ✅ Factory slot regen job stopped:', factoryStopResult.message);
       } catch (err) {
         console.error('[Server] ⚠️  Error stopping Factory slot regen job:', err);

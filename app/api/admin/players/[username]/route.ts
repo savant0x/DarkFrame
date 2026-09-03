@@ -1,7 +1,7 @@
 /**
- * 📅 Created: 2025-01-18
- * 🎯 OVERVIEW:
  * Individual Player Data Endpoint
+ * 
+ * Created: 2025-01-18
  * 
  * Returns detailed information for a specific player.
  * Admin-only access for player management features.
@@ -10,8 +10,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authService';
+import { eq, desc } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players, playerSessions } from '@/lib/db/schema';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -32,55 +34,56 @@ export async function GET(
   const endTimer = log.time('admin-player-detail');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const user = await getAuthenticatedUser();
+    if (!user || !user.rank || user.rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required (rank 5+)');
+    }
 
     const { username } = await context.params;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
 
-    const supabase = createServiceClient();
+    const playerRecord = await db.select().from(players).where(eq(players.username, username)).limit(1);
 
-    // Get player data
-    const { data: player } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (!player) {
+    if (!playerRecord || playerRecord.length === 0) {
       log.warn('Player not found', { username });
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
-    // Get additional stats
-    const lastActive = player.last_login_date;
+    const player = playerRecord[0];
 
-    const p = player;
+    const sessions = await db.select()
+      .from(playerSessions)
+      .where(eq(playerSessions.userId, username))
+      .orderBy(desc(playerSessions.createdAt))
+      .limit(1);
+
+    const lastActive = sessions.length > 0 ? sessions[0].createdAt : player.lastLoginDate;
+
     const responseData = {
-      username: p.username,
-      level: p.level || 1,
-      rank: p.rank || 0,
-      xp: p.xp || 0,
+      username: player.username,
+      level: player.level || 1,
+      rank: player.rank || 0,
+      xp: player.xp || 0,
       resources: {
-        metal: p.resources_metal || 0,
-        energy: p.resources_energy || 0
+        metal: Number(player.resourcesMetal || 0n),
+        energy: Number(player.resourcesEnergy || 0n)
       },
       position: {
-        x: p.current_x || 0,
-        y: p.current_y || 0
+        x: player.currentPositionX || 0,
+        y: player.currentPositionY || 0
       },
-      baseLocation: `(${p.base_x || 0}, ${p.base_y || 0})`,
-      isBot: p.is_bot || false,
-      createdAt: p.created_at,
+      baseLocation: `(${player.baseX || 0}, ${player.baseY || 0})`,
+      isBot: player.isBot === 1,
+      createdAt: player.createdAt,
       lastActive,
       totalPlayTime: 0,
-      achievements: [] as { id: string; name: string; description: string }[],
+      achievements: player.achievements || []
     };
 
     log.info('Player data retrieved', { 
       username, 
       level: responseData.level, 
       isBot: responseData.isBot,
+      sessionCount: sessions.length 
     });
 
     return NextResponse.json({

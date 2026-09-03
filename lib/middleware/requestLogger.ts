@@ -28,7 +28,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   createLogger,
-  generateRequestId,
   setRequestContext,
   getRequestIdFromHeaders,
 } from '../logger/productionLogger';
@@ -38,7 +37,7 @@ import {
  */
 type RouteHandler = (
   request: NextRequest,
-  context?: { params: any }
+  context: { params: Promise<Record<string, string>> }
 ) => Promise<NextResponse> | NextResponse;
 
 /**
@@ -63,7 +62,7 @@ async function extractUserId(request: NextRequest): Promise<string | undefined> 
     // return decoded.userId;
 
     return undefined;
-  } catch (error) {
+  } catch {
     return undefined;
   }
 }
@@ -71,11 +70,11 @@ async function extractUserId(request: NextRequest): Promise<string | undefined> 
 /**
  * Sanitize request body for logging (remove sensitive fields)
  */
-function sanitizeBody(body: any): any {
+function sanitizeBody(body: unknown): unknown {
   if (!body || typeof body !== 'object') return body;
 
   const sensitiveFields = ['password', 'token', 'secret', 'apiKey', 'authorization'];
-  const sanitized = { ...body };
+  const sanitized = { ...(body as Record<string, unknown>) };
 
   for (const field of sensitiveFields) {
     if (field in sanitized) {
@@ -89,20 +88,6 @@ function sanitizeBody(body: any): any {
 /**
  * Log request details
  */
-function isNoisyPath(path: string): boolean {
-  return path.startsWith('/api/tutorial') || path.startsWith('/api/flag') ||
-      path.startsWith('/api/chat/typing') || path.startsWith('/api/chat/online') ||
-      path.startsWith('/api/chat/heartbeat') || path.includes('channelId=global') ||
-      path.startsWith('/api/combat/logs') || path.startsWith('/api/wmd/status') ||
-      path.startsWith('/api/bot-scanner') || path.startsWith('/api/admin/hotkeys') ||
-      path.startsWith('/api/auth/session') || path.startsWith('/api/assets/images') ||
-      path.startsWith('/api/player/inventory') || path.startsWith('/api/admin/wmd') ||
-      path.startsWith('/api/admin/analytics') || path.startsWith('/api/admin/vip') ||
-      path.startsWith('/api/admin/beer-bases') || path.startsWith('/api/admin/bot-config') ||
-      path.startsWith('/api/admin/bot-stats') || path.startsWith('/api/admin/players') ||
-      path.startsWith('/api/admin/anti-cheat');
-}
-
 async function logRequest(
   request: NextRequest,
   requestId: string
@@ -110,8 +95,6 @@ async function logRequest(
   const method = request.method;
   const url = new URL(request.url);
   const path = url.pathname + url.search;
-
-  if (isNoisyPath(path)) return;
 
   // Log basic request
   logger.info(`→ ${method} ${path}`, {
@@ -134,7 +117,7 @@ async function logRequest(
           body: sanitizeBody(body),
         });
       }
-    } catch (error) {
+    } catch {
       // Body already consumed or not JSON
     }
   }
@@ -153,8 +136,6 @@ function logResponse(
   const url = new URL(request.url);
   const path = url.pathname + url.search;
   const status = response.status;
-
-  if (isNoisyPath(path)) return;
 
   // Determine log level based on status code and log response
   if (status >= 500) {
@@ -199,7 +180,7 @@ function logResponse(
  * ```
  */
 export function withRequestLogging(handler: RouteHandler): RouteHandler {
-  return async (request: NextRequest, context?: { params: any }) => {
+  return async (request: NextRequest, context: { params: Promise<Record<string, string>> }) => {
     const startTime = performance.now();
     
     // Generate or extract request ID

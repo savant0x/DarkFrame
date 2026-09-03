@@ -1,10 +1,37 @@
 /**
- * Admin Factories Endpoint — Supabase backend
- * Updated 2026-05-15: Fixed auth bypass, added pagination
+ * Admin Factories Endpoint
+ * Created: 2025-01-18
+ * Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 
+ * OVERVIEW:
+ * Returns list of all factories in the game for admin inspection.
+ * Provides comprehensive factory data including location, owner, production rates,
+ * current production, and activity status.
+ * 
+ * Endpoint: GET /api/admin/factories
+ * Rate Limited: 500 req/min (admin dashboard)
+ * Auth Required: Admin (rank >= 5)
+ * 
+ * Returns:
+ * {
+ *   factories: FactoryData[],
+ *   total: number
+ * }
+ * 
+ * Factory Data Structure:
+ * - x, y: Map coordinates
+ * - ownerUsername: Player who owns the factory
+ * - tier: Factory tier (tier1, tier2, tier3)
+ * - productionRate: Units per hour
+ * - lastProduction: Last production timestamp
+ * - currentProduction: Resources waiting for collection
+ * - resourceType: 'metal' or 'energy'
+ * - isActive: Whether factory is currently producing
  */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { factories } from '@/lib/db/schema';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -17,48 +44,120 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
+/**
+ * GET handler - Fetch all factories
+ * 
+ * Admin-only endpoint that returns comprehensive factory data for inspection.
+ * Joins with players collection to get owner details.
+ */
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('AdminFactoriesAPI');
-  const endTimer = log.time('admin-factories');
+  const endTimer = log.time('factories');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const { getAuthenticatedUser } = await import('@/lib/authMiddleware');
+    const user = await getAuthenticatedUser();
 
-    const { searchParams } = request.nextUrl;
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
-    const offset = (page - 1) * limit;
+    if (!user) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
+    }
 
-    const supabase = createServiceClient();
+    if (user.isAdmin !== true) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin access required',
+      });
+    }
 
-    const { data: factories, count } = await supabase
-      .from('factories')
-      .select('*', { count: 'exact' })
-      .order('x', { ascending: true })
-      .range(offset, offset + limit - 1);
+    const factoriesList = await db.select().from(factories).limit(10000);
 
-    log.info('Admin factories list retrieved', { count: factories?.length || 0, page, limit });
+    const factoriesData = factoriesList.map((factory: any) => {
+      const lastProduction = factory.lastResourceGeneration
+        ? new Date(factory.lastResourceGeneration).toISOString()
+        : new Date().toISOString();
+
+      const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+      const lastProdTime = factory.lastResourceGeneration
+        ? new Date(factory.lastResourceGeneration).getTime()
+        : 0;
+      const isActive = lastProdTime > twoHoursAgo;
+
+      let productionRate = 10;
+      if (factory.level === 2) productionRate = 25;
+      if (factory.level === 3) productionRate = 50;
+
+      if (factory.productionRate !== undefined) {
+        productionRate = Number(factory.productionRate);
+      }
+
+      return {
+        _id: `${factory.x}-${factory.y}`,
+        x: factory.x || 0,
+        y: factory.y || 0,
+        ownerUsername: factory.owner || 'Unknown',
+        tier: `tier${factory.level || 1}`,
+        productionRate,
+        lastProduction,
+        currentProduction: 0,
+        resourceType: 'metal',
+        isActive,
+      };
+    });
+
+    log.info('Factories retrieved', {
+      total: factoriesData.length,
+      adminUser: user.username,
+    });
 
     return NextResponse.json({
-      success: true,
-      factories: (factories || []).map(f => ({
-        id: f.id,
-        x: f.x,
-        y: f.y,
-        owner: f.owner || null,
-        defense: f.defense || 0,
-        slots: f.slots || 0,
-        used_slots: f.used_slots || 0,
-        level: f.level || 1,
-        production_rate: f.production_rate || 0,
-      })),
-      pagination: { page, limit, total: count || 0 },
+      factories: factoriesData,
+      total: factoriesData.length,
     });
   } catch (error) {
-    log.error('Admin factories error', error instanceof Error ? error : new Error(String(error)));
+    log.error('Failed to fetch factories', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
     endTimer();
   }
 }));
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * Database Schema:
+ * - factories table with fields:
+ *   * x, y: number (coordinates, composite primary key)
+ *   * owner: string
+ *   * defense: number
+ *   * level: number (1-3, maps to old tier system)
+ *   * slots: number
+ *   * usedSlots: number
+ *   * productionRate: decimal
+ *   * lastSlotRegen: Date
+ *   * lastResourceGeneration: Date
+ *   * lastAttackedBy: string
+ *   * lastAttackTime: Date
+ * 
+ * Activity Calculation:
+ * - Factory is "active" if produced within last 2 hours
+ * - This helps identify abandoned or broken factories
+ * 
+ * Production Rate Defaults:
+ * - Level 1: 10 units/hour
+ * - Level 2: 25 units/hour
+ * - Level 3: 50 units/hour
+ * - Can be overridden by explicit productionRate field
+ * 
+ * Future Enhancements:
+ * - Add query params for server-side filtering
+ * - Pagination with skip/limit
+ * - Sorting options (by production, by tier, by owner)
+ * - Aggregate production statistics
+ * - Owner details from players collection (requires join)
+ * 
+ * Performance:
+ * - Limit of 10,000 factories prevents excessive data transfer
+ * - Client-side filtering for fast UX
+ * - Consider adding indexes on: owner, level, lastResourceGeneration
+ */

@@ -19,7 +19,7 @@
  * - MongoDB for data persistence
  */
 
-type ObjectId = string;
+import { ObjectId } from 'mongodb';
 import { WarheadType } from './missile.types';
 
 // ============================================================================

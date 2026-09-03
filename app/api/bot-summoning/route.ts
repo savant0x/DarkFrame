@@ -14,8 +14,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import { createServiceClient } from '@/lib/supabase/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { BotSpecialization } from '@/types/game.types';
 import {
   summonBots,
@@ -41,19 +43,16 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('bot-summoning-get');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    if (error || !player) {
+    if (!player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
 
@@ -81,21 +80,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('bot-summoning-post');
 
   try {
-    const body = await request.json();
-    const { specialization, username } = body;
-    if (!username) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    const tokenPayload = await getAuthenticatedUser();
 
-    const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    if (error || !player) {
+    if (!player) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
     }
+
+    const body = await request.json();
+    const { specialization } = body;
 
     // Validate specialization
     const validSpecializations: BotSpecialization[] = [
@@ -111,9 +110,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Get player position
-    const playerPosition = { x: player.current_x, y: player.current_y };
+    const playerPosition = { x: player.currentPositionX || player.baseX, y: player.currentPositionY || player.baseY };
 
-    if (!playerPosition || typeof playerPosition.x !== 'number' || typeof playerPosition.y !== 'number') {
+    if (!playerPosition.x || !playerPosition.y) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Player position not found');
     }
 
@@ -153,7 +152,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
  * - GET: Returns cooldown status (canSummon, hoursRemaining, lastSummon, nextSummonTime)
  * - POST: Validates specialization, player position, tech unlock, cooldown
  * - Specializations: Hoarder, Fortress, Raider, Balanced, Ghost
- * - Uses player.currentX/Y as spawn center
+ * - Uses player.currentPosition or player.base as spawn center
  * - Returns array of spawned bot info (username, position)
  * - All validation and business logic in botSummoningService.ts
  * - Tech requirement checked in service layer

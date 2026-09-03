@@ -1,26 +1,12 @@
-/**
- * Test Utilities
- * Created: 2025-10-23
- * 
- * OVERVIEW:
- * Provides helper functions for testing including database access,
- * mock data generation, and common test setup/teardown utilities.
- */
+import { db } from '@/lib/db';
+import { players, clans, tiles, factories, battleLogs, mutes, bans, warnings, modLog, wordBlacklist } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
-import { createServiceClient } from '@/lib/supabase/server';
-
-/**
- * Get test database connection
- * Uses Supabase service client
- */
-export function getTestDb() {
-  return createServiceClient();
+export async function getTestDb() {
+  return db;
 }
 
-/**
- * Create mock user for testing
- */
-export function createMockUser(overrides?: Record<string, unknown>) {
+export function createMockUser(overrides?: Partial<any>) {
   return {
     username: 'testuser',
     email: 'test@example.com',
@@ -37,50 +23,42 @@ export function createMockUser(overrides?: Record<string, unknown>) {
       health: 100,
       maxHealth: 100,
     },
-    created_at: new Date().toISOString(),
-    last_active: new Date().toISOString(),
+    createdAt: new Date(),
+    lastActive: new Date(),
     ...overrides,
   };
 }
 
-/**
- * Create mock battle result for testing
- */
-export function createMockBattleResult(overrides?: Record<string, unknown>) {
+export function createMockBattleResult(overrides?: Partial<any>) {
   return {
-    attacker_id: 'attacker123',
-    defender_id: 'defender456',
+    attackerId: 'attacker123',
+    defenderId: 'defender456',
     winner: 'attacker123',
-    attacker_damage: 50,
-    defender_damage: 30,
-    resources_stolen: {
+    attackerDamage: 50,
+    defenderDamage: 30,
+    resourcesStolen: {
       metal: 100,
       energy: 80,
       rp: 20,
     },
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(),
     ...overrides,
   };
 }
 
-/**
- * Wait for async operations (useful for testing timers)
- */
 export function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Clear all test data from database tables
- */
 export async function clearTestData(): Promise<void> {
-  const supabase = createServiceClient();
-  const tables = ['players', 'clans', 'battles'];
-
-  for (const table of tables) {
-    const { error } = await supabase.from(table as 'players').delete().neq('id' as never, '');
-    if (error) {
-      console.error(`Failed to clear table ${table}:`, error);
-    }
-  }
+  await db.delete(battleLogs);
+  await db.delete(wordBlacklist);
+  await db.delete(modLog);
+  await db.delete(warnings);
+  await db.delete(bans);
+  await db.delete(mutes);
+  await db.delete(tiles);
+  await db.delete(factories);
+  await db.delete(clans);
+  await db.delete(players);
 }

@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Achievement, AchievementCategory, AchievementRarity } from '@/types/game.types';
 
 interface AchievementNotificationProps {
@@ -31,6 +31,11 @@ export const AchievementNotification: React.FC<AchievementNotificationProps> = (
 }) => {
   const [isVisible, setIsVisible] = useState(false);
 
+  const handleDismiss = useCallback(() => {
+    setIsVisible(false);
+    setTimeout(onDismiss, 300); // Wait for fade-out animation
+  }, [onDismiss]);
+
   useEffect(() => {
     if (achievement) {
       setIsVisible(true);
@@ -42,12 +47,7 @@ export const AchievementNotification: React.FC<AchievementNotificationProps> = (
 
       return () => clearTimeout(timer);
     }
-  }, [achievement]);
-
-  const handleDismiss = () => {
-    setIsVisible(false);
-    setTimeout(onDismiss, 300); // Wait for fade-out animation
-  };
+  }, [achievement, handleDismiss]);
 
   if (!achievement || !isVisible) {
     return null;

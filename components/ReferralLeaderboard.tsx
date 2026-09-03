@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { showError } from '@/lib/toastService';
 
@@ -47,11 +47,7 @@ export default function ReferralLeaderboard() {
   const [loading, setLoading] = useState(true);
   const [limit, setLimit] = useState(50);
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [limit]);
-
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     try {
       const url = `/api/referral/leaderboard?limit=${limit}${player ? `&username=${player.username}` : ''}`;
       const response = await fetch(url);
@@ -82,7 +78,11 @@ export default function ReferralLeaderboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit, player]);
+
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
 
   const getRankMedal = (rank: number) => {
     switch (rank) {

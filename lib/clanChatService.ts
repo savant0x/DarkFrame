@@ -25,40 +25,38 @@
  * @module lib/clanChatService
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
+import { db } from '@/lib/db';
+import { players, clans } from '@/lib/db/schema';
+import { eq, and, gt, lt, desc, sql } from 'drizzle-orm';
 
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
 
 export enum MessageType {
-  USER = 'USER',           // Regular user message
-  SYSTEM = 'SYSTEM',       // System-generated message (war declared, etc.)
-  ANNOUNCEMENT = 'ANNOUNCEMENT', // Leader announcement (highlighted)
+  USER = 'USER',
+  SYSTEM = 'SYSTEM',
+  ANNOUNCEMENT = 'ANNOUNCEMENT',
 }
 
 export interface ChatMessage {
-  id?: string;
+  id: string;
   clanId: string;
   type: MessageType;
-
-  // User messages
+  
   playerId?: string;
   username?: string;
   role?: string;
-
+  
   message: string;
-  created_at: string;
-
-  // Moderation
-  editedAt?: string;
-  deleted?: boolean;
+  timestamp: Date;
+  
+  editedAt?: Date;
+  deletedAt?: Date;
   deletedBy?: string;
-
-  // System messages
-  eventType?: string;       // For system messages (e.g., 'WAR_DECLARED')
-  eventData?: Record<string, unknown>;          // Additional event data
+  
+  eventType?: string;
+  eventData?: any;
 }
 
 export interface ChatMessageWithAuthor extends ChatMessage {
@@ -76,50 +74,11 @@ export interface ChatMessageWithAuthor extends ChatMessage {
 export const CHAT_LIMITS = {
   MESSAGE_MAX_LENGTH: 500,
   MESSAGES_PER_PAGE: 50,
-  RATE_LIMIT_MESSAGES: 5,      // Max messages
-  RATE_LIMIT_WINDOW_SECONDS: 60, // Per 60 seconds
-  EDIT_WINDOW_MINUTES: 5,       // Can edit within 5 minutes
-  RECRUIT_WAIT_HOURS: 24,       // Recruits must wait 24 hours
+  RATE_LIMIT_MESSAGES: 5,
+  RATE_LIMIT_WINDOW_SECONDS: 60,
+  EDIT_WINDOW_MINUTES: 5,
+  RECRUIT_WAIT_HOURS: 24,
 };
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-function messageTypeToChannel(type: MessageType): string {
-  switch (type) {
-    case MessageType.SYSTEM: return 'system';
-    case MessageType.ANNOUNCEMENT: return 'announcement';
-    default: return 'general';
-  }
-}
-
-function channelToMessageType(channel: string): MessageType {
-  switch (channel) {
-    case 'system': return MessageType.SYSTEM;
-    case 'announcement': return MessageType.ANNOUNCEMENT;
-    default: return MessageType.USER;
-  }
-}
-
-function supabaseRowToChatMessage(
-  row: Database['public']['Tables']['clan_chat_messages']['Row'],
-  extra?: { username?: string; role?: string; eventType?: string; eventData?: Record<string, unknown> }
-): ChatMessage {
-  return {
-    id: row.id,
-    clanId: row.clan_id,
-    type: channelToMessageType(row.channel),
-    playerId: row.sender_id,
-    username: extra?.username || row.sender_id,
-    role: extra?.role || row.sender_role,
-    message: row.message,
-    created_at: row.created_at,
-    deleted: row.deleted,
-    eventType: extra?.eventType,
-    eventData: extra?.eventData,
-  };
-}
 
 // ============================================================================
 // MESSAGE FUNCTIONS
@@ -143,87 +102,71 @@ export async function sendClanChatMessage(
   message: string,
   type: MessageType = MessageType.USER
 ): Promise<ChatMessage> {
-  const supabase = createServiceClient();
-
-  // Validate message length
   if (!message || message.trim().length === 0) {
     throw new Error('Message cannot be empty');
   }
-
+  
   if (message.length > CHAT_LIMITS.MESSAGE_MAX_LENGTH) {
     throw new Error(`Message too long (max ${CHAT_LIMITS.MESSAGE_MAX_LENGTH} characters)`);
   }
-
-  // Get clan member record
-  const { data: member, error: memberError } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId)
-    .eq('player_id', playerId)
-    .single();
-
-  if (memberError || !member) {
+  
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
+    throw new Error('Clan not found');
+  }
+  
+  const members = clan.members as any[];
+  const member = members.find((m: any) => m.playerId === playerId);
+  if (!member) {
     throw new Error('Player is not a member of this clan');
   }
-
-  // Check recruit wait period
+  
   if (member.role === 'RECRUIT') {
-    const joinedAt = new Date(member.joined_at);
+    const joinedAt = new Date(member.joinedAt);
     const hoursSinceJoin = (Date.now() - joinedAt.getTime()) / (1000 * 60 * 60);
-
+    
     if (hoursSinceJoin < CHAT_LIMITS.RECRUIT_WAIT_HOURS) {
       const hoursRemaining = Math.ceil(CHAT_LIMITS.RECRUIT_WAIT_HOURS - hoursSinceJoin);
       throw new Error(`Recruits must wait ${hoursRemaining} hours before chatting`);
     }
   }
-
-  // Rate limiting check
-  const rateLimitStart = new Date(Date.now() - CHAT_LIMITS.RATE_LIMIT_WINDOW_SECONDS * 1000).toISOString();
-  const { count: recentMessages } = await supabase
-    .from('clan_chat_messages')
-    .select('*', { count: 'exact', head: true })
-    .eq('clan_id', clanId)
-    .eq('sender_id', playerId)
-    .gte('created_at', rateLimitStart)
-    .eq('deleted', false);
-
-  if ((recentMessages || 0) >= CHAT_LIMITS.RATE_LIMIT_MESSAGES) {
+  
+  const rateLimitStart = new Date(Date.now() - CHAT_LIMITS.RATE_LIMIT_WINDOW_SECONDS * 1000);
+  const rateResult = await db.execute(sql`
+    SELECT COUNT(*) as cnt FROM clan_chat_messages
+    WHERE clan_id = ${clanId} AND player_id = ${playerId}
+    AND timestamp >= ${rateLimitStart}
+    AND deleted_at IS NULL
+  `);
+  
+  const recentMessages = Number((rateResult as any)[0]?.cnt || 0);
+  if (recentMessages >= CHAT_LIMITS.RATE_LIMIT_MESSAGES) {
     throw new Error(`Rate limit exceeded. Max ${CHAT_LIMITS.RATE_LIMIT_MESSAGES} messages per ${CHAT_LIMITS.RATE_LIMIT_WINDOW_SECONDS} seconds`);
   }
-
-  // Get player info
-  const { data: player } = await supabase
-    .from('players')
-    .select('username')
-    .eq('username', playerId)
-    .single();
-
-  const now = new Date().toISOString();
-  const channel = messageTypeToChannel(type);
-
-  // Create message
-  const { data: inserted, error: insertError } = await supabase
-    .from('clan_chat_messages')
-    .insert({
-      clan_id: clanId,
-      channel,
-      sender_id: playerId,
-      sender_role: member.role as Database['public']['Enums']['clan_role'],
-      message: message.trim(),
-      deleted: false,
-      created_at: now,
-    })
-    .select('*')
-    .single();
-
-  if (insertError || !inserted) {
-    throw new Error('Failed to send message');
-  }
-
-  return supabaseRowToChatMessage(inserted, {
+  
+  const playerResult = await db.select().from(players).where(eq(players.mongoId, playerId)).limit(1);
+  const player = playerResult[0];
+  
+  const messageId = crypto.randomUUID().slice(0, 24);
+  const chatMessage: ChatMessage = {
+    id: messageId,
+    clanId,
+    type,
+    playerId,
     username: player?.username || 'Unknown',
     role: member.role,
-  });
+    message: message.trim(),
+    timestamp: new Date(),
+  };
+  
+  await db.execute(sql`
+    INSERT INTO clan_chat_messages 
+    (id, clan_id, type, player_id, username, role, message, timestamp)
+    VALUES (${messageId}, ${clanId}, ${type}, ${playerId}, ${chatMessage.username}, ${member.role}, ${chatMessage.message}, ${chatMessage.timestamp})
+  `);
+  
+  return chatMessage;
 }
 
 /**
@@ -241,36 +184,26 @@ export async function sendSystemMessage(
   clanId: string,
   message: string,
   eventType?: string,
-  eventData?: Record<string, unknown>
+  eventData?: any
 ): Promise<ChatMessage> {
-  const supabase = createServiceClient();
-
-  const now = new Date().toISOString();
-
-  const { data: inserted, error: insertError } = await supabase
-    .from('clan_chat_messages')
-    .insert({
-      clan_id: clanId,
-      channel: 'system',
-      sender_id: 'SYSTEM',
-      sender_role: 'MEMBER' as Database['public']['Enums']['clan_role'],
-      message: message.trim(),
-      deleted: false,
-      created_at: now,
-    })
-    .select('*')
-    .single();
-
-  if (insertError || !inserted) {
-    throw new Error('Failed to send system message');
-  }
-
-  return supabaseRowToChatMessage(inserted, {
-    username: 'System',
-    role: 'SYSTEM',
+  const messageId = crypto.randomUUID().slice(0, 24);
+  const chatMessage: ChatMessage = {
+    id: messageId,
+    clanId,
+    type: MessageType.SYSTEM,
+    message: message.trim(),
+    timestamp: new Date(),
     eventType,
     eventData,
-  });
+  };
+  
+  await db.execute(sql`
+    INSERT INTO clan_chat_messages 
+    (id, clan_id, type, message, timestamp, event_type, event_data)
+    VALUES (${messageId}, ${clanId}, ${MessageType.SYSTEM}, ${chatMessage.message}, ${chatMessage.timestamp}, ${eventType || null}, ${eventData ? JSON.stringify(eventData) : null})
+  `);
+  
+  return chatMessage;
 }
 
 /**
@@ -282,34 +215,42 @@ export async function sendSystemMessage(
  * @returns Array of messages (newest first)
  * @example
  * const messages = await getClanChatMessages('clan123', 50);
- * const olderMessages = await getClanChatMessages('clan123', 50, messages[messages.length - 1].created_at);
+ * const olderMessages = await getClanChatMessages('clan123', 50, messages[messages.length - 1].timestamp);
  */
 export async function getClanChatMessages(
   clanId: string,
   limit = CHAT_LIMITS.MESSAGES_PER_PAGE,
-  before?: string
+  before?: Date
 ): Promise<ChatMessage[]> {
-  const supabase = createServiceClient();
-
-  let query = supabase
-    .from('clan_chat_messages')
-    .select('*')
-    .eq('clan_id', clanId)
-    .eq('deleted', false)
-    .order('created_at', { ascending: false })
-    .limit(Math.min(limit, CHAT_LIMITS.MESSAGES_PER_PAGE));
-
+  const cappedLimit = Math.min(limit, CHAT_LIMITS.MESSAGES_PER_PAGE);
+  
+  let query = sql`
+    SELECT * FROM clan_chat_messages
+    WHERE clan_id = ${clanId} AND deleted_at IS NULL
+  `;
+  
   if (before) {
-    query = query.lt('created_at', before);
+    query = sql`${query} AND timestamp < ${before}`;
   }
-
-  const { data, error } = await query;
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data.map((row) => supabaseRowToChatMessage(row));
+  
+  query = sql`${query} ORDER BY timestamp DESC LIMIT ${cappedLimit}`;
+  
+  const messages = await db.execute(query);
+  return (messages as any).map((row: any) => ({
+    id: row.id,
+    clanId: row.clan_id,
+    type: row.type,
+    playerId: row.player_id,
+    username: row.username,
+    role: row.role,
+    message: row.message,
+    timestamp: new Date(row.timestamp),
+    editedAt: row.edited_at ? new Date(row.edited_at) : undefined,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
+    deletedBy: row.deleted_by,
+    eventType: row.event_type,
+    eventData: row.event_data ? JSON.parse(row.event_data) : undefined,
+  }));
 }
 
 /**
@@ -328,61 +269,55 @@ export async function editClanChatMessage(
   playerId: string,
   newMessage: string
 ): Promise<ChatMessage> {
-  const supabase = createServiceClient();
-
-  // Validate new message
   if (!newMessage || newMessage.trim().length === 0) {
     throw new Error('Message cannot be empty');
   }
-
+  
   if (newMessage.length > CHAT_LIMITS.MESSAGE_MAX_LENGTH) {
     throw new Error(`Message too long (max ${CHAT_LIMITS.MESSAGE_MAX_LENGTH} characters)`);
   }
-
-  // Get message
-  const { data: messageRow, error } = await supabase
-    .from('clan_chat_messages')
-    .select('*')
-    .eq('id', messageId)
-    .single();
-
-  if (error || !messageRow) {
+  
+  const messageResult = await db.execute(sql`SELECT * FROM clan_chat_messages WHERE id = ${messageId} LIMIT 1`);
+  const messages = (messageResult as any) as any[];
+  const message = messages[0];
+  
+  if (!message) {
     throw new Error('Message not found');
   }
-
-  if (messageRow.deleted) {
+  
+  if (message.deleted_at) {
     throw new Error('Cannot edit deleted message');
   }
-
-  // Verify ownership
-  if (messageRow.sender_id !== playerId) {
+  
+  if (message.player_id !== playerId) {
     throw new Error('Can only edit your own messages');
   }
-
-  // Check time limit
-  const createdAt = new Date(messageRow.created_at);
-  const minutesSincePost = (Date.now() - createdAt.getTime()) / (1000 * 60);
+  
+  const minutesSincePost = (Date.now() - new Date(message.timestamp).getTime()) / (1000 * 60);
   if (minutesSincePost > CHAT_LIMITS.EDIT_WINDOW_MINUTES) {
     throw new Error(`Can only edit messages within ${CHAT_LIMITS.EDIT_WINDOW_MINUTES} minutes`);
   }
-
-  // Update message
-  const now = new Date().toISOString();
-  const { data: updated, error: updateError } = await supabase
-    .from('clan_chat_messages')
-    .update({ message: newMessage.trim() })
-    .eq('id', messageId)
-    .select('*')
-    .single();
-
-  if (updateError || !updated) {
-    throw new Error('Failed to edit message');
-  }
-
-  const result = supabaseRowToChatMessage(updated);
-  result.editedAt = now;
-
-  return result;
+  
+  await db.execute(sql`
+    UPDATE clan_chat_messages 
+    SET message = ${newMessage.trim()}, edited_at = ${new Date()}
+    WHERE id = ${messageId}
+  `);
+  
+  const updatedResult = await db.execute(sql`SELECT * FROM clan_chat_messages WHERE id = ${messageId} LIMIT 1`);
+  const updated = ((updatedResult as any) as any[])[0];
+  
+  return {
+    id: updated.id,
+    clanId: updated.clan_id,
+    type: updated.type,
+    playerId: updated.player_id,
+    username: updated.username,
+    role: updated.role,
+    message: updated.message,
+    timestamp: new Date(updated.timestamp),
+    editedAt: updated.edited_at ? new Date(updated.edited_at) : undefined,
+  };
 }
 
 /**
@@ -402,52 +337,45 @@ export async function deleteClanChatMessage(
   clanId: string,
   playerId: string
 ): Promise<void> {
-  const supabase = createServiceClient();
-
-  // Get message
-  const { data: messageRow, error } = await supabase
-    .from('clan_chat_messages')
-    .select('*')
-    .eq('id', messageId)
-    .single();
-
-  if (error || !messageRow) {
+  const messageResult = await db.execute(sql`SELECT * FROM clan_chat_messages WHERE id = ${messageId} LIMIT 1`);
+  const message = ((messageResult as any) as any[])[0];
+  
+  if (!message) {
     throw new Error('Message not found');
   }
-
-  if (messageRow.clan_id !== clanId) {
+  
+  if (message.clan_id !== clanId) {
     throw new Error('Message not in this clan');
   }
-
-  if (messageRow.deleted) {
+  
+  if (message.deleted_at) {
     throw new Error('Message already deleted');
   }
-
-  // Get clan member
-  const { data: member, error: memberError } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId)
-    .eq('player_id', playerId)
-    .single();
-
-  if (memberError || !member) {
+  
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
+    throw new Error('Clan not found');
+  }
+  
+  const members = clan.members as any[];
+  const member = members.find((m: any) => m.playerId === playerId);
+  if (!member) {
     throw new Error('Player is not a member of this clan');
   }
-
-  // Check permissions
+  
   const canDeleteAny = ['LEADER', 'CO_LEADER'].includes(member.role);
-  const isOwnMessage = messageRow.sender_id === playerId;
-
+  const isOwnMessage = message.player_id === playerId;
+  
   if (!canDeleteAny && !isOwnMessage) {
     throw new Error('Can only delete your own messages');
   }
-
-  // Soft delete
-  await supabase
-    .from('clan_chat_messages')
-    .update({ deleted: true })
-    .eq('id', messageId);
+  
+  await db.execute(sql`
+    UPDATE clan_chat_messages 
+    SET deleted_at = ${new Date()}, deleted_by = ${playerId}
+    WHERE id = ${messageId}
+  `);
 }
 
 /**
@@ -457,19 +385,12 @@ export async function deleteClanChatMessage(
  * @returns Total message count (excluding deleted)
  */
 export async function getMessageCount(clanId: string): Promise<number> {
-  const supabase = createServiceClient();
-
-  const { count, error } = await supabase
-    .from('clan_chat_messages')
-    .select('*', { count: 'exact', head: true })
-    .eq('clan_id', clanId)
-    .eq('deleted', false);
-
-  if (error) {
-    throw error;
-  }
-
-  return count || 0;
+  const result = await db.execute(sql`
+    SELECT COUNT(*) as cnt FROM clan_chat_messages
+    WHERE clan_id = ${clanId} AND deleted_at IS NULL
+  `);
+  
+  return Number((result as any)[0]?.cnt || 0);
 }
 
 /**
@@ -480,20 +401,28 @@ export async function getMessageCount(clanId: string): Promise<number> {
  * @param since - Get messages after this timestamp
  * @returns Array of new messages
  */
-export async function getMessagesSince(clanId: string, since: string): Promise<ChatMessage[]> {
-  const supabase = createServiceClient();
-
-  const { data, error } = await supabase
-    .from('clan_chat_messages')
-    .select('*')
-    .eq('clan_id', clanId)
-    .gt('created_at', since)
-    .eq('deleted', false)
-    .order('created_at', { ascending: true });
-
-  if (error || !data) {
-    return [];
-  }
-
-  return data.map((row) => supabaseRowToChatMessage(row));
+export async function getMessagesSince(clanId: string, since: Date): Promise<ChatMessage[]> {
+  const messages = await db.execute(sql`
+    SELECT * FROM clan_chat_messages
+    WHERE clan_id = ${clanId}
+    AND timestamp > ${since}
+    AND deleted_at IS NULL
+    ORDER BY timestamp ASC
+  `);
+  
+  return (messages as any).map((row: any) => ({
+    id: row.id,
+    clanId: row.clan_id,
+    type: row.type,
+    playerId: row.player_id,
+    username: row.username,
+    role: row.role,
+    message: row.message,
+    timestamp: new Date(row.timestamp),
+    editedAt: row.edited_at ? new Date(row.edited_at) : undefined,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
+    deletedBy: row.deleted_by,
+    eventType: row.event_type,
+    eventData: row.event_data ? JSON.parse(row.event_data) : undefined,
+  }));
 }

@@ -1,5 +1,22 @@
+/**
+ * @file app/api/wmd/voting/route.ts
+ * @created 2025-10-22
+ * @updated 2025-10-23 - Added veto action for clan leaders
+ * @overview WMD Clan Voting API Endpoints
+ * 
+ * OVERVIEW:
+ * Handles clan voting system for WMD launch authorization and other
+ * critical decisions requiring clan consensus.
+ * 
+ * Features:
+ * - GET: Fetch clan votes and authorization status
+ * - POST: Create votes, cast ballots, and veto (leader only)
+ * 
+ * Authentication: JWT tokens via HttpOnly cookies
+ * Dependencies: clanVotingService.ts, apiHelpers.ts
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -19,32 +36,21 @@ import {
   getClanVotes,
   hasLaunchAuthorization,
   vetoClanVote,
-  VoteType,
 } from '@/lib/wmd/clanVotingService';
-import type { WarheadType } from '@/types/wmd/missile.types';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
+import { getDatabase } from '@/lib/mongodb';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-function mapVoteRow(row: Record<string, any>): Record<string, any> {
-  const result = row.result || {};
-  return {
-    voteId: row.vote_id,
-    clanId: row.clan_id,
-    voteType: row.vote_type,
-    proposerUsername: row.proposed_by,
-    status: row.status || 'active',
-    votesFor: [] as string[],
-    votesAgainst: [] as string[],
-    requiredVotes: row.total_eligible || 0,
-    targetUsername: result.targetUsername || null,
-    warheadType: result.warheadType || null,
-    createdAt: row.created_at,
-    expiresAt: row.expires_at,
-  };
-}
-
+/**
+ * GET /api/wmd/voting
+ * Fetch clan votes or check authorization
+ * 
+ * Query:
+ * - action: 'list' | 'checkAuth'
+ * - missileId: string (for checkAuth)
+ */
 export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const log = createRouteLogger('WMDVotingAPI');
   const endTimer = log.time('wmd-voting-get');
@@ -53,35 +59,50 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     const auth = await getAuthenticatedPlayer(req);
     
     if (!auth) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Authentication required' });
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
     }
     
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action') || 'list';
     
+    // List clan votes
     if (action === 'list') {
-      if (!auth.player.clan_id) {
-        return NextResponse.json({ error: 'Not in a clan' }, { status: 400 });
+      if (!auth.player.clanId) {
+        return NextResponse.json(
+          { error: 'Not in a clan' },
+          { status: 400 }
+        );
       }
       
-      const rawVotes = await getClanVotes(auth.player.clan_id);
-      const votes = (rawVotes || []).map(mapVoteRow);
+      const votes = await getClanVotes(auth.player.clanId);
       return NextResponse.json({ success: true, votes });
     }
     
+    // Check launch authorization
     if (action === 'checkAuth') {
+      const missileId = searchParams.get('missileId');
       const warheadType = searchParams.get('warheadType');
       
-      if (!warheadType) {
-        return NextResponse.json({ error: 'Missing required query param: warheadType' }, { status: 400 });
+      if (!missileId || !warheadType) {
+        return NextResponse.json(
+          { error: 'Missing required query params: missileId, warheadType' },
+          { status: 400 }
+        );
       }
       
-      const authorized = await hasLaunchAuthorization(auth.playerId, warheadType as unknown as WarheadType);
+      const authorized = await hasLaunchAuthorization(auth.playerId, warheadType as any);
       
-      return NextResponse.json({ success: true, authorized });
+      return NextResponse.json({
+        success: true,
+        authorized,
+      });
     }
     
-    return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Invalid action. Use "list" or "checkAuth"' });
+    return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+      message: 'Invalid action. Use "list" or "checkAuth"',
+    });
   } catch (error) {
     log.error('Error in voting GET', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
@@ -90,6 +111,19 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   }
 }));
 
+/**
+ * POST /api/wmd/voting
+ * Create vote or cast ballot
+ * 
+ * Body:
+ * - action: 'create' | 'cast' | 'veto'
+ * - voteType: string (for create)
+ * - targetId: string (for create)
+ * - description: string (for create)
+ * - voteId: string (for cast/veto)
+ * - vote: boolean (for cast)
+ * - reason: string (for veto)
+ */
 export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const log = createRouteLogger('WMDVotingAPI');
   const endTimer = log.time('wmd-voting-post');
@@ -98,63 +132,96 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     const auth = await getAuthenticatedPlayer(req);
     
     if (!auth) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Authentication required' });
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
+      });
     }
     
-    if (!auth.player.clan_id) {
-      return createErrorResponse(ErrorCode.CLAN_NOT_MEMBER, { message: 'Must be in a clan to vote' });
+    if (!auth.player.clanId) {
+      return createErrorResponse(ErrorCode.CLAN_NOT_MEMBER, {
+        message: 'Must be in a clan to vote',
+      });
     }
     
+    // Validate request with discriminated union schema
     const validated = WMDVotingSchema.parse(await req.json());
     
+    // Create vote
     if (validated.action === 'create') {
       const { voteType, targetId, targetUsername, warheadType, resourceAmount } = validated;
       
       if (!voteType) {
-        return NextResponse.json({ error: 'Missing required field: voteType' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Missing required field: voteType' },
+          { status: 400 }
+        );
       }
       
       const result = await createClanVote(
-        auth.player.clan_id,
+        auth.player.clanId,
         auth.playerId,
         auth.username,
-        voteType as unknown as VoteType,
-        { targetId, targetUsername, warheadType: warheadType as unknown as WarheadType, resourceAmount }
+        voteType as any,
+        {
+          targetId,
+          targetUsername,
+          warheadType: warheadType as any,
+          resourceAmount,
+        }
       );
       
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: result.message });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          message: result.message,
+        });
       }
       
       log.info('Clan vote created', { username: auth.username, voteType, voteId: result.voteId });
       
-      return NextResponse.json({ success: true, message: result.message, voteId: result.voteId });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        voteId: result.voteId,
+      });
     }
     
+    // Cast vote
     if (validated.action === 'cast') {
       const { voteId, vote } = validated;
       
       const result = await castVote(voteId, auth.username, vote);
       
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: result.message });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          message: result.message,
+        });
       }
       
+      // Broadcast vote update to clan
       try {
-        const supabase = createServiceClient();
-        const { data: voteData } = await supabase.from('wmd_clan_votes').select('*').eq('vote_id', voteId).single();
+        const db = await getDatabase();
+        const voteData = await db.collection<{
+          voteId: string;
+          voteType: string;
+          proposer: string;
+          targetUsername?: string;
+          status: string;
+          votesFor: string[];
+          votesAgainst: string[];
+          requiredVotes: number;
+        }>('wmd_clan_votes').findOne({ voteId });
         const io = getIO();
         if (voteData && io) {
           await wmdHandlers.broadcastClanVoteUpdate(io, {
-            clanId: auth.player.clan_id,
+            clanId: auth.player.clanId,
             voteId,
-            voteType: voteData.vote_type,
-            proposer: voteData.proposed_by,
-            targetName: '',
+            voteType: voteData.voteType,
+            proposer: voteData.proposer,
+            targetName: voteData.targetUsername,
             status: result.voteStatus || voteData.status,
-            votesFor: voteData.votes_for,
-            votesAgainst: voteData.votes_against,
-            requiredVotes: voteData.total_eligible || 0,
+            votesFor: voteData.votesFor.length,
+            votesAgainst: voteData.votesAgainst.length,
+            requiredVotes: voteData.requiredVotes,
           });
         }
       } catch (broadcastError) {
@@ -163,33 +230,50 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       
       log.info('Vote cast', { username: auth.username, voteId, vote, status: result.voteStatus });
       
-      return NextResponse.json({ success: true, message: result.message, voteStatus: result.voteStatus });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        voteStatus: result.voteStatus,
+      });
     }
     
+    // Veto vote (leader only)
     if (validated.action === 'veto') {
       const { voteId, reason } = validated;
       
       const result = await vetoClanVote(voteId, auth.playerId, auth.username, reason);
       
       if (!result.success) {
-        return createErrorResponse(ErrorCode.CLAN_INSUFFICIENT_PERMISSION, { message: result.message });
+        return createErrorResponse(ErrorCode.CLAN_INSUFFICIENT_PERMISSION, {
+          message: result.message,
+        });
       }
       
+      // Broadcast veto to clan
       try {
-        const supabase = createServiceClient();
-        const { data: voteData } = await supabase.from('wmd_clan_votes').select('*').eq('vote_id', voteId).single();
+        const db = await getDatabase();
+        const voteData = await db.collection<{
+          voteId: string;
+          voteType: string;
+          proposer: string;
+          targetUsername?: string;
+          status: string;
+          votesFor: string[];
+          votesAgainst: string[];
+          requiredVotes: number;
+        }>('wmd_clan_votes').findOne({ voteId });
         const io = getIO();
         if (voteData && io) {
           await wmdHandlers.broadcastClanVoteUpdate(io, {
-            clanId: auth.player.clan_id,
+            clanId: auth.player.clanId,
             voteId,
-            voteType: voteData.vote_type,
-            proposer: voteData.proposed_by,
-            targetName: '',
+            voteType: voteData.voteType,
+            proposer: voteData.proposer,
+            targetName: voteData.targetUsername,
             status: 'VETOED',
-            votesFor: voteData.votes_for,
-            votesAgainst: voteData.votes_against,
-            requiredVotes: voteData.total_eligible || 0,
+            votesFor: voteData.votesFor.length,
+            votesAgainst: voteData.votesAgainst.length,
+            requiredVotes: voteData.requiredVotes,
           });
         }
       } catch (broadcastError) {
@@ -198,13 +282,21 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       
       log.info('Vote vetoed', { username: auth.username, voteId, reason });
       
-      return NextResponse.json({ success: true, message: result.message });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+      });
     }
     
-    return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Invalid action' });
+    // Should never reach here due to discriminated union
+    return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+      message: 'Invalid action',
+    });
     
   } catch (error) {
-    if (error instanceof ZodError) return createValidationErrorResponse(error);
+    if (error instanceof ZodError) {
+      return createValidationErrorResponse(error);
+    }
     log.error('Error in voting POST', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {

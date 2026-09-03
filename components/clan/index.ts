@@ -10,6 +10,7 @@
 
 export { default as ClanPanel } from './ClanPanel';
 export { default as ClanManagementView } from './ClanManagementView';
+export { default as CreateClanModal } from './CreateClanModal';
 export { default as JoinClanModal } from './JoinClanModal';
 export { default as ClanMembersPanel } from './ClanMembersPanel';
 export { default as ClanBankPanel } from './ClanBankPanel';

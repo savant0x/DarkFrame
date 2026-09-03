@@ -1,7 +1,6 @@
 /**
  * Combat Event Handler
  * Created: 2025-10-19
- * Updated: 2026-05-15 — FID-20260515-BATTLE-SYSTEM-FIX
  * 
  * OVERVIEW:
  * Handles combat-related WebSocket events including attack notifications,
@@ -9,7 +8,8 @@
  */
 
 import type { Server, Socket } from 'socket.io';
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { players, battleLogs } from '@/lib/db/schema';
 import type { AuthenticatedUser } from '../auth';
 import {
   broadcastAttackStarted,
@@ -22,11 +22,7 @@ import type {
   CombatBattleResultPayload,
   CombatDefenseAlertPayload,
 } from '@/types/websocket';
-
-interface ParticipantInfo {
-  username: string;
-  clan_id: string | null;
-}
+import { eq } from 'drizzle-orm';
 
 export async function handleBattleStart(
   io: Server,
@@ -35,35 +31,50 @@ export async function handleBattleStart(
   location: { x: number; y: number }
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
+    const [attacker, defender] = await Promise.all([
+      db.query.players.findFirst({ where: eq(players.username, attackerId) }),
+      db.query.players.findFirst({ where: eq(players.username, defenderId) }),
+    ]);
     
-    const { data: attacker, error: attErr } = await supabase
-      .from('players')
-      .select('username, clan_id')
-      .eq('username', attackerId)
-      .single();
+    if (!attacker || !defender) return;
     
-    const { data: defender, error: defErr } = await supabase
-      .from('players')
-      .select('username, clan_id')
-      .eq('username', defenderId)
-      .single();
-    
-    if (attErr || !attacker || defErr || !defender) return;
-    
-    const battleId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    const battleData = {
-      id: battleId,
-      attacker_username: attackerId,
-      defender_username: defenderId,
-      attacker_strength: 0,
-      damage_dealt: 0,
-      defender_defense: 0,
-      outcome: 'ONGOING',
-    };
-    
-    await supabase.from('battle_logs').insert(battleData);
+    const battleId = `battle_${Date.now()}_${attackerId}`;
+    await db.insert(battleLogs).values({
+      battleId,
+      battleType: 'pvp',
+      timestamp: new Date(),
+      attackerUsername: attackerId,
+      attackerUnits: [],
+      attackerTotalSTR: 0,
+      attackerTotalDEF: 0,
+      attackerInitialHP: 0,
+      attackerFinalHP: 0,
+      attackerUnitsLost: 0,
+      attackerUnitsCaptured: 0,
+      attackerStartingHP: 0,
+      attackerEndingHP: 0,
+      attackerDamageDealt: 0,
+      attackerXpEarned: 0,
+      defenderUsername: defenderId,
+      defenderUnits: [],
+      defenderTotalSTR: 0,
+      defenderTotalDEF: 0,
+      defenderInitialHP: 0,
+      defenderFinalHP: 0,
+      defenderUnitsLost: 0,
+      defenderUnitsCaptured: 0,
+      defenderStartingHP: 0,
+      defenderEndingHP: 0,
+      defenderDamageDealt: 0,
+      defenderXpEarned: 0,
+      outcome: 'ongoing',
+      rounds: [],
+      totalRounds: 0,
+      attackerXP: 0,
+      defenderXP: 0,
+      locationX: location.x,
+      locationY: location.y,
+    });
     
     const payload: CombatAttackStartedPayload = {
       battleId,
@@ -71,8 +82,8 @@ export async function handleBattleStart(
       attackerName: attacker.username,
       defenderId,
       defenderName: defender.username,
-      attackerClanId: attacker.clan_id || undefined,
-      defenderClanId: defender.clan_id || undefined,
+      attackerClanId: attacker.clanId || undefined,
+      defenderClanId: defender.clanId || undefined,
       location,
       startedAt: Date.now(),
     };
@@ -87,23 +98,16 @@ export async function handleBattleStart(
 export async function handleBattleEnd(
   io: Server,
   battleId: string,
-  outcome: 'ATTACKER_WIN' | 'DEFENDER_WIN' | 'DRAW',
   winner: string,
   loser: string,
   casualties: { winner: number; loser: number }
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
-    const now = Date.now();
-    
-    await supabase
-      .from('battle_logs')
-      .update({
-        outcome,
-        damage_dealt: casualties?.winner || 0,
-        defender_defense: casualties?.loser || 0,
-      })
-      .eq('id', battleId);
+    await db.update(battleLogs).set({
+      outcome: 'completed',
+      attackerEndingHP: 0,
+      defenderEndingHP: 0,
+    }).where(eq(battleLogs.battleId, battleId));
     
     const payload: CombatBattleResultPayload = {
       battleId,
@@ -112,7 +116,7 @@ export async function handleBattleEnd(
       casualties,
       resourcesLost: { winner: {}, loser: {} },
       experienceGained: { winner: 100, loser: 25 },
-      completedAt: now,
+      completedAt: Date.now(),
     };
     
     await broadcastBattleResult(io, payload);

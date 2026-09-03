@@ -109,7 +109,7 @@ describe('GET /api/chat/channels', () => {
     expect(data.isVIP).toBe(true);
     
     const channelIds = data.channels.map((c: any) => c.id);
-    expect(channelIds).toContain('vip-lounge');
+    expect(channelIds).toContain('vip');
   });
 
   it('should exclude newbie channel for level > 5 players', async () => {

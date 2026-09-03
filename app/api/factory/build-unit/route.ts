@@ -17,8 +17,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
+import { connectToDatabase } from '@/lib/mongodb';
+import type { Player } from '@/types/game.types';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
 import { applySlotRegeneration, hasEnoughSlots, consumeSlots } from '@/lib/slotRegenService';
 import { awardXP, XPAction } from '@/lib/xpService';
@@ -29,7 +29,7 @@ interface BuildUnitRequest {
   factoryX: number;
   factoryY: number;
   unitType: UnitType;
-  quantity?: number;
+  quantity?: number; // Number of units to build (default: 1)
 }
 
 /**
@@ -67,7 +67,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     log.debug('Factory unit build request', { username, factoryX, factoryY, unitType, quantity });
 
     // 3. Validate inputs
-    if (factoryX == null || factoryY == null || !unitType) {
+    if (!factoryX || !factoryY || !unitType) {
       log.warn('Missing required fields', { username, factoryX, factoryY, unitType });
       return NextResponse.json(
         { success: false, message: 'Missing required fields: factoryX, factoryY, unitType' },
@@ -98,17 +98,13 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     const totalSlotCost = unitConfig.slotCost * quantity;
 
     // 5. Connect to database
-    const supabase = createServiceClient();
+    const db = await connectToDatabase();
 
     // 6. Get factory data
-    const { data: factory, error: factoryError } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('x', factoryX)
-      .eq('y', factoryY)
-      .single();
+    const factoriesCollection = db.collection<Factory>('factories');
+    const factory = await factoriesCollection.findOne({ x: factoryX, y: factoryY });
 
-    if (factoryError || !factory) {
+    if (!factory) {
       log.warn('Factory not found', { username, factoryX, factoryY });
       return NextResponse.json(
         { success: false, message: 'Factory not found at specified coordinates' },
@@ -125,24 +121,8 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       );
     }
 
-    // Map factory to expected format for slot regen functions
-    const mappedFactory: Factory = {
-      x: factory.x,
-      y: factory.y,
-      owner: factory.owner,
-      defense: factory.defense,
-      level: factory.level,
-      slots: factory.slots,
-      usedSlots: factory.used_slots,
-      productionRate: factory.production_rate,
-      lastSlotRegen: new Date(factory.last_slot_regen),
-      lastResourceGeneration: new Date(factory.last_resource_generation || Date.now()),
-      lastAttackedBy: factory.last_attacked_by,
-      lastAttackTime: factory.last_attack_time ? new Date(factory.last_attack_time) : null,
-    };
-
     // 8. Apply slot regeneration
-    const regeneratedFactory = applySlotRegeneration(mappedFactory);
+    const regeneratedFactory = applySlotRegeneration(factory);
 
     // 9. Check slot availability
     if (!hasEnoughSlots(regeneratedFactory, totalSlotCost)) {
@@ -159,13 +139,10 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     }
 
     // 10. Get player data
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    const playersCollection = db.collection<Player>('players');
+    const player = await playersCollection.findOne({ username });
 
-    if (playerError || !player) {
+    if (!player) {
       log.warn('Player not found for factory build', { username });
       return NextResponse.json(
         { success: false, message: 'Player not found' },
@@ -174,23 +151,20 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     }
 
     // 11. Check resource availability
-    const playerMetal = player.resources_metal || 0;
-    const playerEnergy = player.resources_energy || 0;
-
-    if (playerMetal < totalMetalCost || playerEnergy < totalEnergyCost) {
+    if (player.resources.metal < totalMetalCost || player.resources.energy < totalEnergyCost) {
       log.warn('Insufficient resources for factory build', { 
         username, 
         metalNeeded: totalMetalCost, 
-        metalHave: playerMetal,
+        metalHave: player.resources.metal,
         energyNeeded: totalEnergyCost,
-        energyHave: playerEnergy
+        energyHave: player.resources.energy
       });
       return NextResponse.json(
         {
           success: false,
           message: `Insufficient resources. Need ${totalMetalCost} metal and ${totalEnergyCost} energy`,
           required: { metal: totalMetalCost, energy: totalEnergyCost },
-          available: { metal: playerMetal, energy: playerEnergy }
+          available: { metal: player.resources.metal, energy: player.resources.energy }
         },
         { status: 400 }
       );
@@ -201,91 +175,56 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     for (let i = 0; i < quantity; i++) {
       newUnits.push({
         id: `${username}-${Date.now()}-${i}-${Math.random().toString(36).substring(7)}`,
-        unit_type: unitType as unknown as Database['public']['Enums']['unit_type'],
+        type: unitType,
         strength: unitConfig.strength,
         defense: unitConfig.defense,
-        produced_at_x: factoryX,
-        produced_at_y: factoryY,
-        produced_date: new Date().toISOString(),
-        player_username: username,
+        producedAt: { x: factoryX, y: factoryY },
+        producedDate: new Date(),
+        owner: username
       });
     }
 
     // 13. Calculate new totals
     const strGained = unitConfig.strength * quantity;
     const defGained = unitConfig.defense * quantity;
-    const newTotalStrength = (player.total_strength || 0) + strGained;
-    const newTotalDefense = (player.total_defense || 0) + defGained;
+    const newTotalStrength = (player.totalStrength || 0) + strGained;
+    const newTotalDefense = (player.totalDefense || 0) + defGained;
 
-    // 14. Update player (deduct resources, update totals)
-    const { error: playerUpdateError } = await supabase
-      .from('players')
-      .update({
-        resources_metal: playerMetal - totalMetalCost,
-        resources_energy: playerEnergy - totalEnergyCost,
-        total_strength: newTotalStrength,
-        total_defense: newTotalDefense
-      })
-      .eq('username', username);
-
-    if (playerUpdateError) {
-      log.error('Failed to update player', playerUpdateError);
-      return NextResponse.json(
-        { success: false, message: 'Failed to update player resources' },
-        { status: 500 }
-      );
-    }
-
-    // Insert new units
-    const { error: unitsInsertError } = await supabase
-      .from('player_units')
-      .insert(newUnits);
-
-    if (unitsInsertError) {
-      // Rollback player resources
-      await supabase
-        .from('players')
-        .update({
-          resources_metal: playerMetal,
-          resources_energy: playerEnergy,
-          total_strength: player.total_strength || 0,
-          total_defense: player.total_defense || 0
-        })
-        .eq('username', username);
-
-      log.error('Failed to insert units', unitsInsertError);
-      return NextResponse.json(
-        { success: false, message: 'Failed to create units' },
-        { status: 500 }
-      );
-    }
+    // 14. Update player (deduct resources, add units, update totals)
+    await playersCollection.updateOne(
+      { username },
+      {
+        $inc: {
+          'resources.metal': -totalMetalCost,
+          'resources.energy': -totalEnergyCost
+        },
+        $push: {
+          units: { $each: newUnits }
+        } as any,
+        $set: {
+          totalStrength: newTotalStrength,
+          totalDefense: newTotalDefense
+        }
+      }
+    );
 
     // 15. Update factory (consume slots, update last regen time)
     const updatedFactory = consumeSlots(regeneratedFactory, totalSlotCost);
-    const { error: factoryUpdateError } = await supabase
-      .from('factories')
-      .update({
-        used_slots: updatedFactory.usedSlots,
-        last_slot_regen: updatedFactory.lastSlotRegen.toISOString()
-      })
-      .eq('x', factoryX)
-      .eq('y', factoryY);
-
-    if (factoryUpdateError) {
-      log.error('Failed to update factory slots', factoryUpdateError);
-    }
+    await factoriesCollection.updateOne(
+      { x: factoryX, y: factoryY },
+      {
+        $set: {
+          usedSlots: updatedFactory.usedSlots,
+          lastSlotRegen: updatedFactory.lastSlotRegen
+        }
+      }
+    );
 
     // 16. Track units built for achievements
     await trackUnitBuilt(username, quantity);
 
     // 17. Award XP for unit building (5 XP per unit)
     const xpResult = await awardXP(username, XPAction.UNIT_BUILD, quantity);
-
-    // Get updated player unit count
-    const { count: unitCount } = await supabase
-      .from('player_units')
-      .select('*', { count: 'exact', head: true })
-      .eq('player_username', username);
 
     log.info('Factory units built successfully', { 
       username, 
@@ -315,7 +254,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       playerTotals: {
         totalStrength: newTotalStrength,
         totalDefense: newTotalDefense,
-        unitCount: unitCount || 0
+        unitCount: (player.units?.length || 0) + quantity
       },
       factoryStatus: {
         availableSlots: updatedFactory.slots - updatedFactory.usedSlots,
@@ -359,10 +298,10 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
  * 9. Calculate new STR/DEF totals
  * 10. Atomic database updates:
  *     - Deduct resources from player
- *     - Insert units into player_units table
- *     - Update player total_strength and total_defense
+ *     - Add units to player.units array
+ *     - Update player.totalStrength and totalDefense
  *     - Consume factory slots
- *     - Update factory last_slot_regen timestamp
+ *     - Update factory lastSlotRegen timestamp
  * 11. Return success with comprehensive status
  * 
  * ERROR HANDLING:

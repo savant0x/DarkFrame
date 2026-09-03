@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/warfare/capture/route.ts
  * @created 2025-10-18
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-01-23 (FID-20251023-001: Auth deduplication + JSDoc)
  * 
  * OVERVIEW:
  * POST endpoint for capturing enemy territory during an active war. Validates war status,
@@ -26,18 +26,45 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  captureTerritory,
-  logger,
-} from '@/lib';
+import { getClientAndDatabase } from '@/lib/mongodb';
+import { requireClanMembership } from '@/lib/authMiddleware';
+import { captureTerritory } from '@/lib/clanWarfareService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/warfare/capture
+ * Attempt to capture enemy territory during active war
+ * 
+ * @param request - NextRequest with auth cookie and body data
+ * @returns NextResponse with capture result or error
+ * 
+ * @example
+ * POST /api/clan/warfare/capture
+ * Body: { targetClanId: "676a1b2c3d4e5f6a7b8c9d0e", tileX: 10, tileY: 15 }
+ * Response (success): {
+ *   success: true,
+ *   territory: { tileX: 10, tileY: 15, clanId: "..." },
+ *   defenseBonus: 20,
+ *   message: "Successfully captured territory (10, 15)!"
+ * }
+ * 
+ * @example
+ * POST /api/clan/warfare/capture
+ * Body: { targetClanId: "...", tileX: 10, tileY: 15 }
+ * Response (failed capture): {
+ *   success: false,
+ *   defenseBonus: 40,
+ *   message: "Failed to capture territory. Enemy defense bonus: 40%"
+ * }
+ * 
+ * @throws {400} Invalid coords, no active war, territory not owned by target
+ * @throws {401} Not authenticated
+ * @throws {403} Insufficient permissions (not Officer/Co-Leader/Leader)
+ * @throws {404} Player or clan not found
+ * @throws {500} Server error
+ */
+export async function POST(request: NextRequest) {
   try {
+    const { db } = await getClientAndDatabase();
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
@@ -80,37 +107,38 @@ export const POST = rateLimiter(async (request: NextRequest) => {
     // Return result (success can be true or false - both are 200 OK)
     return NextResponse.json({
       success: captureResult.success,
+      territory: captureResult.territory,
+      defenseBonus: captureResult.defenseBonus,
       message: captureResult.message,
     });
 
-  } catch (error: unknown) {
-    logger.error('Error capturing territory:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
+  } catch (error: any) {
+    console.error('Error capturing territory:', error);
 
     // Permission errors
-    if (errorMessage.includes('permission') || errorMessage.includes('Officer')) {
+    if (error.message.includes('permission') || error.message.includes('Officer')) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 403 }
       );
     }
 
     // Business rule violations
     if (
-      errorMessage.includes('No active war') ||
-      errorMessage.includes('not owned by target') ||
-      errorMessage.includes('territory not owned')
+      error.message.includes('No active war') ||
+      error.message.includes('not owned by target') ||
+      error.message.includes('territory not owned')
     ) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 400 }
       );
     }
 
     // Not found errors
-    if (errorMessage.includes('not found')) {
+    if (error.message.includes('not found')) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 404 }
       );
     }
@@ -120,7 +148,7 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * Implementation Notes:

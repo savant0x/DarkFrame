@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/invite/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
  * 
  * OVERVIEW:
  * Clan invitation endpoint. Allows clan members with permission to invite other players.
@@ -23,15 +23,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireClanMembership } from '@/lib';
+import { getClientAndDatabase, requireClanMembership } from '@/lib';
 import { invitePlayerToClan } from '@/lib/clanService';
+import type { Player } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -63,9 +62,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('send-invite');
   
   try {
+    const { db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
-    const { auth, clan, clanId } = result;
+    const { auth, clanId } = result;
 
     const body = await request.json();
     const { targetUsername } = body;
@@ -77,13 +78,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       );
     }
 
-    const supabase = createServiceClient();
-    const { data: targetPlayer } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', targetUsername)
-      .maybeSingle();
+    
 
+    const targetPlayer = await db.collection<Player>('players').findOne({ username: targetUsername });
     if (!targetPlayer) {
       return NextResponse.json(
         { success: false, error: 'Target player not found' },
@@ -91,7 +88,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       );
     }
 
-    const invitation = await invitePlayerToClan(clanId, auth.playerId, targetPlayer.username);
+    const invitedPlayerId = targetPlayer.username;
+
+    const invitation = await invitePlayerToClan(clanId, auth.playerId, invitedPlayerId);
 
     log.info('Clan invitation sent', { clanId, targetUsername, inviterId: auth.playerId });
     return NextResponse.json({
@@ -100,25 +99,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       message: `Invitation sent to ${targetUsername}`,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     log.error('Clan invite error', error instanceof Error ? error : new Error(String(error)));
 
+    const message = error instanceof Error ? error.message : String(error);
+
     // Handle specific errors
-    if (error.message?.includes('permission')) {
+    if (message.includes('permission')) {
       return NextResponse.json(
         { success: false, error: 'You do not have permission to invite members' },
         { status: 403 }
       );
     }
 
-    if (error.message?.includes('full')) {
+    if (message.includes('full')) {
       return NextResponse.json(
         { success: false, error: 'Clan is full' },
         { status: 400 }
       );
     }
 
-    if (error.message?.includes('already in a clan')) {
+    if (message.includes('already in a clan')) {
       return NextResponse.json(
         { success: false, error: 'Player is already in a clan' },
         { status: 400 }

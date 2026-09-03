@@ -21,7 +21,7 @@
  * - Activity logging for clan events
  */
 
-type ObjectId = string;
+import { ObjectId } from 'mongodb';
 
 // ============================================================================
 // ENUMS
@@ -346,10 +346,10 @@ export const ROLE_PERMISSIONS: Record<ClanRole, ClanPermissions> = {
  * }
  */
 export function hasPermission(
-  role: ClanRole | 'LEADER' | 'CO_LEADER' | 'OFFICER' | 'ELITE' | 'MEMBER' | 'RECRUIT',
+  role: ClanRole,
   permission: keyof Omit<ClanPermissions, 'bonusRPContribution' | 'warDeploymentPriority'>
 ): boolean {
-  return ROLE_PERMISSIONS[role as ClanRole][permission];
+  return ROLE_PERMISSIONS[role][permission];
 }
 
 /**
@@ -399,6 +399,9 @@ export enum ClanBankTransactionType {
   RESEARCH_SPENDING = 'RESEARCH_SPENDING',
   PERK_ACTIVATION = 'PERK_ACTIVATION',
   BANK_UPGRADE = 'BANK_UPGRADE',
+  TERRITORY_INCOME = 'TERRITORY_INCOME',
+  WMD_PURCHASE = 'WMD_PURCHASE',
+  ADMIN_REFUND = 'ADMIN_REFUND',
 }
 
 /**
@@ -539,7 +542,7 @@ export interface ClanMember {
  * Main clan document (enhanced with levels, perks, banking)
  */
 export interface Clan {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   name: string;             // Full clan name
   tag: string;              // 2-6 character clan tag (e.g., [DARK])
   description: string;      // Clan description/motto
@@ -633,7 +636,7 @@ export interface ClanResearch {
  * Clan territory tile
  */
 export interface ClanTerritory {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   clanId: string;           // Owning clan
   tileX: number;            // X coordinate
   tileY: number;            // Y coordinate
@@ -818,7 +821,7 @@ export const CLAN_NAMING_RULES = {
   NAME_MIN_LENGTH: 3,
   NAME_MAX_LENGTH: 30,
   TAG_MIN_LENGTH: 2,
-  TAG_MAX_LENGTH: 5,
+  TAG_MAX_LENGTH: 4,
   TAG_PATTERN: /^[A-Z0-9]+$/,  // Uppercase alphanumeric only
 };
 
@@ -1432,124 +1435,3 @@ export const CLAN_PERK_CATALOG: ClanPerk[] = [
  *    - Monument bonuses apply to all members
  *    - Territory defense bonuses when on clan land
  */
-
-// ============================================================================
-// CLAN ANALYTICS TYPES (for ClanInspectorModal)
-// ============================================================================
-
-export interface ClanAnalyticsOverview {
-  totalMembers: number;
-  activeMembers7d: number;
-  treasury: { metal: number; energy: number };
-  territoryCount: number;
-  warRecord: { wins: number; losses: number };
-  healthScore: number;
-  createdAt: string;
-}
-
-export interface ClanAnalyticsMember {
-  username: string;
-  role: ClanRole;
-  joinedAt: string;
-  lastActive: string;
-  rpContributed: number;
-  warsParticipated: number;
-  territoriesCaptured: number;
-}
-
-export interface ClanAnalyticsFinancial {
-  totalDeposits: number;
-  totalWithdrawals: number;
-  netFlow: number;
-  taxCollected: number;
-  transactions: Array<{
-    id: string;
-    username: string;
-    type: 'deposit' | 'withdrawal' | 'tax';
-    amount: number;
-    resource: 'metal' | 'energy';
-    createdAt: string;
-  }>;
-}
-
-export interface ClanAnalyticsTerritory {
-  totalTerritories: number;
-  incomePerDay: number;
-  defenseBonus: number;
-  territories: Array<{
-    x: number;
-    y: number;
-    terrain: string;
-    income: number;
-    capturedAt: string;
-  }>;
-}
-
-export interface ClanAnalyticsWarfare {
-  totalWars: number;
-  currentWars: number;
-  winRate: number;
-  battles: Array<{
-    id: string;
-    opponentClan: string;
-    result: 'win' | 'loss';
-    date: string;
-    territoriesGained: number;
-    territoriesLost: number;
-  }>;
-}
-
-export interface ClanAnalyticsActivity {
-  totalActions: number;
-  actionsByType: Record<string, number>;
-  recentActivities: Array<{
-    id: string;
-    username: string;
-    action: string;
-    details: string;
-    createdAt: string;
-  }>;
-}
-
-export interface ClanAnalyticsResearch {
-  totalRPContributed: number;
-  completedResearch: string[];
-  inProgress: Array<{
-    name: string;
-    progress: number;
-    required: number;
-  }>;
-  activePerks: string[];
-}
-
-export interface ClanAnalyticsAlliance {
-  totalAlliances: number;
-  alliances: Array<{
-    clanName: string;
-    formedAt: string;
-    status: 'active' | 'broken';
-    terms: string;
-  }>;
-}
-
-export interface ClanAnalyticsHealth {
-  healthScore: number;
-  trend: 'improving' | 'stable' | 'declining';
-  factors: Array<{
-    name: string;
-    score: number;
-    weight: number;
-  }>;
-  prediction: string;
-}
-
-export type ClanAnalyticsData =
-  | ClanAnalyticsOverview
-  | ClanAnalyticsMember[]
-  | ClanAnalyticsFinancial
-  | ClanAnalyticsTerritory
-  | ClanAnalyticsWarfare
-  | ClanAnalyticsActivity
-  | ClanAnalyticsResearch
-  | ClanAnalyticsAlliance
-  | ClanAnalyticsHealth;

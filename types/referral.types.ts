@@ -14,7 +14,7 @@
  * - Admin management capabilities
  */
 
-type ObjectId = string;
+import { ObjectId } from 'mongodb';
 
 /**
  * Referral reward package given to referrer when referral validates
@@ -196,7 +196,7 @@ export interface ReferralDashboardData {
   nextMilestone: ReferralMilestone | null;
   progressToNextMilestone: number; // Percentage (0-100)
   recentRewards: Array<{
-    date: Date;
+    date: Date | null; // validationDate is null until the 7-day validation passes
     reward: ReferralReward;
     newPlayerUsername: string;
   }>;

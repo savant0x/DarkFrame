@@ -8,7 +8,8 @@
  */
 
 import type { Server, Socket } from 'socket.io';
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { chatMessages } from '@/lib/db/schema';
 import type { AuthenticatedUser } from '../auth';
 import {
   broadcastChatMessage,
@@ -16,6 +17,7 @@ import {
   broadcastMemberOnlineStatus,
 } from '../broadcast';
 import type { ChatMessagePayload, ChatTypingPayload } from '@/types/websocket';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Handles sending a chat message
@@ -32,44 +34,43 @@ export async function handleSendMessage(
 ): Promise<void> {
   const user = socket.data.user as AuthenticatedUser | undefined;
 
-  if (!user || !user.clanId) {
-    callback?.({ success: false, error: 'Unauthorized or no clan membership' });
+  if (!user) {
+    callback?.({ success: false, error: 'Unauthorized' });
     return;
   }
   
   try {
-    const supabase = createServiceClient();
-    const now = Date.now();
+    const messageId = randomUUID();
+    const now = new Date();
+    const monthCategory = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
-    const messageId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    await db.insert(chatMessages).values({
+      id: messageId,
+      channelId: data.channelId,
+      clanId: user.clanId,
+      senderId: user.userId,
+      senderUsername: user.username,
+      senderLevel: user.level ?? 1,
+      isVIP: Number(Boolean((user as any).isVIP ?? (user as any).vip ?? false)),
+      isNewbie: 0,
+      message: data.content,
+      itemLinks: [],
+      mentions: data.mentions || [],
+      timestamp: now,
+      monthCategory,
+      edited: 0,
+      deleted: 0,
+    });
     
-    const { error } = await supabase
-      .from('clan_chat_messages')
-      .insert({
-        id: messageId,
-        channel: data.channelId,
-        clan_id: user.clanId,
-        sender_id: user.userId,
-        message: data.content,
-        created_at: new Date(now).toISOString(),
-        deleted: false,
-        sender_role: 'MEMBER',
-      });
-
-    if (error) {
-      throw error;
-    }
-    
-    // Broadcast message
     const payload: ChatMessagePayload = {
       messageId,
       channelId: data.channelId,
       userId: user.userId,
       username: user.username,
-      level: (user as { level?: number }).level ?? 1,
-      isVIP: Boolean((user as { isVIP?: boolean; vip?: boolean }).isVIP ?? (user as { vip?: boolean }).vip ?? false),
+      level: (user as any).level ?? 1,
+      isVIP: Boolean((user as any).isVIP ?? (user as any).vip ?? false),
       content: data.content,
-      timestamp: now,
+      timestamp: Date.now(),
       mentions: data.mentions,
     };
     

@@ -7,129 +7,52 @@
  * Manages clan level progression from 1-50 with exponential XP curve. Awards XP from member
  * actions (harvesting, combat, research, building) and triggers milestone rewards at key levels.
  * Unlocks features progressively: bank upgrades, perks, monuments, and warfare capabilities.
+ * 
+ * Core Systems:
+ * - XP Calculation: Action-based XP awards with diminishing returns for repetitive actions
+ * - Level Progression: Exponential curve (baseXP * level^1.8) requiring ~50M total XP to max
+ * - Milestone Rewards: Resource bonuses, bank capacity, perk unlocks at levels 5,10,15,20,25,30,40,50
+ * - Feature Unlocking: Progressive access to advanced systems (perks at 5, monuments at 20, warfare at 25)
+ * - Progress Tracking: Real-time XP gain notifications and level-up events
+ * 
+ * XP Award Rates:
+ * - Harvesting: 5 XP per harvest (metal, energy, research points)
+ * - Combat Victory: 10 XP per enemy defeated
+ * - Research Contribution: 15 XP per 1000 RP contributed
+ * - Building Construction: 20 XP per building completed
+ * - Territory Claim: 50 XP per territory captured
+ * - Monument Control: 100 XP per monument controlled
+ * 
+ * Level Unlocks:
+ * - Level 5: Bronze perks, bank level 2
+ * - Level 10: Silver perks, bank level 3
+ * - Level 15: Gold perks, bank level 4
+ * - Level 20: Legendary perks, monuments, bank level 5
+ * - Level 25: Clan warfare, bank level 6
+ * - Level 30: Advanced monuments
+ * - Level 40: Elite warfare bonuses
+ * - Level 50: Max level rewards (prestige badge, 10M resources)
+ * 
+ * Integration Points:
+ * - clanService.ts: Calls awardClanXP() when clan created/member joins
+ * - clanActivityService.ts: Logs all XP awards to activity feed
+ * - Player action handlers: Award XP on harvests, combat, research
+ * - API routes: GET level info, POST award XP (admin/system only)
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
+import { db } from '@/lib/db';
+import { clans } from '@/lib/db/schema';
+import { eq, sql, gte } from 'drizzle-orm';
 import {
   Clan,
+  ClanLevel,
   ClanMilestone,
   ClanXPSource,
+  ClanActivityType,
   CLAN_LEVEL_CONSTANTS,
   CLAN_XP_RATES,
   CLAN_MILESTONES,
 } from '@/types/clan.types';
-
-type MilestoneEntry = {
-  level: number;
-  completedAt: string;
-  rewards: { metal: number; energy: number; researchPoints: number };
-};
-
-function readMilestones(settings: Record<string, unknown>): Array<{
-  level: number;
-  completedAt: Date;
-  rewards: { metal: number; energy: number; researchPoints: number };
-}> {
-  const raw = (settings.milestonesCompleted as MilestoneEntry[]) || [];
-  return raw.map((m) => ({
-    level: m.level,
-    completedAt: new Date(m.completedAt),
-    rewards: m.rewards,
-  }));
-}
-
-async function fetchClanWithMembers(supabase: ReturnType<typeof createServiceClient>, clanId: string): Promise<Clan> {
-  const { data: clanRow, error } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clanRow) {
-    throw new Error('Clan not found');
-  }
-
-  const { data: memberRows } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
-
-  const r = clanRow as Record<string, unknown>;
-  const settings = (r.clan_settings as Record<string, unknown>) || {};
-  const members = (memberRows || []).map((m) => ({
-    playerId: m.player_id as string,
-    username: m.username as string,
-    role: m.role as import('@/types/clan.types').ClanRole,
-    joinedAt: new Date(m.joined_at as string),
-    lastActive: new Date(m.last_active as string),
-  }));
-
-  return {
-    _id: r.id as string,
-    name: r.name as string,
-    tag: r.tag as string,
-    description: r.description as string,
-    leaderId: r.leader_id as string,
-    members,
-    maxMembers: r.max_members as number,
-    level: {
-      currentLevel: r.clan_level as number,
-      totalXP: r.total_xp as number,
-      currentLevelXP: r.current_level_xp as number,
-      xpToNextLevel: r.xp_to_next_level as number,
-      featuresUnlocked: (settings.featuresUnlocked as string[]) || [],
-      milestonesCompleted: readMilestones(settings),
-      lastLevelUp: r.last_level_up ? new Date(r.last_level_up as string) : undefined,
-      lastXPGain: r.last_xp_gain ? new Date(r.last_xp_gain as string) : undefined,
-      prestigeBadge: r.prestige_badge as string | undefined,
-    },
-    createdAt: new Date(r.created_at as string),
-    settings: {
-      messageOfTheDay: (settings.messageOfTheDay as string) || '',
-      isRecruiting: (settings.isRecruiting as boolean) || false,
-      minLevelToJoin: (settings.minLevelToJoin as number) || 1,
-      requiresApproval: (settings.requiresApproval as boolean) || false,
-      allowTerritoryControl: (settings.allowTerritoryControl as boolean) !== false,
-      allowWarDeclarations: (settings.allowWarDeclarations as boolean) !== false,
-    },
-    stats: {
-      totalPower: r.total_power as number || 0,
-      totalTerritories: r.total_territories as number || 0,
-      totalMonuments: r.total_monuments as number || 0,
-      warsWon: r.wars_won as number || 0,
-      warsLost: r.wars_lost as number || 0,
-      totalRP: r.total_rp as number || 0,
-    },
-    research: {
-      researchPoints: r.research_points as number || 0,
-      unlockedTechs: r.unlocked_research as string[] || [],
-      activeResearch: r.active_research as string | null,
-    },
-    bank: {
-      treasury: {
-        metal: r.bank_treasury_metal as number || 0,
-        energy: r.bank_treasury_energy as number || 0,
-        researchPoints: r.bank_treasury_rp as number || 0,
-      },
-      taxRates: {
-        metal: r.bank_tax_metal as number || 0,
-        energy: r.bank_tax_energy as number || 0,
-        researchPoints: r.bank_tax_rp as number || 0,
-      },
-      upgradeLevel: r.bank_upgrade_level as number || 1,
-      capacity: r.bank_capacity as number || 0,
-      transactions: [],
-    },
-    activePerks: [],
-    territories: [],
-    monuments: [],
-    wars: {
-      active: [],
-      history: [],
-    },
-  };
-}
 
 export async function awardClanXP(
   clanId: string,
@@ -145,101 +68,101 @@ export async function awardClanXP(
   newLevel: number;
   milestoneRewards?: ClanMilestone;
 }> {
-  const supabase = createServiceClient();
-
-  const { data: clanRow, error } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clanRow) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
 
-  const r = clanRow as Record<string, unknown>;
-  const settings = (r.clan_settings as Record<string, unknown>) || {};
-  const currentClanLevel = r.clan_level as number;
-  const currentTotalXP = r.total_xp as number;
-  const currentFeatures = (settings.featuresUnlocked as string[]) || [];
-  const currentMilestones: MilestoneEntry[] = (settings.milestonesCompleted as MilestoneEntry[]) || [];
+  const clan = clanRows[0];
+  const clanLevel: ClanLevel = {
+    currentLevel: clan.levelCurrentLevel,
+    totalXP: clan.levelTotalXP,
+    currentLevelXP: clan.levelCurrentLevelXP,
+    xpToNextLevel: clan.levelXpToNextLevel,
+    featuresUnlocked: clan.levelFeaturesUnlocked,
+    milestonesCompleted: clan.levelMilestonesCompleted,
+    lastLevelUp: clan.levelLastLevelUp || undefined,
+    lastXPGain: undefined,
+  };
 
   const xpAwarded = calculateXPFromSource(source, amount);
   if (xpAwarded <= 0) {
-    const clan = await fetchClanWithMembers(supabase, clanId);
     return {
       success: false,
-      clan,
+      clan: clan as unknown as Clan,
       xpAwarded: 0,
       leveledUp: false,
-      previousLevel: currentClanLevel,
-      newLevel: currentClanLevel,
+      previousLevel: clanLevel.currentLevel,
+      newLevel: clanLevel.currentLevel,
     };
   }
 
-  const previousLevel = currentClanLevel;
-  const newTotalXP = currentTotalXP + xpAwarded;
+  const previousLevel = clanLevel.currentLevel;
+  const newTotalXP = clanLevel.totalXP + xpAwarded;
   const newLevel = calculateLevelFromXP(newTotalXP);
   const leveledUp = newLevel > previousLevel;
+
   const xpForCurrentLevel = getXPRequiredForLevel(newLevel);
   const xpForNextLevel = getXPRequiredForLevel(newLevel + 1);
   const currentLevelXP = newTotalXP - xpForCurrentLevel;
   const xpToNextLevel = xpForNextLevel - newTotalXP;
 
-  const updateData: Database['public']['Tables']['clans']['Update'] = {
-    clan_level: newLevel,
-    total_xp: newTotalXP,
-    current_level_xp: currentLevelXP,
-    xp_to_next_level: xpToNextLevel,
-    last_xp_gain: new Date().toISOString(),
-  };
-
   let milestoneRewards: ClanMilestone | undefined;
-
   if (leveledUp) {
     milestoneRewards = checkForMilestoneReward(newLevel);
-    if (milestoneRewards) {
-      updateData.bank_treasury_metal = ((r.bank_treasury_metal as number) || 0) + milestoneRewards.rewards.metal;
-      updateData.bank_treasury_energy = ((r.bank_treasury_energy as number) || 0) + milestoneRewards.rewards.energy;
-      updateData.bank_treasury_rp = ((r.bank_treasury_rp as number) || 0) + milestoneRewards.rewards.researchPoints;
+  }
 
-      let features = [...currentFeatures];
-      let milestones: MilestoneEntry[] = [...currentMilestones];
+  const updates: any = {
+    levelCurrentLevel: newLevel,
+    levelTotalXP: newTotalXP,
+    levelCurrentLevelXP: currentLevelXP,
+    levelXpToNextLevel: xpToNextLevel,
+    lastXPGain: new Date(),
+  };
+
+  if (leveledUp) {
+    updates.levelLastLevelUp = new Date();
+
+    if (milestoneRewards) {
+      updates.bankTreasuryMetal = sql`${clans.bankTreasuryMetal} + ${milestoneRewards.rewards.metal}`;
+      updates.bankTreasuryEnergy = sql`${clans.bankTreasuryEnergy} + ${milestoneRewards.rewards.energy}`;
+      updates.bankTreasuryResearchPoints = sql`${clans.bankTreasuryResearchPoints} + ${milestoneRewards.rewards.researchPoints}`;
 
       if (milestoneRewards.unlocksFeature) {
-        if (!features.includes(milestoneRewards.unlocksFeature)) {
-          features.push(milestoneRewards.unlocksFeature);
+        const existingFeatures = clan.levelFeaturesUnlocked || [];
+        if (!existingFeatures.includes(milestoneRewards.unlocksFeature)) {
+          const newFeatures = [...existingFeatures, milestoneRewards.unlocksFeature];
+          updates.levelFeaturesUnlocked = newFeatures;
         }
       }
 
-      milestones.push({
-        level: newLevel,
-        completedAt: new Date().toISOString(),
-        rewards: milestoneRewards.rewards,
-      });
-
-      updateData.last_level_up = new Date().toISOString();
-
-      updateData.clan_settings = {
-        ...settings,
-        featuresUnlocked: features,
-        milestonesCompleted: milestones,
-      };
+      const existingMilestones = clan.levelMilestonesCompleted || [];
+      const newMilestones = [
+        ...existingMilestones,
+        {
+          level: newLevel,
+          completedAt: new Date(),
+          rewards: milestoneRewards.rewards,
+        },
+      ];
+      updates.levelMilestonesCompleted = newMilestones;
     }
   }
 
-  await supabase
-    .from('clans')
-    .update(updateData)
-    .eq('id', clanId);
+  await db.update(clans).set(updates).where(eq(clans.id, clanId));
 
-  const updatedClan = await fetchClanWithMembers(supabase, clanId);
+  const updatedClanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (updatedClanRows.length === 0) {
+    throw new Error('Failed to retrieve updated clan');
+  }
 
-  await logXPActivity(supabase, clanId, playerId, source, xpAwarded, leveledUp, previousLevel, newLevel);
+  const updatedClan = updatedClanRows[0];
+
+  await logXPActivity(clanId, playerId, source, xpAwarded, leveledUp, previousLevel, newLevel);
 
   return {
     success: true,
-    clan: updatedClan,
+    clan: updatedClan as unknown as Clan,
     xpAwarded,
     leveledUp,
     previousLevel,
@@ -259,27 +182,20 @@ export async function getClanLevelInfo(clanId: string): Promise<{
   featuresUnlocked: string[];
   maxLevel: boolean;
 }> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
 
-  const r = clan as Record<string, unknown>;
-  const settings = (r.clan_settings as Record<string, unknown>) || {};
-  const currentLevel = r.clan_level as number;
-  const totalXP = r.total_xp as number;
-  const currentLevelXP = r.current_level_xp as number;
-  const xpToNextLevel = r.xp_to_next_level as number;
+  const clan = clanRows[0];
+  const currentLevel = clan.levelCurrentLevel;
+  const totalXP = clan.levelTotalXP;
+  const currentLevelXP = clan.levelCurrentLevelXP;
+  const xpToNextLevel = clan.levelXpToNextLevel;
 
   const xpRequiredForNextLevel = getXPRequiredForLevel(currentLevel + 1) - getXPRequiredForLevel(currentLevel);
   const progressPercentage = Math.floor((currentLevelXP / xpRequiredForNextLevel) * 100);
+
   const nextMilestone = findNextMilestone(currentLevel);
 
   return {
@@ -289,8 +205,8 @@ export async function getClanLevelInfo(clanId: string): Promise<{
     xpToNextLevel,
     progressPercentage,
     nextMilestone,
-    milestonesCompleted: ((settings.milestonesCompleted as unknown[]) || []).length,
-    featuresUnlocked: (settings.featuresUnlocked as string[]) || [],
+    milestonesCompleted: (clan.levelMilestonesCompleted || []).length,
+    featuresUnlocked: clan.levelFeaturesUnlocked || [],
     maxLevel: currentLevel >= CLAN_LEVEL_CONSTANTS.MAX_LEVEL,
   };
 }
@@ -304,30 +220,18 @@ export async function getClanMilestones(clanId: string): Promise<{
   upcoming: ClanMilestone[];
   currentLevel: number;
 }> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('clan_level, clan_settings')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     throw new Error('Clan not found');
   }
 
-  const r = clan as Record<string, unknown>;
-  const settings = (r.clan_settings as Record<string, unknown>) || {};
-  const currentLevel = r.clan_level as number;
-
-  const completed = readMilestones(settings);
-
-  const upcoming = CLAN_MILESTONES.filter((m) => m.level > currentLevel);
+  const clan = clanRows[0];
+  const upcoming = CLAN_MILESTONES.filter((m) => m.level > clan.levelCurrentLevel);
 
   return {
-    completed,
+    completed: clan.levelMilestonesCompleted || [],
     upcoming,
-    currentLevel,
+    currentLevel: clan.levelCurrentLevel,
   };
 }
 
@@ -373,21 +277,12 @@ export function findNextMilestone(currentLevel: number): ClanMilestone | null {
 }
 
 export async function isFeatureUnlocked(clanId: string, featureName: string): Promise<boolean> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('clan_settings')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
     return false;
   }
 
-  const settings = ((clan as Record<string, unknown>).clan_settings as Record<string, unknown>) || {};
-  const features = (settings.featuresUnlocked as string[]) || [];
-  return features.includes(featureName);
+  return (clanRows[0].levelFeaturesUnlocked || []).includes(featureName);
 }
 
 export function getRecommendedXPSources(): Array<{
@@ -433,41 +328,33 @@ export async function estimateTimeToNextLevel(
   clanId: string,
   daysToAnalyze: number = 7
 ): Promise<number | null> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('clan_level, xp_to_next_level')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0 || clanRows[0].levelCurrentLevel >= CLAN_LEVEL_CONSTANTS.MAX_LEVEL) {
     return null;
   }
 
-  const r = clan as Record<string, unknown>;
-  if ((r.clan_level as number) >= CLAN_LEVEL_CONSTANTS.MAX_LEVEL) {
-    return null;
-  }
+  const clan = clanRows[0];
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysToAnalyze);
 
-  const { data: recentActivities } = await supabase
-    .from('clan_activity')
-    .select('details')
-    .eq('clan_id', clanId)
-    .eq('activity_type', 'LEVEL_UP')
-    .gte('created_at', cutoffDate.toISOString());
+  const result = await db.execute(sql`
+    SELECT details FROM clan_activities
+    WHERE clan_id = ${clanId}
+      AND activity_type = 'xp_gain'
+      AND timestamp >= ${cutoffDate}
+  `);
 
-  if (!recentActivities || recentActivities.length === 0) {
+  const activities = result.rows as any[];
+  if (activities.length === 0) {
     return null;
   }
 
-  const totalXP = recentActivities.reduce((sum, activity) => {
-    const details = (activity as Record<string, unknown>).details as Record<string, unknown> | null;
-    return sum + ((details?.xp_awarded as number) || 0);
-  }, 0);
+  let totalXP = 0;
+  for (const activity of activities) {
+    const details = typeof activity.details === 'string' ? JSON.parse(activity.details) : activity.details;
+    totalXP += details?.xpAwarded || 0;
+  }
 
   const hoursAnalyzed = daysToAnalyze * 24;
   const xpPerHour = totalXP / hoursAnalyzed;
@@ -476,14 +363,13 @@ export async function estimateTimeToNextLevel(
     return null;
   }
 
-  const xpNeeded = r.xp_to_next_level as number;
+  const xpNeeded = clan.levelXpToNextLevel;
   const hoursToNextLevel = Math.ceil(xpNeeded / xpPerHour);
 
   return hoursToNextLevel;
 }
 
 async function logXPActivity(
-  supabase: ReturnType<typeof createServiceClient>,
   clanId: string,
   playerId: string,
   source: ClanXPSource,
@@ -492,18 +378,15 @@ async function logXPActivity(
   previousLevel: number,
   newLevel: number
 ): Promise<void> {
-  if (!leveledUp) return;
-
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'LEVEL_UP',
-    player_id: playerId,
-    created_at: new Date().toISOString(),
-    details: {
-      source,
-      xp_awarded: xpAwarded,
-      previous_level: previousLevel,
-      new_level: newLevel,
-    },
-  });
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, player_id, timestamp, details)
+    VALUES (${clanId}, ${leveledUp ? 'level_up' : 'xp_gain'}, ${playerId},
+            ${new Date()}, ${JSON.stringify({
+              source,
+              xpAwarded,
+              previousLevel,
+              newLevel,
+            })})
+  `);
 }

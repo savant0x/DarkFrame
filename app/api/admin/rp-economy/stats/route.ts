@@ -1,13 +1,7 @@
-/**
- * @file app/api/admin/rp-economy/stats/route.ts
- * @created 2025-10-20
- * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
- * @overview API endpoint for RP economy statistics
- */
-
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { getAuthenticatedUser } from '@/lib/authService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -20,74 +14,83 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
-/**
- * GET /api/admin/rp-economy/stats
- * Returns overall RP economy statistics
- */
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('admin/rp-economy/stats');
   const endTimer = log.time('get-rp-economy-stats');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
-    const supabase = createServiceClient();
-
-    // Fetch all players — only columns that exist in the players table
-    const { data: players, error } = await supabase
-      .from('players')
-      .select('research_points, is_vip, vip_expiration');
-
-    if (error) {
-      throw error;
+    const adminUser = await getAuthenticatedUser();
+    if (!adminUser?.isAdmin) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
     }
 
-    if (!players || players.length === 0) {
-      return NextResponse.json({
-        totalRP: 0,
-        totalGenerated: 0,
-        totalSpent: 0,
-        dailyGeneration: 0,
-        activeEarners24h: 0,
-        averageBalance: 0,
-        medianBalance: 0,
-        vipPlayers: 0,
-      });
+    const allPlayers = await db.select({
+      username: players.username,
+      researchPoints: players.researchPoints,
+      vip: players.vip,
+      vipExpiration: players.vipExpiration,
+      rpHistory: players.rpHistory,
+    }).from(players);
+    
+    const totalRP = allPlayers.reduce((sum, p) => sum + (p.researchPoints || 0), 0);
+    const vipPlayers = allPlayers.filter((p) => p.vip === 1 && p.vipExpiration && new Date(p.vipExpiration) > new Date()).length;
+    
+    let totalGenerated = 0;
+    let totalSpent = 0;
+    
+    for (const player of allPlayers) {
+      if (player.rpHistory && Array.isArray(player.rpHistory)) {
+        for (const entry of player.rpHistory) {
+          if (entry.amount > 0) {
+            totalGenerated += entry.amount;
+          } else {
+            totalSpent += Math.abs(entry.amount);
+          }
+        }
+      }
     }
 
-    const totalRP = players.reduce((sum, p) => sum + (p.research_points || 0), 0);
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const activeEarners24h = allPlayers.filter((p) => {
+      if (!p.rpHistory || !Array.isArray(p.rpHistory)) return false;
+      return p.rpHistory.some((entry: any) => 
+        entry.amount > 0 && 
+        entry.timestamp && 
+        new Date(entry.timestamp) > oneDayAgo
+      );
+    }).length;
 
-    const now = new Date();
-    const vipPlayers = players.filter(
-      (p) => p.is_vip && p.vip_expiration && new Date(p.vip_expiration) > now
-    ).length;
+    let dailyGeneration = 0;
+    for (const player of allPlayers) {
+      if (player.rpHistory && Array.isArray(player.rpHistory)) {
+        for (const entry of player.rpHistory) {
+          if (entry.amount > 0 && entry.timestamp && new Date(entry.timestamp) > oneDayAgo) {
+            dailyGeneration += entry.amount;
+          }
+        }
+      }
+    }
 
-    // Calculate average and median balance from research_points
-    const balances = players
-      .map((p) => p.research_points || 0)
-      .sort((a, b) => a - b);
-
-    const averageBalance = Math.round(totalRP / players.length);
-    const medianBalance =
-      balances.length > 0 ? balances[Math.floor(balances.length / 2)] : 0;
+    const balances = allPlayers.map((p) => p.researchPoints || 0).sort((a, b) => a - b);
+    const averageBalance = Math.round(totalRP / allPlayers.length);
+    const medianBalance = balances.length > 0 ? balances[Math.floor(balances.length / 2)] : 0;
 
     log.info('RP economy stats retrieved', {
       totalRP,
-      dailyGeneration: 0,
-      activeEarners24h: 0,
+      dailyGeneration,
+      activeEarners24h,
       vipPlayers,
     });
 
     return NextResponse.json({
       totalRP,
-      totalGenerated: 0,
-      totalSpent: 0,
-      dailyGeneration: 0,
-      activeEarners24h: 0,
+      totalGenerated,
+      totalSpent,
+      dailyGeneration,
+      activeEarners24h,
       averageBalance,
       medianBalance,
-      vipPlayers,
+      vipPlayers
     });
 
   } catch (error) {

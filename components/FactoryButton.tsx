@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { TerrainType, AttackResult, Factory } from '@/types';
 import { calculateUpgradeCost, getFactoryStats, formatFactoryLevel } from '@/lib/factoryUpgradeService';
@@ -45,39 +45,7 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
     fetchFactory();
   }, [currentTile]);
 
-  /**
-   * Keyboard shortcut: R = Attack/Control factory
-   */
-  useEffect(() => {
-    if (!player || !currentTile) return;
-    if (currentTile.terrain !== TerrainType.Factory) return;
-    
-    function handleKeyPress(event: KeyboardEvent) {
-      if (isAttacking || isLoading) return;
-      
-      // Ignore if typing in input field
-      if (isTypingInInput()) {
-        return;
-      }
-      
-      // Ignore if any modal is open
-      if (document.querySelector('[role="dialog"]') || document.querySelector('.modal-open')) {
-        return;
-      }
-      
-      // R for factory attack
-      if (event.key === 'r' || event.key === 'R') {
-        event.preventDefault();
-        event.stopPropagation();
-        handleAttack();
-      }
-    }
-    
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isAttacking, isLoading, player, currentTile]);
-
-  const handleAttack = async () => {
+  const handleAttack = useCallback(async () => {
     if (!player || !currentTile || isAttacking) return;
     
     setIsAttacking(true);
@@ -120,7 +88,39 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
     } finally {
       setIsAttacking(false);
     }
-  };
+  }, [player, currentTile, isAttacking, onAttackResult, refreshGameState]);
+
+  /**
+   * Keyboard shortcut: R = Attack/Control factory
+   */
+  useEffect(() => {
+    if (!player || !currentTile) return;
+    if (currentTile.terrain !== TerrainType.Factory) return;
+    
+    function handleKeyPress(event: KeyboardEvent) {
+      if (isAttacking || isLoading) return;
+      
+      // Ignore if typing in input field
+      if (isTypingInInput()) {
+        return;
+      }
+      
+      // Ignore if any modal is open
+      if (document.querySelector('[role="dialog"]') || document.querySelector('.modal-open')) {
+        return;
+      }
+      
+      // R for factory attack
+      if (event.key === 'r' || event.key === 'R') {
+        event.preventDefault();
+        event.stopPropagation();
+        handleAttack();
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isAttacking, isLoading, player, currentTile, handleAttack]);
 
   const handleUpgrade = async () => {
     if (!player || !factory || isUpgrading) return;

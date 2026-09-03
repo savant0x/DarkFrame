@@ -1,15 +1,39 @@
 /**
  * Clan Alliance Service
+ * 
  * Created: 2025-10-18
  * 
  * OVERVIEW:
  * Manages alliances between clans, enabling cooperation through contracts.
  * Supports 4 alliance types with different costs, benefits, and contract options.
  * Enables joint warfare capabilities for allied clans.
+ * 
+ * Alliance Types:
+ * 1. NAP (Non-Aggression Pact) - Free, prevents war declarations
+ * 2. Trade Alliance - 10K M/E, enables resource trading at reduced fees
+ * 3. Military Alliance - 50K M/E, enables joint warfare and defense pacts
+ * 4. Federation - 200K M/E, full integration with shared research and resources
+ * 
+ * Contract Types:
+ * - Resource Sharing: Auto-share percentage of passive income
+ * - Defense Pact: Auto-join defensive wars
+ * - War Support: Provide troops/resources during wars
+ * - Joint Research: Share research point contributions
+ * 
+ * Features:
+ * - Alliance creation with mutual acceptance
+ * - Contract management per alliance type
+ * - Joint warfare participation (2v1, 2v2)
+ * - Alliance breaking with cooldowns
+ * - Contract enforcement automation
+ * 
+ * @module lib/clanAllianceService
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Json } from '@/types/database';
+import { db } from '@/lib/db';
+import { clans, players } from '@/lib/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import type { Clan } from '@/types/clan.types';
 
 export enum AllianceType {
   NAP = 'NAP',
@@ -37,7 +61,10 @@ export interface AllianceContract {
   terms: {
     resourceSharePercentage?: number;
     autoJoinDefense?: boolean;
-    supportAmount?: { metal: number; energy: number };
+    supportAmount?: {
+      metal: number;
+      energy: number;
+    };
     researchSharePercentage?: number;
   };
   createdAt: Date;
@@ -53,11 +80,17 @@ export interface Alliance {
   proposedAt: Date;
   acceptedAt?: Date;
   contracts: AllianceContract[];
-  cost: { metal: number; energy: number };
+  cost: {
+    metal: number;
+    energy: number;
+  };
   brokenAt?: Date;
   brokenBy?: string;
   cooldownUntil?: Date;
-  metadata: { createdBy: string; createdByUsername: string };
+  metadata: {
+    createdBy: string;
+    createdByUsername: string;
+  };
 }
 
 export const ALLIANCE_COSTS = {
@@ -72,9 +105,36 @@ export const ALLIANCE_BREAK_COOLDOWN_HOURS = 72;
 export const CONTRACT_LIMITS: Record<AllianceType, ContractType[]> = {
   [AllianceType.NAP]: [],
   [AllianceType.TRADE]: [ContractType.RESOURCE_SHARING],
-  [AllianceType.MILITARY]: [ContractType.RESOURCE_SHARING, ContractType.DEFENSE_PACT, ContractType.WAR_SUPPORT],
-  [AllianceType.FEDERATION]: [ContractType.RESOURCE_SHARING, ContractType.DEFENSE_PACT, ContractType.WAR_SUPPORT, ContractType.JOINT_RESEARCH],
+  [AllianceType.MILITARY]: [
+    ContractType.RESOURCE_SHARING,
+    ContractType.DEFENSE_PACT,
+    ContractType.WAR_SUPPORT,
+  ],
+  [AllianceType.FEDERATION]: [
+    ContractType.RESOURCE_SHARING,
+    ContractType.DEFENSE_PACT,
+    ContractType.WAR_SUPPORT,
+    ContractType.JOINT_RESEARCH,
+  ],
 };
+
+function rowToAlliance(row: any): Alliance {
+  return {
+    _id: row.id,
+    clanIds: JSON.parse(row.clan_ids),
+    type: row.type,
+    status: row.status,
+    proposedBy: row.proposed_by,
+    proposedAt: new Date(row.proposed_at),
+    acceptedAt: row.accepted_at ? new Date(row.accepted_at) : undefined,
+    contracts: typeof row.contracts === 'string' ? JSON.parse(row.contracts) : (row.contracts || []),
+    cost: typeof row.cost === 'string' ? JSON.parse(row.cost) : row.cost,
+    brokenAt: row.broken_at ? new Date(row.broken_at) : undefined,
+    brokenBy: row.broken_by || undefined,
+    cooldownUntil: row.cooldown_until ? new Date(row.cooldown_until) : undefined,
+    metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+  };
+}
 
 export async function proposeAlliance(
   proposingClanId: string,
@@ -82,63 +142,74 @@ export async function proposeAlliance(
   allianceType: AllianceType,
   proposedBy: string
 ): Promise<Alliance> {
-  const supabase = createServiceClient();
-
-  if (proposingClanId === targetClanId) throw new Error('Cannot create alliance with own clan');
-
-  const { data: proposingClan } = await supabase.from('clans').select('*').eq('id', proposingClanId).single();
-  const { data: targetClan } = await supabase.from('clans').select('*').eq('id', targetClanId).single();
-  if (!proposingClan || !targetClan) throw new Error('One or both clans not found');
-
-  // Verify proposer is Leader or Co-Leader
-  const { data: proposerMember } = await supabase.from('clan_members').select('*').eq('clan_id', proposingClanId).eq('player_id', proposedBy).single();
+  if (proposingClanId === targetClanId) {
+    throw new Error('Cannot create alliance with own clan');
+  }
+  
+  const proposingClanRows = await db.select().from(clans).where(eq(clans.id, proposingClanId)).limit(1);
+  const targetClanRows = await db.select().from(clans).where(eq(clans.id, targetClanId)).limit(1);
+  
+  if (proposingClanRows.length === 0 || targetClanRows.length === 0) {
+    throw new Error('One or both clans not found');
+  }
+  
+  const proposingClan = proposingClanRows[0];
+  const targetClan = targetClanRows[0];
+  
+  const proposerMember = proposingClan.members.find((m: any) => m.playerId === proposedBy);
   if (!proposerMember || (proposerMember.role !== 'LEADER' && proposerMember.role !== 'CO_LEADER')) {
     throw new Error('Only Leaders or Co-Leaders can propose alliances');
   }
-
-  // Check for existing
-  const { data: existing } = await supabase
-    .from('clan_alliances')
-    .select('id')
-    .or(`clan_a_id.eq.${proposingClanId},clan_b_id.eq.${targetClanId}`)
-    .eq('status', 'ACTIVE')
-    .single();
-
-  if (existing) throw new Error('Alliance already exists or is pending');
-
-  const cost = ALLIANCE_COSTS[allianceType];
-
-  // Deduct cost
-  if (cost.metal > 0 || cost.energy > 0) {
-    await supabase.from('clans').update({
-      bank_treasury_metal: Math.max(0, (proposingClan.bank_treasury_metal || 0) - cost.metal),
-      bank_treasury_energy: Math.max(0, (proposingClan.bank_treasury_energy || 0) - cost.energy),
-    }).eq('id', proposingClanId);
+  
+  const existingRows = await db.execute(sql`
+    SELECT * FROM clan_alliances
+    WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(proposingClanId)})
+      AND JSON_CONTAINS(clan_ids, ${JSON.stringify(targetClanId)})
+      AND status IN (${AllianceStatus.PROPOSED}, ${AllianceStatus.ACTIVE})
+    LIMIT 1
+  `);
+  
+  if ((existingRows as any).length > 0) {
+    throw new Error('Alliance already exists or is pending');
   }
-
-  // Create alliance
-  const { data: inserted } = await supabase.from('clan_alliances').insert({
-    clan_a_id: proposingClanId,
-    clan_b_id: targetClanId,
-    alliance_type: allianceType,
-    status: 'PROPOSED',
-    proposed_at: new Date().toISOString(),
-    contracts: {},
-  }).select('id').single();
-
-  // Log activity
-  await supabase.from('clan_activity').insert([{
-    clan_id: proposingClanId,
-    activity_type: 'ALLIANCE_PROPOSED',
-    player_id: proposedBy,
-    details: { allianceType, targetClanId, targetClanName: targetClan.name },
-  }, {
-    clan_id: targetClanId,
-    activity_type: 'ALLIANCE_RECEIVED',
-    details: { allianceType, proposingClanId, proposingClanName: proposingClan.name },
-  }]);
-
-  return {
+  
+  const brokenRows = await db.execute(sql`
+    SELECT * FROM clan_alliances
+    WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(proposingClanId)})
+      AND JSON_CONTAINS(clan_ids, ${JSON.stringify(targetClanId)})
+      AND status = ${AllianceStatus.BROKEN}
+      AND cooldown_until > NOW()
+    LIMIT 1
+  `);
+  
+  if ((brokenRows as any).length > 0) {
+    const brokenRow = (brokenRows as any)[0] as any;
+    const hoursRemaining = Math.ceil((new Date(brokenRow.cooldown_until).getTime() - Date.now()) / 3600000);
+    throw new Error(`Alliance cooldown active. ${hoursRemaining} hours remaining.`);
+  }
+  
+  const cost = ALLIANCE_COSTS[allianceType];
+  const proposingTreasury = {
+    metal: Number(proposingClan.bankTreasuryMetal),
+    energy: Number(proposingClan.bankTreasuryEnergy),
+    researchPoints: proposingClan.bankTreasuryResearchPoints,
+  };
+  
+  if (proposingTreasury.metal < cost.metal || proposingTreasury.energy < cost.energy) {
+    throw new Error(`Insufficient funds. Need ${cost.metal} metal, ${cost.energy} energy`);
+  }
+  
+  if (cost.metal > 0 || cost.energy > 0) {
+    await db.update(clans).set({
+      bankTreasuryMetal: sql`${clans.bankTreasuryMetal} - ${cost.metal}`,
+      bankTreasuryEnergy: sql`${clans.bankTreasuryEnergy} - ${cost.energy}`,
+    }).where(eq(clans.id, proposingClanId));
+  }
+  
+  const proposerRows = await db.select().from(players).where(eq(players.username, proposedBy)).limit(1);
+  const proposer = proposerRows[0];
+  
+  const alliance: Omit<Alliance, '_id'> = {
     clanIds: [proposingClanId, targetClanId],
     type: allianceType,
     status: AllianceStatus.PROPOSED,
@@ -146,8 +217,48 @@ export async function proposeAlliance(
     proposedAt: new Date(),
     contracts: [],
     cost,
-    metadata: { createdBy: proposedBy, createdByUsername: proposerMember.username },
+    metadata: {
+      createdBy: proposedBy,
+      createdByUsername: proposer?.username || 'Unknown',
+    },
   };
+  
+  const result = await db.execute(sql`
+    INSERT INTO clan_alliances
+    (clan_ids, type, status, proposed_by, proposed_at, contracts, cost, metadata)
+    VALUES (${JSON.stringify(alliance.clanIds)}, ${alliance.type}, ${alliance.status},
+            ${alliance.proposedBy}, ${alliance.proposedAt}, ${JSON.stringify(alliance.contracts)},
+            ${JSON.stringify(alliance.cost)}, ${JSON.stringify(alliance.metadata)})
+  `);
+  
+  const createdAlliance = { ...alliance, _id: (result as any).insertId?.toString() } as Alliance;
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${proposingClanId}, 'ALLIANCE_PROPOSED', ${new Date()},
+            ${JSON.stringify({
+              allianceType,
+              targetClanId,
+              targetClanName: targetClan.name,
+              cost,
+              proposedBy: proposer?.username,
+            })})
+  `);
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${targetClanId}, 'ALLIANCE_RECEIVED', ${new Date()},
+            ${JSON.stringify({
+              allianceType,
+              proposingClanId,
+              proposingClanName: proposingClan.name,
+              cost,
+            })})
+  `);
+  
+  return createdAlliance;
 }
 
 export async function acceptAlliance(
@@ -155,44 +266,91 @@ export async function acceptAlliance(
   acceptingClanId: string,
   acceptedBy: string
 ): Promise<Alliance> {
-  const supabase = createServiceClient();
-
-  const { data: alliance } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  if (!alliance) throw new Error('Alliance not found');
-  if (alliance.status !== 'PROPOSED') throw new Error('Alliance is not in proposed state');
-
-  // Verify accepting clan
-  if (acceptingClanId !== alliance.clan_b_id) throw new Error('Only the target clan can accept this alliance');
-
-  const { data: acceptingClan } = await supabase.from('clans').select('*').eq('id', acceptingClanId).single();
-  if (!acceptingClan) throw new Error('Accepting clan not found');
-
-  const { data: accepterMember } = await supabase.from('clan_members').select('*').eq('clan_id', acceptingClanId).eq('player_id', acceptedBy).single();
+  const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  if ((allianceRows as any).length === 0) {
+    throw new Error('Alliance not found');
+  }
+  
+  const alliance = rowToAlliance((allianceRows as any)[0]);
+  
+  if (alliance.status !== AllianceStatus.PROPOSED) {
+    throw new Error('Alliance is not in proposed state');
+  }
+  
+  const targetClanId = alliance.clanIds.find((id) => id !== alliance.proposedBy);
+  if (acceptingClanId !== targetClanId) {
+    throw new Error('Only the target clan can accept this alliance');
+  }
+  
+  const acceptingClanRows = await db.select().from(clans).where(eq(clans.id, acceptingClanId)).limit(1);
+  if (acceptingClanRows.length === 0) {
+    throw new Error('Accepting clan not found');
+  }
+  
+  const acceptingClan = acceptingClanRows[0];
+  const accepterMember = acceptingClan.members.find((m: any) => m.playerId === acceptedBy);
   if (!accepterMember || (accepterMember.role !== 'LEADER' && accepterMember.role !== 'CO_LEADER')) {
     throw new Error('Only Leaders or Co-Leaders can accept alliances');
   }
-
-  // Deduct cost from accepting clan
-  const cost = alliance.alliance_type; // Would be derived from type, simplified
-
-  await supabase.from('clan_alliances').update({
-    status: 'ACTIVE',
-    accepted_at: new Date().toISOString(),
-  }).eq('id', allianceId);
-
-  await supabase.from('clan_activity').insert([{
-    clan_id: acceptingClanId,
-    activity_type: 'ALLIANCE_ACCEPTED',
-    player_id: acceptedBy,
-    details: { allianceType: alliance.alliance_type, allyClanId: alliance.clan_a_id },
-  }, {
-    clan_id: alliance.clan_a_id,
-    activity_type: 'ALLIANCE_FORMED',
-    details: { allyClanId: acceptingClanId, allyClanName: acceptingClan.name },
-  }]);
-
-  const { data: updated } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  return updated as unknown as Alliance;
+  
+  const cost = alliance.cost;
+  const acceptingTreasury = {
+    metal: Number(acceptingClan.bankTreasuryMetal),
+    energy: Number(acceptingClan.bankTreasuryEnergy),
+    researchPoints: acceptingClan.bankTreasuryResearchPoints,
+  };
+  
+  if (acceptingTreasury.metal < cost.metal || acceptingTreasury.energy < cost.energy) {
+    throw new Error(`Insufficient funds. Need ${cost.metal} metal, ${cost.energy} energy`);
+  }
+  
+  if (cost.metal > 0 || cost.energy > 0) {
+    await db.update(clans).set({
+      bankTreasuryMetal: sql`${clans.bankTreasuryMetal} - ${cost.metal}`,
+      bankTreasuryEnergy: sql`${clans.bankTreasuryEnergy} - ${cost.energy}`,
+    }).where(eq(clans.id, acceptingClanId));
+  }
+  
+  await db.execute(sql`
+    UPDATE clan_alliances
+    SET status = ${AllianceStatus.ACTIVE}, accepted_at = ${new Date()}
+    WHERE id = ${allianceId}
+  `);
+  
+  const accepterRows = await db.select().from(players).where(eq(players.username, acceptedBy)).limit(1);
+  const accepter = accepterRows[0];
+  
+  const proposingClanRows = await db.select().from(clans).where(eq(clans.id, alliance.proposedBy)).limit(1);
+  const proposingClan = proposingClanRows[0];
+  
+  const acceptingClanFullRows = await db.select().from(clans).where(eq(clans.id, acceptingClanId)).limit(1);
+  const acceptingClanFull = acceptingClanFullRows[0];
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${acceptingClanId}, 'ALLIANCE_ACCEPTED', ${new Date()},
+            ${JSON.stringify({
+              allianceType: alliance.type,
+              allyClanId: alliance.proposedBy,
+              allyClanName: proposingClan?.name,
+              acceptedBy: accepter?.username,
+            })})
+  `);
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${alliance.proposedBy}, 'ALLIANCE_FORMED', ${new Date()},
+            ${JSON.stringify({
+              allianceType: alliance.type,
+              allyClanId: acceptingClanId,
+              allyClanName: acceptingClanFull.name,
+            })})
+  `);
+  
+  const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  return rowToAlliance((updatedRows as any)[0]);
 }
 
 export async function breakAlliance(
@@ -200,35 +358,76 @@ export async function breakAlliance(
   breakingClanId: string,
   brokenBy: string
 ): Promise<Alliance> {
-  const supabase = createServiceClient();
-
-  const { data: alliance } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  if (!alliance) throw new Error('Alliance not found');
-  if (alliance.status !== 'ACTIVE') throw new Error('Alliance is not active');
-
+  const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  if ((allianceRows as any).length === 0) {
+    throw new Error('Alliance not found');
+  }
+  
+  const alliance = rowToAlliance((allianceRows as any)[0]);
+  
+  if (alliance.status !== AllianceStatus.ACTIVE) {
+    throw new Error('Alliance is not active');
+  }
+  
+  if (!alliance.clanIds.includes(breakingClanId)) {
+    throw new Error('Clan is not part of this alliance');
+  }
+  
+  const breakingClanRows = await db.select().from(clans).where(eq(clans.id, breakingClanId)).limit(1);
+  if (breakingClanRows.length === 0) {
+    throw new Error('Breaking clan not found');
+  }
+  
+  const breakingClan = breakingClanRows[0];
+  const breakerMember = breakingClan.members.find((m: any) => m.playerId === brokenBy);
+  if (!breakerMember || breakerMember.role !== 'LEADER') {
+    throw new Error('Only clan leaders can break alliances');
+  }
+  
   const cooldownUntil = new Date();
   cooldownUntil.setHours(cooldownUntil.getHours() + ALLIANCE_BREAK_COOLDOWN_HOURS);
-
-  await supabase.from('clan_alliances').update({
-    status: 'BROKEN',
-    broken_at: new Date().toISOString(),
-  }).eq('id', allianceId);
-
-  const otherClanId = alliance.clan_a_id === breakingClanId ? alliance.clan_b_id : alliance.clan_a_id;
-
-  await supabase.from('clan_activity').insert([{
-    clan_id: breakingClanId,
-    activity_type: 'ALLIANCE_BROKEN',
-    player_id: brokenBy,
-    details: { allianceType: alliance.alliance_type, formerAllyClanId: otherClanId },
-  }, {
-    clan_id: otherClanId,
-    activity_type: 'ALLIANCE_BROKEN',
-    details: { formerAllyClanId: breakingClanId },
-  }]);
-
-  const { data: updated } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  return { ...updated, cooldownUntil } as unknown as Alliance;
+  
+  await db.execute(sql`
+    UPDATE clan_alliances
+    SET status = ${AllianceStatus.BROKEN}, broken_at = ${new Date()},
+        broken_by = ${breakingClanId}, cooldown_until = ${cooldownUntil}
+    WHERE id = ${allianceId}
+  `);
+  
+  const breakerRows = await db.select().from(players).where(eq(players.username, brokenBy)).limit(1);
+  const breaker = breakerRows[0];
+  
+  const otherClanId = alliance.clanIds.find((id) => id !== breakingClanId)!;
+  const otherClanRows = await db.select().from(clans).where(eq(clans.id, otherClanId)).limit(1);
+  const otherClan = otherClanRows[0];
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${breakingClanId}, 'ALLIANCE_BROKEN', ${new Date()},
+            ${JSON.stringify({
+              allianceType: alliance.type,
+              formerAllyClanId: otherClanId,
+              formerAllyClanName: otherClan?.name,
+              brokenBy: breaker?.username,
+              cooldownHours: ALLIANCE_BREAK_COOLDOWN_HOURS,
+            })})
+  `);
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${otherClanId}, 'ALLIANCE_BROKEN', ${new Date()},
+            ${JSON.stringify({
+              allianceType: alliance.type,
+              formerAllyClanId: breakingClanId,
+              formerAllyClanName: breakingClan.name,
+              brokenBy: breakingClan.name,
+            })})
+  `);
+  
+  const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  return rowToAlliance((updatedRows as any)[0]);
 }
 
 export async function addContract(
@@ -238,24 +437,72 @@ export async function addContract(
   contractType: ContractType,
   terms: AllianceContract['terms']
 ): Promise<Alliance> {
-  const supabase = createServiceClient();
-
-  const { data: alliance } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  if (!alliance) throw new Error('Alliance not found');
-  if (alliance.status !== 'ACTIVE') throw new Error('Alliance must be active to add contracts');
-
-  // Check allowed contracts
-  const allowedContracts = CONTRACT_LIMITS[alliance.alliance_type as AllianceType] || [];
-  if (!allowedContracts.includes(contractType)) throw new Error(`Contract not allowed for ${alliance.alliance_type}`);
-
-  // Update contracts JSON
-  const existingContracts = (alliance.contracts as unknown as Record<string, unknown>) || {};
-  existingContracts[contractType] = terms;
-
-  await supabase.from('clan_alliances').update({ contracts: existingContracts as unknown as Json }).eq('id', allianceId);
-
-  const { data: updated } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  return updated as unknown as Alliance;
+  const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  if ((allianceRows as any).length === 0) {
+    throw new Error('Alliance not found');
+  }
+  
+  const alliance = rowToAlliance((allianceRows as any)[0]);
+  
+  if (alliance.status !== AllianceStatus.ACTIVE) {
+    throw new Error('Alliance must be active to add contracts');
+  }
+  
+  if (!alliance.clanIds.includes(clanId)) {
+    throw new Error('Clan is not part of this alliance');
+  }
+  
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
+    throw new Error('Clan not found');
+  }
+  
+  const clan = clanRows[0];
+  const member = clan.members.find((m: any) => m.playerId === playerId);
+  if (!member || member.role !== 'LEADER') {
+    throw new Error('Only clan leaders can add contracts');
+  }
+  
+  const allowedContracts = CONTRACT_LIMITS[alliance.type];
+  if (!allowedContracts.includes(contractType)) {
+    throw new Error(`Contract type ${contractType} not allowed for ${alliance.type} alliance`);
+  }
+  
+  const existingContract = alliance.contracts.find((c) => c.type === contractType);
+  if (existingContract) {
+    throw new Error(`Contract ${contractType} already exists for this alliance`);
+  }
+  
+  validateContractTerms(contractType, terms);
+  
+  const contract: AllianceContract = {
+    type: contractType,
+    terms,
+    createdAt: new Date(),
+    createdBy: clanId,
+  };
+  
+  const updatedContracts = [...alliance.contracts, contract];
+  
+  await db.execute(sql`
+    UPDATE clan_alliances
+    SET contracts = ${JSON.stringify(updatedContracts)}
+    WHERE id = ${allianceId}
+  `);
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${clanId}, 'CONTRACT_ADDED', ${new Date()},
+            ${JSON.stringify({
+              allianceId,
+              contractType,
+              terms,
+            })})
+  `);
+  
+  const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  return rowToAlliance((updatedRows as any)[0]);
 }
 
 export async function removeContract(
@@ -264,37 +511,105 @@ export async function removeContract(
   playerId: string,
   contractType: ContractType
 ): Promise<Alliance> {
-  const supabase = createServiceClient();
-
-  const { data: alliance } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  if (!alliance) throw new Error('Alliance not found');
-
-  const contracts = (alliance.contracts as unknown as Record<string, unknown>) || {};
-  delete contracts[contractType];
-
-  await supabase.from('clan_alliances').update({ contracts: contracts as unknown as Json }).eq('id', allianceId);
-
-  const { data: updated } = await supabase.from('clan_alliances').select('*').eq('id', allianceId).single();
-  return updated as unknown as Alliance;
+  const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  if ((allianceRows as any).length === 0) {
+    throw new Error('Alliance not found');
+  }
+  
+  const alliance = rowToAlliance((allianceRows as any)[0]);
+  
+  if (!alliance.clanIds.includes(clanId)) {
+    throw new Error('Clan is not part of this alliance');
+  }
+  
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (clanRows.length === 0) {
+    throw new Error('Clan not found');
+  }
+  
+  const clan = clanRows[0];
+  const member = clan.members.find((m: any) => m.playerId === playerId);
+  if (!member || member.role !== 'LEADER') {
+    throw new Error('Only clan leaders can remove contracts');
+  }
+  
+  const updatedContracts = alliance.contracts.filter((c) => c.type !== contractType);
+  
+  await db.execute(sql`
+    UPDATE clan_alliances
+    SET contracts = ${JSON.stringify(updatedContracts)}
+    WHERE id = ${allianceId}
+  `);
+  
+  await db.execute(sql`
+    INSERT INTO clan_activities
+    (clan_id, activity_type, timestamp, details)
+    VALUES (${clanId}, 'CONTRACT_REMOVED', ${new Date()},
+            ${JSON.stringify({
+              allianceId,
+              contractType,
+            })})
+  `);
+  
+  const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
+  return rowToAlliance((updatedRows as any)[0]);
 }
 
-export async function getAlliancesForClan(clanId: string, includeInactive = false): Promise<Alliance[]> {
-  const supabase = createServiceClient();
-  let query = supabase.from('clan_alliances').select('*').or(`clan_a_id.eq.${clanId},clan_b_id.eq.${clanId}`);
-  if (!includeInactive) query = query.in('status', ['PROPOSED', 'ACTIVE']);
-  const { data } = await query.order('proposed_at', { ascending: false });
-  return (data || []) as unknown as Alliance[];
+function validateContractTerms(contractType: ContractType, terms: AllianceContract['terms']): void {
+  switch (contractType) {
+    case ContractType.RESOURCE_SHARING:
+      if (!terms.resourceSharePercentage || terms.resourceSharePercentage < 1 || terms.resourceSharePercentage > 50) {
+        throw new Error('Resource share percentage must be between 1-50%');
+      }
+      break;
+    case ContractType.DEFENSE_PACT:
+      if (terms.autoJoinDefense === undefined) {
+        throw new Error('autoJoinDefense must be specified for defense pact');
+      }
+      break;
+    case ContractType.WAR_SUPPORT:
+      if (!terms.supportAmount || terms.supportAmount.metal < 0 || terms.supportAmount.energy < 0) {
+        throw new Error('Valid support amounts required for war support');
+      }
+      break;
+    case ContractType.JOINT_RESEARCH:
+      if (!terms.researchSharePercentage || terms.researchSharePercentage < 1 || terms.researchSharePercentage > 30) {
+        throw new Error('Research share percentage must be between 1-30%');
+      }
+      break;
+  }
 }
 
-export async function getAllianceBetweenClans(clanId1: string, clanId2: string): Promise<Alliance | null> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('clan_alliances')
-    .select('*')
-    .or(`and(clan_a_id.eq.${clanId1},clan_b_id.eq.${clanId2}),and(clan_a_id.eq.${clanId2},clan_b_id.eq.${clanId1})`)
-    .eq('status', 'ACTIVE')
-    .single();
-  return data as unknown as Alliance | null;
+export async function getAlliancesForClan(
+  clanId: string,
+  includeInactive = false
+): Promise<Alliance[]> {
+  let query = sql`SELECT * FROM clan_alliances WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId)})`;
+  
+  if (!includeInactive) {
+    query = sql`SELECT * FROM clan_alliances WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId)}) AND status IN (${AllianceStatus.PROPOSED}, ${AllianceStatus.ACTIVE})`;
+  }
+  
+  query = sql`${query} ORDER BY proposed_at DESC`;
+  
+  const result = await db.execute(query);
+  return (result.rows as any[]).map(rowToAlliance);
+}
+
+export async function getAllianceBetweenClans(
+  clanId1: string,
+  clanId2: string
+): Promise<Alliance | null> {
+  const result = await db.execute(sql`
+    SELECT * FROM clan_alliances
+    WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId1)})
+      AND JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId2)})
+      AND status = ${AllianceStatus.ACTIVE}
+    LIMIT 1
+  `);
+  
+  if ((result as any).length === 0) return null;
+  return rowToAlliance((result as any)[0]);
 }
 
 export async function areAllies(clanId1: string, clanId2: string): Promise<boolean> {
@@ -304,8 +619,10 @@ export async function areAllies(clanId1: string, clanId2: string): Promise<boole
 
 export async function getAllyIds(clanId: string): Promise<string[]> {
   const alliances = await getAlliancesForClan(clanId, false);
-  return alliances
-    .filter((a: any) => a.status === 'ACTIVE' || a.status === AllianceStatus.ACTIVE)
-    .map((a: any) => a.clan_a_id === clanId ? a.clan_b_id : a.clan_a_id)
+  const allyIds = alliances
+    .filter((a) => a.status === AllianceStatus.ACTIVE)
+    .map((a) => a.clanIds.find((id) => id !== clanId)!)
     .filter(Boolean);
+  
+  return allyIds;
 }

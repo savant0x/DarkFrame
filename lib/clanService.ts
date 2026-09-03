@@ -17,62 +17,115 @@
  * - Clan level initialization and XP tracking
  * 
  * Dependencies:
- * - Supabase database connection
+ * - Drizzle ORM with MySQL database
  * - types/clan.types.ts for all type definitions
  * - lib/playerService.ts for player resource validation
+ * - lib/clanActivityService.ts for activity logging
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables } from '@/types/database';
+import { eq, and, or, inArray, sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { clans, players } from '@/lib/db/schema';
 import {
+  Clan,
+  ClanMember,
   ClanRole,
   ClanActivityType,
+  ClanBank,
+  ClanPerk,
   CLAN_CONSTANTS,
+  CLAN_BANK_CONSTANTS,
   hasPermission,
 } from '@/types/clan.types';
 
 /**
- * Internal helper: fetch clan members for a clan
+ * Helper: Convert flat DB row to nested Clan object
+ * @param row - Database row from clans table
+ * @returns Clan object with nested structure
  */
-async function getClanMembers(clanId: string): Promise<Tables<'clan_members'>[]> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
-
-  if (error) throw new Error(error.message);
-  return data || [];
+function rowToClan(row: typeof clans.$inferSelect): Clan {
+  return {
+    _id: row.id,
+    name: row.name,
+    tag: row.tag,
+    description: row.description,
+    leaderId: row.leaderId,
+    members: row.members || [],
+    maxMembers: row.maxMembers,
+    level: {
+      currentLevel: row.levelCurrentLevel,
+      totalXP: row.levelTotalXP,
+      currentLevelXP: row.levelCurrentLevelXP,
+      xpToNextLevel: row.levelXpToNextLevel,
+      featuresUnlocked: row.levelFeaturesUnlocked || [],
+      milestonesCompleted: row.levelMilestonesCompleted || [],
+      lastLevelUp: row.levelLastLevelUp ?? new Date(),
+    },
+    createdAt: row.createdAt ?? new Date(),
+    settings: {
+      messageOfTheDay: row.settingsMessageOfTheDay,
+      isRecruiting: Boolean(row.settingsIsRecruiting),
+      minLevelToJoin: row.settingsMinLevelToJoin,
+      requiresApproval: Boolean(row.settingsRequiresApproval),
+      allowTerritoryControl: Boolean(row.settingsAllowTerritoryControl),
+      allowWarDeclarations: Boolean(row.settingsAllowWarDeclarations),
+    },
+    stats: {
+      totalPower: row.statsTotalPower,
+      totalTerritories: row.statsTotalTerritories,
+      totalMonuments: row.statsTotalMonuments,
+      warsWon: row.statsWarsWon,
+      warsLost: row.statsWarsLost,
+      totalRP: row.statsTotalRP,
+    },
+    research: {
+      researchPoints: row.researchResearchPoints,
+      unlockedTechs: row.researchUnlockedTechs || [],
+      activeResearch: row.researchActiveResearch,
+    },
+    bank: {
+      treasury: {
+        metal: Number(row.bankTreasuryMetal),
+        energy: Number(row.bankTreasuryEnergy),
+        researchPoints: row.bankTreasuryResearchPoints,
+      },
+      taxRates: {
+        metal: Number(row.bankTaxRatesMetal),
+        energy: Number(row.bankTaxRatesEnergy),
+        researchPoints: Number(row.bankTaxRatesResearchPoints),
+      },
+      upgradeLevel: row.bankUpgradeLevel,
+      capacity: Number(row.bankCapacity),
+      transactions: row.bankTransactions || [],
+    },
+    activePerks: row.activePerks || [],
+    territories: row.territories || [],
+    monuments: row.monuments || [],
+    wars: {
+      active: row.warsActive || [],
+      history: row.warsHistory || [],
+    },
+  };
 }
 
 /**
- * Internal helper: count clan members for a clan
+ * Helper: Get player by MongoDB-style ID (uses mongoId field)
+ * @param playerId - MongoDB ObjectId string
+ * @returns Player row or null
  */
-async function countClanMembers(clanId: string): Promise<number> {
-  const supabase = createServiceClient();
-  const { count, error } = await supabase
-    .from('clan_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('clan_id', clanId);
-
-  if (error) throw new Error(error.message);
-  return count || 0;
+async function getPlayerById(playerId: string) {
+  const result = await db.select().from(players).where(eq(players.mongoId, playerId)).limit(1);
+  return result[0] || null;
 }
 
 /**
- * Internal helper: find a specific clan member
+ * Helper: Get player by username
+ * @param username - Player username
+ * @returns Player row or null
  */
-async function findClanMember(clanId: string, playerId: string): Promise<Tables<'clan_members'> | null> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId)
-    .eq('player_id', playerId)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return data;
+async function getPlayerByUsername(username: string) {
+  const result = await db.select().from(players).where(eq(players.username, username)).limit(1);
+  return result[0] || null;
 }
 
 /**
@@ -94,158 +147,192 @@ export async function createClan(
   playerId: string,
   clanName: string,
   tag: string,
-  description?: string,
-  isPublic: boolean = false,
-  minLevelToJoin: number = 1
-): Promise<Tables<'clans'>> {
-  const supabase = createServiceClient();
-  
+  description?: string
+): Promise<Clan> {
+  // Validate clan name
   if (!clanName || clanName.length < 3 || clanName.length > 30) {
     throw new Error('Clan name must be between 3 and 30 characters');
   }
   
+  // Validate tag
   if (!tag || tag.length < 2 || tag.length > 6) {
     throw new Error('Clan tag must be between 2 and 6 characters');
   }
   
   // Check if name is already taken
-  const { data: existingClan } = await supabase
-    .from('clans')
-    .select('id')
-    .eq('name', clanName)
-    .maybeSingle();
-  if (existingClan) {
+  const existingClan = await db.select().from(clans).where(eq(clans.name, clanName)).limit(1);
+  if (existingClan.length > 0) {
     throw new Error('Clan name already taken');
   }
   
   // Check if tag is already taken
-  const { data: existingTag } = await supabase
-    .from('clans')
-    .select('id')
-    .eq('tag', tag.toUpperCase())
-    .maybeSingle();
-  if (existingTag) {
+  const existingTag = await db.select().from(clans).where(eq(clans.tag, tag.toUpperCase())).limit(1);
+  if (existingTag.length > 0) {
     throw new Error('Clan tag already taken');
   }
   
   // Get player and validate resources
-  const { data: player, error: playerError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', playerId)
-    .single();
-
-  if (playerError || !player) {
+  const player = await getPlayerById(playerId);
+  if (!player) {
     throw new Error('Player not found');
   }
   
   // Check if player is already in a clan
-  if (player.clan_id) {
+  if (player.clanId) {
     throw new Error('Player is already in a clan');
   }
   
   // Validate player has sufficient resources
   const { metal: costMetal, energy: costEnergy } = CLAN_CONSTANTS.CREATION_COST;
-  if (player.resources_metal < costMetal || player.resources_energy < costEnergy) {
+  if (Number(Number(player.resourcesMetal)) < costMetal || Number(Number(player.resourcesEnergy)) < costEnergy) {
     throw new Error(`Insufficient resources. Need ${costMetal.toLocaleString()} Metal and ${costEnergy.toLocaleString()} Energy`);
   }
   
-  const now = new Date().toISOString();
-  
-  // Create new clan record
-  const clanSettings = {
-    messageOfTheDay: `Welcome to ${clanName}!`,
-    isRecruiting: isPublic,
-    minLevelToJoin,
-    requiresApproval: !isPublic,
-    allowTerritoryControl: true,
-    allowWarDeclarations: true,
+  // Create founder member object
+  const founderMember: ClanMember = {
+    playerId,
+    username: player.username,
+    role: ClanRole.LEADER,
+    joinedAt: new Date(),
+    lastActive: new Date(),
   };
   
-  const { data: clan, error: insertError } = await supabase
-    .from('clans')
-    .insert({
-      name: clanName,
-      tag: tag.toUpperCase(),
-      description: description || '',
-      leader_id: playerId,
-      max_members: CLAN_CONSTANTS.DEFAULT_MAX_MEMBERS,
-      clan_level: 1,
-      total_xp: 0,
-      current_level_xp: 0,
-      xp_to_next_level: 1000,
-      last_level_up: now,
-      created_at: now,
-      clan_settings: clanSettings,
-      total_power: 0,
-      total_territories: 0,
-      total_monuments: 0,
-      wars_won: 0,
-      wars_lost: 0,
-      total_rp: 0,
-      research_points: 0,
-      unlocked_research: [],
-      active_research: null,
-      bank_capacity: CLAN_CONSTANTS.BANK_BASE_CAPACITY,
-      bank_treasury_metal: 0,
-      bank_treasury_energy: 0,
-      bank_treasury_rp: 0,
-      bank_tax_metal: 0,
-      bank_tax_energy: 0,
-      bank_tax_rp: 0,
-      bank_upgrade_level: 1,
-    })
-    .select('*')
-    .single();
-
-  if (insertError || !clan) {
-    throw new Error('Failed to create clan: ' + (insertError?.message || 'Unknown error'));
-  }
+  // Initialize clan bank
+  const initialBank: ClanBank = {
+    treasury: {
+      metal: 0,
+      energy: 0,
+      researchPoints: 0,
+    },
+    taxRates: {
+      metal: 0,
+      energy: 0,
+      researchPoints: 0,
+    },
+    upgradeLevel: 1,
+    capacity: CLAN_CONSTANTS.BANK_BASE_CAPACITY,
+    transactions: [],
+  };
   
-  // Add founder as member
-  const { error: memberError } = await supabase
-    .from('clan_members')
-    .insert({
-      clan_id: clan.id,
-      player_id: playerId,
-      username: player.username,
-      role: ClanRole.LEADER,
-      joined_at: now,
-      last_active: now,
-    });
-
-  if (memberError) {
-    // Rollback: delete the clan we just created
-    await supabase.from('clans').delete().eq('id', clan.id);
-    throw new Error('Failed to add founder: ' + memberError.message);
-  }
+  // Generate clan ID
+  const clanId = crypto.randomUUID().slice(0, 24);
   
-  // Deduct resources from player and assign clan
-  const { error: updateError } = await supabase
-    .from('players')
-    .update({
-      resources_metal: player.resources_metal - costMetal,
-      resources_energy: player.resources_energy - costEnergy,
-      clan_id: clan.id,
-      clan_name: clanName,
-      clan_role: ClanRole.LEADER,
-    })
-    .eq('username', playerId);
-
-  if (updateError) {
-    // Rollback: delete clan_members and clan
-    await supabase.from('clan_members').delete().eq('clan_id', clan.id);
-    await supabase.from('clans').delete().eq('id', clan.id);
-    throw new Error('Failed to update player: ' + updateError.message);
-  }
+  // Create new clan object
+  const newClan: Clan = {
+    _id: undefined,
+    name: clanName,
+    tag: tag.toUpperCase(),
+    description: description || '',
+    leaderId: playerId,
+    members: [founderMember],
+    maxMembers: CLAN_CONSTANTS.DEFAULT_MAX_MEMBERS,
+    level: {
+      currentLevel: 1,
+      totalXP: 0,
+      currentLevelXP: 0,
+      xpToNextLevel: 1000,
+      featuresUnlocked: [],
+      milestonesCompleted: [],
+      lastLevelUp: new Date(),
+    },
+    createdAt: new Date(),
+    settings: {
+      messageOfTheDay: `Welcome to ${clanName}!`,
+      isRecruiting: true,
+      minLevelToJoin: 1,
+      requiresApproval: false,
+      allowTerritoryControl: true,
+      allowWarDeclarations: true,
+    },
+    stats: {
+      totalPower: 0,
+      totalTerritories: 0,
+      totalMonuments: 0,
+      warsWon: 0,
+      warsLost: 0,
+      totalRP: 0,
+    },
+    research: {
+      researchPoints: 0,
+      unlockedTechs: [],
+      activeResearch: null,
+    },
+    bank: initialBank,
+    activePerks: [],
+    territories: [],
+    monuments: [],
+    wars: {
+      active: [],
+      history: [],
+    },
+  };
   
-  // Log activity (no clan_activities table in Supabase — log to console)
-  logClanActivity(clan.id, ClanActivityType.CLAN_CREATED, playerId, {
-    clanName,
-    tag: clan.tag,
+  // Insert clan into database — fully-typed literal (clanToRow's partial mapping was
+  // only ever called here and its `Record<string, any>` shape fought the insert type)
+  await db.insert(clans).values({
+    id: clanId,
+    name: newClan.name,
+    tag: newClan.tag,
+    description: newClan.description,
+    leaderId: newClan.leaderId,
+    members: newClan.members,
+    maxMembers: newClan.maxMembers,
+    levelCurrentLevel: newClan.level.currentLevel,
+    levelTotalXP: newClan.level.totalXP,
+    levelCurrentLevelXP: newClan.level.currentLevelXP,
+    levelXpToNextLevel: newClan.level.xpToNextLevel,
+    levelFeaturesUnlocked: newClan.level.featuresUnlocked,
+    levelMilestonesCompleted: newClan.level.milestonesCompleted,
+    levelLastLevelUp: newClan.level.lastLevelUp,
+    createdAt: newClan.createdAt,
+    settingsMessageOfTheDay: newClan.settings.messageOfTheDay,
+    settingsIsRecruiting: newClan.settings.isRecruiting ? 1 : 0,
+    settingsMinLevelToJoin: newClan.settings.minLevelToJoin,
+    settingsRequiresApproval: newClan.settings.requiresApproval ? 1 : 0,
+    settingsAllowTerritoryControl: newClan.settings.allowTerritoryControl ? 1 : 0,
+    settingsAllowWarDeclarations: newClan.settings.allowWarDeclarations ? 1 : 0,
+    statsTotalPower: newClan.stats.totalPower,
+    statsTotalTerritories: newClan.stats.totalTerritories,
+    statsTotalMonuments: newClan.stats.totalMonuments,
+    statsWarsWon: newClan.stats.warsWon,
+    statsWarsLost: newClan.stats.warsLost,
+    statsTotalRP: newClan.stats.totalRP,
+    researchResearchPoints: newClan.research.researchPoints,
+    researchUnlockedTechs: newClan.research.unlockedTechs,
+    researchActiveResearch: newClan.research.activeResearch,
+    bankTreasuryMetal: newClan.bank.treasury.metal,
+    bankTreasuryEnergy: newClan.bank.treasury.energy,
+    bankTreasuryResearchPoints: newClan.bank.treasury.researchPoints,
+    bankTaxRatesMetal: String(newClan.bank.taxRates.metal),
+    bankTaxRatesEnergy: String(newClan.bank.taxRates.energy),
+    bankTaxRatesResearchPoints: String(newClan.bank.taxRates.researchPoints),
+    bankUpgradeLevel: newClan.bank.upgradeLevel,
+    bankCapacity: newClan.bank.capacity,
+    bankTransactions: newClan.bank.transactions,
+    activePerks: newClan.activePerks,
+    territories: newClan.territories,
+    monuments: newClan.monuments,
+    warsActive: newClan.wars.active,
+    warsHistory: newClan.wars.history,
   });
+
+  // Deduct resources from player and assign clan (INCLUDING clanName for display)
+  await db.update(players).set({
+    resourcesMetal: Number(player.resourcesMetal) - costMetal,
+    resourcesEnergy: Number(player.resourcesEnergy) - costEnergy,
+    clanId,
+    clanName: clanName,
+    clanRole: ClanRole.LEADER,
+  }).where(eq(players.mongoId, playerId));
   
-  return clan;
+  // Log activity
+  await logClanActivity(clanId, ClanActivityType.CLAN_CREATED, playerId, {
+    clanName,
+    tag: newClan.tag,
+  });
+
+  // newClan is already a complete domain Clan; the generated id supplies `_id`.
+  return { ...newClan, _id: clanId };
 }
 
 /**
@@ -256,16 +343,10 @@ export async function createClan(
  * @example
  * const clan = await getClanById('clan123');
  */
-export async function getClanById(clanId: string): Promise<Tables<'clans'> | null> {
-  const supabase = createServiceClient();
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return clan || null;
+export async function getClanById(clanId: string): Promise<Clan | null> {
+  const result = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  if (result.length === 0) return null;
+  return rowToClan(result[0]);
 }
 
 /**
@@ -276,16 +357,10 @@ export async function getClanById(clanId: string): Promise<Tables<'clans'> | nul
  * @example
  * const clan = await getClanByTag('DW');
  */
-export async function getClanByTag(tag: string): Promise<Tables<'clans'> | null> {
-  const supabase = createServiceClient();
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('tag', tag.toUpperCase())
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return clan || null;
+export async function getClanByTag(tag: string): Promise<Clan | null> {
+  const result = await db.select().from(clans).where(eq(clans.tag, tag.toUpperCase())).limit(1);
+  if (result.length === 0) return null;
+  return rowToClan(result[0]);
 }
 
 /**
@@ -296,19 +371,14 @@ export async function getClanByTag(tag: string): Promise<Tables<'clans'> | null>
  * @example
  * const clan = await getClanByPlayerId('player123');
  */
-export async function getClanByPlayerId(playerId: string): Promise<Tables<'clans'> | null> {
-  const supabase = createServiceClient();
-  const { data: player, error } = await supabase
-    .from('players')
-    .select('clan_id')
-    .eq('username', playerId)
-    .maybeSingle();
-
-  if (error || !player || !player.clan_id) {
+export async function getClanByPlayerId(playerId: string): Promise<Clan | null> {
+  const player = await getPlayerById(playerId);
+  
+  if (!player || !player.clanId) {
     return null;
   }
   
-  return await getClanById(player.clan_id);
+  return await getClanById(player.clanId);
 }
 
 /**
@@ -329,62 +399,51 @@ export async function invitePlayerToClan(
   inviterId: string,
   inviteeId: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  const inviterMember = await findClanMember(clanId, inviterId);
+  // Get inviter member
+  const inviterMember = clan.members.find(m => m.playerId === inviterId);
   if (!inviterMember) {
     throw new Error('Inviter not in clan');
   }
   
-   if (!hasPermission(inviterMember.role, 'canInvite')) {
+  // Check permissions
+  if (!hasPermission(inviterMember.role, 'canInvite')) {
     throw new Error('No permission to invite members');
   }
   
-  const memberCount = await countClanMembers(clanId);
-  if (memberCount >= clan.max_members) {
+  // Check clan capacity
+  if (clan.members.length >= clan.maxMembers) {
     throw new Error('Clan is at maximum capacity');
   }
   
-  const { data: invitee, error: inviteeError } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', inviteeId)
-    .single();
-
-  if (inviteeError || !invitee) {
+  // Get invitee player
+  const invitee = await getPlayerById(inviteeId);
+  if (!invitee) {
     throw new Error('Player not found');
   }
   
-  if (invitee.clan_id) {
+  // Check if already in a clan
+  if (invitee.clanId) {
     throw new Error('Player is already in a clan');
   }
   
-  const clanSettings = clan.clan_settings as Record<string, any> || {};
-  if (invitee.level < (clanSettings.minLevelToJoin || 1)) {
-    throw new Error(`Player must be level ${clanSettings.minLevelToJoin || 1} or higher`);
+  // Check level requirement
+  if (invitee.level < clan.settings.minLevelToJoin) {
+    throw new Error(`Player must be level ${clan.settings.minLevelToJoin} or higher`);
   }
   
-  const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  
-  const { error: inviteError } = await supabase
-    .from('clan_invitations')
-    .insert({
-      clan_id: clanId,
-      clan_name: clan.name,
-      invited_by: inviterId,
-      invited_player: inviteeId,
-      invited_at: now,
-      expires_at: expiresAt,
-      status: 'pending',
-    });
-
-  if (inviteError) throw new Error(inviteError.message);
+  // Create invitation
+  // TODO: clan_invitations table schema not yet created - using raw SQL
+  await db.execute(sql`
+    INSERT INTO clan_invitations 
+    (clan_id, clan_name, inviter_id, inviter_username, invitee_id, invitee_username, created_at, expires_at, status)
+    VALUES (${clanId}, ${clan.name}, ${inviterId}, ${inviterMember.username}, ${inviteeId}, ${invitee.username}, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 'pending')
+  `);
   
   return { success: true, message: `Invitation sent to ${invitee.username}` };
 }
@@ -402,165 +461,85 @@ export async function invitePlayerToClan(
 export async function joinClan(
   invitationId: string,
   playerId: string
-): Promise<{ success: boolean; clan: Tables<'clans'> }> {
-  const supabase = createServiceClient();
+): Promise<{ success: boolean; clan: Clan }> {
+  // Get invitation
+  // TODO: clan_invitations table schema not yet created - using raw SQL
+  const invitationResult = await db.execute(sql`
+    SELECT * FROM clan_invitations 
+    WHERE id = ${invitationId} AND invitee_id = ${playerId} AND status = 'pending'
+    LIMIT 1
+  `);
   
-  const { data: invitation, error: inviteErr } = await supabase
-    .from('clan_invitations')
-    .select('*')
-    .eq('id', invitationId)
-    .eq('invited_player', playerId)
-    .eq('status', 'pending')
-    .maybeSingle();
-
-  if (inviteErr || !invitation) {
+  const rows = (invitationResult as any)[0];
+  if (!rows || rows.length === 0) {
     throw new Error('Invitation not found or already processed');
   }
   
+  const invitation = rows[0];
+  
+  // Check expiration
   if (new Date() > new Date(invitation.expires_at)) {
-    await supabase
-      .from('clan_invitations')
-      .update({ status: 'expired' })
-      .eq('id', invitationId);
+    await db.execute(sql`
+      UPDATE clan_invitations SET status = 'expired' WHERE id = ${invitationId}
+    `);
     throw new Error('Invitation has expired');
   }
   
+  // Get clan
   const clan = await getClanById(invitation.clan_id);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  const memberCount = await countClanMembers(invitation.clan_id);
-  if (memberCount >= clan.max_members) {
+  // Check capacity again
+  if (clan.members.length >= clan.maxMembers) {
     throw new Error('Clan is now at maximum capacity');
   }
   
-  const { data: player, error: playerErr } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', playerId)
-    .single();
-
-  if (playerErr || !player) {
+  // Get player
+  const player = await getPlayerById(playerId);
+  if (!player) {
     throw new Error('Player not found');
   }
   
-  if (player.clan_id) {
+  // Check if already in clan
+  if (player.clanId) {
     throw new Error('Player is already in a clan');
   }
   
-  const now = new Date().toISOString();
+  // Create new member object
+  const newMember: ClanMember = {
+    playerId,
+    username: player.username,
+    role: ClanRole.RECRUIT,
+    joinedAt: new Date(),
+    lastActive: new Date(),
+  };
   
-  // Add member
-  const { error: memberErr } = await supabase
-    .from('clan_members')
-    .insert({
-      clan_id: invitation.clan_id,
-      player_id: playerId,
-      username: player.username,
-      role: ClanRole.RECRUIT,
-      joined_at: now,
-      last_active: now,
-    });
-
-  if (memberErr) throw new Error(memberErr.message);
+  // Add member to clan - read JSON array, modify, then update
+  const updatedMembers = [...clan.members, newMember];
+  await db.update(clans).set({
+    members: updatedMembers as any,
+  }).where(eq(clans.id, invitation.clan_id));
   
-  // Update player
-  const { error: updateErr } = await supabase
-    .from('players')
-    .update({
-      clan_id: invitation.clan_id,
-      clan_name: clan.name,
-      clan_role: ClanRole.RECRUIT,
-    })
-    .eq('username', playerId);
-
-  if (updateErr) throw new Error(updateErr.message);
+  // Update player with clan info (INCLUDING clanName for display)
+  await db.update(players).set({
+    clanId: invitation.clan_id,
+    clanName: clan.name,
+    clanRole: ClanRole.RECRUIT,
+  }).where(eq(players.mongoId, playerId));
   
   // Mark invitation as accepted
-  await supabase
-    .from('clan_invitations')
-    .update({ status: 'accepted' })
-    .eq('id', invitationId);
+  await db.execute(sql`
+    UPDATE clan_invitations SET status = 'accepted', accepted_at = NOW() WHERE id = ${invitationId}
+  `);
   
   // Log activity
-  logClanActivity(invitation.clan_id, ClanActivityType.MEMBER_JOINED, playerId, {
+  await logClanActivity(invitation.clan_id, ClanActivityType.MEMBER_JOINED, playerId, {
     username: player.username,
   });
   
   const updatedClan = await getClanById(invitation.clan_id);
-  return { success: true, clan: updatedClan! };
-}
-
-/**
- * Join a clan directly (no invitation required — for public clans)
- */
-export async function joinClanDirectly(
-  clanId: string,
-  playerId: string
-): Promise<{ success: boolean; clan: Tables<'clans'> }> {
-  const supabase = createServiceClient();
-
-  const clan = await getClanById(clanId);
-  if (!clan) {
-    throw new Error('Clan not found');
-  }
-
-  const clanSettings = (clan.clan_settings as Record<string, any>) || {};
-  if (clanSettings.requiresApproval) {
-    throw new Error('This clan requires leader approval to join');
-  }
-
-  const memberCount = await countClanMembers(clanId);
-  if (memberCount >= clan.max_members) {
-    throw new Error('Clan is now at maximum capacity');
-  }
-
-  const { data: player, error: playerErr } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', playerId)
-    .single();
-
-  if (playerErr || !player) {
-    throw new Error('Player not found');
-  }
-
-  if (player.clan_id) {
-    throw new Error('Player is already in a clan');
-  }
-
-  const now = new Date().toISOString();
-
-  const { error: memberErr } = await supabase
-    .from('clan_members')
-    .insert({
-      clan_id: clanId,
-      player_id: playerId,
-      username: player.username,
-      role: ClanRole.RECRUIT,
-      joined_at: now,
-      last_active: now,
-    });
-
-  if (memberErr) throw new Error(memberErr.message);
-
-  const { error: updateErr } = await supabase
-    .from('players')
-    .update({
-      clan_id: clanId,
-      clan_name: clan.name,
-      clan_role: ClanRole.RECRUIT,
-    })
-    .eq('username', playerId);
-
-  if (updateErr) throw new Error(updateErr.message);
-
-  logClanActivity(clanId, ClanActivityType.MEMBER_JOINED, playerId, {
-    username: player.username,
-  });
-
-  const updatedClan = await getClanById(clanId);
   return { success: true, clan: updatedClan! };
 }
 
@@ -577,45 +556,38 @@ export async function joinClanDirectly(
  * await leaveClan('clan123', 'player456');
  */
 export async function leaveClan(clanId: string, playerId: string): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  const member = await findClanMember(clanId, playerId);
+  // Get member
+  const member = clan.members.find(m => m.playerId === playerId);
   if (!member) {
     throw new Error('Player not in this clan');
   }
   
+  // Leader cannot leave without transferring
   if (member.role === ClanRole.LEADER) {
     throw new Error('Leader must transfer leadership before leaving');
   }
   
-  // Remove member
-  const { error: deleteErr } = await supabase
-    .from('clan_members')
-    .delete()
-    .eq('clan_id', clanId)
-    .eq('player_id', playerId);
-
-  if (deleteErr) throw new Error(deleteErr.message);
+  // Remove member from clan - read JSON array, filter, then update
+  const updatedMembers = clan.members.filter(m => m.playerId !== playerId);
+  await db.update(clans).set({
+    members: updatedMembers as any,
+  }).where(eq(clans.id, clanId));
   
-  // Update player — remove clan fields
-  const { error: updateErr } = await supabase
-    .from('players')
-    .update({
-      clan_id: null,
-      clan_name: null,
-      clan_role: null,
-    })
-    .eq('username', playerId);
-
-  if (updateErr) throw new Error(updateErr.message);
+  // Update player (REMOVE all clan fields including clanName)
+  await db.update(players).set({
+    clanId: null,
+    clanName: null,
+    clanRole: null,
+  }).where(eq(players.mongoId, playerId));
   
   // Log activity
-  logClanActivity(clanId, ClanActivityType.MEMBER_LEFT, playerId, {
+  await logClanActivity(clanId, ClanActivityType.MEMBER_LEFT, playerId, {
     username: member.username,
   });
   
@@ -640,31 +612,35 @@ export async function kickMember(
   kickerId: string,
   targetId: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  const kicker = await findClanMember(clanId, kickerId);
+  // Get kicker member
+  const kicker = clan.members.find(m => m.playerId === kickerId);
   if (!kicker) {
     throw new Error('Kicker not in clan');
   }
   
-   if (!hasPermission(kicker.role, 'canKick')) {
+  // Check permissions
+  if (!hasPermission(kicker.role, 'canKick')) {
     throw new Error('No permission to kick members');
   }
   
-  const target = await findClanMember(clanId, targetId);
+  // Get target member
+  const target = clan.members.find(m => m.playerId === targetId);
   if (!target) {
     throw new Error('Target player not in clan');
   }
   
+  // Cannot kick leader
   if (target.role === ClanRole.LEADER) {
     throw new Error('Cannot kick clan leader');
   }
   
+  // Cannot kick equal or higher role (unless you're leader)
   const roleHierarchy = [
     ClanRole.RECRUIT,
     ClanRole.MEMBER,
@@ -674,36 +650,28 @@ export async function kickMember(
     ClanRole.LEADER,
   ];
   
-  const kickerRank = roleHierarchy.indexOf(kicker.role as ClanRole);
-  const targetRank = roleHierarchy.indexOf(target.role as ClanRole);
+  const kickerRank = roleHierarchy.indexOf(kicker.role);
+  const targetRank = roleHierarchy.indexOf(target.role);
   
   if (targetRank >= kickerRank && kicker.role !== ClanRole.LEADER) {
     throw new Error('Cannot kick members of equal or higher rank');
   }
   
-  // Remove member
-  const { error: deleteErr } = await supabase
-    .from('clan_members')
-    .delete()
-    .eq('clan_id', clanId)
-    .eq('player_id', targetId);
-
-  if (deleteErr) throw new Error(deleteErr.message);
+  // Remove member - read JSON array, filter, then update
+  const updatedMembers = clan.members.filter(m => m.playerId !== targetId);
+  await db.update(clans).set({
+    members: updatedMembers as any,
+  }).where(eq(clans.id, clanId));
   
-  // Update player — remove clan fields
-  const { error: updateErr } = await supabase
-    .from('players')
-    .update({
-      clan_id: null,
-      clan_name: null,
-      clan_role: null,
-    })
-    .eq('username', targetId);
-
-  if (updateErr) throw new Error(updateErr.message);
+  // Update player (REMOVE all clan fields including clanName)
+  await db.update(players).set({
+    clanId: null,
+    clanName: null,
+    clanRole: null,
+  }).where(eq(players.mongoId, targetId));
   
   // Log activity
-  logClanActivity(clanId, ClanActivityType.MEMBER_KICKED, kickerId, {
+  await logClanActivity(clanId, ClanActivityType.MEMBER_KICKED, kickerId, {
     targetUsername: target.username,
     kickerUsername: kicker.username,
   });
@@ -731,27 +699,30 @@ export async function promoteMember(
   targetId: string,
   newRole: ClanRole
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  const promoter = await findClanMember(clanId, promoterId);
+  // Get promoter member
+  const promoter = clan.members.find(m => m.playerId === promoterId);
   if (!promoter) {
     throw new Error('Promoter not in clan');
   }
   
-  const target = await findClanMember(clanId, targetId);
+  // Get target member
+  const target = clan.members.find(m => m.playerId === targetId);
   if (!target) {
     throw new Error('Target player not in clan');
   }
   
+  // Cannot change leader role (must use transferLeadership)
   if (target.role === ClanRole.LEADER || newRole === ClanRole.LEADER) {
     throw new Error('Use transferLeadership to change leader');
   }
   
+  // Role hierarchy validation
   const roleHierarchy = [
     ClanRole.RECRUIT,
     ClanRole.MEMBER,
@@ -761,10 +732,11 @@ export async function promoteMember(
     ClanRole.LEADER,
   ];
   
-  const promoterRank = roleHierarchy.indexOf(promoter.role as ClanRole);
-  const targetRank = roleHierarchy.indexOf(target.role as ClanRole);
+  const promoterRank = roleHierarchy.indexOf(promoter.role);
+  const targetRank = roleHierarchy.indexOf(target.role);
   const newRank = roleHierarchy.indexOf(newRole);
   
+  // Permission checks based on new role
   if (newRole === ClanRole.CO_LEADER && !hasPermission(promoter.role, 'canPromoteToCoLeader')) {
     throw new Error('No permission to promote to Co-Leader');
   }
@@ -777,39 +749,38 @@ export async function promoteMember(
     throw new Error('No permission to promote to Elite');
   }
   
+  // Can demote?
   const isDemotion = newRank < targetRank;
   if (isDemotion && !hasPermission(promoter.role, 'canDemote')) {
     throw new Error('No permission to demote members');
   }
   
+  // Cannot modify equal or higher rank (unless leader)
   if (targetRank >= promoterRank && promoter.role !== ClanRole.LEADER) {
     throw new Error('Cannot modify members of equal or higher rank');
   }
   
+  // Cannot promote above your own rank (unless leader)
   if (newRank >= promoterRank && promoter.role !== ClanRole.LEADER) {
     throw new Error('Cannot promote above your own rank');
   }
   
-  // Update member role
-  const { error: memberUpdateErr } = await supabase
-    .from('clan_members')
-    .update({ role: newRole })
-    .eq('clan_id', clanId)
-    .eq('player_id', targetId);
-
-  if (memberUpdateErr) throw new Error(memberUpdateErr.message);
+  // Update member role in clan - read JSON array, modify, then update
+  const updatedMembers = clan.members.map(m =>
+    m.playerId === targetId ? { ...m, role: newRole } : m
+  );
+  await db.update(clans).set({
+    members: updatedMembers as any,
+  }).where(eq(clans.id, clanId));
   
   // Update player role
-  const { error: playerUpdateErr } = await supabase
-    .from('players')
-    .update({ clan_role: newRole })
-    .eq('username', targetId);
-
-  if (playerUpdateErr) throw new Error(playerUpdateErr.message);
+  await db.update(players).set({
+    clanRole: newRole,
+  }).where(eq(players.mongoId, targetId));
   
   // Log activity
   const isPromotion = newRank > targetRank;
-  logClanActivity(
+  await logClanActivity(
     clanId,
     isPromotion ? ClanActivityType.MEMBER_PROMOTED : ClanActivityType.MEMBER_DEMOTED,
     promoterId,
@@ -845,60 +816,55 @@ export async function transferLeadership(
   currentLeaderId: string,
   newLeaderId: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  if (clan.leader_id !== currentLeaderId) {
+  // Verify current leader
+  if (clan.leaderId !== currentLeaderId) {
     throw new Error('Only current leader can transfer leadership');
   }
   
-  const newLeader = await findClanMember(clanId, newLeaderId);
+  // Get new leader member
+  const newLeader = clan.members.find(m => m.playerId === newLeaderId);
   if (!newLeader) {
     throw new Error('New leader must be a clan member');
   }
   
+  // Cannot transfer to self
   if (currentLeaderId === newLeaderId) {
     throw new Error('Already clan leader');
   }
   
-  // Update member roles
-  await Promise.all([
-    supabase
-      .from('clan_members')
-      .update({ role: ClanRole.CO_LEADER })
-      .eq('clan_id', clanId)
-      .eq('player_id', currentLeaderId),
-    supabase
-      .from('clan_members')
-      .update({ role: ClanRole.LEADER })
-      .eq('clan_id', clanId)
-      .eq('player_id', newLeaderId),
-  ]);
+  // Update roles in clan - read JSON array, modify, then update
+  const updatedMembers = clan.members.map(m => {
+    if (m.playerId === currentLeaderId) {
+      return { ...m, role: ClanRole.CO_LEADER };
+    }
+    if (m.playerId === newLeaderId) {
+      return { ...m, role: ClanRole.LEADER };
+    }
+    return m;
+  });
   
-  // Update clan leader_id
-  await supabase
-    .from('clans')
-    .update({ leader_id: newLeaderId })
-    .eq('id', clanId);
+  await db.update(clans).set({
+    leaderId: newLeaderId,
+    members: updatedMembers as any,
+  }).where(eq(clans.id, clanId));
   
   // Update player roles
-  await Promise.all([
-    supabase
-      .from('players')
-      .update({ clan_role: ClanRole.CO_LEADER })
-      .eq('username', currentLeaderId),
-    supabase
-      .from('players')
-      .update({ clan_role: ClanRole.LEADER })
-      .eq('username', newLeaderId),
-  ]);
+  await db.update(players).set({
+    clanRole: ClanRole.CO_LEADER,
+  }).where(eq(players.mongoId, currentLeaderId));
+  
+  await db.update(players).set({
+    clanRole: ClanRole.LEADER,
+  }).where(eq(players.mongoId, newLeaderId));
   
   // Log activity
-  logClanActivity(clanId, ClanActivityType.LEADERSHIP_TRANSFERRED, currentLeaderId, {
+  await logClanActivity(clanId, ClanActivityType.LEADERSHIP_TRANSFERRED, currentLeaderId, {
     newLeaderUsername: newLeader.username,
   });
   
@@ -921,28 +887,21 @@ export async function transferLeadership(
 export async function updateClanSettings(
   clanId: string,
   playerId: string,
-  settings: Partial<{
-    messageOfTheDay: string;
-    isRecruiting: boolean;
-    minLevelToJoin: number;
-    requiresApproval: boolean;
-    allowTerritoryControl: boolean;
-    allowWarDeclarations: boolean;
-  }>
-): Promise<Tables<'clans'>> {
-  const supabase = createServiceClient();
-  
+  settings: Partial<Clan['settings']>
+): Promise<Clan> {
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  const member = await findClanMember(clanId, playerId);
+  // Get member
+  const member = clan.members.find(m => m.playerId === playerId);
   if (!member) {
     throw new Error('Player not in clan');
   }
   
-  // Check description edit permission if message of the day being changed
+  // Check description edit permission if description being changed
   if (settings.messageOfTheDay !== undefined && !hasPermission(member.role, 'canEditDescription')) {
     throw new Error('No permission to edit message of the day');
   }
@@ -957,25 +916,23 @@ export async function updateClanSettings(
     }
   }
   
-  // Merge with existing settings
-  const existingSettings = (clan.clan_settings as Record<string, any>) || {};
-  const mergedSettings = { ...existingSettings, ...settings };
+  // Build update object with flat column names
+  const updateFields: Record<string, any> = {};
+  if (settings.messageOfTheDay !== undefined) updateFields.settingsMessageOfTheDay = settings.messageOfTheDay;
+  if (settings.isRecruiting !== undefined) updateFields.settingsIsRecruiting = settings.isRecruiting ? 1 : 0;
+  if (settings.minLevelToJoin !== undefined) updateFields.settingsMinLevelToJoin = settings.minLevelToJoin;
+  if (settings.requiresApproval !== undefined) updateFields.settingsRequiresApproval = settings.requiresApproval ? 1 : 0;
+  if (settings.allowTerritoryControl !== undefined) updateFields.settingsAllowTerritoryControl = settings.allowTerritoryControl ? 1 : 0;
+  if (settings.allowWarDeclarations !== undefined) updateFields.settingsAllowWarDeclarations = settings.allowWarDeclarations ? 1 : 0;
   
-  const { data: updatedClan, error } = await supabase
-    .from('clans')
-    .update({ clan_settings: mergedSettings })
-    .eq('id', clanId)
-    .select('*')
-    .single();
-
-  if (error) throw new Error(error.message);
+  await db.update(clans).set(updateFields).where(eq(clans.id, clanId));
   
   // Log activity
-  logClanActivity(clanId, ClanActivityType.SETTINGS_CHANGED, playerId, {
+  await logClanActivity(clanId, ClanActivityType.SETTINGS_CHANGED, playerId, {
     changes: Object.keys(settings),
   });
   
-  return updatedClan!;
+  return (await getClanById(clanId))!;
 }
 
 /**
@@ -991,49 +948,32 @@ export async function updateClanSettings(
  * await disbandClan('clan123', 'leader456');
  */
 export async function disbandClan(clanId: string, playerId: string): Promise<{ success: boolean; message: string }> {
-  const supabase = createServiceClient();
-  
+  // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
     throw new Error('Clan not found');
   }
   
-  if (clan.leader_id !== playerId) {
+  // Verify leader
+  if (clan.leaderId !== playerId) {
     throw new Error('Only clan leader can disband the clan');
   }
   
-  // Get all member player IDs
-  const members = await getClanMembers(clanId);
-  
   // Remove clan ID from all members
-  for (const member of members) {
-    await supabase
-      .from('players')
-      .update({
-        clan_id: null,
-        clan_name: null,
-        clan_role: null,
-      })
-      .eq('username', member.player_id);
-  }
-  
-  // Delete clan members
-  await supabase
-    .from('clan_members')
-    .delete()
-    .eq('clan_id', clanId);
-  
-  // Delete clan invitations
-  await supabase
-    .from('clan_invitations')
-    .delete()
-    .eq('clan_id', clanId);
+  const memberIds = clan.members.map(m => m.playerId);
+  await db.update(players).set({
+    clanId: null,
+    clanRole: null,
+  }).where(inArray(players.mongoId, memberIds));
   
   // Delete clan
-  await supabase
-    .from('clans')
-    .delete()
-    .eq('id', clanId);
+  await db.delete(clans).where(eq(clans.id, clanId));
+  
+  // Delete associated data
+  // TODO: clan_invitations, clan_activities, clan_chat table schemas not yet created - using raw SQL
+  await db.execute(sql`DELETE FROM clan_invitations WHERE clan_id = ${clanId}`);
+  await db.execute(sql`DELETE FROM clan_activities WHERE clan_id = ${clanId}`);
+  await db.execute(sql`DELETE FROM clan_chat WHERE clan_id = ${clanId}`);
   
   return { success: true, message: 'Clan disbanded successfully' };
 }
@@ -1064,24 +1004,22 @@ export async function getClanStats(clanId: string): Promise<{
     throw new Error('Clan not found');
   }
   
-  const memberCount = await countClanMembers(clanId);
-  
   return {
-    members: memberCount,
-    level: clan.clan_level,
-    totalXP: clan.total_xp,
-    totalPower: clan.total_power,
-    territories: clan.total_territories,
-    monuments: clan.total_monuments,
-    researchPoints: clan.research_points,
-    bankCapacity: clan.bank_capacity,
-    activePerks: 0,
+    members: clan.members.length,
+    level: clan.level.currentLevel,
+    totalXP: clan.level.totalXP,
+    totalPower: clan.stats.totalPower,
+    territories: clan.territories.length,
+    monuments: clan.monuments.length,
+    researchPoints: clan.research.researchPoints,
+    bankCapacity: clan.bank.capacity,
+    activePerks: clan.activePerks.length,
   };
 }
 
 /**
  * Helper function to log clan activity
- * No dedicated clan_activities table in Supabase — logs to console.
+ * Integrates with clan activity tracking system.
  * 
  * @param clanId - Clan ID
  * @param activityType - Type of activity
@@ -1095,8 +1033,13 @@ async function logClanActivity(
   metadata: Record<string, any>
 ): Promise<void> {
   try {
-    console.log(`[Clan Activity] clan=${clanId} type=${activityType} player=${playerId}`, metadata);
+    // TODO: clan_activities table schema not yet created - using raw SQL
+    await db.execute(sql`
+      INSERT INTO clan_activities (clan_id, activity_type, player_id, metadata, timestamp)
+      VALUES (${clanId}, ${activityType}, ${playerId}, ${JSON.stringify(metadata)}, NOW())
+    `);
   } catch (error) {
+    // Don't fail the operation if logging fails
     console.error('Failed to log clan activity:', error);
   }
 }
@@ -1115,4 +1058,8 @@ async function logClanActivity(
  * - XP tracking foundation in place, full implementation in clanLevelService
  * - Bank system initialized but full implementation in clanBankService
  * - Settings validation ensures only appropriate roles can change sensitive values
+ * - Migrated from MongoDB to Drizzle ORM with MySQL
+ * - Player lookups use mongoId field for backward compatibility with existing player IDs
+ * - Clan members stored as JSON array in flat column - read/modify/update pattern used
+ * - TODO: clan_invitations, clan_activities, clan_chat tables need Drizzle schema definitions
  */

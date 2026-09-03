@@ -1,11 +1,11 @@
 /**
  * 📅 Created: 2025-01-18
- * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth; proper types
+ * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
  * 🎯 OVERVIEW:
  * Clear Player Flags Endpoint
  * 
  * Allows admins to clear all anti-cheat flags for a player.
- * Logs action in admin_logs table for audit trail.
+ * Logs action in adminLogs collection for audit trail.
  * Does not remove bans - use unban endpoint for that.
  * 
  * POST /api/admin/anti-cheat/clear-flags
@@ -14,10 +14,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
-import type { Database } from '@/types/database';
-import type { Json } from '@/types/database';
+import { getAuthenticatedUser } from '@/lib/authService';
+import clientPromise from '@/lib/mongodb';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -31,19 +29,6 @@ import {
 import { ClearFlagsSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
 
-type PlayerFlag = Database['public']['Tables']['player_flags']['Row'];
-
-interface PreviousFlagEntry {
-  reason: string;
-  flagged_by: string;
-  created_at: string;
-}
-
-interface ClearFlagsDetails {
-  flags_cleared: number;
-  previous_flags: PreviousFlagEntry[];
-}
-
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
@@ -51,74 +36,64 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clear-flags');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
-    const body = await request.json();
-    const validated = ClearFlagsSchema.parse(body);
-    const { username: targetUsername } = validated;
-    if (!targetUsername) return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
-
-    const supabase = createServiceClient();
-
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', targetUsername)
-      .single();
-
-    if (playerError || !player) {
-      return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
-        message: 'Player not found',
-        username: targetUsername,
+    // Admin authentication
+    const adminUser = await getAuthenticatedUser();
+    if (!adminUser || !adminUser.rank || adminUser.rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin access required (rank 5+)',
       });
     }
 
-    const { data: currentFlags } = await supabase
-      .from('player_flags')
-      .select('*')
-      .eq('player_username', targetUsername);
+    const body = await request.json();
+    const validated = ClearFlagsSchema.parse(body);
+    const { username } = validated;
 
-    const { error: deleteError } = await supabase
-      .from('player_flags')
-      .delete()
-      .eq('player_username', targetUsername);
+    const client = await clientPromise;
+    const db = client.db('game');
 
-    if (deleteError) {
-      throw deleteError;
+    // Check if player exists
+    const player = await db.collection('players').findOne({ username });
+    if (!player) {
+      return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
+        message: 'Player not found',
+        username,
+      });
     }
 
-    const deletedCount = currentFlags?.length || 0;
+    // Get current flags for logging
+    const currentFlags = await db.collection('playerFlags')
+      .find({ username })
+      .toArray();
 
-    const previousFlags: PreviousFlagEntry[] = (currentFlags || []).map((f: PlayerFlag): PreviousFlagEntry => ({
-      reason: f.reason,
-      flagged_by: f.flagged_by,
-      created_at: f.created_at,
-    }));
+    // Delete all flags for this player
+    const result = await db.collection('playerFlags').deleteMany({ username });
 
-    const details: ClearFlagsDetails = {
-      flags_cleared: deletedCount,
-      previous_flags: previousFlags,
-    };
-
-    await supabase.from('admin_logs').insert({
-      created_at: new Date().toISOString(),
-      admin_username: auth.username,
-      action: 'CLEAR_FLAGS',
-      target: targetUsername,
-      details: details as unknown as Json,
+    // Log admin action
+    await db.collection('adminLogs').insertOne({
+      timestamp: new Date(),
+      adminUsername: adminUser.username,
+      actionType: 'CLEAR_FLAGS',
+      targetUsername: username,
+      details: {
+        flagsCleared: result.deletedCount,
+        previousFlags: currentFlags.map((f: any) => ({
+          flagType: f.flagType,
+          severity: f.severity,
+          timestamp: f.timestamp
+        }))
+      }
     });
 
     log.info('Flags cleared successfully', {
-      targetUsername,
-      flagsCleared: deletedCount,
-      adminUser: auth.username,
+      username,
+      flagsCleared: result.deletedCount,
+      adminUser: adminUser.username,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Cleared ${deletedCount} flags for ${targetUsername}`,
-      flagsCleared: deletedCount,
+      message: `Cleared ${result.deletedCount} flags for ${username}`,
+      flagsCleared: result.deletedCount
     });
 
   } catch (error) {
@@ -131,3 +106,30 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     endTimer();
   }
 }));
+
+/**
+ * 📝 IMPLEMENTATION NOTES:
+ * - Admin-only access (rank >= 5)
+ * - Deletes all playerFlags documents for username
+ * - Logs action with previous flags for audit trail
+ * - Does not affect bans (separate collection)
+ * 
+ * 🔐 SECURITY:
+ * - Admin authentication required
+ * - Player existence validation
+ * - Audit trail logging
+ * 
+ * 📊 ADMIN LOG STRUCTURE:
+ * {
+ *   timestamp: Date,
+ *   adminUsername: string,
+ *   actionType: 'CLEAR_FLAGS',
+ *   targetUsername: string,
+ *   details: { flagsCleared: number, previousFlags: [] }
+ * }
+ * 
+ * ⚠️ NOTE:
+ * - This does not unban players
+ * - Use /api/admin/anti-cheat/unban to remove bans
+ * - Flags may be re-added if suspicious activity continues
+ */

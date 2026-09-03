@@ -28,11 +28,15 @@ vi.mock('@/lib/authMiddleware', () => ({
   requireAuth: vi.fn(),
 }));
 
+const mockCheck = vi.fn().mockResolvedValue(true);
+const mockGetRemainingTime = vi.fn().mockResolvedValue(0);
+const mockRecord = vi.fn().mockResolvedValue(undefined);
+
 vi.mock('@/lib/redis', () => ({
   createRateLimiter: vi.fn(() => ({
-    check: vi.fn().mockResolvedValue(true),
-    getRemainingTime: vi.fn().mockResolvedValue(0),
-    record: vi.fn().mockResolvedValue(undefined),
+    check: mockCheck,
+    getRemainingTime: mockGetRemainingTime,
+    record: mockRecord,
   })),
 }));
 
@@ -92,7 +96,6 @@ describe('POST /api/chat/ask-veterans', () => {
 
   it('should return 429 if rate limited', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
-    const { createRateLimiter } = await import('@/lib/redis');
 
     vi.mocked(requireAuth).mockResolvedValueOnce({
       username: 'newbiePlayer',
@@ -103,12 +106,8 @@ describe('POST /api/chat/ask-veterans', () => {
       },
     } as any);
 
-    // Mock rate limiter to return false (rate limited)
-    vi.mocked(createRateLimiter).mockReturnValueOnce({
-      check: vi.fn().mockResolvedValue(false),
-      getRemainingTime: vi.fn().mockResolvedValue(180), // 3 minutes remaining
-      record: vi.fn(),
-    } as any);
+    mockCheck.mockResolvedValueOnce(false);
+    mockGetRemainingTime.mockResolvedValueOnce(180);
 
     const request = new NextRequest('http://localhost:3000/api/chat/ask-veterans', {
       method: 'POST',
@@ -175,7 +174,6 @@ describe('POST /api/chat/ask-veterans', () => {
 
   it('should successfully send veteran help request', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
-    const { createRateLimiter } = await import('@/lib/redis');
 
     vi.mocked(requireAuth).mockResolvedValueOnce({
       username: 'newbiePlayer',
@@ -186,12 +184,8 @@ describe('POST /api/chat/ask-veterans', () => {
       },
     } as any);
 
-    // Mock rate limiter to allow request
-    vi.mocked(createRateLimiter).mockReturnValueOnce({
-      check: vi.fn().mockResolvedValue(true),
-      getRemainingTime: vi.fn().mockResolvedValue(0),
-      record: vi.fn(),
-    } as any);
+    mockCheck.mockResolvedValueOnce(true);
+    mockGetRemainingTime.mockResolvedValueOnce(0);
 
     const request = new NextRequest('http://localhost:3000/api/chat/ask-veterans', {
       method: 'POST',

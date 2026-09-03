@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/authMiddleware';
+import { verifyToken } from '@/lib/authService';
 import { logActivity } from '@/lib/activityLogService';
 import { ActionType, ActionCategory, getActionCategory } from '@/types/activityLog.types';
 
@@ -34,7 +34,7 @@ import { ActionType, ActionCategory, getActionCategory } from '@/types/activityL
  */
 type RouteHandler = (
   req: NextRequest,
-  context?: any
+  context: { params: Promise<Record<string, string>> }
 ) => Promise<NextResponse> | NextResponse;
 
 /**
@@ -167,19 +167,19 @@ async function extractPlayerInfo(req: NextRequest): Promise<{
       username: payload.username,
       sessionId: token.substring(0, 16) // Use token prefix as session ID
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
 /**
  * Detect action type from request path and body
- * 
+ *
  * @param pathname - Request pathname
  * @param body - Request body (optional)
  * @returns Action type or undefined
  */
-function detectActionType(pathname: string, body?: any): ActionType | undefined {
+function detectActionType(pathname: string, body?: Record<string, unknown>): ActionType | undefined {
   // Try exact match first
   const exactMatch = ROUTE_ACTION_MAP[pathname];
   if (exactMatch) {
@@ -241,13 +241,12 @@ function getClientIP(req: NextRequest): string {
  * @param body - Request body
  * @returns Sanitized body
  */
-function sanitizeBody(body: any): any {
+function sanitizeBody(body: unknown): unknown {
   if (!body || typeof body !== 'object') {
     return body;
   }
   
-  const sanitized = { ...body };
-  
+  const sanitized = { ...(body as Record<string, unknown>) };
   // Remove sensitive fields
   delete sanitized.password;
   delete sanitized.token;
@@ -278,7 +277,7 @@ export function withActivityLogging(
   handler: RouteHandler,
   config?: Partial<LoggingConfig>
 ): RouteHandler {
-  return async (req: NextRequest, context?: any) => {
+  return async (req: NextRequest, context: { params: Promise<Record<string, string>> }) => {
     const startTime = Date.now();
     const pathname = new URL(req.url).pathname;
     
@@ -289,7 +288,7 @@ export function withActivityLogging(
     const playerInfo = await extractPlayerInfo(req);
     
     // Parse request body if needed
-    let requestBody: any;
+    let requestBody: Record<string, unknown> | null = null;
     if (config?.captureRequestBody !== false && req.method !== 'GET') {
       try {
         // Clone request to avoid consuming body
@@ -301,7 +300,7 @@ export function withActivityLogging(
     }
     
     // Detect action type
-    const actionType = config?.actionType || detectActionType(pathname, requestBody);
+    const actionType = config?.actionType || detectActionType(pathname, requestBody ?? undefined);
     
     let response: NextResponse;
     let success = true;
@@ -324,11 +323,11 @@ export function withActivityLogging(
           errorCode = `HTTP_${response.status}`;
         }
       }
-    } catch (error: unknown) {
+    } catch (error) {
       // Handler threw an error
       success = false;
       errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      errorCode = error instanceof Error ? String((error as { code?: string }).code || 'HANDLER_ERROR') : 'HANDLER_ERROR';
+      errorCode = error instanceof Error && 'code' in error ? String(error.code) : 'HANDLER_ERROR';
       
       // Re-throw to maintain original error handling
       throw error;
@@ -384,7 +383,7 @@ export function withActivityLogging(
 export async function logActivityManual(
   actionType: ActionType,
   req: NextRequest,
-  details: Record<string, any> = {},
+  details: Record<string, unknown> = {},
   success: boolean = true,
   errorMessage?: string
 ): Promise<void> {
@@ -398,7 +397,7 @@ export async function logActivityManual(
       actionType,
       category: getActionCategory(actionType),
       timestamp: new Date(),
-      details: sanitizeBody(details),
+      details: sanitizeBody(details) as Record<string, unknown>,
       success,
       errorMessage,
       executionTimeMs: 0, // Manual logs don't track execution time
@@ -426,7 +425,7 @@ export async function logActivityManual(
  */
 export async function logSystemEvent(
   actionType: ActionType,
-  details: Record<string, any> = {},
+  details: Record<string, unknown> = {},
   success: boolean = true
 ): Promise<void> {
   try {

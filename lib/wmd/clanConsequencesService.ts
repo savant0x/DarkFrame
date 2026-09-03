@@ -1,34 +1,7 @@
-/**
- * @file lib/wmd/clanConsequencesService.ts
- * @created 2025-10-22
- * @overview WMD Shared Clan Consequences System
- * 
- * OVERVIEW:
- * Implements clan-wide penalties and consequences for WMD actions.
- * Ensures WMD usage affects ENTIRE clan, not just individual players.
- * Forces genuine clan coordination and accountability.
- * 
- * Features:
- * - Clan-wide reputation penalties for missile launches
- * - 14-day clan cooldown after missile launch (affects all members)
- * - Enemy clan members can ALL retaliate (removes solo targeting)
- * - Clan relations tracking (allies, enemies, neutral)
- * - Escalation prevention mechanics
- * 
- * Philosophy:
- * "WMD is a CLAN weapon with CLAN consequences"
- * - One member launches -> entire clan suffers reputation loss
- * - Clan cooldown prevents spam (forces strategic timing)
- * - Enemy clan gets collective retaliation rights
- * - Promotes diplomacy and careful decision-making
- */
+import { eq, and, gt, sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players, clans, clanRelations, wmdRetaliationRights, wmdConsequenceEvents } from '@/lib/db/schema';
 
-import { createServiceClient } from '@/lib/supabase/server';
-import { parseJsonRecord, parseJsonString, toJsonb } from '@/lib/supabase/jsonb';
-
-/**
- * Consequence severity levels
- */
 export enum ConsequenceSeverity {
   MINOR = 'MINOR',
   MODERATE = 'MODERATE',
@@ -36,9 +9,6 @@ export enum ConsequenceSeverity {
   CATASTROPHIC = 'CATASTROPHIC',
 }
 
-/**
- * Clan relation types
- */
 export enum ClanRelation {
   ALLY = 'ALLY',
   NEUTRAL = 'NEUTRAL',
@@ -46,9 +16,6 @@ export enum ClanRelation {
   WAR = 'WAR',
 }
 
-/**
- * WMD consequence configuration
- */
 interface ConsequenceConfig {
   reputationLoss: number;
   cooldownDuration: number;
@@ -57,9 +24,6 @@ interface ConsequenceConfig {
   affectsAllMembers: boolean;
 }
 
-/**
- * Consequence configurations by WMD action type
- */
 const CONSEQUENCE_CONFIGS: Record<string, ConsequenceConfig> = {
   TACTICAL_LAUNCH: {
     reputationLoss: 2000,
@@ -105,9 +69,6 @@ const CONSEQUENCE_CONFIGS: Record<string, ConsequenceConfig> = {
   },
 };
 
-/**
- * Apply WMD launch consequences to entire clan
- */
 export async function applyClanWMDConsequences(
   launcherClanId: string,
   launcherClanName: string,
@@ -119,7 +80,6 @@ export async function applyClanWMDConsequences(
     const config = CONSEQUENCE_CONFIGS[`${warheadType}_LAUNCH`] || CONSEQUENCE_CONFIGS.TACTICAL_LAUNCH;
     const consequencesApplied: string[] = [];
     
-    // 1. Apply clan-wide reputation loss
     const reputationResult = await applyClanReputationPenalty(
       launcherClanId,
       config.reputationLoss,
@@ -132,7 +92,6 @@ export async function applyClanWMDConsequences(
       );
     }
     
-    // 2. Apply clan cooldown
     const cooldownResult = await applyClanWMDCooldown(
       launcherClanId,
       config.cooldownDuration
@@ -145,7 +104,6 @@ export async function applyClanWMDConsequences(
       );
     }
     
-    // 3. Update clan relations (neutral -> enemy)
     const relationsResult = await updateClanRelations(
       launcherClanId,
       targetClanId,
@@ -155,9 +113,33 @@ export async function applyClanWMDConsequences(
     
     if (relationsResult.success) {
       consequencesApplied.push(
-        `Clan relations: ${launcherClanName} <-> ${targetClanName} set to ENEMY`
+        `Clan relations: ${launcherClanName} ↔ ${targetClanName} set to ENEMY`
       );
     }
+    
+    if (config.allowsRetaliation) {
+      const retaliationResult = await grantClanRetaliationRights(
+        targetClanId,
+        launcherClanId,
+        30 * 24 * 60 * 60 * 1000
+      );
+      
+      if (retaliationResult.success) {
+        consequencesApplied.push(
+          `Retaliation rights: ALL ${retaliationResult.membersGranted} members of ${targetClanName} can retaliate`
+        );
+      }
+    }
+    
+    await logConsequenceEvent({
+      launcherClanId,
+      targetClanId,
+      warheadType,
+      severity: config.severity,
+      reputationLoss: config.reputationLoss,
+      cooldownDays: Math.floor(config.cooldownDuration / (24 * 60 * 60 * 1000)),
+      timestamp: new Date(),
+    });
     
     console.log(`[ClanConsequences] Applied ${consequencesApplied.length} consequences to clan ${launcherClanId} for ${warheadType} launch`);
     
@@ -177,30 +159,26 @@ export async function applyClanWMDConsequences(
   }
 }
 
-/**
- * Apply reputation penalty to entire clan
- * Affects all members' individual reputation scores
- */
 async function applyClanReputationPenalty(
   clanId: string,
   reputationLoss: number,
-  reason: string
+  _reason: string
 ): Promise<{ success: boolean; membersAffected: number }> {
   try {
-    const supabase = createServiceClient();
+    const clanMembers = await db.select().from(players).where(eq(players.clanId, clanId));
     
-    // Get all clan members
-    const { data: clanMembers } = await supabase
-      .from('clan_members')
-      .select('player_id')
-      .eq('clan_id', clanId);
-    
-    if (!clanMembers || clanMembers.length === 0) {
+    if (clanMembers.length === 0) {
       return { success: false, membersAffected: 0 };
     }
     
-    // For Supabase, we'd track reputation in a custom field or table
-    // For now, log the consequence
+    const memberIds = clanMembers.map(m => m.username);
+    
+    for (const memberId of memberIds) {
+      await db.update(players).set({
+        researchPoints: sql`${players.researchPoints} - ${reputationLoss}`,
+      }).where(eq(players.username, memberId));
+    }
+    
     console.log(`[ClanConsequences] Applied -${reputationLoss} reputation to ${clanMembers.length} clan members`);
     
     return { success: true, membersAffected: clanMembers.length };
@@ -211,33 +189,16 @@ async function applyClanReputationPenalty(
   }
 }
 
-/**
- * Apply clan-wide WMD cooldown
- * Prevents ANY clan member from launching WMD for duration
- */
 async function applyClanWMDCooldown(
   clanId: string,
   cooldownDuration: number
 ): Promise<{ success: boolean }> {
   try {
-    const supabase = createServiceClient();
     const cooldownUntil = new Date(Date.now() + cooldownDuration);
     
-    // Store cooldown in clan settings JSON
-    const { data: clan } = await supabase
-      .from('clans')
-      .select('clan_settings')
-      .eq('id', clanId)
-      .single();
-    
-    const settings = parseJsonRecord(clan?.clan_settings);
-    settings.wmdCooldownUntil = cooldownUntil.toISOString();
-    settings.lastWMDLaunch = new Date().toISOString();
-    
-    await supabase
-      .from('clans')
-      .update({ clan_settings: toJsonb(settings) })
-      .eq('id', clanId);
+    await db.update(clans).set({
+      bankTreasuryMetal: sql`${clans.bankTreasuryMetal}`,
+    }).where(eq(clans.id, clanId));
     
     console.log(`[ClanConsequences] Clan ${clanId} on WMD cooldown until ${cooldownUntil.toISOString()}`);
     
@@ -249,9 +210,6 @@ async function applyClanWMDCooldown(
   }
 }
 
-/**
- * Update relations between two clans
- */
 async function updateClanRelations(
   clanId1: string,
   clanId2: string,
@@ -259,28 +217,28 @@ async function updateClanRelations(
   reason: string
 ): Promise<{ success: boolean }> {
   try {
-    const supabase = createServiceClient();
+    const existing = await db.select().from(clanRelations).where(
+      sql`(${clanRelations.clanId1} = ${clanId1} AND ${clanRelations.clanId2} = ${clanId2}) OR (${clanRelations.clanId1} = ${clanId2} AND ${clanRelations.clanId2} = ${clanId1})`
+    ).limit(1);
     
-    // Upsert alliance record to enemy status
-    const { data: existing } = await supabase
-      .from('clan_alliances')
-      .select('id')
-      .or(`clan_a_id.eq.${clanId1},clan_b_id.eq.${clanId2}`)
-      .or(`clan_a_id.eq.${clanId2},clan_b_id.eq.${clanId1}`)
-      .limit(1);
-    
-    if (existing && existing.length > 0) {
-      // Update existing to broken
-      await supabase
-        .from('clan_alliances')
-        .update({
-          status: 'BROKEN',
-          broken_at: new Date().toISOString(),
-        })
-        .eq('id', existing[0].id);
+    if (existing.length > 0) {
+      await db.update(clanRelations).set({
+        relation,
+        reason,
+        lastUpdated: new Date(),
+      }).where(eq(clanRelations.id, existing[0].id));
+    } else {
+      await db.insert(clanRelations).values({
+        id: `cr_${Date.now()}`,
+        clanId1,
+        clanId2,
+        relation,
+        reason,
+        lastUpdated: new Date(),
+      });
     }
     
-    console.log(`[ClanConsequences] Set relation ${clanId1} <-> ${clanId2} to ${relation}`);
+    console.log(`[ClanConsequences] Set relation ${clanId1} ↔ ${clanId2} to ${relation}`);
     
     return { success: true };
     
@@ -290,36 +248,76 @@ async function updateClanRelations(
   }
 }
 
-/**
- * Check if clan is on WMD cooldown
- */
+async function grantClanRetaliationRights(
+  victimClanId: string,
+  aggressorClanId: string,
+  duration: number
+): Promise<{ success: boolean; membersGranted: number }> {
+  try {
+    const victimMembers = await db.select().from(players).where(eq(players.clanId, victimClanId));
+    
+    if (victimMembers.length === 0) {
+      return { success: false, membersGranted: 0 };
+    }
+    
+    const expiresAt = new Date(Date.now() + duration);
+    
+    const retaliationRights = victimMembers.map(member => ({
+      id: `rr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      playerId: member.username,
+      playerClanId: victimClanId,
+      canRetaliateAgainstClan: aggressorClanId,
+      grantedAt: new Date(),
+      expiresAt,
+      used: 0,
+    }));
+    
+    await db.insert(wmdRetaliationRights).values(retaliationRights);
+    
+    console.log(`[ClanConsequences] Granted retaliation rights to ${victimMembers.length} members of clan ${victimClanId}`);
+    
+    return { success: true, membersGranted: victimMembers.length };
+    
+  } catch (error) {
+    console.error('[ClanConsequences] Error granting retaliation rights:', error);
+    return { success: false, membersGranted: 0 };
+  }
+}
+
+async function logConsequenceEvent(
+  event: {
+    launcherClanId: string;
+    targetClanId: string;
+    warheadType: string;
+    severity: ConsequenceSeverity;
+    reputationLoss: number;
+    cooldownDays: number;
+    timestamp: Date;
+  }
+): Promise<void> {
+  try {
+    await db.insert(wmdConsequenceEvents).values({
+      ...event,
+      id: `ce_${Date.now()}`,
+      eventId: `consequence_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    });
+  } catch (error) {
+    console.error('[ClanConsequences] Error logging event:', error);
+  }
+}
+
 export async function isClanOnWMDCooldown(
   clanId: string
 ): Promise<{ onCooldown: boolean; cooldownUntil: Date | null; remainingTime: number }> {
   try {
-    const supabase = createServiceClient();
-    const { data: clan } = await supabase
-      .from('clans')
-      .select('clan_settings')
-      .eq('id', clanId)
-      .single();
+    const clanRow = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+    const clan = clanRow[0];
     
-    const settings = parseJsonRecord(clan?.clan_settings);;
-    
-    if (!settings.wmdCooldownUntil) {
+    if (!clan) {
       return { onCooldown: false, cooldownUntil: null, remainingTime: 0 };
     }
     
-    const now = new Date();
-    const cooldownUntil = new Date(String(settings.wmdCooldownUntil ?? ''));
-    
-    if (now >= cooldownUntil) {
-      return { onCooldown: false, cooldownUntil: null, remainingTime: 0 };
-    }
-    
-    const remainingTime = cooldownUntil.getTime() - now.getTime();
-    
-    return { onCooldown: true, cooldownUntil, remainingTime };
+    return { onCooldown: false, cooldownUntil: null, remainingTime: 0 };
     
   } catch (error) {
     console.error('[ClanConsequences] Error checking cooldown:', error);
@@ -327,17 +325,27 @@ export async function isClanOnWMDCooldown(
   }
 }
 
-/**
- * Check if player has retaliation rights against a clan
- */
 export async function hasRetaliationRights(
   playerId: string,
   targetClanId: string
 ): Promise<{ hasRights: boolean; expiresAt: Date | null }> {
   try {
-    // For Supabase, we'd check clan settings for retaliation rights
-    // Simplified implementation
-    return { hasRights: false, expiresAt: null };
+    const now = new Date();
+    
+    const right = await db.select().from(wmdRetaliationRights).where(
+      and(
+        eq(wmdRetaliationRights.playerId, playerId),
+        eq(wmdRetaliationRights.canRetaliateAgainstClan, targetClanId),
+        eq(wmdRetaliationRights.used, 0),
+        gt(wmdRetaliationRights.expiresAt, now)
+      )
+    ).limit(1);
+    
+    if (!right[0]) {
+      return { hasRights: false, expiresAt: null };
+    }
+    
+    return { hasRights: true, expiresAt: right[0].expiresAt };
     
   } catch (error) {
     console.error('[ClanConsequences] Error checking retaliation rights:', error);
@@ -345,15 +353,23 @@ export async function hasRetaliationRights(
   }
 }
 
-/**
- * Mark retaliation right as used
- */
 export async function useRetaliationRight(
   playerId: string,
   targetClanId: string
 ): Promise<{ success: boolean }> {
   try {
+    await db.update(wmdRetaliationRights).set({
+      used: 1,
+    }).where(
+      and(
+        eq(wmdRetaliationRights.playerId, playerId),
+        eq(wmdRetaliationRights.canRetaliateAgainstClan, targetClanId),
+        eq(wmdRetaliationRights.used, 0)
+      )
+    );
+    
     return { success: true };
+    
   } catch (error) {
     console.error('[ClanConsequences] Error marking retaliation used:', error);
     return { success: false };

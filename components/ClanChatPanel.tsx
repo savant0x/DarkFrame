@@ -28,7 +28,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageType } from '@/lib/clanChatService';
 
 interface ChatMessage {
@@ -68,28 +68,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
   const isLeader = role === 'LEADER';
   const canModerate = ['LEADER', 'CO_LEADER'].includes(role);
 
-  // Load initial messages
-  useEffect(() => {
-    loadMessages();
-    
-    // Poll for new messages every 5 seconds
-    const interval = setInterval(() => {
-      pollNewMessages();
-    }, 5000);
-    
-    return () => clearInterval(interval);
-  }, [clanId]);
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -101,13 +80,51 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
         throw new Error(data.error || 'Failed to load messages');
       }
       
-      setMessages(data.messages.reverse()); // Reverse to show oldest first
+      setMessages(data.messages.reverse());
       setHasMore(data.messages.length === 50);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
+  }, [clanId]);
+
+  const pollNewMessages = useCallback(async () => {
+    if (messages.length === 0) return;
+    
+    try {
+      const latestMessage = messages[messages.length - 1];
+      
+      const response = await fetch(
+        `/api/clan/chat?clanId=${clanId}&since=${latestMessage.timestamp}`
+      );
+      const data = await response.json();
+      
+      if (response.ok && data.messages.length > 0) {
+        setMessages([...messages, ...data.messages]);
+      }
+    } catch (err) {
+      console.error('Failed to poll messages:', err);
+    }
+  }, [clanId, messages]);
+
+  useEffect(() => {
+    loadMessages();
+    
+    const interval = setInterval(() => {
+      pollNewMessages();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [clanId, loadMessages, pollNewMessages]);
+
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const loadMoreMessages = async () => {
@@ -137,26 +154,6 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       setError(err.message);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const pollNewMessages = async () => {
-    if (messages.length === 0) return;
-    
-    try {
-      const latestMessage = messages[messages.length - 1];
-      
-      const response = await fetch(
-        `/api/clan/chat?clanId=${clanId}&since=${latestMessage.timestamp}`
-      );
-      const data = await response.json();
-      
-      if (response.ok && data.messages.length > 0) {
-        setMessages([...messages, ...data.messages]);
-      }
-    } catch (err) {
-      // Silently fail for polling
-      console.error('Failed to poll messages:', err);
     }
   };
 

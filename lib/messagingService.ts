@@ -16,14 +16,16 @@
  * - Provide pagination for message history
  * 
  * DEPENDENCIES:
- * - Supabase for persistence
+ * - Drizzle ORM (MySQL) for persistence
  * - bad-words for profanity filtering
  * - types/messaging.types.ts for type safety
  */
 
+import { randomUUID } from 'node:crypto';
 import { Filter } from 'bad-words';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, TablesInsert, TablesUpdate } from '@/types/database';
+import { db } from '@/lib/db';
+import { conversations, messages } from '@/lib/db/schema';
+import { eq, and, isNull, desc, asc, sql, ne, like } from 'drizzle-orm';
 import type {
   Message,
   Conversation,
@@ -43,93 +45,6 @@ import type {
 const profanityFilter = new Filter();
 
 // Rate limiting cache (in production, use Redis)
-
-// ============================================================================
-// DB ↔ DOMAIN MAPPING FUNCTIONS
-// ============================================================================
-
-/**
- * Maps a conversations DB row to our domain Conversation type.
- */
-function mapDbConversation(row: Tables<'conversations'>): Conversation {
-  const lastMsg = typeof row.last_message === 'string'
-    ? JSON.parse(row.last_message)
-    : (row.last_message as Record<string, unknown> | null);
-
-  return {
-    _id: row.id,
-    participants: row.participants as Conversation['participants'],
-    lastMessage: lastMsg?.content
-      ? {
-          content: (lastMsg.content as string) ?? '',
-          senderId: (lastMsg.sender_id as string) ?? '',
-          createdAt: new Date((lastMsg.created_at as string) ?? Date.now()),
-          status: ((lastMsg.status as string) ?? 'sent') as MessageStatus,
-        }
-      : undefined,
-    unreadCount: typeof row.unread_count === 'number' ? { total: row.unread_count } : {},
-    createdAt: new Date(row.created_at ?? Date.now()),
-    updatedAt: new Date(row.updated_at ?? Date.now()),
-  };
-}
-
-/**
- * Maps our domain Conversation to a DB insert object.
- */
-function mapConversationToDb(conv: Partial<Conversation>): TablesInsert<'conversations'> {
-  return {
-    id: conv._id,
-    participants: conv.participants ?? [],
-    last_message: conv.lastMessage
-      ? JSON.stringify({
-          content: conv.lastMessage.content,
-          sender_id: conv.lastMessage.senderId,
-          created_at: conv.lastMessage.createdAt.toISOString(),
-          status: conv.lastMessage.status,
-        })
-      : null,
-    created_at: conv.createdAt?.toISOString() ?? new Date().toISOString(),
-    updated_at: conv.updatedAt?.toISOString() ?? new Date().toISOString(),
-  };
-}
-
-/**
- * Maps a messages DB row to our domain Message type.
- */
-function mapDbMessage(row: Tables<'messages'>): Message {
-  return {
-    _id: row.id,
-    conversationId: row.conversation_id ?? '',
-    senderId: row.sender_id ?? '',
-    recipientId: row.recipient_id ?? '',
-    content: row.content,
-    contentType: (row.content_type as Message['contentType']) ?? 'text',
-    status: (row.status as MessageStatus) ?? 'sent',
-    createdAt: new Date(row.created_at ?? Date.now()),
-    readAt: row.read_at ? new Date(row.read_at) : undefined,
-    editedAt: row.edited_at ? new Date(row.edited_at) : undefined,
-    deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
-  };
-}
-
-/**
- * Maps our domain Message to a DB insert object.
- */
-function mapMessageToDb(msg: Message): TablesInsert<'messages'> {
-  return {
-    id: msg._id,
-    conversation_id: msg.conversationId,
-    sender_id: msg.senderId,
-    recipient_id: msg.recipientId,
-    content: msg.content,
-    content_type: msg.contentType,
-    status: msg.status,
-    created_at: msg.createdAt.toISOString(),
-    read_at: msg.readAt?.toISOString() ?? null,
-    edited_at: msg.editedAt?.toISOString() ?? null,
-    deleted_at: msg.deletedAt?.toISOString() ?? null,
-  };
-}
 const rateLimitCache = new Map<string, RateLimitState>();
 
 // ============================================================================
@@ -261,35 +176,40 @@ export async function getOrCreateConversation(
   player1Id: string,
   player2Id: string
 ): Promise<Conversation> {
-  const supabase = createServiceClient();
-
+  // Normalize participant order for consistent lookup
   const participants: [string, string] = [player1Id, player2Id].sort() as [string, string];
 
-  const { data: existing } = await supabase
-    .from('conversations')
-    .select('*')
-    .contains('participants', participants)
-    .eq('participants', participants)
-    .single();
+  // Try to find existing conversation - fetch all and filter in JS since participants is JSON
+  const allConversations = await db.select().from(conversations);
+  const existing = allConversations.find(conv => {
+    const convParticipants = conv.participants as string[];
+    return convParticipants.length === 2 &&
+      convParticipants.includes(participants[0]) &&
+      convParticipants.includes(participants[1]);
+  });
 
   if (existing) {
-    return mapDbConversation(existing);
+    return mapConversationToType(existing);
   }
 
-  const newConversation = {
-    _id: crypto.randomUUID(),
-    participants,
-    unreadCount: {
-      [player1Id]: 0,
-      [player2Id]: 0,
-    },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as Conversation;
+  // Create new conversation
+  const newId = randomUUID().replace(/-/g, '').substring(0, 24);
+  const now = new Date();
+  const unreadCount: Record<string, number> = {
+    [player1Id]: 0,
+    [player2Id]: 0,
+  };
 
-  await supabase.from('conversations').insert(mapConversationToDb(newConversation));
+  await db.insert(conversations).values({
+    id: newId,
+    participants: participants as unknown as string[],
+    unreadCount,
+    createdAt: now,
+    updatedAt: now,
+  });
 
-  return newConversation;
+  const created = await db.select().from(conversations).where(eq(conversations.id, newId)).limit(1);
+  return mapConversationToType(created[0]);
 }
 
 /**
@@ -301,44 +221,64 @@ export async function getConversations(
   request: GetConversationsRequest
 ): Promise<ConversationsResponse> {
   try {
-    const supabase = createServiceClient();
-
     const limit = request.limit || 20;
     const offset = request.offset || 0;
 
-    const { data: results, count: totalCount, error } = await supabase
-      .from('conversations')
-      .select('*', { count: 'exact' })
-      .contains('participants', [request.playerId])
-      .order('updated_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    // Fetch all conversations and filter in JS since participants is JSON
+    const allConversations = await db.select().from(conversations);
 
-    if (error) throw error;
+    // Filter by participant
+    let filtered = allConversations.filter(conv => {
+      const convParticipants = conv.participants as string[];
+      return convParticipants.includes(request.playerId);
+    });
 
-    const conversations = (results || []).map(mapDbConversation);
-
-    if (request.sortBy === 'unread') {
-      conversations.sort((a, b) => {
-        const aCount = typeof a.unreadCount === 'number' ? a.unreadCount : (a.unreadCount as Record<string, number>)?.[request.playerId] || 0;
-        const bCount = typeof b.unreadCount === 'number' ? b.unreadCount : (b.unreadCount as Record<string, number>)?.[request.playerId] || 0;
-        return bCount - aCount;
+    // Filter out archived if requested
+    if (!request.includeArchived) {
+      filtered = filtered.filter(conv => {
+        const isArchived = (conv.isArchived as Record<string, boolean>)?.[request.playerId];
+        return !isArchived;
       });
     }
 
+    // Sort
+    if (request.sortBy === 'unread') {
+      filtered.sort((a, b) => {
+        const aUnread = ((a.unreadCount as Record<string, number>)?.[request.playerId] ?? 0);
+        const bUnread = ((b.unreadCount as Record<string, number>)?.[request.playerId] ?? 0);
+        if (bUnread !== aUnread) return bUnread - aUnread;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+    } else if (request.sortBy === 'pinned') {
+      filtered.sort((a, b) => {
+        const aPinned = (a.isPinned as Record<string, boolean>)?.[request.playerId] ? 1 : 0;
+        const bPinned = (b.isPinned as Record<string, boolean>)?.[request.playerId] ? 1 : 0;
+        if (bPinned !== aPinned) return bPinned - aPinned;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+    } else {
+      // Default: most recent first
+      filtered.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    }
+
+    const totalCount = filtered.length;
+    const paginated = filtered.slice(offset, offset + limit);
+    const results = paginated.map(mapConversationToType);
+
     return {
       success: true,
-      conversations,
-      totalCount: totalCount || 0,
-      hasMore: offset + (results?.length || 0) < (totalCount || 0),
+      conversations: results,
+      totalCount,
+      hasMore: offset + results.length < totalCount,
     };
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error fetching conversations:', error);
     return {
       success: false,
       conversations: [],
       totalCount: 0,
       hasMore: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch conversations',
+      error: error.message || 'Failed to fetch conversations',
     };
   }
 }
@@ -381,48 +321,51 @@ export async function sendDirectMessage(
     const conversation = await getOrCreateConversation(senderId, request.recipientId);
 
     // Create message
-    const supabase = createServiceClient();
+    const messageId = randomUUID().replace(/-/g, '').substring(0, 24);
+    const now = new Date();
 
-    const message: Message = {
-      _id: crypto.randomUUID(),
-      conversationId: conversation._id,
-      senderId: senderId,
+    const messageData = {
+      id: messageId,
+      conversationId: conversation._id as string,
+      senderId,
       recipientId: request.recipientId,
       content: validation.filteredContent || request.content,
       contentType: request.contentType || 'text',
-      status: 'sent',
-      createdAt: new Date(),
-      metadata: validation.filteredContent !== request.content
-        ? { originalContent: request.content }
+      status: 'sent' as const,
+      createdAt: now,
+      metadataOriginalContent: validation.filteredContent !== request.content
+        ? request.content
         : undefined,
     };
 
-    await supabase.from('messages').insert(mapMessageToDb(message));
+    await db.insert(messages).values(messageData);
+
+    // Fetch the created message
+    const createdMessages = await db.select().from(messages).where(eq(messages.id, messageId)).limit(1);
+    const message = mapMessageToType(createdMessages[0]);
 
     // Update conversation
-    const currentUnread = typeof conversation.unreadCount === 'number' ? conversation.unreadCount : 0;
-    const updateData = {
-      last_message: JSON.stringify({
-        content: message.content,
-        sender_id: message.senderId,
-        created_at: message.createdAt.toISOString(),
-        status: message.status,
-      }),
-      updated_at: new Date().toISOString(),
-      unread_count: currentUnread + 1,
-    };
-    await supabase.from('conversations').update(updateData as never).eq('id', conversation._id);
+    await db.update(conversations)
+      .set({
+        lastMessageContent: message.content,
+        lastMessageSenderId: message.senderId,
+        lastMessageCreatedAt: message.createdAt,
+        lastMessageStatus: message.status,
+        updatedAt: now,
+        unreadCount: sql`JSON_SET(COALESCE(${conversations.unreadCount}, '{}'), '$.${request.recipientId}', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(${conversations.unreadCount}, '$.${request.recipientId}')), 0) + 1)`,
+      })
+      .where(eq(conversations.id, conversation._id as string));
 
     return {
       success: true,
       message,
       conversation,
     };
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error sending message:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message',
+      error: error.message || 'Failed to send message',
     };
   }
 }
@@ -436,47 +379,45 @@ export async function getMessageHistory(
   request: GetMessagesRequest
 ): Promise<MessagesResponse> {
   try {
-    const supabase = createServiceClient();
-
     const limit = request.limit || 50;
 
-    // Build query
-    let query = supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', request.conversationId)
-      .is('deleted_at', null);
+    // Build base query conditions
+    const conditions = [
+      eq(messages.conversationId, request.conversationId),
+      isNull(messages.deletedAt), // Exclude soft-deleted messages
+    ];
 
     if (request.before) {
-      query = query.lt('created_at', request.before);
+      conditions.push(sql`${messages.createdAt} < ${request.before}`);
     } else if (request.after) {
-      query = query.gt('created_at', request.after);
+      conditions.push(sql`${messages.createdAt} > ${request.after}`);
     }
 
     // Fetch messages (sorted newest first)
-    const { data: results, error } = await query
-      .order('created_at', { ascending: false })
-      .limit(limit + 1);
+    const results = await db
+      .select()
+      .from(messages)
+      .where(and(...conditions))
+      .orderBy(desc(messages.createdAt))
+      .limit(limit + 1); // Fetch one extra to check hasMore
 
-    if (error) throw error;
-
-    const hasMore = (results?.length || 0) > limit;
-    const messageList = hasMore ? results!.slice(0, limit) : (results || []);
+    const hasMore = results.length > limit;
+    const messageList = hasMore ? results.slice(0, limit) : results;
 
     return {
       success: true,
-      messages: messageList.reverse().map(mapDbMessage),
+      messages: messageList.map(mapMessageToType).reverse(), // Reverse to show oldest first
       hasMore,
       conversationId: request.conversationId,
     };
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error fetching message history:', error);
     return {
       success: false,
       messages: [],
       hasMore: false,
       conversationId: request.conversationId,
-      error: error instanceof Error ? error.message : 'Failed to fetch messages',
+      error: error.message || 'Failed to fetch messages',
     };
   }
 }
@@ -494,45 +435,44 @@ export async function markMessagesAsRead(
   messageIds?: string[]
 ): Promise<{ success: boolean; error?: string; readCount?: number }> {
   try {
-    const supabase = createServiceClient();
+    const now = new Date();
 
-    let query = supabase
-      .from('messages')
-      .update({
-        status: 'read',
-        read_at: new Date().toISOString(),
-      })
-      .eq('conversation_id', conversationId)
-      .eq('recipient_id', playerId)
-      .neq('status', 'read');
+    // Build query conditions
+    const conditions = [
+      eq(messages.conversationId, conversationId),
+      eq(messages.recipientId, playerId),
+      ne(messages.status, 'read'),
+    ];
 
     if (messageIds && messageIds.length > 0) {
-      query = query.in('id', messageIds);
+      conditions.push(sql`${messages.id} IN (${sql.join(messageIds.map(id => sql`${id}`), sql`, `)})`);
     }
 
-    const { data, error } = await query.select('id');
+    // Mark messages as read
+    const result = await db
+      .update(messages)
+      .set({
+        status: 'read',
+        readAt: now,
+      })
+      .where(and(...conditions));
 
-    if (error) throw error;
-
-    const readCount = (data || []).length;
-
-    await supabase
-      .from('conversations')
-      .update({
-        unread_count: 0,
-        updated_at: new Date().toISOString(),
-      } as never)
-      .eq('id', conversationId);
+    // Update conversation unread count
+    await db.update(conversations)
+      .set({
+        unreadCount: sql`JSON_SET(COALESCE(${conversations.unreadCount}, '{}'), '$.${playerId}', 0)`,
+      })
+      .where(eq(conversations.id, conversationId));
 
     return {
       success: true,
-      readCount,
+      readCount: result.rowCount ?? 0,
     };
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error marking messages as read:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to mark messages as read',
+      error: error.message || 'Failed to mark messages as read',
     };
   }
 }
@@ -548,36 +488,38 @@ export async function deleteDirectMessage(
   playerId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const supabase = createServiceClient();
+    // Verify ownership
+    const found = await db
+      .select()
+      .from(messages)
+      .where(and(
+        eq(messages.id, messageId),
+        eq(messages.senderId, playerId),
+      ))
+      .limit(1);
 
-    const { data: message } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('id', messageId)
-      .eq('sender_id', playerId)
-      .single();
-
-    if (!message) {
+    if (found.length === 0) {
       return {
         success: false,
         error: 'Message not found or you do not have permission to delete it',
       };
     }
 
-    await supabase
-      .from('messages')
-      .update({
-        deleted_at: new Date().toISOString(),
-        status: 'deleted',
+    // Soft delete
+    await db
+      .update(messages)
+      .set({
+        deletedAt: new Date(),
+        status: 'failed',
       })
-      .eq('id', messageId);
+      .where(eq(messages.id, messageId));
 
     return { success: true };
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error deleting message:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete message',
+      error: error.message || 'Failed to delete message',
     };
   }
 }
@@ -593,37 +535,135 @@ export async function searchConversations(
   searchQuery: string
 ): Promise<ConversationsResponse> {
   try {
-    const supabase = createServiceClient();
+    // Get all conversations and filter in JS
+    const allConversations = await db.select().from(conversations);
 
-    // Get all player's conversations
-    const { data: results } = await supabase
-      .from('conversations')
-      .select('*')
-      .contains('participants', [playerId]);
+    // Filter by participant
+    const playerConversations = allConversations.filter(conv => {
+      const convParticipants = conv.participants as string[];
+      return convParticipants.includes(playerId);
+    });
 
     // Filter by search query (client-side for now)
     // TODO: Implement server-side search with player name index
-    const filtered = (results || []).filter((conv: any) => {
-      const otherParticipant = conv.participants.find((p: string) => p !== playerId);
+    const filtered = playerConversations.filter(conv => {
+      const convParticipants = conv.participants as string[];
+      const otherParticipant = convParticipants.find(p => p !== playerId);
       return otherParticipant?.toLowerCase().includes(searchQuery.toLowerCase());
     });
 
+    const results = filtered.map(mapConversationToType);
+
     return {
       success: true,
-      conversations: filtered.map(mapDbConversation),
-      totalCount: filtered.length,
+      conversations: results,
+      totalCount: results.length,
       hasMore: false,
     };
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Error searching conversations:', error);
     return {
       success: false,
       conversations: [],
       totalCount: 0,
       hasMore: false,
-      error: error instanceof Error ? error.message : 'Failed to search conversations',
+      error: error.message || 'Failed to search conversations',
     };
   }
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Map a Drizzle conversation row to the Conversation type
+ */
+function mapConversationToType(row: typeof conversations.$inferSelect): Conversation {
+  const participants = row.participants as [string, string];
+  const unreadCount = (row.unreadCount as Record<string, number>) ?? {};
+  const isArchived = row.isArchived as Record<string, boolean> | undefined;
+  const isPinned = row.isPinned as Record<string, boolean> | undefined;
+  const participantDetails = row.participantDetails as Conversation['participantDetails'];
+
+  const conversation: Conversation = {
+    _id: row.id,
+    participants,
+    unreadCount,
+    createdAt: new Date(row.createdAt),
+    updatedAt: new Date(row.updatedAt),
+  };
+
+  if (participantDetails) {
+    conversation.participantDetails = participantDetails;
+  }
+
+  if (row.lastMessageContent && row.lastMessageSenderId && row.lastMessageCreatedAt && row.lastMessageStatus) {
+    conversation.lastMessage = {
+      content: row.lastMessageContent,
+      senderId: row.lastMessageSenderId,
+      createdAt: new Date(row.lastMessageCreatedAt),
+      status: row.lastMessageStatus as MessageStatus,
+    };
+  }
+
+  if (isArchived) {
+    conversation.isArchived = isArchived;
+  }
+
+  if (isPinned) {
+    conversation.isPinned = isPinned;
+  }
+
+  return conversation;
+}
+
+/**
+ * Map a Drizzle message row to the Message type
+ */
+function mapMessageToType(row: typeof messages.$inferSelect): Message {
+  const message: Message = {
+    _id: row.id,
+    conversationId: row.conversationId,
+    senderId: row.senderId,
+    recipientId: row.recipientId,
+    content: row.content,
+    contentType: row.contentType as Message['contentType'],
+    status: row.status as MessageStatus,
+    createdAt: new Date(row.createdAt),
+  };
+
+  if (row.readAt) {
+    message.readAt = new Date(row.readAt);
+  }
+
+  if (row.editedAt) {
+    message.editedAt = new Date(row.editedAt);
+  }
+
+  if (row.deletedAt) {
+    message.deletedAt = new Date(row.deletedAt);
+  }
+
+  // Build metadata object from flat columns
+  const hasMetadata = row.metadataOriginalContent || row.metadataEditHistory || row.metadataSystemType || row.metadataRelatedEntityId;
+  if (hasMetadata) {
+    message.metadata = {};
+    if (row.metadataOriginalContent) {
+      message.metadata.originalContent = row.metadataOriginalContent;
+    }
+    if (row.metadataEditHistory) {
+      message.metadata.editHistory = row.metadataEditHistory;
+    }
+    if (row.metadataSystemType) {
+      message.metadata.systemType = row.metadataSystemType as any;
+    }
+    if (row.metadataRelatedEntityId) {
+      message.metadata.relatedEntityId = row.metadataRelatedEntityId;
+    }
+  }
+
+  return message;
 }
 
 // ============================================================================

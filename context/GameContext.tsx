@@ -66,21 +66,35 @@ export function GameProvider({ children }: GameProviderProps) {
   const lastFetchRef = useRef<number>(0);
 
   /**
-   * Check session with server (Supabase Auth)
-   * Uses /api/auth/session which validates the Supabase session cookie
+   * Check session with server (works with HttpOnly cookies)
+   * Server-side endpoint can read HttpOnly cookies that JavaScript cannot access
    */
   useEffect(() => {
     async function checkSession() {
       try {
+        console.log('[GameContext] 🔍 Starting session check...');
+        logger.debug('Checking session');
         const response = await fetch('/api/auth/session');
-        const session = await response.json();
+        console.log('[GameContext] ✅ Session response received:', response.status);
+        const data = await response.json();
+        console.log('[GameContext] 📦 Session data:', data);
         
-        if (session.success && session.username) {
-          await loadPlayerData(session.username);
+        logger.debug('Session response received', { success: data.success, hasUsername: !!data.username });
+        
+        if (data.success && data.username) {
+          // Valid session found - load player data
+          console.log('[GameContext] ✅ Valid session, loading player data for:', data.username);
+          logger.info('Valid session found', { username: data.username });
+          await loadPlayerData(data.username);
+          console.log('[GameContext] ✅ loadPlayerData completed');
         } else {
+          // No valid session - user needs to login
+          console.log('[GameContext] ⚠️ No valid session, stopping');
+          logger.debug('No valid session, user needs to login');
           setIsLoading(false);
         }
       } catch (error) {
+        console.error('[GameContext] ❌ Session check failed:', error);
         logger.error('Session check failed', error instanceof Error ? error : new Error(String(error)));
         setIsLoading(false);
       }
@@ -129,11 +143,13 @@ export function GameProvider({ children }: GameProviderProps) {
       console.log('[loadPlayerData] 📡 Fetching /api/player?username=' + username);
       const response = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
       console.log('[loadPlayerData] ✅ Player API responded:', response.status);
-      const result = await response.json();
-      console.log('[loadPlayerData] 📦 Player data:', result);
+      const data = await response.json();
+      console.log('[loadPlayerData] 📦 Player data:', data);
 
-      if (!result.success) {
-        const apiError = result.error;
+      if (!data.success) {
+        // API returns a structured error object: { code, message, details }
+        // Avoid throwing the object directly which results in `[object Object]`.
+        const apiError = data.error;
         const errorMessage = typeof apiError === 'string'
           ? apiError
           : apiError && (apiError.message || apiError.code)
@@ -144,12 +160,12 @@ export function GameProvider({ children }: GameProviderProps) {
       }
 
       console.log('[loadPlayerData] ✅ Setting player state');
-      setPlayer(result.data);
+      setPlayer(data.data);
 
       // Load current tile
-      if (result.data.currentPosition) {
-        console.log('[loadPlayerData] 📍 Loading tile at position:', result.data.currentPosition);
-        await loadTileData(result.data.currentPosition.x, result.data.currentPosition.y);
+      if (data.data.currentPosition) {
+        console.log('[loadPlayerData] 📍 Loading tile at position:', data.data.currentPosition);
+        await loadTileData(data.data.currentPosition.x, data.data.currentPosition.y);
         console.log('[loadPlayerData] ✅ Tile data loaded');
       }
       console.log('[loadPlayerData] ✅ loadPlayerData complete');
@@ -171,13 +187,13 @@ export function GameProvider({ children }: GameProviderProps) {
   async function loadTileData(x: number, y: number) {
     try {
       const response = await fetch(`/api/tile?x=${x}&y=${y}`);
-      const tileResult = await response.json();
+      const data = await response.json();
 
-      if (!tileResult.success) {
-        throw new Error(tileResult.error || 'Failed to load tile data');
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load tile data');
       }
 
-      setCurrentTile(tileResult.data);
+      setCurrentTile(data.data);
     } catch (err) {
       logger.error('Error loading tile data', err instanceof Error ? err : new Error(String(err)));
       setError(err instanceof Error ? err.message : 'Failed to load tile');
@@ -208,26 +224,14 @@ export function GameProvider({ children }: GameProviderProps) {
         }),
       });
 
-      const moveResult = await response.json();
+      const data = await response.json();
 
-      if (moveResult.success) {
-        // Move response doesn't include inventory — preserve existing inventory
-        // to avoid wiping items from client-side state
-        setPlayer((prev) => ({
-          ...moveResult.data.player,
-          inventory: prev?.inventory || moveResult.data.player.inventory,
-        }));
-        setCurrentTile(moveResult.data.currentTile);
-      } else {
-        throw new Error(moveResult.error || 'Failed to move');
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to move');
       }
 
-      // Track tutorial movement (fire-and-forget — non-blocking)
-      fetch('/api/tutorial/track-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerId: player.username, action: 'move', data: { direction } }),
-      }).catch(() => {});
+      setPlayer(data.data.player);
+      setCurrentTile(data.data.currentTile);
     } catch (err) {
       logger.error('Error moving player', err instanceof Error ? err : new Error(String(err)));
       setError(err instanceof Error ? err.message : 'Failed to move');
@@ -265,10 +269,10 @@ export function GameProvider({ children }: GameProviderProps) {
   async function updateTileOnly(x: number, y: number) {
     try {
       const response = await fetch(`/api/tile?x=${x}&y=${y}`);
-      const refreshResult = await response.json();
-
-      if (refreshResult.success && refreshResult.data) {
-        setCurrentTile(refreshResult.data);
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setCurrentTile(data.data);
       }
     } catch (error) {
       logger.error('Failed to update tile', error instanceof Error ? error : new Error(String(error)));
@@ -279,7 +283,6 @@ export function GameProvider({ children }: GameProviderProps) {
    * Logout and clear session
    */
   function logout() {
-    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     setPlayer(null);
     setCurrentTile(null);
     setError(null);

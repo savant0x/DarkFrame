@@ -37,7 +37,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FriendWithPlayer, OnlineStatus } from '@/types/friend';
 
 // ============================================================================
@@ -117,12 +117,23 @@ export default function FriendsList({
    * Fetch online status for all friends
    * Called by polling interval for real-time updates
    */
+  // Latest friends list via ref: keeps the polling effect's identity stable so the
+  // interval is created exactly once. (Previously the effect depended on the
+  // [friends] closure — every status update recreated the callback, tore down the
+  // interval, and refetched immediately, so polling never actually ran on its 2s
+  // cadence and the fetch/render loop starved test macrotasks.)
+  const friendsRef = useRef<FriendDisplay[]>([]);
+  useEffect(() => {
+    friendsRef.current = friends;
+  }, [friends]);
+
   const fetchOnlineStatus = useCallback(async () => {
-    if (friends.length === 0) return;
+    const current = friendsRef.current;
+    if (current.length === 0) return;
 
     try {
       // Get list of friend IDs
-      const friendIds = friends.map(f => f.userId).join(',');
+      const friendIds = current.map(f => f.userId).join(',');
       
       const response = await fetch(`/api/friends/online?ids=${friendIds}`);
       const data = await response.json();
@@ -140,7 +151,7 @@ export default function FriendsList({
       // Silently fail - don't disrupt UX for status updates
       console.error('Error fetching online status:', err);
     }
-  }, [friends]);
+  }, []);
 
   // ============================================================================
   // Effects

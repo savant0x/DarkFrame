@@ -1,7 +1,6 @@
 /**
  * @file app/api/shrine/sacrifice/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
  * @overview Shrine sacrifice API for activating resource yield boosts
  * 
  * OVERVIEW:
@@ -10,10 +9,10 @@
  * Each boost adds +25% resource yield. All boosts increase QUANTITY gathered, not speed.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import type { Tables, TablesInsert } from '@/types/database';
+import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { getCollection } from '@/lib/mongodb';
+import { Player, Tile, TerrainType, ShrineBoost, ShrineBoostTier, ItemType } from '@/types';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { trackShrineTrade } from '@/lib/statTrackingService';
 import { 
@@ -29,123 +28,151 @@ import {
 } from '@/lib';
 import { ZodError } from 'zod';
 
-type PlayerRow = Tables<'players'>;
-type InventoryRow = Tables<'player_inventory'>;
-type ShrineBoostRow = Tables<'player_shrine_boosts'>;
-type TileRow = Tables<'tiles'>;
-
-const BOOST_TIERS: Record<string, { itemCost: number; duration: number; yieldBonus: number }> = {
-  spade: { itemCost: 3, duration: 1 * 60 * 60 * 1000, yieldBonus: 0.25 },
-  heart: { itemCost: 10, duration: 1 * 60 * 60 * 1000, yieldBonus: 0.25 },
-  diamond: { itemCost: 30, duration: 4 * 60 * 60 * 1000, yieldBonus: 0.25 },
-  club: { itemCost: 60, duration: 8 * 60 * 60 * 1000, yieldBonus: 0.25 },
+/**
+ * Boost tier configurations
+ * All boosts provide +25% resource yield
+ * Differences are in cost and duration only
+ */
+const BOOST_TIERS = {
+  spade: {
+    itemCost: 3,
+    duration: 1 * 60 * 60 * 1000, // 1 hour in milliseconds
+    yieldBonus: 0.25 // +25%
+  },
+  heart: {
+    itemCost: 10,
+    duration: 1 * 60 * 60 * 1000, // 1 hour in milliseconds
+    yieldBonus: 0.25 // +25%
+  },
+  diamond: {
+    itemCost: 30,
+    duration: 4 * 60 * 60 * 1000, // 4 hours in milliseconds
+    yieldBonus: 0.25 // +25%
+  },
+  club: {
+    itemCost: 60,
+    duration: 8 * 60 * 60 * 1000, // 8 hours in milliseconds
+    yieldBonus: 0.25 // +25%
+  }
 };
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.SHRINE_SACRIFICE);
 
-export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/shrine/sacrifice
+ * 
+ * Sacrifice items to activate a shrine boost
+ */
+export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
   const log = createRouteLogger('ShrineSacrificeAPI');
   const endTimer = log.time('shrineSacrifice');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      log.warn('Unauthenticated shrine sacrifice attempt');
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required'
+      });
+    }
 
+    const username = authResult.username;
+
+    // Parse and validate request body
     const body = await request.json();
     const validated = ShrineSacrificeSchema.parse(body);
 
     log.debug('Shrine sacrifice request', { username, tier: validated.tier });
 
-    const boostConfig = BOOST_TIERS[validated.tier];
-    if (!boostConfig) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Invalid boost tier' });
-    }
-
-    const supabase = createServiceClient();
+    const boostConfig = BOOST_TIERS[validated.tier as ShrineBoostTier];
 
     // Get player
-    const { data: player } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .maybeSingle();
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username });
 
     if (!player) {
       log.warn('Player not found', { username });
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Player not found' });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Player not found'
+      });
     }
 
     // Check if player is at the Shrine
-    const { data: currentTile } = await supabase
-      .from('tiles')
-      .select('terrain')
-      .eq('x', player.current_x)
-      .eq('y', player.current_y)
-      .maybeSingle();
+    const tilesCollection = await getCollection<Tile>('tiles');
+    const currentTile = await tilesCollection.findOne({
+      x: player.currentPosition.x,
+      y: player.currentPosition.y
+    });
 
-    if (!currentTile || currentTile.terrain !== 'Shrine') {
-      log.debug('Player not at shrine', { username, position: { x: player.current_x, y: player.current_y } });
+    if (!currentTile || currentTile.terrain !== TerrainType.Shrine) {
+      log.debug('Player not at shrine', { 
+        username, 
+        position: player.currentPosition 
+      });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'You must be at the Shrine of Remembrance (1,1) to activate boosts'
       });
     }
 
-    // Count tradeable items
-    const { data: tradeableItems } = await supabase
-      .from('player_inventory')
-      .select('*')
-      .eq('player_username', username)
-      .eq('item_type', 'TRADEABLE_ITEM');
+    // Count tradeable items (any cave items except diggers can be sacrificed)
+    const tradeableItems = player.inventory.items.filter((item: any) => item.type === ItemType.TradeableItem
+    );
 
-    const items = tradeableItems || [];
-
-    if (items.length < boostConfig.itemCost) {
-      log.debug('Insufficient items for sacrifice', { username, required: boostConfig.itemCost, available: items.length });
+    if (tradeableItems.length < boostConfig.itemCost) {
+      log.debug('Insufficient items for sacrifice', { 
+        username, 
+        required: boostConfig.itemCost, 
+        available: tradeableItems.length 
+      });
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: `Insufficient items. Need ${boostConfig.itemCost} tradeable items, have ${items.length}`
+        message: `Insufficient items. Need ${boostConfig.itemCost} tradeable items, have ${tradeableItems.length}`
       });
     }
 
-    // Check if this tier boost is already active
-    const { data: activeBoosts } = await supabase
-      .from('player_shrine_boosts')
-      .select('*')
-      .eq('player_username', username);
+    // Initialize shrineBoosts if it doesn't exist
+    if (!player.shrineBoosts) {
+      player.shrineBoosts = [];
+    }
 
-    const existingBoost = (activeBoosts || []).find(b => b.boost_tier === validated.tier);
-    if (existingBoost) {
+    // Check if this tier boost is already active
+    const existingBoostIndex = player.shrineBoosts.findIndex((b: any) => b.tier === validated.tier);
+    if (existingBoostIndex !== -1) {
       log.debug('Boost already active', { username, tier: validated.tier });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: `${validated.tier.charAt(0).toUpperCase() + validated.tier.slice(1)} Tier boost is already active. Use /api/shrine/extend to extend its duration.`
       });
     }
 
-    // Consume items (delete the first N tradeable items)
-    const itemsToConsume = items.slice(0, boostConfig.itemCost);
-    const consumedIds = itemsToConsume.map(i => i.id);
-    await supabase
-      .from('player_inventory')
-      .delete()
-      .in('id', consumedIds);
+    // Remove the required number of items (consume them)
+    const remainingItems = player.inventory.items.filter((item: any) => item.type !== ItemType.TradeableItem
+    );
+    const itemsToKeep = tradeableItems.slice(boostConfig.itemCost);
+    const newInventory = [...remainingItems, ...itemsToKeep];
 
     // Create new boost
-    await supabase
-      .from('player_shrine_boosts')
-      .insert({
-        player_username: username,
-        boost_tier: validated.tier as TablesInsert<'player_shrine_boosts'>['boost_tier'],
-        expires_at: new Date(Date.now() + boostConfig.duration).toISOString(),
-        yield_bonus: boostConfig.yieldBonus,
-      });
+    const newBoost: ShrineBoost = {
+      tier: validated.tier as ShrineBoostTier,
+      expiresAt: new Date(Date.now() + boostConfig.duration),
+      yieldBonus: boostConfig.yieldBonus
+    };
+
+    // Add boost to player's active boosts
+    const updatedBoosts = [...player.shrineBoosts, newBoost];
 
     // Calculate total yield bonus
-    const updatedBoosts = await supabase
-      .from('player_shrine_boosts')
-      .select('yield_bonus')
-      .eq('player_username', username);
+    const totalYieldBonus = updatedBoosts.reduce((sum, boost) => sum + boost.yieldBonus, 0);
 
-    const totalYieldBonus = (updatedBoosts?.data || []).reduce((sum: number, b) => sum + (b.yield_bonus || 0), 0);
+    // Update player
+    await playersCollection.updateOne(
+      { username },
+      {
+        $set: {
+          'inventory.items': newInventory,
+          shrineBoosts: updatedBoosts
+        }
+      }
+    );
 
     const tierName = validated.tier.charAt(0).toUpperCase() + validated.tier.slice(1);
     const durationHours = boostConfig.duration / (60 * 60 * 1000);
@@ -156,16 +183,22 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Award XP for shrine sacrifice
     const xpResult = await awardXP(username, XPAction.SHRINE_SACRIFICE);
 
-    log.info('Shrine boost activated', { username, tier: validated.tier, duration: durationHours, itemsConsumed: boostConfig.itemCost, xpAwarded: xpResult.xpAwarded });
+    log.info('Shrine boost activated', { 
+      username, 
+      tier: validated.tier, 
+      duration: durationHours,
+      itemsConsumed: boostConfig.itemCost,
+      xpAwarded: xpResult.xpAwarded
+    });
 
     return NextResponse.json({
       success: true,
       message: `Activated ${tierName} Tier boost! +25% resource yield for ${durationHours} hour${durationHours > 1 ? 's' : ''}`,
-      shrineBoosts: updatedBoosts?.data || [],
+      shrineBoosts: updatedBoosts,
       totalYieldBonus,
       totalYieldMultiplier: 1.0 + totalYieldBonus,
-      itemsRemaining: items.length - boostConfig.itemCost,
-      activeBoostsCount: (updatedBoosts?.data || []).length,
+      itemsRemaining: newInventory.length,
+      activeBoostsCount: updatedBoosts.length,
       xpAwarded: xpResult.xpAwarded,
       levelUp: xpResult.levelUp,
       newLevel: xpResult.newLevel

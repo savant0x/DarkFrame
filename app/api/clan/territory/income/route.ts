@@ -24,24 +24,42 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { getClientAndDatabase } from '@/lib/mongodb';
+import { requireClanMembership, requireAdmin } from '@/lib/authMiddleware';
 import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  requireAdmin,
   getProjectedTerritoryIncome,
   collectDailyTerritoryIncome,
-  logger,
-} from '@/lib';
+} from '@/lib/territoryService';
 
-const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const GET = getRateLimiter(async (request: NextRequest): Promise<NextResponse> => {
+/**
+ * GET /api/clan/territory/income
+ * View projected daily income from territories
+ * 
+ * @param request - NextRequest with auth cookie and query params
+ * @returns NextResponse with income projection or error
+ * 
+ * @example
+ * GET /api/clan/territory/income?clanId=676a1b2c3d4e5f6a7b8c9d0e
+ * Response: {
+ *   success: true,
+ *   metalPerDay: 15000,
+ *   energyPerDay: 15000,
+ *   perTerritory: { metal: 500, energy: 500 },
+ *   territoryCount: 30,
+ *   clanLevel: 12,
+ *   nextCollection: "2025-01-24T00:00:00Z",
+ *   canCollectNow: false
+ * }
+ * 
+ * @throws {400} Missing clanId
+ * @throws {401} Not authenticated
+ * @throws {403} Not a clan member
+ * @throws {500} Server error
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const { client, db } = await getClientAndDatabase();
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
 
     // Get clanId from query
@@ -55,6 +73,9 @@ export const GET = getRateLimiter(async (request: NextRequest): Promise<NextResp
       );
     }
 
+    // Initialize territory service
+    
+
     // Get projected income
     const projection = await getProjectedTerritoryIncome(clanId);
 
@@ -63,15 +84,14 @@ export const GET = getRateLimiter(async (request: NextRequest): Promise<NextResp
       ...projection,
     });
 
-  } catch (error: unknown) {
-    logger.error('Error getting territory income projection:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to get income projection';
+  } catch (error: any) {
+    console.error('Error getting territory income projection:', error);
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error.message || 'Failed to get income projection' },
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * POST /api/clan/territory/income
@@ -97,10 +117,10 @@ export const GET = getRateLimiter(async (request: NextRequest): Promise<NextResp
  * @throws {403} Not admin or invalid admin password
  * @throws {500} Server error
  */
-export const POST = postRateLimiter(async (request: NextRequest): Promise<NextResponse> => {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const supabase = createServiceClient();
-    const authResult = await requireAdmin(request, supabase);
+    const { client, db } = await getClientAndDatabase();
+    const authResult = await requireAdmin(request);
     if (authResult instanceof NextResponse) return authResult;
 
     // Parse request body
@@ -115,8 +135,7 @@ export const POST = postRateLimiter(async (request: NextRequest): Promise<NextRe
     }
 
     // Verify admin password (additional security for testing)
-    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-    if (!ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var not set');
+    const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
     if (adminPassword !== ADMIN_PASSWORD) {
       return NextResponse.json(
         { error: 'Admin authorization required' },
@@ -124,16 +143,19 @@ export const POST = postRateLimiter(async (request: NextRequest): Promise<NextRe
       );
     }
 
+    // Initialize territory service
+    
+
     // Collect income
     const collectionResult = await collectDailyTerritoryIncome(clanId);
 
     return NextResponse.json(collectionResult);
-  } catch (error: unknown) {
-    logger.error('Error collecting territory income:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to collect income';
+
+  } catch (error: any) {
+    console.error('Error collecting territory income:', error);
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error.message || 'Failed to collect income' },
       { status: 500 }
     );
   }
-});
+}

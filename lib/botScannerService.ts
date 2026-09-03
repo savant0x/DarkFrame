@@ -20,12 +20,14 @@
  * - Tier 2 (ADVANCED_TRACKING): Enhanced scanner (100 tiles, 30-min cooldown, movement history)
  * 
  * DEPENDENCIES:
- * - lib/supabase/server.ts: Database access
+ * - lib/mongodb.ts: Database access
  * - lib/botNestService.ts: Nest location data
+ * - types/game.types.ts: Player types
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { connectToDatabase } from './mongodb';
 import { BOT_NESTS } from './botNestService';
+import type { Player } from '@/types/game.types';
 
 /**
  * Scanner cooldown durations (in milliseconds)
@@ -54,7 +56,7 @@ export interface ScannedBot {
   distance: number;
   resources: { metal: number; energy: number };
   reputation: string;
-  lastDefeated: string | null;
+  lastDefeated: Date | null;
   isSpecialBase: boolean;
   totalStrength: number;
   totalDefense: number;
@@ -75,35 +77,8 @@ export interface ScannerResult {
     distance: number;
   }>;
   radius: number;
-  cooldownUntil: string;
+  cooldownUntil: Date;
   botsFound: number;
-}
-
-interface PlayerRow {
-  username: string;
-  current_x: number;
-  current_y: number;
-  unlocked_techs: string[];
-  resources_metal: number;
-  resources_energy: number;
-  total_strength: number;
-  total_defense: number;
-  last_bot_scan?: string | null;
-}
-
-interface BotRow {
-  username: string;
-  specialization: string;
-  tier: number;
-  current_x: number;
-  current_y: number;
-  resources_metal: number;
-  resources_energy: number;
-  reputation: string;
-  last_defeated: string | null;
-  is_special_base: boolean;
-  total_strength: number;
-  total_defense: number;
 }
 
 /**
@@ -118,49 +93,57 @@ function calculateDistance(x1: number, y1: number, x2: number, y2: number): numb
 /**
  * Check if player has scanner unlocked
  */
-function hasScannerUnlocked(unlockedTechs: string[]): boolean {
+function hasScannerUnlocked(player: Player): boolean {
+  const unlockedTechs = player.unlockedTechs || [];
   return unlockedTechs.includes('bot-hunter');
 }
 
 /**
  * Get scanner radius for player
  */
-function getScannerRadius(unlockedTechs: string[]): number {
+function getScannerRadius(player: Player): number {
+  const unlockedTechs = player.unlockedTechs || [];
+  
   if (unlockedTechs.includes('advanced-tracking')) {
     return SCANNER_RADIUS.ADVANCED;
   }
+  
   return SCANNER_RADIUS.BASIC;
 }
 
 /**
  * Get scanner cooldown duration for player
  */
-function getScannerCooldown(unlockedTechs: string[]): number {
+function getScannerCooldown(player: Player): number {
+  const unlockedTechs = player.unlockedTechs || [];
+  
   if (unlockedTechs.includes('advanced-tracking')) {
     return SCANNER_COOLDOWNS.ADVANCED;
   }
+  
   return SCANNER_COOLDOWNS.BASIC;
 }
 
 /**
  * Check if scanner is on cooldown
  */
-function isOnCooldown(
-  lastBotScan: string | null | undefined,
-  unlockedTechs: string[]
-): { onCooldown: boolean; cooldownUntil: string | null } {
-  if (!lastBotScan) {
+function isOnCooldown(player: Player): { onCooldown: boolean; cooldownUntil: Date | null } {
+  // Cooldown tracking would be stored in player document
+  // For now, we'll use a simple timestamp check
+  const lastScan = (player as any).lastBotScan as Date | undefined;
+  
+  if (!lastScan) {
     return { onCooldown: false, cooldownUntil: null };
   }
-
-  const cooldownDuration = getScannerCooldown(unlockedTechs);
-  const cooldownEnd = new Date(new Date(lastBotScan).getTime() + cooldownDuration);
+  
+  const cooldownDuration = getScannerCooldown(player);
+  const cooldownEnd = new Date(new Date(lastScan).getTime() + cooldownDuration);
   const now = new Date();
-
+  
   if (now < cooldownEnd) {
-    return { onCooldown: true, cooldownUntil: cooldownEnd.toISOString() };
+    return { onCooldown: true, cooldownUntil: cooldownEnd };
   }
-
+  
   return { onCooldown: false, cooldownUntil: null };
 }
 
@@ -168,44 +151,41 @@ function isOnCooldown(
  * Scan for bots within radius
  */
 export async function scanForBots(username: string): Promise<ScannerResult> {
-  const supabase = createServiceClient();
-
+  const db = await connectToDatabase();
+  
   try {
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('username, current_x, current_y, unlocked_techs, last_bot_scan')
-      .eq('username', username)
-      .single();
-
-    if (playerError || !player) {
+    // Get player
+    const player = await db.collection<Player>('players').findOne({ username });
+    
+    if (!player) {
       return {
         success: false,
         message: 'Player not found',
         bots: [],
         nests: [],
         radius: 0,
-        cooldownUntil: new Date().toISOString(),
+        cooldownUntil: new Date(),
         botsFound: 0,
       };
     }
-
-    const unlockedTechs = player.unlocked_techs || [];
-
-    if (!hasScannerUnlocked(unlockedTechs)) {
+    
+    // Check if player has scanner unlocked
+    if (!hasScannerUnlocked(player)) {
       return {
         success: false,
         message: 'Scanner locked. Unlock "Bot Hunter" tech to use this feature.',
         bots: [],
         nests: [],
         radius: 0,
-        cooldownUntil: new Date().toISOString(),
+        cooldownUntil: new Date(),
         botsFound: 0,
       };
     }
-
-    const cooldownCheck = isOnCooldown(player.last_bot_scan, unlockedTechs);
+    
+    // Check cooldown
+    const cooldownCheck = isOnCooldown(player);
     if (cooldownCheck.onCooldown && cooldownCheck.cooldownUntil) {
-      const timeLeft = Math.ceil((new Date(cooldownCheck.cooldownUntil).getTime() - Date.now()) / 1000 / 60);
+      const timeLeft = Math.ceil((cooldownCheck.cooldownUntil.getTime() - Date.now()) / 1000 / 60);
       return {
         success: false,
         message: `Scanner on cooldown. Available in ${timeLeft} minutes.`,
@@ -216,83 +196,54 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
         botsFound: 0,
       };
     }
-
-    const radius = getScannerRadius(unlockedTechs);
-    const playerX = player.current_x;
-    const playerY = player.current_y;
-
-    const { data: allBots, error: botsError } = await supabase
-      .from('bots')
-      .select('username, specialization, tier, current_x, current_y, resources_metal, resources_energy, reputation, last_defeated, is_special_base, total_strength, total_defense');
-
-    if (botsError) {
-      console.error('[Bot Scanner] Failed to fetch bots:', botsError);
-      return {
-        success: false,
-        message: 'Scanner malfunction',
-        bots: [],
-        nests: [],
-        radius: 0,
-        cooldownUntil: new Date().toISOString(),
-        botsFound: 0,
-      };
-    }
-
-    const allBotsArr = (allBots || []) as BotRow[];
-
-    const scannedBots: ScannedBot[] = allBotsArr
-      .map((bot: BotRow) => {
-        const botX = bot.current_x;
-        const botY = bot.current_y;
+    
+    // Get scanner parameters
+    const radius = getScannerRadius(player);
+    const playerX = player.currentPosition.x;
+    const playerY = player.currentPosition.y;
+    
+    // Find all bots
+    const allBots = await db.collection<Player>('players')
+      .find({ isBot: true })
+      .toArray();
+    
+    // Filter bots within radius and map to ScannedBot format
+    const scannedBots: ScannedBot[] = allBots
+      .map((bot: any) => {
+        const botX = bot.currentPosition.x;
+        const botY = bot.currentPosition.y;
         const distance = calculateDistance(playerX, playerY, botX, botY);
-
+        
         if (distance > radius) return null;
-
+        
         return {
           username: bot.username,
-          specialization: bot.specialization || 'unknown',
-          tier: bot.tier || 1,
+          specialization: bot.botConfig?.specialization || 'unknown',
+          tier: bot.botConfig?.tier || 1,
           position: { x: botX, y: botY },
-          distance: Math.round(distance * 10) / 10,
+          distance: Math.round(distance * 10) / 10, // Round to 1 decimal
           resources: {
-            metal: bot.resources_metal || 0,
-            energy: bot.resources_energy || 0,
+            metal: bot.resources?.metal || 0,
+            energy: bot.resources?.energy || 0,
           },
-          reputation: bot.reputation || 'unknown',
-          lastDefeated: bot.last_defeated,
-          isSpecialBase: bot.is_special_base || false,
-          totalStrength: bot.total_strength || 0,
-          totalDefense: bot.total_defense || 0,
-          armySize: 0,
+          reputation: bot.botConfig?.reputation || 'unknown',
+          lastDefeated: bot.botConfig?.lastDefeated || null,
+          isSpecialBase: bot.botConfig?.isSpecialBase || false,
+          totalStrength: bot.totalStrength || 0,
+          totalDefense: bot.totalDefense || 0,
+          armySize: bot.units?.length || 0,
         };
       })
-      .filter((bot): bot is ScannedBot => bot !== null)
-      .sort((a, b) => a.distance - b.distance);
-
-    const botUsernames = scannedBots.map(b => b.username);
-    if (botUsernames.length > 0) {
-      const { data: unitCounts } = await supabase
-        .from('player_units')
-        .select('player_username, quantity')
-        .in('player_username', botUsernames);
-
-      if (unitCounts) {
-        const unitMap = new Map<string, number>();
-        for (const row of unitCounts) {
-          unitMap.set(row.player_username, (unitMap.get(row.player_username) || 0) + (row.quantity || 0));
-        }
-        for (const bot of scannedBots) {
-          bot.armySize = unitMap.get(bot.username) || 0;
-        }
-      }
-    }
-
+      .filter((bot: any): bot is ScannedBot => bot !== null)
+      .sort((a: any, b: any) => a.distance - b.distance); // Sort by distance (closest first)
+    
+    // Find nests within radius
     const nestsInRange = BOT_NESTS
-      .map(nest => {
+      .map((nest: any) => {
         const distance = calculateDistance(playerX, playerY, nest.position.x, nest.position.y);
-
+        
         if (distance > radius) return null;
-
+        
         return {
           id: nest.id,
           name: nest.name,
@@ -300,25 +251,26 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
           distance: Math.round(distance * 10) / 10,
         };
       })
-      .filter((nest): nest is NonNullable<typeof nest> => nest !== null)
-      .sort((a, b) => a.distance - b.distance);
-
-    const cooldownEnd = new Date(Date.now() + getScannerCooldown(unlockedTechs));
-    await supabase
-      .from('players')
-      .update({ last_bot_scan: new Date().toISOString() })
-      .eq('username', username);
-
+      .filter((nest: any) => nest !== null)
+      .sort((a: any, b: any) => a!.distance - b!.distance);
+    
+    // Update last scan timestamp and set cooldown
+    const cooldownEnd = new Date(Date.now() + getScannerCooldown(player));
+    await db.collection<Player>('players').updateOne(
+      { username },
+      { $set: { lastBotScan: new Date() } }
+    );
+    
     return {
       success: true,
       message: `Scanner detected ${scannedBots.length} bots within ${radius} tiles`,
       bots: scannedBots,
-      nests: nestsInRange,
+      nests: nestsInRange as any,
       radius,
-      cooldownUntil: cooldownEnd.toISOString(),
+      cooldownUntil: cooldownEnd,
       botsFound: scannedBots.length,
     };
-
+    
   } catch (error) {
     console.error('[Bot Scanner] Scan failed:', error);
     return {
@@ -327,7 +279,7 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
       bots: [],
       nests: [],
       radius: 0,
-      cooldownUntil: new Date().toISOString(),
+      cooldownUntil: new Date(),
       botsFound: 0,
     };
   }
@@ -341,19 +293,15 @@ export async function getScannerStatus(username: string): Promise<{
   radius: number;
   cooldownMinutes: number;
   onCooldown: boolean;
-  cooldownUntil: string | null;
+  cooldownUntil: Date | null;
   hasAdvancedTracking: boolean;
 }> {
-  const supabase = createServiceClient();
-
+  const db = await connectToDatabase();
+  
   try {
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('unlocked_techs, last_bot_scan')
-      .eq('username', username)
-      .single();
-
-    if (error || !player) {
+    const player = await db.collection<Player>('players').findOne({ username });
+    
+    if (!player) {
       return {
         unlocked: false,
         radius: 0,
@@ -363,14 +311,13 @@ export async function getScannerStatus(username: string): Promise<{
         hasAdvancedTracking: false,
       };
     }
-
-    const unlockedTechs = player.unlocked_techs || [];
-    const unlocked = hasScannerUnlocked(unlockedTechs);
-    const radius = getScannerRadius(unlockedTechs);
-    const cooldownMs = getScannerCooldown(unlockedTechs);
-    const cooldownCheck = isOnCooldown(player.last_bot_scan, unlockedTechs);
-    const hasAdvancedTracking = unlockedTechs.includes('advanced-tracking');
-
+    
+    const unlocked = hasScannerUnlocked(player);
+    const radius = getScannerRadius(player);
+    const cooldownMs = getScannerCooldown(player);
+    const cooldownCheck = isOnCooldown(player);
+    const hasAdvancedTracking = (player.unlockedTechs || []).includes('advanced-tracking');
+    
     return {
       unlocked,
       radius,
@@ -379,7 +326,7 @@ export async function getScannerStatus(username: string): Promise<{
       cooldownUntil: cooldownCheck.cooldownUntil,
       hasAdvancedTracking,
     };
-
+    
   } catch (error) {
     console.error('[Bot Scanner] Failed to get status:', error);
     return {
@@ -410,7 +357,7 @@ export async function getScannerStatus(username: string): Promise<{
  * 3. COOLDOWN MANAGEMENT:
  *    - Basic: 1 hour between scans
  *    - Advanced: 30 minutes between scans
- *    - Timestamp stored in player.last_bot_scan
+ *    - Timestamp stored in player.lastBotScan
  *    - Cooldown set when scan is executed
  * 
  * 4. INFORMATION DISPLAYED:

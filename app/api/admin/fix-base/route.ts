@@ -1,13 +1,15 @@
 /**
  * @file app/api/admin/fix-base/route.ts
  * @created 2025-10-18
- * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
+ * @updated 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
  * @overview Admin-only endpoint to fix base tiles
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players, tiles } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -25,38 +27,41 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('fix-base');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
-    const supabase = createServiceClient();
+    const user = await getAuthenticatedUser();
     
-    const { data: players, error: playerError } = await supabase
-      .from('players')
-      .select('base_x, base_y, username');
+    if (!user || user.isAdmin !== true) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin access required',
+      });
+    }
     
-    if (playerError) throw playerError;
+    const allPlayers = await db.select({
+      username: players.username,
+      baseX: players.baseX,
+      baseY: players.baseY,
+    }).from(players);
     
     let fixedCount = 0;
     
-    for (const player of (players || [])) {
-      const { error: updateError } = await supabase
-        .from('tiles')
-        .update({
-          terrain: 'Wasteland',
-          occupied_by_base: true,
-        })
-        .eq('x', player.base_x)
-        .eq('y', player.base_y);
+    for (const player of allPlayers) {
+      const { baseX: x, baseY: y } = player;
       
-      if (!updateError) {
+      const result = await db.update(tiles)
+        .set({ 
+          terrain: 'Wasteland',
+          occupiedByBase: 1
+        })
+        .where(and(eq(tiles.x, x), eq(tiles.y, y)));
+      
+      if (result && (result.rowCount ?? 0) > 0) {
         fixedCount++;
-        log.debug(`Fixed ${player.username}'s base at (${player.base_x}, ${player.base_y})`);
+        log.debug(`Fixed ${player.username}'s base at (${x}, ${y})`);
       }
     }
     
     log.info('Base tiles fixed', {
       fixedCount,
-      adminUser: auth.username,
+      adminUser: user.username,
     });
 
     return NextResponse.json({ 

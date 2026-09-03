@@ -1,120 +1,104 @@
+/**
+ * @file app/api/player/upgrade-unit/route.ts
+ * @created 2025-10-17
+ * @overview API endpoint for purchasing STR/DEF unit upgrades
+ * 
+ * OVERVIEW:
+ * Allows players to spend resources (metal + energy) to permanently increase
+ * their total strength or defense. Cost scales exponentially with current level.
+ * 
+ * Upgrade Costs:
+ * - Base cost: 1000 metal + 1000 energy
+ * - Cost multiplier: 1.15x per existing point
+ * - Formula: baseCost * (1.15 ^ currentValue)
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireAuth,
-  createErrorResponse,
-  createErrorFromException,
-  ErrorCode,
-  calculateUpgradeCost,
-  logger,
-} from '@/lib';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 
-const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-const getRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
+/**
+ * Calculate upgrade cost based on current stat value
+ */
+function calculateUpgradeCost(currentValue: number): { metal: number; energy: number } {
+  const baseCost = 1000;
+  const multiplier = Math.pow(1.15, currentValue);
+  const cost = Math.floor(baseCost * multiplier);
+  
+  return {
+    metal: cost,
+    energy: cost
+  };
+}
 
-export const POST = postRateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/player/upgrade-unit
+ * Purchase a single point of STR or DEF
+ * 
+ * Body: {
+ *   username: string,
+ *   type: 'strength' | 'defense'
+ * }
+ */
+export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
     const body = await request.json();
-    const { type } = body;
-    const username = auth.username;
+    const { username, type } = body;
 
+    // Validation
     if (!username || !type) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username and type are required');
+      return NextResponse.json(
+        { error: 'Username and type are required' },
+        { status: 400 }
+      );
     }
 
     if (type !== 'strength' && type !== 'defense') {
-      return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Type must be "strength" or "defense"');
+      return NextResponse.json(
+        { error: 'Type must be "strength" or "defense"' },
+        { status: 400 }
+      );
     }
 
-    const supabase = createServiceClient();
-    const { data: player } = await supabase
-      .from('players')
-      .select('total_strength, total_defense, resources_metal, resources_energy')
-      .eq('username', username)
-      .maybeSingle();
-
+    // Get player
+    const [player] = await db.select().from(players).where(eq(players.username, username));
     if (!player) {
-      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
+      return NextResponse.json(
+        { error: 'Player not found' },
+        { status: 404 }
+      );
     }
 
-    const currentValue = type === 'strength' ? (player.total_strength || 0) : (player.total_defense || 0);
+    // Calculate cost
+    const currentValue = type === 'strength' ? (player.totalStrength || 0) : (player.totalDefense || 0);
     const cost = calculateUpgradeCost(currentValue);
 
-    const playerMetal = player.resources_metal || 0;
-    const playerEnergy = player.resources_energy || 0;
-
+    // Check if player has enough resources
+    const playerMetal = Number(Number(player.resourcesMetal) || 0);
+    const playerEnergy = Number(Number(player.resourcesEnergy) || 0);
+    
     if (playerMetal < cost.metal || playerEnergy < cost.energy) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: ErrorCode.INSUFFICIENT_RESOURCES,
-          message: 'Insufficient resources',
-          details: { required: cost, available: { metal: playerMetal, energy: playerEnergy } }
-        }
-      }, { status: 400 });
+      return NextResponse.json(
+        { 
+          error: 'Insufficient resources',
+          required: cost,
+          available: { metal: playerMetal, energy: playerEnergy }
+        },
+        { status: 400 }
+      );
     }
 
-    const statUpdate = type === 'strength'
-      ? { total_strength: currentValue + 1 }
-      : { total_defense: currentValue + 1 };
+    // Perform upgrade
+    const updateField = type === 'strength' ? 'totalStrength' : 'totalDefense';
+    
+    await db.update(players).set({
+      [updateField]: currentValue + 1,
+      resourcesMetal: Number(BigInt(playerMetal - cost.metal)),
+      resourcesEnergy: Number(BigInt(playerEnergy - cost.energy)),
+    }).where(eq(players.username, username));
 
-    // Atomic resource deductions with TOCTOU protection via checked RPC
-    const { data: metalOk } = await supabase
-      .rpc('increment_player_resource_checked', {
-        p_username: username,
-        p_column: 'resources_metal',
-        p_amount: -cost.metal,
-      });
-
-    if (!metalOk) {
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: ErrorCode.INSUFFICIENT_RESOURCES,
-          message: 'Insufficient metal',
-          details: { required: cost, available: { metal: playerMetal, energy: playerEnergy } }
-        }
-      }, { status: 400 });
-    }
-
-    const { data: energyOk } = await supabase
-      .rpc('increment_player_resource_checked', {
-        p_username: username,
-        p_column: 'resources_energy',
-        p_amount: -cost.energy,
-      });
-
-    if (!energyOk) {
-      // Rollback metal deduction
-      await supabase.rpc('increment_player_resource_checked', {
-        p_username: username,
-        p_column: 'resources_metal',
-        p_amount: cost.metal,
-      });
-      return NextResponse.json({
-        success: false,
-        error: {
-          code: ErrorCode.INSUFFICIENT_RESOURCES,
-          message: 'Insufficient energy',
-          details: { required: cost, available: { metal: playerMetal, energy: playerEnergy } }
-        }
-      }, { status: 400 });
-    }
-
-    const { error } = await supabase
-      .from('players')
-      .update(statUpdate)
-      .eq('username', username);
-
-    if (error) {
-      return createErrorResponse(ErrorCode.INTERNAL_ERROR, 'Failed to upgrade');
-    }
-
+    // Calculate next upgrade cost
     const nextCost = calculateUpgradeCost(currentValue + 1);
 
     return NextResponse.json({
@@ -130,52 +114,66 @@ export const POST = postRateLimiter(async (request: NextRequest) => {
     });
 
   } catch (error) {
-    logger.error('Error upgrading unit:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error upgrading unit:', error);
+    return NextResponse.json(
+      { 
+        error: 'Internal server error',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
   }
-});
+}
 
-export const GET = getRateLimiter(async (request: NextRequest) => {
+/**
+ * GET /api/player/upgrade-unit?username=X&type=strength
+ * Get upgrade cost without purchasing
+ */
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
     const { searchParams } = new URL(request.url);
+    const username = searchParams.get('username');
     const type = searchParams.get('type');
-    const username = auth.username;
 
     if (!username || !type) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'username and type are required');
+      return NextResponse.json(
+        { error: 'Username and type are required' },
+        { status: 400 }
+      );
     }
 
     if (type !== 'strength' && type !== 'defense') {
-      return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Type must be "strength" or "defense"');
+      return NextResponse.json(
+        { error: 'Type must be "strength" or "defense"' },
+        { status: 400 }
+      );
     }
 
-    const supabase = createServiceClient();
-    const { data: player } = await supabase
-      .from('players')
-      .select('total_strength, total_defense, resources_metal, resources_energy')
-      .eq('username', username)
-      .maybeSingle();
+    const [player] = await db.select().from(players).where(eq(players.username, username));
 
     if (!player) {
-      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
+      return NextResponse.json(
+        { error: 'Player not found' },
+        { status: 404 }
+      );
     }
 
-    const currentValue = type === 'strength' ? (player.total_strength || 0) : (player.total_defense || 0);
+    const currentValue = type === 'strength' ? (player.totalStrength || 0) : (player.totalDefense || 0);
     const cost = calculateUpgradeCost(currentValue);
 
     return NextResponse.json({
-      success: true,
       type,
       currentValue,
       cost,
-      canAfford: (player.resources_metal || 0) >= cost.metal && (player.resources_energy || 0) >= cost.energy,
-      available: { metal: player.resources_metal || 0, energy: player.resources_energy || 0 }
+      canAfford: Number(Number(player.resourcesMetal) || 0) >= cost.metal && Number(Number(player.resourcesEnergy) || 0) >= cost.energy,
+      available: { metal: Number(Number(player.resourcesMetal) || 0), energy: Number(Number(player.resourcesEnergy) || 0) }
     });
+
   } catch (error) {
-    logger.error('Error getting upgrade cost:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error getting upgrade cost:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
-});
+}

@@ -20,7 +20,7 @@
  * Optional: Auto-export before purge
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { connectToDatabase } from './mongodb';
 import { logger } from './logger';
 
 // ============================================================================
@@ -85,53 +85,6 @@ export interface EffectivenessMetrics {
 const TIER_NAMES = ['WEAK', 'MEDIUM', 'STRONG', 'ELITE', 'ULTRA', 'GOD'];
 
 // ============================================================================
-// HELPERS: Type <-> Supabase row mapping
-// ============================================================================
-
-interface SpawnRow {
-  id: string;
-  created_at: string;
-  tier: number;
-  position_x: number;
-  position_y: number;
-  spawned_by: string;
-  schedule_id: string | null;
-}
-
-interface DefeatRow {
-  id: string;
-  created_at: string;
-  tier: number;
-  defeated_by: string;
-  rewards: { m: number; e: number };
-  alive_seconds: number;
-}
-
-function mapSpawnRow(row: SpawnRow): SpawnEvent {
-  return {
-    t: new Date(row.created_at),
-    tier: row.tier,
-    x: row.position_x,
-    y: row.position_y,
-    by: row.spawned_by,
-    sid: row.schedule_id ?? undefined,
-  };
-}
-
-function mapDefeatRow(row: DefeatRow): DefeatEvent {
-  return {
-    t: new Date(row.created_at),
-    tier: row.tier,
-    by: row.defeated_by,
-    r: {
-      m: row.rewards.m,
-      e: row.rewards.e,
-    },
-    alive: row.alive_seconds,
-  };
-}
-
-// ============================================================================
 // RECORD EVENTS
 // ============================================================================
 
@@ -150,7 +103,8 @@ export async function recordSpawnEvent(
   scheduleId?: string
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
+    const db = await connectToDatabase();
+    const collection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
 
     const event: SpawnEvent = {
       t: new Date(),
@@ -161,14 +115,7 @@ export async function recordSpawnEvent(
       sid: scheduleId
     };
 
-    await supabase.from('beer_base_spawn_events').insert({
-      created_at: event.t.toISOString(),
-      tier: event.tier,
-      position_x: event.x,
-      position_y: event.y,
-      spawned_by: event.by,
-      schedule_id: event.sid ?? null,
-    });
+    await collection.insertOne(event);
 
     logger.info('Beer Base spawn event recorded', {
       tier: TIER_NAMES[tier],
@@ -197,7 +144,8 @@ export async function recordDefeatEvent(
   timeAlive: number
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
+    const db = await connectToDatabase();
+    const collection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
 
     const event: DefeatEvent = {
       t: new Date(),
@@ -210,13 +158,7 @@ export async function recordDefeatEvent(
       alive: timeAlive
     };
 
-    await supabase.from('beer_base_defeat_events').insert({
-      created_at: event.t.toISOString(),
-      tier: event.tier,
-      defeated_by: event.by,
-      rewards: { m: event.r.m, e: event.r.e },
-      alive_seconds: event.alive,
-    });
+    await collection.insertOne(event);
 
     logger.info('Beer Base defeat event recorded', {
       tier: TIER_NAMES[tier],
@@ -243,37 +185,23 @@ export async function getSpawnStats(
   startDate?: Date,
   endDate?: Date
 ): Promise<SpawnStatistics> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
+  const collection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
 
   // Default to last 30 days
   const end = endDate || new Date();
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Get all spawns in date range
-  const { data: rows, error } = await supabase
-    .from('beer_base_spawn_events')
-    .select('*')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
-    .order('created_at', { ascending: false });
+  const spawns = await collection.find({
+    t: { $gte: start, $lte: end }
+  }).toArray();
 
-  if (error) {
-    logger.error('Failed to fetch spawn stats', error);
-    return {
-      totalSpawns: 0,
-      dailySpawns: [],
-      tierDistribution: TIER_NAMES.map((tierName, tier) => ({ tier, tierName, count: 0, percentage: 0 })),
-      spawnSources: [],
-      averagePerDay: 0,
-    };
-  }
-
-  const spawns = (rows as SpawnRow[]).map(mapSpawnRow);
   const totalSpawns = spawns.length;
 
   // Daily spawn counts
   const dailyMap = new Map<string, number>();
-  spawns.forEach(spawn => {
+  spawns.forEach((spawn: any) => {
     const date = spawn.t.toISOString().split('T')[0];
     dailyMap.set(date, (dailyMap.get(date) || 0) + 1);
   });
@@ -284,7 +212,7 @@ export async function getSpawnStats(
 
   // Tier distribution
   const tierCounts = [0, 0, 0, 0, 0, 0];
-  spawns.forEach(spawn => {
+  spawns.forEach((spawn: any) => {
     if (spawn.tier >= 0 && spawn.tier <= 5) {
       tierCounts[spawn.tier]++;
     }
@@ -299,7 +227,7 @@ export async function getSpawnStats(
 
   // Spawn sources
   const sourceMap = new Map<string, number>();
-  spawns.forEach(spawn => {
+  spawns.forEach((spawn: any) => {
     const source = spawn.by.startsWith('schedule-') ? 'schedule' : spawn.by;
     sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
   });
@@ -333,37 +261,23 @@ export async function getDefeatStats(
   startDate?: Date,
   endDate?: Date
 ): Promise<DefeatStatistics> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
+  const collection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
 
   // Default to last 30 days
   const end = endDate || new Date();
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Get all defeats in date range
-  const { data: rows, error } = await supabase
-    .from('beer_base_defeat_events')
-    .select('*')
-    .gte('created_at', start.toISOString())
-    .lte('created_at', end.toISOString())
-    .order('created_at', { ascending: false });
+  const defeats = await collection.find({
+    t: { $gte: start, $lte: end }
+  }).toArray();
 
-  if (error) {
-    logger.error('Failed to fetch defeat stats', error);
-    return {
-      totalDefeats: 0,
-      dailyDefeats: [],
-      defeatsByTier: TIER_NAMES.map((tierName, tier) => ({ tier, tierName, count: 0, percentage: 0 })),
-      topPlayers: [],
-      averagePerDay: 0,
-    };
-  }
-
-  const defeats = (rows as DefeatRow[]).map(mapDefeatRow);
   const totalDefeats = defeats.length;
 
   // Daily defeat counts
   const dailyMap = new Map<string, number>();
-  defeats.forEach(defeat => {
+  defeats.forEach((defeat: any) => {
     const date = defeat.t.toISOString().split('T')[0];
     dailyMap.set(date, (dailyMap.get(date) || 0) + 1);
   });
@@ -374,7 +288,7 @@ export async function getDefeatStats(
 
   // Defeats by tier
   const tierCounts = [0, 0, 0, 0, 0, 0];
-  defeats.forEach(defeat => {
+  defeats.forEach((defeat: any) => {
     if (defeat.tier >= 0 && defeat.tier <= 5) {
       tierCounts[defeat.tier]++;
     }
@@ -389,7 +303,7 @@ export async function getDefeatStats(
 
   // Top players
   const playerMap = new Map<string, { defeats: number; metal: number; energy: number }>();
-  defeats.forEach(defeat => {
+  defeats.forEach((defeat: any) => {
     const existing = playerMap.get(defeat.by) || { defeats: 0, metal: 0, energy: 0 };
     playerMap.set(defeat.by, {
       defeats: existing.defeats + 1,
@@ -430,37 +344,17 @@ export async function getEffectivenessMetrics(
   startDate?: Date,
   endDate?: Date
 ): Promise<EffectivenessMetrics> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
+  const spawnsCollection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
+  const defeatsCollection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
 
   // Default to last 30 days
   const end = endDate || new Date();
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Get spawns and defeats
-  const [{ data: spawnRows, error: spawnError }, { data: defeatRows, error: defeatError }] = await Promise.all([
-    supabase
-      .from('beer_base_spawn_events')
-      .select('*')
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('beer_base_defeat_events')
-      .select('*')
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at', { ascending: false }),
-  ]);
-
-  if (spawnError) {
-    logger.error('Failed to fetch spawn data for effectiveness metrics', spawnError);
-  }
-  if (defeatError) {
-    logger.error('Failed to fetch defeat data for effectiveness metrics', defeatError);
-  }
-
-  const spawns = (spawnRows as SpawnRow[] || []).map(mapSpawnRow);
-  const defeats = (defeatRows as DefeatRow[] || []).map(mapDefeatRow);
+  const spawns = await spawnsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
+  const defeats = await defeatsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
 
   // Overall defeat rate
   const overallDefeatRate = spawns.length > 0 ? (defeats.length / spawns.length) * 100 : 0;
@@ -470,7 +364,7 @@ export async function getEffectivenessMetrics(
     0: [], 1: [], 2: [], 3: [], 4: [], 5: []
   };
 
-  defeats.forEach(defeat => {
+  defeats.forEach((defeat: any) => {
     if (defeat.tier >= 0 && defeat.tier <= 5) {
       tierLifespans[defeat.tier].push(defeat.alive);
     }
@@ -489,14 +383,14 @@ export async function getEffectivenessMetrics(
   });
 
   // Engagement score (defeats per active player per week)
-  const uniquePlayers = new Set(defeats.map(d => d.by)).size;
+  const uniquePlayers = new Set(defeats.map((d: any) => d.by)).size;
   const daysDiff = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
   const weeks = daysDiff / 7;
   const engagementScore = uniquePlayers > 0 ? defeats.length / uniquePlayers / weeks : 0;
 
   // Peak activity hours
   const hourCounts = new Array(24).fill(0);
-  defeats.forEach(defeat => {
+  defeats.forEach((defeat: any) => {
     const hour = defeat.t.getUTCHours();
     hourCounts[hour]++;
   });
@@ -531,48 +425,28 @@ export async function exportAnalytics(
   startDate?: Date,
   endDate?: Date
 ): Promise<string> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
+  const spawnsCollection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
+  const defeatsCollection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
 
   const end = endDate || new Date();
   const start = startDate || new Date(0); // Beginning of time if not specified
 
-  const [{ data: spawnRows, error: spawnError }, { data: defeatRows, error: defeatError }] = await Promise.all([
-    supabase
-      .from('beer_base_spawn_events')
-      .select('*')
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('beer_base_defeat_events')
-      .select('*')
-      .gte('created_at', start.toISOString())
-      .lte('created_at', end.toISOString())
-      .order('created_at', { ascending: false }),
-  ]);
-
-  if (spawnError) {
-    logger.error('Failed to fetch spawn data for export', spawnError);
-  }
-  if (defeatError) {
-    logger.error('Failed to fetch defeat data for export', defeatError);
-  }
-
-  const spawns = (spawnRows as SpawnRow[] || []).map(mapSpawnRow);
-  const defeats = (defeatRows as DefeatRow[] || []).map(mapDefeatRow);
+  const spawns = await spawnsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
+  const defeats = await defeatsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
 
   if (format === 'json') {
     return JSON.stringify({
       exportDate: new Date().toISOString(),
       dateRange: { start: start.toISOString(), end: end.toISOString() },
-      spawns: spawns.map(s => ({
+      spawns: spawns.map((s: any) => ({
         timestamp: s.t.toISOString(),
         tier: TIER_NAMES[s.tier],
         position: { x: s.x, y: s.y },
         spawnedBy: s.by,
         scheduleId: s.sid
       })),
-      defeats: defeats.map(d => ({
+      defeats: defeats.map((d: any) => ({
         timestamp: d.t.toISOString(),
         tier: TIER_NAMES[d.tier],
         defeatedBy: d.by,
@@ -584,11 +458,11 @@ export async function exportAnalytics(
     // CSV format
     let csv = 'Event Type,Timestamp,Tier,Details\n';
     
-    spawns.forEach(s => {
+    spawns.forEach((s: any) => {
       csv += `Spawn,${s.t.toISOString()},${TIER_NAMES[s.tier]},"x:${s.x} y:${s.y} by:${s.by}"\n`;
     });
     
-    defeats.forEach(d => {
+    defeats.forEach((d: any) => {
       csv += `Defeat,${d.t.toISOString()},${TIER_NAMES[d.tier]},"by:${d.by} metal:${d.r.m} energy:${d.r.e} hours:${(d.alive / 3600).toFixed(2)}"\n`;
     });
     
@@ -610,37 +484,46 @@ export async function purgeOldAnalytics(): Promise<{
   spawnsDeleted: number;
   defeatsDeleted: number;
 }> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
+  const spawnsCollection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
+  const defeatsCollection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
 
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-  const [{ error: spawnError, count: spawnCount }, { error: defeatError, count: defeatCount }] = await Promise.all([
-    supabase
-      .from('beer_base_spawn_events')
-      .delete({ count: 'exact' })
-      .lt('created_at', oneYearAgo.toISOString()),
-    supabase
-      .from('beer_base_defeat_events')
-      .delete({ count: 'exact' })
-      .lt('created_at', oneYearAgo.toISOString()),
-  ]);
-
-  if (spawnError) {
-    logger.error('Failed to purge old spawn events', spawnError);
-  }
-  if (defeatError) {
-    logger.error('Failed to purge old defeat events', defeatError);
-  }
+  const spawnsResult = await spawnsCollection.deleteMany({ t: { $lt: oneYearAgo } });
+  const defeatsResult = await defeatsCollection.deleteMany({ t: { $lt: oneYearAgo } });
 
   logger.info('Old analytics data purged', {
-    spawnsDeleted: spawnCount || 0,
-    defeatsDeleted: defeatCount || 0,
+    spawnsDeleted: spawnsResult.deletedCount,
+    defeatsDeleted: defeatsResult.deletedCount,
     cutoffDate: oneYearAgo.toISOString()
   });
 
   return {
-    spawnsDeleted: spawnCount || 0,
-    defeatsDeleted: defeatCount || 0
+    spawnsDeleted: spawnsResult.deletedCount || 0,
+    defeatsDeleted: defeatsResult.deletedCount || 0
   };
 }
+
+// ============================================================================
+// IMPLEMENTATION NOTES
+// ============================================================================
+/**
+ * STORAGE OPTIMIZATION:
+ * - Short field names (t, r, m, e) to minimize document size
+ * - Int32 for numbers where possible
+ * - No redundant data stored
+ * - Indexes only on frequently queried fields
+ * 
+ * ANNUAL PURGE STRATEGY:
+ * - Runs January 1st at 12:01 AM UTC
+ * - Deletes all records older than 365 days
+ * - Optional: Auto-export before purge for archival
+ * - Keeps storage constant year-over-year
+ * 
+ * PERFORMANCE:
+ * - Compound indexes for date range queries
+ * - Caching recommended for dashboard (5-min TTL)
+ * - Async recording to not block game operations
+ */

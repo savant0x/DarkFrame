@@ -32,27 +32,21 @@
  * }
  * 
  * DEPENDENCIES:
- * - Supabase for clan and player data
+ * - MongoDB for clan and player data aggregation
  * - Rate limiter for abuse prevention
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables } from '@/types/database';
-import {
+import { 
+  connectToDatabase, 
   withRequestLogging,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   createErrorResponse,
   ErrorCode,
-  logger,
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.leaderboard);
-
-type ClanRow = Tables<'clans'>;
-type PlayerStats = Pick<Tables<'players'>, 'clan' | 'total_strength' | 'total_defense' | 'base_attack_wins'>;
-type ClanWithValue = ClanRow & { calculatedValue: number };
 
 type LeaderboardCategory = 'power' | 'level' | 'territory' | 'wealth' | 'victories' | 'wars' | 'alliances';
 
@@ -64,7 +58,7 @@ type LeaderboardCategory = 'power' | 'level' | 'territory' | 'wealth' | 'victori
  */
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   try {
-    const supabase = createServiceClient();
+    const db = await connectToDatabase();
     const searchParams = request.nextUrl.searchParams;
     
     // Parse query parameters
@@ -82,94 +76,132 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       );
     }
     
-    // Build query for clans
-    let clansQuery = supabase.from('clans').select('*');
+    // Build aggregation pipeline based on category
+    const clansCollection = db.collection('clans');
+    const playersCollection = db.collection('players');
+    
+    // Base match stage (filter by search if provided)
+    const matchStage: any = {};
     if (searchQuery) {
-      clansQuery = clansQuery.ilike('name', `%${searchQuery}%`);
+      matchStage.name = { $regex: searchQuery, $options: 'i' };
     }
     
-    const { data: allClans, error: clansError } = await clansQuery;
-    if (clansError) throw clansError;
-
-    const clans = allClans || [];
-
-    // Fetch all players for power and victories categories
-    let players: PlayerStats[] = [];
+    // Build aggregation based on category
+    const pipeline: any[] = [
+      { $match: matchStage }
+    ];
+    
     if (category === 'power' || category === 'victories') {
-      const { data: allPlayers, error: playersError } = await supabase
-        .from('players')
-        .select('clan, total_strength, total_defense, base_attack_wins');
-      if (!playersError) {
-        players = allPlayers || [];
-      }
+      // For power and victories, we need to aggregate member stats
+      pipeline.push(
+        // Lookup members from players collection
+        {
+          $lookup: {
+            from: 'players',
+            let: { clanName: '$name' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$clan', '$$clanName'] } } },
+              {
+                $project: {
+                  totalPower: { $add: [{ $ifNull: ['$totalStrength', 0] }, { $ifNull: ['$totalDefense', 0] }] },
+                  baseAttackWins: { $ifNull: ['$baseAttackWins', 0] }
+                }
+              }
+            ],
+            as: 'memberStats'
+          }
+        },
+        // Calculate aggregated value
+        {
+          $addFields: {
+            calculatedValue: category === 'power'
+              ? { $sum: '$memberStats.totalPower' }
+              : { $sum: '$memberStats.baseAttackWins' }
+          }
+        }
+      );
+    } else if (category === 'level') {
+      pipeline.push({
+        $addFields: {
+          calculatedValue: { $ifNull: ['$level', 1] }
+        }
+      });
+    } else if (category === 'territory') {
+      pipeline.push({
+        $addFields: {
+          calculatedValue: { $ifNull: ['$territoryCount', 0] }
+        }
+      });
+    } else if (category === 'wealth') {
+      pipeline.push({
+        $addFields: {
+          calculatedValue: {
+            $add: [
+              { $ifNull: ['$bank.metal', 0] },
+              { $ifNull: ['$bank.energy', 0] }
+            ]
+          }
+        }
+      });
+    } else if (category === 'wars') {
+      pipeline.push({
+        $addFields: {
+          calculatedValue: { $ifNull: ['$warsWon', 0] }
+        }
+      });
+    } else if (category === 'alliances') {
+      pipeline.push({
+        $addFields: {
+          calculatedValue: {
+            $cond: {
+              if: { $isArray: '$alliances' },
+              then: { $size: '$alliances' },
+              else: 0
+            }
+          }
+        }
+      });
     }
-
-    // Calculate value for each clan based on category
-    const clansWithValues: ClanWithValue[] = clans.map((clan: ClanRow) => {
-      let calculatedValue = 0;
-
-      switch (category) {
-        case 'power': {
-          const clanPlayers = players.filter((p: PlayerStats) => p.clan === clan.name);
-          calculatedValue = clanPlayers.reduce((sum: number, p: PlayerStats) =>
-            sum + (p.total_strength || 0) + (p.total_defense || 0), 0);
-          break;
-        }
-        case 'level':
-          calculatedValue = clan.clan_level || 1;
-          break;
-        case 'territory':
-          calculatedValue = clan.total_territories || 0;
-          break;
-        case 'wealth':
-          calculatedValue = (clan.bank_treasury_metal || 0) + (clan.bank_treasury_energy || 0);
-          break;
-        case 'victories': {
-          const clanPlayers = players.filter((p: PlayerStats) => p.clan === clan.name);
-          calculatedValue = clanPlayers.reduce((sum: number, p: PlayerStats) =>
-            sum + (p.base_attack_wins || 0), 0);
-          break;
-        }
-        case 'wars':
-          calculatedValue = clan.wars_won || 0;
-          break;
-        case 'alliances':
-          calculatedValue = 0;
-          break;
-      }
-
-      return { ...clan, calculatedValue };
-    });
-
-    // Sort by calculated value descending
-    clansWithValues.sort((a: ClanWithValue, b: ClanWithValue) => b.calculatedValue - a.calculatedValue || a.name?.localeCompare(b.name || '') || 0);
-
-    // Paginate
-    const total = clansWithValues.length;
-    const skip = (page - 1) * limit;
-    const paginated = clansWithValues.slice(skip, skip + limit);
     
-    // Format leaderboard entries
-    const leaderboard = paginated.map((clan: ClanWithValue, index: number) => ({
+    // Sort by calculated value (descending)
+    pipeline.push({ $sort: { calculatedValue: -1, name: 1 } });
+    
+    // Get total count before pagination
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const countResult = await clansCollection.aggregate(countPipeline).toArray();
+    const total = countResult.length > 0 ? countResult[0].total : 0;
+    
+    // Add pagination
+    const skip = (page - 1) * limit;
+    pipeline.push(
+      { $skip: skip },
+      { $limit: limit }
+    );
+    
+    // Execute aggregation
+    const clans = await clansCollection.aggregate(pipeline).toArray();
+    
+    // Format leaderboard entries with ranks
+    const leaderboard = clans.map((clan: any, index: any) => ({
       clan: {
-        _id: clan.id,
+        _id: clan._id,
         name: clan.name,
         tag: clan.tag,
         description: clan.description || '',
-        leader: clan.leader_id,
-        members: [] as string[],
-        level: clan.clan_level || 1,
-        xp: clan.total_xp || 0,
-        bank: { metal: clan.bank_treasury_metal || 0, energy: clan.bank_treasury_energy || 0 },
-        territoryCount: clan.total_territories || 0,
-        warsWon: clan.wars_won || 0,
-        alliances: [] as string[],
-        createdAt: clan.created_at,
-        settings: clan.clan_settings || {},
+        leader: clan.leader,
+        members: clan.members || [],
+        level: clan.level || 1,
+        xp: clan.xp || 0,
+        bank: clan.bank || { metal: 0, energy: 0 },
+        territoryCount: clan.territoryCount || 0,
+        warsWon: clan.warsWon || 0,
+        alliances: clan.alliances || [],
+        createdAt: clan.createdAt,
+        settings: clan.settings || {},
       },
       rank: skip + index + 1,
       value: clan.calculatedValue || 0,
-      change: 0
+      change: 0 // TODO: Implement rank change tracking
     }));
     
     return NextResponse.json({
@@ -181,7 +213,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     });
     
   } catch (error) {
-    logger.error('Error fetching clan leaderboard:', error);
+    console.error('Error fetching clan leaderboard:', error);
     return NextResponse.json(
       { error: 'Failed to fetch clan leaderboard' },
       { status: 500 }
@@ -193,8 +225,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
  * FOOTER:
  * 
  * PERFORMANCE NOTES:
- * - Power and victories categories fetch all players for aggregation
- * - For large clans, consider adding indexed columns for precomputed values
+ * - Power and victories categories use $lookup to aggregate member stats
+ * - For large clans (1000+ members), consider adding indexed fields to clan documents
  * - Caching strategy could be added for top 100 clans (5-minute TTL)
  * 
  * FUTURE ENHANCEMENTS:
@@ -206,5 +238,5 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
  * SECURITY:
  * - Rate limited to prevent abuse
  * - No authentication required (public leaderboard)
- * - Search query sanitized via Supabase ilike
+ * - Search query sanitized via MongoDB regex
  */

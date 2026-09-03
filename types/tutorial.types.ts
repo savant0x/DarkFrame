@@ -18,7 +18,7 @@
  * - Reward claiming and skip functionality
  */
 
-type ObjectId = string;
+import type { ObjectId } from 'mongodb';
 
 /**
  * Tutorial quest step action types
@@ -60,7 +60,6 @@ export type TutorialQuestCategory =
  */
 export type TutorialRewardType =
   | 'METAL'
-  | 'ENERGY'
   | 'OIL'
   | 'ITEM'
   | 'ACHIEVEMENT'
@@ -99,8 +98,7 @@ export interface TutorialStep {
  * Represents a complete quest chain (e.g., "Movement Basics")
  */
 export interface TutorialQuest {
-  id?: string;                   // Quest ID (preferred, camelCase)
-  _id?: string;                  // Quest ID (snake_case / MongoDB legacy alias)
+  _id?: string;                  // Quest ID (e.g., "quest_movement_basics")
   title: string;                 // Quest name (e.g., "Movement Basics")
   description: string;           // Quest summary
   category: TutorialQuestCategory;

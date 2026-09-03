@@ -11,7 +11,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { TerrainType } from '@/types';
 import { X } from 'lucide-react';
@@ -104,52 +104,9 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
   }, [isOpen, currentTile]);
 
   /**
-   * Keyboard shortcut: G or F to harvest
-   */
-  useEffect(() => {
-    if (!isOpen || isHarvesting || result) return;
-
-    const handleKeyPress = (event: KeyboardEvent) => {
-      // Ignore if typing in input field
-      if (isTypingInInput()) {
-        return;
-      }
-
-      const key = event.key.toLowerCase();
-      
-      // G for Metal/Energy
-      if (key === 'g' && currentTile && 
-          (currentTile.terrain === TerrainType.Metal || currentTile.terrain === TerrainType.Energy)) {
-        event.preventDefault();
-        handleHarvest();
-      }
-      
-      // F for Cave/Forest
-      if (key === 'f' && currentTile && 
-          (currentTile.terrain === TerrainType.Cave || currentTile.terrain === TerrainType.Forest)) {
-        event.preventDefault();
-        handleHarvest();
-      }
-
-      // Escape to close
-      if (key === 'escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isOpen, isHarvesting, result, currentTile, onClose]);
-
-  // ============================================================
-  // HANDLERS
-  // ============================================================
-
-  /**
    * Handle harvest action
    */
-  const handleHarvest = async () => {
+  const handleHarvest = useCallback(async () => {
     if (!player || isHarvesting) return;
 
     setIsHarvesting(true);
@@ -193,7 +150,46 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
     } finally {
       setIsHarvesting(false);
     }
-  };
+  }, [player, isHarvesting, refreshGameState, onClose]);
+
+  /**
+   * Keyboard shortcut: G or F to harvest
+   */
+  useEffect(() => {
+    if (!isOpen || isHarvesting || result) return;
+
+    const handleKeyPress = (event: KeyboardEvent) => {
+      // Ignore if typing in input field
+      if (isTypingInInput()) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      
+      // G for Metal/Energy
+      if (key === 'g' && currentTile && 
+          (currentTile.terrain === TerrainType.Metal || currentTile.terrain === TerrainType.Energy)) {
+        event.preventDefault();
+        handleHarvest();
+      }
+      
+      // F for Cave/Forest
+      if (key === 'f' && currentTile && 
+          (currentTile.terrain === TerrainType.Cave || currentTile.terrain === TerrainType.Forest)) {
+        event.preventDefault();
+        handleHarvest();
+      }
+
+      // Escape to close
+      if (key === 'escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isOpen, isHarvesting, result, currentTile, onClose, handleHarvest]);
 
   /**
    * Get keyboard shortcut based on terrain

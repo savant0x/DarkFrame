@@ -25,7 +25,16 @@
  * - Scheduled (e.g., every 6 hours)
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { getDatabase } from './mongodb';
+import type { Player } from '@/types/game.types';
+import type { Clan } from '@/types/clan.types';
+
+/** Minimal clanTerritories row shape consumed by cache warming. */
+interface ClanTerritoryDoc {
+  x: number;
+  y: number;
+  clanId: string;
+}
 import { setCache, setCacheMultiple } from './cacheService';
 import { LeaderboardKeys, ClanKeys, PlayerKeys, TerritoryKeys, CacheTTL } from './cacheKeys';
 import { isRedisAvailable } from './redis';
@@ -51,38 +60,38 @@ async function warmLeaderboards(): Promise<number> {
   let warmed = 0;
 
   try {
-    const supabase = createServiceClient();
+    const db = await getDatabase();
 
     // Clan leaderboards
     const [clansByPower, clansByLevel, clansByTerritories, clansByWealth, clansByKills] = 
       await Promise.all([
-        supabase.from('clans').select('*').order('power', { ascending: false }).limit(100),
-        supabase.from('clans').select('*').order('level', { ascending: false }).limit(100),
-        supabase.from('clans').select('*').order('territory_count', { ascending: false }).limit(100),
-        supabase.from('clans').select('*').order('total_wealth', { ascending: false }).limit(100),
-        supabase.from('clans').select('*').order('total_kills', { ascending: false }).limit(100),
+        db.collection('clans').find({}).sort({ power: -1 }).limit(100).toArray(),
+        db.collection('clans').find({}).sort({ level: -1 }).limit(100).toArray(),
+        db.collection('clans').find({}).sort({ territoryCount: -1 }).limit(100).toArray(),
+        db.collection('clans').find({}).sort({ totalWealth: -1 }).limit(100).toArray(),
+        db.collection('clans').find({}).sort({ totalKills: -1 }).limit(100).toArray(),
       ]);
 
     // Player leaderboards
     const [playersByLevel, playersByPower, playersByKills, playersByAchievements] = 
       await Promise.all([
-        supabase.from('players').select('*').order('level', { ascending: false }).limit(100),
-        supabase.from('players').select('*').order('power', { ascending: false }).limit(100),
-        supabase.from('players').select('*').order('total_kills', { ascending: false }).limit(100),
-        supabase.from('players').select('*').order('achievement_count', { ascending: false }).limit(100),
+        db.collection('players').find({}).sort({ level: -1 }).limit(100).toArray(),
+        db.collection('players').find({}).sort({ power: -1 }).limit(100).toArray(),
+        db.collection('players').find({}).sort({ totalKills: -1 }).limit(100).toArray(),
+        db.collection('players').find({}).sort({ achievementCount: -1 }).limit(100).toArray(),
       ]);
 
     // Cache all leaderboards
     await Promise.all([
-      setCache(LeaderboardKeys.clanPower(), clansByPower.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.clanLevel(), clansByLevel.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.clanTerritories(), clansByTerritories.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.clanWealth(), clansByWealth.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.clanKills(), clansByKills.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.playerLevel(), playersByLevel.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.playerPower(), playersByPower.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.playerKills(), playersByKills.data, CacheTTL.LEADERBOARD),
-      setCache(LeaderboardKeys.playerAchievements(), playersByAchievements.data, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.clanPower(), clansByPower, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.clanLevel(), clansByLevel, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.clanTerritories(), clansByTerritories, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.clanWealth(), clansByWealth, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.clanKills(), clansByKills, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.playerLevel(), playersByLevel, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.playerPower(), playersByPower, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.playerKills(), playersByKills, CacheTTL.LEADERBOARD),
+      setCache(LeaderboardKeys.playerAchievements(), playersByAchievements, CacheTTL.LEADERBOARD),
     ]);
 
     warmed = 9;
@@ -103,23 +112,23 @@ async function warmTopPlayers(): Promise<number> {
   let warmed = 0;
 
   try {
-    const supabase = createServiceClient();
-    const { data: topPlayers } = await supabase
-      .from('players')
-      .select('*')
-      .order('level', { ascending: false })
-      .limit(100);
+    const db = await getDatabase();
+    const topPlayers = await db.collection('players')
+      .find({})
+      .sort({ level: -1 })
+      .limit(100)
+      .toArray();
 
-    const cacheEntries = (topPlayers || []).map((player: any) => ({
-      key: PlayerKeys.profile(player.id),
+    const cacheEntries = topPlayers.map((player: any) => ({
+      key: PlayerKeys.profile(player._id.toString()),
       value: {
-        _id: player.id,
+        _id: player._id,
         username: player.username,
         level: player.level,
         power: player.power,
-        clan_id: player.clan_id,
-        current_hp: player.current_hp,
-        max_hp: player.max_hp,
+        clanId: player.clanId,
+        currentHP: player.currentHP,
+        maxHP: player.maxHP,
         x: player.x,
         y: player.y,
       },
@@ -145,24 +154,24 @@ async function warmTopClans(): Promise<number> {
   let warmed = 0;
 
   try {
-    const supabase = createServiceClient();
-    const { data: topClans } = await supabase
-      .from('clans')
-      .select('*')
-      .order('power', { ascending: false })
-      .limit(50);
+    const db = await getDatabase();
+    const topClans = await db.collection('clans')
+      .find({})
+      .sort({ power: -1 })
+      .limit(50)
+      .toArray();
 
-    const cacheEntries = (topClans || []).map((clan: any) => ({
-      key: ClanKeys.stats(clan.id),
+    const cacheEntries = topClans.map((clan: any) => ({
+      key: ClanKeys.stats(clan._id.toString()),
       value: {
-        _id: clan.id,
+        _id: clan._id,
         name: clan.name,
         tag: clan.tag,
         level: clan.level,
         power: clan.power,
-        member_count: clan.member_count,
-        territory_count: clan.territory_count,
-        total_wealth: clan.total_wealth,
+        memberCount: clan.memberCount,
+        territoryCount: clan.territoryCount,
+        totalWealth: clan.totalWealth,
       },
       ttl: CacheTTL.CLAN_STATS,
     }));
@@ -186,18 +195,18 @@ async function warmTerritoryMap(): Promise<number> {
   let warmed = 0;
 
   try {
-    const supabase = createServiceClient();
+    const db = await getDatabase();
     
     // Get all clan territories
-    const { data: territories } = await supabase
-      .from('clan_territories')
-      .select('*');
+    const territories = await db.collection<ClanTerritoryDoc>('clan_territories')
+      .find({})
+      .toArray();
 
     // Build ownership map: { "x,y": clanId }
     const ownershipMap: Record<string, string> = {};
-    for (const territory of (territories || [])) {
-      const key = `${territory.tile_x},${territory.tile_y}`;
-      ownershipMap[key] = territory.clan_id;
+    for (const territory of territories) {
+      const key = `${territory.x},${territory.y}`;
+      ownershipMap[key] = territory.clanId;
     }
 
     // Cache the ownership map
@@ -209,8 +218,8 @@ async function warmTerritoryMap(): Promise<number> {
 
     // Cache territory counts by clan
     const clanCounts: Record<string, number> = {};
-    for (const territory of (territories || [])) {
-      clanCounts[territory.clan_id] = (clanCounts[territory.clan_id] || 0) + 1;
+    for (const territory of territories) {
+      clanCounts[territory.clanId] = (clanCounts[territory.clanId] || 0) + 1;
     }
 
     await setCache(
@@ -220,7 +229,7 @@ async function warmTerritoryMap(): Promise<number> {
     );
 
     warmed = 2;
-    console.log(`✅ Warmed territory map (${(territories || []).length} territories)`);
+    console.log(`✅ Warmed territory map (${territories.length} territories)`);
   } catch (error) {
     console.error('❌ Error warming territory map:', error);
   }

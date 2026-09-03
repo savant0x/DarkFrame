@@ -1,83 +1,182 @@
 /**
- * Admin Bot Regen Cycle API — Full implementation
- * Cleans up old/inactive bot records and spawns replacement bots.
+ * @fileoverview Admin Bot Regeneration API - Force resource regeneration
+ * @module app/api/admin/bot-regen/route
+ * @created 2025-10-18
+ * @updated 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
+ * 
+ * OVERVIEW:
+ * Admin-only endpoint for forcing bot resource regeneration cycles.
+ * Allows admins to manually trigger hourly resource growth for bots.
  */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import { logger } from '@/lib';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import {
+  withRequestLogging,
+  createRouteLogger,
+  createRateLimiter,
+  ENDPOINT_RATE_LIMITS,
+  createErrorResponse,
+  createValidationErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+} from '@/lib';
+import { BotRegenSchema } from '@/lib/validation/schemas';
+import { ZodError } from 'zod';
 
-export async function POST(req: NextRequest) {
+const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
+
+// ============================================================================
+// POST - Force Bot Resource Regeneration
+// ============================================================================
+
+/**
+ * POST /api/admin/bot-regen
+ * Rate Limited: 30 req/hour (admin bot management)
+ * Manually triggers resource regeneration for all bots or specific bot
+ * Requires admin privileges (rank >= 5)
+ * 
+ * Request body (optional):
+ * {
+ *   username?: string // Specific bot username, or omit for all bots
+ * }
+ */
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+  const log = createRouteLogger('AdminBotRegenAPI');
+  const endTimer = log.time('bot-regen');
+
   try {
-    const auth = await requireAuth(req);
-    if (auth instanceof NextResponse) return auth;
-    if (!auth.isAdmin) return NextResponse.json({ success: false, error: 'Admin required' }, { status: 403 });
-
-    const supabase = createServiceClient();
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    // Count bots before regen
-    const { count: countBefore } = await supabase
-      .from('players').select('*', { count: 'exact', head: true }).eq('is_bot', true);
-
-    // Remove old bot records (created over 30 days ago, never logged in recently)
-    const { data: oldBots, error: queryError } = await supabase
-      .from('players')
-      .select('username')
-      .eq('is_bot', true)
-      .lt('created_at', thirtyDaysAgo)
-      .or(`last_login_date.is.null,last_login_date.lt.${thirtyDaysAgo}`)
-      .limit(50);
-
-    let cleaned = 0;
-    if (oldBots && oldBots.length > 0) {
-      const usernames = oldBots.map(b => b.username);
-      const { error: deleteError } = await supabase
-        .from('players')
-        .delete()
-        .in('username', usernames);
-
-      if (!deleteError) cleaned = usernames.length;
-    }
-
-    // Spawn replacement bots
-    let spawned = 0;
-    const replacementCount = Math.min(cleaned, 20);
-    for (let i = 0; i < replacementCount; i++) {
-      const x = Math.floor(Math.random() * 150) + 1;
-      const y = Math.floor(Math.random() * 150) + 1;
-      const username = `Bot_Regen_${crypto.randomUUID().replace(/-/g, '').substring(0, 6)}`;
-      const { error } = await supabase.from('players').insert({
-        username,
-        email: `bot_regen_${username.toLowerCase()}@darkframe.internal`,
-        password: 'supabase_auth',
-        current_x: x, current_y: y, base_x: x, base_y: y,
-        is_bot: true,
-        level: Math.floor(Math.random() * 15) + 1,
-        rank: Math.floor(Math.random() * 3) + 1,
-        resources_metal: Math.floor(Math.random() * 5000),
-        resources_energy: Math.floor(Math.random() * 5000),
+    // Authenticate user
+    const tokenPayload = await getAuthenticatedUser();
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
       });
-      if (!error) spawned++;
     }
 
-    const { count: countAfter } = await supabase
-      .from('players').select('*', { count: 'exact', head: true }).eq('is_bot', true);
+    // Check admin privileges
+    const player = await db.select()
+      .from(players)
+      .where(eq(players.username, tokenPayload.username))
+      .limit(1);
 
-    await supabase.from('admin_logs').insert({
-      admin_username: 'system',
-      action: 'regen_cycle',
-      target: 'bot_ecosystem',
-      details: { cleaned, spawned, botCountBefore: countBefore, botCountAfter: countAfter },
+    if (!player.length || !player[0].rank || player[0].rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin privileges required (rank 5+)',
+      });
+    }
+
+    // Parse request body
+    const body = await request.json().catch(() => ({}));
+    const validated = BotRegenSchema.parse(body);
+    const { username } = validated;
+
+    // Build query
+    const bots = username
+      ? await db.select().from(players).where(and(eq(players.isBot, 1), eq(players.username, username)))
+      : await db.select().from(players).where(eq(players.isBot, 1));
+
+    if (bots.length === 0) {
+      return createErrorResponse(ErrorCode.ADMIN_BOT_NOT_FOUND, {
+        message: username ? 'Bot not found' : 'No bots found',
+        username,
+      });
+    }
+
+    // Resource tier mapping
+    const TIER_RESOURCES = [
+      { metal: 10000, energy: 6000 },
+      { metal: 25000, energy: 15000 },
+      { metal: 50000, energy: 30000 },
+      { metal: 100000, energy: 60000 },
+      { metal: 200000, energy: 120000 },
+      { metal: 400000, energy: 240000 },
+    ];
+
+    // Regenerate resources for each bot
+    let regeneratedCount = 0;
+
+    for (const bot of bots) {
+      const tier = (bot.botConfig as any)?.tier || 1;
+      const isSpecialBase = (bot.botConfig as any)?.isSpecialBase || false;
+      const tierResources = TIER_RESOURCES[tier - 1] || TIER_RESOURCES[0];
+
+      // Special bases have 3x resources
+      const multiplier = isSpecialBase ? 3 : 1;
+      const maxMetal = BigInt(tierResources.metal * multiplier);
+      const maxEnergy = BigInt(tierResources.energy * multiplier);
+
+      // Update bot config with new timestamps
+      const existingBotConfig = bot.botConfig || {};
+      const updatedBotConfig = {
+        ...existingBotConfig,
+        lastResourceRegen: new Date(),
+        lastGrowth: new Date(),
+      };
+
+      // Set resources to max and reset regen timestamp
+      await db.update(players)
+        .set({
+          resourcesMetal: Number(maxMetal),
+          resourcesEnergy: Number(maxEnergy),
+          botConfig: JSON.stringify(updatedBotConfig),
+        })
+        .where(eq(players.username, bot.username));
+
+      regeneratedCount++;
+    }
+
+    log.info('Bot resources regenerated', {
+      botsAffected: regeneratedCount,
+      username: username || 'all',
+      adminUser: tokenPayload.username,
     });
 
     return NextResponse.json({
       success: true,
-      data: { updated: cleaned + spawned, spawned, cleaned, totalBefore: countBefore, totalAfter: countAfter },
-      message: `Regen complete: ${cleaned} bots cleaned, ${spawned} replacement bots spawned`,
+      message: `Regenerated resources for ${regeneratedCount} bot(s)`,
+      botsAffected: regeneratedCount,
     });
   } catch (error) {
-    logger.error('Regen error:', error);
-    return NextResponse.json({ success: false, error: 'Regen cycle failed' }, { status: 500 });
+    if (error instanceof ZodError) {
+      return createValidationErrorResponse(error);
+    }
+    log.error('Failed to regenerate bot resources', error instanceof Error ? error : new Error(String(error)));
+    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+  } finally {
+    endTimer();
   }
-}
+}));
+
+// ============================================================================
+// IMPLEMENTATION NOTES
+// ============================================================================
+
+/**
+ * ADMIN PERMISSIONS:
+ * - Requires rank >= 5 to trigger regeneration
+ * - Can target specific bot or all bots
+ * - Sets resources to tier maximum instantly
+ * 
+ * USAGE:
+ * Regenerate all bots:
+ * POST /api/admin/bot-regen
+ * {}
+ * 
+ * Regenerate specific bot:
+ * POST /api/admin/bot-regen
+ * { "username": "HoarderBot_42" }
+ * 
+ * INTEGRATION:
+ * This resets both lastResourceRegen and lastGrowth timestamps,
+ * ensuring bots are ready for next hourly cycle.
+ * 
+ * FUTURE ENHANCEMENTS:
+ * - Partial regeneration (percentage-based)
+ * - Regeneration preview (show what will change)
+ * - Scheduled regeneration cycles
+ * - Regeneration cooldown limits
+ */

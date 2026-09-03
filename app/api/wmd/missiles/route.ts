@@ -1,5 +1,21 @@
+/**
+ * @file app/api/wmd/missiles/route.ts
+ * @created 2025-10-22
+ * @overview WMD Missile API Endpoints
+ * 
+ * OVERVIEW:
+ * Handles missile creation, assembly, launch, and management operations.
+ * 
+ * Features:
+ * - GET: Fetch player's missiles
+ * - POST: Create, assemble, or launch missiles
+ * - DELETE: Dismantle missiles
+ * 
+ * Authentication: JWT tokens via HttpOnly cookies
+ * Dependencies: missileService.ts, apiHelpers.ts
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 import { getAuthenticatedPlayer } from '@/lib/wmd/apiHelpers';
 import {
   createMissile,
@@ -23,35 +39,20 @@ import {
 import { MissileOperationSchema } from '@/lib/validation/schemas';
 import { WarheadType, MissileComponent } from '@/types/wmd/missile.types';
 import { ZodError } from 'zod';
+import { getDatabase } from '@/lib/mongodb';
+import type { Player } from '@/types/game.types';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-async function mapMissileRow(supabase: ReturnType<typeof createServiceClient>, row: Record<string, any>): Promise<Record<string, any>> {
-  const { data: warhead } = await supabase
-    .from('wmd_missile_warheads')
-    .select('warhead_type')
-    .eq('missile_id', row.id)
-    .maybeSingle();
-
-  return {
-    missileId: row.missile_id,
-    ownerId: row.owner_id,
-    warheadType: warhead?.warhead_type || 'unknown',
-    status: row.status || 'preparing',
-    components: {
-      warhead: false,
-      propulsion: false,
-      guidance: false,
-      payload: false,
-      stealth: false,
-    },
-    createdAt: row.created_at,
-  };
-}
-
+/**
+ * GET /api/wmd/missiles
+ * Fetch player's missiles or specific missile details
+ * 
+ * Query params:
+ * - missileId: string (optional) - Get specific missile details
+ */
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createServiceClient();
     const auth = await getAuthenticatedPlayer(req);
     
     if (!auth) {
@@ -61,31 +62,59 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const missileId = searchParams.get('missileId');
     
+    // Get specific missile details
     if (missileId) {
-      const { data: missile } = await supabase.from('wmd_missiles').select('*').eq('missile_id', missileId).single();
+      const db = await getDatabase();
+      const missile = await db.collection('wmd_missiles').findOne({ missileId });
       
       if (!missile) {
-        return NextResponse.json({ error: 'Missile not found' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Missile not found' },
+          { status: 404 }
+        );
       }
       
-      if (missile.owner_id !== auth.playerId) {
-        return NextResponse.json({ error: 'Unauthorized - not your missile' }, { status: 403 });
+      // Verify ownership
+      if (missile.ownerId !== auth.playerId) {
+        return NextResponse.json(
+          { error: 'Unauthorized - not your missile' },
+          { status: 403 }
+        );
       }
       
-      const mapped = await mapMissileRow(supabase, missile);
-      return NextResponse.json({ success: true, missile: mapped });
+      return NextResponse.json({
+        success: true,
+        missile,
+      });
     }
     
-    const rows = await getPlayerMissiles(auth.playerId);
-    const missiles = await Promise.all((rows || []).map(r => mapMissileRow(supabase, r)));
+    // Get all player missiles
+    const missiles = await getPlayerMissiles(auth.playerId);
     
-    return NextResponse.json({ success: true, missiles });
+    return NextResponse.json({
+      success: true,
+      missiles,
+    });
   } catch (error) {
     console.error('Error fetching missiles:', error);
-    return NextResponse.json({ error: 'Failed to fetch missiles' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch missiles' },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * POST /api/wmd/missiles
+ * Create, assemble, or launch missile
+ * 
+ * Body:
+ * - action: 'create' | 'assemble' | 'launch'
+ * - warheadType: string (for create)
+ * - missileId: string (for assemble/launch)
+ * - component: string (for assemble)
+ * - targetId: string (for launch)
+ */
 export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const log = createRouteLogger('WMDMissilesAPI');
   const endTimer = log.time('POST /api/wmd/missiles');
@@ -95,9 +124,12 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     
     if (!auth) {
       log.warn('Unauthorized WMD missile operation attempt');
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { context: 'WMD operations require authentication' });
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        context: 'WMD operations require authentication'
+      });
     }
     
+    // Validate request body with discriminated union schema
     const validated = MissileOperationSchema.parse(await req.json());
     
     log.debug('WMD missile operation', {
@@ -106,59 +138,107 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       username: auth.username,
     });
     
+    // Create new missile
     if (validated.action === 'create') {
-      log.info('Creating missile', { warheadType: validated.warheadType, playerId: auth.playerId });
+      log.info('Creating missile', {
+        warheadType: validated.warheadType,
+        playerId: auth.playerId,
+        username: auth.username,
+      });
       
       const result = await createMissile(
         auth.playerId,
         auth.username,
-        auth.player.clan_id || '',
+        auth.player.clanId || '',
         validated.warheadType as WarheadType
       );
       
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { context: result.message || 'Failed to create missile' });
+        log.warn('Failed to create missile', {
+          details: { message: result.message, playerId: auth.playerId }
+        });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          context: result.message || 'Failed to create missile'
+        });
       }
       
       log.info('Missile created successfully', { missileId: result.missileId });
       
-      return NextResponse.json({ success: true, message: result.message, missileId: result.missileId });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        missileId: result.missileId,
+      });
     }
     
+    // Assemble component
     if (validated.action === 'assemble') {
-      log.info('Assembling missile component', { missileId: validated.missileId, component: validated.component });
+      log.info('Assembling missile component', {
+        missileId: validated.missileId,
+        component: validated.component,
+        playerId: auth.playerId,
+      });
       
       const result = await assembleComponent(
-        validated.missileId,
-        validated.component as MissileComponent,
-        auth.playerId,
+        validated.missileId, 
+        validated.component as MissileComponent, 
+        auth.playerId, 
         auth.player.username || auth.player.email || 'Unknown'
       );
       
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { context: result.message || 'Failed to assemble component' });
+        log.warn('Failed to assemble component', {
+          details: {
+            message: result.message,
+            missileId: validated.missileId,
+            component: validated.component,
+          }
+        });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          context: result.message || 'Failed to assemble component'
+        });
       }
       
-      log.info('Component assembled successfully', { missileId: validated.missileId, component: validated.component });
+      log.info('Component assembled successfully', {
+        missileId: validated.missileId,
+        component: validated.component,
+      });
       
-      return NextResponse.json({ success: true, message: result.message });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+      });
     }
     
-    // Launch missile
-    log.info('Launching missile', { missileId: validated.missileId, targetId: validated.targetId, launcherId: auth.playerId });
+    // Launch missile (validated.action === 'launch')
+    log.info('Launching missile', {
+      missileId: validated.missileId,
+      targetId: validated.targetId,
+      launcherId: auth.playerId,
+    });
     
-    const supabase = createServiceClient();
-    const { data: targetPlayer } = await supabase.from('players').select('username').eq('username', validated.targetId).single();
+    // Get target player name for broadcast
+    const db = await getDatabase();
+    const targetPlayer = await db.collection<Player>('players').findOne({ playerId: validated.targetId });
     
     const result = await launchMissile(validated.missileId, validated.targetId, auth.username);
     
     if (!result.success) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { context: result.message || 'Failed to launch missile' });
+      log.warn('Failed to launch missile', {
+        details: {
+          message: result.message,
+          missileId: validated.missileId,
+          targetId: validated.targetId,
+        }
+      });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        context: result.message || 'Failed to launch missile'
+      });
     }
     
-    // Broadcast missile launch
+    // Broadcast missile launch to launcher and target
     try {
-      const { data: missile } = await supabase.from('wmd_missiles').select('*').eq('missile_id', validated.missileId).single();
+      const missile = await db.collection<{ warheadType?: string; impactAt?: Date }>('wmd_missiles').findOne({ missileId: validated.missileId });
       const io = getIO();
       if (missile && io) {
         await wmdHandlers.broadcastMissileLaunch(io, {
@@ -167,22 +247,35 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
           launcherName: auth.username,
           targetId: validated.targetId,
           targetName: targetPlayer?.username || 'Unknown',
-          warheadType: String(missile.status),
-          impactAt: missile.launched_at as unknown as Date,
+          warheadType: missile.warheadType ?? WarheadType.TACTICAL,
+          impactAt: missile.impactAt ?? new Date(),
+        });
+        
+        log.info('Missile launch broadcasted', {
+          missileId: validated.missileId,
+          targetName: targetPlayer?.username || 'Unknown',
         });
       }
     } catch (broadcastError) {
       log.error('Failed to broadcast missile launch', broadcastError as Error);
+      // Continue execution - broadcast failure shouldn't fail the API
     }
     
-    log.info('Missile launched successfully', { missileId: validated.missileId, targetId: validated.targetId });
+    log.info('Missile launched successfully', {
+      missileId: validated.missileId,
+      targetId: validated.targetId,
+    });
     
-    return NextResponse.json({ success: true, message: result.message });
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       log.warn('Validation error in WMD missile operation');
       return createValidationErrorResponse(error);
     }
+    
     log.error('Unexpected error in WMD missile operation', error as Error);
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -190,6 +283,13 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   }
 }));
 
+/**
+ * DELETE /api/wmd/missiles
+ * Dismantle missile
+ * 
+ * Query:
+ * - missileId: string
+ */
 export async function DELETE(req: NextRequest) {
   try {
     const auth = await getAuthenticatedPlayer(req);
@@ -202,18 +302,30 @@ export async function DELETE(req: NextRequest) {
     const missileId = searchParams.get('missileId');
     
     if (!missileId) {
-      return NextResponse.json({ error: 'Missing required query param: missileId' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required query param: missileId' },
+        { status: 400 }
+      );
     }
     
     const result = await dismantleMissile(missileId);
     
     if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json(
+        { error: result.message },
+        { status: 400 }
+      );
     }
     
-    return NextResponse.json({ success: true, message: result.message });
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+    });
   } catch (error) {
     console.error('Error dismantling missile:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

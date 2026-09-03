@@ -15,8 +15,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   setWaypoint,
   deleteWaypoint,
@@ -24,15 +26,14 @@ import {
   getFastTravelStatus,
 } from '@/lib/fastTravelService';
 import { 
-  withRequestLogging,
-  createRouteLogger,
+  withRequestLogging, 
+  createRouteLogger, 
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+  createErrorResponse, 
   createValidationErrorResponse,
   createErrorFromException,
-  ErrorCode,
-  logger
+  ErrorCode
 } from '@/lib';
 import { FastTravelSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
@@ -44,19 +45,19 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.FAST_TRAVEL);
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
+    const tokenPayload = await getAuthenticatedUser();
 
-  const supabase = createServiceClient();
+    if (!tokenPayload) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .maybeSingle();
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    if (error || !player) {
+    if (!player) {
       return NextResponse.json(
         { error: 'Player not found' },
         { status: 404 }
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
       ...status,
     });
   } catch (error) {
-    logger.error('Error getting fast travel status:', error);
+    console.error('Error getting fast travel status:', error);
     return NextResponse.json(
       { error: 'Failed to get fast travel status' },
       { status: 500 }
@@ -86,29 +87,28 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('POST /api/fast-travel');
   
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const tokenPayload = await getAuthenticatedUser();
 
-    const body = await request.json();
-    const username = auth.username;
+    if (!tokenPayload) {
+      log.warn('Unauthenticated fast travel attempt');
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        context: 'Fast travel requires authentication'
+      });
+    }
 
-    const validated = FastTravelSchema.parse(body);
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
 
-    const supabase = createServiceClient();
-
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (error || !player) {
-      log.error('Player not found', undefined, { username });
+    if (!player) {
+      log.error('Player not found', undefined, { username: tokenPayload.username });
       return createErrorResponse(ErrorCode.NOT_FOUND, {
         context: 'Player not found'
       });
     }
 
+    // Validate request body with discriminated union schema
+    const validated = FastTravelSchema.parse(await request.json());
+    
     log.debug('Fast travel request', { 
       action: validated.action,
       playerId: player.username,
@@ -206,24 +206,21 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('fast-travel-delete');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const tokenPayload = await getAuthenticatedUser();
+
+    if (!tokenPayload) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
+    }
+
+    const playerRows = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
+    const player = playerRows[0];
+
+    if (!player) {
+      return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
+    }
 
     const body = await request.json();
     const { name } = body;
-    const username = auth.username;
-
-    const supabase = createServiceClient();
-
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (error || !player) {
-      return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Player not found');
-    }
 
     if (!name) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Waypoint name required');

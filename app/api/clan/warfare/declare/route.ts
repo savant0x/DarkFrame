@@ -25,21 +25,37 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  declareWar,
-  logger,
-} from '@/lib';
+import { getClientAndDatabase } from '@/lib/mongodb';
+import { requireClanMembership } from '@/lib/authMiddleware';
+import { declareWar } from '@/lib/clanWarfareService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/warfare/declare
+ * Declare war on another clan
+ * 
+ * @param request - NextRequest with auth cookie and body data
+ * @returns NextResponse with war declaration result or error
+ * 
+ * @example
+ * POST /api/clan/warfare/declare
+ * Body: { targetClanId: "676a1b2c3d4e5f6a7b8c9d0e" }
+ * Response: {
+ *   success: true,
+ *   war: { warId: "...", status: "ACTIVE", ... },
+ *   cost: { metal: 1800, energy: 1800 },
+ *   message: "War declared against [DARK]"
+ * }
+ * 
+ * @throws {400} Invalid targetClanId, level too low, existing war, cooldown, insufficient resources, or own clan
+ * @throws {401} Not authenticated
+ * @throws {403} Insufficient permissions (not Officer/Co-Leader/Leader)
+ * @throws {404} Player or target clan not found
+ * @throws {500} Server error
+ */
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const { db } = await getClientAndDatabase();
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { auth, clanId } = result;
@@ -69,36 +85,35 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       message: warResult.message,
     });
 
-  } catch (error: unknown) {
-    logger.error('Error declaring war:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
+  } catch (error: any) {
+    console.error('Error declaring war:', error);
 
     // Permission errors
-    if (errorMessage.includes('permission') || errorMessage.includes('Officer')) {
+    if (error.message.includes('permission') || error.message.includes('Officer')) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 403 }
       );
     }
 
     // Business rule violations
     if (
-      errorMessage.includes('level') ||
-      errorMessage.includes('war already exists') ||
-      errorMessage.includes('cooldown') ||
-      errorMessage.includes('Insufficient') ||
-      errorMessage.includes('own clan')
+      error.message.includes('level') ||
+      error.message.includes('war already exists') ||
+      error.message.includes('cooldown') ||
+      error.message.includes('Insufficient') ||
+      error.message.includes('own clan')
     ) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 400 }
       );
     }
 
     // Not found errors
-    if (errorMessage.includes('not found')) {
+    if (error.message.includes('not found')) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 404 }
       );
     }
@@ -108,7 +123,7 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * Implementation Notes:

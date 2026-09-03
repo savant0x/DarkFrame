@@ -26,8 +26,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-import { createServiceClient } from '@/lib/supabase/server';
 import { requireClanMembership } from '@/lib/authMiddleware';
 import {
   proposeAlliance,
@@ -90,8 +88,7 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
   const endTimer = log.time('propose-alliance');
 
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { auth, clanId } = result;
@@ -158,8 +155,7 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
   const endTimer = log.time('accept-alliance');
 
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { auth, clanId } = result;
@@ -224,8 +220,7 @@ export const DELETE = withRequestLogging(deleteRateLimiter(async (request: NextR
   const endTimer = log.time('break-alliance');
 
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { auth, clanId } = result;
@@ -290,8 +285,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-alliances');
 
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { clanId } = result;

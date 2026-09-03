@@ -1,5 +1,22 @@
+/**
+ * @file app/api/wmd/intelligence/route.ts
+ * @created 2025-10-22
+ * @overview WMD Intelligence API Endpoints
+ * 
+ * OVERVIEW:
+ * Handles spy network operations including recruitment, missions, sabotage,
+ * and counter-intelligence activities.
+ * 
+ * Features:
+ * - GET: Fetch player's spies and missions
+ * - POST: Recruit spies, start missions, execute sabotage
+ * - PATCH: Train spies, complete missions
+ * 
+ * Authentication: JWT tokens via HttpOnly cookies
+ * Dependencies: spyService.ts, apiHelpers.ts
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 import { getAuthenticatedPlayer } from '@/lib/wmd/apiHelpers';
 import {
   recruitSpy,
@@ -19,164 +36,219 @@ import {
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   createErrorResponse,
-  createErrorFromException,
   ErrorCode,
-  logger,
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-function deriveRank(experience: number): string {
-  if (experience >= 31) return 'Master';
-  if (experience >= 16) return 'Operative';
-  if (experience >= 6) return 'Agent';
-  return 'Rookie';
-}
-
-function mapSpyRow(row: Record<string, any>): Record<string, any> {
-  return {
-    spyId: row.spy_id,
-    codename: row.name || `Agent_${(row.spy_id || '').slice(-4)}`,
-    rank: deriveRank(row.experience || 0),
-    specialization: 'generalist',
-    status: row.status || 'idle',
-    experience: row.experience || 0,
-    missionHistory: [],
-  };
-}
-
-function mapMissionRow(row: Record<string, any>): Record<string, any> {
-  return {
-    missionId: row.mission_id,
-    spyId: row.spy_id,
-    missionType: row.mission_type || 'recon',
-    targetId: row.target_player_id || '',
-    status: row.status || 'pending',
-    startedAt: row.started_at,
-    completesAt: row.completed_at,
-  };
-}
-
+/**
+ * GET /api/wmd/intelligence
+ * Fetch player's spies and missions
+ * 
+ * Query:
+ * - type: 'spies' | 'missions'
+ */
 export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const log = createRouteLogger('wmd-intelligence-get');
   const endTimer = log.time('intelligence-get');
-
+  
   try {
     const auth = await getAuthenticatedPlayer(req);
-
+    
     if (!auth) {
       return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, 'Authentication required');
     }
-
+    
     const { searchParams } = new URL(req.url);
     const type = searchParams.get('type') || 'spies';
-
+    
     if (type === 'spies') {
-      const rawSpies = await getPlayerSpies(auth.playerId);
-      const spies = (rawSpies || []).map(mapSpyRow);
+      const spies = await getPlayerSpies(auth.playerId);
       return NextResponse.json({ success: true, spies });
     }
-
+    
     if (type === 'missions') {
-      const rawMissions = await getPlayerMissions(auth.playerId);
-      const missions = (rawMissions || []).map(mapMissionRow);
+      const missions = await getPlayerMissions(auth.playerId);
       return NextResponse.json({ success: true, missions });
     }
-
-    return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid type. Use "spies" or "missions"');
+    
+    return NextResponse.json(
+      { error: 'Invalid type. Use "spies" or "missions"' },
+      { status: 400 }
+    );
   } catch (error) {
-    // Intelligence GET error handled
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error fetching intelligence data:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch intelligence data' },
+      { status: 500 }
+    );
   } finally {
     endTimer();
   }
 }));
 
+/**
+ * POST /api/wmd/intelligence
+ * Recruit spy, start mission, execute sabotage, or counter-intel
+ * 
+ * Body:
+ * - action: 'recruit' | 'mission' | 'sabotage' | 'counterIntel'
+ * - specialization: string (for recruit)
+ * - spyId: string (for mission/sabotage)
+ * - missionType: string (for mission)
+ * - targetId: string (for mission/sabotage)
+ */
 export async function POST(req: NextRequest) {
   try {
     const auth = await getAuthenticatedPlayer(req);
-
+    
     if (!auth) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
+    
     const body = await req.json();
     const { action } = body;
-
+    
     if (!action) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required field: action');
+      return NextResponse.json(
+        { error: 'Missing required field: action' },
+        { status: 400 }
+      );
     }
-
+    
+    // Recruit spy
     if (action === 'recruit') {
       const { specialization } = body;
-
+      
       if (!specialization) {
-        return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required field: specialization');
+        return NextResponse.json(
+          { error: 'Missing required field: specialization' },
+          { status: 400 }
+        );
       }
-
+      
+      if (!auth.player.clanId) {
+        return NextResponse.json(
+          { error: 'Spy recruitment requires clan membership (recruitment is funded by the clan treasury)' },
+          { status: 400 }
+        );
+      }
+      
       const result = await recruitSpy(
         auth.playerId,
         auth.username,
         specialization,
-        auth.player.clan_id || ''
+        auth.player.clanId
       );
-
+      
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, result.message);
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
       }
-
+      
+      // Broadcast spy recruitment
       try {
         if (result.spyId) {
-          const supabase = createServiceClient();
-          const { data: spy } = await supabase.from('wmd_spies').select('*').eq('spy_id', result.spyId).maybeSingle();
           const io = getIO();
-          if (spy && io) {
+          if (io) {
             await wmdHandlers.broadcastSpyRecruited(io, {
               playerId: auth.playerId,
               spyId: result.spyId,
-              spyName: spy.name || 'Spy',
+              spyName: result.codename ?? '',
               specialization,
             });
           }
         }
       } catch (broadcastError) {
-        logger.error('Failed to broadcast spy recruitment:', broadcastError);
+        console.error('Failed to broadcast spy recruitment:', broadcastError);
       }
-
-      return NextResponse.json({ success: true, message: result.message, spyId: result.spyId });
+      
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        spyId: result.spyId,
+      });
     }
-
+    
+    // Start mission
     if (action === 'mission') {
       const { spyId, missionType, targetId } = body;
-
+      
       if (!spyId || !missionType || !targetId) {
-        return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required fields: spyId, missionType, targetId');
+        return NextResponse.json(
+          { error: 'Missing required fields: spyId, missionType, targetId' },
+          { status: 400 }
+        );
       }
-
-      const result = await startMission(spyId, missionType, targetId);
-
+      
+      const result = await startMission(
+        spyId,
+        missionType,
+        targetId,
+        auth.playerId
+      );
+      
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, result.message);
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
       }
-
-      return NextResponse.json({ success: true, message: result.message, missionId: result.missionId });
+      
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        missionId: result.missionId,
+      });
     }
-
+    
+    // Execute sabotage
     if (action === 'sabotage') {
       const { spyId, targetId, targetType } = body;
-
+      
       if (!spyId || !targetId || !targetType) {
-        return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required fields: spyId, targetId, targetType');
+        return NextResponse.json(
+          { error: 'Missing required fields: spyId, targetId, targetType' },
+          { status: 400 }
+        );
       }
-
-      const result = await executeSabotage(spyId, targetType, targetId, auth.playerId);
-
-      return NextResponse.json({ success: result.success, message: result.message, damage: result.damage });
+      
+      const result = await executeSabotage(
+        spyId,
+        targetId,
+        targetType,
+        auth.playerId
+      );
+      
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
+      }
+      
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        damage: result.damage,
+      });
     }
-
+    
+    // Counter-intelligence
     if (action === 'counterIntel') {
-      const result = await counterIntelligenceSweep(auth.playerId, 'ALL');
-
+      const { targetArea } = body as { targetArea?: string };
+      const area: 'FACILITIES' | 'COMMUNICATIONS' | 'PERSONNEL' | 'ALL' =
+        targetArea === 'FACILITIES' || targetArea === 'COMMUNICATIONS' || targetArea === 'PERSONNEL'
+          ? targetArea
+          : 'ALL';
+      const result = await counterIntelligenceSweep(
+        auth.playerId,
+        area
+      );
+      
+      // Broadcast if spies detected
       if (result.success && result.spiesDetected && result.spiesDetected.length > 0) {
         try {
           const io = getIO();
@@ -187,10 +259,10 @@ export async function POST(req: NextRequest) {
             });
           }
         } catch (broadcastError) {
-          // Counter-intel broadcast error handled
+          console.error('Failed to broadcast counter-intel detection:', broadcastError);
         }
       }
-
+      
       return NextResponse.json({
         success: result.success,
         message: result.message,
@@ -198,64 +270,115 @@ export async function POST(req: NextRequest) {
         spiesDetected: result.spiesDetected,
       });
     }
-
-    return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid action');
+    
+    return NextResponse.json(
+      { error: 'Invalid action. Use "recruit", "mission", "sabotage", or "counterIntel"' },
+      { status: 400 }
+    );
   } catch (error) {
-    // Intelligence API error handled
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error in intelligence API:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * PATCH /api/wmd/intelligence
+ * Train spy or complete mission
+ * 
+ * Body:
+ * - action: 'train' | 'complete'
+ * - spyId: string (for train)
+ * - missionId: string (for complete)
+ * - skillType: string (for train)
+ */
 export async function PATCH(req: NextRequest) {
   try {
     const auth = await getAuthenticatedPlayer(req);
-
+    
     if (!auth) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
+    
     const body = await req.json();
     const { action } = body;
-
+    
     if (!action) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required field: action');
+      return NextResponse.json(
+        { error: 'Missing required field: action' },
+        { status: 400 }
+      );
     }
-
+    
+    // Train spy
     if (action === 'train') {
       const { spyId, skillType, trainingIntensity } = body;
-
+      
       if (!spyId || !skillType) {
-        return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required fields: spyId, skillType');
+        return NextResponse.json(
+          { error: 'Missing required fields: spyId, skillType' },
+          { status: 400 }
+        );
       }
-
-      const result = await trainSpy(spyId, skillType as 'stealth' | 'hacking' | 'sabotage' | 'intelligence', trainingIntensity || 'BASIC');
-
+      
+      const result = await trainSpy(
+        spyId,
+        skillType,
+        trainingIntensity || 'BASIC'
+      );
+      
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, result.message);
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
       }
-
-      return NextResponse.json({ success: true, message: result.message, newSkillLevel: result.newSkillLevel });
+      
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        newSkillLevel: result.newSkillLevel,
+      });
     }
-
+    
+    // Complete mission
     if (action === 'complete') {
       const { missionId } = body;
-
+      
       if (!missionId) {
-        return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing required field: missionId');
+        return NextResponse.json(
+          { error: 'Missing required field: missionId' },
+          { status: 400 }
+        );
       }
-
+      
       const result = await completeMission(missionId);
-
+      
       if (!result.success) {
-        return createErrorResponse(ErrorCode.VALIDATION_FAILED, result.message);
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
       }
-
-      return NextResponse.json({ success: true, message: result.message, intelligence: result.intelligence });
+      
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        intelligence: result.intelligence,
+      });
     }
-
-    return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid action. Use "train" or "complete"');
+    
+    return NextResponse.json(
+      { error: 'Invalid action. Use "train" or "complete"' },
+      { status: 400 }
+    );
   } catch (error) {
-    // Intelligence PATCH error handled
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Error in intelligence PATCH:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

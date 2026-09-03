@@ -1,7 +1,6 @@
 /**
  * app/api/shrine/boost-all/route.ts
  * Created: 2025-01-15
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * 
  * OVERVIEW:
  * API endpoint for activating all 4 shrine boosts simultaneously.
@@ -10,11 +9,10 @@
  * Uses same rarity-based duration calculation as individual activation.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import type { Tables, TablesInsert } from '@/types/database';
-import { ItemRarity } from '@/types';
+import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { getCollection } from '@/lib/mongodb';
+import type { Player, InventoryItem, ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
 import {
   withRequestLogging,
@@ -26,12 +24,11 @@ import {
   ErrorCode
 } from '@/lib';
 
-type InventoryRow = Tables<'player_inventory'>;
-type ShrineBoostRow = Tables<'player_shrine_boosts'>;
+// All boost tiers
+const ALL_TIERS: ShrineBoostTier[] = ['spade', 'heart', 'diamond', 'club'];
 
-const ALL_TIERS = ['spade', 'heart', 'diamond', 'club'] as const;
-
-const BOOST_CONFIGS: Record<string, { yieldBonus: number }> = {
+// Boost configuration
+const BOOST_CONFIGS: Record<ShrineBoostTier, { yieldBonus: number }> = {
   spade: { yieldBonus: 0.25 },
   heart: { yieldBonus: 0.25 },
   diamond: { yieldBonus: 0.25 },
@@ -40,115 +37,140 @@ const BOOST_CONFIGS: Record<string, { yieldBonus: number }> = {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.SHRINE_SACRIFICE);
 
-export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/shrine/boost-all
+ * 
+ * Activate all 4 shrine boosts simultaneously
+ */
+export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
   const log = createRouteLogger('ShrineBoostAllAPI');
   const endTimer = log.time('shrineBoostAll');
 
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
-
-    const body = await request.json();
-    const { itemCount } = body;
-
-    if (!itemCount || itemCount <= 0 || !Number.isInteger(itemCount)) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Item count must be a positive integer' });
-    }
-
-    const totalItemsNeeded = itemCount * 4;
-    const supabase = createServiceClient();
-
-    // Get player
-    const { data: player } = await supabase
-      .from('players')
-      .select('username')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (!player) {
-      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, { message: 'Player not found' });
-    }
-
-    // Get tradeable items from inventory
-    const { data: tradeableItems } = await supabase
-      .from('player_inventory')
-      .select('*')
-      .eq('player_username', username)
-      .eq('item_type', 'TRADEABLE_ITEM');
-
-    const items = tradeableItems || [];
-
-    if (items.length < totalItemsNeeded) {
-      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: `Not enough items. You have ${items.length}, need ${totalItemsNeeded}.`
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      log.warn('Unauthenticated shrine boost-all attempt');
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required'
       });
     }
 
-    // Get existing boosts
-    const { data: existingBoosts } = await supabase
-      .from('player_shrine_boosts')
-      .select('*')
-      .eq('player_username', username);
+    const username = authResult.username;
 
+    // Parse request body
+    const { itemCount } = await request.json();
+
+    // Validate inputs
+    if (!itemCount || itemCount <= 0 || !Number.isInteger(itemCount)) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Item count must be a positive integer'
+      });
+    }
+
+    const totalItemsNeeded = itemCount * 4;
+
+    // Get database collections
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username });
+
+    if (!player) {
+      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
+        message: 'Player not found'
+      });
+    }
+
+    // Get tradeable items from inventory
+    const tradeableItems = (player.inventory?.items || []).filter(
+      (i: InventoryItem) => i.type === 'TRADEABLE_ITEM'
+    );
+
+    // Check if player has enough items
+    if (tradeableItems.length < totalItemsNeeded) {
+      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
+        message: `Not enough items. You have ${tradeableItems.length}, need ${totalItemsNeeded}.`
+      });
+    }
+
+    // Process each boost tier
     const results = [];
-    const consumedIds: string[] = [];
+    let itemsConsumedTotal = 0;
+    const existingBoosts = player.shrineBoosts || [];
     const now = new Date();
 
-    for (let tierIdx = 0; tierIdx < ALL_TIERS.length; tierIdx++) {
-      const tier = ALL_TIERS[tierIdx];
-      const itemsForThisTier = items.slice(tierIdx * itemCount, (tierIdx + 1) * itemCount);
-
-      const durationMinutes = calculateDuration(itemsForThisTier.map(i => ({
-        rarity: i.rarity as unknown as ItemRarity,
-        type: i.item_type,
-        id: i.item_id,
-        name: i.name,
-      })));
+    for (const tier of ALL_TIERS) {
+      // Get next batch of items for this tier
+      const itemsForThisTier = tradeableItems.slice(itemsConsumedTotal, itemsConsumedTotal + itemCount);
+      
+      // Calculate duration based on item rarities
+      const durationMinutes = calculateDuration(itemsForThisTier);
       const durationMs = durationMinutes * 60 * 1000;
+      
+      // Calculate expiration time
       const expiresAt = new Date(now.getTime() + durationMs);
 
-      const existingBoost = (existingBoosts || []).find(b => b.boost_tier === tier);
+      // Check if boost already exists
+      const existingBoostIndex = existingBoosts.findIndex(
+        (b: ShrineBoost) => b.tier === tier
+      );
+
       let finalExpiresAt = expiresAt;
 
-      if (existingBoost) {
-        const currentExpiry = new Date(existingBoost.expires_at);
+      if (existingBoostIndex >= 0) {
+        // Replace/extend existing boost
+        const existingBoost = existingBoosts[existingBoostIndex];
+        const currentExpiry = new Date(existingBoost.expiresAt);
         const timeRemaining = Math.max(0, currentExpiry.getTime() - now.getTime());
         const newDuration = timeRemaining + durationMs;
+        
+        // Cap at 8 hours (480 minutes)
         const MAX_DURATION_MS = 8 * 60 * 60 * 1000;
         const finalDuration = Math.min(newDuration, MAX_DURATION_MS);
         finalExpiresAt = new Date(now.getTime() + finalDuration);
 
-        await supabase
-          .from('player_shrine_boosts')
-          .update({ expires_at: finalExpiresAt.toISOString(), yield_bonus: BOOST_CONFIGS[tier].yieldBonus })
-          .eq('id', existingBoost.id);
+        existingBoosts[existingBoostIndex] = {
+          ...existingBoost,
+          expiresAt: finalExpiresAt
+        };
       } else {
-        await supabase
-          .from('player_shrine_boosts')
-          .insert({
-            player_username: username,
-            boost_tier: tier as TablesInsert<'player_shrine_boosts'>['boost_tier'],
-            yield_bonus: BOOST_CONFIGS[tier].yieldBonus,
-            expires_at: finalExpiresAt.toISOString(),
-          });
+        // Create new boost
+        existingBoosts.push({
+          tier,
+          yieldBonus: BOOST_CONFIGS[tier].yieldBonus,
+          expiresAt: finalExpiresAt
+        });
       }
 
-      results.push({ tier, durationMinutes, expiresAt: finalExpiresAt });
-      consumedIds.push(...itemsForThisTier.map(i => i.id));
+      results.push({
+        tier,
+        durationMinutes,
+        expiresAt: finalExpiresAt,
+      });
+
+      itemsConsumedTotal += itemCount;
     }
 
     // Remove all consumed items from inventory
-    if (consumedIds.length > 0) {
-      await supabase
-        .from('player_inventory')
-        .delete()
-        .in('id', consumedIds);
-    }
+    const itemsToConsume = tradeableItems.slice(0, totalItemsNeeded);
+    const remainingItems = (player.inventory?.items || []).filter(
+      (item: InventoryItem) => !itemsToConsume.some((consumed: InventoryItem) => consumed.id === item.id)
+    );
+
+    // Update player in database
+    await playersCollection.updateOne(
+      { username },
+      {
+        $set: {
+          'inventory.items': remainingItems,
+          shrineBoosts: existingBoosts
+        }
+      }
+    );
 
     endTimer();
     log.info(`${username} activated all 4 boosts with ${itemCount} items each`);
 
+    // Return success response
     return NextResponse.json({
       success: true,
       message: `✅ All 4 boosts activated!`,
@@ -159,6 +181,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   } catch (error) {
     endTimer();
     log.error('Error activating all shrine boosts:', error as Error);
-    return createErrorResponse(ErrorCode.INTERNAL_ERROR, createErrorFromException(error as Error));
+    return createErrorResponse(
+      ErrorCode.INTERNAL_ERROR,
+      createErrorFromException(error as Error)
+    );
   }
 }));

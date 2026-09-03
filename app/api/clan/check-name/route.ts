@@ -1,7 +1,6 @@
 /**
  * @file app/api/clan/check-name/route.ts
  * @created 2025-10-19
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
  * @overview API endpoint for checking clan name availability
  * 
  * OVERVIEW:
@@ -15,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import clientPromise from '@/lib/mongodb';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -51,13 +50,15 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       );
     }
 
+    // Connect to database
+    const client = await clientPromise;
+    const db = client.db('darkframe');
+    const clansCollection = db.collection('clans');
+
     // Check if clan exists (case-insensitive)
-    const supabase = createServiceClient();
-    const { data: existingClan } = await supabase
-      .from('clans')
-      .select('id, name')
-      .ilike('name', name)
-      .maybeSingle();
+    const existingClan = await clansCollection.findOne({
+      name: { $regex: new RegExp(`^${name}$`, 'i') }
+    });
 
     log.info('Clan name checked', { name, available: !existingClan });
     return NextResponse.json({
@@ -76,7 +77,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 /**
  * IMPLEMENTATION NOTES:
  * - Returns 200 OK even when name is taken (not an error condition)
- * - Case-insensitive matching via ilike prevents duplicates with different casing
+ * - Case-insensitive regex matching prevents duplicates with different casing
  * - Called multiple times during typing, so kept lightweight
  * - No authentication required (public information)
  * 

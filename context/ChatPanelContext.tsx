@@ -8,7 +8,7 @@
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type ChatPanelSize = 'full' | 'half' | 'minimal' | 'hidden';
+type ChatPanelSize = 'full' | 'half' | 'minimal';
 
 interface ChatPanelContextType {
   panelSize: ChatPanelSize;

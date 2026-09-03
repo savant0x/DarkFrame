@@ -25,6 +25,7 @@
 import { z } from 'zod';
 import { AuctionItemType, ResourceType } from '@/types/auction.types';
 import { UnitType } from '@/types/game.types';
+import { MissileComponent } from '@/types/wmd';
 
 // ============================================================================
 // REUSABLE COMPONENTS
@@ -49,15 +50,12 @@ export const EmailSchema = z
   .trim();
 
 /**
- * Password requirements (min 8 chars, uppercase, lowercase, number)
+ * Password requirements (min 6 chars for game, not banking)
  */
 export const PasswordSchema = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
-  .max(100, 'Password too long')
-  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-  .regex(/[0-9]/, 'Password must contain at least one number');
+  .min(6, 'Password must be at least 6 characters')
+  .max(100, 'Password too long');
 
 /**
  * Standard coordinate for game grid (0-based, legacy system)
@@ -239,8 +237,6 @@ export const FactoryProduceSchema = z.object({
   username: UsernameSchema,
   x: CoordinateSchema,
   y: CoordinateSchema,
-  unitType: z.string().optional(),
-  quantity: z.number().int().min(1).max(1000).optional(),
 });
 
 export type FactoryProduceRequest = z.infer<typeof FactoryProduceSchema>;
@@ -273,11 +269,8 @@ export const CreateClanSchema = z.object({
     .string()
     .min(2, 'Clan tag must be at least 2 characters')
     .max(5, 'Clan tag must be at most 5 characters')
-    .regex(/^[A-Z0-9]+$/, 'Clan tag must be uppercase letters and numbers only')
-    .optional(),
+    .regex(/^[A-Z0-9]+$/, 'Clan tag must be uppercase letters and numbers only'),
   description: z.string().optional(),
-  isPublic: z.boolean().optional(),
-  minLevel: z.number().min(1).max(50).optional(),
 });
 
 export type CreateClanRequest = z.infer<typeof CreateClanSchema>;
@@ -543,7 +536,7 @@ export type CreateMissileRequest = z.infer<typeof CreateMissileSchema>;
 export const AssembleMissileSchema = z.object({
   action: z.literal('assemble'),
   missileId: z.string().min(1, 'Missile ID is required'),
-  component: z.enum(['WARHEAD', 'PROPULSION', 'GUIDANCE', 'PAYLOAD', 'STEALTH'], {
+  component: z.nativeEnum(MissileComponent, {
     message: 'Invalid component type',
   }),
 });

@@ -1,16 +1,6 @@
-/**
- * Clan Research Service
- * 
- * Created: 2025-10-18
- * 
- * OVERVIEW:
- * Manages clan research system with 4-branch technology tree (Industrial, Military,
- * Economic, Social). Handles RP contributions, research unlocking, prerequisite
- * validation, and bonus calculations. Provides 15+ technology nodes with progressive
- * unlocking and cumulative bonuses.
- */
-
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { clans, players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 export interface ResearchNode {
   id: string;
@@ -231,80 +221,65 @@ const RESEARCH_TREE: ResearchNode[] = [
   },
 ];
 
+export function initializeClanResearchService(): void {
+  // No-op: Drizzle uses direct db import
+}
+
 export async function contributeRP(
   clanId: string,
   playerId: string,
   amount: number
 ): Promise<{ success: boolean; newTotal: number; contributed: number }> {
-  const supabase = createServiceClient();
-
   if (amount <= 0) {
     throw new Error('Contribution amount must be positive');
   }
 
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('research_points')
-    .eq('id', clanId)
-    .single();
-
-  if (clanError || !clan) {
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
     throw new Error('Clan not found');
   }
 
-  const { data: members } = await supabase
-    .from('clan_members')
-    .select('player_id')
-    .eq('clan_id', clanId);
-
-  const isMember = (members || []).some((m) => m.player_id === playerId);
+  const isMember = (clan.members as any[]).some((m: any) => m.playerId === playerId);
   if (!isMember) {
     throw new Error('Player is not a member of this clan');
   }
 
-  const { data: player, error: playerError } = await supabase
-    .from('players')
-    .select('username, research_points')
-    .eq('username', playerId)
-    .single();
-
-  if (playerError || !player) {
+  const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerResult[0];
+  if (!player) {
     throw new Error('Player not found');
   }
 
-  const playerRP = (player as Record<string, unknown>).research_points as number || 0;
-  if (playerRP < amount) {
+  if ((player.researchPoints || 0) < amount) {
     throw new Error('Insufficient research points');
   }
 
-  await supabase
-    .from('players')
-    .update({ research_points: playerRP - amount })
-    .eq('username', playerId);
+  await db.update(players)
+    .set({ researchPoints: (player.researchPoints || 0) - amount })
+    .where(eq(players.username, playerId));
 
-  const clanRP = (clan as Record<string, unknown>).research_points as number || 0;
-  const newRP = clanRP + amount;
+  const currentRP = clan.researchResearchPoints || 0;
+  await db.update(clans)
+    .set({ researchResearchPoints: currentRP + amount })
+    .where(eq(clans.id, clanId));
 
-  await supabase
-    .from('clans')
-    .update({ research_points: newRP })
-    .eq('id', clanId);
-
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'RESEARCH_CONTRIBUTED',
-    player_id: playerId,
-    username: playerId,
-    created_at: new Date().toISOString(),
-    details: {
-      amount,
-      player_name: playerId,
-    },
+  const { modLog } = await import('@/lib/db/schema');
+  await db.insert(modLog).values({
+    moderatorId: playerId,
+    action: 'RP_CONTRIBUTED',
+    targetId: clanId,
+    reason: `Contributed ${amount} RP`,
+    details: JSON.stringify({ amount, playerName: playerId }),
+    createdAt: new Date(),
   });
+
+  const updatedClanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const updatedClan = updatedClanResult[0];
 
   return {
     success: true,
-    newTotal: newRP,
+    newTotal: updatedClan?.researchResearchPoints || 0,
     contributed: amount,
   };
 }
@@ -318,31 +293,18 @@ export async function unlockResearch(
   research: ResearchNode;
   totalBonuses: Record<string, number>;
 }> {
-  const supabase = createServiceClient();
-
   const researchNode = RESEARCH_TREE.find((r) => r.id === researchId);
   if (!researchNode) {
     throw new Error('Research node not found');
   }
 
-  const { data: clan, error: clanError } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-
-  if (clanError || !clan) {
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
     throw new Error('Clan not found');
   }
 
-  const r = clan as Record<string, unknown>;
-
-  const { data: members } = await supabase
-    .from('clan_members')
-    .select('player_id, role')
-    .eq('clan_id', clanId);
-
-  const member = (members || []).find((m) => m.player_id === playerId);
+  const member = (clan.members as any[]).find((m: any) => m.playerId === playerId);
   if (!member) {
     throw new Error('Player is not a member of this clan');
   }
@@ -352,15 +314,14 @@ export async function unlockResearch(
     throw new Error('Insufficient permissions to unlock research');
   }
 
-  const unlockedResearch = (r.unlocked_research as string[]) || [];
+  const unlockedResearch = (clan.researchUnlockedTechs as string[]) || [];
   if (unlockedResearch.includes(researchId)) {
     throw new Error('Research already unlocked');
   }
 
-  const clanLevel = r.clan_level as number;
-  if (clanLevel < researchNode.requiredLevel) {
+  if ((clan.levelCurrentLevel || 1) < researchNode.requiredLevel) {
     throw new Error(
-      `Clan level ${researchNode.requiredLevel} required (current: ${clanLevel})`
+      `Clan level ${researchNode.requiredLevel} required (current: ${clan.levelCurrentLevel || 1})`
     );
   }
 
@@ -371,7 +332,7 @@ export async function unlockResearch(
     }
   }
 
-  const currentRP = (r.research_points as number) || 0;
+  const currentRP = clan.researchResearchPoints || 0;
   if (currentRP < researchNode.cost) {
     throw new Error(
       `Insufficient research points (need ${researchNode.cost}, have ${currentRP})`
@@ -379,29 +340,25 @@ export async function unlockResearch(
   }
 
   const newUnlocked = [...unlockedResearch, researchId];
-  const newRP = currentRP - researchNode.cost;
-
-  await supabase
-    .from('clans')
-    .update({
-      research_points: newRP,
-      unlocked_research: newUnlocked,
+  await db.update(clans)
+    .set({
+      researchResearchPoints: currentRP - researchNode.cost,
+      researchUnlockedTechs: newUnlocked,
     })
-    .eq('id', clanId);
+    .where(eq(clans.id, clanId));
 
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: 'RESEARCH_UNLOCKED',
-    player_id: playerId,
-    username: playerId,
-    created_at: new Date().toISOString(),
-    details: {
-      research_id: researchId,
-      research_name: researchNode.name,
-      cost: researchNode.cost,
-      unlocked_by: playerId,
-    },
+  const { modLog } = await import('@/lib/db/schema');
+  await db.insert(modLog).values({
+    moderatorId: playerId,
+    action: 'RESEARCH_UNLOCKED',
+    targetId: clanId,
+    reason: `Unlocked ${researchNode.name}`,
+    details: JSON.stringify({ researchId, researchName: researchNode.name, cost: researchNode.cost, unlockedBy: playerId }),
+    createdAt: new Date(),
   });
+
+  const updatedClanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const updatedClan = updatedClanResult[0];
 
   const totalBonuses = await getClanBonuses(clanId);
 
@@ -420,21 +377,14 @@ export async function getResearchTree(clanId: string): Promise<{
   clanLevel: number;
   researchPoints: number;
 }> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('research_points, unlocked_research, clan_level')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
     throw new Error('Clan not found');
   }
 
-  const r = clan as Record<string, unknown>;
-  const unlockedResearch = (r.unlocked_research as string[]) || [];
-  const clanLevel = r.clan_level as number;
+  const unlockedResearch = (clan.researchUnlockedTechs as string[]) || [];
+  const clanLevel = clan.levelCurrentLevel;
 
   const isAvailable = (node: ResearchNode): boolean => {
     if (unlockedResearch.includes(node.id)) return false;
@@ -442,7 +392,7 @@ export async function getResearchTree(clanId: string): Promise<{
     return node.prerequisites.every((prereq) => unlockedResearch.includes(prereq));
   };
 
-  return {
+  const tree = {
     INDUSTRIAL: RESEARCH_TREE.filter((r) => r.branch === 'INDUSTRIAL').map((r) => ({
       ...r,
       unlocked: unlockedResearch.includes(r.id),
@@ -464,24 +414,20 @@ export async function getResearchTree(clanId: string): Promise<{
       available: isAvailable(r),
     })),
     clanLevel,
-    researchPoints: (r.research_points as number) || 0,
+    researchPoints: clan.researchResearchPoints || 0,
   };
+
+  return tree;
 }
 
 export async function getClanBonuses(clanId: string): Promise<Record<string, number>> {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('unlocked_research')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
     throw new Error('Clan not found');
   }
 
-  const unlockedResearch = ((clan as Record<string, unknown>).unlocked_research as string[]) || [];
+  const unlockedResearch = (clan.researchUnlockedTechs as string[]) || [];
   const bonuses: Record<string, number> = {};
 
   for (const researchId of unlockedResearch) {
@@ -503,24 +449,11 @@ export async function getRecommendedResearch(clanId: string): Promise<
     priority: 'high' | 'medium' | 'low';
   }>
 > {
-  const supabase = createServiceClient();
-
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('research_points, max_members, total_territories, wars_won')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0];
+  if (!clan) {
     throw new Error('Clan not found');
   }
-
-  const { data: members } = await supabase
-    .from('clan_members')
-    .select('player_id')
-    .eq('clan_id', clanId);
-
-  const r = clan as Record<string, unknown>;
 
   const tree = await getResearchTree(clanId);
   const recommendations: Array<{
@@ -534,13 +467,11 @@ export async function getRecommendedResearch(clanId: string): Promise<
     ...tree.MILITARY,
     ...tree.ECONOMIC,
     ...tree.SOCIAL,
-  ].filter((res) => res.available && !res.unlocked);
+  ].filter((r) => r.available && !r.unlocked);
 
-  const warsActive = ((r.wars_won as number) || 0) > 0;
-  const hasTerritory = ((r.total_territories as number) || 0) > 0;
-  const memberCount = (members || []).length;
-  const maxMembers = (r.max_members as number) || 20;
-  const nearCapacity = memberCount >= maxMembers * 0.8;
+  const warsActive = (clan.statsTotalTerritories || 0) > 0;
+  const memberCount = (clan.members as any[]).length;
+  const nearCapacity = memberCount >= clan.maxMembers * 0.8;
 
   for (const research of availableResearch) {
     if (research.branch === 'MILITARY' && warsActive) {
@@ -549,22 +480,19 @@ export async function getRecommendedResearch(clanId: string): Promise<
         reason: 'Recommended for active warfare',
         priority: 'high',
       });
-    }
-    else if (research.branch === 'ECONOMIC' && ((r.research_points as number) || 0) < 10000) {
+    } else if (research.branch === 'ECONOMIC' && (clan.researchResearchPoints || 0) < 10000) {
       recommendations.push({
         research,
         reason: 'Boost economic strength',
         priority: 'medium',
       });
-    }
-    else if (research.branch === 'SOCIAL' && nearCapacity) {
+    } else if (research.branch === 'SOCIAL' && nearCapacity) {
       recommendations.push({
         research,
         reason: 'Expand member capacity',
         priority: 'high',
       });
-    }
-    else if (research.branch === 'INDUSTRIAL') {
+    } else if (research.branch === 'INDUSTRIAL') {
       recommendations.push({
         research,
         reason: 'Improve resource production',
@@ -588,7 +516,7 @@ export async function getResearchProgress(clanId: string): Promise<{
 }> {
   const tree = await getResearchTree(clanId);
 
-  const calculateBranch = (branch: Array<{ unlocked: boolean }>) => {
+  const calculateBranch = (branch: any[]) => {
     const unlocked = branch.filter((r) => r.unlocked).length;
     const total = branch.length;
     return {

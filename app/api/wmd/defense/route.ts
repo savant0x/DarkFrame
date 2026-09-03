@@ -1,5 +1,21 @@
+/**
+ * @file app/api/wmd/defense/route.ts
+ * @created 2025-10-22
+ * @overview WMD Defense API Endpoints
+ * 
+ * OVERVIEW:
+ * Handles defense battery deployment, repair, interception, and management.
+ * 
+ * Features:
+ * - GET: Fetch player's defense batteries
+ * - POST: Deploy, repair, or attempt interception
+ * - DELETE: Dismantle batteries
+ * 
+ * Authentication: JWT tokens via HttpOnly cookies
+ * Dependencies: defenseService.ts, apiHelpers.ts
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
 import { getAuthenticatedPlayer } from '@/lib/wmd/apiHelpers';
 import {
   deployBattery,
@@ -10,6 +26,7 @@ import {
 } from '@/lib/wmd/defenseService';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
+import { BATTERY_CONFIGS, type BatteryType } from '@/types/wmd';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -19,27 +36,17 @@ import {
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
+import { getDatabase } from '@/lib/mongodb';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
-function mapBatteryRow(row: Record<string, any>): Record<string, any> {
-  const now = new Date();
-  return {
-    batteryId: row.battery_id,
-    ownerId: row.owner_id,
-    batteryType: row.name || `Tier ${row.tier}`,
-    tier: row.tier || 1,
-    status: row.status || 'active',
-    interceptChance: row.interception_range || 3,
-    successfulIntercepts: 0,
-    failedIntercepts: 0,
-    totalAttempts: 0,
-    health: 100,
-    repairing: row.recharges_at ? new Date(row.recharges_at) > now : false,
-    createdAt: row.created_at,
-  };
-}
-
+/**
+ * GET /api/wmd/defense
+ * Fetch player's defense batteries or specific battery details
+ * 
+ * Query params:
+ * - batteryId: string (optional) - Get specific battery details
+ */
 export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const log = createRouteLogger('wmd-defense-get');
   const endTimer = log.time('defense-get');
@@ -54,26 +61,40 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     const { searchParams } = new URL(req.url);
     const batteryId = searchParams.get('batteryId');
     
+    // Get specific battery details
     if (batteryId) {
-      const supabase = createServiceClient();
-      const { data: battery } = await supabase.from('wmd_defense_batteries').select('*').eq('battery_id', batteryId).single();
+      const db = await getDatabase();
+      const battery = await db.collection('wmd_defense_batteries').findOne({ batteryId });
       
       if (!battery) {
-        return NextResponse.json({ error: 'Battery not found' }, { status: 404 });
+        return NextResponse.json(
+          { error: 'Battery not found' },
+          { status: 404 }
+        );
       }
       
-      if (battery.owner_id !== auth.playerId) {
-        return NextResponse.json({ error: 'Unauthorized - not your battery' }, { status: 403 });
+      // Verify ownership
+      if (battery.ownerId !== auth.playerId) {
+        return NextResponse.json(
+          { error: 'Unauthorized - not your battery' },
+          { status: 403 }
+        );
       }
       
-      return NextResponse.json({ success: true, battery: mapBatteryRow(battery) });
+      return NextResponse.json({
+        success: true,
+        battery,
+      });
     }
     
-    const rawBatteries = await getPlayerBatteries(auth.playerId);
-    const batteries = (rawBatteries || []).map(mapBatteryRow);
+    // Get all player batteries
+    const batteries = await getPlayerBatteries(auth.playerId);
     
     log.info('Defense batteries retrieved', { playerId: auth.playerId, batteryCount: batteries.length });
-    return NextResponse.json({ success: true, batteries });
+    return NextResponse.json({
+      success: true,
+      batteries,
+    });
   } catch (error) {
     log.error('Failed to fetch batteries', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
@@ -82,6 +103,16 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   }
 }));
 
+/**
+ * POST /api/wmd/defense
+ * Deploy battery, repair, or attempt interception
+ * 
+ * Body:
+ * - action: 'deploy' | 'repair' | 'intercept'
+ * - batteryType: string (for deploy)
+ * - batteryId: string (for repair)
+ * - missileId: string (for intercept)
+ */
 export async function POST(req: NextRequest) {
   try {
     const auth = await getAuthenticatedPlayer(req);
@@ -94,38 +125,48 @@ export async function POST(req: NextRequest) {
     const { action } = body;
     
     if (!action) {
-      return NextResponse.json({ error: 'Missing required field: action' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required field: action' },
+        { status: 400 }
+      );
     }
     
+    // Deploy battery
     if (action === 'deploy') {
-      const { batteryType } = body;
-      
-      if (!batteryType) {
-        return NextResponse.json({ error: 'Missing required field: batteryType' }, { status: 400 });
+      const { batteryType } = body as { batteryType?: string };
+      const batteryTypeKey = batteryType as BatteryType | undefined;
+
+      if (!batteryTypeKey || !(batteryTypeKey in BATTERY_CONFIGS)) {
+        return NextResponse.json(
+          { error: 'Missing required field: batteryType' },
+          { status: 400 }
+        );
       }
       
       const result = await deployBattery(
         auth.playerId,
-        auth.player.username,
-        auth.player.clan_id || '',
-        batteryType
+        auth.player.username || auth.player.email || 'Unknown',
+        auth.player.clanId || '',
+        batteryTypeKey
       );
       
       if (!result.success) {
-        return NextResponse.json({ error: result.message }, { status: 400 });
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
       }
       
+      // Broadcast battery deployment (config data is authoritative; deployBattery already persisted)
       try {
         if (result.batteryId) {
-          const supabase = createServiceClient();
-          const { data: battery } = await supabase.from('wmd_defense_batteries').select('*').eq('battery_id', result.batteryId).single();
           const io = getIO();
-          if (battery && io) {
+          if (io) {
             await wmdHandlers.broadcastBatteryDeployed(io, {
               playerId: auth.playerId,
               batteryId: result.batteryId,
-              batteryType: String(battery.tier),
-              interceptChance: battery.interception_range || 50,
+              batteryType: batteryTypeKey,
+              interceptChance: BATTERY_CONFIGS[batteryTypeKey].interceptChance,
             });
           }
         }
@@ -133,44 +174,79 @@ export async function POST(req: NextRequest) {
         console.error('Failed to broadcast battery deployment:', broadcastError);
       }
       
-      return NextResponse.json({ success: true, message: result.message, batteryId: result.batteryId });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+        batteryId: result.batteryId,
+      });
     }
     
+    // Repair battery
     if (action === 'repair') {
       const { batteryId } = body;
       
       if (!batteryId) {
-        return NextResponse.json({ error: 'Missing required field: batteryId' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Missing required field: batteryId' },
+          { status: 400 }
+        );
       }
       
       const result = await repairBattery(batteryId, auth.playerId, auth.player.username || auth.player.email || 'Unknown');
       
       if (!result.success) {
-        return NextResponse.json({ error: result.message }, { status: 400 });
+        return NextResponse.json(
+          { error: result.message },
+          { status: 400 }
+        );
       }
       
-      return NextResponse.json({ success: true, message: result.message });
+      return NextResponse.json({
+        success: true,
+        message: result.message,
+      });
     }
     
+    // Attempt interception
     if (action === 'intercept') {
       const { missileId } = body;
       
       if (!missileId) {
-        return NextResponse.json({ error: 'Missing required field: missileId' }, { status: 400 });
+        return NextResponse.json(
+          { error: 'Missing required field: missileId' },
+          { status: 400 }
+        );
       }
       
       const result = await attemptInterception(missileId, auth.playerId);
       
-      return NextResponse.json({ success: result.success, message: result.message, result: result.result });
+      return NextResponse.json({
+        success: result.success,
+        message: result.message,
+        result: result.result,
+      });
     }
     
-    return NextResponse.json({ error: 'Invalid action. Use "deploy", "repair", or "intercept"' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Invalid action. Use "deploy", "repair", or "intercept"' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('Error in defense API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * DELETE /api/wmd/defense
+ * Dismantle battery
+ * 
+ * Query:
+ * - batteryId: string
+ */
 export async function DELETE(req: NextRequest) {
   try {
     const auth = await getAuthenticatedPlayer(req);
@@ -183,18 +259,30 @@ export async function DELETE(req: NextRequest) {
     const batteryId = searchParams.get('batteryId');
     
     if (!batteryId) {
-      return NextResponse.json({ error: 'Missing required query param: batteryId' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing required query param: batteryId' },
+        { status: 400 }
+      );
     }
     
     const result = await dismantleBattery(batteryId);
     
     if (!result.success) {
-      return NextResponse.json({ error: result.message }, { status: 400 });
+      return NextResponse.json(
+        { error: result.message },
+        { status: 400 }
+      );
     }
     
-    return NextResponse.json({ success: true, message: result.message });
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+    });
   } catch (error) {
     console.error('Error dismantling battery:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

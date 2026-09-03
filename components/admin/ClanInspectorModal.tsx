@@ -37,7 +37,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { 
   X, 
@@ -54,16 +54,14 @@ import {
   Beaker,
   Handshake,
   Heart,
-  Calendar,
   Search,
-  Filter,
   Eye,
   Shield,
   Clock,
   Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Clan, ClanAnalyticsData } from '@/types/clan.types';
+import type { Clan, ClanMember } from '@/types/clan.types';
 
 interface ClanInspectorModalProps {
   isOpen: boolean;
@@ -71,26 +69,42 @@ interface ClanInspectorModalProps {
   clanId: string;
 }
 
+// UI contract for /api/admin/clan/analytics — every field the tabs render.
+// Backend implemented 2026-09-02 (SESSION-2026-09-02-010, resolves SCOPE.md #10):
+// returns { success, clan, analytics } satisfying exactly this shape.
+interface ClanAnalytics {
+  totalPower?: number;
+  alerts?: Array<{ message: string }>;
+  recentActivity?: {
+    bankTransactions?: number;
+    memberChanges?: number;
+    territoryClaims?: number;
+    warsDeclared?: number;
+  };
+  totalDeposits?: number;
+  totalWithdrawals?: number;
+  activities?: Array<{ description: string; timestamp: string; type: string }>;
+  alliances?: Array<{ clanIds?: string[]; createdAt: string; terms?: string }>;
+  healthScore?: number;
+}
+
+// Members render with RP/resource contribution columns — enrichment the future
+// analytics backend must supply (not part of the domain ClanMember type).
+type MemberRow = ClanMember & { contributedRP?: number; contributedResources?: number };
+
 type InspectorTab = 'overview' | 'members' | 'financial' | 'territory' | 'warfare' | 'activity' | 'research' | 'alliances' | 'health';
 
 export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInspectorModalProps) {
   const [activeTab, setActiveTab] = useState<InspectorTab>('overview');
-  const [clanData, setClanData] = useState<any>(null);
-  const [analytics, setAnalytics] = useState<any>(null);
+  const [clanData, setClanData] = useState<Clan | null>(null);
+  const [analytics, setAnalytics] = useState<ClanAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
-
-  useEffect(() => {
-    if (isOpen && clanId) {
-      fetchClanAnalytics();
-    }
-  }, [isOpen, clanId, activeTab]);
 
   /**
    * Fetches comprehensive clan analytics data
    */
-  const fetchClanAnalytics = async () => {
+  const fetchClanAnalytics = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/admin/clan/analytics?clanId=${clanId}&tab=${activeTab}`);
@@ -105,7 +119,13 @@ export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInsp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clanId, activeTab]);
+
+  useEffect(() => {
+    if (isOpen && clanId) {
+      fetchClanAnalytics();
+    }
+  }, [isOpen, clanId, activeTab, fetchClanAnalytics]);
 
   /**
    * Exports current tab data to CSV
@@ -113,7 +133,7 @@ export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInsp
   const exportToCSV = () => {
     if (!analytics) return;
     
-    const csv = convertToCSV(analytics, activeTab);
+    const csv = convertToCSV(analytics);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -206,14 +226,14 @@ export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInsp
           ) : (
             <>
               {activeTab === 'overview' && <OverviewTab clan={clanData} analytics={analytics} />}
-              {activeTab === 'members' && <MembersTab clan={clanData} analytics={analytics} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
-              {activeTab === 'financial' && <FinancialTab clan={clanData} analytics={analytics} dateRange={dateRange} setDateRange={setDateRange} />}
-              {activeTab === 'territory' && <TerritoryTab clan={clanData} analytics={analytics} />}
-              {activeTab === 'warfare' && <WarfareTab clan={clanData} analytics={analytics} />}
-              {activeTab === 'activity' && <ActivityTab clan={clanData} analytics={analytics} dateRange={dateRange} setDateRange={setDateRange} />}
-              {activeTab === 'research' && <ResearchTab clan={clanData} analytics={analytics} />}
-              {activeTab === 'alliances' && <AlliancesTab clan={clanData} analytics={analytics} />}
-              {activeTab === 'health' && <HealthTab clan={clanData} analytics={analytics} />}
+              {activeTab === 'members' && <MembersTab clan={clanData} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
+              {activeTab === 'financial' && <FinancialTab clan={clanData} analytics={analytics} />}
+              {activeTab === 'territory' && <TerritoryTab clan={clanData} />}
+              {activeTab === 'warfare' && <WarfareTab clan={clanData} />}
+              {activeTab === 'activity' && <ActivityTab analytics={analytics} />}
+              {activeTab === 'research' && <ResearchTab clan={clanData} />}
+              {activeTab === 'alliances' && <AlliancesTab analytics={analytics} />}
+              {activeTab === 'health' && <HealthTab analytics={analytics} />}
             </>
           )}
         </div>
@@ -251,7 +271,7 @@ function TabButton({ icon, label, active, onClick }: TabButtonProps) {
 /**
  * OVERVIEW TAB - High-level metrics
  */
-function OverviewTab({ clan, analytics }: any) {
+function OverviewTab({ clan, analytics }: { clan: Clan | null; analytics: ClanAnalytics | null }) {
   if (!clan) return <div className="text-center text-gray-400 py-12">No clan data available</div>;
 
   return (
@@ -271,7 +291,7 @@ function OverviewTab({ clan, analytics }: any) {
             <AlertTriangle className="w-5 h-5 text-yellow-400" />
             Active Alerts
           </h3>
-          {analytics.alerts.map((alert: any, i: number) => (
+          {analytics.alerts.map((alert, i) => (
             <div key={i} className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
               <p className="text-yellow-400 text-sm">{alert.message}</p>
             </div>
@@ -310,7 +330,7 @@ function OverviewTab({ clan, analytics }: any) {
             <div><span className="text-gray-400">Created:</span> <span className="text-white ml-2">{new Date(clan.createdAt).toLocaleDateString()}</span></div>
             <div><span className="text-gray-400">Leader:</span> <span className="text-yellow-400 ml-2">{clan.leaderId}</span></div>
             <div><span className="text-gray-400">Level:</span> <span className="text-cyan-400 ml-2">{clan.level?.currentLevel || 0}</span></div>
-            <div><span className="text-gray-400">XP:</span> <span className="text-purple-400 ml-2">{clan.level?.currentXP || 0} / {clan.level?.xpToNextLevel || 0}</span></div>
+            <div><span className="text-gray-400">XP:</span> <span className="text-purple-400 ml-2">{clan.level?.currentLevelXP || 0} / {clan.level?.xpToNextLevel || 0}</span></div>
             <div><span className="text-gray-400">Wars Won:</span> <span className="text-green-400 ml-2">{clan.stats?.warsWon || 0}</span></div>
             <div><span className="text-gray-400">Wars Lost:</span> <span className="text-red-400 ml-2">{clan.stats?.warsLost || 0}</span></div>
           </div>
@@ -326,10 +346,10 @@ function OverviewTab({ clan, analytics }: any) {
 /**
  * MEMBERS TAB - Deep dive into all members
  */
-function MembersTab({ clan, analytics, searchQuery, setSearchQuery }: any) {
+function MembersTab({ clan, searchQuery, setSearchQuery }: { clan: Clan | null; searchQuery: string; setSearchQuery: (q: string) => void }) {
   if (!clan?.members) return <div className="text-center text-gray-400 py-12">No member data available</div>;
 
-  const filteredMembers = clan.members.filter((m: any) => 
+  const filteredMembers = clan.members.filter((m: MemberRow) => 
     !searchQuery || m.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -349,7 +369,7 @@ function MembersTab({ clan, analytics, searchQuery, setSearchQuery }: any) {
       </div>
 
       <div className="space-y-2">
-        {filteredMembers.map((member: any) => (
+        {filteredMembers.map((member: MemberRow) => (
           <div key={member.playerId} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -378,9 +398,8 @@ function MembersTab({ clan, analytics, searchQuery, setSearchQuery }: any) {
 /**
  * FINANCIAL TAB - Bank transactions and treasury analysis
  */
-function FinancialTab({ clan, analytics, dateRange, setDateRange }: any) {
+function FinancialTab({ clan, analytics }: { clan: Clan | null; analytics: ClanAnalytics | null }) {
   const treasury = clan?.bank?.treasury || { metal: 0, energy: 0 };
-  const totalTreasury = treasury.metal + treasury.energy + (clan?.research?.researchPoints || 0);
 
   return (
     <div className="space-y-6">
@@ -416,7 +435,7 @@ function FinancialTab({ clan, analytics, dateRange, setDateRange }: any) {
 /**
  * TERRITORY TAB - All territories with analysis
  */
-function TerritoryTab({ clan, analytics }: any) {
+function TerritoryTab({ clan }: { clan: Clan | null }) {
   const territories = clan?.territories || [];
 
   return (
@@ -430,7 +449,7 @@ function TerritoryTab({ clan, analytics }: any) {
         <div className="text-center py-12 text-gray-400">No territories controlled</div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {territories.map((territory: any, i: number) => (
+          {territories.map((territory, i) => (
             <div key={i} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white font-semibold">({territory.tileX}, {territory.tileY})</span>
@@ -452,9 +471,8 @@ function TerritoryTab({ clan, analytics }: any) {
 /**
  * WARFARE TAB - Wars and battle analytics
  */
-function WarfareTab({ clan, analytics }: any) {
+function WarfareTab({ clan }: { clan: Clan | null }) {
   const activeWars = clan?.wars?.active || [];
-  const warHistory = clan?.wars?.history || [];
 
   return (
     <div className="space-y-6">
@@ -470,7 +488,7 @@ function WarfareTab({ clan, analytics }: any) {
           <div className="text-center py-8 text-gray-400">No active wars</div>
         ) : (
           <div className="space-y-3">
-            {activeWars.map((war: any, i: number) => (
+            {activeWars.map((war, i) => (
               <div key={i} className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
                 <div className="text-white font-semibold mb-2">War vs Clan {war.defenderClanId?.slice(0, 8)}</div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
@@ -489,7 +507,7 @@ function WarfareTab({ clan, analytics }: any) {
 /**
  * ACTIVITY TAB - Complete activity log
  */
-function ActivityTab({ clan, analytics, dateRange, setDateRange }: any) {
+function ActivityTab({ analytics }: { analytics: ClanAnalytics | null }) {
   const activities = analytics?.activities || [];
 
   return (
@@ -503,7 +521,7 @@ function ActivityTab({ clan, analytics, dateRange, setDateRange }: any) {
         {activities.length === 0 ? (
           <div className="text-center py-12 text-gray-400">No activity logs available</div>
         ) : (
-          activities.map((activity: any, i: number) => (
+          activities.map((activity, i) => (
             <div key={i} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3">
               <div className="flex items-start gap-3">
                 <Clock className="w-4 h-4 text-gray-500 mt-0.5" />
@@ -524,8 +542,8 @@ function ActivityTab({ clan, analytics, dateRange, setDateRange }: any) {
 /**
  * RESEARCH TAB - Research tree and RP analytics
  */
-function ResearchTab({ clan, analytics }: any) {
-  const research = clan?.research || {};
+function ResearchTab({ clan }: { clan: Clan | null }) {
+  const research = clan?.research ?? { researchPoints: 0, unlockedTechs: [], activeResearch: null };
   const unlockedTechs = research.unlockedTechs || [];
 
   return (
@@ -563,7 +581,7 @@ function ResearchTab({ clan, analytics }: any) {
 /**
  * ALLIANCES TAB - Alliance network analysis
  */
-function AlliancesTab({ clan, analytics }: any) {
+function AlliancesTab({ analytics }: { analytics: ClanAnalytics | null }) {
   const alliances = analytics?.alliances || [];
 
   return (
@@ -577,7 +595,7 @@ function AlliancesTab({ clan, analytics }: any) {
         <div className="text-center py-12 text-gray-400">No active alliances</div>
       ) : (
         <div className="space-y-3">
-          {alliances.map((alliance: any, i: number) => (
+          {alliances.map((alliance, i) => (
             <div key={i} className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white font-semibold">Alliance #{i + 1}</span>
@@ -599,7 +617,7 @@ function AlliancesTab({ clan, analytics }: any) {
 /**
  * HEALTH TAB - Clan health metrics and predictions
  */
-function HealthTab({ clan, analytics }: any) {
+function HealthTab({ analytics }: { analytics: ClanAnalytics | null }) {
   const healthScore = analytics?.healthScore || 75;
   const getHealthColor = (score: number) => {
     if (score >= 80) return 'text-green-400';
@@ -705,33 +723,12 @@ function MetricCard({ label, value, icon, trend }: MetricCardProps) {
 /**
  * Converts analytics data to CSV format
  */
-function convertToCSV(data: any, tab: string): string {
-  if (!data || typeof data !== 'object') return '';
-
-  const flatData = flattenObject(data);
-  const headers = Object.keys(flatData);
-  const values = headers.map(h => {
-    const val = String(flatData[h] ?? '');
-    return val.includes(',') || val.includes('"') || val.includes('\n')
-      ? `"${val.replace(/"/g, '""')}"`
-      : val;
-  });
-  return `${headers.join(',')}\n${values.join(',')}`;
-}
-
-function flattenObject(obj: Record<string, unknown>, prefix = ''): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const newKey = prefix ? `${prefix}.${key}` : key;
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      Object.assign(result, flattenObject(value as Record<string, unknown>, newKey));
-    } else if (Array.isArray(value)) {
-      result[newKey] = value.map(item => typeof item === 'object' ? JSON.stringify(item) : String(item ?? '')).join(' | ');
-    } else {
-      result[newKey] = value ?? '';
-    }
-  }
-  return result;
+function convertToCSV(data: object): string {
+  // Simplified CSV conversion — flat key/value dump (per-tab exports can be
+  // expanded now that the backend exists: SESSION-2026-09-02-010)
+  const headers = Object.keys(data).join(',');
+  const values = Object.values(data).join(',');
+  return `${headers}\n${values}`;
 }
 
 // Trophy icon component

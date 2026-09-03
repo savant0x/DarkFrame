@@ -243,7 +243,7 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
                 <div className="text-3xl mb-2">🏠</div>
                 <div className="font-bold text-white">Base Raid</div>
                 <div className="text-sm text-gray-400 mt-1">
-                  Attack player's base. Steal 20% resources on win.
+                  Attack player{"'"}s base. Steal 20% resources on win.
                 </div>
               </button>
             </div>
@@ -299,7 +299,7 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
             
             {unitSelections.length === 0 ? (
               <div className="bg-gray-800 rounded-lg p-6 text-center">
-                <p className="text-gray-400">You don't have any units to attack with.</p>
+                <p className="text-gray-400">You don{"'"}t have any units to attack with.</p>
                 <p className="text-sm text-gray-500 mt-2">Build units at your factories first!</p>
               </div>
             ) : (
@@ -401,7 +401,7 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
             <p className="font-bold text-red-400 mb-2">⚠️ Combat Info:</p>
             <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm">
               <li><strong>Infantry Battle:</strong> Direct combat. Winner gains XP (+150 attacker, +75 defender).</li>
-              <li><strong>Base Raid:</strong> Attack player's base. Winner steals 20% of selected resource (+200 XP).</li>
+              <li><strong>Base Raid:</strong> Attack player{"'"}s base. Winner steals 20% of selected resource (+200 XP).</li>
               <li><strong>Units:</strong> Both sides may lose units. Winners capture 10-15% of defeated units.</li>
               <li><strong>Stats:</strong> STR units deal damage, DEF units absorb damage. Balance is key!</li>
               <li><strong>HP System:</strong> STR units have 10 HP, DEF units have 15 HP. Combat continues until one side reaches 0 HP.</li>

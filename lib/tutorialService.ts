@@ -1,16 +1,16 @@
 /**
  * Tutorial Service
  * Created: 2025-10-25
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * Feature: FID-20251025-101 - Interactive Tutorial Quest System
  * 
  * OVERVIEW:
  * Core service managing the interactive tutorial system including quest chains,
- * progress tracking, step validation, and reward distribution.
+ * progress tracking, step validation, and reward distribution. Implements exact
+ * user vision: "Press W to move north → Navigate to cave → Found LEGENDARY digger!"
  * 
  * RESPONSIBILITIES:
  * - Quest chain definitions and management
- * - Player progress tracking in Supabase tutorial_progress table
+ * - Player progress tracking in Drizzle ORM
  * - Step completion validation
  * - Reward distribution integration
  * - Analytics tracking
@@ -26,8 +26,10 @@
  * Total: ~21 steps across 6 quests
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, TablesInsert } from '@/types/database';
+import { eq, and } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { tutorialProgress, tutorialActionTracking, players, factories } from '@/lib/db/schema';
+import { randomUUID } from 'node:crypto';
 import type {
   TutorialQuest,
   TutorialProgress,
@@ -41,27 +43,8 @@ import type {
   PlayerGameStateValidation,
 } from '@/types/tutorial.types';
 import { DEFAULT_TUTORIAL_CONFIG } from '@/types/tutorial.types';
+import type { TutorialInventoryItem } from '@/types/game.types';
 import { awardTutorialDiggerToPlayer } from './caveItemService';
-
-type TutorialProgressRow = Tables<'tutorial_progress'>;
-type PlayerRow = Tables<'players'>;
-type FactoryRow = Tables<'factories'>;
-type PlayerUnitRow = Tables<'player_units'>;
-type TutorialAnalyticsRow = Tables<'tutorial_analytics'>;
-
-function getSupabase() {
-  return createServiceClient();
-}
-
-/**
- * Initialize tutorial service (no-op for Supabase — kept for backward compatibility).
- * Previously accepted MongoDB client and db instances. Now ignores all arguments.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function initializeTutorialService(..._args: any[]): void {
-  // Supabase client is created on demand via createServiceClient().
-  // This function exists only for backward compatibility with existing API routes.
-}
 
 /**
  * Tutorial Quest Chain Definitions
@@ -121,15 +104,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 25000,
-          displayMessage: 'Shrine Discovery: 25,000 Metal!',
+          amount: 500,
+          displayMessage: 'You earned 500 Metal for finding the Shrine!',
         },
       },
       {
         id: 'movement_navigate_to_metal_bank',
         order: 2,
         title: 'Visit the Metal Bank',
-        instruction: 'Navigate to the Metal Bank at (38, 38)!',
+        instruction: 'Navigate to the Metal Bank to learn about resource storage!',
         detailedHelp: `🎯 WHY: The Metal Bank protects your Metal from enemy raids! Stored resources are 100% safe.
 
 🕐 WHEN TO USE:
@@ -138,7 +121,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • When preparing for risky battles (protect your wealth first!)
 
 ⚡ HOW TO USE:
-• Navigate to coordinates (38, 38)
+• Navigate to coordinates (25, 25)
 • Click "Bank" button to deposit/withdraw Metal
 • Withdraw anytime - no fees, instant access!
 
@@ -146,8 +129,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 38,
-          targetY: 38,
+          targetX: 25,
+          targetY: 25,
           locationName: 'Metal Bank'
         },
         completionMessage: 'Found the Metal Bank! Store your Metal here to protect it.',
@@ -156,15 +139,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 15000,
-          displayMessage: 'You earned 15,000 Metal for finding the Metal Bank!',
+          amount: 750,
+          displayMessage: 'You earned 750 Metal for finding the Metal Bank!',
         },
       },
       {
         id: 'movement_navigate_to_exchange',
         order: 3,
         title: 'Visit the Exchange',
-        instruction: 'Navigate to the Exchange at (38, 112)!',
+        instruction: 'Navigate to the Exchange Bank!',
         detailedHelp: `🎯 WHY: The Exchange is your resource conversion hub! Convert Metal ↔️ Energy with a 20% fee.
 
 🕐 WHEN TO USE:
@@ -173,7 +156,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • Before building units that require different resources
 
 ⚡ HOW TO USE:
-• Navigate to coordinates (38, 112)
+• Navigate to coordinates (50, 50)
 • Click "Exchange" button to see current rates
 • Trade Metal for Energy or Energy for Metal
 • Pay 20% conversion fee (e.g., 100 Metal → 80 Energy)
@@ -182,8 +165,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 38,
-          targetY: 112,
+          targetX: 50,
+          targetY: 50,
           locationName: 'Exchange Bank'
         },
         completionMessage: 'Found the Exchange! You can convert Metal ↔ Energy here with a 20% fee.',
@@ -192,15 +175,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 12000,
-          displayMessage: 'You earned 12,000 Metal for finding the Exchange!',
+          amount: 1000,
+          displayMessage: 'You earned 1,000 Metal for finding the Exchange!',
         },
       },
       {
         id: 'movement_navigate_to_energy_bank',
         order: 4,
         title: 'Visit the Energy Bank',
-        instruction: 'Navigate to the Energy Bank at (112, 38)!',
+        instruction: 'Navigate to the Energy Bank!',
         detailedHelp: `🎯 WHY: The Energy Bank protects your Energy from raids! Just like Metal Bank but for Energy.
 
 🕐 WHEN TO USE:
@@ -210,7 +193,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • After trading at the Exchange
 
 ⚡ HOW TO USE:
-• Navigate to coordinates (112, 38)
+• Navigate to coordinates (75, 75)
 • Click "Bank" button for deposit/withdraw
 • No fees, instant access, 100% raid protection
 
@@ -218,8 +201,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 112,
-          targetY: 38,
+          targetX: 75,
+          targetY: 75,
           locationName: 'Energy Bank'
         },
         completionMessage: 'Found the Energy Bank! Keep your Energy safe here.',
@@ -228,24 +211,25 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 10000,
-          displayMessage: 'You earned 10,000 Metal for finding the Energy Bank!',
+          amount: 50,
+          displayMessage: 'You earned 50 Metal for finding the Energy Bank!',
         },
       },
       {
-        id: 'movement_navigate_to_auction',
+        id: 'movement_navigate_to_secondary_exchange',
         order: 5,
         title: 'Explore the Far Corner',
-        instruction: 'Navigate to the Auction House at (10, 10)!',
-        detailedHelp: `🎯 WHY: Exploring distant landmarks helps you understand the map layout!
+        instruction: 'Navigate to the far corner of the map at (100, 100)!',
+        detailedHelp: `🎯 WHY: Exploring distant regions helps you understand map layout and discover hidden opportunities!
 
 🕐 WHEN TO USE:
-• When scouting for remote resources
-• Looking for less-contested areas
-• Planning your expansion strategy
+• When scouting for remote caves and resources
+• Looking for less-contested harvest locations
+• Planning factory placement in quieter areas
+• Exploring the full extent of the game world
 
 ⚡ HOW TO EXPLORE:
-• Navigate to coordinates (10, 10)
+• Navigate to coordinates (100, 100) - far corner
 • Use WASD, Arrow Keys, or Numpad to move
 • Notice how terrain changes in different regions
 • Remote areas often have better resources!
@@ -254,18 +238,18 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         action: 'MOVE_TO_COORDS',
         targetElement: '.movement-controls',
         validationData: { 
-          targetX: 10,
-          targetY: 10,
-          locationName: 'Auction House'
+          targetX: 100,
+          targetY: 100,
+          locationName: 'Far Corner'
         },
-        completionMessage: 'You explored the Auction House area! Keep exploring to find hidden treasures.',
+        completionMessage: 'You explored the far corner! Remote areas often have hidden treasures.',
         difficulty: 'EASY',
         estimatedSeconds: 40,
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 8000,
-          displayMessage: 'You earned 8,000 Metal for exploring!',
+          amount: 50,
+          displayMessage: 'You earned 50 Metal for exploring the far corner!',
         },
       },
       {
@@ -296,15 +280,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: true,
         reward: {
           type: 'METAL',
-          amount: 5000,
-          displayMessage: 'You earned 5,000 Metal for mastering movement!',
+          amount: 100,
+          displayMessage: 'You earned 100 Metal for mastering movement!',
         },
       },
     ],
     completionReward: {
       type: 'ACHIEVEMENT',
       achievementId: 'tutorial_movement_complete',
-      displayMessage: 'Achievement Unlocked: Navigator! +50,000 Metal bonus!',
+      displayMessage: 'Achievement Unlocked: Navigator!',
     },
     isOptional: false,
     estimatedMinutes: 1,
@@ -487,8 +471,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
     ],
     completionReward: {
       type: 'METAL',
-      amount: 50000,
-      displayMessage: 'Resource Management Complete! +50,000 Metal bonus!',
+      amount: 500,
+      displayMessage: 'Resource Management Complete! +500 Metal bonus!',
     },
     isOptional: false,
     estimatedMinutes: 5,
@@ -546,15 +530,15 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         skipAllowed: false,
         reward: {
           type: 'EXPERIENCE',
-          amount: 5000,
-          displayMessage: '+5,000 XP! You\'re getting stronger!',
+          amount: 100,
+          displayMessage: '+100 XP! You\'re getting stronger!',
         },
       },
     ],
     completionReward: {
       type: 'ACHIEVEMENT',
       achievementId: 'tutorial_first_battle',
-      displayMessage: 'Achievement Unlocked: Warrior! +75,000 Metal!',
+      displayMessage: 'Achievement Unlocked: Warrior!',
     },
     isOptional: false,
     estimatedMinutes: 2,
@@ -601,8 +585,8 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
     ],
     completionReward: {
       type: 'METAL',
-      amount: 30000,
-      displayMessage: 'Social Exploration Complete! +30,000 Metal!',
+      amount: 150,
+      displayMessage: 'Social Exploration Complete! +150 Metal!',
     },
     isOptional: true,
     estimatedMinutes: 1,
@@ -648,9 +632,9 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
       },
     ],
     completionReward: {
-      type: 'ENERGY',
-      amount: 25000,
-      displayMessage: 'Tech Tree Explored! +25,000 Energy!',
+      type: 'OIL',
+      amount: 100,
+      displayMessage: 'Tech Tree Explored! +100 Oil!',
     },
     isOptional: true,
     estimatedMinutes: 1,
@@ -682,14 +666,14 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
           type: 'ITEM',
           itemId: 'starter_pack',
           itemName: 'Starter Pack',
-          displayMessage: 'Starter Pack: 100,000 Metal, 75,000 Energy, 10 Random Items!',
+          displayMessage: 'Starter Pack: 500 Metal, 300 Oil, 5 Random Items!',
         },
       },
     ],
     completionReward: {
       type: 'ACHIEVEMENT',
       achievementId: 'tutorial_master',
-      displayMessage: 'Achievement Unlocked: Tutorial Master! +100,000 Metal & +50% bonus to all starter rewards!',
+      displayMessage: 'Achievement Unlocked: Tutorial Master! +50% bonus to all starter rewards!',
     },
     isOptional: false,
     estimatedMinutes: 1,
@@ -708,7 +692,7 @@ export function getTutorialQuests(): TutorialQuest[] {
  * Get specific tutorial quest by ID
  */
 export function getTutorialQuest(questId: string): TutorialQuest | null {
-  return TUTORIAL_QUESTS.find(q => q._id === questId || q.id === questId) || null;
+  return TUTORIAL_QUESTS.find(q => q._id === questId) || null;
 }
 
 /**
@@ -723,52 +707,28 @@ export function getNextQuest(currentQuestId: string): TutorialQuest | null {
 }
 
 /**
- * Maps a TutorialProgressRow from Supabase to the TutorialProgress type.
+ * Convert Drizzle row to TutorialProgress type
  */
-function rowToProgress(row: TutorialProgressRow): TutorialProgress {
+function mapProgressRow(row: typeof tutorialProgress.$inferSelect): TutorialProgress {
   return {
-    playerId: row.player_username,
-    currentQuestId: row.current_quest_id || undefined,
-    currentStepIndex: row.current_step_index,
-    completedQuests: row.completed_quests || [],
-    completedSteps: row.completed_steps || [],
-    skippedQuests: row.skipped_quests || [],
-    claimedRewards: row.claimed_rewards || [],
-    tutorialSkipped: row.tutorial_skipped || false,
-    tutorialDeclined: row.tutorial_declined || false,
-    tutorialComplete: row.tutorial_complete || false,
-    startedAt: row.started_at ? new Date(row.started_at) : new Date(),
-    currentStepStartedAt: row.current_step_started_at ? new Date(row.current_step_started_at) : undefined,
-    lastUpdated: new Date(row.last_updated),
-    totalStepsCompleted: row.total_steps_completed || 0,
-    totalTimeSpent: row.total_time_spent || 0,
-    completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
-    declinedAt: row.declined_at ? new Date(row.declined_at) : undefined,
-  };
-}
-
-/**
- * Builds a TutorialProgressRow Insert object from a TutorialProgress.
- */
-function progressToInsert(progress: TutorialProgress): TablesInsert<'tutorial_progress'> {
-  return {
-    player_username: progress.playerId,
-    current_quest_id: progress.currentQuestId || null,
-    current_step_index: progress.currentStepIndex,
-    current_step_started_at: progress.currentStepStartedAt?.toISOString() || null,
-    completed_quests: progress.completedQuests,
-    completed_steps: progress.completedSteps,
-    skipped_quests: progress.skippedQuests,
-    claimed_rewards: progress.claimedRewards,
-    tutorial_skipped: progress.tutorialSkipped,
-    tutorial_declined: progress.tutorialDeclined,
-    tutorial_complete: progress.tutorialComplete,
-    started_at: progress.startedAt.toISOString(),
-    last_updated: progress.lastUpdated.toISOString(),
-    total_steps_completed: progress.totalStepsCompleted,
-    total_time_spent: progress.totalTimeSpent,
-    completed_at: progress.completedAt?.toISOString() || null,
-    declined_at: progress.declinedAt?.toISOString() || null,
+    _id: row.id as any,
+    playerId: row.playerId,
+    currentQuestId: row.currentQuestId || undefined,
+    currentStepIndex: row.currentStepIndex,
+    completedQuests: row.completedQuests || [],
+    completedSteps: row.completedSteps || [],
+    skippedQuests: row.skippedQuests || [],
+    claimedRewards: row.claimedRewards || [],
+    tutorialSkipped: row.tutorialSkipped === 1,
+    tutorialDeclined: row.tutorialDeclined === 1,
+    tutorialComplete: row.tutorialComplete === 1,
+    startedAt: row.startedAt,
+    currentStepStartedAt: row.currentStepStartedAt || undefined,
+    completedAt: row.completedAt || undefined,
+    declinedAt: row.declinedAt || undefined,
+    lastUpdated: row.lastUpdated,
+    totalStepsCompleted: row.totalStepsCompleted,
+    totalTimeSpent: row.totalTimeSpent,
   };
 }
 
@@ -777,15 +737,8 @@ function progressToInsert(progress: TutorialProgress): TablesInsert<'tutorial_pr
  * Creates initial progress if player is new
  */
 export async function getTutorialProgress(playerId: string): Promise<TutorialProgress> {
-  const supabase = getSupabase();
-  
-  const { data: row, error } = await supabase
-    .from('tutorial_progress')
-    .select('*')
-    .eq('player_username', playerId)
-    .single();
-
-  const progress: TutorialProgress | null = row && !error ? rowToProgress(row) : null;
+  const progressRow = await db.select().from(tutorialProgress).where(eq(tutorialProgress.playerId, playerId)).limit(1);
+  let progress = progressRow.length > 0 ? mapProgressRow(progressRow[0]) : null;
   
   // Block tutorial restart if permanently declined
   if (progress && progress.tutorialDeclined) {
@@ -794,11 +747,12 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
   }
   
   if (!progress) {
+    // Create initial progress for new player
     const firstQuest = TUTORIAL_QUESTS[0];
     const firstStep = firstQuest.steps[0];
     
     const now = new Date();
-    const newProgress: TutorialProgress = {
+    const newProgress: Omit<TutorialProgress, '_id'> = {
       playerId,
       currentQuestId: firstQuest._id,
       currentStepIndex: 0,
@@ -816,21 +770,30 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
       totalTimeSpent: 0,
     };
     
-    console.log(`[Tutorial] Created progress for ${playerId}: Quest ${firstQuest._id}, Step ${firstStep.id}`);
-
-    const insertRow = progressToInsert(newProgress);
-    const { data: insertedRow, error: insertError } = await supabase
-      .from('tutorial_progress')
-      .insert(insertRow)
-      .select('*')
-      .single();
-
-    if (insertError || !insertedRow) {
-      throw new Error('Failed to create tutorial progress');
-    }
-
-    const createdProgress = rowToProgress(insertedRow);
+    console.log(`[Tutorial] Created progress for ${playerId}: Quest ${firstQuest._id}, Step ${firstStep.id}, currentStepStartedAt initialized`);
     
+    const id = randomUUID().replace(/-/g, '').substring(0, 24);
+    await db.insert(tutorialProgress).values({
+      id,
+      playerId: newProgress.playerId,
+      currentQuestId: newProgress.currentQuestId,
+      currentStepIndex: newProgress.currentStepIndex,
+      completedQuests: newProgress.completedQuests,
+      completedSteps: newProgress.completedSteps,
+      skippedQuests: newProgress.skippedQuests,
+      claimedRewards: newProgress.claimedRewards,
+      tutorialSkipped: newProgress.tutorialSkipped ? 1 : 0,
+      tutorialDeclined: newProgress.tutorialDeclined ? 1 : 0,
+      tutorialComplete: newProgress.tutorialComplete ? 1 : 0,
+      startedAt: newProgress.startedAt,
+      currentStepStartedAt: newProgress.currentStepStartedAt,
+      lastUpdated: newProgress.lastUpdated,
+      totalStepsCompleted: newProgress.totalStepsCompleted,
+      totalTimeSpent: newProgress.totalTimeSpent,
+    });
+    progress = { ...newProgress, _id: id as any };
+    
+    // Initialize action tracking for first step if it has a target count
     if (firstStep.validationData) {
       const { requiredMoves, requiredHarvests, requiredAttacks } = firstStep.validationData;
       const targetCount = requiredMoves || requiredHarvests || requiredAttacks;
@@ -838,8 +801,6 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
         await updateActionTracking(playerId, firstStep.id, 0, targetCount);
       }
     }
-    
-    return createdProgress;
   }
   
   return progress;
@@ -847,6 +808,7 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
 
 /**
  * Check if player should see tutorial
+ * Based on level, completion status, and config
  */
 export async function shouldShowTutorial(playerId: string, playerLevel: number): Promise<boolean> {
   const progress = await getTutorialProgress(playerId);
@@ -911,42 +873,32 @@ interface ActionTracking {
 
 /**
  * Get action tracking for a step
- * Stores tracking data as a JSON blob in bot_config or similar.
- * Since there's no dedicated tutorial_action_tracking table in Supabase,
- * we use an in-memory + bot_config hybrid approach.
  */
-const actionTrackingCache = new Map<string, ActionTracking>();
-
-export async function getActionTracking(playerId: string, stepId: string): Promise<ActionTracking | null> {
-  const key = `${playerId}:${stepId}`;
-  const cached = actionTrackingCache.get(key);
-  if (cached) return cached;
-
-  const supabase = getSupabase();
-  const { data } = await supabase
-    .from('tutorial_action_tracking')
-    .select('current_count, target_count, last_updated')
-    .eq('player_username', playerId)
-    .eq('step_id', stepId)
-    .maybeSingle();
-
-  if (data) {
-    const tracking: ActionTracking = {
-      playerId,
-      stepId,
-      currentCount: data.current_count || 0,
-      targetCount: data.target_count || 0,
-      lastUpdated: new Date(data.last_updated || Date.now()),
-    };
-    actionTrackingCache.set(key, tracking);
-    return tracking;
-  }
-
-  return null;
+async function getActionTracking(playerId: string, stepId: string): Promise<ActionTracking | null> {
+  const rows = await db.select().from(tutorialActionTracking).where(
+    and(
+      eq(tutorialActionTracking.playerId, playerId),
+      eq(tutorialActionTracking.stepId, stepId)
+    )
+  ).limit(1);
+  
+  if (rows.length === 0) return null;
+  
+  const row = rows[0];
+  const trackingData = row.actionType ? JSON.parse(row.actionType) : {};
+  
+  return {
+    playerId: row.playerId,
+    stepId: row.stepId,
+    currentCount: trackingData.currentCount ?? 0,
+    targetCount: trackingData.targetCount ?? 0,
+    lastUpdated: row.lastUpdated,
+  };
 }
 
 /**
  * Update action tracking for a step
+ * Called when player performs actions (moves, harvests, etc.)
  */
 export async function updateActionTracking(
   playerId: string,
@@ -954,51 +906,58 @@ export async function updateActionTracking(
   currentCount: number,
   targetCount: number
 ): Promise<void> {
-  const key = `${playerId}:${stepId}`;
-  const tracking: ActionTracking = {
-    playerId,
-    stepId,
-    currentCount,
-    targetCount,
-    lastUpdated: new Date(),
-  };
-  actionTrackingCache.set(key, tracking);
-
-  const supabase = getSupabase();
-  await supabase
-    .from('tutorial_action_tracking')
-    .upsert({
-      player_username: playerId,
-      step_id: stepId,
-      current_count: currentCount,
-      target_count: targetCount,
-      last_updated: tracking.lastUpdated.toISOString(),
+  const trackingData = JSON.stringify({ currentCount, targetCount });
+  
+  const existing = await db.select().from(tutorialActionTracking).where(
+    and(
+      eq(tutorialActionTracking.playerId, playerId),
+      eq(tutorialActionTracking.stepId, stepId)
+    )
+  ).limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(tutorialActionTracking).set({
+      actionType: trackingData,
+      lastUpdated: new Date(),
+    }).where(
+      and(
+        eq(tutorialActionTracking.playerId, playerId),
+        eq(tutorialActionTracking.stepId, stepId)
+      )
+    );
+  } else {
+    const id = randomUUID().replace(/-/g, '').substring(0, 24);
+    await db.insert(tutorialActionTracking).values({
+      id,
+      playerId,
+      stepId,
+      actionType: trackingData,
+      completed: 0,
+      lastUpdated: new Date(),
     });
+  }
 }
 
 /**
- * Clear action tracking for a step
+ * Clear action tracking for a step (when step is completed)
  */
 export async function clearActionTracking(playerId: string, stepId: string): Promise<void> {
-  const key = `${playerId}:${stepId}`;
-  actionTrackingCache.delete(key);
-
-  const supabase = getSupabase();
-  await supabase
-    .from('tutorial_action_tracking')
-    .delete()
-    .eq('player_username', playerId)
-    .eq('step_id', stepId);
+  await db.delete(tutorialActionTracking).where(
+    and(
+      eq(tutorialActionTracking.playerId, playerId),
+      eq(tutorialActionTracking.stepId, stepId)
+    )
+  );
 }
 
 /**
  * Complete a tutorial step
+ * Validates completion and awards rewards
  */
 export async function completeStep(
   validationRequest: TutorialValidationRequest
 ): Promise<TutorialStepCompletionResult> {
   const { playerId, questId, stepId, validationData } = validationRequest;
-  const supabase = getSupabase();
   
   const progress = await getTutorialProgress(playerId);
   const quest = getTutorialQuest(questId);
@@ -1026,25 +985,8 @@ export async function completeStep(
     };
   }
   
-  let enrichedValidationData = validationData || {};
-
-  // Enrich MOVE_TO_COORDS validation with actual player position from database
-  if (step.action === 'MOVE_TO_COORDS') {
-    const { data: player } = await supabase
-      .from('players')
-      .select('current_x, current_y')
-      .eq('username', playerId)
-      .maybeSingle();
-
-    if (player) {
-      enrichedValidationData = {
-        ...enrichedValidationData,
-        targetX: player.current_x || 0,
-        targetY: player.current_y || 0,
-      };
-    }
-  }
-
+  const enrichedValidationData = validationData || {};
+  
   if (step.action === 'CUSTOM') {
     const gameState = await getPlayerGameState(playerId);
     const stepValidation = step.validationData || {};
@@ -1069,31 +1011,10 @@ export async function completeStep(
       case 'build_unit':
         const unitType = stepValidation.unitType || 'Infantry';
         const normalizedUnitType = unitType.toLowerCase();
-        
-        // Map blueprint IDs to DB enum values for lookup
-        const BLUEPRINT_TO_DB: Record<string, string> = {
-          infantry: 'T1_RIFLEMAN', militia: 'T1_RIFLEMAN', rifleman: 'T1_RIFLEMAN',
-          scout: 'T1_SCOUT', saboteur: 'T1_SCOUT',
-          grenadier: 'T1_GRENADIER', sniper: 'T1_SNIPER', marksman: 'T1_SNIPER',
-          commando: 'T2_COMMANDO', tank: 'T2_COMMANDO',
-          bomber: 'T2_DEMOLISHER', bombardier: 'T2_DEMOLISHER',
-          artillery: 'T2_CANNON', gunship: 'T3_RAIDER',
-          juggernaut: 'T3_STRIKER', warlord: 'T3_WARLORD',
-          titan: 'T4_TITAN', dreadnought: 'T4_DREADNOUGHT', annihilator: 'T4_ANNIHILATOR',
-          barricade: 'T1_BARRIER', watchman: 'T1_BARRIER',
-          palisade: 'T1_BUNKER', trench: 'T1_BUNKER', wall: 'T1_BUNKER', bunker: 'T1_BUNKER',
-          turret: 'T1_TURRET', pillbox: 'T1_TURRET',
-          rampart: 'T2_BARRICADE', fortress: 'T2_FORTRESS',
-          sentinel: 'T2_SENTINEL', sentinel_prime: 'T2_SENTINEL',
-          aegis: 'T1_SHIELD', guardian: 'T3_GUARDIAN', guardian_array: 'T3_GUARDIAN',
-          citadel: 'T3_CITADEL', stronghold: 'T4_STRONGHOLD',
-          colossus: 'T4_COLOSSUS', bastion: 'T5_BASTION', invincible: 'T5_IMMORTAL',
-        };
-        const dbUnitType = BLUEPRINT_TO_DB[normalizedUnitType] || unitType.toUpperCase();
         let unitCount = 0;
         
         for (const [type, count] of Object.entries(gameState.unitCounts)) {
-          if (type === dbUnitType) {
+          if (type.toLowerCase() === normalizedUnitType) {
             unitCount += count;
           }
         }
@@ -1161,11 +1082,24 @@ export async function completeStep(
   
   progress.lastUpdated = now;
   
-  const updateRow = progressToInsert(progress);
-  await supabase
-    .from('tutorial_progress')
-    .update(updateRow)
-    .eq('player_username', playerId);
+  await db.update(tutorialProgress).set({
+    currentQuestId: progress.currentQuestId,
+    currentStepIndex: progress.currentStepIndex,
+    completedQuests: progress.completedQuests,
+    completedSteps: progress.completedSteps,
+    skippedQuests: progress.skippedQuests,
+    claimedRewards: progress.claimedRewards,
+    tutorialSkipped: progress.tutorialSkipped ? 1 : 0,
+    tutorialDeclined: progress.tutorialDeclined ? 1 : 0,
+    tutorialComplete: progress.tutorialComplete ? 1 : 0,
+    startedAt: progress.startedAt,
+    currentStepStartedAt: progress.currentStepStartedAt,
+    completedAt: progress.completedAt,
+    declinedAt: progress.declinedAt,
+    lastUpdated: progress.lastUpdated,
+    totalStepsCompleted: progress.totalStepsCompleted,
+    totalTimeSpent: progress.totalTimeSpent,
+  }).where(eq(tutorialProgress.playerId, playerId));
   
   const nextStep = quest.steps[nextStepIndex];
   if (nextStep && nextStep.validationData) {
@@ -1197,7 +1131,7 @@ export async function completeStep(
  */
 async function validateStepAction(
   step: TutorialStep,
-  validationData?: Record<string, unknown>
+  validationData?: Record<string, any>
 ): Promise<boolean> {
   if (!validationData) {
     if (step.action === 'READ_INFO' || step.action === 'COLLECT_REWARD') {
@@ -1208,22 +1142,22 @@ async function validateStepAction(
 
   switch (step.action) {
     case 'MOVE':
-      return validateMoveAction(step, validationData as Record<string, number | string | boolean>);
+      return validateMoveAction(step, validationData);
     
     case 'MOVE_TO_COORDS':
-      return validateMoveToCoordsAction(step, validationData as Record<string, number | string | boolean>);
+      return validateMoveToCordsAction(step, validationData);
     
     case 'HARVEST':
-      return validateHarvestAction(step, validationData as Record<string, number | string | boolean>);
+      return validateHarvestAction(step, validationData);
     
     case 'ATTACK':
-      return validateAttackAction(step, validationData as Record<string, number | string | boolean>);
+      return validateAttackAction(step, validationData);
     
     case 'OPEN_PANEL':
-      return validateOpenPanelAction(step, validationData as Record<string, number | string | boolean>);
+      return validateOpenPanelAction(step, validationData);
     
     case 'CUSTOM':
-      return validateCustomAction(step, validationData as Record<string, number | string | boolean>);
+      return validateCustomAction(step, validationData);
     
     case 'READ_INFO':
     case 'COLLECT_REWARD':
@@ -1238,15 +1172,9 @@ async function validateStepAction(
  * Get player's current game state from database
  */
 async function getPlayerGameState(playerId: string): Promise<PlayerGameStateValidation> {
-  const supabase = getSupabase();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
   
-  const { data: player, error: playerErr } = await supabase
-    .from('players')
-    .select('username, resources_metal, resources_energy')
-    .eq('username', playerId)
-    .single();
-  
-  if (playerErr || !player) {
+  if (playerRows.length === 0) {
     console.error(`[Tutorial] Player ${playerId} not found in database`);
     return {
       metalBalance: 0,
@@ -1256,39 +1184,29 @@ async function getPlayerGameState(playerId: string): Promise<PlayerGameStateVali
     };
   }
   
-  const { data: ownedFactories, error: factoryErr } = await supabase
-    .from('factories')
-    .select('*')
-    .eq('owner', playerId);
-
-  let factoriesList: { factoryId: string; tier: string; level: number; x: number; y: number }[] = [];
-  if (!factoryErr && ownedFactories) {
-    factoriesList = (ownedFactories as FactoryRow[]).map(f => ({
-      factoryId: f.id,
-      tier: String(f.level || 1),
-      level: f.level,
-      x: f.x || 0,
-      y: f.y || 0,
-    }));
-  }
-
-  const { data: playerUnits, error: unitsErr } = await supabase
-    .from('player_units')
-    .select('*')
-    .eq('player_username', playerId);
-
+  const player = playerRows[0];
+  
+  const ownedFactories = await db.select().from(factories).where(eq(factories.owner, playerId));
+  
   const unitCounts: Record<string, number> = {};
-  if (!unitsErr && playerUnits) {
-    for (const unit of (playerUnits as PlayerUnitRow[])) {
-      const unitType = unit.unit_type || 'Unknown';
-      unitCounts[unitType] = (unitCounts[unitType] || 0) + (unit.quantity || 0);
+  for (const f of ownedFactories) {
+    const units = (f as any).units || [];
+    for (const unit of units) {
+      const unitType = unit.type || 'Unknown';
+      unitCounts[unitType] = (unitCounts[unitType] || 0) + 1;
     }
   }
   
   return {
-    metalBalance: player.resources_metal,
-    energyBalance: player.resources_energy,
-    ownedFactories: factoriesList,
+    metalBalance: Number(player.resourcesMetal || 0),
+    energyBalance: Number(player.resourcesEnergy || 0),
+    ownedFactories: ownedFactories.map(f => ({
+      factoryId: `${f.x},${f.y}`,
+      tier: (f as any).tier || 'WEAK',
+      level: (f as any).level || 1,
+      x: (f as any).x || 0,
+      y: (f as any).y || 0,
+    })),
     unitCounts,
   };
 }
@@ -1296,21 +1214,18 @@ async function getPlayerGameState(playerId: string): Promise<PlayerGameStateVali
 /**
  * Validate MOVE action
  */
-function validateMoveAction(
-  step: TutorialStep,
-  validationData: Record<string, number | string | boolean>
-): boolean {
+function validateMoveAction(step: TutorialStep, validationData: Record<string, any>): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredMoves) {
-    const moveCount = (validationData.moveCount as number) || (validationData.currentCount as number) || 0;
+    const moveCount = validationData.moveCount || 0;
     if (moveCount < stepValidation.requiredMoves) {
       return false;
     }
   }
   
   if (stepValidation.direction && !stepValidation.anyDirection) {
-    const direction = String(validationData.direction || '').toLowerCase();
+    const direction = validationData.direction?.toLowerCase();
     const requiredDirection = stepValidation.direction.toLowerCase();
     
     if (direction !== requiredDirection) {
@@ -1319,8 +1234,7 @@ function validateMoveAction(
   }
   
   if (stepValidation.targetCoordinates) {
-    const x = Number(validationData.x) || 0;
-    const y = Number(validationData.y) || 0;
+    const { x, y } = validationData;
     const { x: targetX, y: targetY, radius = 0 } = stepValidation.targetCoordinates;
     
     if (radius === 0) {
@@ -1341,18 +1255,15 @@ function validateMoveAction(
 /**
  * Validate MOVE_TO_COORDS action
  */
-function validateMoveToCoordsAction(
-  step: TutorialStep,
-  validationData: Record<string, number | string | boolean>
-): boolean {
+function validateMoveToCordsAction(step: TutorialStep, validationData: Record<string, any>): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.targetX === undefined || stepValidation.targetY === undefined) {
     return false;
   }
   
-  const playerX = Number(validationData.targetX) || 0;
-  const playerY = Number(validationData.targetY) || 0;
+  const playerX = validationData.targetX;
+  const playerY = validationData.targetY;
   
   return playerX === stepValidation.targetX && playerY === stepValidation.targetY;
 }
@@ -1360,22 +1271,18 @@ function validateMoveToCoordsAction(
 /**
  * Validate HARVEST action
  */
-function validateHarvestAction(
-  step: TutorialStep,
-  validationData: Record<string, number | string | boolean>
-): boolean {
+function validateHarvestAction(step: TutorialStep, validationData: Record<string, any>): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredHarvests) {
-    const harvestCount = (validationData.harvestCount as number) || 0;
+    const harvestCount = validationData.harvestCount || 0;
     if (harvestCount < stepValidation.requiredHarvests) {
       return false;
     }
   }
   
   if (stepValidation.targetCoordinates) {
-    const x = Number(validationData.x) || 0;
-    const y = Number(validationData.y) || 0;
+    const { x, y } = validationData;
     const { x: targetX, y: targetY, radius = 0 } = stepValidation.targetCoordinates;
     
     if (radius === 0) {
@@ -1391,7 +1298,7 @@ function validateHarvestAction(
   }
   
   if (stepValidation.resourceType) {
-    const resourceType = String(validationData.resourceType || '').toLowerCase();
+    const resourceType = validationData.resourceType?.toLowerCase();
     const requiredType = stepValidation.resourceType.toLowerCase();
     
     if (resourceType !== requiredType) {
@@ -1405,21 +1312,18 @@ function validateHarvestAction(
 /**
  * Validate ATTACK action
  */
-function validateAttackAction(
-  step: TutorialStep,
-  validationData: Record<string, number | string | boolean>
-): boolean {
+function validateAttackAction(step: TutorialStep, validationData: Record<string, any>): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredAttacks) {
-    const attackCount = (validationData.attackCount as number) || 0;
+    const attackCount = validationData.attackCount || 0;
     if (attackCount < stepValidation.requiredAttacks) {
       return false;
     }
   }
   
   if (stepValidation.targetType) {
-    const targetType = String(validationData.targetType || '').toLowerCase();
+    const targetType = validationData.targetType?.toLowerCase();
     const requiredType = stepValidation.targetType.toLowerCase();
     
     if (targetType !== requiredType) {
@@ -1440,14 +1344,11 @@ function validateAttackAction(
 /**
  * Validate OPEN_PANEL action
  */
-function validateOpenPanelAction(
-  step: TutorialStep,
-  validationData: Record<string, number | string | boolean>
-): boolean {
+function validateOpenPanelAction(step: TutorialStep, validationData: Record<string, any>): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.panelName) {
-    const panelName = String(validationData.panelName || '').toLowerCase();
+    const panelName = validationData.panelName?.toLowerCase();
     const requiredPanel = stepValidation.panelName.toLowerCase();
     
     if (panelName !== requiredPanel) {
@@ -1461,25 +1362,22 @@ function validateOpenPanelAction(
 /**
  * Validate CUSTOM action
  */
-function validateCustomAction(
-  step: TutorialStep,
-  validationData: Record<string, number | string | boolean>
-): boolean {
+function validateCustomAction(step: TutorialStep, validationData: Record<string, any>): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requirementType) {
     switch (stepValidation.requirementType) {
       case 'metal_balance':
-        return ((validationData.metalBalance as number) || 0) >= (stepValidation.targetAmount || 0);
+        return (validationData.metalBalance || 0) >= (stepValidation.targetAmount || 0);
       
       case 'energy_balance':
-        return ((validationData.energyBalance as number) || 0) >= (stepValidation.targetAmount || 0);
+        return (validationData.energyBalance || 0) >= (stepValidation.targetAmount || 0);
       
       case 'factory_capture':
         return validationData.hasFactory === true && validationData.factoryTier === stepValidation.tier;
       
       case 'build_unit':
-        return ((validationData.unitCount as number) || 0) >= (stepValidation.count || 0);
+        return (validationData.unitCount || 0) >= (stepValidation.count || 0);
       
       case 'find_beer_base':
         return validationData.requirementMet === true;
@@ -1497,59 +1395,30 @@ function validateCustomAction(
  * Award tutorial reward to player
  */
 async function awardTutorialReward(playerId: string, reward: TutorialReward): Promise<void> {
-  const supabase = getSupabase();
-  
   switch (reward.type) {
     case 'METAL':
       if (reward.amount) {
-        const { data: player } = await supabase
-          .from('players')
-          .select('resources_metal')
-          .eq('username', playerId)
-          .single();
-        const currentMetal = player?.resources_metal || 0;
-        await supabase
-          .from('players')
-          .update({ resources_metal: currentMetal + reward.amount })
-          .eq('username', playerId);
+        const playerRows = await db.select({ resourcesMetal: players.resourcesMetal }).from(players).where(eq(players.username, playerId)).limit(1);
+        if (playerRows.length > 0) {
+          const currentMetal = Number(playerRows[0].resourcesMetal || 0);
+          await db.update(players).set({
+            resourcesMetal: Number(BigInt(currentMetal + reward.amount)),
+          }).where(eq(players.username, playerId));
+        }
       }
       break;
     
     case 'OIL':
-      // OIL is legacy alias for ENERGY
-      if (reward.amount) {
-        const { data: p } = await supabase
-          .from('players').select('resources_energy').eq('username', playerId).single();
-        await supabase
-          .from('players')
-          .update({ resources_energy: (p?.resources_energy || 0) + reward.amount })
-          .eq('username', playerId);
-      }
-      break;
-
-    case 'ENERGY':
-      if (reward.amount) {
-        const { data: p } = await supabase
-          .from('players').select('resources_energy').eq('username', playerId).single();
-        await supabase
-          .from('players')
-          .update({ resources_energy: (p?.resources_energy || 0) + reward.amount })
-          .eq('username', playerId);
-      }
       break;
     
     case 'EXPERIENCE':
       if (reward.amount) {
-        const { data: player } = await supabase
-          .from('players')
-          .select('xp')
-          .eq('username', playerId)
-          .single();
-        const currentXp = player?.xp || 0;
-        await supabase
-          .from('players')
-          .update({ xp: currentXp + reward.amount })
-          .eq('username', playerId);
+        const playerRows = await db.select({ xp: players.xp }).from(players).where(eq(players.username, playerId)).limit(1);
+        if (playerRows.length > 0) {
+          await db.update(players).set({
+            xp: (playerRows[0].xp || 0) + reward.amount,
+          }).where(eq(players.username, playerId));
+        }
       }
       break;
     
@@ -1557,43 +1426,54 @@ async function awardTutorialReward(playerId: string, reward: TutorialReward): Pr
       if (reward.itemId && reward.itemName) {
         if (reward.itemId === 'tutorial_universal_digger') {
           console.log(`[TutorialService] Awarding tutorial universal digger to player ${playerId}`);
-          const result = await awardTutorialDiggerToPlayer(playerId);
+          const result = await awardTutorialDiggerToPlayer(playerId as string);
           if (!result.success) {
             console.error(`[TutorialService] Failed to award tutorial digger: ${result.message}`);
           } else {
             console.log(`[TutorialService] Successfully awarded tutorial digger: ${result.message}`);
           }
         } else {
-          const newItem: TablesInsert<'player_inventory'> = {
-            player_username: playerId,
-            item_id: reward.itemId,
-            name: reward.itemName,
-            item_type: 'TRADEABLE_ITEM',
-            rarity: 'COMMON',
-            found_date: new Date().toISOString(),
-          };
-          await supabase.from('player_inventory').insert(newItem);
+          const playerRows = await db.select({ inventoryItems: players.inventoryItems }).from(players).where(eq(players.username, playerId)).limit(1);
+          if (playerRows.length > 0) {
+            const items = playerRows[0].inventoryItems || [];
+            const newItem: TutorialInventoryItem = {
+              id: `${reward.itemId}_${Date.now()}`,
+              itemId: reward.itemId,
+              name: reward.itemName,
+              acquiredAt: new Date(),
+              source: 'tutorial',
+            };
+            items.push(newItem);
+            await db.update(players).set({
+              inventoryItems: items,
+            }).where(eq(players.username, playerId));
+          }
         }
       }
       break;
     
     case 'ACHIEVEMENT':
       if (reward.achievementId) {
-        const achievement: TablesInsert<'player_achievements'> = {
-          player_username: playerId,
-          achievement_id: reward.achievementId,
-          name: 'Tutorial Achievement',
-          category: 'progression',
-          rarity: 'common',
-        };
-        await supabase.from('player_achievements').insert(achievement);
+        const playerRows = await db.select({ achievements: players.achievements }).from(players).where(eq(players.username, playerId)).limit(1);
+        if (playerRows.length > 0) {
+          const achievements = playerRows[0].achievements || [];
+          const alreadyExists = achievements.some((a: any) => a.achievementId === reward.achievementId);
+          if (!alreadyExists) {
+            const achievement = {
+              achievementId: reward.achievementId,
+              unlockedAt: new Date(),
+              source: 'tutorial',
+            };
+            achievements.push(achievement);
+            await db.update(players).set({
+              achievements,
+            }).where(eq(players.username, playerId));
+          }
+        }
       }
       break;
     
     case 'UNLOCK_FEATURE':
-      if (reward.featureId) {
-        console.log(`[TutorialService] Feature unlock ${reward.featureId} handled client-side`);
-      }
       break;
   }
 }
@@ -1602,19 +1482,14 @@ async function awardTutorialReward(playerId: string, reward: TutorialReward): Pr
  * Award tutorial completion package
  */
 async function awardTutorialCompletionPackage(playerId: string): Promise<void> {
-  const supabase = getSupabase();
-  
-  const { data: player, error: playerErr } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', playerId)
-    .single();
-  if (playerErr || !player) {
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  if (playerRows.length === 0) {
     console.error(`[Tutorial] Player ${playerId} not found for completion package`);
     return;
   }
   
-  const hasReferralCode = !!player.referred_by;
+  const player = playerRows[0];
+  const hasReferralCode = !!player.referredBy;
   const packageType = hasReferralCode ? 'FULL_WELCOME' : 'STARTER';
   
   const { getWelcomePackage, getStarterPackage } = await import('./referralService');
@@ -1622,21 +1497,55 @@ async function awardTutorialCompletionPackage(playerId: string): Promise<void> {
   
   console.log(`[Tutorial] Awarding ${packageType} package to ${player.username} (referral: ${hasReferralCode})`);
   
-  const currentMetal = player.resources_metal || 0;
-  const currentEnergy = player.resources_energy || 0;
+  const currentMetal = Number(player.resourcesMetal || 0);
+  const currentEnergy = Number(player.resourcesEnergy || 0);
+  const inventoryItems = player.inventoryItems || [];
   
-  await supabase
-    .from('players')
-    .update({
-      resources_metal: currentMetal + completionPackage.metal,
-      resources_energy: currentEnergy + completionPackage.energy,
-    })
-    .eq('username', playerId);
+  if (completionPackage.items && completionPackage.items.length > 0) {
+    for (const item of completionPackage.items) {
+      const newItem: TutorialInventoryItem = {
+        id: `${item.id}_${Date.now()}`,
+        itemId: item.id,
+        name: item.name,
+        type: item.type,
+        quantity: item.quantity,
+        acquiredAt: new Date(),
+        source: 'tutorial_completion',
+      };
+      inventoryItems.push(newItem);
+    }
+  }
+  
+  const achievements = player.achievements || [];
+  const alreadyExists = achievements.some((a: any) => a.achievementId === 'tutorial_completed');
+  if (!alreadyExists) {
+    const achievement = {
+      id: `tutorial_complete_${Date.now()}`,
+      achievementId: 'tutorial_completed',
+      name: 'Welcome Aboard!',
+      description: 'Completed the welcome tutorial',
+      unlockedAt: new Date(),
+      source: 'tutorial_completion',
+      category: 'tutorial',
+      rarity: 'common'
+    };
+    achievements.push(achievement);
+  }
+  
+  await db.update(players).set({
+    resourcesMetal: Number(BigInt(currentMetal + completionPackage.metal)),
+    resourcesEnergy: Number(BigInt(currentEnergy + completionPackage.energy)),
+    inventoryItems,
+    achievements,
+  }).where(eq(players.username, playerId));
   
   console.log(`[Tutorial] ${packageType} package awarded successfully:`, {
     metal: completionPackage.metal,
     energy: completionPackage.energy,
     items: completionPackage.items?.length || 0,
+    xpBoost: completionPackage.xpBoostPercent ? `${completionPackage.xpBoostPercent}% for ${completionPackage.xpBoostDuration} days` : 'none',
+    vip: completionPackage.vipTrialDays ? `${completionPackage.vipTrialDays} days` : 'none',
+    achievement: 'tutorial_completed'
   });
 }
 
@@ -1648,7 +1557,6 @@ export async function skipTutorial(
   skipType: 'ENTIRE_TUTORIAL' | 'QUEST',
   questId?: string
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = getSupabase();
   const progress = await getTutorialProgress(playerId);
   
   if (skipType === 'ENTIRE_TUTORIAL') {
@@ -1657,11 +1565,13 @@ export async function skipTutorial(
     progress.completedAt = new Date();
     progress.currentQuestId = undefined;
     
-    const updateRow = progressToInsert(progress);
-    await supabase
-      .from('tutorial_progress')
-      .update(updateRow)
-      .eq('player_username', playerId);
+    await db.update(tutorialProgress).set({
+      tutorialSkipped: 1,
+      tutorialComplete: 1,
+      completedAt: progress.completedAt,
+      currentQuestId: null,
+      lastUpdated: new Date(),
+    }).where(eq(tutorialProgress.playerId, playerId));
     
     return { success: true, message: 'Tutorial skipped successfully' };
   }
@@ -1683,11 +1593,14 @@ export async function skipTutorial(
     
     progress.lastUpdated = new Date();
     
-    const updateRow = progressToInsert(progress);
-    await supabase
-      .from('tutorial_progress')
-      .update(updateRow)
-      .eq('player_username', playerId);
+    await db.update(tutorialProgress).set({
+      skippedQuests: progress.skippedQuests,
+      currentQuestId: progress.currentQuestId,
+      currentStepIndex: progress.currentStepIndex,
+      tutorialComplete: progress.tutorialComplete ? 1 : 0,
+      completedAt: progress.completedAt,
+      lastUpdated: progress.lastUpdated,
+    }).where(eq(tutorialProgress.playerId, playerId));
     
     return { success: true, message: 'Quest skipped successfully' };
   }
@@ -1709,8 +1622,6 @@ export async function declineTutorial(
     };
   }
 
-  const supabase = getSupabase();
-  
   const progress = await getTutorialProgress(playerId);
   
   if (progress.tutorialDeclined) {
@@ -1737,25 +1648,15 @@ export async function declineTutorial(
   progress.currentStepStartedAt = undefined;
   progress.lastUpdated = now;
 
-  const updateRow = progressToInsert(progress);
-  await supabase
-    .from('tutorial_progress')
-    .update(updateRow)
-    .eq('player_username', playerId);
-
-  const analyticsInsert: TablesInsert<'tutorial_analytics'> = {
-    player_username: playerId,
-    event_type: 'DECLINED',
-    quest_id: progress.currentQuestId || null,
-    step_id: null,
-    time_spent: progress.totalTimeSpent,
-    created_at: now.toISOString(),
-    metadata: {
-      hadReferral: false,
-      levelAtDecline: 1,
-    },
-  };
-  await supabase.from('tutorial_analytics').insert(analyticsInsert);
+  await db.update(tutorialProgress).set({
+    tutorialDeclined: 1,
+    declinedAt: now,
+    tutorialComplete: 0,
+    currentQuestId: null,
+    currentStepIndex: 0,
+    currentStepStartedAt: null,
+    lastUpdated: now,
+  }).where(eq(tutorialProgress.playerId, playerId));
 
   console.log(`[Tutorial] Player ${playerId} permanently declined tutorial. No rewards awarded.`);
 

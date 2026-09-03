@@ -36,15 +36,6 @@ const TOAST_CONFIG = {
   },
 };
 
-function extractMessage(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    return String(obj.message || obj.error || obj.code || JSON.stringify(value));
-  }
-  return String(value || '');
-}
-
 /**
  * Show success toast notification
  * 
@@ -54,8 +45,8 @@ function extractMessage(value: unknown): string {
  * @example
  * showSuccess('Successfully built 5x Steel Vanguard!');
  */
-export function showSuccess(message: unknown, duration?: number): void {
-  toast.success(extractMessage(message), {
+export function showSuccess(message: string, duration?: number): void {
+  toast.success(message, {
     ...TOAST_CONFIG,
     duration: duration || TOAST_CONFIG.duration,
     style: {
@@ -74,8 +65,8 @@ export function showSuccess(message: unknown, duration?: number): void {
  * @example
  * showError('Insufficient metal (need 1,000, have 500)');
  */
-export function showError(message: unknown, duration?: number): void {
-  toast.error(extractMessage(message), {
+export function showError(message: string, duration?: number): void {
+  toast.error(message, {
     ...TOAST_CONFIG,
     duration: duration || 5000, // Longer for errors
     style: {
@@ -94,8 +85,8 @@ export function showError(message: unknown, duration?: number): void {
  * @example
  * showInfo('Factory upgraded to level 3!');
  */
-export function showInfo(message: unknown, duration?: number): void {
-  toast(extractMessage(message), {
+export function showInfo(message: string, duration?: number): void {
+  toast(message, {
     ...TOAST_CONFIG,
     duration: duration || 3000,
     icon: 'ℹ️',
@@ -115,8 +106,8 @@ export function showInfo(message: unknown, duration?: number): void {
  * @example
  * showWarning('Harvest available in 2 minutes');
  */
-export function showWarning(message: unknown, duration?: number): void {
-  toast(extractMessage(message), {
+export function showWarning(message: string, duration?: number): void {
+  toast(message, {
     ...TOAST_CONFIG,
     duration: duration || 4000,
     icon: '⚠️',

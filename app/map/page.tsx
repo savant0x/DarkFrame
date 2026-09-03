@@ -28,7 +28,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { GameLayout, StatsPanel, ControlsPanel } from '@/components';
 import TopNavBar from '@/components/TopNavBar';
@@ -71,34 +71,54 @@ export default function MapPage() {
   });
   
   // Player position (from current tile or default center)
-  const playerPosition = context?.currentTile || { x: 75, y: 75 };
+  const playerPosition = useMemo(() => context?.currentTile || { x: 75, y: 75 }, [context?.currentTile]);
   
   /**
    * Initialize map data
-   * Loads terrain data (mock for now, will integrate with API)
+   * Loads real terrain from /api/map/terrain (falls back to mock on error)
    */
   useEffect(() => {
     console.log('[MapPage] Initializing map data...');
-    
-    // Generate mock map data for testing
-    const mockData = generateMockMapData();
-    setMapData(mockData);
-    
-    console.log('[MapPage] Map data loaded', {
-      dimensions: `${mockData.length}x${mockData[0].length}`,
-      tiles: mockData.length * mockData[0].length
-    });
-    
-    // Set viewport to show ENTIRE map (no centering on player)
-    setViewport(prev => ({
-      ...prev,
-      x: 0, // Start at top-left corner
-      y: 0,
-      width: MAP_CONFIG.WIDTH * MAP_CONFIG.TILE_SIZE, // Full map width (4800px)
-      height: MAP_CONFIG.HEIGHT * MAP_CONFIG.TILE_SIZE, // Full map height (4800px)
-      centerOn: { x: playerPosition.x, y: playerPosition.y }
-    }));
-  }, []);
+    let cancelled = false;
+
+    const loadRealMap = async (): Promise<void> => {
+      let map: MapTile[][] | null = null;
+      try {
+        const res = await fetch('/api/map/terrain', { cache: 'no-store' });
+        const body = (await res.json()) as { success?: boolean; data?: { map?: MapTile[][] } };
+        if (res.ok && body.success && body.data?.map) {
+          map = body.data.map;
+        }
+      } catch (err) {
+        console.error('[MapPage] Failed to load real terrain, falling back to mock', err);
+      }
+      if (cancelled) return;
+
+      // Real data unavailable (map not generated yet) → mock for UI testing
+      const data = map ?? generateMockMapData();
+      setMapData(data);
+      console.log('[MapPage] Map data loaded', {
+        source: map ? 'api/map/terrain' : 'mock (fallback)',
+        dimensions: `${data.length}x${data[0].length}`,
+        tiles: data.length * data[0].length
+      });
+
+      // Set viewport to show ENTIRE map (no centering on player)
+      setViewport(prev => ({
+        ...prev,
+        x: 0, // Start at top-left corner
+        y: 0,
+        width: MAP_CONFIG.WIDTH * MAP_CONFIG.TILE_SIZE, // Full map width (4800px)
+        height: MAP_CONFIG.HEIGHT * MAP_CONFIG.TILE_SIZE, // Full map height (4800px)
+        centerOn: { x: playerPosition.x, y: playerPosition.y }
+      }));
+    };
+
+    void loadRealMap();
+    return () => {
+      cancelled = true;
+    };
+  }, [playerPosition.x, playerPosition.y]);
   
   /**
    * Handle arrow key navigation
@@ -224,7 +244,7 @@ export default function MapPage() {
       position: playerPosition,
       isFlagBearer: currentPlayerMarker.isFlagBearer
     });
-  }, [context?.player, playerPosition.x, playerPosition.y]);
+  }, [context?.player, playerPosition]);
   
   /**
    * WebSocket: Listen for map updates
@@ -345,9 +365,9 @@ export default function MapPage() {
             )}
             
             {/* Keyboard Shortcuts */}
-            <div className="bg-[--card] rounded-lg p-4 text-xs">
-              <h3 className="font-semibold mb-2 text-white/70">⌨️ Shortcuts</h3>
-              <ul className="space-y-1 text-white/50">
+            <div className="bg-gray-700 rounded-lg p-4 text-xs">
+              <h3 className="font-semibold mb-2">⌨️ Shortcuts</h3>
+              <ul className="space-y-1 text-gray-300">
                 <li>Arrow Keys / WASD: Pan</li>
                 <li>+/- Keys: Zoom</li>
                 <li>Home / H: Center on player</li>
@@ -358,10 +378,11 @@ export default function MapPage() {
         </aside>
         
         {/* Map Canvas - Full Map View */}
-        <main className="flex-1 bg-[--void] relative overflow-auto">
+        <main className="flex-1 bg-gray-900 relative overflow-auto">
           {mapData ? (
             <>
-              <div className="relative bg-[--card] m-6 border-2 border-[--border] inline-block"
+              {/* Map Container - Shows entire 150×150 grid */}
+              <div className="relative bg-gray-950 m-6 border-2 border-gray-700 inline-block" 
                    style={{ 
                      width: `${MAP_CONFIG.WIDTH * MAP_CONFIG.TILE_SIZE}px`, // 4800px (150 tiles × 32px)
                      height: `${MAP_CONFIG.HEIGHT * MAP_CONFIG.TILE_SIZE}px`, // 4800px
@@ -385,7 +406,7 @@ export default function MapPage() {
                     <span className="font-bold ml-2">Click:</span> Select Tile • 
                     <span className="font-bold ml-2">Scroll:</span> Navigate
                   </p>
-                  <p className="text-center text-xs text-white/50 mt-1">
+                  <p className="text-center text-xs text-gray-300 mt-1">
                     Your position: ({playerPosition.x}, {playerPosition.y}) • Total tiles: 22,500
                   </p>
                 </div>
@@ -394,8 +415,8 @@ export default function MapPage() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[--electric] mx-auto mb-4" />
-                <p className="text-white/50">Loading map data...</p>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p className="text-gray-400">Loading map data...</p>
               </div>
             </div>
           )}

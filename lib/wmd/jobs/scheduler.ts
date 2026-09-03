@@ -25,21 +25,20 @@
  * 
  * Dependencies:
  * - Individual job modules
- * - Supabase connection
+ * - Drizzle ORM connection
  * 
  * @implements Background Job Scheduler Pattern
  */
 
-// Db type removed — Supabase migration
+import { db } from '@/lib/db';
 import { missileTracker } from './missileTracker';
 import { spyMissionCompleter } from './spyMissionCompleter';
 import { voteExpirationCleaner } from './voteExpirationCleaner';
 import { defenseRepairCompleter, defenseRepairCompleterJobInfo } from './defenseRepairCompleter';
 import { beerBaseRespawner, beerBaseRespawnerJobInfo } from './beerBaseRespawner';
 
-/**
- * Job execution statistics
- */
+type Database = typeof db;
+
 interface JobStats {
   name: string;
   interval: number;
@@ -51,9 +50,6 @@ interface JobStats {
   isRunning: boolean;
 }
 
-/**
- * Job scheduler state
- */
 interface SchedulerState {
   isRunning: boolean;
   startedAt: Date | null;
@@ -61,9 +57,6 @@ interface SchedulerState {
   stats: Map<string, JobStats>;
 }
 
-/**
- * Global scheduler state
- */
 const scheduler: SchedulerState = {
   isRunning: false,
   startedAt: null,
@@ -71,32 +64,26 @@ const scheduler: SchedulerState = {
   stats: new Map(),
 };
 
-/**
- * Job configuration
- */
 interface JobConfig {
   name: string;
   interval: number;
-  handler: () => Promise<void | number>;
+  handler: (db: Database) => Promise<void | number>;
 }
 
-/**
- * All WMD background jobs
- */
 const JOBS: JobConfig[] = [
   {
     name: 'Missile Flight Tracker',
-    interval: 60000, // 60 seconds
+    interval: 60000,
     handler: missileTracker,
   },
   {
     name: 'Spy Mission Completer',
-    interval: 30000, // 30 seconds
+    interval: 30000,
     handler: spyMissionCompleter,
   },
   {
     name: 'Vote Expiration Cleaner',
-    interval: 60000, // 60 seconds
+    interval: 60000,
     handler: voteExpirationCleaner,
   },
   {
@@ -111,10 +98,7 @@ const JOBS: JobConfig[] = [
   },
 ];
 
-/**
- * Execute a job with error isolation and metrics
- */
-async function executeJob(config: JobConfig): Promise<void> {
+async function executeJob(dbConn: Database, config: JobConfig): Promise<void> {
   const stats = scheduler.stats.get(config.name);
   if (!stats) return;
   
@@ -128,12 +112,11 @@ async function executeJob(config: JobConfig): Promise<void> {
   const startTime = Date.now();
   
   try {
-    await config.handler();
+    await config.handler(dbConn);
     
     stats.executionCount++;
     const executionTime = Date.now() - startTime;
     
-    // Update average execution time (rolling average)
     stats.averageExecutionTime =
       stats.averageExecutionTime === 0
         ? executionTime
@@ -149,19 +132,12 @@ async function executeJob(config: JobConfig): Promise<void> {
   }
 }
 
-/**
- * Start all WMD background jobs
- * 
- * @param db - Database connection
- * @returns Success status and message
- */
 export function startWMDJobs(): { success: boolean; message: string } {
   try {
     if (scheduler.isRunning) {
       return { success: false, message: 'WMD jobs already running' };
     }
     
-    // Initialize stats for all jobs
     JOBS.forEach((config) => {
       scheduler.stats.set(config.name, {
         name: config.name,
@@ -175,10 +151,9 @@ export function startWMDJobs(): { success: boolean; message: string } {
       });
     });
     
-    // Start each job with its configured interval
     JOBS.forEach((config) => {
       const intervalId = setInterval(() => {
-        executeJob(config);
+        executeJob(db, config);
       }, config.interval);
       
       scheduler.jobs.set(config.name, intervalId);
@@ -202,18 +177,12 @@ export function startWMDJobs(): { success: boolean; message: string } {
   }
 }
 
-/**
- * Stop all WMD background jobs (graceful shutdown)
- * 
- * @returns Success status and message
- */
 export function stopWMDJobs(): { success: boolean; message: string } {
   try {
     if (!scheduler.isRunning) {
       return { success: false, message: 'WMD jobs not running' };
     }
     
-    // Clear all intervals
     scheduler.jobs.forEach((intervalId, jobName) => {
       clearInterval(intervalId);
       console.log(`[WMD Scheduler] Stopped: ${jobName}`);
@@ -235,11 +204,6 @@ export function stopWMDJobs(): { success: boolean; message: string } {
   }
 }
 
-/**
- * Get scheduler health check information
- * 
- * @returns Scheduler status and job statistics
- */
 export function getSchedulerHealth(): {
   isRunning: boolean;
   uptime: number | null;
@@ -267,13 +231,6 @@ export function getSchedulerHealth(): {
   };
 }
 
-/**
- * Restart a specific job
- * 
- * @param db - Database connection
- * @param jobName - Name of job to restart
- * @returns Success status and message
- */
 export function restartJob(
   jobName: string
 ): { success: boolean; message: string } {
@@ -283,20 +240,17 @@ export function restartJob(
       return { success: false, message: `Job '${jobName}' not found` };
     }
     
-    // Stop existing job
     const existingInterval = scheduler.jobs.get(jobName);
     if (existingInterval) {
       clearInterval(existingInterval);
     }
     
-    // Restart job
     const intervalId = setInterval(() => {
-      executeJob(jobConfig);
+      executeJob(db, jobConfig);
     }, jobConfig.interval);
     
     scheduler.jobs.set(jobName, intervalId);
     
-    // Reset stats
     const stats = scheduler.stats.get(jobName);
     if (stats) {
       stats.executionCount = 0;

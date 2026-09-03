@@ -14,13 +14,12 @@
  * - Performance testing
  * 
  * Dependencies:
- * - Supabase for database access
+ * - mongodb for database access
  * - /types/wmd for type definitions
- * - /lib/db/schemas/wmd.schema for schema verification
+ * - /lib/db/schemas/wmd.schema for collections
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { Db } from 'mongodb';
 import { 
   ResearchCategory, 
   ResearchStatus,
@@ -40,37 +39,36 @@ import {
 // ============================================================================
 
 /**
- * Seed all WMD tables with test data
+ * Seed all WMD collections with test data
  */
-export async function seedWMDData(supabase?: SupabaseClient<any>): Promise<void> {
-  const client = supabase || createServiceClient();
+export async function seedWMDData(db: Db): Promise<void> {
   console.log('🌱 Starting WMD data seeding...');
   
   // Seed player research
-  await seedPlayerResearch(client);
+  await seedPlayerResearch(db);
   
   // Seed missiles and components
-  await seedMissiles(client);
-  await seedMissileComponents(client);
+  await seedMissiles(db);
+  await seedMissileComponents(db);
   
   // Seed defense systems
-  await seedDefenseBatteries(client);
-  await seedClanDefenseGrid(client);
+  await seedDefenseBatteries(db);
+  await seedClanDefenseGrid(db);
   
   // Seed intelligence
-  await seedSpies(client);
-  await seedSpyMissions(client);
+  await seedSpies(db);
+  await seedSpyMissions(db);
   
   // Seed history/events
-  await seedLaunchHistory(client);
-  await seedInterceptionAttempts(client);
-  await seedSabotageEvents(client);
+  await seedLaunchHistory(db);
+  await seedInterceptionAttempts(db);
+  await seedSabotageEvents(db);
   
   // Seed notifications
-  await seedNotifications(client);
+  await seedNotifications(db);
   
   // Seed clan votes
-  await seedClanVotes(client);
+  await seedClanVotes(db);
   
   console.log('✅ WMD data seeding complete!');
 }
@@ -79,57 +77,59 @@ export async function seedWMDData(supabase?: SupabaseClient<any>): Promise<void>
 // PLAYER RESEARCH SEED DATA
 // ============================================================================
 
-async function seedPlayerResearch(client: SupabaseClient<any>): Promise<void> {
+async function seedPlayerResearch(db: Db): Promise<void> {
+  const collection = db.collection('wmd_player_research');
+  
   const seedData = [
     {
-      player_id: 'player_001',
-      player_username: 'TestWarrior',
-      clan_id: 'clan_alpha',
-      completed_techs: ['missile_tier_1', 'missile_tier_2', 'defense_tier_1', 'spy_tier_1'],
-      available_techs: ['missile_tier_3', 'defense_tier_2', 'spy_tier_2'],
-      locked_techs: ['missile_tier_4', 'missile_tier_5', 'defense_tier_3'],
-      current_research: {
-        tech_id: 'missile_tier_3',
-        started_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-        rp_spent: 15000,
-        rp_required: 20000,
+      playerId: 'player_001',
+      playerUsername: 'TestWarrior',
+      clanId: 'clan_alpha',
+      completedTechs: ['missile_tier_1', 'missile_tier_2', 'defense_tier_1', 'spy_tier_1'],
+      availableTechs: ['missile_tier_3', 'defense_tier_2', 'spy_tier_2'],
+      lockedTechs: ['missile_tier_4', 'missile_tier_5', 'defense_tier_3'],
+      currentResearch: {
+        techId: 'missile_tier_3',
+        startedAt: new Date(Date.now() - 12 * 60 * 60 * 1000), // 12 hours ago
+        rpSpent: 15000,
+        rpRequired: 20000,
       },
-      total_rp_spent: 55000,
-      clan_bonus_active: true,
-      updated_at: new Date().toISOString(),
+      totalRPSpent: 55000,
+      clanBonusActive: true,
+      updatedAt: new Date(),
     },
     {
-      player_id: 'player_002',
-      player_username: 'DefenseExpert',
-      clan_id: 'clan_alpha',
-      completed_techs: ['defense_tier_1', 'defense_tier_2', 'defense_tier_3', 'missile_tier_1'],
-      available_techs: ['defense_tier_4', 'missile_tier_2'],
-      locked_techs: ['defense_tier_5', 'missile_tier_3'],
-      current_research: null,
-      total_rp_spent: 70000,
-      clan_bonus_active: true,
-      updated_at: new Date().toISOString(),
+      playerId: 'player_002',
+      playerUsername: 'DefenseExpert',
+      clanId: 'clan_alpha',
+      completedTechs: ['defense_tier_1', 'defense_tier_2', 'defense_tier_3', 'missile_tier_1'],
+      availableTechs: ['defense_tier_4', 'missile_tier_2'],
+      lockedTechs: ['defense_tier_5', 'missile_tier_3'],
+      currentResearch: null,
+      totalRPSpent: 70000,
+      clanBonusActive: true,
+      updatedAt: new Date(),
     },
     {
-      player_id: 'player_003',
-      player_username: 'SpyMaster',
-      clan_id: null,
-      completed_techs: ['spy_tier_1', 'spy_tier_2', 'spy_tier_3', 'spy_tier_4'],
-      available_techs: ['spy_tier_5'],
-      locked_techs: ['spy_tier_6', 'spy_tier_7'],
-      current_research: {
-        tech_id: 'spy_tier_5',
-        started_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
-        rp_spent: 40000,
-        rp_required: 50000,
+      playerId: 'player_003',
+      playerUsername: 'SpyMaster',
+      clanId: null,
+      completedTechs: ['spy_tier_1', 'spy_tier_2', 'spy_tier_3', 'spy_tier_4'],
+      availableTechs: ['spy_tier_5'],
+      lockedTechs: ['spy_tier_6', 'spy_tier_7'],
+      currentResearch: {
+        techId: 'spy_tier_5',
+        startedAt: new Date(Date.now() - 48 * 60 * 60 * 1000), // 2 days ago
+        rpSpent: 40000,
+        rpRequired: 50000,
       },
-      total_rp_spent: 115000,
-      clan_bonus_active: false,
-      updated_at: new Date().toISOString(),
+      totalRPSpent: 115000,
+      clanBonusActive: false,
+      updatedAt: new Date(),
     },
   ];
   
-  await client.from('wmd_player_research').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} player research records`);
 }
 
@@ -137,14 +137,16 @@ async function seedPlayerResearch(client: SupabaseClient<any>): Promise<void> {
 // MISSILE SEED DATA
 // ============================================================================
 
-async function seedMissiles(client: SupabaseClient<any>): Promise<void> {
+async function seedMissiles(db: Db): Promise<void> {
+  const collection = db.collection('wmd_missiles');
+  
   const seedData = [
     {
-      missile_id: 'missile_001',
-      owner_id: 'player_001',
-      owner_username: 'TestWarrior',
-      clan_id: 'clan_alpha',
-      warhead_type: WarheadType.TACTICAL,
+      missileId: 'missile_001',
+      ownerId: 'player_001',
+      ownerUsername: 'TestWarrior',
+      clanId: 'clan_alpha',
+      warheadType: WarheadType.TACTICAL,
       components: {
         WARHEAD: 100,
         GUIDANCE: 100,
@@ -152,20 +154,20 @@ async function seedMissiles(client: SupabaseClient<any>): Promise<void> {
         FUEL: 100,
         CHASSIS: 100,
       },
-      assembly_progress: 100,
+      assemblyProgress: 100,
       status: MissileStatus.READY,
-      launched_at: null,
-      target_player_id: null,
-      target_clan_id: null,
-      created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      launchedAt: null,
+      targetPlayerId: null,
+      targetClanId: null,
+      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+      updatedAt: new Date(),
     },
     {
-      missile_id: 'missile_002',
-      owner_id: 'player_001',
-      owner_username: 'TestWarrior',
-      clan_id: 'clan_alpha',
-      warhead_type: WarheadType.TACTICAL,
+      missileId: 'missile_002',
+      ownerId: 'player_001',
+      ownerUsername: 'TestWarrior',
+      clanId: 'clan_alpha',
+      warheadType: WarheadType.TACTICAL,
       components: {
         WARHEAD: 80,
         GUIDANCE: 60,
@@ -173,20 +175,20 @@ async function seedMissiles(client: SupabaseClient<any>): Promise<void> {
         FUEL: 90,
         CHASSIS: 70,
       },
-      assembly_progress: 75,
+      assemblyProgress: 75,
       status: MissileStatus.ASSEMBLING,
-      launched_at: null,
-      target_player_id: null,
-      target_clan_id: null,
-      created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      launchedAt: null,
+      targetPlayerId: null,
+      targetClanId: null,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+      updatedAt: new Date(),
     },
     {
-      missile_id: 'missile_003',
-      owner_id: 'player_001',
-      owner_username: 'TestWarrior',
-      clan_id: 'clan_alpha',
-      warhead_type: WarheadType.STRATEGIC,
+      missileId: 'missile_003',
+      ownerId: 'player_001',
+      ownerUsername: 'TestWarrior',
+      clanId: 'clan_alpha',
+      warheadType: WarheadType.STRATEGIC,
       components: {
         WARHEAD: 100,
         GUIDANCE: 100,
@@ -194,17 +196,17 @@ async function seedMissiles(client: SupabaseClient<any>): Promise<void> {
         FUEL: 100,
         CHASSIS: 100,
       },
-      assembly_progress: 100,
+      assemblyProgress: 100,
       status: MissileStatus.LAUNCHED,
-      launched_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      target_player_id: 'player_003',
-      target_clan_id: null,
-      created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      launchedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
+      targetPlayerId: 'player_003',
+      targetClanId: null,
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 30 * 60 * 1000),
     },
   ];
   
-  await client.from('wmd_missiles').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} missiles`);
 }
 
@@ -212,47 +214,49 @@ async function seedMissiles(client: SupabaseClient<any>): Promise<void> {
 // MISSILE COMPONENTS SEED DATA
 // ============================================================================
 
-async function seedMissileComponents(client: SupabaseClient<any>): Promise<void> {
+async function seedMissileComponents(db: Db): Promise<void> {
+  const collection = db.collection('wmd_missile_components');
+  
   const seedData = [
     {
-      player_id: 'player_001',
-      player_username: 'TestWarrior',
-      component_counts: {
+      playerId: 'player_001',
+      playerUsername: 'TestWarrior',
+      componentCounts: {
         WARHEAD: 250,
         GUIDANCE: 180,
         PROPULSION: 320,
         FUEL: 410,
         CHASSIS: 290,
       },
-      updated_at: new Date().toISOString(),
+      updatedAt: new Date(),
     },
     {
-      player_id: 'player_002',
-      player_username: 'DefenseExpert',
-      component_counts: {
+      playerId: 'player_002',
+      playerUsername: 'DefenseExpert',
+      componentCounts: {
         WARHEAD: 50,
         GUIDANCE: 60,
         PROPULSION: 45,
         FUEL: 80,
         CHASSIS: 55,
       },
-      updated_at: new Date().toISOString(),
+      updatedAt: new Date(),
     },
     {
-      player_id: 'player_003',
-      player_username: 'SpyMaster',
-      component_counts: {
+      playerId: 'player_003',
+      playerUsername: 'SpyMaster',
+      componentCounts: {
         WARHEAD: 0,
         GUIDANCE: 0,
         PROPULSION: 0,
         FUEL: 0,
         CHASSIS: 0,
       },
-      updated_at: new Date().toISOString(),
+      updatedAt: new Date(),
     },
   ];
   
-  await client.from('wmd_missile_components').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} component inventories`);
 }
 
@@ -260,71 +264,73 @@ async function seedMissileComponents(client: SupabaseClient<any>): Promise<void>
 // DEFENSE BATTERIES SEED DATA
 // ============================================================================
 
-async function seedDefenseBatteries(client: SupabaseClient<any>): Promise<void> {
+async function seedDefenseBatteries(db: Db): Promise<void> {
+  const collection = db.collection('wmd_defense_batteries');
+  
   const seedData = [
     {
-      battery_id: 'battery_001',
-      owner_id: 'player_002',
-      owner_username: 'DefenseExpert',
-      clan_id: 'clan_alpha',
-      battery_type: BatteryType.ADVANCED,
+      batteryId: 'battery_001',
+      ownerId: 'player_002',
+      ownerUsername: 'DefenseExpert',
+      clanId: 'clan_alpha',
+      batteryType: BatteryType.ADVANCED,
       status: BatteryStatus.ACTIVE,
       condition: 100,
-      last_fired_at: null,
-      cooldown_until: null,
-      sabotage_resistance: 0,
-      pooled_with_clan: true,
-      created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      lastFiredAt: null,
+      cooldownUntil: null,
+      sabotageResistance: 0,
+      pooledWithClan: true,
+      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
     },
     {
-      battery_id: 'battery_002',
-      owner_id: 'player_002',
-      owner_username: 'DefenseExpert',
-      clan_id: 'clan_alpha',
-      battery_type: BatteryType.ADVANCED,
+      batteryId: 'battery_002',
+      ownerId: 'player_002',
+      ownerUsername: 'DefenseExpert',
+      clanId: 'clan_alpha',
+      batteryType: BatteryType.ADVANCED,
       status: BatteryStatus.COOLDOWN,
       condition: 95,
-      last_fired_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-      cooldown_until: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-      sabotage_resistance: 0,
-      pooled_with_clan: true,
-      created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+      lastFiredAt: new Date(Date.now() - 45 * 60 * 1000), // 45 min ago
+      cooldownUntil: new Date(Date.now() + 15 * 60 * 1000), // 15 min from now
+      sabotageResistance: 0,
+      pooledWithClan: true,
+      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 45 * 60 * 1000),
     },
     {
-      battery_id: 'battery_003',
-      owner_id: 'player_001',
-      owner_username: 'TestWarrior',
-      clan_id: 'clan_alpha',
-      battery_type: BatteryType.BASIC,
+      batteryId: 'battery_003',
+      ownerId: 'player_001',
+      ownerUsername: 'TestWarrior',
+      clanId: 'clan_alpha',
+      batteryType: BatteryType.BASIC,
       status: BatteryStatus.ACTIVE,
       condition: 80,
-      last_fired_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      cooldown_until: null,
-      sabotage_resistance: 0,
-      pooled_with_clan: true,
-      created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      lastFiredAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+      cooldownUntil: null,
+      sabotageResistance: 0,
+      pooledWithClan: true,
+      createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
     },
     {
-      battery_id: 'battery_004',
-      owner_id: 'player_003',
-      owner_username: 'SpyMaster',
-      clan_id: null,
-      battery_type: BatteryType.BASIC,
+      batteryId: 'battery_004',
+      ownerId: 'player_003',
+      ownerUsername: 'SpyMaster',
+      clanId: null,
+      batteryType: BatteryType.BASIC,
       status: BatteryStatus.ACTIVE,
       condition: 100,
-      last_fired_at: null,
-      cooldown_until: null,
-      sabotage_resistance: 0,
-      pooled_with_clan: false,
-      created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      lastFiredAt: null,
+      cooldownUntil: null,
+      sabotageResistance: 0,
+      pooledWithClan: false,
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
     },
   ];
   
-  await client.from('wmd_defense_batteries').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} defense batteries`);
 }
 
@@ -332,42 +338,44 @@ async function seedDefenseBatteries(client: SupabaseClient<any>): Promise<void> 
 // CLAN DEFENSE GRID SEED DATA
 // ============================================================================
 
-async function seedClanDefenseGrid(client: SupabaseClient<any>): Promise<void> {
+async function seedClanDefenseGrid(db: Db): Promise<void> {
+  const collection = db.collection('wmd_clan_defense_grid');
+  
   const seedData = [
     {
-      clan_id: 'clan_alpha',
-      clan_name: 'Alpha Squadron',
-      pooled_batteries: [
+      clanId: 'clan_alpha',
+      clanName: 'Alpha Squadron',
+      pooledBatteries: [
         {
-          battery_id: 'battery_001',
-          battery_type: BatteryType.ADVANCED,
-          owner_id: 'player_002',
+          batteryId: 'battery_001',
+          batteryType: BatteryType.ADVANCED,
+          ownerId: 'player_002',
           status: BatteryStatus.ACTIVE,
         },
         {
-          battery_id: 'battery_002',
-          battery_type: BatteryType.ADVANCED,
-          owner_id: 'player_002',
+          batteryId: 'battery_002',
+          batteryType: BatteryType.ADVANCED,
+          ownerId: 'player_002',
           status: BatteryStatus.COOLDOWN,
         },
         {
-          battery_id: 'battery_003',
-          battery_type: BatteryType.BASIC,
-          owner_id: 'player_001',
+          batteryId: 'battery_003',
+          batteryType: BatteryType.BASIC,
+          ownerId: 'player_001',
           status: BatteryStatus.ACTIVE,
         },
       ],
-      total_intercept_chance: 35,
-      radar_level: RadarLevel.LOCAL,
-      radar_warning_time: 30,
-      radar_range: 50,
-      can_detect_stealth: false,
-      member_count: 5,
-      updated_at: new Date().toISOString(),
+      totalInterceptChance: 35, // 25% + 10% (one on cooldown)
+      radarLevel: RadarLevel.LOCAL,
+      radarWarningTime: 30,
+      radarRange: 50,
+      canDetectStealth: false,
+      memberCount: 5,
+      updatedAt: new Date(),
     },
   ];
   
-  await client.from('wmd_clan_defense_grid').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} clan defense grids`);
 }
 
@@ -375,56 +383,58 @@ async function seedClanDefenseGrid(client: SupabaseClient<any>): Promise<void> {
 // SPIES SEED DATA
 // ============================================================================
 
-async function seedSpies(client: SupabaseClient<any>): Promise<void> {
+async function seedSpies(db: Db): Promise<void> {
+  const collection = db.collection('wmd_spies');
+  
   const seedData = [
     {
-      spy_id: 'spy_001',
-      owner_id: 'player_003',
-      owner_username: 'SpyMaster',
-      spy_name: 'Agent Shadow',
+      spyId: 'spy_001',
+      ownerId: 'player_003',
+      ownerUsername: 'SpyMaster',
+      spyName: 'Agent Shadow',
       rank: SpyRank.AGENT,
       status: 'AVAILABLE',
       experience: 8500,
-      successful_missions: 12,
-      failed_missions: 3,
-      current_mission_id: null,
+      successfulMissions: 12,
+      failedMissions: 3,
+      currentMissionId: null,
       specialty: MissionType.SABOTAGE_LIGHT,
-      created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
     },
     {
-      spy_id: 'spy_002',
-      owner_id: 'player_003',
-      owner_username: 'SpyMaster',
-      spy_name: 'Operative Ghost',
+      spyId: 'spy_002',
+      ownerId: 'player_003',
+      ownerUsername: 'SpyMaster',
+      spyName: 'Operative Ghost',
       rank: SpyRank.OPERATIVE,
       status: 'ON_MISSION',
       experience: 2800,
-      successful_missions: 5,
-      failed_missions: 1,
-      current_mission_id: 'mission_001',
+      successfulMissions: 5,
+      failedMissions: 1,
+      currentMissionId: 'mission_001',
       specialty: MissionType.RECONNAISSANCE,
-      created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
     },
     {
-      spy_id: 'spy_003',
-      owner_id: 'player_001',
-      owner_username: 'TestWarrior',
-      spy_name: 'Recruit Echo',
+      spyId: 'spy_003',
+      ownerId: 'player_001',
+      ownerUsername: 'TestWarrior',
+      spyName: 'Recruit Echo',
       rank: SpyRank.ROOKIE,
       status: 'AVAILABLE',
       experience: 500,
-      successful_missions: 2,
-      failed_missions: 0,
-      current_mission_id: null,
-      specialty: 'NONE' as 'NONE',
-      created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date().toISOString(),
+      successfulMissions: 2,
+      failedMissions: 0,
+      currentMissionId: null,
+      specialty: 'NONE' as any,
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(),
     },
   ];
   
-  await client.from('wmd_spies').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} spies`);
 }
 
@@ -432,60 +442,62 @@ async function seedSpies(client: SupabaseClient<any>): Promise<void> {
 // SPY MISSIONS SEED DATA
 // ============================================================================
 
-async function seedSpyMissions(client: SupabaseClient<any>): Promise<void> {
+async function seedSpyMissions(db: Db): Promise<void> {
+  const collection = db.collection('wmd_spy_missions');
+  
   const seedData = [
     {
-      mission_id: 'mission_001',
-      spy_id: 'spy_002',
-      operator_id: 'player_003',
-      operator_username: 'SpyMaster',
-      mission_type: MissionType.RECONNAISSANCE,
-      target_player_id: 'player_001',
-      target_username: 'TestWarrior',
-      target_clan_id: 'clan_alpha',
+      missionId: 'mission_001',
+      spyId: 'spy_002',
+      operatorId: 'player_003',
+      operatorUsername: 'SpyMaster',
+      missionType: MissionType.RECONNAISSANCE,
+      targetPlayerId: 'player_001',
+      targetUsername: 'TestWarrior',
+      targetClanId: 'clan_alpha',
       status: MissionStatus.ACTIVE,
-      started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      completed_at: null,
-      duration: 14400,
-      success_chance: 75,
-      detection_chance: 15,
+      startedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+      completedAt: null,
+      duration: 14400, // 4 hours
+      successChance: 75,
+      detectionChance: 15,
       result: null,
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
     },
     {
-      mission_id: 'mission_002',
-      spy_id: 'spy_001',
-      operator_id: 'player_003',
-      operator_username: 'SpyMaster',
-      mission_type: MissionType.SABOTAGE_LIGHT,
-      target_player_id: 'player_002',
-      target_username: 'DefenseExpert',
-      target_clan_id: 'clan_alpha',
+      missionId: 'mission_002',
+      spyId: 'spy_001',
+      operatorId: 'player_003',
+      operatorUsername: 'SpyMaster',
+      missionType: MissionType.SABOTAGE_LIGHT,
+      targetPlayerId: 'player_002',
+      targetUsername: 'DefenseExpert',
+      targetClanId: 'clan_alpha',
       status: MissionStatus.COMPLETED,
-      started_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      completed_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      startedAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+      completedAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
       duration: 21600,
-      success_chance: 65,
-      detection_chance: 25,
+      successChance: 65,
+      detectionChance: 25,
       result: {
         success: true,
         detected: false,
-        spy_captured: false,
-        spy_killed: false,
-        intel_gained: null,
-        damage_dealt: {
-          batteries_damaged: 1,
-          condition_loss: 5,
+        spyCaptured: false,
+        spyKilled: false,
+        intelGained: null,
+        damageDealt: {
+          batteriesDamaged: 1,
+          conditionLoss: 5,
         },
-        resources_stolen: null,
+        resourcesStolen: null,
       },
-      created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-      updated_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date(Date.now() - 12 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
     },
   ];
   
-  await client.from('wmd_spy_missions').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} spy missions`);
 }
 
@@ -493,31 +505,33 @@ async function seedSpyMissions(client: SupabaseClient<any>): Promise<void> {
 // LAUNCH HISTORY SEED DATA
 // ============================================================================
 
-async function seedLaunchHistory(client: SupabaseClient<any>): Promise<void> {
+async function seedLaunchHistory(db: Db): Promise<void> {
+  const collection = db.collection('wmd_launch_history');
+  
   const seedData = [
     {
-      launch_id: 'launch_001',
-      missile_id: 'missile_003',
-      attacker_id: 'player_001',
-      attacker_username: 'TestWarrior',
-      attacker_clan_id: 'clan_alpha',
-      target_player_id: 'player_003',
-      target_username: 'SpyMaster',
-      target_clan_id: null,
-      target_location: { x: 150, y: 250 },
-      warhead_type: WarheadType.STRATEGIC,
-      flight_time: 1800,
-      launched_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-      impact_at: new Date().toISOString(),
+      launchId: 'launch_001',
+      missileId: 'missile_003',
+      attackerId: 'player_001',
+      attackerUsername: 'TestWarrior',
+      attackerClanId: 'clan_alpha',
+      targetPlayerId: 'player_003',
+      targetUsername: 'SpyMaster',
+      targetClanId: null,
+      targetLocation: { x: 150, y: 250 },
+      warheadType: WarheadType.STRATEGIC,
+      flightTime: 1800, // 30 minutes
+      launchedAt: new Date(Date.now() - 30 * 60 * 1000),
+      impactAt: new Date(Date.now()),
       status: 'IN_FLIGHT',
-      intercepted_by: null,
-      damage_dealt: null,
-      clan_vote_id: 'vote_001',
-      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      interceptedBy: null,
+      damageDealt: null,
+      clanVoteId: 'vote_001',
+      createdAt: new Date(Date.now() - 30 * 60 * 1000),
     },
   ];
   
-  await client.from('wmd_launch_history').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} launch history records`);
 }
 
@@ -525,29 +539,31 @@ async function seedLaunchHistory(client: SupabaseClient<any>): Promise<void> {
 // INTERCEPTION ATTEMPTS SEED DATA
 // ============================================================================
 
-async function seedInterceptionAttempts(client: SupabaseClient<any>): Promise<void> {
+async function seedInterceptionAttempts(db: Db): Promise<void> {
+  const collection = db.collection('wmd_interception_attempts');
+  
   const seedData = [
     {
-      attempt_id: 'intercept_001',
-      launch_id: 'launch_001',
-      battery_id: 'battery_002',
-      defender_id: 'player_002',
-      defender_username: 'DefenseExpert',
-      defender_clan_id: 'clan_alpha',
-      targeted_missile: {
-        missile_id: 'missile_003',
-        warhead_type: WarheadType.STRATEGIC,
-        attacker_id: 'player_001',
+      attemptId: 'intercept_001',
+      launchId: 'launch_001',
+      batteryId: 'battery_002',
+      defenderId: 'player_002',
+      defenderUsername: 'DefenseExpert',
+      defenderClanId: 'clan_alpha',
+      targetedMissile: {
+        missileId: 'missile_003',
+        warheadType: WarheadType.STRATEGIC,
+        attackerId: 'player_001',
       },
-      intercept_chance: 25,
+      interceptChance: 25,
       roll: 45,
       success: false,
-      damage_reduced: null,
-      attempted_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
+      damageReduced: null,
+      attemptedAt: new Date(Date.now() - 45 * 60 * 1000),
     },
   ];
   
-  await client.from('wmd_interception_attempts').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} interception attempts`);
 }
 
@@ -555,30 +571,32 @@ async function seedInterceptionAttempts(client: SupabaseClient<any>): Promise<vo
 // SABOTAGE EVENTS SEED DATA
 // ============================================================================
 
-async function seedSabotageEvents(client: SupabaseClient<any>): Promise<void> {
+async function seedSabotageEvents(db: Db): Promise<void> {
+  const collection = db.collection('wmd_sabotage_events');
+  
   const seedData = [
     {
-      sabotage_id: 'sabotage_001',
-      mission_id: 'mission_002',
-      attacker_id: 'player_003',
-      attacker_username: 'SpyMaster',
-      target_player_id: 'player_002',
-      target_username: 'DefenseExpert',
-      sabotage_type: 'LIGHT',
-      target_type: 'BATTERY',
+      sabotageId: 'sabotage_001',
+      missionId: 'mission_002',
+      attackerId: 'player_003',
+      attackerUsername: 'SpyMaster',
+      targetPlayerId: 'player_002',
+      targetUsername: 'DefenseExpert',
+      sabotageType: 'LIGHT',
+      targetType: 'BATTERY',
       success: true,
-      damage_dealt: {
-        missiles_destroyed: null,
-        batteries_damaged: 1,
-        components_lost: null,
-        research_delayed: null,
+      damageDealt: {
+        missilesDestroyed: null,
+        batteriesDamaged: 1,
+        componentsLost: null,
+        researchDelayed: null,
       },
       detected: false,
-      occurred_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      occurredAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
     },
   ];
   
-  await client.from('wmd_sabotage_events').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} sabotage events`);
 }
 
@@ -586,74 +604,76 @@ async function seedSabotageEvents(client: SupabaseClient<any>): Promise<void> {
 // NOTIFICATIONS SEED DATA
 // ============================================================================
 
-async function seedNotifications(client: SupabaseClient<any>): Promise<void> {
+async function seedNotifications(db: Db): Promise<void> {
+  const collection = db.collection('wmd_notifications');
+  
   const seedData = [
     {
-      notification_id: 'notif_001',
-      recipient_id: 'player_003',
-      recipient_clan_id: null,
-      event_type: 'MISSILE_INCOMING',
+      notificationId: 'notif_001',
+      recipientId: 'player_003',
+      recipientClanId: null,
+      eventType: 'MISSILE_INCOMING',
       priority: 'CRITICAL',
       scope: 'PERSONAL',
       message: '🚨 INCOMING MISSILE! Strategic warhead inbound from TestWarrior. ETA: 30 minutes.',
       icon: '🚀',
       color: '#ff0000',
-      action_url: '/game?view=defense',
+      actionUrl: '/game?view=defense',
       metadata: {
-        launch_id: 'launch_001',
-        attacker_id: 'player_001',
-        warhead_type: WarheadType.STRATEGIC,
+        launchId: 'launch_001',
+        attackerId: 'player_001',
+        warheadType: WarheadType.STRATEGIC,
         eta: 1800,
       },
       read: false,
-      read_at: null,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      readAt: null,
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      createdAt: new Date(Date.now() - 30 * 60 * 1000),
     },
     {
-      notification_id: 'notif_002',
-      recipient_id: 'player_001',
-      recipient_clan_id: 'clan_alpha',
-      event_type: 'RESEARCH_COMPLETED',
+      notificationId: 'notif_002',
+      recipientId: 'player_001',
+      recipientClanId: 'clan_alpha',
+      eventType: 'RESEARCH_COMPLETED',
       priority: 'MEDIUM',
       scope: 'PERSONAL',
       message: '✅ Research Complete! Advanced Guidance Systems unlocked. Targeting accuracy +20%.',
       icon: '🔬',
       color: '#00ff00',
-      action_url: '/game?view=research',
+      actionUrl: '/game?view=research',
       metadata: {
-        tech_id: 'missile_tier_3',
-        tech_name: 'Advanced Guidance Systems',
+        techId: 'missile_tier_3',
+        techName: 'Advanced Guidance Systems',
       },
       read: false,
-      read_at: null,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+      readAt: null,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date(Date.now() - 10 * 60 * 1000),
     },
     {
-      notification_id: 'notif_003',
-      recipient_id: 'player_002',
-      recipient_clan_id: 'clan_alpha',
-      event_type: 'SABOTAGE_DETECTED',
+      notificationId: 'notif_003',
+      recipientId: 'player_002',
+      recipientClanId: 'clan_alpha',
+      eventType: 'SABOTAGE_DETECTED',
       priority: 'HIGH',
       scope: 'PERSONAL',
       message: '⚠️ Sabotage Detected! Enemy spy damaged your Advanced Battery. Condition reduced to 95%.',
       icon: '🔍',
       color: '#ff9900',
-      action_url: '/game?view=defense',
+      actionUrl: '/game?view=defense',
       metadata: {
-        sabotage_id: 'sabotage_001',
-        attacker_id: 'player_003',
-        damage_type: 'BATTERY',
+        sabotageId: 'sabotage_001',
+        attackerId: 'player_003',
+        damageType: 'BATTERY',
       },
       read: true,
-      read_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+      readAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),
     },
   ];
   
-  await client.from('wmd_notifications').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} notifications`);
 }
 
@@ -661,59 +681,61 @@ async function seedNotifications(client: SupabaseClient<any>): Promise<void> {
 // CLAN VOTES SEED DATA
 // ============================================================================
 
-async function seedClanVotes(client: SupabaseClient<any>): Promise<void> {
+async function seedClanVotes(db: Db): Promise<void> {
+  const collection = db.collection('wmd_clan_votes');
+  
   const seedData = [
     {
-      vote_id: 'vote_001',
-      clan_id: 'clan_alpha',
-      clan_name: 'Alpha Squadron',
-      proposer_id: 'player_001',
-      proposer_username: 'TestWarrior',
-      vote_type: 'MISSILE_LAUNCH',
+      voteId: 'vote_001',
+      clanId: 'clan_alpha',
+      clanName: 'Alpha Squadron',
+      proposerId: 'player_001',
+      proposerUsername: 'TestWarrior',
+      voteType: 'MISSILE_LAUNCH',
       status: 'PASSED',
       subject: 'Launch Strategic Warhead at SpyMaster',
-      required_votes: 3,
-      yes_votes: 4,
-      no_votes: 1,
-      abstain_votes: 0,
+      requiredVotes: 3,
+      yesVotes: 4,
+      noVotes: 1,
+      abstainVotes: 0,
       voters: [
-        { player_id: 'player_001', vote: 'YES', voted_at: new Date(Date.now() - 35 * 60 * 1000).toISOString() },
-        { player_id: 'player_002', vote: 'YES', voted_at: new Date(Date.now() - 33 * 60 * 1000).toISOString() },
-        { player_id: 'player_004', vote: 'NO', voted_at: new Date(Date.now() - 32 * 60 * 1000).toISOString() },
-        { player_id: 'player_005', vote: 'YES', voted_at: new Date(Date.now() - 31 * 60 * 1000).toISOString() },
-        { player_id: 'player_006', vote: 'YES', voted_at: new Date(Date.now() - 30 * 60 * 1000).toISOString() },
+        { playerId: 'player_001', vote: 'YES', votedAt: new Date(Date.now() - 35 * 60 * 1000) },
+        { playerId: 'player_002', vote: 'YES', votedAt: new Date(Date.now() - 33 * 60 * 1000) },
+        { playerId: 'player_004', vote: 'NO', votedAt: new Date(Date.now() - 32 * 60 * 1000) },
+        { playerId: 'player_005', vote: 'YES', votedAt: new Date(Date.now() - 31 * 60 * 1000) },
+        { playerId: 'player_006', vote: 'YES', votedAt: new Date(Date.now() - 30 * 60 * 1000) },
       ],
-      related_entity_id: 'missile_003',
-      created_at: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
-      expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      completed_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      relatedEntityId: 'missile_003',
+      createdAt: new Date(Date.now() - 40 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000),
+      completedAt: new Date(Date.now() - 30 * 60 * 1000),
     },
     {
-      vote_id: 'vote_002',
-      clan_id: 'clan_alpha',
-      clan_name: 'Alpha Squadron',
-      proposer_id: 'player_002',
-      proposer_username: 'DefenseExpert',
-      vote_type: 'DEFENSE_UPGRADE',
+      voteId: 'vote_002',
+      clanId: 'clan_alpha',
+      clanName: 'Alpha Squadron',
+      proposerId: 'player_002',
+      proposerUsername: 'DefenseExpert',
+      voteType: 'DEFENSE_UPGRADE',
       status: 'ACTIVE',
       subject: 'Upgrade to Elite Defense Systems',
-      required_votes: 3,
-      yes_votes: 2,
-      no_votes: 0,
-      abstain_votes: 1,
+      requiredVotes: 3,
+      yesVotes: 2,
+      noVotes: 0,
+      abstainVotes: 1,
       voters: [
-        { player_id: 'player_002', vote: 'YES', voted_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString() },
-        { player_id: 'player_001', vote: 'YES', voted_at: new Date(Date.now() - 45 * 60 * 1000).toISOString() },
-        { player_id: 'player_004', vote: 'ABSTAIN', voted_at: new Date(Date.now() - 20 * 60 * 1000).toISOString() },
+        { playerId: 'player_002', vote: 'YES', votedAt: new Date(Date.now() - 1 * 60 * 60 * 1000) },
+        { playerId: 'player_001', vote: 'YES', votedAt: new Date(Date.now() - 45 * 60 * 1000) },
+        { playerId: 'player_004', vote: 'ABSTAIN', votedAt: new Date(Date.now() - 20 * 60 * 1000) },
       ],
-      related_entity_id: null,
-      created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      expires_at: new Date(Date.now() + 10 * 60 * 60 * 1000).toISOString(),
-      completed_at: null,
+      relatedEntityId: null,
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 10 * 60 * 60 * 1000),
+      completedAt: null,
     },
   ];
   
-  await client.from('wmd_clan_votes').insert(seedData);
+  await collection.insertMany(seedData);
   console.log(`✅ Seeded ${seedData.length} clan votes`);
 }
 
@@ -724,9 +746,8 @@ async function seedClanVotes(client: SupabaseClient<any>): Promise<void> {
 /**
  * Clear all WMD seed data
  */
-export async function clearWMDSeedData(): Promise<void> {
-  const client = createServiceClient();
-  const tableNames = [
+export async function clearWMDSeedData(db: Db): Promise<void> {
+  const collectionNames = [
     'wmd_player_research',
     'wmd_missiles',
     'wmd_missile_components',
@@ -739,11 +760,11 @@ export async function clearWMDSeedData(): Promise<void> {
     'wmd_sabotage_events',
     'wmd_notifications',
     'wmd_clan_votes',
-  ] as const;
+  ];
   
-  for (const name of tableNames) {
-    await client.from(name).delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    console.log(`🗑️  Cleared table: ${name}`);
+  for (const name of collectionNames) {
+    await db.collection(name).deleteMany({});
+    console.log(`🗑️  Cleared collection: ${name}`);
   }
   
   console.log('✅ All WMD seed data cleared');
@@ -752,9 +773,9 @@ export async function clearWMDSeedData(): Promise<void> {
 /**
  * Reseed all data (clear and seed)
  */
-export async function reseedWMDData(supabase?: SupabaseClient<any>): Promise<void> {
-  await clearWMDSeedData();
-  await seedWMDData(supabase);
+export async function reseedWMDData(db: Db): Promise<void> {
+  await clearWMDSeedData(db);
+  await seedWMDData(db);
 }
 
 // ============================================================================
@@ -764,7 +785,7 @@ export async function reseedWMDData(supabase?: SupabaseClient<any>): Promise<voi
 /**
  * USAGE:
  * import { seedWMDData } from '@/lib/db/seeds/wmd.seed';
- * await seedWMDData();
+ * await seedWMDData(db);
  * 
  * TESTING SCENARIOS:
  * - Active missile launch with defense attempts

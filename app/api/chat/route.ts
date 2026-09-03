@@ -1,22 +1,44 @@
 /**
  * Chat API Routes
- * Created: 2025-10-25
- * Updated: 2026-05-05 — requireAuth, real player context, debug logging
+ * Created: 2025-01-25
+ * Updated: 2025-10-26 (FID-20251026-019 Phase 1)
+ * Features: FID-20251025-103 (Chat System), FID-20251026-019 (Auto-Moderation)
  * 
  * OVERVIEW:
  * RESTful API endpoints for chat message operations.
- * Handles GET (retrieve messages) and POST (send message with auto-moderation).
+ * Handles GET (retrieve messages) and POST (send message) requests.
  * Integrates with chatService, channelService, and moderationService.
- * Uses Supabase cookie-based auth via requireAuth().
+ * Now includes profanity filtering and spam detection (FID-20251026-019).
+ * 
+ * ENDPOINTS:
+ * - GET /api/chat - Retrieve messages from a channel
+ * - POST /api/chat - Send a new message to a channel (with auto-moderation)
+ * 
+ * AUTO-MODERATION (NEW):
+ * - Profanity filter with bad-words library
+ * - Spam detection (rate limiting, duplicate content, excessive caps)
+ * - Auto-mute for spam violations (5 minutes)
+ * - Warning system (3 strikes → 24h ban)
+ * - Admin whitelist bypass
+ * 
+ * SECURITY:
+ * - TODO: Authentication not implemented yet (next-auth not installed)
+ * - Uses placeholder getAuthenticatedUser() for now
+ * - All operations require authenticated user
+ * - Validates channel access permissions
+ * - Checks mute and ban status before allowing writes
+ * - Filters profanity and detects spam before saving messages
+ * 
+ * DEPENDENCIES:
+ * - lib/chatService.ts - Message operations and rate limiting
+ * - lib/channelService.ts - Channel permissions
+ * - lib/moderationService.ts - Mute/ban status, profanity filter, spam detection
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
 import {
   sendGlobalChatMessage,
   getGlobalChatMessages,
-  deleteGlobalChatMessage,
-  editGlobalChatMessage,
   type SendMessageRequest,
   type GetMessagesRequest,
   type ChatMessage,
@@ -34,54 +56,168 @@ import {
   muteUserForSpam,
 } from '@/lib/moderationService';
 
-function buildPlayerContext(username: string, player?: { level?: number; is_vip?: boolean; clan_id?: string | null }): PlayerContext {
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/**
+ * GET request query params
+ */
+interface GetChatParams {
+  channelId: string;
+  clanId?: string;
+  limit?: string;
+  before?: string; // ISO date string
+  since?: string; // ISO date string
+}
+
+/**
+ * POST request body
+ */
+interface PostChatBody {
+  channelId: string;
+  clanId?: string;
+  message: string;
+}
+
+// ============================================================================
+// AUTHENTICATION (PLACEHOLDER)
+// ============================================================================
+
+/**
+ * Get authenticated user from request
+ * 
+ * TODO: Replace with actual authentication once next-auth is installed
+ * For now, this is a placeholder that returns mock user data
+ * 
+ * @param request - Next.js request object
+ * @returns Player context or null if not authenticated
+ */
+async function getAuthenticatedUser(
+  request: NextRequest
+): Promise<PlayerContext | null> {
+  // TODO: Implement actual authentication
+  // Example with next-auth (when installed):
+  // const session = await getServerSession(authOptions);
+  // if (!session?.user) return null;
+  // 
+  // const player = await db.collection('players').findOne({ username: session.user.name });
+  // return {
+  //   username: player.username,
+  //   level: player.level,
+  //   isVIP: player.isVIP,
+  //   clanId: player.clanId,
+  //   isMuted: false, // Will be checked by moderationService
+  //   channelBans: [], // Will be fetched from moderationService
+  // };
+
+  // PLACEHOLDER: Mock user for development
+  // Replace this entire function when authentication is ready
   return {
-    username,
-    level: player?.level || 1,
-    isVIP: player?.is_vip || false,
-    clanId: player?.clan_id || undefined,
+    username: 'TestUser',
+    level: 10,
+    isVIP: false,
+    clanId: undefined,
     isMuted: false,
     channelBans: [],
   };
 }
 
+// ============================================================================
+// GET /api/chat - Retrieve Messages
+// ============================================================================
+
+/**
+ * GET /api/chat
+ * Retrieve messages from a channel
+ * 
+ * Query Parameters:
+ * - channelId (required): Channel type (global, newbie, clan, trade, help, vip)
+ * - clanId (optional): Required for clan channels
+ * - limit (optional): Max messages to return (default: 50)
+ * - before (optional): ISO date string - Get messages before this timestamp
+ * - since (optional): ISO date string - Get messages after this timestamp
+ * 
+ * @example
+ * GET /api/chat?channelId=global&limit=50
+ * GET /api/chat?channelId=clan&clanId=clan123&before=2025-01-25T12:00:00Z
+ */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const { searchParams } = request.nextUrl;
-    const username = auth.playerId;
-    const user = buildPlayerContext(username, auth.player);
+    // Authenticate user
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
     const channelId = searchParams.get('channelId');
     const clanId = searchParams.get('clanId') || undefined;
     const limitStr = searchParams.get('limit');
     const beforeStr = searchParams.get('before');
     const sinceStr = searchParams.get('since');
 
+    // Validate required parameters
     if (!channelId) {
-      return NextResponse.json({ success: false, error: 'channelId is required' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'channelId is required' },
+        { status: 400 }
+      );
     }
 
+    // Validate channel type
     if (!Object.values(ChannelType).includes(channelId as ChannelType)) {
-      return NextResponse.json({ success: false, error: 'Invalid channel type' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Invalid channel type' },
+        { status: 400 }
+      );
     }
 
+    // Check read permissions
     const readPermission = canReadChannel(channelId as ChannelType, user);
     if (!readPermission.canRead) {
-      return NextResponse.json({ success: false, error: readPermission.reason || 'Access denied' }, { status: 403 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: readPermission.reason || 'Access denied to this channel',
+        },
+        { status: 403 }
+      );
     }
 
+    // Parse optional parameters
     const limit = limitStr ? parseInt(limitStr, 10) : 50;
-    if (isNaN(limit) || limit < 1 || limit > 100) {
-      return NextResponse.json({ success: false, error: 'limit must be between 1 and 100' }, { status: 400 });
-    }
-
     const before = beforeStr ? new Date(beforeStr) : undefined;
     const since = sinceStr ? new Date(sinceStr) : undefined;
-    if (before && isNaN(before.getTime())) return NextResponse.json({ success: false, error: 'Invalid before date' }, { status: 400 });
-    if (since && isNaN(since.getTime())) return NextResponse.json({ success: false, error: 'Invalid since date' }, { status: 400 });
 
+    // Validate limit
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      return NextResponse.json(
+        { success: false, error: 'limit must be between 1 and 100' },
+        { status: 400 }
+      );
+    }
+
+    // Validate date parameters
+    if (before && isNaN(before.getTime())) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid before date' },
+        { status: 400 }
+      );
+    }
+
+    if (since && isNaN(since.getTime())) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid since date' },
+        { status: 400 }
+      );
+    }
+
+    // Build request object
     const getMessagesRequest: GetMessagesRequest = {
       channelId: channelId as ChannelType,
       clanId,
@@ -90,114 +226,497 @@ export async function GET(request: NextRequest) {
       since,
     };
 
+    // Fetch messages
     const messages = await getGlobalChatMessages(getMessagesRequest);
-    console.log(`[Chat GET] channel=${channelId} count=${messages.length}`);
 
-    return NextResponse.json({ success: true, messages, count: messages.length, channelId }, { status: 200 });
+    // TEMPORARY: Add realistic dummy messages for testing/design purposes
+    // These match the production API response format exactly
+    const dummyMessages = [
+      { id: 'msg_1', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: 'just got VIP — harvests are way smoother now', timestamp: new Date(Date.now() - 3600000), edited: false },
+      { id: 'msg_2', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: 'congrats! 2x boost makes metal tiles actually viable', timestamp: new Date(Date.now() - 3400000), edited: false },
+      { id: 'msg_3', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: 'shrine gave me a solid boost today — energy tiles are flowing', timestamp: new Date(Date.now() - 3200000), edited: false },
+      { id: 'msg_4', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: 'anyone farming near 110.98?', timestamp: new Date(Date.now() - 3000000), edited: false },
+      { id: 'msg_5', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: "I'm at 112.97, just cleared a metal node", timestamp: new Date(Date.now() - 2800000), edited: false },
+      { id: 'msg_6', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: 'reminder: G for surface, F for cave tiles', timestamp: new Date(Date.now() - 2600000), edited: false },
+      { id: 'msg_7', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: '@ObsidianWolf just hit #2 on the leaderboard 👀', timestamp: new Date(Date.now() - 2400000), edited: false },
+      { id: 'msg_8', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: "that guy's everywhere — flag holder again too", timestamp: new Date(Date.now() - 2200000), edited: false },
+      { id: 'msg_9', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: "dang, ObsidianWolf took the flag — I couldn't afford to pay them anymore", timestamp: new Date(Date.now() - 2000000), edited: false },
+      { id: 'msg_10', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: "flag's at 40.40 now, confirmed", timestamp: new Date(Date.now() - 1800000), edited: false },
+      { id: 'msg_11', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: 'how do I build units again?', timestamp: new Date(Date.now() - 1600000), edited: false },
+      { id: 'msg_12', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: 'capture a factory + have metal/energy', timestamp: new Date(Date.now() - 1400000), edited: false },
+      { id: 'msg_13', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: 'then go to left panel → Military → Build Units', timestamp: new Date(Date.now() - 1200000), edited: false },
+      { id: 'msg_14', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: 'just built 3 scouts — heading toward 33.44', timestamp: new Date(Date.now() - 1000000), edited: false },
+      { id: 'msg_15', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: 'shrine + VIP gave me 2,280 from a metal node — solid', timestamp: new Date(Date.now() - 800000), edited: false },
+      { id: 'msg_16', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: 'anyone trading artifacts?', timestamp: new Date(Date.now() - 600000), edited: false },
+      { id: 'msg_17', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: "I've got a spare Flag Bearer at 108.60", timestamp: new Date(Date.now() - 400000), edited: false },
+      { id: 'msg_18', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: '@NovaDrift just hit level 12 — grats!', timestamp: new Date(Date.now() - 300000), edited: false },
+      { id: 'msg_19', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: "Harvest Calculator is 🔥 — finally know what I'm getting", timestamp: new Date(Date.now() - 200000), edited: false },
+      { id: 'msg_20', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: "cave gave me a legendary digger — didn't expect that", timestamp: new Date(Date.now() - 150000), edited: false },
+      { id: 'msg_21', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: 'metal + shrine + VIP is the move right now', timestamp: new Date(Date.now() - 100000), edited: false },
+      { id: 'msg_22', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: 'Clan "Ashborn" just declared war on "NightHowlers" 😬', timestamp: new Date(Date.now() - 80000), edited: false },
+      { id: 'msg_23', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: "if NightHowlers finish WMD research, it's gonna get messy fast", timestamp: new Date(Date.now() - 60000), edited: false },
+      { id: 'msg_24', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: 'anyone online near 25.25? I see movement', timestamp: new Date(Date.now() - 40000), edited: false },
+      { id: 'msg_25', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: 'prepping units now — not waiting to get nuked', timestamp: new Date(Date.now() - 20000), edited: false },
+    ];
+
+    // Return dummy messages instead of real ones for design testing
+    // When production backend is ready, just remove this ternary and return messages directly
+    const messagesToReturn = channelId === ChannelType.GLOBAL ? dummyMessages : messages;
+
+    return NextResponse.json(
+      {
+        success: true,
+        messages: messagesToReturn,
+        count: messagesToReturn.length,
+        channelId,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    console.error('[Chat GET] Error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch messages' }, { status: 500 });
+    console.error('[API /chat GET] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'An unexpected error occurred while fetching messages',
+      },
+      { status: 500 }
+    );
   }
 }
 
+// ============================================================================
+// POST /api/chat - Send Message
+// ============================================================================
+
+/**
+ * POST /api/chat
+ * Send a new message to a channel
+ * 
+ * Request Body:
+ * - channelId (required): Channel type (global, newbie, clan, trade, help, vip)
+ * - clanId (optional): Required for clan channels
+ * - message (required): Message text (1-500 characters)
+ * 
+ * @example
+ * POST /api/chat
+ * {
+ *   "channelId": "global",
+ *   "message": "Hello world!"
+ * }
+ */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
-    const body = await request.json();
-    const user = buildPlayerContext(username, auth.player);
-    const { channelId, message } = body;
+    // Authenticate user
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
+    // Parse request body
+    let body: PostChatBody;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
+
+    const { channelId, clanId, message } = body;
+
+    // Validate required fields
     if (!channelId || !message) {
-      return NextResponse.json({ success: false, error: 'channelId and message are required' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'channelId and message are required' },
+        { status: 400 }
+      );
     }
 
+    // Validate channel type
     if (!Object.values(ChannelType).includes(channelId as ChannelType)) {
-      return NextResponse.json({ success: false, error: 'Invalid channel type' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Invalid channel type' },
+        { status: 400 }
+      );
     }
 
+    // Validate message length
     if (message.trim().length === 0) {
-      return NextResponse.json({ success: false, error: 'Message cannot be empty' }, { status: 400 });
-    }
-    if (message.length > 500) {
-      return NextResponse.json({ success: false, error: 'Message cannot exceed 500 characters' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'Message cannot be empty' },
+        { status: 400 }
+      );
     }
 
+    if (message.length > 500) {
+      return NextResponse.json(
+        { success: false, error: 'Message cannot exceed 500 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Check mute status
     const muteStatus = await checkMuteStatus(user.username);
     if (muteStatus.isMuted) {
-      return NextResponse.json({ success: false, error: 'You are muted' }, { status: 403 });
+      const expiresIn = muteStatus.expiresIn;
+      const expiryMessage = expiresIn
+        ? `You are muted for ${Math.ceil(expiresIn / 60)} more minutes`
+        : 'You are permanently muted';
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: expiryMessage,
+          muteRecord: muteStatus.muteRecord,
+        },
+        { status: 403 }
+      );
     }
 
+    // Check write permissions (includes channel bans check)
     const writePermission = canWriteChannel(channelId as ChannelType, user);
     if (!writePermission.canWrite) {
-      return NextResponse.json({ success: false, error: writePermission.reason || 'Cannot write to channel' }, { status: 403 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: writePermission.reason || 'You cannot write to this channel',
+        },
+        { status: 403 }
+      );
     }
 
+    // PROFANITY FILTER (FID-20251026-019)
     const filteredResult = await filterMessage(message, user.username);
+    
     if (!filteredResult.success) {
-      return NextResponse.json({ success: false, error: filteredResult.error || 'Failed to process message' }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: filteredResult.error || 'Failed to process message',
+        },
+        { status: 400 }
+      );
     }
+
+    // Use filtered message
     const cleanMessage = filteredResult.filtered;
+
+    // Optionally notify user if profanity was detected and filtered
     const hadProfanity = filteredResult.hadProfanity;
 
-    const spamCheck = await detectSpam(username, username, cleanMessage);
+    // SPAM DETECTION (FID-20251026-019)
+    const spamCheck = await detectSpam(user.username, user.username, cleanMessage);
+    
     if (spamCheck.isSpam) {
+      // Auto-mute for spam if shouldMute is true
       if (spamCheck.shouldMute) {
-        await muteUserForSpam(username, username, spamCheck.reason || 'Spam detected');
+        await muteUserForSpam(user.username, user.username, spamCheck.reason || 'Spam detected');
       }
-      return NextResponse.json({ success: false, error: spamCheck.reason || 'Spam detected', isSpam: true, muted: spamCheck.shouldMute }, { status: 429 });
+      
+      return NextResponse.json(
+        {
+          success: false,
+          error: spamCheck.reason || 'Spam detected',
+          isSpam: true,
+          muted: spamCheck.shouldMute,
+        },
+        { status: 429 } // 429 Too Many Requests
+      );
     }
 
+    // Build send message request
     const sendMessageRequest: SendMessageRequest = {
       channelId: channelId as ChannelType,
+      clanId,
       sender: user,
-      message: cleanMessage,
+      message: cleanMessage, // Use filtered message
     };
 
+    // Send message (includes rate limiting)
     const result = await sendGlobalChatMessage(sendMessageRequest);
+
     if (!result.success) {
-      return NextResponse.json({ success: false, error: result.error || 'Failed to send message' }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error || 'Failed to send message',
+        },
+        { status: 400 }
+      );
     }
 
-    console.log(`[Chat POST] channel=${channelId} sender=${username} persisted=true`);
-
-    return NextResponse.json({ success: true, message: result.message, hadProfanity }, { status: 201 });
+    return NextResponse.json(
+      {
+        success: true,
+        message: result.message,
+        hadProfanity, // Inform client if profanity was filtered
+      },
+      { status: 201 }
+    );
   } catch (error) {
-    console.error('[Chat POST] Error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to send message' }, { status: 500 });
+    console.error('[API /chat POST] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'An unexpected error occurred while sending message',
+      },
+      { status: 500 }
+    );
   }
 }
 
+// ============================================================================
+// PATCH /api/chat - Mark Messages as Read
+// ============================================================================
+
+/**
+ * PATCH /api/chat
+ * Mark messages as read up to a certain message ID
+ * 
+ * Request Body:
+ * - channelId (required): Channel type
+ * - clanId (optional): Required for clan channels
+ * - lastReadMessageId (required): Last message ID that was read
+ * 
+ * @example
+ * PATCH /api/chat
+ * {
+ *   "channelId": "global",
+ *   "lastReadMessageId": "msg_abc123"
+ * }
+ */
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
-    const body = await request.json();
-    const { messageId, newContent } = body;
-    if (!messageId || !newContent) {
-      return NextResponse.json({ success: false, error: 'messageId and newContent required' }, { status: 400 });
+    // Authenticate user
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
     }
-    const result = await editGlobalChatMessage(messageId, newContent, username);
-    return NextResponse.json(result);
+
+    // Parse request body
+    let body: {
+      channelId: string;
+      clanId?: string;
+      lastReadMessageId: string;
+    };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
+
+    const { channelId, clanId, lastReadMessageId } = body;
+
+    // Validate required fields
+    if (!channelId || !lastReadMessageId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'channelId and lastReadMessageId are required',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate channel type
+    if (!Object.values(ChannelType).includes(channelId as ChannelType)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid channel type' },
+        { status: 400 }
+      );
+    }
+
+    // Check read permissions
+    const readPermission = canReadChannel(channelId as ChannelType, user);
+    if (!readPermission.canRead) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: readPermission.reason || 'Access denied to this channel',
+        },
+        { status: 403 }
+      );
+    }
+
+    // TODO: Implement markMessagesAsRead() in chatService
+    // For now, just return success
+    // const result = await markMessagesAsRead({
+    //   channelId: channelId as ChannelType,
+    //   clanId,
+    //   username: user.username,
+    //   lastReadMessageId,
+    // });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Messages marked as read',
+        channelId,
+        lastReadMessageId,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to edit message' }, { status: 500 });
+    console.error('[API /chat PATCH] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'An unexpected error occurred while marking messages as read',
+      },
+      { status: 500 }
+    );
   }
 }
 
+// ============================================================================
+// DELETE /api/chat - Delete Message (Moderator Only)
+// ============================================================================
+
+/**
+ * DELETE /api/chat
+ * Soft-delete a message (moderator only)
+ * 
+ * Query Parameters:
+ * - messageId (required): ID of message to delete
+ * 
+ * @example
+ * DELETE /api/chat?messageId=msg_abc123
+ */
 export async function DELETE(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const { searchParams } = request.nextUrl;
-    const username = auth.playerId;
-    const user = buildPlayerContext(username, auth.player);
+    // Authenticate user
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
     const messageId = searchParams.get('messageId');
-    if (!messageId) return NextResponse.json({ success: false, error: 'messageId required' }, { status: 400 });
-    const deleted = await deleteGlobalChatMessage(messageId, username, 'User deleted');
-    return NextResponse.json({ success: deleted });
+
+    // Validate required parameters
+    if (!messageId) {
+      return NextResponse.json(
+        { success: false, error: 'messageId is required' },
+        { status: 400 }
+      );
+    }
+
+    // TODO: Check if user is moderator/admin
+    // For now, allow all authenticated users (will be restricted later)
+    // const isModerator = await checkModeratorStatus(user.username);
+    // if (!isModerator) {
+    //   return NextResponse.json(
+    //     { success: false, error: 'Moderator access required' },
+    //     { status: 403 }
+    //   );
+    // }
+
+    // TODO: Implement deleteMessage() in chatService
+    // For now, just return success
+    // const result = await deleteMessage({
+    //   messageId,
+    //   deletedBy: user.username,
+    // });
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Message deleted',
+        messageId,
+      },
+      { status: 200 }
+    );
   } catch (error) {
-    return NextResponse.json({ success: false, error: 'Failed to delete' }, { status: 500 });
+    console.error('[API /chat DELETE] Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'An unexpected error occurred while deleting message',
+      },
+      { status: 500 }
+    );
   }
 }
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * 1. Authentication:
+ *    - TODO: Currently using placeholder getAuthenticatedUser()
+ *    - Need to install next-auth and implement proper authentication
+ *    - Need to create lib/auth.ts with authOptions
+ *    - Need to fetch player data from database
+ *    - Need to check mute/ban status from moderationService
+ * 
+ * 2. Rate Limiting:
+ *    - Handled automatically by chatService.sendMessage()
+ *    - Uses checkRateLimit() internally (5 messages/minute regular, 10/minute VIP)
+ *    - Returns error if rate limit exceeded
+ *    - No need to implement rate limiting here
+ * 
+ * 3. Profanity Filtering:
+ *    - Handled automatically by chatService.sendMessage()
+ *    - Uses bad-words library + custom blacklist
+ *    - Filters message before saving to database
+ *    - No need to call filterProfanity() manually
+ * 
+ * 4. Channel Permissions:
+ *    - canReadChannel() checks level, VIP status, clan membership, bans
+ *    - canWriteChannel() includes canReadChannel() + mute check
+ *    - Returns ChannelPermissions { canRead, canWrite, reason? }
+ *    - Reason field provides user-friendly error message
+ * 
+ * 5. Mute Status:
+ *    - checkMuteStatus() queries moderation database
+ *    - Auto-expires temporary mutes
+ *    - Returns { isMuted, muteRecord?, expiresIn? }
+ *    - expiresIn is in seconds (convert to minutes for UI)
+ * 
+ * 6. Error Handling:
+ *    - 401: Authentication required
+ *    - 400: Invalid parameters (missing channelId, invalid message length)
+ *    - 403: Permission denied (muted, banned, no access)
+ *    - 500: Unexpected server error
+ *    - All errors return { success: false, error: string }
+ * 
+ * 7. Response Format:
+ *    - GET: { success: true, messages: ChatMessage[], count: number, channelId: string }
+ *    - POST: { success: true, message: ChatMessage }
+ *    - PATCH: { success: true, message: string, channelId: string, lastReadMessageId: string }
+ *    - DELETE: { success: true, message: string, messageId: string }
+ *    - Error: { success: false, error: string }
+ * 
+ * 8. TODO - Read Status (PATCH):
+ *    - Need to add markMessagesAsRead() to chatService
+ *    - Will update chat_read_status collection
+ *    - Tracks last read message per user per channel
+ *    - Used for unread message badges
+ * 
+ * 9. TODO - Message Deletion (DELETE):
+ *    - Need to add deleteMessage() to chatService
+ *    - Soft delete (sets isDeleted=true, preserves for moderation review)
+ *    - Check moderator status via moderationService
+ *    - Log deletion action for audit trail
+ *    - WebSocket emit to remove message from all clients
+ * 
+ * 10. Future Enhancements:
+ *    - WebSocket integration for real-time updates
+ *    - Message editing (PUT /api/chat/:messageId)
+ *    - Typing indicators
+ *    - Read receipts
+ *    - Message reactions
+ */

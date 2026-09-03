@@ -22,25 +22,49 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { getClientAndDatabase, requireClanMembership } from '@/lib';
 import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
+  initializeClanPerkService,
   activatePerk,
   deactivatePerk,
-  logger,
-} from '@/lib';
+} from '@/lib/clanPerkService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/perks/activate
+ * Activate or deactivate a clan perk
+ * 
+ * @param request - NextRequest with authentication cookie and perk action in body
+ * @returns NextResponse with perk activation result
+ * 
+ * @example
+ * POST /api/clan/perks/activate (Activate)
+ * Body: { action: "activate", perkId: "harvest_boost_bronze" }
+ * Response: { success: true, action: "activate", perk: {...}, message: "Perk activated successfully" }
+ * 
+ * @example
+ * POST /api/clan/perks/activate (Deactivate)
+ * Body: { action: "deactivate", perkId: "harvest_boost_bronze" }
+ * Response: { success: true, action: "deactivate", perkId: "...", message: "Perk deactivated" }
+ * 
+ * @throws {400} Missing action or perkId
+ * @throws {400} Invalid action (must be activate/deactivate)
+ * @throws {400} Insufficient bank balance
+ * @throws {400} Clan level too low
+ * @throws {400} Active perk limit reached
+ * @throws {401} Unauthorized
+ * @throws {403} Insufficient permissions (Leader/Officer only)
+ * @throws {404} Perk not found
+ * @throws {500} Failed to activate/deactivate perk
+ */
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
+    const { client, db } = await getClientAndDatabase();
 
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clanId } = result;
+
+    
 
     const body = await request.json();
     const { action, perkId } = body;
@@ -81,25 +105,24 @@ export const POST = rateLimiter(async (request: NextRequest) => {
           },
           { status: 200 }
         );
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('not a member')) {
-          return NextResponse.json({ error: errorMessage }, { status: 404 });
+      } catch (error: any) {
+        if (error.message.includes('not a member')) {
+          return NextResponse.json({ error: error.message }, { status: 404 });
         }
-        if (errorMessage.includes('Insufficient permissions')) {
-          return NextResponse.json({ error: errorMessage }, { status: 403 });
+        if (error.message.includes('Insufficient permissions')) {
+          return NextResponse.json({ error: error.message }, { status: 403 });
         }
         if (
-          errorMessage.includes('already active') ||
-          errorMessage.includes('must be level') ||
-          errorMessage.includes('not unlocked') ||
-          errorMessage.includes('Maximum active perks') ||
-          errorMessage.includes('Insufficient')
+          error.message.includes('already active') ||
+          error.message.includes('must be level') ||
+          error.message.includes('not unlocked') ||
+          error.message.includes('Maximum active perks') ||
+          error.message.includes('Insufficient')
         ) {
-          return NextResponse.json({ error: errorMessage }, { status: 400 });
+          return NextResponse.json({ error: error.message }, { status: 400 });
         }
-        if (errorMessage.includes('not found')) {
-          return NextResponse.json({ error: errorMessage }, { status: 404 });
+        if (error.message.includes('not found')) {
+          return NextResponse.json({ error: error.message }, { status: 404 });
         }
         throw error;
       }
@@ -117,29 +140,27 @@ export const POST = rateLimiter(async (request: NextRequest) => {
           },
           { status: 200 }
         );
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('not a member')) {
-          return NextResponse.json({ error: errorMessage }, { status: 404 });
+      } catch (error: any) {
+        if (error.message.includes('not a member')) {
+          return NextResponse.json({ error: error.message }, { status: 404 });
         }
-        if (errorMessage.includes('Insufficient permissions')) {
-          return NextResponse.json({ error: errorMessage }, { status: 403 });
+        if (error.message.includes('Insufficient permissions')) {
+          return NextResponse.json({ error: error.message }, { status: 403 });
         }
-        if (errorMessage.includes('not currently active')) {
-          return NextResponse.json({ error: errorMessage }, { status: 400 });
+        if (error.message.includes('not currently active')) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
         }
         throw error;
       }
     }
-  } catch (error: unknown) {
-    logger.error('Error managing clan perk:', error);
-    const errorDetails = error instanceof Error ? error.message : String(error);
+  } catch (error: any) {
+    console.error('Error managing clan perk:', error);
     return NextResponse.json(
-      { error: 'Failed to manage clan perk', details: errorDetails },
+      { error: 'Failed to manage clan perk', details: error.message },
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * IMPLEMENTATION NOTES:

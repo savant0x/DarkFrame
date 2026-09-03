@@ -46,7 +46,6 @@ export interface AutoFarmConfig {
   
   // Premium settings
   isVIP: boolean;                      // VIP status (determines speed tier)
-  speedMultiplier?: number;             // Flag bearer: 1.5 = +50% speed
   
   // Note: Harvest settings are always ALL by default
   // (metal, energy, caves, forests) - no toggles needed

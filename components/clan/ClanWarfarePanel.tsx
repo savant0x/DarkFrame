@@ -28,7 +28,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { 
   Swords, 
@@ -72,19 +72,10 @@ export default function ClanWarfarePanel({
   // Permission check
   const canManageWars = ROLE_PERMISSIONS[currentUserRole].canManageWars;
 
-  // Fetch data on mount and tab change
-  useEffect(() => {
-    if (activeTab === 'wars') {
-      fetchWars();
-    } else {
-      fetchAlliances();
-    }
-  }, [activeTab, clan._id]);
-
   /**
    * Fetches all wars involving the clan
    */
-  const fetchWars = async () => {
+  const fetchWars = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/clan/wars?clanId=${clan._id}`);
@@ -98,12 +89,12 @@ export default function ClanWarfarePanel({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clan._id]);
 
   /**
    * Fetches all alliances involving the clan
    */
-  const fetchAlliances = async () => {
+  const fetchAlliances = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/clan/alliances?clanId=${clan._id}`);
@@ -117,7 +108,16 @@ export default function ClanWarfarePanel({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clan._id]);
+
+  // Fetch data on mount and tab change
+  useEffect(() => {
+    if (activeTab === 'wars') {
+      fetchWars();
+    } else {
+      fetchAlliances();
+    }
+  }, [activeTab, fetchWars, fetchAlliances]);
 
   return (
     <div className="space-y-4">
@@ -480,7 +480,7 @@ function AlliancesTab({ alliances, clan, canManageWars, isLoading, onCreateAllia
           <p className="text-gray-400 mb-2">No active alliances</p>
           {canManageWars && (
             <p className="text-sm text-gray-500">
-              Form alliances to strengthen your clan's position
+              Form alliances to strengthen your clan{"'"}s position
             </p>
           )}
         </div>

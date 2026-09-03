@@ -19,7 +19,7 @@
  * - Clan system for authorization
  */
 
-type ObjectId = string;
+import { ObjectId } from 'mongodb';
 
 // ============================================================================
 // ENUMS
@@ -165,6 +165,19 @@ export interface DamageDistribution {
     energy: number;
   };
   calculatedAt: Date;
+}
+
+/**
+ * Damage summary written to missiles.damage_dealt (jsonb) when a missile detonates.
+ * Produced by the missile tracker job; consumed by admin/analytics aggregations.
+ */
+export interface MissileDamageRecord {
+  unitsDestroyed: number;
+  factoriesDamaged: number;
+  resourcesLost: {
+    metal: number;
+    energy: number;
+  };
 }
 
 /**

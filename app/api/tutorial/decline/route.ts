@@ -1,7 +1,6 @@
 /**
  * Tutorial Decline API Endpoint
  * Created: 2025-10-26
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * Feature: FID-20251026-001 - Tutorial Permanent Decline System
  * 
  * OVERVIEW:
@@ -21,6 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import clientPromise from '@/lib/mongodb';
 import { declineTutorial } from '@/lib/tutorialService';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -42,6 +42,11 @@ const DeclineSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
+    // Initialize tutorial service
+    const client = await clientPromise;
+    const db = client.db('darkframe');
+    
+
     // Parse and validate request body
     const body = await request.json();
     const validation = DeclineSchema.safeParse(body);
@@ -94,3 +99,4 @@ export async function GET() {
     { status: 405 }
   );
 }
+

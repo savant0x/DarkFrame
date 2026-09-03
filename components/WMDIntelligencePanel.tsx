@@ -20,7 +20,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -57,11 +57,26 @@ export default function WMDIntelligencePanel() {
   const [targetId, setTargetId] = useState('');
   const { socket, isConnected } = useWebSocketContext();
 
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/wmd/intelligence?type=${view}`);
+      const data = await res.json();
+      if (data.success) {
+        if (view === 'spies') setSpies(data.spies);
+        else setMissions(data.missions);
+      }
+    } catch (error) {
+      console.error('Failed to fetch intelligence data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [view]);
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
-  }, [view]);
+  }, [view, fetchData]);
 
   // WebSocket event subscriptions
   useEffect(() => {
@@ -77,22 +92,7 @@ export default function WMDIntelligencePanel() {
     return () => {
       socket.off('wmd:spy_mission_complete', handleMissionComplete);
     };
-  }, [socket, isConnected]);
-
-  const fetchData = async () => {
-    try {
-      const res = await fetch(`/api/wmd/intelligence?type=${view}`);
-      const data = await res.json();
-      if (data.success) {
-        if (view === 'spies') setSpies(data.spies);
-        else setMissions(data.missions);
-      }
-    } catch (error) {
-      console.error('Failed to fetch intelligence data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [socket, isConnected, fetchData]);
 
   const recruitSpy = async () => {
     setLoading(true);

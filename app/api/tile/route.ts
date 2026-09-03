@@ -1,14 +1,16 @@
 /**
  * @file app/api/tile/route.ts
  * @created 2025-10-16
- * @updated 2026-05-04 — Use mapCamelCase, eliminate ...tile spread, add harvest cooldown
  * @overview Tile data retrieval API endpoint
+ * 
+ * OVERVIEW:
+ * GET endpoint for fetching tile data by coordinates.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTileAt } from '@/lib/movementService';
-import { createServiceClient } from '@/lib/supabase/server';
-import { mapCamelCase } from '@/lib/supabase/mapCamelCase';
+import { ApiResponse, ApiError } from '@/types';
+import type { Player } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -21,14 +23,34 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
+/**
+ * GET /api/tile?x=75&y=100
+ * 
+ * Get tile data by coordinates
+ * 
+ * Response:
+ * ```json
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "x": 75,
+ *     "y": 100,
+ *     "terrain": "Metal",
+ *     "occupiedByBase": false
+ *   }
+ * }
+ * ```
+ */
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('tile-get');
   const endTimer = log.time('tile-get');
   try {
-    const { searchParams } = request.nextUrl;
+    // Get coordinates from query parameters
+    const { searchParams } = new URL(request.url);
     const xParam = searchParams.get('x');
     const yParam = searchParams.get('y');
     
+    // Validate request
     if (!xParam || !yParam) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Coordinates (x, y) are required');
     }
@@ -36,108 +58,82 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const x = parseInt(xParam, 10);
     const y = parseInt(yParam, 10);
     
+    // Validate coordinate ranges
     if (isNaN(x) || isNaN(y) || x < 1 || x > 150 || y < 1 || y > 150) {
       return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Coordinates must be numbers between 1 and 150');
     }
     
+    // Get tile
     const tile = await getTileAt(x, y);
     
     if (!tile) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Tile not found');
     }
-
-    // Full camelCase conversion — no ...tile spread
-    const tileData = mapCamelCase(tile) as Record<string, unknown>;
-
-    // Determine current reset period: tiles 1-75 reset at AM, 76-150 at PM
-    const currentResetPeriod = x >= 1 && x <= 75 ? 'AM' : 'PM';
-
-    // Query harvest records for cooldown status
-    try {
-      const supabase = createServiceClient();
-      const { data: harvestRecords } = await supabase
-        .from('tile_harvest_records')
-        .select('player_id, harvested_at')
-        .eq('tile_x', x)
-        .eq('tile_y', y)
-        .eq('reset_period', currentResetPeriod);
-
-      if (harvestRecords && harvestRecords.length > 0) {
-        tileData.lastHarvestedBy = harvestRecords.map(r => ({
-          playerId: r.player_id,
-          harvestedAt: r.harvested_at,
-        }));
+    
+    // If tile is occupied by a base, fetch the owner's username
+    if (tile.occupiedByBase) {
+      try {
+        const { getDatabase } = await import('@/lib/mongodb');
+        const db = await getDatabase();
+        const playersCollection = db.collection<Player>('players');
+        
+        const baseOwner = await playersCollection.findOne(
+          { 'base.x': x, 'base.y': y },
+          { projection: { username: 1, baseGreeting: 1 } }
+        );
+        
+        if (baseOwner) {
+          (tile as any).baseOwner = baseOwner.username;
+          (tile as any).baseGreeting = baseOwner.baseGreeting || '';
+        }
+      } catch (error) {
+        log.error('Error fetching base owner', error instanceof Error ? error : new Error(String(error)));
+        // Continue without base owner - non-critical
       }
-    } catch (error) {
-      log.error('Error fetching harvest records', error instanceof Error ? error : new Error(String(error)));
     }
 
-    // Check if any player has their base at this tile — dynamic lookup ensures
-    // bases render correctly even after a map reset where occupied_by_base may not be set
+    // Check if Flag Bearer is on this tile or if tile has trail
     try {
-      const supabase = createServiceClient();
-      const { data: baseOwner } = await supabase
-        .from('players')
-        .select('username, base_greeting')
-        .eq('base_x', x)
-        .eq('base_y', y)
-        .maybeSingle();
-
-      if (baseOwner) {
-        tileData.occupiedByBase = true;
-        tileData.baseOwner = baseOwner.username;
-        tileData.baseGreeting = (baseOwner as Record<string, unknown>).base_greeting || '';
-      }
-    } catch (error) {
-      log.error('Error fetching base owner', error instanceof Error ? error : new Error(String(error)));
-    }
-
-    try {
-      const supabase = createServiceClient();
-      const { data: flag } = await supabase
-        .from('flags')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
-
-      if (flag && flag.bearer_id) {
-        if (flag.position_x === x && flag.position_y === y) {
-          tileData.hasFlagBearer = true;
+      const { getDatabase } = await import('@/lib/mongodb');
+      const db = await getDatabase();
+      const flagDoc = await db.collection<{
+        currentHolder?: { position?: { x: number; y: number }; username?: string };
+        trail?: Array<{ x: number; y: number; expiresAt: Date }>;
+      }>('flags').findOne({});
+      
+      if (flagDoc?.currentHolder) {
+        const holder = flagDoc.currentHolder;
+        
+        // Check if bearer is on this exact tile
+        if (holder.position && holder.position.x === x && holder.position.y === y) {
+          (tile as { hasFlagBearer?: boolean }).hasFlagBearer = true;
+        }
+        
+        // Check if this tile has a trail entry (not expired)
+        const now = new Date();
+        const trailEntry = (flagDoc.trail || []).find((t: any) => 
+          t.x === x && t.y === y && new Date(t.expiresAt) > now
+        );
+        
+        if (trailEntry && !tile.hasFlagBearer) {
+          (tile as { hasTrail?: boolean }).hasTrail = true;
+          (tile as { trailTimestamp?: Date }).trailTimestamp = trailEntry.expiresAt;
+          (tile as { trailExpiresAt?: Date }).trailExpiresAt = trailEntry.expiresAt;
         }
       }
     } catch (error) {
-      log.error('Error checking flag bearer', error instanceof Error ? error : new Error(String(error)));
-    }
-
-    // Check for bots (including beer bases) at this tile — they use current_x/current_y
-    try {
-      const supabase = createServiceClient();
-      const { data: botAtTile } = await supabase
-        .from('players')
-        .select('username, is_special_base, total_strength, total_defense, resources_metal, resources_energy, spec_doctrine')
-        .eq('is_bot', true)
-        .eq('current_x', x)
-        .eq('current_y', y)
-        .maybeSingle();
-
-      if (botAtTile) {
-        const tierMatch = botAtTile.username?.match(/-(WEAK|MID|STRONG|ELITE|ULTRA|LEGENDARY)-/);
-        tileData.botAtLocation = {
-          username: botAtTile.username,
-          isBeerBase: botAtTile.is_special_base || false,
-          tier: tierMatch ? tierMatch[1] : 'WEAK',
-          specialization: botAtTile.spec_doctrine || 'balanced',
-          strength: botAtTile.total_strength || 0,
-          defense: botAtTile.total_defense || 0,
-          resources: { metal: botAtTile.resources_metal || 0, energy: botAtTile.resources_energy || 0 },
-        };
-      }
-    } catch (error) {
-      log.error('Error checking bot at tile', error instanceof Error ? error : new Error(String(error)));
+      log.error('Error checking flag bearer/trail', error instanceof Error ? error : new Error(String(error)));
+      // Continue without flag data - non-critical
     }
     
-    log.debug('Tile data retrieved', { x, y, terrain: tile.terrain, occupied_by_base: tile.occupied_by_base });
-    return NextResponse.json({ success: true as const, data: tileData });
+    // Build response
+    const successResponse: ApiResponse = {
+      success: true,
+      data: tile
+    };
+    
+    log.info('Tile data retrieved', { x, y, terrain: tile.terrain, occupiedByBase: tile.occupiedByBase });
+    return NextResponse.json(successResponse);
     
   } catch (error) {
     log.error('Failed to fetch tile', error instanceof Error ? error : new Error(String(error)));
@@ -146,3 +142,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     endTimer();
   }
 }));
+
+// ============================================================
+// END OF FILE
+// ============================================================

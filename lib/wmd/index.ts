@@ -83,9 +83,11 @@ export * from './clanTreasuryWMDService';
 // SUB-MODULES
 // ============================================================================
 
-// Admin services and job utilities still use MongoDB - import directly from their paths:
-// import { analyzeWMDActivity } from '@/lib/wmd/admin';
-// import { scheduleMissileTracking } from '@/lib/wmd/jobs';
+// Re-export admin services
+export * from './admin';
+
+// Re-export background job utilities
+export * from './jobs';
 
 // ============================================================================
 // IMPLEMENTATION NOTES

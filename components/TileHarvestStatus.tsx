@@ -1,18 +1,17 @@
 // ============================================================
 // FILE: components/TileHarvestStatus.tsx
 // CREATED: 2025-01-23
-// UPDATED: 2026-05-04 — Fix field name (timestamp→harvestedAt), AM/PM reset logic
 // ============================================================
 // OVERVIEW:
-// Tile harvest cooldown indicator displayed in top-right corner.
-// Uses AM/PM reset periods: tiles X 1-75 reset at midnight, 76-150 at noon.
-// Shows countdown based on actual DB harvest records filtered by current period.
+// Tile harvest cooldown indicator component displayed in top-right corner.
+// Shows last harvest time and countdown until next harvest is available.
+// Automatically updates every second with smooth animations.
 // ============================================================
 
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Clock, CheckCircle } from 'lucide-react';
+import { Clock, CheckCircle, XCircle } from 'lucide-react';
 import { TerrainType } from '@/types/game.types';
 
 interface TileHarvestStatusProps {
@@ -22,25 +21,14 @@ interface TileHarvestStatusProps {
     terrain: TerrainType;
     lastHarvestedBy?: Array<{
       playerId: string;
-      harvestedAt: string;
+      timestamp: Date;
+      resetPeriod: string;
     }>;
   } | null;
   playerUsername: string;
 }
 
-function getNextResetMs(x: number): number {
-  const now = new Date();
-  if (x >= 1 && x <= 75) {
-    const reset = new Date(now);
-    reset.setHours(0, 0, 0, 0);
-    if (reset <= now) reset.setDate(reset.getDate() + 1);
-    return reset.getTime();
-  }
-  const reset = new Date(now);
-  reset.setHours(12, 0, 0, 0);
-  if (reset <= now) reset.setDate(reset.getDate() + 1);
-  return reset.getTime();
-}
+const HARVEST_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 export default function TileHarvestStatus({ currentTile, playerUsername }: TileHarvestStatusProps) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -53,6 +41,7 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
       return;
     }
 
+    // Only show for harvestable terrains
     const harvestableTerrains = [
       TerrainType.Metal,
       TerrainType.Energy,
@@ -67,7 +56,14 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
     }
 
     const updateStatus = () => {
-      const playerHarvest = currentTile.lastHarvestedBy?.find(
+      if (!currentTile.lastHarvestedBy) {
+        setTimeLeft(null);
+        setIsReady(true);
+        return;
+      }
+
+      // Find this player's last harvest
+      const playerHarvest = currentTile.lastHarvestedBy.find(
         (h) => h.playerId === playerUsername
       );
 
@@ -77,16 +73,10 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
         return;
       }
 
-      const harvestedAtMs = new Date(playerHarvest.harvestedAt).getTime();
-      if (isNaN(harvestedAtMs)) {
-        setTimeLeft(null);
-        setIsReady(true);
-        return;
-      }
-
+      const lastHarvestTime = new Date(playerHarvest.timestamp).getTime();
       const now = Date.now();
-      const nextResetMs = getNextResetMs(currentTile.x);
-      const remaining = nextResetMs - now;
+      const elapsed = now - lastHarvestTime;
+      const remaining = HARVEST_COOLDOWN_MS - elapsed;
 
       if (remaining <= 0) {
         setTimeLeft(null);
@@ -103,6 +93,7 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
     return () => clearInterval(interval);
   }, [currentTile, playerUsername]);
 
+  // Don't render if no current tile or not harvestable
   if (!currentTile) return null;
 
   const harvestableTerrains = [
@@ -115,11 +106,10 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
   if (!harvestableTerrains.includes(currentTile.terrain)) return null;
 
   const formatTime = (ms: number): string => {
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -140,7 +130,7 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
           <>
             <Clock className="w-4 h-4 animate-pulse" />
             <div className="flex flex-col">
-              <span className="text-xs font-semibold">Next Reset</span>
+              <span className="text-xs font-semibold">Harvest Cooldown</span>
               <span className="text-sm font-mono font-bold">
                 {timeLeft !== null && formatTime(timeLeft)}
               </span>

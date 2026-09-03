@@ -1,13 +1,13 @@
 /**
  * @file app/api/admin/rp-economy/milestone-stats/route.ts
  * @created 2025-10-20
- * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  * @overview API endpoint for daily harvest milestone statistics
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { sql } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -29,28 +29,48 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-milestone-stats');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
-
-    const supabase = createServiceClient();
-
-    const { data: players } = await supabase
-      .from('players')
-      .select('username, research_points');
-
-    const milestones: Record<string, number> = {};
-    for (const p of (players || [])) {
-      const rp = p.research_points || 0;
-      const tier = rp >= 10000 ? '10k+' : rp >= 5000 ? '5k-9k' : rp >= 1000 ? '1k-4k' : rp >= 100 ? '100-999' : rp > 0 ? '1-99' : '0';
-      milestones[tier] = (milestones[tier] || 0) + 1;
+    const adminUser = await getAuthenticatedUser();
+    if (!adminUser?.isAdmin) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
     }
 
-    log.info('Milestone stats retrieved', { milestoneCount: Object.keys(milestones).length });
+    const milestoneThresholds = [1000, 2500, 5000, 10000, 15000, 22500];
 
-    return NextResponse.json({
-      success: true,
-      milestones: Object.entries(milestones).map(([tier, count]) => ({ tier, count })),
-    });
+    const milestones = await Promise.all(
+      milestoneThresholds.map(async (threshold) => {
+        const result = await db.execute(sql`
+          SELECT COUNT(*) as count FROM rpTransactions
+          WHERE source = 'harvest_milestone'
+            AND JSON_EXTRACT(metadata, '$.threshold') = ${threshold}
+        `);
+
+        const completions = (result as any)[0]?.count || 0;
+
+        const milestoneAmounts: Record<number, number> = {
+          1000: 500,
+          2500: 750,
+          5000: 1000,
+          10000: 1500,
+          15000: 1250,
+          22500: 1000
+        };
+
+        const rpAwarded = completions * (milestoneAmounts[threshold] || 0);
+
+        const completionRate = completions > 0 ? (completions / Math.max(completions, 1)) * 100 : 0;
+
+        return {
+          threshold,
+          completions,
+          rpAwarded,
+          completionRate
+        };
+      })
+    );
+
+    log.info('Milestone stats retrieved', { milestoneCount: milestones.length });
+
+    return NextResponse.json({ milestones });
 
   } catch (error) {
     log.error('Failed to fetch milestone stats', error instanceof Error ? error : new Error(String(error)));

@@ -13,7 +13,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { Achievement, AchievementCategory, AchievementRarity } from '@/types/game.types';
 import { Card } from '@/components/ui/Card';
@@ -124,17 +124,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
   // DATA FETCHING
   // ============================================================
 
-  /**
-   * Fetch achievement progress data from server
-   * Loads all achievements with progress, unlock status, and category breakdown
-   */
-  useEffect(() => {
-    if (isOpen && username) {
-      fetchProgress();
-    }
-  }, [isOpen, username]);
-
-  const fetchProgress = async () => {
+  const fetchProgress = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -152,7 +142,13 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [username]);
+
+  useEffect(() => {
+    if (isOpen && username) {
+      fetchProgress();
+    }
+  }, [isOpen, username, fetchProgress]);
 
   // ============================================================
   // FILTERING
@@ -253,7 +249,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                     All Achievements Unlocked!
                   </div>
                   <div className="text-white">
-                    You've earned all {progressData.totalAvailable} achievements and unlocked every prestige unit!
+                    You{"'"}ve earned all {progressData.totalAvailable} achievements and unlocked every prestige unit!
                   </div>
                 </div>
               )}
@@ -319,7 +315,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                             <div className="bg-black/30 rounded p-2 mb-3">
                               <div className="text-gray-400 mb-1 text-xs">Requirement:</div>
                               <div className="text-white font-semibold text-sm">
-                                {achievement.requirement?.type}: {achievement.requirement?.value?.toLocaleString() ?? 'N/A'}
+                                {achievement.requirement.type}: {achievement.requirement.value.toLocaleString()}
                               </div>
                             </div>
 

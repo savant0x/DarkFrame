@@ -12,9 +12,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
-import { logger } from '@/lib';
+import { db } from '@/lib/db';
+import { factories } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 
 const FACTORY_UPGRADE = {
   BASE_SLOTS: 5000,
@@ -25,63 +25,38 @@ function getMaxSlots(level: number): number {
   return FACTORY_UPGRADE.BASE_SLOTS + ((level - 1) * FACTORY_UPGRADE.SLOTS_PER_LEVEL);
 }
 
-/**
- * POST /api/admin/migrate-factory-slots
- * One-time migration to update all factory slot capacities
- */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdminAuth(request);
-  if (auth instanceof NextResponse) return auth;
-
   try {
-    const supabase = createServiceClient();
-
-    // Get all factories
-    const { data: factories, error: fetchError } = await supabase
-      .from('factories')
-      .select('*');
-
-    if (fetchError) {
-      throw fetchError;
-    }
+    const allFactories = await db.select().from(factories);
     
-    if (!factories || factories.length === 0) {
+    if (allFactories.length === 0) {
       return NextResponse.json({
         success: false,
         error: 'No factories found in database'
       });
     }
 
-    // Update factories in parallel
     let modifiedCount = 0;
-    const updateResults = await Promise.all(
-      factories.map(async (factory) => {
-        const level = factory.level || 1;
-        const newSlots = getMaxSlots(level);
 
-        const { error: updateError } = await supabase
-          .from('factories')
-          .update({ slots: newSlots })
-          .eq('id', factory.id);
-
-        if (!updateError) {
-          modifiedCount++;
-        }
-
-        return { error: updateError, factory };
-      })
-    );
-
-    // Get summary by level — process in JS
-    const levelMap = new Map<number, { count: number; totalSlots: number }>();
-
-    for (const { factory } of updateResults) {
+    for (const factory of allFactories) {
       const level = factory.level || 1;
-      const slots = getMaxSlots(level);
+      const newSlots = getMaxSlots(level);
+      
+      await db.update(factories)
+        .set({ slots: newSlots })
+        .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
+      
+      modifiedCount++;
+    }
 
+    const updatedFactories = await db.select().from(factories);
+    
+    const levelMap = new Map<number, { count: number, totalSlots: number }>();
+    for (const factory of updatedFactories) {
+      const level = factory.level || 1;
       const existing = levelMap.get(level) || { count: 0, totalSlots: 0 };
       existing.count++;
-      existing.totalSlots += slots;
+      existing.totalSlots += factory.slots || 0;
       levelMap.set(level, existing);
     }
 
@@ -90,17 +65,17 @@ export async function POST(request: NextRequest) {
       .map(([level, data]) => ({
         level,
         count: data.count,
-        slots: Math.round(data.totalSlots / data.count),
+        slots: Math.round(data.totalSlots / data.count)
       }));
 
     return NextResponse.json({
       success: true,
       message: 'Factory slot migration complete',
       statistics: {
-        totalFactories: factories.length,
+        totalFactories: allFactories.length,
         modified: modifiedCount,
-        matched: factories.length,
-        byLevel: levelSummary,
+        matched: modifiedCount,
+        byLevel: levelSummary
       },
       formula: {
         old: '10 + ((level - 1) × 2)',
@@ -109,7 +84,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Factory slot migration error:', error);
+    console.error('Factory slot migration error:', error);
     return NextResponse.json({
       success: false,
       error: 'Migration failed',
@@ -118,25 +93,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/admin/migrate-factory-slots
- * Preview what the migration will do (doesn't update anything)
- */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-
-    // Get sample factories (limit 10)
-    const { data: factories, error: fetchError } = await supabase
-      .from('factories')
-      .select('*')
-      .limit(10);
-
-    if (fetchError) {
-      throw fetchError;
-    }
-
-    const preview = (factories || []).map((factory) => {
+    const sampleFactories = await db.select().from(factories).limit(10);
+    
+    const preview = sampleFactories.map((factory) => {
       const level = factory.level || 1;
       const oldSlots = factory.slots || 10;
       const newSlots = getMaxSlots(level);
@@ -151,15 +112,13 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Get total count
-    const { count: totalCount } = await supabase
-      .from('factories')
-      .select('*', { count: 'exact', head: true });
+    const allFactories = await db.select().from(factories);
+    const totalCount = allFactories.length;
 
     return NextResponse.json({
       success: true,
       preview,
-      totalFactories: totalCount || 0,
+      totalFactories: totalCount,
       formula: {
         old: '10 + ((level - 1) × 2)',
         new: '5000 + ((level - 1) × 500)'
@@ -168,7 +127,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    logger.error('Factory slot migration preview error:', error);
+    console.error('Factory slot migration preview error:', error);
     return NextResponse.json({
       success: false,
       error: 'Preview failed',

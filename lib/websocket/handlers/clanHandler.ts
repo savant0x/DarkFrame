@@ -8,8 +8,10 @@
  */
 
 import type { Server, Socket } from 'socket.io';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { AuthenticatedUser } from '../auth';
+import { db } from '@/lib/db';
+import { clans } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import type { AuthenticatedUser, isClanMember, validateClanAction } from '../auth';
 import {
   broadcastClanMemberJoined,
   broadcastClanMemberLeft,
@@ -23,6 +25,7 @@ import { autoJoinRooms, autoLeaveClanRooms } from '../rooms';
 import type {
   ClanWarDeclaredPayload,
 } from '@/types/websocket';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Handles clan room join request
@@ -65,36 +68,24 @@ export async function handleDeclareWar(
   }
   
   try {
-    const supabase = createServiceClient();
-    
-    // Fetch clan names
-    const [{ data: attackerClan }, { data: defenderClan }] = await Promise.all([
-      supabase.from('clans').select('id, name').eq('id', user.clanId).single(),
-      supabase.from('clans').select('id, name').eq('id', data.targetClanId).single(),
+    const [attackerClan, defenderClan] = await Promise.all([
+      db.select().from(clans).where(eq(clans.id, user.clanId)).limit(1),
+      db.select().from(clans).where(eq(clans.id, data.targetClanId)).limit(1),
     ]);
     
-    if (!attackerClan || !defenderClan) {
+    if (attackerClan.length === 0 || defenderClan.length === 0) {
       console.error('[Clan Handler] Clan not found for war declaration');
       return;
     }
     
-    // Create war record
-    const warId = crypto.randomUUID();
-    await supabase.from('clan_wars').insert({
-      war_id: warId,
-      attacker_clan_id: user.clanId,
-      defender_clan_id: data.targetClanId,
-      status: 'ACTIVE',
-      declared_at: new Date().toISOString(),
-    });
+    const warId = randomUUID();
     
-    // Broadcast war declaration
     const payload: ClanWarDeclaredPayload = {
       warId,
       attackerClanId: user.clanId,
-      attackerClanName: attackerClan.name,
+      attackerClanName: attackerClan[0].name,
       defenderClanId: data.targetClanId,
-      defenderClanName: defenderClan.name,
+      defenderClanName: defenderClan[0].name,
       warType: data.warType,
       declaredAt: Date.now(),
       declaredBy: user.userId,
@@ -102,20 +93,17 @@ export async function handleDeclareWar(
     
     await broadcastWarDeclaration(io, payload);
     
-    console.log(`[Clan Handler] War declared: ${attackerClan.name} vs ${defenderClan.name}`);
+    console.log(`[Clan Handler] War declared: ${attackerClan[0].name} vs ${defenderClan[0].name}`);
     
   } catch (error) {
     console.error('[Clan Handler] Failed to declare war:', error);
   }
 }
 
-// Export placeholder functions for other clan operations
 export async function handleClanTreasuryDeposit(io: Server, user: AuthenticatedUser, resourceType: string, amount: number): Promise<void> {
-  // Implementation similar to war declaration with treasury updates
   console.log(`[Clan Handler] ${user.username} deposited ${amount} ${resourceType} to clan treasury`);
 }
 
 export async function handleClanMemberPromote(io: Server, user: AuthenticatedUser, targetUserId: string, newRole: string): Promise<void> {
-  // Implementation for role changes
   console.log(`[Clan Handler] Member promoted by ${user.username}`);
 }

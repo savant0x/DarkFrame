@@ -15,7 +15,7 @@
 // ============================================================================
 
 // Re-export MongoDB utilities
-export { createServiceClient } from './supabase/server';
+export * from './mongodb';
 
 // Re-export authentication service
 export * from './authService';
@@ -128,7 +128,7 @@ export * from './combatPowerService';
 export { 
   calculateDistance,
   getCompassDirection,
-  isInChallengeRange,
+  isInAttackRange,
   buildTrackerData,
   getCompassArrow,
   formatHoldDuration,
@@ -385,3 +385,4 @@ export * from './specializationService';
 // - Add JSDoc comments for key exports
 // 
 // ============================================================================
+export { getDatabase, getClientAndDatabase } from './mongodb';

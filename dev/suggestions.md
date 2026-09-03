@@ -2,59 +2,14 @@
 
 > Dynamic recommendations for system optimization and enhancement
 
-**Last Updated:** 2026-05-11
-**Active Suggestions:** 5
-**Implemented:** 25+
+**Last Updated:** 2025-10-26  
+**Active Suggestions:** 15  
+**Implemented:** 8  
 **Review Cycle:** Weekly
 
 ---
 
-## ✅ Implemented (May 11, 2026)
-
-### Factory & Unit Redesign
-- S-FACTORY-01: Burst+Decay slot model — ✅ Implemented
-- S-FACTORY-02: Map entropy (72h degradation) — ✅ Implemented
-- S-FACTORY-03: Terrain modifiers — ✅ Implemented
-- S-FACTORY-04: Factory archetypes — ✅ Implemented
-- S-UNIT-01: Reduce 65 types to 20 focused units — ✅ Implemented
-- S-UNIT-02: Orthogonal cost scaling — ✅ Implemented
-- S-UNIT-03: Intransitive combat (RPS) — ✅ Implemented
-- S-COMBAT-01: Multi-phase combat algorithm — ✅ Implemented
-- S-COMBAT-02: After-Action Report text generation — ✅ Implemented
-- S-ECON-01: Operational Data currency — ✅ Implemented
-
----
-
-## 🔥 NEW: Economy Balance (CRITICAL)
-
-### 🔴 S-NEW-01: Convert Multiplicative to Additive Multipliers
-**Priority:** CRITICAL
-**Status:** PLANNED (FID-20260506-BALANCE-P1)
-**Impact:** Without this, no other balance changes matter. Multiplicative stacking (VIP 2x × Flag 2x × Shrine 2x × Diggers 10x+) is the root cause of economic collapse.
-
-### 🔴 S-NEW-02: Reduce Digger Drop Rate by 10-15x
-**Priority:** CRITICAL
-**Status:** PLANNED (FID-20260506-BALANCE-P1)
-**Impact:** 400 diggers per reset is game-breaking. Target: 0-3 per 12h session.
-
-### 🔴 S-NEW-03: Implement Resource Sinks
-**Priority:** CRITICAL
-**Status:** PLANNED (FID-20260506-BALANCE-P2)
-**Impact:** Zero sinks means infinite accumulation. Need unit upkeep, tool durability, PvP burn.
-
-### 🟡 S-NEW-04: Add Auto-Farm Maintenance System
-**Priority:** HIGH
-**Status:** PLANNED (FID-20260506-BALANCE-P2)
-**Impact:** Tool durability creates engagement sink without hard restrictions.
-
-### 🟡 S-NEW-05: Implement Achievement System
-**Priority:** MEDIUM
-**Status:** PLANNED (FID-20260506-BALANCE-P4)
-**Impact:** Gives players long-term goals beyond main progression.
-
----
-
-## 🔥 HIGH IMPACT (Active Monitoring)
+## 🔥 **HIGH IMPACT** (Active Monitoring - Immediate Value)
 
 ### 1. ✅ Real-Time Compliance Monitoring [IMPLEMENTED]
 **Status:** Active  

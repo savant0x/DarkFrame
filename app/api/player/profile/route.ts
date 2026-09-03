@@ -1,78 +1,85 @@
+/**
+ * @file app/api/player/profile/route.ts
+ * @created 2025-10-18
+ * @overview Player profile data API endpoint
+ * 
+ * OVERVIEW:
+ * Returns comprehensive player profile data including stats, achievements, and base info.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  withRequestLogging,
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
-  createErrorFromException,
-  ErrorCode,
-  logger,
-} from '@/lib';
+import { getCollection } from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { Player } from '@/types';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+/**
+ * GET /api/player/profile
+ * 
+ * Get current player's full profile data
+ * Uses cookie authentication
+ */
+export async function GET(request: NextRequest) {
   try {
-    const { requireAuth } = await import('@/lib/authMiddleware');
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = request.nextUrl.searchParams.get('username') || auth.username;
-    const supabase = createServiceClient();
+    // Authenticate user from cookie
+    const user = await getAuthenticatedUser();
 
-    const { data: player } = await supabase
-      .from('players')
-      .select('username, level, rank, resources_metal, resources_energy, base_x, base_y, base_greeting, created_at, battle_base_initiated, battle_base_won, battle_base_lost, battle_infantry_initiated, battle_infantry_won, battle_infantry_lost, battle_base_defense_total, battle_base_defense_won, battle_base_defense_lost')
-      .eq('username', username)
-      .maybeSingle();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
+    
+    const username = user.username;
+
+    // Get player data
+    const playersCollection = await getCollection<Player>('players');
+    const player = await playersCollection.findOne({ username });
 
     if (!player) {
-      return createErrorResponse(ErrorCode.NOT_FOUND, 'Player not found');
+      return NextResponse.json(
+        { success: false, error: 'Player not found' },
+        { status: 404 }
+      );
     }
 
-    const { data: achievements } = await supabase
-      .from('player_achievements')
-      .select('*')
-      .eq('player_username', username);
-
+    // Build profile response
     const profileData = {
       username: player.username,
       level: player.level || 1,
       rank: player.rank || 1,
       resources: {
-        metal: player.resources_metal || 0,
-        energy: player.resources_energy || 0
+        metal: player.resources?.metal || 0,
+        energy: player.resources?.energy || 0
       },
       base: {
-        x: player.base_x,
-        y: player.base_y,
-        greeting: player.base_greeting || ''
+        x: player.base.x,
+        y: player.base.y,
+        greeting: player.baseGreeting || ''
       },
-      battleStats: {
-        infantryAttacks: {
-          initiated: player.battle_infantry_initiated || 0,
-          won: player.battle_infantry_won || 0,
-          lost: player.battle_infantry_lost || 0
-        },
-        baseAttacks: {
-          initiated: player.battle_base_initiated || 0,
-          won: player.battle_base_won || 0,
-          lost: player.battle_base_lost || 0
-        },
-        baseDefenses: {
-          total: player.battle_base_defense_total || 0,
-          won: player.battle_base_defense_won || 0,
-          lost: player.battle_base_defense_lost || 0
-        }
+      battleStats: player.battleStats || {
+        infantryAttacks: { initiated: 0, won: 0, lost: 0 },
+        baseAttacks: { initiated: 0, won: 0, lost: 0 },
+        baseDefenses: { total: 0, won: 0, lost: 0 }
       },
-      achievements: achievements || [],
-      joinedAt: player.created_at || new Date().toISOString()
+      achievements: player.achievements || [],
+      joinedAt: player.createdAt || new Date().toISOString()
     };
 
-    return NextResponse.json({ success: true, data: profileData });
+    return NextResponse.json({
+      success: true,
+      data: profileData
+    });
 
   } catch (error) {
-    logger.error('Error loading profile:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('❌ Error loading profile:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to load profile' },
+      { status: 500 }
+    );
   }
-}));
+}
+
+// ============================================================
+// END OF FILE
+// ============================================================

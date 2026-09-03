@@ -19,9 +19,8 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Filter, Pin, Archive, MessageCircle, Clock } from 'lucide-react';
-import { useWebSocket } from '@/hooks/useWebSocket';
 import type { Conversation, MessageInboxState } from '@/types/messaging.types';
 
 interface MessageInboxProps {
@@ -37,7 +36,6 @@ export default function MessageInbox({
   selectedConversationId,
   className = '',
 }: MessageInboxProps) {
-  const { on, isConnected } = useWebSocket();
   const [state, setState] = useState<MessageInboxState>({
     conversations: [],
     selectedConversationId,
@@ -53,7 +51,7 @@ export default function MessageInbox({
   /**
    * Load conversations from API
    */
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       setState(prev => ({ ...prev, isLoading: true, error: undefined }));
 
@@ -109,12 +107,12 @@ export default function MessageInbox({
         isLoading: false,
       }));
     }
-  };
+  }, [playerId, state.filter, state.searchQuery]);
 
   // Load conversations on mount and when filter/search changes
   useEffect(() => {
     loadConversations();
-  }, [playerId, state.filter]);
+  }, [loadConversations]);
 
   // Debounced search
   useEffect(() => {
@@ -125,40 +123,7 @@ export default function MessageInbox({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [state.searchQuery]);
-
-  // Real-time updates via WebSocket
-  useEffect(() => {
-    if (!isConnected) return;
-
-    const unsubMessage = on('message:receive', () => {
-      loadConversations();
-    });
-
-    const unsubConversation = on('conversation:updated', (payload) => {
-      setState(prev => ({
-        ...prev,
-        conversations: prev.conversations.map(c =>
-          c._id === payload._id ? {
-            ...c,
-            lastMessage: payload.lastMessage ? {
-              content: payload.lastMessage.content,
-              senderId: payload.lastMessage.senderId,
-              createdAt: new Date(payload.lastMessage.createdAt),
-              status: payload.lastMessage.status,
-            } : undefined,
-            unreadCount: payload.unreadCount,
-            updatedAt: new Date(payload.updatedAt),
-          } : c
-        ),
-      }));
-    });
-
-    return () => {
-      unsubMessage();
-      unsubConversation();
-    };
-  }, [isConnected, on]);
+  }, [state.searchQuery, loadConversations]);
 
   // ========================================================================
   // EVENT HANDLERS

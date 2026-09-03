@@ -1,12 +1,21 @@
 /**
  * @file app/api/admin/player-activity/route.ts
  * @created 2025-10-18
- * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
+ * @overview Get detailed activity logs for a specific player
+ * 
+ * OVERVIEW:
+ * Returns paginated activity history for a player including all actions,
+ * timestamps, metadata, and session information. Used by admin dashboard
+ * to monitor individual player behavior and investigate flags.
+ * 
+ * Access: Admin only (rank >= 5)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { playerActivity } from '@/lib/db/schema';
+import { eq, desc, and, gte, sql } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -19,67 +28,93 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
+/**
+ * GET /api/admin/player-activity?userId=PlayerOne&limit=100&page=1
+ * 
+ * Get activity history for a specific player
+ * 
+ * Query params:
+ * - userId: Player username (required)
+ * - limit: Records per page (default: 50, max: 500)
+ * - page: Page number (default: 1)
+ * - action: Filter by action type (optional)
+ * - hoursAgo: Only get activities from last X hours (optional)
+ * 
+ * Returns:
+ * - activities: Array of PlayerActivity records
+ * - totalCount: Total matching records
+ * - page: Current page
+ * - totalPages: Total pages available
+ * 
+ * @example
+ * GET /api/admin/player-activity?userId=PlayerOne&limit=50&page=1
+ * GET /api/admin/player-activity?userId=PlayerOne&action=harvest&hoursAgo=24
+ */
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('admin/player-activity');
   const endTimer = log.time('get-player-activity');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const user = await getAuthenticatedUser();
+
+    if (!user || (user.rank ?? 0) < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required (rank 5+)');
+    }
 
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get('userId');
+    const limitStr = searchParams.get('limit') || '50';
+    const pageStr = searchParams.get('page') || '1';
+    const actionFilter = searchParams.get('action');
+    const hoursAgoStr = searchParams.get('hoursAgo');
+
     if (!userId) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'userId parameter required');
     }
 
-    const limitStr = searchParams.get('limit') || '50';
-    const pageStr = searchParams.get('page') || '1';
-    const hoursAgoStr = searchParams.get('hoursAgo');
-
     const limit = Math.min(parseInt(limitStr), 500);
     const page = Math.max(parseInt(pageStr), 1);
+    const skip = (page - 1) * limit;
 
-    const supabase = createServiceClient();
+    const conditions = [eq(playerActivity.playerId, userId)];
 
-    let query = supabase
-      .from('player_rp_history')
-      .select('*', { count: 'exact' })
-      .eq('player_username', userId)
-      .order('created_at', { ascending: false });
+    if (actionFilter) {
+      conditions.push(eq(playerActivity.action, actionFilter));
+    }
 
     if (hoursAgoStr) {
       const hoursAgo = parseInt(hoursAgoStr);
-      const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-      query = query.gte('created_at', cutoffTime);
+      const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+      conditions.push(gte(playerActivity.timestamp, cutoffTime));
     }
 
-    const start = (page - 1) * limit;
-    query = query.range(start, start + limit - 1);
+    const totalCountResult = await db.select({ count: sql<number>`count(*)` })
+      .from(playerActivity)
+      .where(and(...conditions));
 
-    const { data: activities, count: totalCount, error } = await query;
+    const totalCount = Number(totalCountResult[0]?.count || 0);
 
-    if (error) throw error;
+    const activities = await db.select()
+      .from(playerActivity)
+      .where(and(...conditions))
+      .orderBy(desc(playerActivity.timestamp))
+      .limit(limit)
+      .offset(skip);
 
-    const totalPages = Math.ceil((totalCount || 0) / limit);
+    const totalPages = Math.ceil(totalCount / limit);
 
     log.info('Player activity retrieved', {
       userId,
-      totalCount: totalCount || 0,
+      totalCount,
       page,
       totalPages,
+      actionFilter: actionFilter || 'all',
     });
 
     return NextResponse.json({
       success: true,
-      activities: (activities || []).map(a => ({
-        userId: a.player_username,
-        action: a.reason,
-        timestamp: a.created_at,
-        metadata: { amount: a.amount, balance: a.balance },
-        _id: a.id,
-      })),
-      totalCount: totalCount || 0,
+      activities,
+      totalCount,
       page,
       totalPages,
       limit,
@@ -91,3 +126,14 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     endTimer();
   }
 }));
+
+// ============================================================
+// IMPLEMENTATION NOTES:
+// ============================================================
+// - Admin only access (rank >= 5)
+// - Pagination to handle large activity histories
+// - Optional filtering by action type and time period
+// - Sorted by timestamp descending (newest first)
+// - Returns metadata for detailed investigation
+// - Used by admin dashboard player detail view
+// ============================================================

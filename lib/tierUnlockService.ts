@@ -1,105 +1,249 @@
 /**
  * @file lib/tierUnlockService.ts
- * @overview Tier unlock service — Supabase backend with hybrid RP + metal costs
+ * @created 2025-10-17
+ * @overview Tier unlock service for managing RP-based unit tier unlocks
+ * 
+ * OVERVIEW:
+ * Handles unlocking of unit tiers using Research Points (RP). Players must spend
+ * RP to unlock higher unit tiers. Once unlocked, a tier remains accessible forever.
+ * Tier 1 is always unlocked by default.
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import { UnitTier, TIER_UNLOCK_REQUIREMENTS } from '@/types';
+import { getCollection } from './mongodb';
+import { Player, UnitTier, TIER_UNLOCK_REQUIREMENTS } from '@/types';
 
-export interface TierRequirements {
-  level: number;
-  rp: number;
-  metal: number;
-}
-
+/**
+ * Check if player can unlock a specific tier
+ * 
+ * @param playerId - Player username
+ * @param tier - Tier to check (1-5)
+ * @returns Object with canUnlock status and reason if false
+ */
 export async function canUnlockTier(
-  username: string,
+  playerId: string,
   tier: UnitTier
-): Promise<{ canUnlock: boolean; reason?: string; requirements?: TierRequirements }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('*').eq('username', username).single();
+): Promise<{ canUnlock: boolean; reason?: string; requirements?: { level: number; rp: number } }> {
+  const playersCollection = await getCollection<Player>('players');
+  const player = await playersCollection.findOne({ username: playerId });
 
-  if (!player) return { canUnlock: false, reason: 'Player not found' };
-  if (tier === UnitTier.Tier1) return { canUnlock: true };
+  if (!player) {
+    return { canUnlock: false, reason: 'Player not found' };
+  }
+
+  // Tier 1 is always unlocked
+  if (tier === UnitTier.Tier1) {
+    return { canUnlock: true };
+  }
 
   const requirements = TIER_UNLOCK_REQUIREMENTS[tier];
 
-  if (player.unlocked_tiers?.includes(String(tier) as "1" | "2" | "3" | "4" | "5")) return { canUnlock: false, reason: 'Tier already unlocked' };
-  if (player.level < requirements.level) return { canUnlock: false, reason: `Requires level ${requirements.level} (current: ${player.level})`, requirements };
-  if (player.research_points < requirements.rp) return { canUnlock: false, reason: `Requires ${requirements.rp} RP (current: ${player.research_points})`, requirements };
-  if ((player.resources_metal || 0) < requirements.metal) return { canUnlock: false, reason: `Requires ${requirements.metal.toLocaleString()} metal (current: ${(player.resources_metal || 0).toLocaleString()})`, requirements };
+  // Check if already unlocked
+  if (player.unlockedTiers?.includes(tier)) {
+    return { canUnlock: false, reason: 'Tier already unlocked' };
+  }
+
+  // Check level requirement
+  if (player.level < requirements.level) {
+    return {
+      canUnlock: false,
+      reason: `Requires level ${requirements.level} (current: ${player.level})`,
+      requirements
+    };
+  }
+
+  // Check RP requirement
+  if (player.researchPoints < requirements.rp) {
+    return {
+      canUnlock: false,
+      reason: `Requires ${requirements.rp} RP (current: ${player.researchPoints})`,
+      requirements
+    };
+  }
 
   return { canUnlock: true, requirements };
 }
 
+/**
+ * Unlock a tier for a player by spending RP
+ * 
+ * @param playerId - Player username
+ * @param tier - Tier to unlock (2-5, Tier 1 is free)
+ * @returns Success status and updated player data
+ */
 export async function unlockTier(
-  username: string,
+  playerId: string,
   tier: UnitTier
-): Promise<{ success: boolean; message: string; tierUnlocked?: UnitTier; rpSpent?: number; metalSpent?: number; rpRemaining?: number; metalRemaining?: number; unlockedTiers?: UnitTier[] }> {
-  const eligibility = await canUnlockTier(username, tier);
-  if (!eligibility.canUnlock) return { success: false, message: eligibility.reason || 'Cannot unlock tier' };
+): Promise<{
+  success: boolean;
+  message: string;
+  tierUnlocked?: UnitTier;
+  rpSpent?: number;
+  rpRemaining?: number;
+  unlockedTiers?: UnitTier[];
+}> {
+  // Validate tier unlocking eligibility
+  const eligibility = await canUnlockTier(playerId, tier);
+
+  if (!eligibility.canUnlock) {
+    return {
+      success: false,
+      message: eligibility.reason || 'Cannot unlock tier'
+    };
+  }
 
   const requirements = TIER_UNLOCK_REQUIREMENTS[tier];
-  const supabase = createServiceClient();
+  const playersCollection = await getCollection<Player>('players');
 
-  const { data: player } = await supabase.from('players').select('research_points, resources_metal, unlocked_tiers').eq('username', username).single();
-  if (!player) return { success: false, message: 'Player not found' };
-  if ((player.research_points || 0) < requirements.rp) return { success: false, message: 'Insufficient RP' };
-  if ((player.resources_metal || 0) < requirements.metal) return { success: false, message: 'Insufficient metal' };
+  // Perform atomic update: deduct RP and add tier to unlocked list
+  const updateResult = await playersCollection.findOneAndUpdate(
+    {
+      username: playerId,
+      researchPoints: { $gte: requirements.rp } // Double-check RP availability
+    },
+    {
+      $inc: { researchPoints: -requirements.rp },
+      $addToSet: { unlockedTiers: tier },
+      $push: {
+        rpHistory: {
+          amount: -requirements.rp,
+          reason: `Unlocked Tier ${tier} units`,
+          timestamp: new Date(),
+          balance: 0 // Will be set in post-processing
+        }
+      }
+    },
+    { returnDocument: 'after' }
+  );
 
-  const newRp = (player.research_points || 0) - requirements.rp;
-  const newMetal = (player.resources_metal || 0) - requirements.metal;
-  const newTiers = [...(player.unlocked_tiers || [String(UnitTier.Tier1)]), String(tier)].filter((t, i, a) => a.indexOf(t) === i) as ("1" | "2" | "3" | "4" | "5")[];
+  if (!updateResult) {
+    return {
+      success: false,
+      message: 'Failed to unlock tier (insufficient RP or already unlocked)'
+    };
+  }
 
-  await supabase.from('players').update({
-    research_points: newRp,
-    resources_metal: newMetal,
-    unlocked_tiers: newTiers,
-  }).eq('username', username);
+  // Update the balance in the most recent RP history entry
+  if (updateResult.rpHistory && updateResult.rpHistory.length > 0) {
+    const lastEntry = updateResult.rpHistory[updateResult.rpHistory.length - 1];
+    lastEntry.balance = updateResult.researchPoints;
 
-  await supabase.from('player_rp_history').insert({
-    player_username: username,
-    amount: -requirements.rp,
-    reason: `Unlocked Tier ${tier}`,
-    balance: newRp,
-  });
+    await playersCollection.updateOne(
+      { username: playerId },
+      { $set: { rpHistory: updateResult.rpHistory } }
+    );
+  }
 
   return {
     success: true,
-    message: `Tier ${tier} unlocked!`,
+    message: `Tier ${tier} unlocked! You can now build advanced units.`,
     tierUnlocked: tier,
     rpSpent: requirements.rp,
-    metalSpent: requirements.metal,
-    rpRemaining: newRp,
-    metalRemaining: newMetal,
-    unlockedTiers: newTiers.map(Number) as UnitTier[],
+    rpRemaining: updateResult.researchPoints,
+    unlockedTiers: updateResult.unlockedTiers || [UnitTier.Tier1]
   };
 }
 
-export async function getTierUnlockStatus(username: string): Promise<{
-  playerLevel: number; currentRP: number; currentMetal: number; unlockedTiers: UnitTier[];
-  availableTiers: Array<{ tier: UnitTier; isUnlocked: boolean; canUnlock: boolean; requirements: TierRequirements; reason?: string }>;
+/**
+ * Get player's tier unlock status
+ * 
+ * @param playerId - Player username
+ * @returns Array of tier unlock information
+ */
+export async function getTierUnlockStatus(playerId: string): Promise<{
+  playerLevel: number;
+  currentRP: number;
+  unlockedTiers: UnitTier[];
+  availableTiers: Array<{
+    tier: UnitTier;
+    isUnlocked: boolean;
+    canUnlock: boolean;
+    requirements: { level: number; rp: number };
+    reason?: string;
+  }>;
 }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('level, research_points, resources_metal, unlocked_tiers').eq('username', username).single();
-  if (!player) throw new Error('Player not found');
+  const playersCollection = await getCollection<Player>('players');
+  const player = await playersCollection.findOne({ username: playerId });
 
-  const unlockedTiers = (player.unlocked_tiers || [String(UnitTier.Tier1)]).map(Number) as UnitTier[];
+  if (!player) {
+    throw new Error('Player not found');
+  }
+
+  const unlockedTiers = player.unlockedTiers || [UnitTier.Tier1];
+
+  // Check status for all tiers
   const availableTiers = await Promise.all(
-    [UnitTier.Tier1, UnitTier.Tier2, UnitTier.Tier3, UnitTier.Tier4, UnitTier.Tier5].map(async (t) => {
-      const req = TIER_UNLOCK_REQUIREMENTS[t];
-      const isUnlocked = unlockedTiers.includes(t);
-      const eligibility = await canUnlockTier(username, t);
-      return { tier: t, isUnlocked, canUnlock: eligibility.canUnlock && !isUnlocked, requirements: req, reason: eligibility.reason };
-    })
+    [UnitTier.Tier1, UnitTier.Tier2, UnitTier.Tier3, UnitTier.Tier4, UnitTier.Tier5].map(
+      async (tier) => {
+        const requirements = TIER_UNLOCK_REQUIREMENTS[tier];
+        const isUnlocked = unlockedTiers.includes(tier);
+        const eligibility = await canUnlockTier(playerId, tier);
+
+        return {
+          tier,
+          isUnlocked,
+          canUnlock: eligibility.canUnlock && !isUnlocked,
+          requirements,
+          reason: eligibility.reason
+        };
+      }
+    )
   );
-  return { playerLevel: player.level, currentRP: player.research_points, currentMetal: player.resources_metal || 0, unlockedTiers, availableTiers };
+
+  return {
+    playerLevel: player.level,
+    currentRP: player.researchPoints,
+    unlockedTiers,
+    availableTiers
+  };
 }
 
-export async function getPlayerAvailableUnits(username: string) {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('level, unlocked_tiers').eq('username', username).single();
-  if (!player) throw new Error('Player not found');
+/**
+ * Get all units available to player (based on unlocked tiers)
+ * 
+ * @param playerId - Player username
+ * @returns Array of available unit configurations
+ */
+export async function getPlayerAvailableUnits(playerId: string) {
+  const playersCollection = await getCollection<Player>('players');
+  const player = await playersCollection.findOne({ username: playerId });
+
+  if (!player) {
+    throw new Error('Player not found');
+  }
+
   const { getAvailableUnits } = await import('@/types');
-  return getAvailableUnits(player.level, (player.unlocked_tiers || [String(UnitTier.Tier1)]).map(Number) as UnitTier[]);
+  const unlockedTiers = player.unlockedTiers || [UnitTier.Tier1];
+
+  return getAvailableUnits(player.level, unlockedTiers);
 }
+
+// ============================================================
+// IMPLEMENTATION NOTES
+// ============================================================
+/**
+ * TIER UNLOCK SYSTEM:
+ * 
+ * - Tier 1: Always unlocked (0 RP, Level 1+)
+ * - Tier 2: 5 RP, Level 5+
+ * - Tier 3: 15 RP, Level 10+
+ * - Tier 4: 30 RP, Level 20+
+ * - Tier 5: 50 RP, Level 30+
+ * 
+ * UNLOCK FLOW:
+ * 1. Player gains levels through gameplay
+ * 2. Each level grants 1 RP
+ * 3. Player spends RP to unlock higher tiers
+ * 4. Once unlocked, tier is permanently available
+ * 5. All units in unlocked tier become buildable
+ * 
+ * RP ECONOMY:
+ * - Level 5: 5 RP earned → Can unlock Tier 2
+ * - Level 10: 10 RP earned → After Tier 2 (5 RP), have 5 RP, need 10 more for Tier 3
+ * - Level 25: 25 RP earned → Can unlock all tiers by strategic spending
+ * - Level 50+: Excess RP can be used for future features
+ * 
+ * STRATEGIC CHOICES:
+ * - Rush higher tiers early for powerful units (risky, fewer unit types)
+ * - Unlock tiers gradually as needed (safe, diverse army)
+ * - Save RP for future content (patient, planning ahead)
+ */

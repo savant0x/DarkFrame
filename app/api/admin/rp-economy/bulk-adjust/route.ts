@@ -1,13 +1,11 @@
 /**
  * @file app/api/admin/rp-economy/bulk-adjust/route.ts
  * @created 2025-10-20
- * @updated 2026-05-15 — Fixed auth bypass: verify requesting admin, not target user
  * @overview API endpoint for bulk RP adjustments
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authService';
 import { awardRP, spendRP } from '@/lib/researchPointService';
 import {
   withRequestLogging,
@@ -30,11 +28,14 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
   const endTimer = log.time('bulk-adjust-rp');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Verify admin authentication
+    const adminUser = await getAuthenticatedUser();
+    if (!adminUser?.isAdmin) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
+    }
 
     const body = await request.json();
-    const { username, amount, reason } = body;
+    const { username, amount, reason, adminUsername } = body;
 
     if (!username || amount === 0 || !reason) {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username, amount, and reason required');
@@ -48,15 +49,15 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
         username,
         amount,
         'admin',
-        `${reason} (by ${auth.username})`,
-        { adminUser: auth.username }
+        `${reason} (by ${adminUsername || adminUser.username})`,
+        { adminUser: adminUsername || adminUser.username }
       );
     } else {
       // Remove RP
       result = await spendRP(
         username,
         Math.abs(amount),
-        `${reason} (by ${auth.username})`
+        `${reason} (by ${adminUsername || adminUser.username})`
       );
     }
 
@@ -65,10 +66,10 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
     }
 
     log.info('RP adjustment completed', {
-      adminUsername: auth.username,
-      targetUsername: username,
+      username,
       amount,
       newBalance: result.newBalance,
+      adminUser: adminUsername || adminUser.username,
     });
 
     return NextResponse.json({

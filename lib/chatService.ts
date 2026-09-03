@@ -2,15 +2,14 @@
  * Chat Service
  * Created: 2025-10-25
  * Feature: FID-20251025-103
- * Updated: 2026-05-03 — Migrated from MongoDB to Supabase
  * 
  * OVERVIEW:
- * Core chat functionality with Supabase persistence, item linking,
+ * Core chat functionality with MySQL persistence via Drizzle ORM, item linking,
  * profanity filtering, rate limiting, and Ask Veterans notifications.
  * Handles message storage with 1-week display window and 1-year retention.
  * 
  * KEY FEATURES:
- * - Message storage in chat_messages table
+ * - Message storage with monthly categorization
  * - 1-week display window, 1-year retention
  * - Item link parsing: [ItemName] → clickable links
  * - Profanity filtering (bad-words + custom blacklist)
@@ -23,11 +22,14 @@
  * - bad-words (profanity filtering)
  * - react-mentions (mention parsing - client-side)
  * - channelService (permissions)
+ * - Drizzle ORM (database operations)
  */
 
+import { randomUUID } from 'node:crypto';
+import { eq, and, or, gt, lt, gte, lte, desc, asc, like, sql } from 'drizzle-orm';
 import { Filter } from 'bad-words';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, TablesInsert } from '@/types/database';
+import { db } from '@/lib/db';
+import { chatMessages, chatReadStatus, wordBlacklist, players } from '@/lib/db/schema';
 import {
   ChannelType,
   canWriteChannel,
@@ -39,22 +41,22 @@ import {
 // ============================================================================
 
 /**
- * Chat message as returned by the service (enriched beyond DB row)
+ * Chat message stored in database
  */
 export interface ChatMessage {
   id: string;
   channelId: ChannelType;
-  clanId?: string;
+  clanId?: string; // If clan channel
   senderId: string;
   senderUsername: string;
   senderLevel: number;
   isVIP: boolean;
-  isNewbie: boolean;
+  isNewbie: boolean; // Level 1-5
   message: string;
-  itemLinks: string[];
-  mentions: string[];
+  itemLinks: string[]; // Parsed [ItemName] references
+  mentions: string[]; // @username references
   timestamp: Date;
-  monthCategory: string;
+  monthCategory: string; // "2025-10" for indexing/cleanup
   edited: boolean;
   editedAt?: Date;
   deleted: boolean;
@@ -78,9 +80,9 @@ export interface SendMessageRequest {
 export interface GetMessagesRequest {
   channelId: ChannelType;
   clanId?: string;
-  limit?: number;
-  before?: Date;
-  since?: Date;
+  limit?: number; // Default: 100
+  before?: Date; // Pagination: messages before this timestamp
+  since?: Date; // Messages after this timestamp (for real-time sync)
 }
 
 /**
@@ -109,23 +111,21 @@ export interface VeteranNotification {
  */
 interface RateLimitEntry {
   count: number;
-  resetTime: number;
+  resetTime: number; // Timestamp in ms
 }
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
-const TABLE_NAME = 'chat_messages';
-
 // Rate limiting
-const RATE_LIMIT_WINDOW = 10 * 1000;
-const RATE_LIMIT_NORMAL = 5;
-const RATE_LIMIT_VIP = 10;
+const RATE_LIMIT_WINDOW = 10 * 1000; // 10 seconds
+const RATE_LIMIT_NORMAL = 5; // 5 messages per 10 seconds
+const RATE_LIMIT_VIP = 10; // 10 messages per 10 seconds
 
 // History retention
-const DISPLAY_WINDOW_DAYS = 7;
-const RETENTION_DAYS = 365;
+const DISPLAY_WINDOW_DAYS = 7; // Show 1 week of history
+const RETENTION_DAYS = 365; // Keep 1 year of history
 
 // Veteran level threshold for "Ask Veterans" feature
 const VETERAN_LEVEL_THRESHOLD = 50;
@@ -144,14 +144,6 @@ const profanityFilter = new Filter();
 let customBlacklist: string[] = [];
 
 // ============================================================================
-// DATABASE ACCESS
-// ============================================================================
-
-function getSupabase() {
-  return createServiceClient();
-}
-
-// ============================================================================
 // CONTENT FILTERING
 // ============================================================================
 
@@ -160,23 +152,10 @@ function getSupabase() {
  */
 async function loadCustomBlacklist(): Promise<void> {
   try {
-    const supabase = getSupabase();
-    const { data: words, error } = await supabase
-      .from('bot_config')
-      .select('config_value')
-      .eq('config_key', 'word_blacklist')
-      .single();
-
-    if (!error && words) {
-      const value = words.config_value;
-      if (Array.isArray(value)) {
-        customBlacklist = value as string[];
-      } else if (typeof value === 'object' && value !== null) {
-        const list = (value as Record<string, unknown>).words;
-        customBlacklist = Array.isArray(list) ? list as string[] : [];
-      }
-    }
-
+    const words = await db.select().from(wordBlacklist);
+    customBlacklist = words.map(w => w.word);
+    
+    // Add to profanity filter
     if (customBlacklist.length > 0) {
       profanityFilter.addWords(...customBlacklist);
     }
@@ -251,19 +230,18 @@ export function parseItemLinks(message: string): string[] {
 /**
  * Validate item exists in database
  * 
+ * TODO: The items collection/table doesn't exist in the current Drizzle schema.
+ * Implement this when the items table is added to the schema.
+ * 
  * @param itemName - Item name to validate
  * @returns True if item exists
  */
 export async function validateItem(itemName: string): Promise<boolean> {
   try {
-    const supabase = getSupabase();
-    const { data } = await supabase
-      .from('player_inventory')
-      .select('id')
-      .ilike('name', itemName)
-      .limit(1);
-
-    return (data && data.length > 0) ?? false;
+    // TODO: Implement when items table is added to schema
+    // Example: const item = await db.select().from(items).where(eq(items.name, itemName)).limit(1);
+    console.warn('[ChatService] validateItem not implemented - items table not in schema');
+    return false;
   } catch (error) {
     console.error('[ChatService] Item validation error:', error);
     return false;
@@ -305,14 +283,8 @@ export function parseMentions(message: string): string[] {
  */
 export async function validateUsername(username: string): Promise<boolean> {
   try {
-    const supabase = getSupabase();
-    const { data } = await supabase
-      .from('players')
-      .select('username')
-      .ilike('username', username)
-      .limit(1);
-
-    return (data && data.length > 0) ?? false;
+    const player = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    return player.length > 0;
   } catch (error) {
     console.error('[ChatService] Username validation error:', error);
     return false;
@@ -337,6 +309,7 @@ export function checkGlobalChatRateLimit(playerId: string, isVIP: boolean): bool
   const entry = rateLimits.get(playerId);
   
   if (!entry || now > entry.resetTime) {
+    // Create new window
     rateLimits.set(playerId, {
       count: 1,
       resetTime: now + RATE_LIMIT_WINDOW,
@@ -345,9 +318,11 @@ export function checkGlobalChatRateLimit(playerId: string, isVIP: boolean): bool
   }
   
   if (entry.count >= limit) {
+    // Rate limit exceeded
     return true;
   }
   
+  // Increment count
   entry.count++;
   return false;
 }
@@ -384,11 +359,13 @@ export async function sendGlobalChatMessage(
   try {
     const { channelId, clanId, sender, message } = request;
 
+    // Validate permissions
     const perm = canWriteChannel(channelId, sender);
     if (!perm.canWrite) {
       return { success: false, error: perm.reason || 'Permission denied' };
     }
 
+    // Check rate limit
     if (checkGlobalChatRateLimit(sender.username, sender.isVIP)) {
       const resetTime = getRateLimitResetTime(sender.username);
       return {
@@ -397,6 +374,7 @@ export async function sendGlobalChatMessage(
       };
     }
 
+    // Validate message length
     const trimmed = message.trim();
     if (trimmed.length === 0) {
       return { success: false, error: 'Message cannot be empty' };
@@ -405,32 +383,23 @@ export async function sendGlobalChatMessage(
       return { success: false, error: 'Message too long (max 1000 characters)' };
     }
 
+    // Filter profanity
     const filtered = filterProfanity(trimmed);
+
+    // Parse item links and mentions
     const itemLinks = parseItemLinks(filtered);
     const mentions = parseMentions(filtered);
 
-    const insertRow: TablesInsert<'chat_messages'> = {
-      channel: channelId,
-      sender_id: sender.username,
-      sender_username: sender.username,
-      message: filtered,
-    };
-
-    const supabase = getSupabase();
-    const { data: insertedRow, error: insertError } = await supabase
-      .from('chat_messages')
-      .insert(insertRow)
-      .select('*')
-      .single();
-
-    if (insertError || !insertedRow) {
-      return { success: false, error: insertError?.message || 'Failed to send message' };
-    }
-
+    // Create message document
     const now = new Date();
-    const savedMessage: ChatMessage = {
-      id: insertedRow.id as string,
+    const monthCategory = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    const messageId = randomUUID();
+
+    const chatMessage: ChatMessage = {
+      id: messageId,
       channelId,
+      clanId,
       senderId: sender.username,
       senderUsername: sender.username,
       senderLevel: sender.level,
@@ -440,12 +409,31 @@ export async function sendGlobalChatMessage(
       itemLinks,
       mentions,
       timestamp: now,
-      monthCategory: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+      monthCategory,
       edited: false,
       deleted: false,
     };
 
-    return { success: true, message: savedMessage };
+    // Save to database
+    await db.insert(chatMessages).values({
+      id: messageId,
+      channelId,
+      clanId,
+      senderId: sender.username,
+      senderUsername: sender.username,
+      senderLevel: sender.level,
+      isVIP: sender.isVIP ? 1 : 0,
+      isNewbie: chatMessage.isNewbie ? 1 : 0,
+      message: filtered,
+      itemLinks,
+      mentions,
+      timestamp: now,
+      monthCategory,
+      edited: 0,
+      deleted: 0,
+    });
+
+    return { success: true, message: chatMessage };
   } catch (error) {
     console.error('[ChatService] Send message error:', error);
     return { success: false, error: 'Failed to send message' };
@@ -464,57 +452,62 @@ export async function getGlobalChatMessages(
 ): Promise<ChatMessage[]> {
   try {
     const { channelId, clanId, limit = 100, before, since } = request;
-    const queryLimit = Math.min(limit, 500);
 
-    let query = createServiceClient()
-      .from('chat_messages')
-      .select('*, players!chat_messages_sender_id_fkey(level, is_vip)')
-      .eq('channel', channelId)
-      .eq('deleted', false)
-      .order('created_at', { ascending: false })
-      .limit(queryLimit);
+    // Build query conditions
+    const conditions = [
+      eq(chatMessages.channelId, channelId),
+      eq(chatMessages.deleted, 0),
+    ];
 
+    if (clanId) {
+      conditions.push(eq(chatMessages.clanId, clanId));
+    }
+
+    // 1-week display window (unless specific date range requested)
     if (!since && !before) {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - DISPLAY_WINDOW_DAYS);
-      query = query.gte('created_at', oneWeekAgo.toISOString());
+      conditions.push(gte(chatMessages.timestamp, oneWeekAgo));
     } else {
       if (since) {
-        query = query.gte('created_at', since.toISOString());
+        conditions.push(gte(chatMessages.timestamp, since));
       }
       if (before) {
-        query = query.lt('created_at', before.toISOString());
+        conditions.push(lt(chatMessages.timestamp, before));
       }
     }
 
-    const { data: rows, error } = await query;
+    // Fetch messages
+    const messages = await db
+      .select()
+      .from(chatMessages)
+      .where(and(...conditions))
+      .orderBy(desc(chatMessages.timestamp))
+      .limit(Math.min(limit, 500)); // Cap at 500 for performance
 
-    if (error || !rows) {
-      return [];
-    }
+    // Convert to ChatMessage interface
+    const result: ChatMessage[] = messages.map(msg => ({
+      id: msg.id,
+      channelId: msg.channelId as ChannelType,
+      clanId: msg.clanId ?? undefined,
+      senderId: msg.senderId,
+      senderUsername: msg.senderUsername,
+      senderLevel: msg.senderLevel,
+      isVIP: msg.isVIP === 1,
+      isNewbie: msg.isNewbie === 1,
+      message: msg.message,
+      itemLinks: msg.itemLinks ?? [],
+      mentions: msg.mentions ?? [],
+      timestamp: msg.timestamp,
+      monthCategory: msg.monthCategory,
+      edited: msg.edited === 1,
+      editedAt: msg.editedAt ?? undefined,
+      deleted: msg.deleted === 1,
+      deletedBy: msg.deletedBy ?? undefined,
+      deletionReason: msg.deletionReason ?? undefined,
+    }));
 
-    const messages: ChatMessage[] = (rows as Tables<'chat_messages'>[]).map((row) => {
-      const playerData = (row as unknown as { players?: { level: number; is_vip: boolean } }).players;
-      const lvl = playerData?.level || 1;
-      return {
-        id: row.id,
-        channelId: row.channel as ChannelType,
-        senderId: row.sender_id,
-        senderUsername: row.sender_username || row.sender_id,
-        senderLevel: lvl,
-        isVIP: playerData?.is_vip || false,
-        isNewbie: lvl >= 1 && lvl <= 5,
-        message: row.message,
-        itemLinks: parseItemLinks(row.message),
-        mentions: parseMentions(row.message),
-        timestamp: new Date(row.created_at),
-        monthCategory: row.created_at.substring(0, 7),
-        edited: !!row.edited_at,
-        deleted: row.deleted,
-      };
-    });
-
-    return messages.reverse();
+    return result.reverse(); // Oldest first for display
   } catch (error) {
     console.error('[ChatService] Get messages error:', error);
     return [];
@@ -535,13 +528,15 @@ export async function deleteGlobalChatMessage(
   reason: string
 ): Promise<boolean> {
   try {
-    const supabase = getSupabase();
-    const { error } = await getSupabase()
-      .from('chat_messages')
-      .update({ deleted: true })
-      .eq('id', messageId);
+    const result = await db.update(chatMessages)
+      .set({
+        deleted: 1,
+        deletedBy,
+        deletionReason: reason,
+      })
+      .where(eq(chatMessages.id, messageId));
 
-    return !error;
+    return (result as any).affectedRows > 0;
   } catch (error) {
     console.error('[ChatService] Delete message error:', error);
     return false;
@@ -549,7 +544,7 @@ export async function deleteGlobalChatMessage(
 }
 
 /**
- * Edit a global chat message (own messages only, within 15 minutes)
+ * Edit a global chat message (own messages only, within 5 minutes)
  * 
  * @param messageId - Message ID
  * @param newMessage - New message content
@@ -562,42 +557,43 @@ export async function editGlobalChatMessage(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: message, error: fetchError } = await getSupabase()
-      .from('chat_messages')
-      .select('*')
-      .eq('id', messageId)
-      .single();
-
-    if (fetchError || !message) {
+    const message = await db.select().from(chatMessages).where(eq(chatMessages.id, messageId)).limit(1);
+    
+    if (message.length === 0) {
       return { success: false, error: 'Message not found' };
     }
-
-    const dbMsg = message as Tables<'chat_messages'>;
-
-    if (dbMsg.sender_id !== userId) {
+    
+    const msg = message[0];
+    
+    if (msg.senderId !== userId) {
       return { success: false, error: 'Can only edit own messages' };
     }
-
+    
+    // Check 5-minute edit window
     const now = new Date();
-    const messageAge = now.getTime() - new Date(dbMsg.created_at).getTime();
-    const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-
-    if (messageAge > EDIT_WINDOW_MS) {
-      return { success: false, error: 'Edit window expired (15 minutes)' };
+    const messageAge = now.getTime() - msg.timestamp.getTime();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    if (messageAge > fiveMinutes) {
+      return { success: false, error: 'Edit window expired (5 minutes)' };
     }
-
+    
+    // Filter profanity and update
     const filtered = filterProfanity(newMessage.trim());
-
-    const { error: updateError } = await getSupabase()
-      .from('chat_messages')
-      .update({ message: filtered } as never)
-      .eq('id', messageId);
-
-    if (updateError) {
-      return { success: false, error: 'Failed to edit message' };
-    }
-
-    return { success: true };
+    const itemLinks = parseItemLinks(filtered);
+    const mentions = parseMentions(filtered);
+    
+    const result = await db.update(chatMessages)
+      .set({
+        message: filtered,
+        itemLinks,
+        mentions,
+        edited: 1,
+        editedAt: now,
+      })
+      .where(eq(chatMessages.id, messageId));
+    
+    return { success: (result as any).affectedRows > 0 };
   } catch (error) {
     console.error('[ChatService] Edit message error:', error);
     return { success: false, error: 'Failed to edit message' };
@@ -633,6 +629,9 @@ export async function sendVeteranNotification(
     channelId: ChannelType.HELP,
   };
 
+  // Notification will be broadcasted via WebSocket to veteran players
+  // (level >= VETERAN_LEVEL_THRESHOLD)
+  
   return notification;
 }
 
@@ -658,29 +657,13 @@ export function isVeteran(playerLevel: number): boolean {
  */
 export async function purgeOldMessages(): Promise<number> {
   try {
-    const supabase = getSupabase();
     const oneYearAgo = new Date();
     oneYearAgo.setDate(oneYearAgo.getDate() - RETENTION_DAYS);
-
-    const { error } = await getSupabase()
-      .from('chat_messages')
-      .update({ deleted: true })
-      .lt('created_at', oneYearAgo.toISOString());
-
-    if (error) {
-      console.error('[ChatService] Purge old messages error:', error);
-      return 0;
-    }
-
-    // Count isn't directly available from soft-delete update; estimate based on query
-    const { count } = await getSupabase()
-      .from('chat_messages')
-      .select('*', { count: 'exact', head: true })
-      .lt('created_at', oneYearAgo.toISOString());
-
-    const deletedCount = count || 0;
-    console.log(`[ChatService] Purged ${deletedCount} old messages`);
-    return deletedCount;
+    
+    const result = await db.delete(chatMessages).where(lt(chatMessages.timestamp, oneYearAgo));
+    
+    console.log(`[ChatService] Purged ${(result as any).affectedRows} old messages`);
+    return (result as any).affectedRows;
   } catch (error) {
     console.error('[ChatService] Purge old messages error:', error);
     return 0;
@@ -699,20 +682,19 @@ export async function reloadChatBlacklist(): Promise<void> {
  * IMPLEMENTATION NOTES:
  * 
  * 1. Message Storage:
- *    - Supabase clan_chat_messages table
- *    - clan_id: clan UUID for clan chat, empty string for global
- *    - channel: channel type string (global, help, trade, etc.)
+ *    - MySQL via Drizzle ORM with monthly categorization (monthCategory field)
  *    - 1-week display window (default query filter)
- *    - 1-year retention (annual cleanup)
+ *    - 1-year retention (annual cleanup on Jan 1st)
  * 
  * 2. Item Linking:
- *    - Parse [ItemName] from messages at runtime
- *    - Validate items against player_inventory table
+ *    - Parse [ItemName] from messages
+ *    - Validate items exist in database
+ *    - Store in itemLinks array
  *    - Frontend renders as clickable links
  * 
  * 3. Profanity Filtering:
  *    - bad-words library for base filtering
- *    - Custom blacklist loaded from bot_config table
+ *    - Custom blacklist loaded from database
  *    - Filter applied before saving
  *    - Profanity replaced with asterisks
  * 
@@ -735,11 +717,13 @@ export async function reloadChatBlacklist(): Promise<void> {
  * 
  * 7. Message Editing:
  *    - Own messages only
- *    - 15-minute edit window
+ *    - 5-minute edit window
  *    - Profanity filtered on edit
+ *    - Marked as edited with timestamp
  * 
  * 8. Performance:
+ *    - Indexed by channelId + timestamp
+ *    - Indexed by monthCategory for cleanup
  *    - Limit queries to 500 messages max
  *    - 1-week default display reduces load
- *    - sender_username/level/items derived at read time, not stored
  */

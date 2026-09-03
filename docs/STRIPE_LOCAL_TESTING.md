@@ -12,14 +12,18 @@
 
 ## 🚀 QUICK START (Recommended)
 
-### **Start Dev Server + Stripe Listener**
+### **One Command to Rule Them All:**
 ```powershell
-# Terminal 1: Start dev server
-npm run dev
-
-# Terminal 2: Start Stripe webhook listener
-npm run stripe:listen
+npm run dev:stripe
 ```
+
+This automatically:
+- ✅ Starts your development server
+- ✅ Starts Stripe webhook listener
+- ✅ Shows both outputs side-by-side with color coding
+- ✅ Automatically updates `.env.local` with webhook secret (first run)
+
+**That's it!** Your server and webhook listener are now running together.
 
 ---
 
@@ -205,11 +209,16 @@ VIP granted successfully: {...}
 Payment transaction recorded: {...}
 ```
 
-**Check Database:**
-```sql
--- In Supabase SQL Editor
-SELECT username, vip, vip_expiration, vip_tier, stripe_customer_id, stripe_subscription_id
-FROM players WHERE username = 'fame';
+**Check MongoDB:**
+```javascript
+// In MongoDB Compass or mongosh
+db.users.findOne({ username: "yourUsername" })
+// Should show:
+// - vip: true
+// - vipExpiration: <date>
+// - vipTier: "MONTHLY" (or selected tier)
+// - stripeCustomerId: "cus_..."
+// - stripeSubscriptionId: "sub_..."
 ```
 
 **Check Game UI:**
@@ -250,7 +259,7 @@ https://dashboard.stripe.com/test/webhooks
 **Solution:**
 - Check Terminal 1 for error logs
 - Verify metadata in checkout session (userId, tier, username)
-- Check database connection is active
+- Check MongoDB connection is active
 - Ensure grantVIP() function has no errors
 
 ### Problem: Stripe CLI not forwarding events

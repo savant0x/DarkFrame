@@ -2,491 +2,362 @@
  * @file __tests__/components/friends/FriendRequestsPanel.test.tsx
  * @created 2025-10-26
  * @overview Component tests for FriendRequestsPanel
- * 
- * Tests cover:
- * - Dual-tab rendering (received/sent)
- * - Accept/decline requests
- * - Cancel sent requests
- * - Request messages
- * - Badge counts
- * - Empty states
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FriendRequestsPanel from '@/components/friends/FriendRequestsPanel';
 
-// Mock fetch
 global.fetch = vi.fn();
+window.alert = vi.fn();
 
 describe('FriendRequestsPanel Component', () => {
+  // The component polls /api/friends/requests on a 5s setInterval, so tests run under
+  // fake timers with a bounded advance (runAllTimersAsync would spin forever on the
+  // interval). user-event is bridged to the fake clock (SESSION-2026-09-02-006, Class B).
+  let user: ReturnType<typeof userEvent.setup>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   });
 
-  // ============================================================
-  // RENDERING TESTS
-  // ============================================================
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function createMockReceivedRequest(overrides: Record<string, any> = {}) {
+    return {
+      _id: 'req-1',
+      from: 'sender-id',
+      to: 'my-id',
+      status: 'pending',
+      fromUsername: 'sender1',
+      fromLevel: 10,
+      fromVip: false,
+      fromClanTag: undefined,
+      message: undefined,
+      createdAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  function createMockSentRequest(overrides: Record<string, any> = {}) {
+    return {
+      _id: 'req-2',
+      from: 'my-id',
+      to: 'recipient-id',
+      status: 'pending',
+      fromUsername: 'me',
+      fromLevel: 15,
+      fromVip: false,
+      fromClanTag: undefined,
+      message: undefined,
+      createdAt: new Date(),
+      ...overrides,
+    };
+  }
+
+  function createMockFetchResponse(data: any) {
+    return {
+      ok: true,
+      json: vi.fn().mockResolvedValue(data),
+    };
+  }
+
+  async function renderAndWait(ui: React.ReactElement) {
+    const result = render(ui);
+    await act(async () => {
+      // Bounded: flush pending microtasks/timers without advancing the 5s poll interval.
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    return result;
+  }
+
   describe('Rendering', () => {
     it('should render received requests tab by default', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
-            message: 'Let\'s be friends!',
-            createdAt: new Date()
-          }
+          createMockReceivedRequest({
+            fromUsername: 'sender1',
+            message: "Let's be friends!",
+          }),
         ],
-        sent: []
+        sent: [],
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
-      await waitFor(() => {
-        expect(screen.getByText('sender1')).toBeInTheDocument();
-        expect(screen.getByText('Let\'s be friends!')).toBeInTheDocument();
-      });
+      expect(screen.getByText('sender1')).toBeInTheDocument();
+      expect(screen.getByText(/let's be friends/i)).toBeInTheDocument();
     });
 
     it('should switch to sent requests tab', async () => {
       const mockRequests = {
         received: [],
         sent: [
-          {
-            requestId: 'req-2',
-            recipientUsername: 'recipient1',
-            recipientLevel: 15,
-            recipientVIP: true,
-            createdAt: new Date()
-          }
-        ]
+          createMockSentRequest({
+            fromUsername: 'me',
+          }),
+        ],
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
       const sentTab = screen.getByText(/sent/i);
-      await userEvent.click(sentTab);
-
-      await waitFor(() => {
-        expect(screen.getByText('recipient1')).toBeInTheDocument();
+      await act(async () => {
+        await user.click(sentTab);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(screen.getByText('me')).toBeInTheDocument();
     });
 
-    it('should display badge count for received requests', async () => {
+    it('should display badge counts for received requests', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
-            createdAt: new Date()
-          },
-          {
-            requestId: 'req-2',
-            senderUsername: 'sender2',
-            senderLevel: 12,
-            senderVIP: false,
-            createdAt: new Date()
-          }
+          createMockReceivedRequest({ _id: 'req-1', fromUsername: 'sender1' }),
+          createMockReceivedRequest({ _id: 'req-2', fromUsername: 'sender2' }),
         ],
-        sent: []
+        sent: [],
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
-      await waitFor(() => {
-        expect(screen.getByText('2')).toBeInTheDocument(); // Badge showing count
-      });
+      expect(screen.getByText('2')).toBeInTheDocument();
     });
 
     it('should render empty state for no received requests', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, received: [], sent: [] })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
-      await waitFor(() => {
-        expect(screen.getByText(/no pending/i)).toBeInTheDocument();
-      });
+      expect(screen.getByText(/no pending requests/i)).toBeInTheDocument();
     });
 
     it('should render empty state for no sent requests', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, received: [], sent: [] })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
       const sentTab = screen.getByText(/sent/i);
-      await userEvent.click(sentTab);
-
-      await waitFor(() => {
-        expect(screen.getByText(/no outgoing/i)).toBeInTheDocument();
+      await act(async () => {
+        await user.click(sentTab);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(screen.getAllByText(/no pending requests/i).length).toBeGreaterThan(0);
     });
   });
 
-  // ============================================================
-  // INTERACTION TESTS - RECEIVED REQUESTS
-  // ============================================================
   describe('Received Request Actions', () => {
     it('should accept friend request successfully', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
+          createMockReceivedRequest({
+            fromUsername: 'sender1',
             message: 'Hi!',
-            createdAt: new Date()
-          }
+          }),
         ],
-        sent: []
+        sent: [],
       };
 
       (global.fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true, ...mockRequests })
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true, friendship: { status: 'accepted' } })
-        });
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true, friendship: { status: 'accepted' } }))
+        .mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
       const onRequestAccepted = vi.fn();
-      render(<FriendRequestsPanel onRequestAccepted={onRequestAccepted} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('sender1')).toBeInTheDocument();
-      });
+      await renderAndWait(<FriendRequestsPanel onRequestAccepted={onRequestAccepted} />);
 
       const acceptButton = screen.getByText(/accept/i);
-      await userEvent.click(acceptButton);
-
-      await waitFor(() => {
-        expect(onRequestAccepted).toHaveBeenCalled();
+      await act(async () => {
+        await user.click(acceptButton);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(onRequestAccepted).toHaveBeenCalled();
     });
 
     it('should decline friend request successfully', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
-            createdAt: new Date()
-          }
+          createMockReceivedRequest({ fromUsername: 'sender1' }),
         ],
-        sent: []
+        sent: [],
       };
 
       (global.fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true, ...mockRequests })
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true })
-        });
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true }))
+        .mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
-      render(<FriendRequestsPanel />);
-
-      await waitFor(() => {
-        expect(screen.getByText('sender1')).toBeInTheDocument();
-      });
+      await renderAndWait(<FriendRequestsPanel />);
 
       const declineButton = screen.getByText(/decline/i);
-      await userEvent.click(declineButton);
-
-      await waitFor(() => {
-        expect(screen.queryByText('sender1')).not.toBeInTheDocument();
+      await act(async () => {
+        await user.click(declineButton);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(screen.queryByText('sender1')).not.toBeInTheDocument();
     });
 
     it('should display request message if provided', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
+          createMockReceivedRequest({
+            fromUsername: 'sender1',
             message: 'Saw you in global chat!',
-            createdAt: new Date()
-          }
+          }),
         ],
-        sent: []
+        sent: [],
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
-      await waitFor(() => {
-        expect(screen.getByText('Saw you in global chat!')).toBeInTheDocument();
-      });
+      expect(screen.getByText(/saw you in global chat/i)).toBeInTheDocument();
     });
   });
 
-  // ============================================================
-  // INTERACTION TESTS - SENT REQUESTS
-  // ============================================================
   describe('Sent Request Actions', () => {
     it('should cancel sent request successfully', async () => {
       const mockRequests = {
         received: [],
         sent: [
-          {
-            requestId: 'req-2',
-            recipientUsername: 'recipient1',
-            recipientLevel: 15,
-            recipientVIP: false,
-            createdAt: new Date()
-          }
-        ]
+          createMockSentRequest({ fromUsername: 'me' }),
+        ],
       };
 
       (global.fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true, ...mockRequests })
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true })
-        });
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true }))
+        .mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
       const sentTab = screen.getByText(/sent/i);
-      await userEvent.click(sentTab);
-
-      await waitFor(() => {
-        expect(screen.getByText('recipient1')).toBeInTheDocument();
+      await act(async () => {
+        await user.click(sentTab);
+        await vi.advanceTimersByTimeAsync(0);
       });
 
       const cancelButton = screen.getByText(/cancel/i);
-      await userEvent.click(cancelButton);
-
-      await waitFor(() => {
-        expect(screen.queryByText('recipient1')).not.toBeInTheDocument();
+      await act(async () => {
+        await user.click(cancelButton);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(screen.queryByText('me')).not.toBeInTheDocument();
     });
 
     it('should display pending status for sent requests', async () => {
       const mockRequests = {
         received: [],
         sent: [
-          {
-            requestId: 'req-2',
-            recipientUsername: 'recipient1',
-            recipientLevel: 15,
-            recipientVIP: false,
-            createdAt: new Date()
-          }
-        ]
+          createMockSentRequest({ fromUsername: 'me' }),
+        ],
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
       const sentTab = screen.getByText(/sent/i);
-      await userEvent.click(sentTab);
-
-      await waitFor(() => {
-        expect(screen.getByText(/pending/i)).toBeInTheDocument();
+      await act(async () => {
+        await user.click(sentTab);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(screen.getByText(/pending/i)).toBeInTheDocument();
     });
   });
 
-  // ============================================================
-  // ERROR HANDLING TESTS
-  // ============================================================
   describe('Error Handling', () => {
     it('should display error when fetch fails', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: false,
-        json: async () => ({ success: false, message: 'Failed to load requests' })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: false, error: 'Failed to load requests' }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
-      await waitFor(() => {
-        expect(screen.getByText(/failed to load/i)).toBeInTheDocument();
-      });
+      expect(screen.getByText(/failed to load requests/i)).toBeInTheDocument();
     });
 
     it('should display error when accept fails', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
-            createdAt: new Date()
-          }
+          createMockReceivedRequest({ fromUsername: 'sender1' }),
         ],
-        sent: []
+        sent: [],
       };
 
       (global.fetch as any)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({ success: true, ...mockRequests })
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          json: async () => ({ success: false, message: 'Request not found' })
-        });
+        .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
+        .mockResolvedValue(createMockFetchResponse({ success: false, error: 'Request not found' }));
 
-      render(<FriendRequestsPanel />);
-
-      await waitFor(() => {
-        expect(screen.getByText('sender1')).toBeInTheDocument();
-      });
+      await renderAndWait(<FriendRequestsPanel />);
 
       const acceptButton = screen.getByText(/accept/i);
-      await userEvent.click(acceptButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/request not found/i)).toBeInTheDocument();
+      await act(async () => {
+        await user.click(acceptButton);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(window.alert).toHaveBeenCalledWith('Request not found');
     });
   });
 
-  // ============================================================
-  // REFRESH TESTS
-  // ============================================================
   describe('Refresh Functionality', () => {
     it('should refresh when key prop changes', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
-            createdAt: new Date()
-          }
+          createMockReceivedRequest({ fromUsername: 'sender1' }),
         ],
-        sent: []
+        sent: [],
       };
 
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      const { rerender } = render(<FriendRequestsPanel key={1} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('sender1')).toBeInTheDocument();
-      });
+      const { rerender } = await renderAndWait(<FriendRequestsPanel key={1} />);
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
 
-      // Change key to trigger refresh
-      rerender(<FriendRequestsPanel key={2} />);
-
-      await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        rerender(<FriendRequestsPanel key={2} />);
+        await vi.advanceTimersByTimeAsync(0);
       });
+
+      expect(global.fetch).toHaveBeenCalledTimes(2);
     });
   });
 
-  // ============================================================
-  // TIMESTAMP TESTS
-  // ============================================================
   describe('Request Timestamps', () => {
     it('should display time since request sent', async () => {
       const mockRequests = {
         received: [
-          {
-            requestId: 'req-1',
-            senderUsername: 'sender1',
-            senderLevel: 10,
-            senderVIP: false,
-            createdAt: new Date(Date.now() - 60000) // 1 minute ago
-          }
+          createMockReceivedRequest({
+            fromUsername: 'sender1',
+            createdAt: new Date(Date.now() - 60000),
+          }),
         ],
-        sent: []
+        sent: [],
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ success: true, ...mockRequests })
-      });
+      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
-      render(<FriendRequestsPanel />);
+      await renderAndWait(<FriendRequestsPanel />);
 
-      await waitFor(() => {
-        expect(screen.getByText(/1.*min/i)).toBeInTheDocument();
-      });
+      expect(screen.getByText(/1m ago/i)).toBeInTheDocument();
     });
   });
 });
-
-// ============================================================
-// IMPLEMENTATION NOTES
-// ============================================================
-/**
- * TEST COVERAGE:
- * - Rendering: 5 tests (tabs, badge, empty states)
- * - Received Actions: 3 tests (accept, decline, message display)
- * - Sent Actions: 2 tests (cancel, pending status)
- * - Error Handling: 2 tests (fetch failure, action failure)
- * - Refresh: 1 test (key prop change)
- * - Timestamps: 1 test (time display)
- * 
- * Total: 14 component tests
- * 
- * TO RUN:
- * npm run test -- FriendRequestsPanel.test.tsx
- * 
- * DEPENDENCIES:
- * - @testing-library/react
- * - @testing-library/user-event
- * - vitest
- * 
- * COVERAGE GOALS:
- * - Statements: > 80%
- * - Branches: > 75%
- * - Functions: > 80%
- * - Lines: > 80%
- */

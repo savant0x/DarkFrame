@@ -13,14 +13,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
 import {
   getBeerBaseStats,
-  manualBeerBaseRespawn,
   updateBeerBaseConfig,
+  manualBeerBaseRespawn,
   type BeerBaseConfig,
 } from '@/lib/beerBaseService';
-import { logger } from '@/lib';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 /**
  * GET /api/beer-bases
@@ -28,6 +27,16 @@ import { logger } from '@/lib';
  */
 export async function GET(request: NextRequest) {
   try {
+    // Verify admin access
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Get comprehensive stats
     const stats = await getBeerBaseStats();
 
     return NextResponse.json({
@@ -35,7 +44,7 @@ export async function GET(request: NextRequest) {
       ...stats,
     });
   } catch (error) {
-    logger.error('Failed to get Beer Base stats:', error);
+    console.error('Failed to get Beer Base stats:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to retrieve Beer Base statistics' },
       { status: 500 }
@@ -49,8 +58,22 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Verify admin access
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Verify admin role
+    if (user.isAdmin !== true) {
+      return NextResponse.json(
+        { success: false, message: 'Admin access required' },
+        { status: 403 }
+      );
+    }
 
     const result = await manualBeerBaseRespawn();
 
@@ -69,7 +92,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    logger.error('Failed to trigger Beer Base respawn:', error);
+    console.error('Failed to trigger Beer Base respawn:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to trigger respawn' },
       { status: 500 }
@@ -83,8 +106,22 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Verify admin access
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Verify admin role
+    if (user.isAdmin !== true) {
+      return NextResponse.json(
+        { success: false, message: 'Admin access required' },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const updates: Partial<BeerBaseConfig> = {};
@@ -129,7 +166,7 @@ export async function PUT(request: NextRequest) {
       updates,
     });
   } catch (error) {
-    logger.error('Failed to update Beer Base config:', error);
+    console.error('Failed to update Beer Base config:', error);
     return NextResponse.json(
       { success: false, message: 'Failed to update configuration' },
       { status: 500 }
@@ -159,4 +196,8 @@ export async function PUT(request: NextRequest) {
 //   - respawnDay: 0-6 (Sunday-Saturday)
 //   - respawnHour: 0-23
 //   - enabled: true/false
+// 
+// TODO: Add proper admin role verification
+// Currently any authenticated user can access these endpoints
+// Should restrict to users with admin: true flag
 // ============================================================

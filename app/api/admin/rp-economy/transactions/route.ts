@@ -1,13 +1,13 @@
 /**
  * @file app/api/admin/rp-economy/transactions/route.ts
  * @created 2025-10-20
- * @updated 2026-05-15 — Fixed auth bypass: use requireAdminAuth
  * @overview API endpoint for RP transaction history
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { sql } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -29,43 +29,62 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-rp-transactions');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    const adminUser = await getAuthenticatedUser();
+    if (!adminUser?.isAdmin) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
+    }
 
     const searchParams = request.nextUrl.searchParams;
-    const targetUsername = searchParams.get('target');
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200);
-    const offset = (page - 1) * limit;
+    const period = searchParams.get('period') || '7d';
+    const source = searchParams.get('source') || 'all';
+    const username = searchParams.get('username') || '';
 
-    const supabase = createServiceClient();
-
-    let query = supabase
-      .from('player_rp_history')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (targetUsername) {
-      query = query.eq('player_username', targetUsername);
+    const now = new Date();
+    let dateFilter: Date | null = null;
+    
+    if (period === '24h') {
+      dateFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    } else if (period === '7d') {
+      dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else if (period === '30d') {
+      dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const { data: transactions, count, error } = await query;
+    const conditions: string[] = [];
+    const params: (string | number | Date)[] = [];
 
-    if (error) {
-      throw error;
+    if (dateFilter) {
+      conditions.push('timestamp >= ?');
+      params.push(dateFilter.toISOString());
     }
+    if (source !== 'all') {
+      conditions.push('source = ?');
+      params.push(source);
+    }
+    if (username) {
+      conditions.push('playerUsername LIKE ?');
+      params.push(`%${username}%`);
+    }
+
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
+    const result = await db.execute(sql`
+      SELECT * FROM rpTransactions
+      ${sql.raw(whereClause)}
+      ORDER BY timestamp DESC
+      LIMIT 100
+    `);
+
+    const transactions = (result as any).length > 0 ? (result as any) : [];
 
     log.info('RP transactions retrieved', {
-      transactionCount: transactions?.length || 0,
-      targetUsername: targetUsername || 'all',
+      transactionCount: transactions.length,
+      period,
+      source,
+      usernameFilter: username || 'none',
     });
 
-    return NextResponse.json({
-      success: true,
-      transactions: transactions || [],
-      pagination: { page, limit, total: count || 0 },
-    });
+    return NextResponse.json({ transactions });
 
   } catch (error) {
     log.error('Failed to fetch RP transactions', error instanceof Error ? error : new Error(String(error)));

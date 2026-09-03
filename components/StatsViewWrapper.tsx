@@ -13,7 +13,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TileHarvestStatus from './TileHarvestStatus';
 import type { Tile } from '@/types/game.types';
 
@@ -105,7 +105,7 @@ export default function StatsViewWrapper({ currentTile, playerUsername }: StatsV
   /**
    * Fetches personal player statistics from API
    */
-  const fetchPersonalStats = async () => {
+  const fetchPersonalStats = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -124,12 +124,12 @@ export default function StatsViewWrapper({ currentTile, playerUsername }: StatsV
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   /**
    * Fetches game leaderboard statistics from API
    */
-  const fetchLeaderboardStats = async (newSortBy?: string) => {
+  const fetchLeaderboardStats = useCallback(async (newSortBy?: string) => {
     try {
       setLoading(true);
       setError(null);
@@ -150,7 +150,7 @@ export default function StatsViewWrapper({ currentTile, playerUsername }: StatsV
     } finally {
       setLoading(false);
     }
-  };
+  }, [sortBy]);
 
   // Load data when tab changes
   useEffect(() => {
@@ -161,7 +161,7 @@ export default function StatsViewWrapper({ currentTile, playerUsername }: StatsV
     } else {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, fetchLeaderboardStats, fetchPersonalStats]);
 
   /**
    * Handles sort button click for leaderboards
@@ -441,7 +441,7 @@ function GameStatsTab({ data, sortBy, onSort }: GameStatsTabProps) {
         <div className="space-y-2">
           {topPlayers.map((player, index) => (
             <LeaderboardRow
-              key={player.username}
+              key={player._id}
               player={player}
               rank={index + 1}
               sortBy={sortBy}
@@ -467,10 +467,8 @@ function HarvestCalculatorTab() {
   const [baseAmount, setBaseAmount] = useState<number>(1000);
   const [diggerBonus, setDiggerBonus] = useState<number>(0);
   const [shrineBonus, setShrineBonus] = useState<number>(0);
-  const [balanceMultiplier, setBalanceMultiplier] = useState<number>(1.0);
-  const [balanceStatus, setBalanceStatus] = useState<string>('BALANCED');
+  const [balanceBonus, setBalanceBonus] = useState<number>(0);
   const [isVIP, setIsVIP] = useState<boolean>(false);
-  const [isFlagBearer, setIsFlagBearer] = useState<boolean>(false);
 
   // Fetch player's actual stats
   useEffect(() => {
@@ -485,9 +483,8 @@ function HarvestCalculatorTab() {
           // Auto-populate with player's actual bonuses
           // Calculate digger bonus from inventory
           let totalDiggerBonus = 0;
-          const invItems = data.inventory?.items || data.inventory || [];
-          if (Array.isArray(invItems)) {
-            invItems.forEach((item: any) => {
+          if (data.inventory) {
+            data.inventory.forEach((item: any) => {
               if (item.name?.toLowerCase().includes('digger') && item.equipped) {
                 totalDiggerBonus += item.yieldBonus || 0;
               }
@@ -507,32 +504,26 @@ function HarvestCalculatorTab() {
           }
           setShrineBonus(totalShrineBonus);
 
-          // Calculate balance effect (matches balanceService.ts formula: min/max ratio)
+          // Calculate balance effect
           const str = data.totalStrength || 0;
           const def = data.totalDefense || 0;
+          const totalPower = str + def;
           
-          if (str > 0 || def > 0) {
-            const ratio = Math.min(str, def) / Math.max(str, def) || 0;
-            if (ratio < 0.7) {
-              setBalanceMultiplier(0.75); // CRITICAL: -25% gathering
-              setBalanceStatus('CRITICAL');
-            } else if (ratio < 0.85) {
-              setBalanceMultiplier(0.9);  // IMBALANCED: -10% gathering
-              setBalanceStatus('IMBALANCED');
-            } else {
-              setBalanceMultiplier(1.0);  // BALANCED: no penalty
-              setBalanceStatus('BALANCED');
+          if (totalPower > 0) {
+            const ratio = str / totalPower;
+            let balanceEffect = 0;
+            
+            if (ratio < 0.45) {
+              balanceEffect = -20; // Too defensive
+            } else if (ratio > 0.55) {
+              balanceEffect = -20; // Too aggressive
+            } else if (ratio >= 0.49 && ratio <= 0.51) {
+              balanceEffect = 20; // Perfect balance
+            } else if (ratio >= 0.47 && ratio <= 0.53) {
+              balanceEffect = 10; // Good balance
             }
+            setBalanceBonus(balanceEffect);
           }
-
-          // Check Flag Bearer status
-          try {
-            const flagRes = await fetch('/api/flag');
-            const flagData = await flagRes.json();
-            if (flagData.success && flagData.bearerUsername === data.username) {
-              setIsFlagBearer(true);
-            }
-          } catch {}
 
           // Set VIP status
           const hasActiveVIP = data.vip && data.vipExpiration && new Date(data.vipExpiration) > new Date();
@@ -548,24 +539,20 @@ function HarvestCalculatorTab() {
     fetchPlayerStats();
   }, []);
 
-  // Calculate final harvest amount (matches harvestService.ts formula)
+  // Calculate final harvest amount
   const calculateHarvest = () => {
-    // Step 1: Apply additive percentage bonuses (digger + shrine)
+    // Step 1: Apply percentage bonuses
     const multiplier = 1 + (diggerBonus / 100) + (shrineBonus / 100);
     let finalAmount = Math.floor(baseAmount * multiplier);
 
-    // Step 2: Apply VIP 2x multiplier
+    // Step 2: Apply balance effects
+    const balanceMultiplier = 1 + (balanceBonus / 100);
+    finalAmount = Math.floor(finalAmount * balanceMultiplier);
+
+    // Step 3: Apply VIP 2x multiplier
     if (isVIP) {
       finalAmount = Math.floor(finalAmount * 2);
     }
-
-    // Step 3: Apply Flag Bearer 2x multiplier (if active)
-    if (isFlagBearer) {
-      finalAmount = Math.floor(finalAmount * 2);
-    }
-
-    // Step 4: Apply balance gathering multiplier (0.75 CRITICAL / 0.9 IMBALANCED / 1.0 BALANCED)
-    finalAmount = Math.floor(finalAmount * balanceMultiplier);
 
     return finalAmount;
   };
@@ -685,35 +672,21 @@ function HarvestCalculatorTab() {
             <p className="text-xs text-gray-500 mt-1">Active shrine boosts</p>
           </div>
 
-          {/* Balance Effect */}
+          {/* Balance Bonus */}
           <div className="bg-gray-800 rounded-lg p-4">
             <label className="text-sm text-gray-400 mb-2 block">
-              Balance Status
+              Balance Effect (%)
               <span className="text-green-400 ml-2">✓ Auto-calculated</span>
             </label>
-            <div className={`text-lg font-bold ${
-              balanceStatus === 'CRITICAL' ? 'text-red-400' :
-              balanceStatus === 'IMBALANCED' ? 'text-yellow-400' :
-              'text-green-400'
-            }`}>
-              {balanceStatus}
-              <span className="text-xs text-gray-500 ml-2">
-                (×{balanceMultiplier.toFixed(2)} gathering multiplier)
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Based on STR/DEF ratio (min÷max). CRITICAL: -25%, IMBALANCED: -10%</p>
-          </div>
-
-          {/* Flag Bearer Status */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <label className="text-sm text-gray-400 mb-2 block">
-              Flag Bearer
-              <span className="text-green-400 ml-2">✓ Auto-detected</span>
-            </label>
-            <div className={`text-lg font-bold ${isFlagBearer ? 'text-yellow-400' : 'text-gray-500'}`}>
-              {isFlagBearer ? '🚩 ACTIVE (2x)' : 'Inactive'}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Flag Bearer doubles all harvests</p>
+            <input
+              type="number"
+              min="-20"
+              max="20"
+              value={balanceBonus}
+              onChange={(e) => setBalanceBonus(parseInt(e.target.value) || 0)}
+              className="w-full bg-gray-700 text-white px-4 py-2 rounded border border-green-600 focus:border-blue-500 focus:outline-none"
+            />
+            <p className="text-xs text-gray-500 mt-1">STR/DEF balance (-20% to +20%)</p>
           </div>
 
           {/* VIP Toggle */}
@@ -763,11 +736,10 @@ function HarvestCalculatorTab() {
               <p>1. Base Amount: {baseAmount.toLocaleString()}</p>
               {diggerBonus > 0 && <p>2. + Digger Bonus ({diggerBonus}%): +{Math.floor(baseAmount * (diggerBonus / 100)).toLocaleString()}</p>}
               {shrineBonus > 0 && <p>3. + Shrine Boost ({shrineBonus}%): +{Math.floor(baseAmount * (shrineBonus / 100)).toLocaleString()}</p>}
-              {isVIP && <p className="text-yellow-400 font-bold">4. ⚡ VIP 2x Multiplier: ×2</p>}
-              {isFlagBearer && <p className="text-yellow-400 font-bold">5. 🚩 Flag Bearer 2x: ×2</p>}
-              {balanceMultiplier !== 1.0 && (
-                <p>6. Balance Effect ({balanceStatus}): ×{balanceMultiplier.toFixed(2)}</p>
+              {balanceBonus !== 0 && (
+                <p>4. {balanceBonus > 0 ? '+' : ''} Balance Effect ({balanceBonus}%): {balanceBonus > 0 ? '+' : ''}{Math.floor(baseAmount * (balanceBonus / 100)).toLocaleString()}</p>
               )}
+              {isVIP && <p className="text-yellow-400 font-bold">5. ⚡ VIP 2x Multiplier: ×2</p>}
               <p className="pt-2 border-t border-gray-700 font-bold text-green-400">= {finalAmount.toLocaleString()}</p>
             </div>
           </div>

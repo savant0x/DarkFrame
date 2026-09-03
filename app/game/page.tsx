@@ -12,25 +12,22 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
-import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, BankPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, SpecializationPanel, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, AutoFarmStatsDisplay, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel, ShrineStatusPanel } from '@/components';
-import { InventoryPanel } from '@/components/inventory';
+import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel } from '@/components';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
 import FlagTrackerPanel from '@/components/FlagTrackerPanel';
-import FlagBearerPanel from '@/components/FlagBearerPanel';
-import TileHarvestStatus from '@/components/TileHarvestStatus';
 import CaveItemNotification from '@/components/CaveItemNotification';
 import ClanManagementView from '@/components/clan/ClanManagementView';
 import LeaderboardView from '@/components/LeaderboardView';
 import ClanLeaderboardView from '@/components/ClanLeaderboardView';
 import StatsViewWrapper from '@/components/StatsViewWrapper';
-import TechTreePage from '@/app/tech-tree/page';
-import ProfilePage from '@/app/profile/page';
-import AdminPage from '@/app/admin/page';
+import TechTreePage from '@/app/tech-tree/TechTreeView';
+import ProfilePage from '@/app/profile/ProfileView';
+import AdminPage from '@/app/admin/AdminView';
 import ReferralsPage from '@/app/referrals/page';
 import WMDMiniStatus from '@/components/WMDMiniStatus';
 import WMDHub from '@/components/WMDHub';
-import { TerrainType, Discovery, Achievement, type FlagBearer } from '@/types';
+import { TerrainType, Discovery, Achievement, type FlagBearer, type HarvestResult, type AttackResult, type Factory } from '@/types';
 import { AutoFarmEngine } from '@/utils/autoFarmEngine';
 import { AutoFarmStatus, AutoFarmSessionStats, AutoFarmAllTimeStats, AutoFarmEvent, DEFAULT_SESSION_STATS, DEFAULT_ALL_TIME_STATS } from '@/types/autoFarm.types';
 import { loadAllTimeStats } from '@/lib/autoFarmPersistence';
@@ -84,11 +81,11 @@ function getTerrainBackgroundImage(terrain: TerrainType, x: number, y: number): 
 export default function GamePage() {
   const { player, currentTile, isLoading, refreshGameState, updateTileOnly, setPlayer } = useGameContext();
   const router = useRouter();
-  const [harvestResult, setHarvestResult] = useState<any>(null);
+  const [harvestResult, setHarvestResult] = useState<HarvestResult | null>(null);
   const [isHarvesting, setIsHarvesting] = useState(false);
   const [isAttacking, setIsAttacking] = useState(false);
-  const [attackResult, setAttackResult] = useState<any>(null);
-  const [factoryData, setFactoryData] = useState<any>(null);
+  const [attackResult, setAttackResult] = useState<AttackResult | null>(null);
+  const [factoryData, setFactoryData] = useState<Factory | null>(null);
   const [lastTileKey, setLastTileKey] = useState<string>('');
   // Bank and Shrine now use currentView instead of modal states
   const [showUnitBuildPanel, setShowUnitBuildPanel] = useState(false);
@@ -122,13 +119,12 @@ export default function GamePage() {
   // AUTO-FARM STATE & ENGINE
   // ============================================
   const autoFarmEngineRef = useRef<AutoFarmEngine | null>(null);
-  const playerRef = useRef(player);
-  playerRef.current = player; // Always reflects latest player state
   const [autoFarmStatus, setAutoFarmStatus] = useState<AutoFarmStatus>(AutoFarmStatus.STOPPED);
+  const [autoFarmPosition, setAutoFarmPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [autoFarmTilesCompleted, setAutoFarmTilesCompleted] = useState<number>(0);
   const [autoFarmLastAction, setAutoFarmLastAction] = useState<string>('Ready');
-  const [autoFarmSessionStats, setAutoFarmSessionStats] = useState<AutoFarmSessionStats>(DEFAULT_SESSION_STATS);
-  const [autoFarmAllTimeStats, setAutoFarmAllTimeStats] = useState<AutoFarmAllTimeStats>(DEFAULT_ALL_TIME_STATS);
+  const [, setAutoFarmSessionStats] = useState<AutoFarmSessionStats>(DEFAULT_SESSION_STATS);
+  const [, setAutoFarmAllTimeStats] = useState<AutoFarmAllTimeStats>(DEFAULT_ALL_TIME_STATS);
 
   // ============================================
   // FLAG TRACKER STATE
@@ -150,16 +146,8 @@ export default function GamePage() {
     }
   }, [player, isLoading, router]);
 
-  // Listen for inventory open event from StatsPanel
-  useEffect(() => {
-    const handler = () => setCurrentView(prev => prev === 'INVENTORY' ? 'TILE' : 'INVENTORY');
-    window.addEventListener('openInventory', handler);
-    return () => window.removeEventListener('openInventory', handler);
-  }, []);
-
   // Initialize AutoFarmEngine
   useEffect(() => {
-    const init = async () => {
     if (!player) return;
 
     // Create engine if it doesn't exist
@@ -176,22 +164,13 @@ export default function GamePage() {
         };
         // Always update VIP status from player data (in case it changed)
         config.isVIP = player.vip || false;
-
-        // Check flag bearer status for speed boost
-        try {
-          const resp = await fetch('/api/flag');
-          const fd = await resp.json();
-          if (fd.success && fd.data && fd.data.username === player.username) {
-            config.speedMultiplier = 1.5;
-          }
-        } catch {} // Non-critical
         console.log('[AutoFarm Init] VIP Status Check:', { 
           playerVIP: player.vip, 
           playerHasVIPField: 'vip' in player,
           configIsVIP: config.isVIP,
           shrineBoosts: player.shrineBoosts?.length || 0
         });
-      } catch (error) {
+      } catch {
         config = {
           attackPlayers: false,
           rankFilter: 'ALL',
@@ -224,18 +203,6 @@ export default function GamePage() {
           
           // Update tile visual using lightweight update (doesn't destroy engine)
           updateTileOnly(event.position.x, event.position.y);
-
-          // Sync GameContext player position with server-confirmed engine position
-          const p = playerRef.current;
-          if (p) {
-            setPlayer({ ...p, currentPosition: event.position });
-            // Track tutorial movement (fire-and-forget — non-blocking)
-            fetch('/api/tutorial/track-action', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ playerId: p.username, action: 'move' }),
-            }).catch(() => {});
-          }
         } else if (event.type === 'harvest') {
           // Keypress simulation triggers existing harvest UI - just update last action
           const data = event.data;
@@ -249,20 +216,6 @@ export default function GamePage() {
           if (data) {
             const outcome = data.victory ? '✅ Victory' : '❌ Defeat';
             setAutoFarmLastAction(`⚔️ ${outcome} vs ${data.defenderName || 'Enemy'}`);
-            
-            setAttackResult({
-              success: data.success,
-              message: data.message || 'Combat completed',
-              victory: data.victory || false,
-              metalStolen: data.metalStolen || 0,
-              energyStolen: data.energyStolen || 0,
-              xpGained: data.xpGained || 0,
-              defenderName: data.defenderName || 'Unknown',
-              unitsLost: data.unitsLost || 0
-            });
-            
-            // Clear combat result after 5 seconds
-            setTimeout(() => setAttackResult(null), 5000);
           }
         }
       });
@@ -273,6 +226,7 @@ export default function GamePage() {
 
       engine.onState((state) => {
         setAutoFarmStatus(state.status);
+        setAutoFarmPosition(state.currentPosition);
         setAutoFarmTilesCompleted(state.tilesCompleted);
       });
 
@@ -301,8 +255,6 @@ export default function GamePage() {
     // Load all-time stats from localStorage
     const allTimeStats = loadAllTimeStats();
     setAutoFarmAllTimeStats(allTimeStats);
-    }; // end init async
-    init();
 
     // Cleanup ONLY on unmount (not on player changes)
     return () => {
@@ -314,7 +266,7 @@ export default function GamePage() {
         autoFarmEngineRef.current = null;
       }
     };
-  }, [player?.username]); // Only re-run if username changes (i.e., different player logged in)
+  }, [player?.username, player, setPlayer, updateTileOnly]); // Only re-run if username changes (i.e., different player logged in)
 
   // ============================================
   // FLAG TRACKER DATA FETCHING
@@ -363,11 +315,8 @@ export default function GamePage() {
       setAttackResult(null);
       setFactoryData(null);
       
-      // Close any embedded view or modal when player moves
+      // Close any embedded view when player moves
       setCurrentView('TILE');
-      setShowUnitBuildPanel(false);
-      setShowFactoryManagement(false);
-      setShowTierUnlockPanel(false);
       
       // Refresh flag bearer data after movement
       fetch('/api/flag')
@@ -495,40 +444,34 @@ export default function GamePage() {
     // 'Q' key - Flag Tracker is always visible (removed toggle)
     // Q hotkey removed - flag tracker now permanently in sidebar
 
-    // 'I' key - Toggle Inventory view
-    if (key === 'i') {
-      setCurrentView(prev => prev === 'INVENTORY' ? 'TILE' : 'INVENTORY');
-    }
-
-    // 'G' key - Harvest for Metal/Energy (API validates tile type, don't block here)
+    // 'G' key - Harvest for Metal/Energy
     if (key === 'g') {
-      handleHarvest();
-    }
-
-    // 'F' key - Harvest for Cave/Forest (API validates tile type, don't block here)
-    if (key === 'f') {
-      handleHarvest();
-    }
-
-    // 'R' key - Attack / Manage Factory / Attack Bot
-    if (key === 'r') {
-      if (currentTile?.botAtLocation) {
-        handleAttack();
+      if (!currentTile || (currentTile.terrain !== TerrainType.Metal && currentTile.terrain !== TerrainType.Energy)) {
         return;
       }
+      handleHarvest();
+    }
+
+    // 'F' key - Harvest for Cave/Forest
+    if (key === 'f') {
+      if (!currentTile || (currentTile.terrain !== TerrainType.Cave && currentTile.terrain !== TerrainType.Forest)) {
+        return;
+      }
+      handleHarvest();
+    }
+
+    // 'R' key - Attack Factory
+    if (key === 'r') {
       if (!currentTile || currentTile.terrain !== TerrainType.Factory) {
         return;
       }
-      if (factoryData?.owner === player?.username) {
-        setShowFactoryManagement(true);
-      } else {
-        handleAttack();
-      }
+      handleAttack();
     }
-  }, [currentTile, factoryData, player]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleAttack/handleHarvest defined below, factoryData/player intentionally excluded
+  }, [currentTile, autoFarmStatus]);
 
   // Handle harvest action
-  const handleHarvest = async () => {
+  const handleHarvest = useCallback(async () => {
     if (!player || isHarvesting) return;
 
     setIsHarvesting(true);
@@ -568,54 +511,14 @@ export default function GamePage() {
     } finally {
       setIsHarvesting(false);
     }
-  };
+  }, [player, isHarvesting, currentTile, updateTileOnly]);
 
-  // Handle factory attack action or bot attack
+  // Handle factory attack action
   const handleAttack = async () => {
     if (!player || !currentTile || isAttacking) return;
 
     setIsAttacking(true);
     setAttackResult(null); // Clear previous result
-
-    // If there's a bot at this tile, attack the bot instead of the factory
-    if (currentTile.botAtLocation) {
-      try {
-        const response = await fetch('/api/bot/attack', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: player.username }),
-        });
-
-        const data = await response.json();
-
-        setAttackResult({
-          success: data.success,
-          message: data.message,
-          playerPower: data.playerPower || 0,
-          factoryDefense: data.botPower || 0,
-          captured: data.victory || false,
-        });
-
-        setTimeout(() => {
-          setAttackResult(null);
-          refreshGameState();
-        }, 3000);
-      } catch (error) {
-        console.error('Bot attack error:', error);
-        setAttackResult({
-          success: false,
-          message: 'Network error - please try again',
-          playerPower: 0,
-          factoryDefense: 0,
-          captured: false,
-        });
-      } finally {
-        setIsAttacking(false);
-      }
-      return;
-    }
-
-    // Otherwise, attack factory
 
     try {
       const response = await fetch('/api/factory/attack', {
@@ -681,20 +584,9 @@ export default function GamePage() {
   // ============================================
   const handleAutoFarmStart = () => {
     if (autoFarmEngineRef.current) {
-      if (player?.currentPosition) {
-        autoFarmEngineRef.current.setPosition(player.currentPosition);
-      }
       autoFarmEngineRef.current.start();
       setPanelMessage('🤖 Auto-Farm started!');
       setTimeout(() => setPanelMessage(''), 3000);
-    }
-  };
-
-  const handleAutoFarmStop = () => {
-    if (autoFarmEngineRef.current) {
-      autoFarmEngineRef.current.stop();
-      setPanelMessage('🛑 Auto-Farm stopped');
-      refreshGameState();
     }
   };
 
@@ -714,125 +606,93 @@ export default function GamePage() {
     }
   };
 
+  const handleAutoFarmStop = () => {
+    if (autoFarmEngineRef.current) {
+      autoFarmEngineRef.current.stop();
+      setPanelMessage('🛑 Auto-Farm stopped');
+      setTimeout(() => setPanelMessage(''), 3000);
+    }
+  };
+
   // ============================================
   // FLAG TRACKER HANDLERS
   // ============================================
-  const handleFlagChallenge = async (bearer: FlagBearer) => {
+  const handleFlagAttack = async (bearer: FlagBearer) => {
     if (!player || attackCooldown) return;
 
-    setPanelMessage('⚔️ Challenging...');
     try {
+      // Get the bearer ID (player or bot)
+      // If playerId is empty/falsy, use 'BOT' placeholder for better clarity
       const targetId = bearer.playerId && bearer.playerId.length > 0 ? bearer.playerId : 'BOT';
 
-      const response = await fetch('/api/flag', {
+      const response = await fetch('/api/flag/attack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'challenge',
-          username: player.username,
           targetPlayerId: targetId,
           attackerPosition: player.currentPosition
         })
       });
 
       if (!response.ok) {
-        const result = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
-        setPanelMessage(`❌ ${result.error || `HTTP ${response.status}`}`);
-        return;
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
       const result = await response.json();
 
-      if (result.success) {
-        const claimed = result.data?.claimed;
+      if (result.success && result.data?.success) {
+        setPanelMessage(`⚔️ ${result.data.message || `Attack successful! Damage: ${result.data.damage}`}`);
+        
+        // Start cooldown (60 seconds)
+        setAttackCooldown(true);
+        setCooldownRemaining(60);
 
-        if (claimed) {
-          // Bot claim — instant flag transfer
-          setPanelMessage(`🎌 ${result.message || 'Flag claimed!'}`);
+        const cooldownInterval = setInterval(() => {
+          setCooldownRemaining(prev => {
+            if (prev <= 1) {
+              clearInterval(cooldownInterval);
+              setAttackCooldown(false);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        // Refresh flag data to show updated bearer HP
+        const flagResponse = await fetch('/api/flag');
+        const flagData = await flagResponse.json();
+        if (flagData.success && flagData.data) {
+          setFlagBearer(flagData.data);
+        }
+
+        // If bearer was defeated, refresh game state to update flag ownership
+        if (result.data.bearerDefeated) {
           await refreshGameState();
-          const flagResponse = await fetch('/api/flag');
-          const flagData = await flagResponse.json();
-          if (flagData.success && flagData.data) {
-            setFlagBearer(flagData.data);
-          }
-          setTimeout(() => setPanelMessage(''), 4000);
-        } else {
-          // Human challenge — channel created
-          const lockDuration = result.data?.lockDuration ? Math.round(result.data.lockDuration / 1000) : 5;
-          setPanelMessage(`⚔️ ${result.message || `Challenge against ${bearer.username}`}`);
-
-          setAttackCooldown(true);
-          setCooldownRemaining(lockDuration);
-          const cooldownInterval = setInterval(() => {
-            setCooldownRemaining(prev => {
-              if (prev <= 1) {
-                clearInterval(cooldownInterval);
-                setAttackCooldown(false);
-                return 0;
-              }
-              return prev - 1;
-            });
-          }, 1000);
-
-          // Refresh flag data
-          const flagResponse = await fetch('/api/flag');
-          const flagData = await flagResponse.json();
-          if (flagData.success && flagData.data) {
-            setFlagBearer(flagData.data);
-          }
         }
       } else {
-        throw new Error(result.error || 'Unknown error');
+        const errorMsg = result.data?.error || result.error || 'Unknown error';
+        setPanelMessage(`❌ Attack failed: ${errorMsg}`);
       }
+
+      setTimeout(() => setPanelMessage(''), 5000);
     } catch (error) {
-      console.error('[Flag Tracker] Challenge error:', error);
+      console.error('[Flag Tracker] Attack error:', error);
       const errorMsg = error instanceof Error ? error.message : 'Network error';
-      setPanelMessage(`❌ ${errorMsg}`);
-      setTimeout(() => setPanelMessage(''), 8000);
+      setPanelMessage(`❌ Attack failed: ${errorMsg}`);
+      setTimeout(() => setPanelMessage(''), 5000);
     }
   };
 
-  const handleFlagRelease = async () => {
-    if (!player) return;
-
-    setPanelMessage('🏳️ Releasing flag...');
-    try {
-      const response = await fetch('/api/flag/release', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (!response.ok) {
-        const result = await response.json().catch(() => ({ error: `Server error (${response.status})` }));
-        throw new Error(result.error || `HTTP ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        setPanelMessage(`🏳️ ${result.message || 'Flag released!'}`);
-        await refreshGameState();
-        setFlagBearer(null);
-        setTimeout(() => setPanelMessage(''), 4000);
-      } else {
-        throw new Error(result.error || 'Release failed');
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Network error';
-      setPanelMessage(`❌ ${errorMsg}`);
-      setTimeout(() => setPanelMessage(''), 8000);
-    }
-  };
-
-  const handleFlagTrack = (_bearer: FlagBearer) => {
-    // Show flag bearer position info already visible in the tracker panel
-    router.push('/profile');
+  const handleFlagTrack = (bearer: FlagBearer) => {
+    // Navigate to bearer's profile
+    router.push(`/profile/${bearer.username}`);
   };
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-[--void] flex items-center justify-center">
-        <p className="text-white/50">
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <p className="text-gray-400">
           {isLoading ? 'Loading player data...' : 'Redirecting...'}
         </p>
       </div>
@@ -869,6 +729,7 @@ export default function GamePage() {
         dmUnreadCount={dmUnreadCount}
       />
       
+      <InventoryPanel />
       <CaveItemNotification />
       <DiscoveryNotification 
         discovery={discoveryNotification}
@@ -953,23 +814,34 @@ export default function GamePage() {
           isOpen={showFactoryManagement}
           onClose={() => setShowFactoryManagement(false)}
           username={player.username}
+          onNavigate={async (x, y) => {
+            // Navigate to factory coordinates
+            // Calculate movement from current position to target
+            if (!player.currentPosition) return;
+            
+            // This is a placeholder - actual implementation would need pathfinding
+            // For now, just refresh state to show the player we received the command
+            await refreshGameState();
+            setPanelMessage(`📍 Factory at (${x}, ${y}) - Use movement controls to navigate there`);
+            setTimeout(() => setPanelMessage(''), 3000);
+          }}
         />
       )}
 
       {/* Tier Unlock Panel */}
       {showTierUnlockPanel && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowTierUnlockPanel(false)}>
-          <div className="bg-black rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-black border-b border-white/10 p-3 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-[--neon-pink]">🧪 Research & Unlock Tiers</h2>
+          <div className="bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-purple-400">🧪 Research & Unlock Tiers</h2>
               <button
                 onClick={() => setShowTierUnlockPanel(false)}
-                className="text-white/40 hover:text-white text-xl font-bold"
+                className="text-gray-400 hover:text-white text-2xl font-bold"
               >
                 ×
               </button>
             </div>
-            <div className="p-4">
+            <div className="p-6">
               <TierUnlockPanel />
             </div>
           </div>
@@ -978,7 +850,7 @@ export default function GamePage() {
 
       {/* Panel Error Message Toast */}
       {panelMessage && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-[--neon-red]/20 border border-[--neon-red]/30 text-white px-4 py-2 rounded-lg z-50 animate-fade-in">
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-900 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
           {panelMessage}
         </div>
       )}
@@ -1015,22 +887,21 @@ export default function GamePage() {
                 isHarvesting={isHarvesting}
                 onAttackClick={handleAttack}
                 isAttacking={isAttacking}
-                onManageClick={() => setShowFactoryManagement(true)}
-                onFlagChallenge={handleFlagChallenge}
+                onFlagAttack={handleFlagAttack}
                 onBankClick={() => setCurrentView('BANK')}
                 onShrineClick={() => setCurrentView('SHRINE')}
               />
             </div>
           ) : currentView === 'TILE' ? (
-            <div className="flex items-center justify-center w-full h-full text-white/50">Loading tile...</div>
+            <div className="flex items-center justify-center w-full h-full text-gray-400">Loading tile...</div>
           ) : currentView === 'LEADERBOARD' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1039,13 +910,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'CLANS' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1054,13 +925,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'CLAN' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1069,13 +940,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'STATS' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1087,13 +958,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'TECH_TREE' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1102,43 +973,43 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'BATTLE_LOG' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-white text-lg">Battle Log View - Coming Soon</div>
+                <div className="text-white text-xl">Battle Log View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'INVENTORY' ? (
-            <div className="h-full w-full flex flex-col">
-              <div className="mb-2 flex-shrink-0">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <InventoryPanel />
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-white text-xl">Inventory View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'PROFILE' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1147,28 +1018,28 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'ADMIN' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
-              <div className="flex-1 overflow-auto bg-[--void]">
+              <div className="flex-1 overflow-auto bg-gradient-to-b from-gray-900 to-black">
                 <AdminPage embedded={true} />
               </div>
             </div>
           ) : currentView === 'WMD' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1177,13 +1048,13 @@ export default function GamePage() {
               </div>
             </div>
           ) : currentView === 'REFERRALS' ? (
-            <div className="h-full w-full flex flex-col p-4">
-              <div className="mb-2">
+            <div className="h-full w-full flex flex-col p-6">
+              <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-[--shadow] hover:bg-white/10 rounded-lg transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
                 >
-                  <span>←</span>
+                  <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
@@ -1193,31 +1064,43 @@ export default function GamePage() {
             </div>
           ) : currentView === 'SHRINE' ? (
             <ShrinePanel
-              tradeableItems={player?.inventory?.items?.filter(i => (i as unknown as Record<string,unknown>).itemType === 'TRADEABLE_ITEM') || []}
+              tradeableItems={player?.inventory?.items?.filter(i => i.type === 'TRADEABLE_ITEM') || []}
               activeBoosts={player?.shrineBoosts || []}
               onTransaction={refreshGameState}
               onBack={() => setCurrentView('TILE')}
             />
           ) : currentView === 'BANK' ? (
-            <BankPanel
-              isOpen={true}
-              onClose={() => setCurrentView('TILE')}
-              username={player?.username || ''}
-              playerResources={player?.resources || { metal: 0, energy: 0 }}
-              bankStorage={player?.bank || { metal: 0, energy: 0, lastDeposit: null }}
-              bankType={currentTile?.bankType || 'metal'}
-              onTransaction={refreshGameState}
-            />
+            <div className="h-full w-full flex flex-col p-6 bg-gray-900 text-white">
+              <div className="mb-4">
+                <button
+                  onClick={() => setCurrentView('TILE')}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  <span className="text-lg">←</span>
+                  <span>Back to Game</span>
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto">
+                {/* TODO: Convert BankPanel to inline view - for now show placeholder */}
+                <div className="text-center mt-10">
+                  <h2 className="text-2xl font-bold text-yellow-400 mb-4">🏦 Bank</h2>
+                  <p className="text-gray-400">Bank panel conversion in progress...</p>
+                  <p className="text-sm text-gray-500 mt-2">Coming soon!</p>
+                </div>
+              </div>
+            </div>
           ) : null
         }
         controlsPanel={
           <>
-            <ControlsPanel />
-
+            {/* Controls Panel - Contains Position display, Flag Bearer status, and Movement Controls */}
+            <ControlsPanel flagBearer={flagBearer} />
+            
             {/* Auto-Farm Control Panel */}
             <div className="p-3">
               <AutoFarmPanel
                 status={autoFarmStatus}
+                currentPosition={autoFarmPosition}
                 tilesCompleted={autoFarmTilesCompleted}
                 lastAction={autoFarmLastAction}
                 isVIP={player?.vip || false}
@@ -1228,37 +1111,25 @@ export default function GamePage() {
               />
             </div>
 
-            {/* Flag Bearer Panel — Show when player IS the bearer */}
-            {flagBearer && flagBearer.username === player?.username && (
-              <div className="p-3">
-                <FlagBearerPanel flagBearer={flagBearer} onRelease={handleFlagRelease} />
-              </div>
-            )}
+            {/* WMD Mini Status Widget */}
+            <div className="p-3">
+              <WMDMiniStatus onClick={() => setCurrentView('WMD')} />
+            </div>
 
-            {/* Flag Tracker Panel — Always show (handles null bearer internally) */}
-            {!(flagBearer && flagBearer.username === player?.username) && (
+            {/* Flag Tracker Panel - Only show if player is NOT the bearer */}
+            {flagBearer && flagBearer.username !== player?.username && (
               <div className="p-3">
                 <FlagTrackerPanel
                   playerPosition={player?.currentPosition || { x: 75, y: 75 }}
                   flagBearer={flagBearer}
                   onTrack={handleFlagTrack}
-                  onChallenge={handleFlagChallenge}
-                  challengeOnCooldown={attackCooldown}
+                  onAttack={handleFlagAttack}
+                  attackOnCooldown={attackCooldown}
                   cooldownRemaining={cooldownRemaining}
                   compact={false}
                 />
               </div>
             )}
-
-            {/* Shrine Status Panel */}
-            <div className="p-3">
-              <ShrineStatusPanel />
-            </div>
-
-            {/* WMD Mini Status Widget */}
-            <div className="p-3">
-              <WMDMiniStatus onClick={() => setCurrentView('WMD')} />
-            </div>
           </>
         }
         tutorialQuestPanel={
@@ -1284,4 +1155,3 @@ export default function GamePage() {
 // ============================================================
 // END OF FILE
 // ============================================================
-

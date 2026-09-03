@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/perks/available/route.ts
  * @created 2025-10-18
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-01-23 (FID-20251023-001: Auth deduplication + JSDoc)
  * 
  * OVERVIEW:
  * GET endpoint to retrieve all available perks for a clan based on level.
@@ -25,26 +25,59 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientAndDatabase } from '@/lib/mongodb';
+import { requireClanMembership } from '@/lib/authMiddleware';
 import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
+  initializeClanPerkService,
   getAvailablePerks,
   getActivePerks,
-  getRecommendedPerks,
   calculateTierCost,
-  logger,
-} from '@/lib';
+  getRecommendedPerks,
+} from '@/lib/clanPerkService';
 import { ClanPerkCategory, ClanPerkTier } from '@/types/clan.types';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = rateLimiter(async (request: NextRequest) => {
+/**
+ * GET /api/clan/perks/available
+ * Retrieve all available perks for authenticated player's clan
+ * 
+ * @param request - NextRequest with auth cookie and optional query parameters
+ * @returns NextResponse with perk catalog or error
+ * 
+ * @example
+ * GET /api/clan/perks/available
+ * Response: {
+ *   success: true,
+ *   perks: {
+ *     unlocked: [...],
+ *     locked: [...],
+ *     active: [...],
+ *     slotsRemaining: 2
+ *   }
+ * }
+ * 
+ * @example
+ * GET /api/clan/perks/available?category=COMBAT&recommendations=true
+ * Response: {
+ *   success: true,
+ *   perks: { unlocked: [...combat perks...], ... },
+ *   recommendations: [{ perk: {...}, reason: "...", priority: "high" }]
+ * }
+ * 
+ * @throws {400} Invalid category or tier filter
+ * @throws {401} Not authenticated
+ * @throws {403} Not a clan member
+ * @throws {500} Database or service error
+ */
+export async function GET(request: NextRequest) {
   try {
+    const { client, db } = await getClientAndDatabase();
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { clan, clanId } = result;
+
+    // Initialize perk service
+    
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -86,12 +119,12 @@ export const GET = rateLimiter(async (request: NextRequest) => {
     }
 
     // Build response
-    const response: Record<string, unknown> = {
+    const response: any = {
       success: true,
       clanId,
       clanName: clan.name,
       clanTag: clan.tag,
-      clanLevel: clan.clan_level,
+      clanLevel: clan.level.currentLevel,
       perks: {
         unlocked: unlockedPerks,
         locked: lockedPerks,
@@ -120,12 +153,111 @@ export const GET = rateLimiter(async (request: NextRequest) => {
     }
 
     return NextResponse.json(response, { status: 200 });
-  } catch (error: unknown) {
-    logger.error('Error fetching available perks:', error);
-    const errorDetails = error instanceof Error ? error.message : String(error);
+  } catch (error: any) {
+    console.error('Error fetching available perks:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch available perks', details: errorDetails },
+      { error: 'Failed to fetch available perks', details: error.message },
       { status: 500 }
     );
   }
-});
+}
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * Response Structure:
+ * {
+ *   "success": true,
+ *   "clanId": "...",
+ *   "clanName": "Dark Crusaders",
+ *   "clanTag": "DARK",
+ *   "clanLevel": 12,
+ *   "perks": {
+ *     "unlocked": [
+ *       {
+ *         "id": "combat_bronze_berserker",
+ *         "name": "Bronze Berserker",
+ *         "description": "+5% attack damage for all clan members",
+ *         "category": "COMBAT",
+ *         "tier": "BRONZE",
+ *         "requiredLevel": 5,
+ *         "cost": { "metal": 100000, "energy": 100000, "researchPoints": 10000 },
+ *         "bonus": { "type": "attack", "value": 5 }
+ *       },
+ *       ...
+ *     ],
+ *     "locked": [
+ *       {
+ *         "id": "combat_gold_destroyer",
+ *         "name": "Gold Destroyer",
+ *         "description": "+15% attack damage for all clan members",
+ *         "category": "COMBAT",
+ *         "tier": "GOLD",
+ *         "requiredLevel": 15,
+ *         "cost": { "metal": 500000, "energy": 500000, "researchPoints": 50000 },
+ *         "bonus": { "type": "attack", "value": 15 },
+ *         "levelsToUnlock": 3
+ *       },
+ *       ...
+ *     ],
+ *     "active": [
+ *       {
+ *         "id": "combat_bronze_berserker",
+ *         "name": "Bronze Berserker",
+ *         ...,
+ *         "activatedAt": "2025-10-18T10:30:00Z",
+ *         "activatedBy": "player123"
+ *       }
+ *     ],
+ *     "activeCount": 2,
+ *     "maxActive": 4,
+ *     "slotsRemaining": 2
+ *   },
+ *   "totalBonuses": {
+ *     "attack": 15,
+ *     "defense": 5,
+ *     "resourceYield": 0,
+ *     "xpGain": 0,
+ *     "territoryCostReduction": 0
+ *   }
+ * }
+ * 
+ * With recommendations=true:
+ * {
+ *   ...base response,
+ *   "recommendations": [
+ *     {
+ *       "perk": { id: "economic_silver_abundance", ... },
+ *       "reason": "Low resources - boosts resource generation",
+ *       "priority": "high"
+ *     },
+ *     ...
+ *   ]
+ * }
+ * 
+ * With costs=true:
+ * {
+ *   ...base response,
+ *   "tierCosts": {
+ *     "BRONZE": {
+ *       "metal": 400000,
+ *       "energy": 400000,
+ *       "researchPoints": 40000,
+ *       "perkCount": 4
+ *     },
+ *     "SILVER": { ... },
+ *     "GOLD": { ... },
+ *     "LEGENDARY": { ... }
+ *   }
+ * }
+ * 
+ * Filtering Examples:
+ * - GET /api/clan/perks/available?category=COMBAT
+ *   Returns only combat perks (unlocked + locked)
+ * 
+ * - GET /api/clan/perks/available?tier=LEGENDARY
+ *   Returns only legendary perks
+ * 
+ * - GET /api/clan/perks/available?category=ECONOMIC&recommendations=true
+ *   Returns economic perks with AI suggestions
+ */

@@ -1,354 +1,505 @@
 /**
  * @file lib/factoryService.ts
  * @created 2025-10-17
- * @updated 2026-05-11 — FID-20260511-FACTORY-UNIT-REDESIGN
- *
- * CHANGES:
- * - Burst+decay slot model: 80% on capture, 20% asymptotic decay
- * - Map entropy: degrade 1 level per 72h unoccupied
- * - Terrain modifiers from adjacent tiles
- * - Factory archetypes (MUNITIONS/HEAVY_ASSEMBLY/AEGIS)
- * - New capture probability formula with diminishing returns
- * - Level-gap penalties for high-rank vs low-level factories
- * - Removed broken produceUnit function
- * - Auth via server-side session (no username from body)
- * - Passive income calculated on collection (lazy evaluation)
- * - buildUnitsAtFactory replaces produceUnit with proper UNIT_CONFIGS
- * - abandonFactory awards Operational Data
+ * @updated 2025-11-04 - Phase 5: Added passive income system (hourly resource generation)
+ * @overview Factory attack, control, unit production, and passive income business logic
+ * 
+ * PASSIVE INCOME SYSTEM (NEW):
+ * - Hourly resource generation for factory owners
+ * - Metal/hour: factoryLevel × 1,000 (Level 1: 1K, Level 10: 10K)
+ * - Energy/hour: factoryLevel × 500 (Level 1: 500, Level 10: 5K)
+ * - Collection: collectAllFactoryIncome() calculates and awards accumulated resources
+ * - Tracking: lastResourceGeneration timestamp prevents retroactive income
+ * - Minimum interval: 1 minute (prevents spam collection)
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, TablesInsert } from '@/types/database';
-import { Factory, AttackResult, Unit, Position, UnitType, UNIT_CONFIGS } from '@/types';
+import { db } from '@/lib/db';
+import { factories, players } from '@/lib/db/schema';
+import { eq, and, sql, count, desc } from 'drizzle-orm';
+import { Factory, AttackResult, Unit, Position, UnitType } from '@/types';
+import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
-import {
-  FACTORY_UPGRADE,
-  getMaxSlots,
-  getFactoryDefense,
-  getBurstSlots,
-  getDecaySlots,
-  getTotalAvailableSlots,
-  shouldDegrade,
-  getTerrainModifier,
-  getArchetypeBonus,
-  getCaptureProbability,
-  getLuckyStrikeChance,
-  getLevelGapPenalty,
-  getUpkeepCost,
-  type FactoryArchetype,
-  type TerrainModifier,
-  calculateUpgradeCost,
-  canUpgradeFactory,
-} from './factoryUpgradeService';
+import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';
 
-const ATTACK_COOLDOWN_MS = 5 * 60 * 1000;
-const BASE_PLAYER_POWER = 100;
+const ATTACK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between attacks
+const UNIT_COST_METAL = 100;
+const UNIT_COST_ENERGY = 50;
+const BASE_PLAYER_POWER = 100; // Base power for new players
 
-// ─── PASSIVE INCOME ───────────────────────────────────────────────────────────
+// PASSIVE INCOME CONSTANTS (NEW: Phase 5 - Factory Passive Income)
+const PASSIVE_INCOME_METAL_PER_LEVEL = 1000; // Level 1: 1K/hr, Level 10: 10K/hr
+const PASSIVE_INCOME_ENERGY_PER_LEVEL = 500;  // Level 1: 500/hr, Level 10: 5K/hr
 
+/**
+ * Calculate hourly passive income rate for a factory
+ * 
+ * @param factoryLevel - Current factory level (1-10)
+ * @returns Object with metal and energy per hour
+ * 
+ * @example
+ * getFactoryIncomeRate(1);  // Returns { metal: 1000, energy: 500 }
+ * getFactoryIncomeRate(10); // Returns { metal: 10000, energy: 5000 }
+ * 
+ * NEW: Phase 5 - Passive income rewards factory ownership
+ */
 export function getFactoryIncomeRate(factoryLevel: number): { metal: number; energy: number } {
-  return { metal: factoryLevel * 1000, energy: factoryLevel * 500 };
+  return {
+    metal: factoryLevel * PASSIVE_INCOME_METAL_PER_LEVEL,
+    energy: factoryLevel * PASSIVE_INCOME_ENERGY_PER_LEVEL
+  };
 }
 
-export function calculateFactoryIncome(factory: Tables<'factories'>): {
-  metal: number; energy: number; hoursElapsed: number;
+/**
+ * Collect accumulated passive income from a factory
+ * Calculates resources generated since last collection based on factory level
+ * 
+ * @param factory - Factory to collect income from
+ * @returns Object with collected resources and updated timestamp
+ * 
+ * @example
+ * // Level 10 factory, 2 hours since last collection
+ * collectFactoryIncome(factory);
+ * // Returns: { metal: 20000, energy: 10000, hoursElapsed: 2 }
+ * 
+ * NEW: Phase 5 - Hourly resource generation for factory owners
+ */
+export function calculateFactoryIncome(factory: Factory): {
+  metal: number;
+  energy: number;
+  hoursElapsed: number;
 } {
-  const lastGen = (factory as Record<string, unknown>).last_resource_generation ?? factory.last_interacted_at;
-  if (!lastGen) return { metal: 0, energy: 0, hoursElapsed: 0 };
-  const msElapsed = Date.now() - new Date(lastGen as string).getTime();
-  const hoursElapsed = msElapsed / (1000 * 60 * 60);
-  if (hoursElapsed < 0.0167) return { metal: 0, energy: 0, hoursElapsed: 0 };
-  const rate = getFactoryIncomeRate(factory.level);
-  return { metal: Math.floor(rate.metal * hoursElapsed), energy: Math.floor(rate.energy * hoursElapsed), hoursElapsed };
+  // If no lastResourceGeneration, initialize to now (no retroactive income)
+  if (!factory.lastResourceGeneration) {
+    return { metal: 0, energy: 0, hoursElapsed: 0 };
+  }
+
+  // Calculate time elapsed since last collection
+  const now = new Date();
+  const lastCollection = new Date(factory.lastResourceGeneration);
+  const msElapsed = now.getTime() - lastCollection.getTime();
+  const hoursElapsed = msElapsed / (1000 * 60 * 60); // Convert ms to hours
+
+  // No income if less than 1 minute elapsed (prevents spam)
+  if (hoursElapsed < 0.0167) { // 1 minute = 0.0167 hours
+    return { metal: 0, energy: 0, hoursElapsed: 0 };
+  }
+
+  // Calculate income based on factory level and time elapsed
+  const hourlyRate = getFactoryIncomeRate(factory.level);
+  const metal = Math.floor(hourlyRate.metal * hoursElapsed);
+  const energy = Math.floor(hourlyRate.energy * hoursElapsed);
+
+  return { metal, energy, hoursElapsed };
 }
 
+/**
+ * Collect passive income from all player-owned factories
+ * Updates player resources and factory lastResourceGeneration timestamps
+ * 
+ * @param username - Player username
+ * @returns Object with total collected resources and factory count
+ * 
+ * @example
+ * await collectAllFactoryIncome('Player1');
+ * // Returns: { totalMetal: 25000, totalEnergy: 12500, factoriesCollected: 3 }
+ * 
+ * NEW: Phase 5 - Batch collection for all owned factories
+ */
 export async function collectAllFactoryIncome(username: string): Promise<{
-  totalMetal: number; totalEnergy: number; factoriesCollected: number;
-  factories: Array<{ position: { x: number; y: number }; level: number; metal: number; energy: number; hoursElapsed: number }>;
+  totalMetal: number;
+  totalEnergy: number;
+  factoriesCollected: number;
+  factories: Array<{
+    position: { x: number; y: number };
+    level: number;
+    metal: number;
+    energy: number;
+    hoursElapsed: number;
+  }>;
 }> {
-  const supabase = createServiceClient();
-  const { data: factories, error } = await supabase.from('factories').select('*').eq('owner', username);
-  if (error) throw new Error(error.message);
-  if (!factories || factories.length === 0) return { totalMetal: 0, totalEnergy: 0, factoriesCollected: 0, factories: [] };
+  // Get all factories owned by player
+  const factoriesList = await db.select().from(factories).where(eq(factories.owner, username));
 
-  let totalMetal = 0, totalEnergy = 0;
-  const factoryDetails: Array<{ position: { x: number; y: number }; level: number; metal: number; energy: number; hoursElapsed: number }> = [];
-  const updates: Array<{ x: number; y: number; last_resource_generation: string }> = [];
+  if (factoriesList.length === 0) {
+    return {
+      totalMetal: 0,
+      totalEnergy: 0,
+      factoriesCollected: 0,
+      factories: []
+    };
+  }
 
-  for (const factory of factories) {
-    const income = calculateFactoryIncome(factory);
+  let totalMetal = 0;
+  let totalEnergy = 0;
+  const factoryDetails = [];
+
+  // Calculate income for each factory
+  for (const factory of factoriesList) {
+    const income = calculateFactoryIncome(factory as unknown as Factory);
+    
     if (income.metal > 0 || income.energy > 0) {
       totalMetal += income.metal;
       totalEnergy += income.energy;
-      factoryDetails.push({ position: { x: factory.x, y: factory.y }, level: factory.level, metal: income.metal, energy: income.energy, hoursElapsed: income.hoursElapsed });
-      updates.push({ x: factory.x, y: factory.y, last_resource_generation: new Date().toISOString() });
+
+      factoryDetails.push({
+        position: { x: factory.x, y: factory.y },
+        level: factory.level,
+        metal: income.metal,
+        energy: income.energy,
+        hoursElapsed: income.hoursElapsed
+      });
+
+      // Update factory's lastResourceGeneration timestamp
+      await db.update(factories)
+        .set({ lastResourceGeneration: new Date() })
+        .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
     }
   }
 
-  if (updates.length > 0) {
-    const { error: batchError } = await supabase.from('factories').upsert(updates as never, { onConflict: 'x,y' });
-    if (batchError) throw new Error(batchError.message);
-  }
-
+  // Award resources to player
   if (totalMetal > 0 || totalEnergy > 0) {
-    const { data: player } = await supabase.from('players').select('resources_metal, resources_energy').eq('username', username).single();
-    if (player) {
-      const { error: updateError } = await supabase.from('players').update({ resources_metal: player.resources_metal + totalMetal, resources_energy: player.resources_energy + totalEnergy }).eq('username', username);
-      if (updateError) throw new Error(updateError.message);
+    const player = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    if (player.length > 0) {
+      const newMetal = BigInt(player[0].resourcesMetal || 0) + BigInt(totalMetal);
+      const newEnergy = BigInt(player[0].resourcesEnergy || 0) + BigInt(totalEnergy);
+
+      await db.update(players)
+        .set({ resourcesMetal: Number(newMetal), resourcesEnergy: Number(newEnergy) })
+        .where(eq(players.username, username));
+
+      console.log(`💰 ${username} collected passive income: ${totalMetal.toLocaleString()} Metal, ${totalEnergy.toLocaleString()} Energy from ${factoryDetails.length} factories`);
     }
   }
-  return { totalMetal, totalEnergy, factoriesCollected: factoryDetails.length, factories: factoryDetails };
+
+  return {
+    totalMetal,
+    totalEnergy,
+    factoriesCollected: factoryDetails.length,
+    factories: factoryDetails
+  };
 }
 
-// ─── PLAYER POWER ─────────────────────────────────────────────────────────────
-
+/**
+ * Calculate player's total power for attack
+ * Based on: base power + (units owned * unit power) + level bonuses
+ */
 export async function calculatePlayerPower(username: string): Promise<number> {
-  const supabase = createServiceClient();
-  const { data: player, error } = await supabase.from('players').select('*').eq('username', username).single();
-  if (error || !player) return BASE_PLAYER_POWER;
+  const player = await db.select().from(players).where(eq(players.username, username)).limit(1);
+  
+  if (player.length === 0) return BASE_PLAYER_POWER;
+  
+  const p = player[0];
+  
+  // Base power
   let power = BASE_PLAYER_POWER;
-  power += (player.rank || 1) * 10;
-  if (player.total_strength) power += player.total_strength;
-  if (player.factory_count) power += player.factory_count * 50;
+  
+  // Add power from rank/level (10 power per rank)
+  power += (p.rank || 1) * 10;
+  
+  // Add power from player's total military strength (PRIMARY POWER SOURCE)
+  // totalStrength comes from all units' STR stats combined
+  if (p.totalStrength) {
+    power += p.totalStrength;
+  }
+  
+  // Add power from units in inventory (secondary bonus)
+  if (p.inventoryItems) {
+    let inventory: any[] = [];
+    try {
+      inventory = typeof p.inventoryItems === 'string' ? JSON.parse(p.inventoryItems) : p.inventoryItems;
+    } catch {}
+    const units = inventory.filter((item: any) => item.type === 'UNIT');
+    power += units.length * 50; // Each unit adds 50 power
+  }
+  
   return power;
 }
 
-// ─── FACTORY DATA ─────────────────────────────────────────────────────────────
-
-export async function getFactoryData(x: number, y: number): Promise<Tables<'factories'> | null> {
-  const supabase = createServiceClient();
-  const { data: factory, error } = await supabase.from('factories').select('*').eq('x', x).eq('y', y).single();
-
-  if (!factory || error) {
-    const level = 1;
-    const now = new Date().toISOString();
-    const insert: TablesInsert<'factories'> = {
-      x, y, owner: null,
-      defense: getFactoryDefense(level),
-      level,
-      slots: getMaxSlots(level),
-      used_slots: 0,
-      production_rate: 1,
-      last_slot_regen: now,
-      last_resource_generation: now,
-      last_interacted_at: now,
-      last_attacked_by: null,
-      last_attack_time: null,
-      times_captured: 0,
-      factory_archetype: 'MUNITIONS',
-      terrain_modifier: 'WASTELAND',
+/**
+ * Get or create factory data for a tile
+ */
+export async function getFactoryData(x: number, y: number): Promise<Factory | null> {
+  const factoryRow = await db.select().from(factories).where(and(eq(factories.x, x), eq(factories.y, y))).limit(1);
+  
+  // Create factory if it doesn't exist
+  if (factoryRow.length === 0) {
+    const level = 1; // All new factories start at Level 1
+    const newFactory: Factory = {
+      x,
+      y,
+      owner: null,
+      defense: getFactoryDefense(level), // Level 1: 1,000 defense (exponential scaling)
+      level: level,
+      slots: getMaxSlots(level), // Level 1: 5,000 slots
+      usedSlots: 0,
+      productionRate: 1, // 1 unit per hour
+      lastSlotRegen: new Date(), // Initialize with current time
+      lastResourceGeneration: new Date(), // NEW: Initialize passive income tracking
+      lastAttackedBy: null,
+      lastAttackTime: null
     };
-    const { data: newFactory, error: insertError } = await supabase.from('factories').insert(insert).select('*').single();
-    if (insertError) throw new Error(insertError.message);
+    
+    await db.insert(factories).values(newFactory as any);
     return newFactory;
   }
-  return factory;
+  
+  return factoryRow[0] as unknown as Factory;
 }
 
-// ─── MAP ENTROPY ──────────────────────────────────────────────────────────────
-
-export async function applyMapEntropy(supabase: ReturnType<typeof createServiceClient>, factory: Tables<'factories'>): Promise<number> {
-  if (!factory.last_interacted_at) return 0;
-  const lastInteracted = new Date(factory.last_interacted_at);
-  if (!shouldDegrade(lastInteracted)) return 0;
-  const periods = Math.floor((Date.now() - lastInteracted.getTime()) / (1000 * 60 * 60 * FACTORY_UPGRADE.ENTROPY_HOURS));
-  if (periods <= 0) return 0;
-  const newLevel = Math.max(FACTORY_UPGRADE.MIN_LEVEL, factory.level - periods);
-  const levelsLost = factory.level - newLevel;
-  if (levelsLost > 0) {
-    await supabase.from('factories').update({
-      level: newLevel,
-      defense: getFactoryDefense(newLevel),
-      slots: getMaxSlots(newLevel),
-      used_slots: 0,
-      last_interacted_at: new Date().toISOString(),
-    }).eq('x', factory.x).eq('y', factory.y);
-  }
-  return levelsLost;
-}
-
-// ─── FACTORY CAPTURE ──────────────────────────────────────────────────────────
-
-export async function attackFactory(username: string, x: number, y: number): Promise<AttackResult> {
-  const supabase = createServiceClient();
+/**
+ * Attack a factory
+ * Success chance based on player power vs factory defense
+ */
+export async function attackFactory(
+  username: string,
+  x: number,
+  y: number
+): Promise<AttackResult> {
+  // Get factory data
   const factory = await getFactoryData(x, y);
-  if (!factory) return { success: false, message: 'Factory not found', playerPower: 0, factoryDefense: 0, captured: false };
-
-  await applyMapEntropy(supabase, factory);
-  const freshFactory = await getFactoryData(x, y);
-  if (!freshFactory) return { success: false, message: 'Factory not found', playerPower: 0, factoryDefense: 0, captured: false };
-
-  if (freshFactory.owner === username) return { success: false, message: 'You already control this factory!', playerPower: 0, factoryDefense: freshFactory.defense, captured: false };
-
-  const { count } = await supabase.from('factories').select('*', { count: 'exact', head: true }).eq('owner', username);
-  const ownedCount = count || 0;
-  if (ownedCount >= 10) return { success: false, message: `You already control ${ownedCount} factories (max 10). Abandon one to capture another.`, playerPower: 0, factoryDefense: freshFactory.defense, captured: false };
-
-  if (freshFactory.last_attacked_by === username && freshFactory.last_attack_time) {
-    const timeSince = Date.now() - new Date(freshFactory.last_attack_time).getTime();
-    if (timeSince < ATTACK_COOLDOWN_MS) {
-      const minutesLeft = Math.ceil((ATTACK_COOLDOWN_MS - timeSince) / 60000);
-      return { success: false, message: `You must wait ${minutesLeft} minutes before attacking this factory again`, playerPower: 0, factoryDefense: freshFactory.defense, captured: false };
-    }
-  }
-
-  const basePlayerPower = await calculatePlayerPower(username);
-  const { data: player } = await supabase.from('players').select('rank').eq('username', username).single();
-  const levelGapMultiplier = getLevelGapPenalty(player?.rank || 1, freshFactory.level);
-  let effectivePower = Math.floor(basePlayerPower * levelGapMultiplier);
-
-  const luckyChance = getLuckyStrikeChance(freshFactory.level, basePlayerPower);
-  if (luckyChance > 0 && Math.random() < luckyChance) effectivePower = Math.floor(freshFactory.defense * 1.1);
-
-  const terrainMod = getTerrainModifier((freshFactory.terrain_modifier as TerrainModifier) || 'WASTELAND');
-  const effectiveDefense = Math.floor(freshFactory.defense * terrainMod.defenseMultiplier);
-  const successChance = getCaptureProbability(effectivePower, effectiveDefense);
-  const success = Math.random() < successChance;
-  const now = new Date().toISOString();
-
-  const updateData: Record<string, unknown> = { last_attacked_by: username, last_attack_time: now, last_interacted_at: now };
-  if (success) {
-    updateData.owner = username;
-    updateData.used_slots = 0;
-    updateData.slots = getBurstSlots(freshFactory.level);
-    updateData.last_resource_generation = now;
-    updateData.times_captured = (freshFactory.times_captured || 0) + 1;
-  }
-
-  const { error: updateError } = await supabase.from('factories').update(updateData as never).eq('x', x).eq('y', y);
-  if (updateError) throw new Error(updateError.message);
-
-  if (success) {
-    const xpResult = await awardXP(username, XPAction.FACTORY_CAPTURE);
+  if (!factory) {
     return {
-      success: true,
-      message: `Victory! You have captured the factory!\n\nYour Power: ${effectivePower.toLocaleString()}\nFactory Defense: ${effectiveDefense.toLocaleString()}\nCapture Chance: ${(successChance * 100).toFixed(1)}%`,
-      playerPower: effectivePower, factoryDefense: effectiveDefense, captured: true,
-      xpAwarded: xpResult.xpAwarded, levelUp: xpResult.levelUp, newLevel: xpResult.newLevel,
+      success: false,
+      message: 'Factory not found',
+      playerPower: 0,
+      factoryDefense: 0,
+      captured: false
     };
   }
-  return {
-    success: false,
-    message: `Attack failed!\n\nYour Power: ${effectivePower.toLocaleString()}\nFactory Defense: ${effectiveDefense.toLocaleString()}\nCapture Chance: ${(successChance * 100).toFixed(1)}%`,
-    playerPower: effectivePower, factoryDefense: effectiveDefense, captured: false,
-  };
-}
-
-// ─── UNIT PRODUCTION ──────────────────────────────────────────────────────────
-
-export async function buildUnitsAtFactory(
-  username: string, x: number, y: number,
-  builds: Array<{ unitType: UnitType; quantity: number }>
-): Promise<{ success: boolean; message: string; units?: Unit[]; totalCost?: { metal: number; energy: number; rp: number } }> {
-  const supabase = createServiceClient();
-  const factory = await getFactoryData(x, y);
-  if (!factory) return { success: false, message: 'Factory not found' };
-  if (factory.owner !== username) return { success: false, message: 'You do not control this factory' };
-
-  let totalSlotsNeeded = 0, totalMetalCost = 0, totalEnergyCost = 0, totalRpCost = 0;
-  for (const build of builds) {
-    const config = UNIT_CONFIGS[build.unitType];
-    if (!config) return { success: false, message: `Unknown unit type: ${build.unitType}` };
-    totalSlotsNeeded += config.slotCost * build.quantity;
-    totalMetalCost += config.metalCost * build.quantity;
-    totalEnergyCost += config.energyCost * build.quantity;
-    totalRpCost += config.rpRequired;
+  
+  // Check if already owned by player
+  if (factory.owner === username) {
+    return {
+      success: false,
+      message: 'You already control this factory!',
+      playerPower: 0,
+      factoryDefense: factory.defense,
+      captured: false
+    };
   }
-
-  const minutesSinceCapture = factory.last_interacted_at ? (Date.now() - new Date(factory.last_interacted_at).getTime()) / (1000 * 60) : 0;
-  const availableSlots = getTotalAvailableSlots(factory.level, minutesSinceCapture);
-  const remainingSlots = availableSlots - factory.used_slots;
-  if (totalSlotsNeeded > remainingSlots) return { success: false, message: `Insufficient factory slots. Need ${totalSlotsNeeded.toLocaleString()}, have ${remainingSlots.toLocaleString()} available.` };
-
-  const { data: player, error: playerError } = await supabase.from('players').select('*').eq('username', username).single();
-  if (playerError || !player) return { success: false, message: 'Player not found' };
-  if (player.resources_metal < totalMetalCost || player.resources_energy < totalEnergyCost) {
-    return { success: false, message: `Insufficient resources. Need ${totalMetalCost.toLocaleString()} Metal and ${totalEnergyCost.toLocaleString()} Energy.` };
+  
+  // Enforce max factories per player before capture attempt
+  // If the player already controls the maximum allowed number of factories,
+  // block the capture and return a clear message. This ensures balance and
+  // prevents exceeding the strategic cap.
+  const ownedCountResult = await db.select({ count: sql`count(*)` }).from(factories).where(eq(factories.owner, username));
+  const ownedCount = Number(ownedCountResult[0].count);
+  if (ownedCount >= FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER) {
+    return {
+      success: false,
+      message: `You already control ${ownedCount} factories (max ${FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER}). Abandon one to capture another.`,
+      playerPower: 0,
+      factoryDefense: factory.defense,
+      captured: false
+    };
   }
-
-  const units: Unit[] = [];
-  for (const build of builds) {
-    const config = UNIT_CONFIGS[build.unitType];
-    for (let i = 0; i < build.quantity; i++) {
-      units.push({ id: crypto.randomUUID(), type: build.unitType, strength: config.strength, defense: config.defense, producedAt: { x, y }, producedDate: new Date(), owner: username });
+  
+  // Check cooldown
+  if (factory.lastAttackedBy === username && factory.lastAttackTime) {
+    const timeSinceLastAttack = Date.now() - new Date(factory.lastAttackTime).getTime();
+    if (timeSinceLastAttack < ATTACK_COOLDOWN_MS) {
+      const minutesLeft = Math.ceil((ATTACK_COOLDOWN_MS - timeSinceLastAttack) / 60000);
+      return {
+        success: false,
+        message: `You must wait ${minutesLeft} minutes before attacking this factory again`,
+        playerPower: 0,
+        factoryDefense: factory.defense,
+        captured: false
+      };
     }
   }
+  
+  // Calculate power
+  const playerPower = await calculatePlayerPower(username);
+  
+  // Attack calculation: (player power / factory defense) with RNG
+  const successChance = Math.min(0.9, playerPower / factory.defense); // Max 90% chance
+  const attackRoll = Math.random();
+  const success = attackRoll < successChance;
+  
+  // Update factory
+  if (success) {
+    await db.update(factories)
+      .set({
+        lastAttackedBy: username,
+        lastAttackTime: new Date(),
+        owner: username,
+        usedSlots: 0,
+        lastResourceGeneration: new Date() // NEW: Initialize passive income on capture
+      })
+      .where(and(eq(factories.x, x), eq(factories.y, y)));
+  } else {
+    await db.update(factories)
+      .set({
+        lastAttackedBy: username,
+        lastAttackTime: new Date()
+      })
+      .where(and(eq(factories.x, x), eq(factories.y, y)));
+  }
+  
+  if (success) {
+    console.log(`✅ ${username} captured factory at (${x}, ${y})! Power: ${playerPower} vs Defense: ${factory.defense}`);
+    
+    // Award XP for factory capture
+    const xpResult = await awardXP(username, XPAction.FACTORY_CAPTURE);
+    
+    return {
+      success: true,
+      message: `Victory! You have captured the factory!\n\nYour Power: ${playerPower.toLocaleString()}\nFactory Defense: ${factory.defense.toLocaleString()}\n\nThe factory is now producing units for you.`,
+      playerPower,
+      factoryDefense: factory.defense,
+      captured: true,
+      xpAwarded: xpResult.xpAwarded,
+      levelUp: xpResult.levelUp,
+      newLevel: xpResult.newLevel
+    };
+  } else {
+    console.log(`❌ ${username} failed to capture factory at (${x}, ${y}). Power: ${playerPower} vs Defense: ${factory.defense}`);
+    return {
+      success: false,
+      message: `Attack failed!\n\nYour Power: ${playerPower.toLocaleString()}\nFactory Defense: ${factory.defense.toLocaleString()}\n\nYou need more units or a higher rank to capture this factory.`,
+      playerPower,
+      factoryDefense: factory.defense,
+      captured: false
+    };
+  }
+}
 
-  const { error: resourceError } = await supabase.from('players').update({ resources_metal: player.resources_metal - totalMetalCost, resources_energy: player.resources_energy - totalEnergyCost }).eq('username', username);
-  if (resourceError) throw new Error(resourceError.message);
+/**
+ * Produce units at a controlled factory
+ * Costs resources and adds unit to player inventory
+ */
+export async function produceUnit(
+  username: string,
+  x: number,
+  y: number
+): Promise<{ success: boolean; message: string; unit?: Unit }> {
+  // Get factory
+  const factory = await getFactoryData(x, y);
+  if (!factory) {
+    return { success: false, message: 'Factory not found' };
+  }
+  
+  // Check ownership
+  if (factory.owner !== username) {
+    return { success: false, message: 'You do not control this factory' };
+  }
+  
+  // Check slots
+  if (factory.usedSlots >= factory.slots) {
+    return { success: false, message: 'Factory is at maximum capacity' };
+  }
+  
+  // Get player
+  const playerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
+  if (playerResult.length === 0) {
+    return { success: false, message: 'Player not found' };
+  }
+  
+  const player = playerResult[0];
+  
+  // Check resources
+  if ((player.resourcesMetal || 0) < UNIT_COST_METAL || (player.resourcesEnergy || 0) < UNIT_COST_ENERGY) {
+    return {
+      success: false,
+      message: `Insufficient resources. Need ${UNIT_COST_METAL} Metal and ${UNIT_COST_ENERGY} Energy`
+    };
+  }
+  
+  // Create unit
+  const unit: Unit = {
+    id: randomUUID(),
+    type: UnitType.T1_Rifleman, // Default Tier 1 unit
+    strength: 5, // T1_Rifleman STR
+    defense: 0,  // T1_Rifleman is STR unit, no DEF
+    producedAt: { x, y },
+    producedDate: new Date(),
+    owner: username
+  };
+  
+  // Update player: deduct resources, add unit to inventory
+  let inventory: any[] = [];
+  if (player.inventoryItems) {
+    try {
+      inventory = typeof player.inventoryItems === 'string' ? JSON.parse(player.inventoryItems) : player.inventoryItems;
+    } catch {}
+  }
+  inventory.push(unit);
 
-  const { error: factoryError } = await supabase.from('factories').update({ used_slots: factory.used_slots + totalSlotsNeeded, last_interacted_at: new Date().toISOString() }).eq('x', x).eq('y', y);
-  if (factoryError) throw new Error(factoryError.message);
+  const newMetal = BigInt(player.resourcesMetal || 0) - BigInt(UNIT_COST_METAL);
+  const newEnergy = BigInt(player.resourcesEnergy || 0) - BigInt(UNIT_COST_ENERGY);
 
-  const armyRows = units.map((u) => ({ id: u.id, player_username: username, unit_type: u.type, strength: u.strength, defense: u.defense, produced_at_x: x, produced_at_y: y, created_at: new Date().toISOString() }));
-  const { error: armyError } = await supabase.from('player_units').insert(armyRows as never);
-  if (armyError) throw new Error(armyError.message);
+  await db.update(players)
+    .set({
+      resourcesMetal: Number(newMetal),
+      resourcesEnergy: Number(newEnergy),
+      inventoryItems: inventory as any
+    })
+    .where(eq(players.username, username));
+  
+  // Update factory: increment used slots (read current, then set new value)
+  const factoryRow = await db.select().from(factories).where(and(eq(factories.x, x), eq(factories.y, y))).limit(1);
+  const currentUsedSlots = factoryRow.length > 0 ? factoryRow[0].usedSlots : 0;
 
+  await db.update(factories)
+    .set({ usedSlots: currentUsedSlots + 1 })
+    .where(and(eq(factories.x, x), eq(factories.y, y)));
+  
+  console.log(`🏭 ${username} produced unit at factory (${x}, ${y})`);
+  
   return {
     success: true,
-    message: `Built ${units.length} units!\n\nCost: ${totalMetalCost.toLocaleString()} Metal + ${totalEnergyCost.toLocaleString()} Energy\nSlots used: ${(factory.used_slots + totalSlotsNeeded).toLocaleString()}/${availableSlots.toLocaleString()}`,
-    units,
-    totalCost: { metal: totalMetalCost, energy: totalEnergyCost, rp: totalRpCost },
+    message: `Unit produced successfully!\n\nCost: ${UNIT_COST_METAL} Metal + ${UNIT_COST_ENERGY} Energy\nSlots used: ${currentUsedSlots + 1}/${factory.slots}`,
+    unit
   };
 }
 
-// ─── FACTORY ABANDON ──────────────────────────────────────────────────────────
-
-export async function abandonFactory(username: string, x: number, y: number): Promise<{ success: boolean; message: string; operationalDataEarned?: number }> {
-  const supabase = createServiceClient();
-  const factory = await getFactoryData(x, y);
-  if (!factory) return { success: false, message: 'Factory not found' };
-  if (factory.owner !== username) return { success: false, message: 'You do not control this factory' };
-
-  const slotsConsumed = factory.used_slots;
-  const operationalDataEarned = Math.floor(slotsConsumed / 100);
-
-  const { error: updateError } = await supabase.from('factories').update({ owner: null, used_slots: 0, last_interacted_at: new Date().toISOString() }).eq('x', x).eq('y', y);
-  if (updateError) throw new Error(updateError.message);
-
-  if (operationalDataEarned > 0) {
-    // Award operational data via direct player update (RPC may not exist yet)
-    const { data: p } = await supabase.from('players').select('operational_data').eq('username', username).single();
-    if (p) {
-      await supabase.from('players').update({ operational_data: (p.operational_data || 0) + operationalDataEarned } as never).eq('username', username);
-    }
-  }
-
-  return { success: true, message: `Factory abandoned!\n\nSlots consumed: ${slotsConsumed.toLocaleString()}\nOperational Data earned: ${operationalDataEarned}`, operationalDataEarned };
+/**
+ * Get all factories controlled by a player
+ */
+export async function getPlayerFactories(username: string): Promise<Factory[]> {
+  const factoriesList = await db.select().from(factories).where(eq(factories.owner, username));
+  
+  return factoriesList as unknown as Factory[];
 }
 
-// ─── PLAYER FACTORIES ─────────────────────────────────────────────────────────
-
-export async function getPlayerFactories(username: string): Promise<Tables<'factories'>[]> {
-  const supabase = createServiceClient();
-  const { data: factories, error } = await supabase.from('factories').select('*').eq('owner', username);
-  if (error) throw new Error(error.message);
-  return factories || [];
+/**
+ * Get total unit count for a player
+ */
+export async function getPlayerUnitCount(username: string): Promise<number> {
+  const playerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
+  if (playerResult.length === 0) return 0;
+  
+  const player = playerResult[0];
+  if (!player.inventoryItems) return 0;
+  
+  let inventory: any[] = [];
+  try {
+    inventory = typeof player.inventoryItems === 'string' ? JSON.parse(player.inventoryItems) : player.inventoryItems;
+  } catch {}
+  
+  const units = inventory.filter((item: any) => item.type === 'UNIT');
+  return units.length;
 }
 
-// ─── FACTORY UPGRADE ──────────────────────────────────────────────────────────
-
-export async function upgradeFactory(username: string, x: number, y: number): Promise<{ success: boolean; message: string; newLevel?: number }> {
-  const supabase = createServiceClient();
-  const factory = await getFactoryData(x, y);
-  if (!factory) return { success: false, message: 'Factory not found' };
-  if (factory.owner !== username) return { success: false, message: 'You do not control this factory' };
-  if (factory.level >= FACTORY_UPGRADE.MAX_LEVEL) return { success: false, message: 'Factory is already at maximum level (10)' };
-
-  const cost = calculateUpgradeCost(factory.level);
-  const { data: player } = await supabase.from('players').select('*').eq('username', username).single();
-  if (!player) return { success: false, message: 'Player not found' };
-
-  const playerRp = ((player as Record<string, unknown>).research_points as number) || 0;
-  const check = canUpgradeFactory({ ...factory, owner: username, usedSlots: factory.used_slots, productionRate: factory.production_rate, lastSlotRegen: factory.last_slot_regen } as unknown as Factory, player.resources_metal, player.resources_energy, playerRp);
-  if (!check.canUpgrade) return { success: false, message: check.reason || 'Cannot upgrade' };
-
-  const newLevel = factory.level + 1;
-  const { error: updateError } = await supabase.from('players').update({ resources_metal: player.resources_metal - cost.metal, resources_energy: player.resources_energy - cost.energy, research_points: playerRp - cost.rp } as never).eq('username', username);
-  if (updateError) throw new Error(updateError.message);
-
-  const { error: factoryError } = await supabase.from('factories').update({ level: newLevel, defense: getFactoryDefense(newLevel), slots: getMaxSlots(newLevel), last_interacted_at: new Date().toISOString() }).eq('x', x).eq('y', y);
-  if (factoryError) throw new Error(factoryError.message);
-
-  return { success: true, message: `Factory upgraded to Level ${newLevel}!\n\nCost: ${cost.metal.toLocaleString()} Metal + ${cost.energy.toLocaleString()} Energy + ${cost.rp} RP\nNew max slots: ${getMaxSlots(newLevel).toLocaleString()}`, newLevel };
-}
+// ============================================================
+// IMPLEMENTATION NOTES:
+// ============================================================
+// - Attack cooldown prevents spam (5 minutes)
+// - Power calculation: base + rank bonus + totalStrength + unit bonus
+// - Success chance capped at 90% for balance
+// - Unit production costs 100 Metal + 50 Energy
+// - Factories have exponential defense scaling:
+//   * Level 1: 1,000 defense (accessible)
+//   * Level 2+: (level-1)² × 50,000 (exponential)
+//   * Level 10: 4,050,000 defense (end-game challenge)
+// - PASSIVE INCOME SYSTEM (NEW: Phase 5):
+//   * Hourly generation: Level × 1,000 Metal, Level × 500 Energy
+//   * Level 1 factory: 1K metal/hr, 500 energy/hr
+//   * Level 10 factory: 10K metal/hr, 5K energy/hr
+//   * Collection: Automatic via collectAllFactoryIncome()
+//   * Tracking: lastResourceGeneration timestamp per factory
+//   * Minimum collection interval: 1 minute (prevents spam)
+// ============================================================
+// END OF FILE
+// ============================================================

@@ -28,28 +28,49 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { getClientAndDatabase, requireClanMembership } from '@/lib';
 import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  DistributionMethod,
   distributeEqualSplit,
   distributeByPercentage,
   distributeByMerit,
   directGrant,
-  type MeritWeights,
+  DistributionMethod,
+  MeritWeights,
   DEFAULT_MERIT_WEIGHTS,
-  logger,
-} from '@/lib';
+} from '@/lib/clanDistributionService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/bank/distribute
+ * Distribute clan funds to members
+ * 
+ * @param request - NextRequest with authentication cookie and distribution data in body
+ * @returns NextResponse with distribution results
+ * 
+ * @example
+ * POST /api/clan/bank/distribute (Equal Split)
+ * Body: { method: "EQUAL_SPLIT", resourceType: "metal", totalAmount: 100000 }
+ * Response: { success: true, distribution: { method: "EQUAL_SPLIT", totalDistributed: {...}, recipients: [...] } }
+ * 
+ * @example
+ * POST /api/clan/bank/distribute (Percentage)
+ * Body: { method: "PERCENTAGE", resourceType: "metal", totalAmount: 100000, percentageMap: { player1: 40, player2: 60 } }
+ * 
+ * @example
+ * POST /api/clan/bank/distribute (Merit)
+ * Body: { method: "MERIT", resourceType: "rp", totalAmount: 5000, weights: { territoriesClaimed: 0.5, ... } }
+ * 
+ * @example
+ * POST /api/clan/bank/distribute (Direct Grant)
+ * Body: { method: "DIRECT_GRANT", grants: [{ playerId: "abc", metal: 10000, energy: 5000 }] }
+ * 
+ * @throws {400} Invalid distribution method or missing parameters
+ * @throws {401} Unauthorized
+ * @throws {403} Insufficient permissions
+ * @throws {500} Failed to distribute funds
+ */
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clanId } = result;
 
@@ -112,9 +133,9 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       success: true,
       distribution: {
         method: distributionResult.method,
-        totalDistributed: distributionResult.total_distributed,
+        totalDistributed: distributionResult.totalDistributed,
         recipients: distributionResult.recipients.map((r) => ({
-          playerId: r.player_id,
+          playerId: r.playerId,
           username: r.username,
           amount: r.amount,
           percentage: r.percentage,
@@ -123,13 +144,12 @@ export const POST = rateLimiter(async (request: NextRequest) => {
         notes: distributionResult.notes,
       },
     });
-  } catch (error: unknown) {
-    logger.error('Distribution error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to distribute funds';
+  } catch (error: any) {
+    console.error('Distribution error:', error);
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error.message || 'Failed to distribute funds' },
       { status: 500 }
     );
   }
-});
+}
 

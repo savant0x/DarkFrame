@@ -17,7 +17,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 interface LevelUpModalProps {
   newLevel: number;
@@ -39,6 +39,11 @@ export default function LevelUpModal({
   
   const [visible, setVisible] = useState(true);
   
+  const handleClose = useCallback(() => {
+    setVisible(false);
+    setTimeout(onClose, 300); // Wait for fade-out animation
+  }, [onClose]);
+  
   // Auto-close timer
   useEffect(() => {
     if (autoCloseDelay > 0) {
@@ -48,12 +53,7 @@ export default function LevelUpModal({
       
       return () => clearTimeout(timer);
     }
-  }, [autoCloseDelay]);
-  
-  const handleClose = () => {
-    setVisible(false);
-    setTimeout(onClose, 300); // Wait for fade-out animation
-  };
+  }, [autoCloseDelay, handleClose]);
   
   // Check for level-based unlocks
   const getUnlocks = (level: number): string[] => {

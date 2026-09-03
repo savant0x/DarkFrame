@@ -145,7 +145,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
               {/* Error Message */}
               <p className="text-gray-300 text-center mb-6">
-                We encountered an unexpected error. Don't worry, your progress is saved.
+                We encountered an unexpected error. Don{"'"}t worry, your progress is saved.
               </p>
 
               {/* Error Details (Development Mode) */}
@@ -217,11 +217,13 @@ export function withErrorBoundary<P extends object>(
   Component: React.ComponentType<P>,
   fallback?: ReactNode
 ): React.ComponentType<P> {
-  return (props: P) => (
+  const Wrapper = (props: P) => (
     <ErrorBoundary fallback={fallback}>
       <Component {...props} />
     </ErrorBoundary>
   );
+  Wrapper.displayName = 'ErrorBoundary';
+  return Wrapper;
 }
 
 // ============================================================

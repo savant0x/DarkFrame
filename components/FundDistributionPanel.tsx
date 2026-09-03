@@ -30,7 +30,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 interface DistributionHistory {
   _id: string;
@@ -91,11 +91,7 @@ export function FundDistributionPanel({
     }
   };
 
-  useEffect(() => {
-    loadHistory();
-  }, [clanId]);
-
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -113,7 +109,11 @@ export function FundDistributionPanel({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [clanId]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   const executeDistribution = async () => {
     try {
@@ -122,7 +122,7 @@ export function FundDistributionPanel({
       setSuccessMessage(null);
       
       // Build request based on method
-      let requestBody: any = {
+      const requestBody: any = {
         clanId,
         method,
         resourceType,

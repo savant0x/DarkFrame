@@ -26,7 +26,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { formatDate } from '@/utils/formatting';
 import { BattleLog, BattleOutcome, BattleType } from '@/types/game.types';
@@ -55,13 +55,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
   const [filterOutcome, setFilterOutcome] = useState<FilterOutcome>('all');
   const [filterType, setFilterType] = useState<FilterType>('all');
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchBattleLogs();
-    }
-  }, [isOpen]);
-
-  const fetchBattleLogs = async () => {
+  const fetchBattleLogs = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/combat/logs?limit=${limit}`);
@@ -71,14 +65,20 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
       }
 
       const data = await response.json();
-      setBattles(data.logs || []);
+      setBattles(data.battles || []);
     } catch (err) {
       console.error('Error fetching battle logs:', err);
       setError('Failed to load battle history');
     } finally {
       setLoading(false);
     }
-  };
+  }, [limit]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchBattleLogs();
+    }
+  }, [isOpen, fetchBattleLogs]);
 
   if (!isOpen) return null;
 
@@ -370,7 +370,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
 
                             {/* Battle Message */}
                             <div className="mt-3 text-center text-gray-400 text-sm italic">
-                              "{battle.message}"
+                              &quot;{battle.message}&quot;
                             </div>
                           </div>
                         )}

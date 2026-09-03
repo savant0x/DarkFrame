@@ -16,19 +16,18 @@
  * - Broadcasts completion to owner via WebSocket
  * 
  * Dependencies:
- * - Supabase for battery data
+ * - Drizzle ORM for battery data
  * - WebSocket for real-time notifications
  * 
  * @implements Background Job Pattern
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import { getIO } from '@/lib/websocket/server';
-import { wmdHandlers } from '@/lib/websocket/handlers/wmdHandler';
+import { and, eq, isNotNull, lte } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { wmdDefenseBatteries } from '@/lib/db/schema/wmd';
 
-/**
- * Battery status enum (mirrors defenseService)
- */
+type Database = typeof db;
+
 enum BatteryStatus {
   IDLE = 'IDLE',
   ACTIVE = 'ACTIVE',
@@ -37,81 +36,53 @@ enum BatteryStatus {
   UPGRADING = 'UPGRADING',
 }
 
-/**
- * Main job function - completes battery repairs
- * Runs every 60 seconds via master scheduler
- */
-export async function defenseRepairCompleter(): Promise<void> {
+export async function defenseRepairCompleter(_db: Database): Promise<void> {
   try {
     const now = new Date();
-    const nowISO = now.toISOString();
-    const supabase = createServiceClient();
-
-    const { data: allBatteries, error: fetchError } = await supabase
-      .from('wmd_defense_batteries')
-      .select('*')
-      .eq('status', 'DAMAGED');
-
-    if (fetchError) {
-      console.error('[DefenseRepairCompleter] Error fetching batteries:', fetchError);
-      return;
-    }
-
-    if (!allBatteries || allBatteries.length === 0) {
-      return;
-    }
-
-    const completedRepairs = allBatteries.filter((b: any) => {
-      const rechargesAt = b.recharges_at;
-      if (!rechargesAt) return false;
-      return new Date(rechargesAt) <= now;
-    });
-
+    
+    const completedRepairs = await db
+      .select()
+      .from(wmdDefenseBatteries)
+      .where(
+        and(
+          isNotNull(wmdDefenseBatteries.repairCompletesAt),
+          lte(wmdDefenseBatteries.repairCompletesAt, now)
+        )
+      );
+    
     if (completedRepairs.length === 0) {
       return;
     }
-
+    
     console.log(`[DefenseRepairCompleter] Processing ${completedRepairs.length} completed battery repairs`);
-
+    
     for (const battery of completedRepairs) {
       try {
-        await supabase
-          .from('wmd_defense_batteries')
-          .update({
+        await db
+          .update(wmdDefenseBatteries)
+          .set({
             status: BatteryStatus.IDLE,
-            recharges_at: null,
+            repairCompletesAt: null,
+            updatedAt: now,
           })
-          .eq('id', battery.id);
-
-        console.log(`Battery ${battery.battery_id} repair completed. Status: IDLE`);
-
-        // TODO: Add broadcast when broadcastDefenseBatteryRepaired is implemented
-        // const io = getIO();
-        // if (io) {
-        //   await wmdHandlers.broadcastDefenseBatteryRepaired(io, {
-        //     ownerId: battery.owner_id,
-        //     batteryId: battery.battery_id,
-        //     batteryType: battery.tier,
-        //     health: 100,
-        //     status: BatteryStatus.IDLE,
-        //   });
-        // }
+          .where(eq(wmdDefenseBatteries.id, battery.id));
+        
+        console.log(`Battery ${battery.batteryId} repair completed. Status: IDLE`);
+        
       } catch (error) {
-        console.error(`Error completing repair for battery ${battery.battery_id}:`, error);
+        console.error(`Error completing repair for battery ${battery.batteryId}:`, error);
       }
     }
-
+    
     console.log(`[DefenseRepairCompleter] Completed ${completedRepairs.length} battery repairs`);
+    
   } catch (error) {
     console.error('[DefenseRepairCompleter] Job execution error:', error);
   }
 }
 
-/**
- * Job metadata for scheduler
- */
 export const defenseRepairCompleterJobInfo = {
   name: 'Defense Repair Completer',
-  interval: 60000, // Run every 60 seconds
+  interval: 60000,
   description: 'Completes battery repairs and restores operational status',
 };

@@ -1,283 +1,179 @@
 /**
  * @file lib/playerService.ts
  * @created 2025-10-16
- * @updated 2026-05-03 (FID-20260503-SUPABASE: MongoDB → Supabase)
- * @overview Player management service — Supabase Postgres backend
+ * @updated 2026-04-04 (Migrated to Drizzle ORM)
+ * @overview Player management service with spawn logic
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Tables, TablesInsert } from '@/types/database';
-import { GAME_CONSTANTS } from '@/types';
+import { db } from '@/lib/db';
+import { players, tiles } from '@/lib/db/schema';
+import { eq, and, isNull, sql } from 'drizzle-orm';
+import { GAME_CONSTANTS, UnitTier } from '@/types';
+import type { Player } from '@/types/game.types';
 
-type PlayerRow = Tables<'players'>;
-type TileRow = Tables<'tiles'>;
-
-const SUPABASE_PASSWORD_PLACEHOLDER = 'supabase_auth';
-
-/**
- * Check if username is already taken
- */
 export async function usernameExists(username: string): Promise<boolean> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('players')
-    .select('username')
-    .eq('username', username)
-    .maybeSingle();
-  return data !== null;
-}
-
-/**
- * Get player by username
- */
-export async function getPlayerByUsername(username: string): Promise<PlayerRow | null> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', username)
-    .single();
-  if (error) return null;
-  return data;
-}
-
-/**
- * Find and atomically claim a random Wasteland tile for spawning.
- * Uses a PostgreSQL CTE with FOR UPDATE to prevent race conditions.
- */
-export async function findAndClaimSpawnTile(): Promise<TileRow | null> {
-  const supabase = createServiceClient();
-
-  const { data: tiles } = await supabase
-    .from('tiles')
-    .select('*')
-    .eq('terrain', 'Wasteland')
-    .eq('occupied_by_base', false)
-    .limit(50);
-
-  if (!tiles || tiles.length === 0) return null;
-
-  const selected = tiles[Math.floor(Math.random() * tiles.length)];
-
-  const { data: claimed, error } = await supabase
-    .from('tiles')
-    .update({ occupied_by_base: true })
-    .eq('x', selected.x)
-    .eq('y', selected.y)
-    .eq('occupied_by_base', false)
-    .select('*')
-    .single();
-
-  if (error || !claimed) {
-    return findAndClaimSpawnTile();
+  try {
+    const result = await db.select({ count: sql`count(*)` }).from(players).where(eq(players.username, username));
+    return Number(result[0]?.count ?? 0) > 0;
+  } catch (error) {
+    console.error('Error checking username:', error);
+    throw error;
   }
-
-  return claimed;
 }
 
-/**
- * Build a PlayerInsert record with defaults for a new player.
- */
-function buildPlayerInsert(username: string, email: string, spawnX: number, spawnY: number): TablesInsert<'players'> {
-  return {
-    username,
-    email,
-    password: SUPABASE_PASSWORD_PLACEHOLDER,
-    base_x: spawnX,
-    base_y: spawnY,
-    current_x: spawnX,
-    current_y: spawnY,
-    resources_metal: 0,
-    resources_energy: 0,
-    bank_metal: 0,
-    bank_energy: 0,
-    rank: 1,
-    xp: 0,
-    level: 1,
-    research_points: 0,
-    total_strength: 0,
-    total_defense: 0,
-    factory_count: 0,
-    gathering_metal_bonus: 0,
-    gathering_energy_bonus: 0,
-    inventory_capacity: GAME_CONSTANTS.HARVEST.DEFAULT_INVENTORY_CAPACITY,
-    inventory_metal_digger_count: 0,
-    inventory_energy_digger_count: 0,
-    unlocked_tiers: ['1'],
-    unlocked_techs: [],
-    is_bot: false,
-    is_special_base: false,
-    is_admin: false,
-    is_vip: false,
-    login_streak: 0,
-    current_hp: 1000,
-    max_hp: 1000,
-    total_referrals: 0,
-    pending_referrals: 0,
-    referral_rewards_metal: 0,
-    referral_rewards_energy: 0,
-    referral_rewards_rp: 0,
-    referral_rewards_xp: 0,
-    referral_rewards_vip_days: 0,
-    referral_milestones: [],
-    referral_milestones_reached: [],
-    referral_validated: false,
-    spec_doctrine: 'none',
-    spec_mastery_level: 0,
-    spec_mastery_xp: 0,
-    spec_total_units_built: 0,
-    spec_total_battles_won: 0,
-    stat_battles_won: 0,
-    stat_total_units_built: 0,
-    stat_total_resources_gathered: 0,
-    stat_total_resources_banked: 0,
-    stat_shrine_trade_count: 0,
-    stat_caves_explored: 0,
-    battle_infantry_initiated: 0,
-    battle_infantry_won: 0,
-    battle_infantry_lost: 0,
-    battle_base_initiated: 0,
-    battle_base_won: 0,
-    battle_base_lost: 0,
-    battle_base_defense_total: 0,
-    battle_base_defense_won: 0,
-    battle_base_defense_lost: 0,
-  };
-}
-
-/**
- * Create a new player with spawn location (legacy — no email/password).
- */
-export async function createPlayer(username: string): Promise<PlayerRow> {
-  const trimmed = username.trim();
-  if (!trimmed || trimmed.length < 3 || trimmed.length > 20) {
-    throw new Error('Username must be between 3 and 20 characters');
+export async function getPlayerByUsername(username: string): Promise<any> {
+  try {
+    const result = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    return result[0] || null;
+  } catch (error) {
+    console.error('Error fetching player:', error);
+    throw error;
   }
-
-  const exists = await usernameExists(trimmed);
-  if (exists) throw new Error('Username already taken');
-
-  const spawnTile = await findAndClaimSpawnTile();
-  if (!spawnTile) throw new Error('No available spawn locations');
-
-  const insert = buildPlayerInsert(trimmed, `${trimmed}@legacy.local`, spawnTile.x, spawnTile.y);
-
-  const supabase = createServiceClient();
-  const { data, error } = await supabase.from('players').insert(insert).select('*').single();
-  if (error) throw new Error(`Failed to create player: ${error.message}`);
-
-  return data;
 }
 
-/**
- * Get player by username with computed factory count.
- */
-export async function getPlayer(username: string): Promise<PlayerRow | null> {
-  const supabase = createServiceClient();
-  const { data: player, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', username)
-    .single();
-
-  if (error || !player) return null;
-
-  const { count } = await supabase
-    .from('factories')
-    .select('*', { count: 'exact', head: true })
-    .eq('owner', username);
-
-  return { ...player, factory_count: count ?? 0 };
+export async function findAndClaimSpawnTile(): Promise<any> {
+  try {
+    const availableTiles = await db.select().from(tiles).where(and(eq(tiles.terrain, 'Wasteland'), isNull(tiles.occupiedByBase)));
+    if (availableTiles.length === 0) {
+      console.error('No available Wasteland tiles for spawning');
+      return null;
+    }
+    const randomIndex = Math.floor(Math.random() * availableTiles.length);
+    const selectedTile = availableTiles[randomIndex];
+    await db.update(tiles).set({ occupiedByBase: 1 }).where(and(eq(tiles.x, selectedTile.x), eq(tiles.y, selectedTile.y), isNull(tiles.occupiedByBase)));
+    console.log('Claimed spawn tile at (' + selectedTile.x + ', ' + selectedTile.y + ')');
+    return selectedTile;
+  } catch (error) {
+    console.error('Error finding spawn tile:', error);
+    throw error;
+  }
 }
 
-/**
- * Update player's current position.
- */
-export async function updatePlayerPosition(
-  username: string,
-  newPosition: { x: number; y: number }
-): Promise<PlayerRow | null> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('players')
-    .update({ current_x: newPosition.x, current_y: newPosition.y })
-    .eq('username', username)
-    .select('*')
-    .single();
-
-  if (error) return null;
-  return data;
+export async function createPlayer(username: string): Promise<any> {
+  try {
+    if (!username || username.trim().length === 0) throw new Error('Username cannot be empty');
+    if (username.length < 3 || username.length > 20) throw new Error('Username must be between 3 and 20 characters');
+    const exists = await usernameExists(username);
+    if (exists) throw new Error('Username already taken');
+    const spawnTile = await findAndClaimSpawnTile();
+    if (!spawnTile) throw new Error('No available spawn locations');
+    const newPlayer = {
+      username: username.trim(),
+      email: '',
+      password: '',
+      baseX: spawnTile.x,
+      baseY: spawnTile.y,
+      currentPositionX: spawnTile.x,
+      currentPositionY: spawnTile.y,
+      resourcesMetal: GAME_CONSTANTS.STARTING_RESOURCES.metal,
+      resourcesEnergy: GAME_CONSTANTS.STARTING_RESOURCES.energy,
+      bankMetal: 0,
+      bankEnergy: 0,
+      rank: 1,
+      inventoryItems: [],
+      inventoryCapacity: GAME_CONSTANTS.HARVEST.DEFAULT_INVENTORY_CAPACITY,
+      inventoryMetalDiggerCount: 0,
+      inventoryEnergyDiggerCount: 0,
+      gatheringBonusMetalBonus: '0',
+      gatheringBonusEnergyBonus: '0',
+      shrineBoosts: [],
+      units: [],
+      totalStrength: 0,
+      totalDefense: 0,
+      xp: 0,
+      level: 1,
+      researchPoints: 0,
+      unlockedTiers: [UnitTier.Tier1],
+      createdAt: new Date(),
+    };
+    await db.insert(players).values(newPlayer);
+    console.log('Created player: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
+    return { username: username.trim(), base: { x: spawnTile.x, y: spawnTile.y }, currentPosition: { x: spawnTile.x, y: spawnTile.y }, resources: { metal: GAME_CONSTANTS.STARTING_RESOURCES.metal, energy: GAME_CONSTANTS.STARTING_RESOURCES.energy }, level: 1 };
+  } catch (error) {
+    console.error('Error creating player:', error);
+    throw error;
+  }
 }
 
-/**
- * No longer needed — indexes created by migration. Kept for backward compat.
- */
-export async function createPlayerIndexes(): Promise<void> {}
-
-/**
- * Check if email is already registered.
- */
 export async function emailInUse(email: string): Promise<boolean> {
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('players')
-    .select('username')
-    .eq('email', email.toLowerCase().trim())
-    .maybeSingle();
-  return data !== null;
-}
-
-/**
- * Get player by email.
- */
-export async function getPlayerByEmail(email: string): Promise<PlayerRow | null> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('email', email.toLowerCase().trim())
-    .single();
-  if (error) return null;
-  return data;
-}
-
-/**
- * Create a new player with authentication credentials (used by Supabase Auth register flow).
- * Supabase Auth handles password hashing — we just store the player record.
- */
-export async function createPlayerWithAuth(
-  username: string,
-  email: string,
-  _hashedPassword: string
-): Promise<PlayerRow> {
-  const trimmed = username.trim();
-  if (!trimmed || trimmed.length < 3 || trimmed.length > 20) {
-    throw new Error('Username must be between 3 and 20 characters');
+  try {
+    const result = await db.select({ count: sql`count(*)` }).from(players).where(eq(players.email, email.toLowerCase().trim()));
+    return Number(result[0]?.count ?? 0) > 0;
+  } catch (error) {
+    console.error('Error checking email:', error);
+    throw error;
   }
-
-  const supabase = createServiceClient();
-
-  const { data: existingUser } = await supabase
-    .from('players')
-    .select('username')
-    .eq('username', trimmed)
-    .maybeSingle();
-  if (existingUser) throw new Error('Username already taken');
-
-  const { data: existingEmail } = await supabase
-    .from('players')
-    .select('username')
-    .eq('email', email.toLowerCase().trim())
-    .maybeSingle();
-  if (existingEmail) throw new Error('Email already registered');
-
-  const spawnTile = await findAndClaimSpawnTile();
-  if (!spawnTile) throw new Error('No available spawn locations');
-
-  const insert = buildPlayerInsert(trimmed, email.toLowerCase().trim(), spawnTile.x, spawnTile.y);
-
-  const { data, error } = await supabase.from('players').insert(insert).select('*').single();
-  if (error) throw new Error(`Failed to create player: ${error.message}`);
-
-  return data;
 }
+
+export async function getPlayerByEmail(email: string): Promise<any> {
+  try {
+    const result = await db.select().from(players).where(eq(players.email, email.toLowerCase().trim())).limit(1);
+    const row = result[0];
+    if (!row) return null;
+    // pg rows are flat; compose the nested domain shape the auth routes and
+    // clients expect (Mongo-era rows stored base/currentPosition embedded).
+    return {
+      ...row,
+      isAdmin: row.isAdmin === 1,
+      vip: row.vip === 1,
+      base: { x: row.baseX, y: row.baseY },
+      currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
+    };
+  } catch (error) {
+    console.error('Error getting player by email:', error);
+    throw error;
+  }
+}
+
+export async function createPlayerWithAuth(username: string, email: string, hashedPassword: string): Promise<any> {
+  try {
+    if (!username || username.trim().length === 0) throw new Error('Username cannot be empty');
+    if (username.length < 3 || username.length > 20) throw new Error('Username must be between 3 and 20 characters');
+    const exists = await usernameExists(username);
+    if (exists) throw new Error('Username already taken');
+    const emailExists = await emailInUse(email);
+    if (emailExists) throw new Error('Email already registered');
+    const spawnTile = await findAndClaimSpawnTile();
+    if (!spawnTile) throw new Error('No available spawn locations');
+    const newPlayer = {
+      username: username.trim(),
+      email: email.toLowerCase().trim(),
+      password: hashedPassword,
+      baseX: spawnTile.x,
+      baseY: spawnTile.y,
+      currentPositionX: spawnTile.x,
+      currentPositionY: spawnTile.y,
+      resourcesMetal: GAME_CONSTANTS.STARTING_RESOURCES.metal,
+      resourcesEnergy: GAME_CONSTANTS.STARTING_RESOURCES.energy,
+      bankMetal: 0,
+      bankEnergy: 0,
+      rank: 1,
+      inventoryItems: [],
+      inventoryCapacity: GAME_CONSTANTS.HARVEST.DEFAULT_INVENTORY_CAPACITY,
+      inventoryMetalDiggerCount: 0,
+      inventoryEnergyDiggerCount: 0,
+      gatheringBonusMetalBonus: '0',
+      gatheringBonusEnergyBonus: '0',
+      shrineBoosts: [],
+      units: [],
+      totalStrength: 0,
+      totalDefense: 0,
+      xp: 0,
+      level: 1,
+      researchPoints: 0,
+      unlockedTiers: [UnitTier.Tier1],
+      createdAt: new Date(),
+    };
+    await db.insert(players).values(newPlayer);
+    console.log('Created player with auth: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
+    return { username: username.trim(), email: email.toLowerCase().trim(), base: { x: spawnTile.x, y: spawnTile.y }, currentPosition: { x: spawnTile.x, y: spawnTile.y }, resources: { metal: GAME_CONSTANTS.STARTING_RESOURCES.metal, energy: GAME_CONSTANTS.STARTING_RESOURCES.energy }, level: 1 };
+  } catch (error) {
+    console.error('Error creating player with auth:', error);
+    throw error;
+  }
+}
+
+export async function getPlayer(username: string): Promise<Player | null> {
+  return getPlayerByUsername(username);
+}
+

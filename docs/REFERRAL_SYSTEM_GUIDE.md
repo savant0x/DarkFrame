@@ -440,18 +440,23 @@ Manually invalidate a referral.
 
 ### 1. Database Setup
 
-Referral data is stored in the Supabase `players` table (referral columns: `referral_code`, `referred_by`, `referral_validated`, `total_referrals`, `referral_milestones`, etc.). Indexes are managed via Supabase migrations.
+Ensure MongoDB indexes for performance:
+
+```javascript
+db.referrals.createIndex({ referrerPlayerId: 1 });
+db.referrals.createIndex({ newPlayerEmail: 1 });
+db.referrals.createIndex({ referralCode: 1 }, { unique: true });
+db.referrals.createIndex({ createdAt: 1 });
+db.referrals.createIndex({ validated: 1 });
+```
 
 ### 2. Environment Variables
 
 ```bash
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+MONGODB_URI=mongodb://localhost:27017/darkframe
 ```
 
-### 3. Validation
+### 3. Cron Job Setup
 
 **Manual Run:**
 ```bash

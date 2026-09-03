@@ -6,11 +6,24 @@
  * Handles game-related WebSocket events such as position updates, resource changes,
  * level-ups, and tile ownership changes. Coordinates with database and broadcasts
  * events to relevant users.
+ * 
+ * Event Categories:
+ * - Position Updates: Player movement on the game grid
+ * - Resource Changes: Wood, stone, iron, gold, food, energy
+ * - Level-ups: Player progression events
+ * - Tile Updates: Ownership changes, building construction
+ * - Player Presence: Online/offline status
+ * 
+ * Usage:
+ * - Called from Socket.io main event router
+ * - Updates database when necessary
+ * - Broadcasts to appropriate rooms (location, user, clan)
  */
 
 import type { Server, Socket } from 'socket.io';
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database } from '@/types/database';
+import { db } from '@/lib/db';
+import { players, tiles } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import type { AuthenticatedUser } from '../auth';
 import {
   broadcastToLocation,
@@ -30,10 +43,6 @@ import type {
   GameTileUpdatePayload,
 } from '@/types/websocket';
 
-// ============================================================================
-// POSITION UPDATE HANDLER
-// ============================================================================
-
 export async function handlePositionUpdate(
   io: Server,
   socket: Socket,
@@ -47,21 +56,18 @@ export async function handlePositionUpdate(
   }
   
   try {
-    const supabase = createServiceClient();
+    const currentUser = await db.select({
+      currentPositionX: players.currentPositionX,
+      currentPositionY: players.currentPositionY,
+    }).from(players).where(eq(players.username, user.userId)).limit(1);
     
-    const { data: currentUser, error: findErr } = await supabase
-      .from('players')
-      .select('current_x, current_y')
-      .eq('username', user.username)
-      .single();
-    
-    if (findErr || !currentUser) {
+    if (currentUser.length === 0) {
       console.error('[Game Handler] User not found in database');
       return;
     }
     
-    const oldX = currentUser.current_x || 0;
-    const oldY = currentUser.current_y || 0;
+    const oldX = currentUser[0].currentPositionX || 0;
+    const oldY = currentUser[0].currentPositionY || 0;
     const { x: newX, y: newY } = data;
     
     if (newX < 0 || newX >= 150 || newY < 0 || newY >= 150) {
@@ -69,12 +75,10 @@ export async function handlePositionUpdate(
       return;
     }
     
-    const now = Date.now();
-    
-    await supabase
-      .from('players')
-      .update({ current_x: newX, current_y: newY })
-      .eq('username', user.username);
+    await db.update(players).set({ 
+      currentPositionX: newX, 
+      currentPositionY: newY,
+    }).where(eq(players.username, user.userId));
     
     await updateLocationRoom(socket, oldX, oldY, newX, newY);
     
@@ -83,7 +87,7 @@ export async function handlePositionUpdate(
       username: user.username,
       x: newX,
       y: newY,
-      timestamp: now,
+      timestamp: Date.now(),
     };
     
     await broadcastToLocation(io, newX, newY, 'game:position_update', payload);
@@ -95,48 +99,37 @@ export async function handlePositionUpdate(
   }
 }
 
-// ============================================================================
-// RESOURCE CHANGE HANDLER
-// ============================================================================
-
 export async function handleResourceChange(
   io: Server,
   user: AuthenticatedUser,
-  resourceType: 'metal' | 'energy',
+  resourceType: 'wood' | 'stone' | 'iron' | 'gold' | 'food' | 'energy',
   change: number,
   reason: string
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
-    const column = resourceType === 'metal' ? 'resources_metal' : 'resources_energy';
+    const currentUser = await db.select({
+      resourcesMetal: players.resourcesMetal,
+      resourcesEnergy: players.resourcesEnergy,
+    }).from(players).where(eq(players.username, user.userId)).limit(1);
     
-    const { data: currentUser, error: findErr } = await supabase
-      .from('players')
-      .select(column)
-      .eq('username', user.username)
-      .single();
-    
-    if (findErr || !currentUser) {
+    if (currentUser.length === 0) {
       console.error('[Game Handler] User not found for resource change');
       return;
     }
     
-    const previousAmount = (currentUser as Record<string, number>)[column] || 0;
-    const newAmount = Math.max(0, previousAmount + change);
+    const currentAmount = Number(currentUser[0][resourceType === 'energy' ? 'resourcesEnergy' : 'resourcesMetal'] || 0n);
+    const newAmount = Math.max(0, currentAmount + change);
     
-    await supabase
-      .from('players')
-      .update(
-        resourceType === 'metal'
-          ? { resources_metal: newAmount }
-          : { resources_energy: newAmount }
-      )
-      .eq('username', user.username);
+    const updateData = resourceType === 'energy'
+      ? { resourcesEnergy: newAmount }
+      : { resourcesMetal: newAmount };
+    
+    await db.update(players).set(updateData).where(eq(players.username, user.userId));
     
     const payload: GameResourceChangePayload = {
       userId: user.userId,
-      resourceType: resourceType === 'metal' ? 'gold' : 'energy',
-      previousAmount,
+      resourceType,
+      previousAmount: currentAmount,
       newAmount,
       change,
       reason,
@@ -144,16 +137,12 @@ export async function handleResourceChange(
     
     await broadcastToUser(io, user.userId, 'game:resource_change', payload);
     
-    console.log(`[Game Handler] ${user.username} ${resourceType}: ${previousAmount} \u2192 ${newAmount} (${change >= 0 ? '+' : ''}${change})`);
+    console.log(`[Game Handler] ${user.username} ${resourceType}: ${currentAmount} → ${newAmount} (${change >= 0 ? '+' : ''}${change})`);
     
   } catch (error) {
     console.error('[Game Handler] Failed to handle resource change:', error);
   }
 }
-
-// ============================================================================
-// LEVEL-UP HANDLER
-// ============================================================================
 
 export async function handleLevelUp(
   io: Server,
@@ -162,14 +151,12 @@ export async function handleLevelUp(
   unlockedFeatures?: string[]
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
-    
     const previousLevel = user.level;
     
-    await supabase
-      .from('players')
-      .update({ level: newLevel })
-      .eq('username', user.username);
+    await db.update(players).set({ 
+      level: newLevel,
+      lastLevelUp: new Date(),
+    }).where(eq(players.username, user.userId));
     
     const payload: GameLevelUpPayload = {
       userId: user.userId,
@@ -185,16 +172,12 @@ export async function handleLevelUp(
       await broadcastToClan(io, user.clanId, 'game:level_up', payload);
     }
     
-    console.log(`[Game Handler] ${user.username} leveled up: ${previousLevel} \u2192 ${newLevel}`);
+    console.log(`[Game Handler] ${user.username} leveled up: ${previousLevel} → ${newLevel}`);
     
   } catch (error) {
     console.error('[Game Handler] Failed to handle level-up:', error);
   }
 }
-
-// ============================================================================
-// TILE UPDATE HANDLER
-// ============================================================================
 
 export async function handleTileUpdate(
   io: Server,
@@ -204,36 +187,19 @@ export async function handleTileUpdate(
   owner?: AuthenticatedUser
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
-    
-    const { data: existing } = await supabase
-      .from('tiles')
-      .select('x, y')
-      .eq('x', x)
-      .eq('y', y)
-      .single();
-
-    if (existing) {
-      await supabase
-        .from('tiles')
-        .update({
-          terrain: tileType as Database['public']['Enums']['terrain_type'],
-          base_owner: owner?.username || null,
-          occupied_by_base: !!owner,
-        })
-        .eq('x', x)
-        .eq('y', y);
-    } else {
-      await supabase
-        .from('tiles')
-        .insert({
-          x,
-          y,
-          terrain: tileType as Database['public']['Enums']['terrain_type'],
-          base_owner: owner?.username || null,
-          occupied_by_base: !!owner,
-        });
-    }
+    await db.insert(tiles).values({
+      x,
+      y,
+      terrain: tileType,
+      baseOwner: owner?.username || null,
+    }).onConflictDoUpdate({
+      // tiles has a composite primary key (x, y)
+      target: [tiles.x, tiles.y],
+      set: {
+        terrain: tileType,
+        baseOwner: owner?.username || null,
+      },
+    });
     
     const payload: GameTileUpdatePayload = {
       x,
@@ -254,28 +220,21 @@ export async function handleTileUpdate(
   }
 }
 
-// ============================================================================
-// PLAYER PRESENCE HANDLERS
-// ============================================================================
-
 export async function handlePlayerOnline(
   io: Server,
   socket: Socket,
   user: AuthenticatedUser
 ): Promise<void> {
   try {
-    const supabase = createServiceClient();
+    const userData = await db.select({
+      currentPositionX: players.currentPositionX,
+      currentPositionY: players.currentPositionY,
+    }).from(players).where(eq(players.username, user.userId)).limit(1);
     
-    const { data: userData, error: findErr } = await supabase
-      .from('players')
-      .select('current_x, current_y')
-      .eq('username', user.username)
-      .single();
+    if (userData.length === 0) return;
     
-    if (findErr || !userData) return;
-    
-    const x = userData.current_x || 0;
-    const y = userData.current_y || 0;
+    const x = userData[0].currentPositionX || 0;
+    const y = userData[0].currentPositionY || 0;
     
     await joinLocationRoom(socket, x, y);
     

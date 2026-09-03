@@ -3,23 +3,22 @@
  * @created 2025-11-04
  * @overview Live integration tests for Friend System API routes (no service mocks)
  *
- * These tests use a Supabase service client, generate a real JWT,
- * seed minimal player data, and exercise the API handlers end-to-end.
+ * ⚠️ LIVE-DB TEST — OPT-IN ONLY (set RUN_LIVE_DB_TESTS=1 to enable).
+ *
+ * Since the Postgres pivot, the compat layer (`@/lib/mongodb`) is bound to the real
+ * configured DATABASE_URL — there is no in-memory fallback for it. This suite's
+ * `beforeEach` DELETES all rows from players/friends/friendRequests, so it must
+ * never run implicitly: a dev/staging database would be wiped. Point DATABASE_URL
+ * at a disposable database before enabling, e.g.:
+ *   RUN_LIVE_DB_TESTS=1 DATABASE_URL=postgresql://…/disposable npx vitest run __tests__/api/friends
  */
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import clientPromise from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
 import { createHmac } from 'crypto';
 
-// Supabase client for test seed/teardown
-function getTestSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://localhost:54321';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test-key';
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
 
 function getDbName() {
   return process.env.MONGODB_DB || 'darkframe-test';
@@ -52,10 +51,14 @@ function withAuth(req: NextRequest, token: string) {
   } as any);
 }
 
-describe('Friend API - Live Integration', () => {
+// Skip by default: without this gate the suite targets whatever DATABASE_URL points
+// at and wipes the listed tables in beforeEach (see file-header warning above).
+const RUN_LIVE_DB_TESTS = process.env.RUN_LIVE_DB_TESTS === '1';
+
+describe.skipIf(!RUN_LIVE_DB_TESTS)('Friend API - Live Integration', () => {
   let dbName: string;
   let token: string;
-  let testUserId: string;
+  let testUserId: string; // assigned in beforeAll; kept for future assertion use
   let friend1Id: string;
 
   beforeAll(async () => {
@@ -63,86 +66,34 @@ describe('Friend API - Live Integration', () => {
   });
 
   beforeEach(async () => {
-    const supabase = getTestSupabase();
+    const client = await clientPromise;
+    const db = client.db(dbName);
 
     // Reset collections
-    await supabase.from('players').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('friend_requests').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-    await supabase.from('friends').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await db.collection('players').deleteMany({});
+    await db.collection('friendRequests').deleteMany({});
+    await db.collection('friends').deleteMany({});
 
     // Seed users
-    testUserId = crypto.randomUUID();
-    friend1Id = crypto.randomUUID();
-
     const testUser = {
-      id: testUserId,
+      _id: new ObjectId(),
       username: 'testuser',
       email: 'testuser@example.com',
-      password: 'hashed-test-password',
       level: 10,
-      is_vip: false,
-      is_bot: false,
-      is_admin: false,
-      is_special_base: false,
-      current_x: 0,
-      current_y: 0,
-      base_x: 0,
-      base_y: 0,
-      bank_metal: 0,
-      bank_energy: 0,
-      resources_metal: 1000,
-      resources_energy: 1000,
-      xp: 0,
-      max_hp: 100,
-      current_hp: 100,
-      rank: 0,
-      total_defense: 0,
-      total_strength: 100,
-      referral_validated: false,
-      login_streak: 0,
-      stat_battles_won: 0,
-      stat_total_resources_gathered: 0,
-      stat_total_resources_banked: 0,
-      stat_total_units_built: 0,
-      stat_caves_explored: 0,
-      stat_shrine_trade_count: 0,
-      total_referrals: 0,
-      pending_referrals: 0,
-      referral_rewards_energy: 0,
-      referral_rewards_metal: 0,
-      referral_rewards_rp: 0,
-      referral_rewards_xp: 0,
-      referral_rewards_vip_days: 0,
-      referral_milestones: [],
-      referral_milestones_reached: [],
-      factory_count: 0,
-      inventory_capacity: 100,
-      inventory_metal_digger_count: 0,
-      inventory_energy_digger_count: 0,
-      research_points: 0,
-      gathering_metal_bonus: 0,
-      gathering_energy_bonus: 0,
-      spec_doctrine: 'none',
-      spec_mastery_level: 0,
-      spec_mastery_xp: 0,
-      spec_total_units_built: 0,
-      spec_total_battles_won: 0,
-      battle_base_won: 0,
-      battle_base_lost: 0,
-      battle_base_initiated: 0,
-      battle_base_defense_won: 0,
-      battle_base_defense_lost: 0,
-      battle_base_defense_total: 0,
-      battle_infantry_won: 0,
-      battle_infantry_lost: 0,
-      battle_infantry_initiated: 0,
-      unlocked_techs: [],
-      unlocked_tiers: [],
-      created_at: new Date().toISOString(),
+      vip: false,
     };
-    const friend1 = { ...testUser, id: friend1Id, username: 'friend1', email: 'friend1@example.com' };
+    const friend1 = {
+      _id: new ObjectId(),
+      username: 'friend1',
+      email: 'friend1@example.com',
+      level: 8,
+      vip: false,
+    };
 
-    await supabase.from('players').insert([testUser, friend1]);
+    await db.collection('players').insertMany([testUser, friend1]);
+
+    testUserId = testUser._id.toString();
+    friend1Id = friend1._id.toString();
 
     // Ensure JWT secret matches authMiddleware default so verification succeeds
     process.env.JWT_SECRET = 'darkframe-secret-change-in-production';

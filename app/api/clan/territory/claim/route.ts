@@ -25,21 +25,38 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  claimTerritory,
-  logger,
-} from '@/lib';
+import { getClientAndDatabase } from '@/lib/mongodb';
+import { requireClanMembership } from '@/lib/authMiddleware';
+import { claimTerritory } from '@/lib/territoryService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/territory/claim
+ * Claim a territory tile for the player's clan
+ * 
+ * @param request - NextRequest with auth cookie and body data
+ * @returns NextResponse with claim result or error
+ * 
+ * @example
+ * POST /api/clan/territory/claim
+ * Body: { tileX: 5, tileY: 10 }
+ * Response: {
+ *   success: true,
+ *   territory: { tileX: 5, tileY: 10, clanId: "...", claimedAt: "..." },
+ *   cost: { metal: 450, energy: 450 },
+ *   defenseBonus: 2,
+ *   message: "Successfully claimed territory at (5, 10)"
+ * }
+ * 
+ * @throws {400} Invalid coords, already claimed, not adjacent, limit reached, or insufficient resources
+ * @throws {401} Not authenticated
+ * @throws {403} Insufficient permissions (not Officer/Co-Leader/Leader)
+ * @throws {404} Player not found
+ * @throws {500} Server error
+ */
+export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const { db } = await getClientAndDatabase();
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
     const { auth, clanId } = result;
@@ -78,35 +95,34 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       message: `Successfully claimed territory at (${tileX}, ${tileY})`,
     });
 
-  } catch (error: unknown) {
-    logger.error('Error claiming territory:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
+  } catch (error: any) {
+    console.error('Error claiming territory:', error);
 
     // Permission errors
-    if (errorMessage.includes('permission') || errorMessage.includes('Officer')) {
+    if (error.message.includes('permission') || error.message.includes('Officer')) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 403 }
       );
     }
 
     // Business rule violations
     if (
-      errorMessage.includes('already claimed') ||
-      errorMessage.includes('adjacent') ||
-      errorMessage.includes('limit') ||
-      errorMessage.includes('Insufficient')
+      error.message.includes('already claimed') ||
+      error.message.includes('adjacent') ||
+      error.message.includes('limit') ||
+      error.message.includes('Insufficient')
     ) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 400 }
       );
     }
 
     // Not found errors
-    if (errorMessage.includes('not found')) {
+    if (error.message.includes('not found')) {
       return NextResponse.json(
-        { success: false, message: errorMessage },
+        { success: false, message: error.message },
         { status: 404 }
       );
     }
@@ -116,7 +132,7 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * Implementation Notes:

@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Keyboard, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';
 import { HotkeyConfig, HotkeyCategory } from '@/types/hotkey.types';
 
@@ -34,10 +34,31 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
     }
   }, [isOpen]);
 
+  const detectConflicts = useCallback(() => {
+    const keyMap = new Map<string, string[]>();
+
+    hotkeys.forEach((hk) => {
+      const keyCombo = `${hk.requiresShift ? 'Shift+' : ''}${hk.requiresCtrl ? 'Ctrl+' : ''}${hk.requiresAlt ? 'Alt+' : ''}${hk.key}`;
+      if (!keyMap.has(keyCombo)) {
+        keyMap.set(keyCombo, []);
+      }
+      keyMap.get(keyCombo)!.push(hk.action);
+    });
+
+    const conflictingActions: string[] = [];
+    keyMap.forEach((actions) => {
+      if (actions.length > 1) {
+        conflictingActions.push(...actions);
+      }
+    });
+
+    setConflicts(conflictingActions);
+  }, [hotkeys]);
+
   // Check for conflicts whenever hotkeys change
   useEffect(() => {
     detectConflicts();
-  }, [hotkeys]);
+  }, [detectConflicts]);
 
   const fetchHotkeys = async () => {
     try {
@@ -120,27 +141,6 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
       )
     );
     setEditingKey(null);
-  };
-
-  const detectConflicts = () => {
-    const keyMap = new Map<string, string[]>();
-
-    hotkeys.forEach((hk) => {
-      const keyCombo = `${hk.requiresShift ? 'Shift+' : ''}${hk.requiresCtrl ? 'Ctrl+' : ''}${hk.requiresAlt ? 'Alt+' : ''}${hk.key}`;
-      if (!keyMap.has(keyCombo)) {
-        keyMap.set(keyCombo, []);
-      }
-      keyMap.get(keyCombo)!.push(hk.action);
-    });
-
-    const conflictingActions: string[] = [];
-    keyMap.forEach((actions) => {
-      if (actions.length > 1) {
-        conflictingActions.push(...actions);
-      }
-    });
-
-    setConflicts(conflictingActions);
   };
 
   const groupedHotkeys = hotkeys.reduce((acc, hk) => {

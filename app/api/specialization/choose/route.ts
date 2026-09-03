@@ -19,6 +19,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/authMiddleware';
 import { chooseSpecialization, SpecializationDoctrine, SPECIALIZATION_CONFIG } from '@/lib/specializationService';
 import { logger } from '@/lib/logger';
 import { 
@@ -49,15 +50,20 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('chooseSpecialization');
 
   try {
-    const body = await req.json();
-    const validated = ChooseSpecializationSchema.parse(body);
-    const username = body.username;
-    if (!username) {
+    // Verify authentication
+    const user = await verifyAuth();
+    if (!user || !user.username) {
       log.warn('Unauthenticated specialization choice attempt');
       return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
-        message: 'Username required'
+        message: 'Unauthorized. Please log in.'
       });
     }
+
+    const username = user.username;
+
+    // Parse and validate request body
+    const body = await req.json();
+    const validated = ChooseSpecializationSchema.parse(body);
 
     // Normalize doctrine to enum value
     const normalizedDoctrine = validated.doctrine as SpecializationDoctrine;
@@ -99,8 +105,8 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
         icon: config.icon,
         description: config.description,
         bonuses: config.bonuses,
-        masteryLevel: result.specialization?.mastery_level || 0,
-        masteryXP: result.specialization?.mastery_xp || 0
+        masteryLevel: result.specialization?.masteryLevel || 0,
+        masteryXP: result.specialization?.masteryXP || 0
       },
       rpRemaining: result.rpRemaining,
       rpSpent: config.unlockCost
@@ -128,8 +134,16 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
  */
 export async function GET(req: NextRequest) {
   try {
-    const username = req.nextUrl.searchParams.get('username');
-    if (!username) return NextResponse.json({ success: false, error: 'Username parameter required' }, { status: 400 });
+    // Verify authentication
+    const user = await verifyAuth();
+    if (!user || !user.username) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized. Please log in.' },
+        { status: 401 }
+      );
+    }
+
+    const username = user.username;
 
     // Import needed for eligibility check
     const { canChooseSpecialization, getSpecializationStatus } = await import('@/lib/specializationService');

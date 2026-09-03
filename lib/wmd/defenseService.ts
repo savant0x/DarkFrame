@@ -19,11 +19,17 @@
  * - Per-member cost calculated: totalCost / memberCount
  * - Minimum 3 clan members required (prevents solo WMD)
  * - Transaction transparency (shows per-member contribution)
+ * 
+ * Dependencies:
+ * - /types/wmd for defense types
+ * - clanTreasuryWMDService for funding validation/deduction
+ * - Drizzle ORM for persistence
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { eq, desc, and } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { wmdDefenseBatteries, wmdInterceptions } from '@/lib/db/schema/wmd';
 import {
-  DefenseBattery,
   BatteryType,
   BatteryStatus,
   InterceptionResult,
@@ -45,20 +51,17 @@ export async function deployBattery(
   batteryType: BatteryType
 ): Promise<{ success: boolean; message: string; batteryId?: string; perMemberCost?: { metal: number; energy: number } }> {
   try {
-    const supabase = createServiceClient();
     const batteryConfig = BATTERY_CONFIGS[batteryType];
     
     if (!batteryConfig) {
       return { success: false, message: 'Invalid battery type' };
     }
     
-    // Validate clan has funds
     const validation = await validateClanWMDFunds(clanId, batteryConfig.cost);
     if (!validation.valid) {
       return { success: false, message: validation.message };
     }
     
-    // Deduct from clan treasury
     const deduction = await deductWMDCost(
       clanId,
       WMDPurchaseType.DEFENSE_BATTERY,
@@ -74,30 +77,19 @@ export async function deployBattery(
     
     const batteryId = `battery_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    // Get player position
-    const { data: player } = await supabase
-      .from('players')
-      .select('current_x, current_y')
-      .eq('username', playerId)
-      .single();
+    const battery: typeof wmdDefenseBatteries.$inferInsert = {
+      id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      clanId,
+      batteryId,
+      status: BatteryStatus.IDLE,
+      interceptChance: String(batteryConfig.interceptChance),
+      cooldownDuration: batteryConfig.cooldownDuration,
+      builtAt: new Date(),
+      updatedAt: new Date(),
+      repairCompletesAt: null,
+    };
     
-    const { error } = await supabase
-      .from('wmd_defense_batteries')
-      .insert({
-        battery_id: batteryId,
-        owner_id: playerId,
-        owner_username: playerUsername,
-        status: 'active',
-        tier: batteryConfig.tier,
-        interception_range: Math.floor(batteryConfig.interceptChance * 100),
-        position_x: player?.current_x || 0,
-        position_y: player?.current_y || 0,
-      });
-    
-    if (error) {
-      console.error('Error deploying battery:', error);
-      return { success: false, message: 'Failed to deploy battery' };
-    }
+    await db.insert(wmdDefenseBatteries).values(battery);
     
     console.log(`Battery deployed by ${playerUsername} (Clan: ${clanId}). Per-member cost: ${deduction.perMemberCost?.metal || 0} metal, ${deduction.perMemberCost?.energy || 0} energy`);
     
@@ -121,16 +113,19 @@ export async function attemptInterception(
   defenderId: string
 ): Promise<{ success: boolean; result: InterceptionResult; message: string }> {
   try {
-    const supabase = createServiceClient();
+    const batteriesResult = await db.select()
+      .from(wmdDefenseBatteries)
+      .where(and(
+        eq(wmdDefenseBatteries.clanId, defenderId),
+        eq(wmdDefenseBatteries.status, BatteryStatus.IDLE)
+      ));
     
-    // Get defender's active batteries
-    const { data: batteries } = await supabase
-      .from('wmd_defense_batteries')
-      .select('*')
-      .eq('owner_id', defenderId)
-      .eq('status', 'active');
+    const batteries = batteriesResult.filter(b => {
+      const interceptNum = parseFloat(b.interceptChance as string);
+      return interceptNum > 0;
+    });
     
-    if (!batteries || batteries.length === 0) {
+    if (batteries.length === 0) {
       return {
         success: false,
         result: InterceptionResult.FAILURE,
@@ -138,31 +133,24 @@ export async function attemptInterception(
       };
     }
     
-    // Try each battery
     for (const battery of batteries) {
-      const interceptChance = (battery.interception_range || 50) / 100;
-      const interceptSuccess = Math.random() < interceptChance;
+      const success = Math.random() < parseFloat(battery.interceptChance ?? '0');
       
-      // Update battery stats
-      await supabase
-        .from('wmd_defense_batteries')
-        .update({
-          recharges_at: new Date(Date.now() + (batteryConfig?.cooldownDuration || 30000)).toISOString(),
-          status: 'recharging',
-        })
-        .eq('battery_id', battery.battery_id);
+      await db.update(wmdDefenseBatteries).set({
+        status: BatteryStatus.COOLDOWN,
+        updatedAt: new Date(),
+      }).where(eq(wmdDefenseBatteries.id, battery.id));
       
-      if (interceptSuccess) {
-        // Record successful interception
-        await supabase
-          .from('wmd_interception_attempts')
-          .insert({
-            launch_id: missileId,
-            defender_id: defenderId,
-            defender_username: defenderId,
-            battery_id: battery.battery_id,
-            success: true,
-          });
+      if (success) {
+        await db.insert(wmdInterceptions).values({
+          id: `wi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          interceptionId: `intercept_${Date.now()}`,
+          missileId,
+          defenderId,
+          batteryId: battery.batteryId,
+          result: InterceptionResult.SUCCESS,
+          timestamp: new Date(),
+        });
         
         return {
           success: true,
@@ -187,24 +175,18 @@ export async function attemptInterception(
   }
 }
 
-// Helper for cooldown lookup
-interface BatteryConfig { cooldownDuration?: number }
-const batteryConfig: BatteryConfig | null = null;
-
 /**
  * Get player's defense batteries
  */
 export async function getPlayerBatteries(
   ownerId: string
-): Promise<any[]> {
+): Promise<Array<typeof wmdDefenseBatteries.$inferSelect>> {
   try {
-    const supabase = createServiceClient();
-    const { data } = await supabase
-      .from('wmd_defense_batteries')
-      .select('*')
-      .eq('owner_id', ownerId)
-      .order('created_at', { ascending: false });
-    return data || [];
+    const result = await db.select()
+      .from(wmdDefenseBatteries)
+      .where(eq(wmdDefenseBatteries.clanId, ownerId))
+      .orderBy(desc(wmdDefenseBatteries.builtAt));
+    return result;
   } catch (error) {
     console.error('Error fetching batteries:', error);
     return [];
@@ -220,71 +202,56 @@ export async function repairBattery(
   playerUsername: string
 ): Promise<{ success: boolean; message: string; perMemberCost?: { metal: number; energy: number } }> {
   try {
-    const supabase = createServiceClient();
-    const { data: battery } = await supabase
-      .from('wmd_defense_batteries')
-      .select('*')
-      .eq('battery_id', batteryId)
-      .single();
+    const batteryResult = await db.select()
+      .from(wmdDefenseBatteries)
+      .where(eq(wmdDefenseBatteries.batteryId, batteryId))
+      .limit(1);
+    
+    const battery = batteryResult[0];
     
     if (!battery) {
       return { success: false, message: 'Battery not found' };
     }
     
-    const batteryType = 'STANDARD' as BatteryType;
-    const batteryConfigData = BATTERY_CONFIGS[batteryType];
+    const batteryConfig = BATTERY_CONFIGS['Patriot' as BatteryType];
+    const defaultCost = batteryConfig?.cost || { metal: 100000, energy: 200000 };
+    const damagePercent = 0.5;
     const repairCost = {
-      metal: Math.floor(batteryConfigData.cost.metal * 0.5),
-      energy: Math.floor(batteryConfigData.cost.energy * 0.5),
+      metal: Math.floor(defaultCost.metal * damagePercent * 0.5),
+      energy: Math.floor(defaultCost.energy * damagePercent * 0.5),
     };
     
-    // Find owner clan
-    const { data: owner } = await supabase
-      .from('players')
-      .select('clan_id')
-      .eq('username', battery.owner_id)
-      .single();
-    
-    if (!owner?.clan_id) {
-      return { success: false, message: 'Owner not in a clan' };
-    }
-    
-    // Validate clan has funds
-    const validation = await validateClanWMDFunds(owner.clan_id, repairCost);
+    const validation = await validateClanWMDFunds(battery.clanId, repairCost);
     if (!validation.valid) {
       return { success: false, message: validation.message };
     }
     
-    // Deduct from clan treasury
     const deduction = await deductWMDCost(
-      owner.clan_id,
+      battery.clanId,
       WMDPurchaseType.DEFENSE_BATTERY,
       playerId,
       playerUsername,
       repairCost,
-      'Battery Repair'
+      `Battery Repair`
     );
     
     if (!deduction.success) {
       return { success: false, message: deduction.message || 'Failed to deduct funds' };
     }
     
-    const repairMinutes = 1;
-    const rechargesAt = new Date(Date.now() + repairMinutes * 60 * 1000).toISOString();
+    const repairCompletesAt = new Date(Date.now() + 30 * 60 * 1000);
     
-    await supabase
-      .from('wmd_defense_batteries')
-      .update({
-        status: 'active',
-        recharges_at: rechargesAt,
-      })
-      .eq('battery_id', batteryId);
+    await db.update(wmdDefenseBatteries).set({
+      status: BatteryStatus.DAMAGED,
+      repairCompletesAt,
+      updatedAt: new Date(),
+    }).where(eq(wmdDefenseBatteries.batteryId, batteryId));
     
     console.log(`Battery repair started by ${playerUsername}. Per-member cost: ${deduction.perMemberCost?.metal || 0} metal, ${deduction.perMemberCost?.energy || 0} energy`);
     
     return {
       success: true,
-      message: `Battery repair initiated. Completes in ${repairMinutes} minutes.`,
+      message: `Battery repair initiated. Clan cost: ${repairCost.metal} metal, ${repairCost.energy} energy`,
       perMemberCost: deduction.perMemberCost,
     };
   } catch (error) {
@@ -300,15 +267,13 @@ export async function dismantleBattery(
   batteryId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const supabase = createServiceClient();
-    const { error } = await supabase
-      .from('wmd_defense_batteries')
-      .delete()
-      .eq('battery_id', batteryId);
-    
-    if (error) {
+    const existing = await db.select().from(wmdDefenseBatteries).where(eq(wmdDefenseBatteries.batteryId, batteryId)).limit(1);
+    if (existing.length === 0) {
       return { success: false, message: 'Battery not found' };
     }
+    
+    await db.delete(wmdDefenseBatteries)
+      .where(eq(wmdDefenseBatteries.batteryId, batteryId));
     
     return {
       success: true,

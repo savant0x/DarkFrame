@@ -1,6 +1,7 @@
 /**
- * Factory Slots Migration
+ * Factory Slots Migration - MariaDB/Drizzle ORM
  * Created: 2025-11-04
+ * Updated: 2026-04-04 (Migrated from MongoDB to Drizzle ORM)
  * 
  * OVERVIEW:
  * Idempotent migration to update ALL existing factories to the new
@@ -9,15 +10,20 @@
  *   usedSlots <= slots
  *   lastSlotRegen defaults to now if missing
  *
- * The migration records a marker document in the `migrations` table
- * with id `2025-11-04-factory-slots-v1`. It is safe to run multiple times:
- * - It always recomputes slots via Supabase queries
- * - It clamps usedSlots to slots
- * - It sets a default for lastSlotRegen when absent
+ * Uses a `migrations` table to track applied migrations.
+ * Safe to run multiple times.
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { eq, gt, or, isNull, ne, sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { factories } from '@/lib/db/schema/factories';
+import { pgTable, varchar, timestamp, jsonb } from 'drizzle-orm/pg-core';
+
+export const migrations = pgTable('migrations', {
+  id: varchar('id', { length: 100 }).primaryKey(),
+  appliedAt: timestamp('applied_at').notNull(),
+  details: jsonb('details').$type<any>(),
+});
 
 const MIGRATION_ID = '2025-11-04-factory-slots-v1';
 
@@ -26,13 +32,11 @@ const FACTORY_UPGRADE = {
   SLOTS_PER_LEVEL: 500,
 } as const;
 
-export function getMaxSlots(level: number): number {
+function getMaxSlots(level: number): number {
   return FACTORY_UPGRADE.BASE_SLOTS + ((level - 1) * FACTORY_UPGRADE.SLOTS_PER_LEVEL);
 }
 
-export async function runFactorySlotsMigration(
-  supabase: SupabaseClient<any>
-): Promise<{
+export async function runFactorySlotsMigration(): Promise<{
   success: boolean;
   message: string;
   modified?: number;
@@ -40,96 +44,73 @@ export async function runFactorySlotsMigration(
   alreadyApplied?: boolean;
 }> {
   // Check if migration marker exists
-  const { data: marker } = await supabase
-    .from('migrations')
-    .select('id')
-    .eq('id', MIGRATION_ID)
-    .maybeSingle();
+  const existing = await db.select().from(migrations).where(eq(migrations.id, MIGRATION_ID));
+  const markerExists = existing.length > 0;
 
-  // Count how many factories need updating (defensive/idempotent)
-  const { data: factories, count: needingUpdate } = await supabase
-    .from('factories')
-    .select('id, level, slots, used_slots, last_slot_regen', { count: 'exact' });
+  // Fetch all factories to check which need updating
+  const allFactories = await db.select().from(factories);
 
-  if (!factories || factories.length === 0) {
-    if (marker) {
-      return {
-        success: true,
-        message: 'Factory slots migration already applied (no factories to update)',
-        modified: 0,
-        matched: 0,
-        alreadyApplied: true,
-      };
-    }
+  const needingUpdate = allFactories.filter(f => {
+    const level = f.level ?? 1;
+    const expectedSlots = getMaxSlots(level);
+    const currentSlots = f.slots ?? 0;
+    const usedSlots = f.usedSlots ?? 0;
+    const hasLastSlotRegen = f.lastSlotRegen != null;
 
-    // Upsert migration marker anyway
-    await supabase.from('migrations').upsert({
-      id: MIGRATION_ID,
-      applied_at: new Date().toISOString(),
-      details: {
-        baseSlots: FACTORY_UPGRADE.BASE_SLOTS,
-        slotsPerLevel: FACTORY_UPGRADE.SLOTS_PER_LEVEL,
-      },
-    });
+    return currentSlots !== expectedSlots || usedSlots > currentSlots || !hasLastSlotRegen;
+  });
 
+  if (needingUpdate.length === 0 && markerExists) {
     return {
       success: true,
-      message: 'Factory slots migration applied (no factories to update)',
+      message: 'Factory slots migration already applied (no changes needed)',
       modified: 0,
       matched: 0,
-      alreadyApplied: false,
+      alreadyApplied: true,
     };
   }
 
-  let modifiedCount = 0;
-  const now = new Date().toISOString();
-
-  for (const factory of factories) {
-    const level = factory.level || 1;
+  // Update each factory
+  let modified = 0;
+  for (const factory of allFactories) {
+    const level = factory.level ?? 1;
     const newSlots = getMaxSlots(level);
-    let usedSlots = factory.used_slots || 0;
-    const lastSlotRegen = factory.last_slot_regen || now;
+    const usedSlots = factory.usedSlots ?? 0;
+    const clampedUsedSlots = Math.min(usedSlots, newSlots);
+    const lastSlotRegen = factory.lastSlotRegen ?? new Date();
 
-    // Clamp usedSlots to new slots
-    if (usedSlots > newSlots) {
-      usedSlots = newSlots;
-    }
+    await db.update(factories)
+      .set({
+        slots: newSlots,
+        usedSlots: clampedUsedSlots,
+        lastSlotRegen,
+      })
+      .where(
+        sql`${factories.x} = ${factory.x} AND ${factories.y} = ${factory.y}`
+      );
 
-    // Only update if something changed
-    if (factory.slots !== newSlots || factory.used_slots !== usedSlots || !factory.last_slot_regen) {
-      const { error } = await supabase
-        .from('factories')
-        .update({
-          slots: newSlots,
-          used_slots: usedSlots,
-          last_slot_regen: lastSlotRegen,
-        })
-        .eq('id', factory.id);
-
-      if (!error) {
-        modifiedCount++;
-      }
-    }
+    modified++;
   }
 
-  // Upsert migration marker
-  await supabase.from('migrations').upsert({
-    id: MIGRATION_ID,
-    applied_at: now,
-    details: {
-      baseSlots: FACTORY_UPGRADE.BASE_SLOTS,
-      slotsPerLevel: FACTORY_UPGRADE.SLOTS_PER_LEVEL,
-    },
-  });
+  // Insert migration marker if not exists
+  if (!markerExists) {
+    await db.insert(migrations).values({
+      id: MIGRATION_ID,
+      appliedAt: new Date(),
+      details: JSON.stringify({
+        baseSlots: FACTORY_UPGRADE.BASE_SLOTS,
+        slotsPerLevel: FACTORY_UPGRADE.SLOTS_PER_LEVEL,
+      }),
+    });
+  }
 
   return {
     success: true,
     message: `Updated factory slots to new formula (base ${FACTORY_UPGRADE.BASE_SLOTS}, +${FACTORY_UPGRADE.SLOTS_PER_LEVEL}/lvl)`,
-    modified: modifiedCount,
-    matched: factories.length,
+    modified,
+    matched: allFactories.length,
     alreadyApplied: false,
   };
 }
 
-// Type-level export for the migration
-export type FactorySlotsMigration = typeof runFactorySlotsMigration;
+export { getMaxSlots };

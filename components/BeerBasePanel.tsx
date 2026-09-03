@@ -17,7 +17,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { formatNumberAbbreviated } from '@/utils/formatting';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
@@ -64,7 +64,7 @@ export default function BeerBasePanel() {
   const [hotkeyConfig, setHotkeyConfig] = useState<string>('B');
 
   // Load Beer Base list
-  const fetchBeerBases = async () => {
+  const fetchBeerBases = useCallback(async () => {
     if (!player?.username) return;
 
     setLoading(true);
@@ -81,7 +81,7 @@ export default function BeerBasePanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [player?.username]);
 
   // Load hotkey configuration
   useEffect(() => {
@@ -128,14 +128,14 @@ export default function BeerBasePanel() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isOpen, hotkeyConfig]);
+  }, [isOpen, hotkeyConfig, fetchBeerBases]);
 
   // Load Beer Bases when panel opens
   useEffect(() => {
     if (isOpen && player?.username) {
       fetchBeerBases();
     }
-  }, [isOpen, player]);
+  }, [isOpen, player, fetchBeerBases]);
 
   // Attack Beer Base
   const handleAttack = async (targetUsername: string) => {
@@ -341,11 +341,11 @@ export default function BeerBasePanel() {
                     <div className="text-sm">
                       <span className="text-gray-400">Loot: </span>
                       <span className="text-cyan-400 font-bold">
-                        {formatNumberAbbreviated(base.resources?.metal ?? 0)} 🔩
+                        {formatNumberAbbreviated(base.resources.metal)} 🔩
                       </span>
                       <span className="text-gray-400"> + </span>
                       <span className="text-yellow-400 font-bold">
-                        {formatNumberAbbreviated(base.resources?.energy ?? 0)} ⚡
+                        {formatNumberAbbreviated(base.resources.energy)} ⚡
                       </span>
                     </div>
                     <button

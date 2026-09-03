@@ -307,10 +307,10 @@ export default function ShrinePanel({
   return (
     <div className="h-full w-full flex flex-col p-6 bg-gray-900 text-white overflow-y-auto">
       {/* Back Button */}
-      <div className="mb-4 flex-shrink-0">
+      <div className="mb-4">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
         >
           <span className="text-lg">←</span>
           <span>Back to Game</span>
@@ -545,7 +545,7 @@ export default function ShrinePanel({
             <li>Item rarity determines time value (Common=15min, Legendary=2hr)</li>
             <li>All 4 boosts active = +100% gathering = x2.0 multiplier</li>
             <li>Maximum 8 hours per buff</li>
-            <li>Use "Boost All 4" for quick activation with same duration</li>
+            <li>Use &quot;Boost All 4&quot; for quick activation with same duration</li>
           </ul>
         </div>
       </div>

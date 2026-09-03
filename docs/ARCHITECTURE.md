@@ -1,377 +1,405 @@
-# DarkFrame — Technical Architecture
+# 🏗️ DarkFrame - Technical Architecture
 
-> System design, technology stack, database architecture, and implementation patterns
+> System design, technology decisions, and implementation patterns
 
-**Last Updated:** 2026-05-06
-**Stack:** Next.js 16.3, Supabase PostgreSQL, TypeScript 5.7 (strict)
-**Scale:** 610+ TypeScript files, 184 API routes, 144+ components, 0 TypeScript errors
-**Status:** Economy Rebalance Planning Complete — 4-phase implementation ready
+**Last Updated:** October 23, 2025  
+**System Status:** Production-ready core + WMD foundation  
+**Code Volume:** ~45,000 lines across 150+ files
 
 ---
 
-## System Architecture
+## 📐 **System Architecture Overview**
 
-DarkFrame follows a **three-tier architecture** with Supabase as the backend foundation:
+DarkFrame follows a **three-tier architecture** with strict separation of concerns:
 
 ```
-┌──────────────────────────────────────────────┐
-│     PRESENTATION LAYER (React 18 / Next.js)   │
-│    144 Components + 3 Context Providers       │
-│    GameContext, WebSocketContext, ChatPanel   │
-└──────────────────────────────────────────────┘
-                       ↓
-┌──────────────────────────────────────────────┐
-│    APPLICATION LAYER (Next.js API Routes)     │
-│    184 Endpoints + 30+ Service Modules        │
-│    Zod validation, structured logging, rate   │
-│    limiting                                    │
-└──────────────────────────────────────────────┘
-                       ↓
-┌──────────────────────────────────────────────┐
-│      DATA LAYER (Supabase PostgreSQL)         │
-│    52 Tables + 35 Enums + 80+ Indexes         │
-│    Row-Level Security, Auth, Migrations       │
-└──────────────────────────────────────────────┘
+┌─────────────────────────────────────────┐
+│     PRESENTATION LAYER (React/Next.js)   │
+│  35+ Components + Context API State     │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│   APPLICATION LAYER (Next.js API Routes) │
+│  60+ Endpoints + 29 Service Modules     │
+└─────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│      DATA LAYER (MongoDB Atlas)          │
+│   14+ Collections + Optimized Indexes    │
+└─────────────────────────────────────────┘
 ```
 
 ---
 
-## Technology Stack
+## 🔧 **Technology Stack**
 
-### Frontend
+### Frontend Technologies
+- **Framework:** Next.js 15.0.2 with App Router
+- **Language:** TypeScript 5 (strict mode, 0 errors maintained)
+- **UI Library:** React 18.3.1 (functional components only)
+- **Styling:** Tailwind CSS 3.4.1 with custom color palette
+- **State Management:** React Context API (GameContext)
+- **Notifications:** Custom toast service with React state
 
-| Technology | Version | Purpose |
-|---|---|---|
-| Next.js | 16.3.0-canary.9 | App Router, API routes, SSR |
-| React | 18.3.1 | Component library |
-| TypeScript | 5.7 (strict) | Type safety, 0 errors |
-| Tailwind CSS | 3.4.1 | Utility-first styling, dark theme |
-| Lucide React | 0.546 | Icon library |
-| Framer Motion | 12.23 | Animations |
-| Recharts | 3.3 | Admin dashboard charts |
-| Pixi.js | 8.14 | Map renderer (GridRenderer) |
-| Tiptap | 3.7 | Rich text editor |
-| DOM Purify | 3.3 | XSS sanitization |
-| Sonner | 2.0 | Toast notifications |
-| React Hot Toast | 2.6 | Toast service (WMD panels, referrals) |
-| Canvas Confetti | 1.9 | Celebration animations |
-
-### Backend
-
-| Technology | Version | Purpose |
-|---|---|---|
-| Next.js API Routes | 16.3 | 184 REST endpoints |
-| Supabase | PostgreSQL | Database, auth, RLS, migrations |
-| `@supabase/ssr` | 0.10.2 | Cookie-based session management |
-| `@supabase/supabase-js` | 2.105.3 | JavaScript client |
-| Zod | 4.1 | Request validation |
-| Stripe | 19.1 | VIP subscription payments |
-| ioredis | 5.8 | Redis caching + rate limiting |
-| Socket.io | 4.8 | WebSocket (background jobs) |
-| Jose | 6.1 | JWT verification (WebSocket auth) |
-| bad-words | 4.0 | Chat profanity filter |
-| date-fns | 4.1 | Date manipulation |
+### Backend Technologies
+- **Runtime:** Node.js (API routes) + Edge Runtime (middleware)
+- **API Framework:** Next.js API Routes (serverless architecture)
+- **Database:** MongoDB Atlas (cloud-hosted, 14+ collections)
+- **Database Driver:** MongoDB Node.js Driver 6.10.0
+- **Authentication:** JWT with jose library (Edge-compatible)
+- **Password Security:** bcrypt 6.0.0 (API routes only)
+- **Logging:** Custom structured logger with ISO timestamps
 
 ### Development Tools
-
-| Technology | Purpose |
-|---|---|
-| ESLint 8 + Next.js config | Code linting |
-| Vitest 4.0 | Unit + component testing |
-| Testing Library 16.3 | React component testing |
-| tsx 4.21 | TypeScript script runner |
-| dotenv 17.2 | Environment variable loading |
+- **Package Manager:** npm
+- **Code Quality:** ESLint with Next.js configuration
+- **Type Checking:** TypeScript compiler (strict mode)
+- **Version Control:** Git + GitHub
+- **Development System:** ECHO v5.1 (Anti-Drift Expert Coder)
+- **Project Management:** /dev folder ecosystem with FID tracking
 
 ---
 
-## Database Architecture
-
-### Supabase PostgreSQL (52 tables)
-
-**Core Game Tables:**
-- `players` — Player accounts, resources, stats, progression (primary table)
-- `tiles` — 22,500 map tiles (150×150 grid) with terrain, ownership, cooldowns
-- `player_units` — Combat units per player
-- `factories` — Factory buildings on the map
-- `player_inventory` — Inventory items per player
-- `player_shrine_boosts` — Active shrine buffs
-- `player_level_history` — Level progression tracking
-
-**Social & Clan Tables:**
-- `clans` — Clan data, levels, tags
-- `clan_members` — Membership with roles
-- `clan_alliances` — Alliance relationships
-- `friends` — Accepted friendships
-- `friend_requests` — Pending requests
-- `blocked_users` — Block lists
-- `conversations` — DM conversations
-- `messages` — Direct messages
-
-**Combat & Warfare Tables:**
-- `battle_logs` — Combat history
-- `daily_bounties` — PvP contracts
-- `flags` — Flag bearer state
-- `bot_magnet_beacons` — Bot attraction zones
-- `concentration_zones` — Bot spawn zones
-
-**WMD System Tables:**
-- `wmd_player_research` — Tech tree progress
-- `wmd_missiles` — Missile inventory
-- `wmd_defense_batteries` — Defense systems
-- `wmd_spies` — Intelligence network
-- `wmd_clan_votes` — Clan voting
-- `wmd_notifications` — Event notifications
-
-**Economy Tables:**
-- `auction_listings` — Auction house
-- `daily_harvest_progress` — Tile cooldowns
-
-**Chat Tables:**
-- `chat_messages` — Global/clan/trade chat
-- `chat_channels` — Channel configuration
-
-### Key Design Decisions
-
-- **Snake_case columns** — All database columns use snake_case. TypeScript types use camelCase. Mapping happens at API boundary.
-- **JSONB for complex data** — Player config, bot config, daily bounties, concentration zones use PostgreSQL JSONB. Parsed via type-safe `lib/supabase/jsonb.ts` accessors.
-- **Row-Level Security** — Supabase RLS policies protect all tables.
-- **Supabase Auth** — Email/password auth managed by Supabase. Session cookies via `@supabase/ssr`.
-- **16 migrations** — All schema changes tracked in `supabase/migrations/`.
-
----
-
-## Auth Architecture
-
-### Cookie-Based Supabase SSR
+## 📂 **Project Structure**
 
 ```
-Browser                      Next.js Server                 Supabase
-   │                              │                              │
-   │ POST /api/auth/login         │                              │
-   │ { email, password }          │                              │
-   │ ─────────────────────────▶   │                              │
-   │                              │ supabase.auth.signInWithPassword()
-   │                              │ ─────────────────────────────▶
-   │                              │                              │
-   │                              │ ◀─ session + access_token ───│
-   │                              │                              │
-   │ ◀── Set-Cookie: sb-xxx-token │                              │
-   │                              │                              │
-   │ GET /api/player/stats        │                              │
-   │ Cookie: sb-xxx-token         │                              │
-   │ ─────────────────────────▶   │                              │
-   │                              │ createServerClient() reads   │
-   │                              │ cookie → supabase.auth.getUser()
-   │                              │ ─────────────────────────────▶
-   │                              │                              │
-   │                              │ ◀─ user confirmed ───────────│
-   │                              │                              │
-   │ ◀── { success, data } ────── │                              │
-```
-
-### Auth Middleware Files
-
-| File | Function | Client Type |
-|---|---|---|
-| `lib/authMiddleware.ts` | `resolveAuth()`, `getAuthenticatedUser()`, `requireAuth()` | `createServerClient()` (reads cookies) |
-| `lib/wmd/apiHelpers.ts` | `verifyAuth()`, `getAuthenticatedPlayer()` | `createServerClient()` (reads cookies) |
-
-All auth middleware uses `createServerClient()` which reads Supabase SSR session cookies. The `createServiceClient()` bypasses auth and is only used for internal operations (flag updates, background jobs).
-
----
-
-## API Architecture
-
-### Convention
-
-All 184 routes follow:
-```json
-{ "success": true, "data": { ... } }
-{ "success": false, "error": "message" }
-```
-
-### Route Categories
-
-| Category | Count | Example Routes |
-|---|---|---|
-| Auth | 4 | login, register, logout, session |
-| Player | 10 | data, stats, inventory, profile, build-unit, upgrade-base |
-| Movement & Map | 4 | move, tile, tile/nearby, tutorial |
-| Harvest | 1 | harvest (metal/energy/cave/forest) |
-| Combat | 6 | attack/unit, attack/base, attack/factory, battle-log, flag, bounty-board |
-| Clan | 15 | create, join, leave, invite, kick, promote, alliance, chat, bank, warfare |
-| Chat | 4 | channels, messages, typing, heartbeat |
-| Friends | 6 | requests, accept, list, remove, block, search |
-| Messages | 4 | conversations, messages, send, read |
-| Economy | 8 | bank/deposit, bank/withdraw, bank/loan, auction/listings, auction/create, auction/bid, shrine, shop |
-| WMD | 12 | status, research, missiles, defense, intelligence, spies, voting, notifications |
-| Factory | 4 | build-unit, upgrade, status, management |
-| Admin | 8 | users, ban, stats, hotkeys, moderation, clan-inspect |
-| Stripe | 3 | checkout, webhook, prices |
-| Bot | 4 | scanner, magnet, summon, concentration-zone |
-| Leaderboard | 1 | rankings |
-| Referral | 3 | link, validate, dashboard |
-| Tutorial | 1 | progress tracking |
-
-### Request Validation
-
-All request bodies validated with Zod schemas:
-```typescript
-const MoveSchema = z.object({
-  username: z.string().min(1).max(30),
-  direction: z.enum(['N','NE','E','SE','S','SW','W','NW']),
-});
-```
-
-### Rate Limiting
-
-Per-endpoint rate limits configured in `lib/rateLimiter.ts`:
-- Movement: 5 req/s
-- Harvest: 2 req/s
-- Chat: 3 req/s
-- Standard: 10 req/s
-
----
-
-## Frontend Architecture
-
-### Context Providers
-
-```
-<RootLayout>
-  ├── <WebSocketProvider>
-  │   └── <GameProvider>
-  │       └── <ChatPanelProvider>
-  │           └── <GameLayout>
-  │               ├── StatsPanel (left)
-  │               ├── TileRenderer (center)
-  │               ├── ControlsPanel (right)
-  │               └── ChatPanel (bottom-left overlay)
-```
-
-### GameContext (`context/GameContext.tsx`)
-
-Central state management for:
-- `player` — Current player data (from `/api/player`)
-- `currentTile` — Current map tile (from `/api/tile`)
-- `movePlayer(direction)` — Movement via `/api/move`
-- `refreshPlayer()` — Lightweight player refresh
-- `loadPlayerData(username)` — Full player load with throttling
-- `updateTileOnly(x, y)` — Tile-only update for autofarm
-
-### WebSocket Context (`context/WebSocketContext.tsx`)
-
-Socket.io client with:
-- Max 1 retry attempt (prevents reconnection spam)
-- Silent timeout/error handling
-- Used for real-time event delivery (background jobs, chat polling already HTTP-based)
-
-### Component Organization
-
-```
-components/
-├── ui/                    # Design system primitives (Panel, Button, Input, Badge, ...)
-├── chat/                  # ChatPanel, ChatMessage, DM system
-├── clan/                  # Clan management panels
-├── friends/               # Friends list, requests, modals
-├── messaging/             # Message inbox, threads
-├── tutorial/              # Interactive tutorial system
-├── admin/                 # Admin dashboard components
-├── GameLayout.tsx         # Three-panel game layout
-├── StatsPanel.tsx         # Player info, military, harvest calculator
-├── TileRenderer.tsx       # Map tile rendering
-├── ControlsPanel.tsx      # Movement + action controls
-└── TopNavBar.tsx          # Top navigation bar
+darkframe/
+├── app/                         # Next.js App Router
+│   ├── api/                    # 60+ API route handlers
+│   │   ├── achievements/       # Achievement system
+│   │   ├── auction/           # Auction house
+│   │   ├── balance/           # Banking & exchanges
+│   │   ├── battle/            # PVP combat
+│   │   ├── cave/              # Cave exploration
+│   │   ├── clan/              # Clan management
+│   │   ├── discoveries/       # Technology unlocks
+│   │   ├── factory/           # Factory management
+│   │   ├── harvest/           # Resource gathering
+│   │   ├── specialization/    # Progression trees
+│   │   ├── vip/               # VIP system
+│   │   └── wmd/               # WMD system (Phase 2)
+│   ├── game/                  # Main game interface
+│   ├── clan/                  # Clan pages
+│   ├── wmd/                   # WMD interface
+│   └── admin/                 # Admin panel
+│
+├── components/                 # 50+ React components
+│   ├── GameLayout.tsx         # 3-panel game structure
+│   ├── StatsPanel.tsx         # Left panel (player stats)
+│   ├── TileRenderer.tsx       # Center panel (current tile)
+│   ├── ControlsPanel.tsx      # Right panel (actions)
+│   ├── *Panel.tsx             # Feature-specific panels
+│   └── index.ts               # Barrel exports
+│
+├── lib/                        # Business logic layer
+│   ├── services/              # 29+ service modules
+│   │   ├── playerService.ts
+│   │   ├── battleService.ts
+│   │   ├── clanService.ts
+│   │   └── ...
+│   ├── wmd/                   # WMD system services
+│   │   ├── researchService.ts (650 lines)
+│   │   ├── spyService.ts     (1,716 lines)
+│   │   ├── missileService.ts
+│   │   ├── defenseService.ts
+│   │   └── ...
+│   ├── db/                    # Database schemas
+│   │   ├── schemas/
+│   │   │   └── wmd.schema.ts  (812 lines, 12 collections)
+│   │   └── seeds/
+│   ├── mongodb.ts             # MongoDB connection singleton
+│   ├── logger.ts              # Structured logging
+│   └── index.ts               # Barrel exports
+│
+├── types/                      # TypeScript definitions
+│   ├── game.types.ts          # Core game types
+│   ├── wmd/                   # WMD type system (3,683 lines)
+│   │   ├── missile.types.ts   (638 lines)
+│   │   ├── defense.types.ts   (724 lines)
+│   │   ├── intelligence.types.ts (912 lines)
+│   │   ├── research.types.ts  (921 lines)
+│   │   └── notification.types.ts (635 lines)
+│   └── index.ts
+│
+├── dev/                        # Development tracking
+│   ├── roadmap.md             # Vision & milestones
+│   ├── architecture.md        # Technical details (2,097 lines)
+│   ├── planned.md             # Future features
+│   ├── progress.md            # Active work
+│   ├── completed.md           # Done features
+│   ├── metrics.md             # Velocity analytics
+│   └── lessons-learned.md     # Insights captured
+│
+└── scripts/                    # Utility scripts
+    └── initializeMap.ts       # Map generation (22,500 tiles)
 ```
 
 ---
 
-## Service Layer
+## 🗄️ **Database Architecture**
 
-Service modules reside in `lib/` and handle all business logic:
+### MongoDB Collections (14+)
 
-### Core Services
-- `playerService.ts` — Player CRUD, stats, progression
-- `movementService.ts` — Map movement, edge wrapping, tile lookups
-- `harvestService.ts` — Resource gathering, cooldowns, bonuses
-- `factoryService.ts` — Factory creation, upgrade, unit production
-- `battleService.ts` — Combat resolution, damage calculation
-- `clanService.ts` — Clan creation, membership, roles
+**Core Game Collections:**
+- `tiles` - 22,500 map tiles (150×150 grid)
+- `players` - Player accounts with credentials & stats
+- `battleLogs` - Combat history with detailed results
+- `achievements` - Player achievement tracking
+- `discoveries` - Ancient technology unlocks
 
-### WMD Services
-- `lib/wmd/researchService.ts`
-- `lib/wmd/missileService.ts`
-- `lib/wmd/defenseService.ts`
-- `lib/wmd/spyService.ts`
-- `lib/wmd/votingService.ts`
+**Social & Economy Collections:**
+- `clans` - Clan data with levels & buffs
+- `clan_members` - Clan membership with roles
+- `clan_territories` - Territory control grid
+- `clan_wars` - Active and historical clan wars
+- `auctions` - Auction listings with bidding
 
-### Supabase Integration
-- `lib/supabase/client.ts` — Browser client (anon key)
-- `lib/supabase/server.ts` — `createServiceClient()` + `createServerClient()`
-- `lib/supabase/jsonb.ts` — Type-safe JSONB accessors:
-  - `parseJsonRecord`, `parseJsonArray`, `parseJsonString`, `parseJsonNumber`, `parseJsonBoolean`
-  - `parseBotMigrationConfig`, `parseFlagBotConfig`
+**Automation & Monetization:**
+- `vip_purchases` - VIP transaction history
+- `auto_farm_settings` - Player automation configs
 
-### Utilities
-- `lib/logger.ts` — Structured logging with ISO timestamps
-- `lib/authMiddleware.ts` — Cookie-based Supabase SSR auth
-- `lib/rateLimiter.ts` — Per-endpoint rate limiting
-- `lib/toast.ts` — Toast notification wrapper
-- `lib/antiCheatDetector.ts` — Speed hack detection
-- `lib/sessionTracker.ts` — Player session tracking
-- `lib/activityLogger.ts` — Player activity logging
+**WMD System Collections (12 - Phase 1):**
+- `wmd_research` - Player tech tree progress
+- `wmd_missiles` - Active missile inventory
+- `wmd_defense` - Defense battery deployments
+- `wmd_spies` - Intelligence network
+- `wmd_missions` - Active spy missions
+- `wmd_votes` - Clan voting records
+- `wmd_notifications` - Event notifications
+- `wmd_launch_cooldowns` - Attack rate limiting
+- `wmd_sabotage_logs` - Sabotage history
+- `wmd_intel_reports` - Gathered intelligence
+- `wmd_retaliation_windows` - Counter-attack timing
+- `wmd_consequences` - Global event tracking
 
----
-
-## Game Mechanics Architecture
-
-### Map System
-- 150×150 grid = 22,500 tiles
-- 5 terrain types with weighted distribution
-- Edge wrap-around (position 151 → 1, 0 → 150)
-- Special locations: Shrine (1,1), Metal Bank (25,25), Energy Bank (75,75), Exchange Banks (50,50)(100,100), Auction House (10,10)
-- Tile cooldowns: 5 minutes after harvest (AM/PM reset based on X coordinate)
-
-### Movement
-- 9-directional (QWEASDZXC keyboard layout)
-- Cardinal directions: N, NE, E, SE, S, SW, W, NW
-- Edge wrap-around on all directions
-
-### Combat
-- Unit-based: attack/defense stats per unit type
-- Base attacks: strategic warfare with defense systems
-- Factory takeovers: capture opponent production
-- Flag bearer PvP: attack the player holding the flag
-
-### Progression
-- XP from actions (harvest, combat, exploration)
-- Level system with research point rewards
-- Tech tree unlocks (bot-hunter, bot-magnet, concentration-zones)
-- Specialization doctrines at Level 15 (Hoarder, Fortress, Raider, Balanced, Ghost)
-- Achievements system (40+ achievements)
+### Index Strategy
+- **Compound indexes** on all query patterns
+- **Unique indexes** on usernames, emails, coordinates
+- **Performance target:** <50ms at 95th percentile
+- **Query optimization:** All critical paths use indexes (verified via MCP scan)
 
 ---
 
-## File Statistics
+## 🔌 **API Architecture**
 
-| Metric | Count |
-|---|---|
-| TypeScript/TSX source files | 610 |
-| API routes | 184 |
-| React components | 144 |
-| Service modules | 30+ |
-| TypeScript lines (game.types.ts) | 2,356 |
-| Supabase migrations | 16 |
-| Supabase tables | 52 |
-| Package dependencies | 49 prod + 13 dev = 62 |
+### API Route Categories (60+ endpoints)
+
+**Authentication & Players:**
+- `POST /api/register` - Create new account
+- `POST /api/login` - Authenticate user
+- `GET /api/player` - Get player data
+- `GET /api/player/stats` - Player statistics
+
+**Core Gameplay:**
+- `POST /api/move` - Move player (9 directions)
+- `POST /api/harvest` - Gather resources
+- `GET /api/tile` - Current tile information
+- `POST /api/cave/loot` - Explore caves
+
+**Combat & Factories:**
+- `POST /api/battle/attack` - Initiate combat
+- `GET /api/battle/logs` - Combat history
+- `POST /api/factory/attack` - Capture factory
+- `POST /api/factory/upgrade` - Upgrade factory
+- `POST /api/factory/build-unit` - Produce units
+
+**Progression:**
+- `POST /api/specialization/choose` - Select class
+- `POST /api/specialization/upgrade` - Increase mastery
+- `GET /api/achievements` - List achievements
+- `POST /api/achievements/claim` - Claim rewards
+- `GET /api/discoveries` - Technology unlocks
+
+**Economy:**
+- `POST /api/balance/deposit` - Bank resources
+- `POST /api/balance/withdraw` - Withdraw resources
+- `POST /api/auction/listings` - Create/browse auctions
+- `POST /api/auction/bid` - Place bid
+
+**Social:**
+- `POST /api/clan/create` - Create clan
+- `POST /api/clan/join` - Join clan
+- `POST /api/clan/war/declare` - Declare war
+- `POST /api/clan/territory/capture` - Capture territory
+
+**Automation:**
+- `POST /api/auto-farm/toggle` - Enable/disable
+- `GET /api/auto-farm/stats` - View performance
+
+**Monetization:**
+- `POST /api/vip/purchase` - Buy VIP package
+- `GET /api/vip/status` - Check VIP status
+
+**WMD System (Phase 2 - Planned):**
+- Research: 4 endpoints
+- Missiles: 6 endpoints
+- Defense: 5 endpoints
+- Intelligence: 6 endpoints
+- Voting: 4 endpoints
+- Notifications: 1 endpoint
+
+### Authentication Flow
+```
+Request → middleware.ts (JWT validation) → API Route → Service Layer → Database
+```
 
 ---
 
-## Key Design Decisions
+## 🏗️ **Key Architectural Decisions**
 
-1. **Supabase over MongoDB** — PostgreSQL with built-in auth, RLS, and migrations. Eliminates connection pooling overhead.
-2. **`createServerClient()` for auth** — All middleware reads Supabase SSR cookies. `createServiceClient()` only for internal operations.
-3. **`{ success, data }` response convention** — Consistent across all 184 API routes.
-4. **JSONB accessor library** — Type-safe parsing eliminates inline `as any` casts.
-5. **Snake_case → camelCase at boundary** — Database uses snake_case. TypeScript uses camelCase. Mapping at API response layer.
-6. **0 `as any` in production** — 200+ instances eliminated. Remaining casts are documented framework limitations.
+### 1. **Service Layer Pattern**
+**Decision:** All business logic in dedicated service modules  
+**Rationale:** Clear separation, testability, reusability  
+**Implementation:** 29 service files in `/lib`
+
+### 2. **TypeScript Strict Mode**
+**Decision:** TypeScript with strict mode enabled  
+**Rationale:** Maximum type safety, fewer runtime errors  
+**Result:** 0 TypeScript errors maintained throughout development
+
+### 3. **Context API for State**
+**Decision:** React Context instead of Redux  
+**Rationale:** Project complexity doesn't justify Redux overhead  
+**Implementation:** Single `GameContext` for global state
+
+### 4. **Edge Runtime Middleware**
+**Decision:** JWT auth in Edge Runtime  
+**Rationale:** Performance benefits, modern deployment patterns  
+**Trade-off:** bcrypt not available in Edge (API routes only)
+
+### 5. **Modular Exports**
+**Decision:** `index.ts` barrel exports in every folder  
+**Rationale:** Clean imports, better code organization  
+**Pattern:** `import { service } from '@/lib'` instead of deep paths
+
+### 6. **MongoDB Connection Singleton**
+**Decision:** Single connection pool via singleton pattern  
+**Rationale:** Connection reuse, resource efficiency  
+**Implementation:** `/lib/mongodb.ts` with lazy initialization
+
+### 7. **12-Hour Resource Resets**
+**Decision:** Split 24-hour harvesting into two 12-hour periods  
+**Rationale:** Player engagement, twice-daily login incentive  
+**Implementation:** Background job checks every 15 minutes
+
+### 8. **Feature ID (FID) Tracking**
+**Decision:** Unique timestamp-based IDs for all features  
+**Rationale:** Cross-reference dependencies, clear history  
+**Pattern:** `FID-YYYYMMDD-XXX` (e.g., FID-20251022-001)
+
+---
+
+## 🔒 **Security Architecture**
+
+### Authentication System
+- **JWT tokens** with jose library (Edge-compatible)
+- **bcrypt password hashing** (cost factor 10)
+- **HTTP-only cookies** for token storage
+- **Middleware protection** on all game routes
+
+### OWASP Top 10 Compliance
+- **Input validation** on all user inputs
+- **SQL injection prevention** via MongoDB driver (no raw queries)
+- **XSS prevention** via React's built-in escaping
+- **CSRF protection** via SameSite cookie attributes
+- **Sensitive data exposure** prevented in logs
+
+### Resource Security
+- **Rate limiting** on critical endpoints (planned)
+- **Attack cooldowns** prevent abuse (5 minutes)
+- **Harvest validation** server-side timing checks
+- **Factory ownership** validated before unit production
+
+---
+
+## 🚀 **Performance Optimizations**
+
+### Database Performance
+- **Compound indexes** on all query patterns
+- **Query performance monitoring** (<50ms target)
+- **Connection pooling** via MongoDB driver
+- **Lean queries** for read-only operations
+
+### Frontend Performance
+- **React.memo** on expensive components (planned)
+- **Code splitting** via Next.js dynamic imports
+- **Image optimization** via Next.js Image component
+- **Lazy loading** for panels and modals
+
+### API Performance
+- **Serverless functions** auto-scale
+- **Edge middleware** for auth (low latency)
+- **Efficient queries** minimize database round-trips
+- **Caching strategy** (planned for Phase 5+)
+
+---
+
+## 📊 **Code Quality Metrics**
+
+### Current Status
+- **TypeScript Errors:** 0 (maintained throughout)
+- **Lines of Code:** ~45,000+ production code
+- **Files Created:** 150+ files
+- **Test Coverage:** Manual validation (automated suite planned)
+- **Documentation:** JSDoc on all public functions
+
+### ECHO v5.1 Standards
+- **Complete implementations** (no pseudo-code)
+- **Modern syntax** (const/let, arrow functions, async/await)
+- **Comprehensive docs** (OVERVIEW sections, inline comments)
+- **Type safety** with runtime validation
+- **Error handling** with user-friendly messages
+
+---
+
+## 🔄 **Development Workflow**
+
+### Feature Development Process
+1. **Planning** - Create FID, define acceptance criteria
+2. **Implementation** - Follow ECHO v5.1 standards
+3. **Documentation** - JSDoc + inline comments
+4. **Testing** - Manual validation + TypeScript checks
+5. **Tracking** - Update /dev files with metrics
+
+### Quality Gates
+- **Pre-flight:** Compliance check, context load, dependency analysis
+- **Mid-flight:** Real-time standards monitoring
+- **Post-flight:** Audit, lessons capture, metrics update
+
+---
+
+## 🎯 **WMD System Architecture** (Phase 1 Complete)
+
+### Type System (3,683 lines)
+- **missile.types.ts** - 5 warhead types, assembly mechanics
+- **defense.types.ts** - 5 battery tiers, interception logic
+- **intelligence.types.ts** - 10 mission types, sabotage engine
+- **research.types.ts** - 30 techs, 3 tracks, prerequisites
+- **notification.types.ts** - 19 event types, WebSocket patterns
+
+### Service Layer (5,096 lines)
+- **researchService.ts** (650 lines) - Tech tree, RP spending
+- **spyService.ts** (1,716 lines) - Intel operations, sabotage
+- **missileService.ts** (309 lines) - Assembly, launch
+- **defenseService.ts** (326 lines) - Batteries, interception
+- **clanVotingService.ts** (496 lines) - Democratic voting
+- **clanTreasuryWMDService.ts** (495 lines) - Treasury integration
+- **clanConsequencesService.ts** (503 lines) - Attack consequences
+
+### Database Schema (1,577 lines)
+- **12 collections** with JSON validation
+- **60+ optimized indexes** for query performance
+- **Complete field validation** and type enforcement
+
+---
+
+## 📚 **Related Documentation**
+
+- **[README.md](README.md)** - Project overview
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development log & metrics
+- **[ROADMAP.md](ROADMAP.md)** - Feature roadmap
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+
+---
+
+*Last Updated: October 23, 2025*

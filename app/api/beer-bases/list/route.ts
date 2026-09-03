@@ -9,20 +9,10 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
-/**
- * GET /api/beer-bases/list
- * Fetch all active Beer Bases with distance from player
- * 
- * Query params:
- * - username: Player username for distance calculations
- * 
- * Returns:
- * - success: boolean
- * - beerBases: Array of Beer Base data with distances
- * - totalCount: Total number of Beer Bases
- */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -35,40 +25,24 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = createServiceClient();
-
-    // Get requesting player's position
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('current_x, current_y')
-      .eq('username', username)
-      .single();
-
-    if (playerError || !player) {
+    const playerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const player = playerResult[0];
+    if (!player) {
       return NextResponse.json(
         { success: false, error: 'Player not found' },
         { status: 404 }
       );
     }
 
-    const playerX = player.current_x;
-    const playerY = player.current_y;
+    const playerPos = { x: player.currentPositionX, y: player.currentPositionY };
 
-    // Find all Beer Bases (special bots)
-    const { data: beerBases, error: basesError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('is_special_base', true);
+    const beerBases = await db.select().from(players).where(eq(players.isSpecialBase, 1));
 
-    if (basesError) throw basesError;
-
-    // Calculate distances and format response
-    const beerBasesWithDistance = (beerBases || []).map((base: any) => {
-      const dx = Math.abs(base.current_x - playerX);
-      const dy = Math.abs(base.current_y - playerY);
+    const beerBasesWithDistance = beerBases.map((base) => {
+      const dx = Math.abs(base.currentPositionX - playerPos.x);
+      const dy = Math.abs(base.currentPositionY - playerPos.y);
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      // Determine power tier from username
       const powerTier = base.username.includes('-LEGENDARY-')
         ? 'LEGENDARY'
         : base.username.includes('-ULTRA-')
@@ -81,21 +55,26 @@ export async function GET(request: NextRequest) {
         ? 'MID'
         : 'WEAK';
 
+      const units = base.units || [];
+      const armySize = units.reduce((sum: number, u: any) => sum + (u.quantity || 0), 0);
+
       return {
         username: base.username,
-        position: { x: base.current_x, y: base.current_y },
+        position: { x: base.currentPositionX, y: base.currentPositionY },
         distance: Math.round(distance),
-        totalStrength: base.total_strength,
-        totalDefense: base.total_defense,
-        resources: base.resources,
-        armySize: base.units?.reduce((sum: number, u: any) => sum + (u.quantity || 0), 0) || 0,
+        totalStrength: base.totalStrength,
+        totalDefense: base.totalDefense,
+        resources: {
+          metal: Number(base.resourcesMetal),
+          energy: Number(base.resourcesEnergy),
+        },
+        armySize,
         powerTier,
         specialization: base.specialization || 'balanced',
         tier: base.rank || 1,
       };
     });
 
-    // Sort by distance by default
     beerBasesWithDistance.sort((a: any, b: any) => a.distance - b.distance);
 
     return NextResponse.json({

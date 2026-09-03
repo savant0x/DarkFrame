@@ -20,8 +20,12 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const username = request.nextUrl.searchParams.get('username');
-    if (!username) return NextResponse.json({ error: 'Username parameter required' }, { status: 401 });
+    // Verify cron secret
+    const authHeader = request.headers.get('authorization');
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      logger.warn('Unauthorized cron access attempt', { path: '/api/cron/purge-old-data' });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     logger.info('Starting annual data purge...');
 
@@ -72,11 +76,15 @@ export async function GET(request: NextRequest) {
 // POST endpoint for manual trigger (admin only)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const username = body.username;
-    if (!username) return NextResponse.json({ error: 'Username required' }, { status: 401 });
+    // Manual trigger endpoint can use regular auth
+    const { getAuthenticatedUser } = await import('@/lib/authService');
+    const currentUser = await getAuthenticatedUser();
+    
+    if (!currentUser || !currentUser.isAdmin) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    logger.info('Manual data purge triggered', { admin: username });
+    logger.info('Manual data purge triggered', { admin: currentUser.username });
 
     // Purge analytics data
     const analyticsResult = await purgeOldAnalytics();

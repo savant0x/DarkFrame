@@ -184,7 +184,7 @@ export default function TierUnlockPanel() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`/api/tier/unlock`);
+      const response = await fetch('/api/tier/unlock');
       
       if (!response.ok) {
         throw new Error('Failed to fetch tier status');
@@ -231,7 +231,7 @@ export default function TierUnlockPanel() {
       const response = await fetch('/api/tier/unlock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier, username: player?.username }),
+        body: JSON.stringify({ tier }),
       });
 
       const data = await response.json();

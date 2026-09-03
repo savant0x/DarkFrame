@@ -5,176 +5,142 @@
  * OVERVIEW:
  * Comprehensive alert and notification system for critical WMD events.
  * Monitors missile launches, vote completions, cooldown expirations, and suspicious activity.
+ * Delivers notifications through multiple channels: in-game, admin dashboard, and email.
+ * 
+ * KEY FEATURES:
+ * - Real-time event detection and alert creation
+ * - Multi-channel notification delivery (in-game, email, dashboard)
+ * - Alert severity levels (INFO, WARNING, CRITICAL)
+ * - Alert acknowledgment and resolution tracking
+ * - Configurable alert thresholds and rules
+ * - Alert history and audit trail
+ * 
+ * ALERT TYPES:
+ * - MISSILE_LAUNCH: When a clan launches a WMD missile
+ * - MISSILE_IMPACT: When a missile hits its target
+ * - MISSILE_INTERCEPTED: When a missile is intercepted by defenses
+ * - VOTE_PASSED: When a clan vote succeeds
+ * - VOTE_FAILED: When a clan vote fails
+ * - COOLDOWN_EXPIRED: When a clan's WMD cooldown expires
+ * - SUSPICIOUS_ACTIVITY: Flagged by admin or auto-detected
+ * - SYSTEM_ERROR: Critical WMD system errors
+ * 
+ * NOTIFICATION CHANNELS:
+ * - In-Game: WebSocket broadcast to affected players
+ * - Dashboard: Admin dashboard real-time updates
+ * - Email: Critical alerts sent to admin email (future)
+ * 
+ * DEPENDENCIES:
+ * - Drizzle ORM for alert storage
+ * - WebSocket for real-time notifications
+ * - Email service for critical alerts (future)
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { Database, Json } from '@/types/database';
+import { db } from '@/lib/db';
+import { wmdAlerts, wmdConfig, clans, playerNotifications, adminDashboardNotifications, emailQueue } from '@/lib/db/schema';
+import { eq, and, or, lte, gte, desc } from 'drizzle-orm';
+import {
+  AlertSeverity,
+  AlertType,
+  AlertStatus,
+  NotificationChannel,
+  type AlertConfig,
+  type WMDAlert,
+  type WmdAlertData,
+} from './alert.types';
 
-type WMDNotificationType = Database['public']['Enums']['wmd_notification_type'];
+export {
+  AlertSeverity,
+  AlertType,
+  AlertStatus,
+  NotificationChannel,
+  type AlertConfig,
+  type WMDAlert,
+} from './alert.types';
 
-export enum AlertSeverity {
-  INFO = 'INFO',
-  WARNING = 'WARNING',
-  CRITICAL = 'CRITICAL'
-}
-
-export enum AlertType {
-  MISSILE_LAUNCH = 'MISSILE_LAUNCH',
-  MISSILE_IMPACT = 'MISSILE_IMPACT',
-  MISSILE_INTERCEPTED = 'MISSILE_INTERCEPTED',
-  VOTE_PASSED = 'VOTE_PASSED',
-  VOTE_FAILED = 'VOTE_FAILED',
-  COOLDOWN_EXPIRED = 'COOLDOWN_EXPIRED',
-  SUSPICIOUS_ACTIVITY = 'SUSPICIOUS_ACTIVITY',
-  SYSTEM_ERROR = 'SYSTEM_ERROR',
-  EMERGENCY_DISARM = 'EMERGENCY_DISARM',
-  VOTE_VETOED = 'VOTE_VETOED'
-}
-
-export enum AlertStatus {
-  ACTIVE = 'ACTIVE',
-  ACKNOWLEDGED = 'ACKNOWLEDGED',
-  RESOLVED = 'RESOLVED',
-  ARCHIVED = 'ARCHIVED'
-}
-
-export enum NotificationChannel {
-  IN_GAME = 'IN_GAME',
-  DASHBOARD = 'DASHBOARD',
-  EMAIL = 'EMAIL'
-}
-
-export interface WMDAlert {
-  id?: string;
-  type: AlertType;
-  severity: AlertSeverity;
-  status: AlertStatus;
-  title: string;
-  message: string;
-
-  player_id?: string;
-  player_name?: string;
-  clan_id?: string;
-  clan_name?: string;
-  target_clan_id?: string;
-  target_clan_name?: string;
-
-  missile_id?: string;
-  vote_id?: string;
-  operation_id?: string;
-
-  data?: Record<string, unknown>;
-
-  created_at: string;
-  acknowledged_at?: string;
-  acknowledged_by?: string;
-  resolved_at?: string;
-  resolved_by?: string;
-
-  channels: NotificationChannel[];
-  delivery_status: Record<string, { sent: boolean; sent_at?: string; error?: string }>;
-}
-
-export interface AlertConfig {
-  enabled: boolean;
-  min_severity: AlertSeverity;
-  channels: NotificationChannel[];
-  auto_acknowledge: boolean;
-  auto_archive_days: number;
-}
-
+/**
+ * Default alert configuration
+ */
 const DEFAULT_CONFIG: AlertConfig = {
   enabled: true,
-  min_severity: AlertSeverity.INFO,
+  minSeverity: AlertSeverity.INFO,
   channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD],
-  auto_acknowledge: false,
-  auto_archive_days: 30
+  autoAcknowledge: false,
+  autoArchiveDays: 30
 };
 
-const WMD_ALERT_NOTIF_TYPE: WMDNotificationType = 'wmd_alert' as WMDNotificationType;
-const DASHBOARD_NOTIF_TYPE: WMDNotificationType = 'dashboard_alert' as WMDNotificationType;
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
-
+/**
+ * Create a new alert
+ */
 export async function createAlert(
-  alertData: Omit<WMDAlert, 'id' | 'created_at' | 'status' | 'delivery_status'>
+  alertData: Omit<WMDAlert, 'id' | 'createdAt' | 'status' | 'deliveryStatus'>
 ): Promise<WMDAlert> {
-  const supabase = createServiceClient();
   const config = await getAlertConfig();
-
-  if (!config.enabled || !meetsMinSeverity(alertData.severity, config.min_severity)) {
+  
+  if (!config.enabled || !meetsMinSeverity(alertData.severity, config.minSeverity)) {
     throw new Error('Alert creation blocked by configuration');
   }
-
+  
   const alert: WMDAlert = {
     ...alertData,
     status: AlertStatus.ACTIVE,
-    created_at: new Date().toISOString(),
+    createdAt: new Date(),
     channels: alertData.channels || config.channels,
-    delivery_status: {}
+    deliveryStatus: {}
   };
-
+  
   alert.channels.forEach(channel => {
-    alert.delivery_status[channel] = { sent: false };
+    alert.deliveryStatus[channel] = { sent: false };
   });
-
-  const alertId = generateId();
-  alert.id = alertId;
-
-  const storedData: Json = JSON.parse(JSON.stringify({
-    type: alert.type,
-    severity: alert.severity,
-    status: alert.status,
-    player_name: alert.player_name,
-    clan_id: alert.clan_id,
-    clan_name: alert.clan_name,
-    target_clan_id: alert.target_clan_id,
-    target_clan_name: alert.target_clan_name,
-    missile_id: alert.missile_id,
-    vote_id: alert.vote_id,
-    operation_id: alert.operation_id,
-    extra_data: alert.data,
-    channels: alert.channels,
-    delivery_status: alert.delivery_status,
-    acknowledged_at: alert.acknowledged_at,
-    acknowledged_by: alert.acknowledged_by,
-    resolved_at: alert.resolved_at,
-    resolved_by: alert.resolved_by,
-  }));
-
-  const insertData: Database['public']['Tables']['wmd_notifications']['Insert'] = {
+  
+  const alertId = `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  await db.insert(wmdAlerts).values({
     id: alertId,
-    player_id: alert.player_id || 'SYSTEM',
-    notification_type: WMD_ALERT_NOTIF_TYPE,
-    title: alert.title,
-    message: alert.message,
-    is_read: false,
-    created_at: alert.created_at,
-    data: storedData,
-  };
-
-  await supabase.from('wmd_notifications').insert(insertData);
-
+    type: alertData.type,
+    severity: alertData.severity,
+    status: AlertStatus.ACTIVE,
+    title: alertData.title,
+    message: alertData.message,
+    playerId: alertData.playerId || null,
+    playerName: alertData.playerName || null,
+    clanId: alertData.clanId || null,
+    clanName: alertData.clanName || null,
+    targetClanId: alertData.targetClanId || null,
+    targetClanName: alertData.targetClanName || null,
+    missileId: alertData.missileId || null,
+    voteId: alertData.voteId || null,
+    operationId: alertData.operationId || null,
+    data: alertData.data || null,
+    channels: alert.channels,
+    deliveryStatus: alert.deliveryStatus,
+    createdAt: new Date(),
+  });
+  
+  alert.id = alertId;
+  
   await deliverAlertNotifications(alert);
-
+  
   return alert;
 }
 
+/**
+ * Check if alert severity meets minimum threshold
+ */
 function meetsMinSeverity(severity: AlertSeverity, minSeverity: AlertSeverity): boolean {
-  const severityRanking: Record<AlertSeverity, number> = {
+  const severityRanking = {
     [AlertSeverity.INFO]: 1,
     [AlertSeverity.WARNING]: 2,
     [AlertSeverity.CRITICAL]: 3
   };
-
+  
   return severityRanking[severity] >= severityRanking[minSeverity];
 }
 
+/**
+ * Deliver alert notifications through configured channels
+ */
 async function deliverAlertNotifications(alert: WMDAlert): Promise<void> {
-  const supabase = createServiceClient();
-
   for (const channel of alert.channels) {
     try {
       switch (channel) {
@@ -188,126 +154,98 @@ async function deliverAlertNotifications(alert: WMDAlert): Promise<void> {
           await deliverEmailNotification(alert);
           break;
       }
-
-      const updatedStatus = {
-        ...alert.delivery_status,
-        [channel]: { sent: true, sent_at: new Date().toISOString() }
-      } as Record<string, { sent: boolean; sent_at?: string; error?: string }>;
-
-      const currentData = { ...(alert.data || {}), delivery_status: updatedStatus, channels: alert.channels };
-      await supabase
-        .from('wmd_notifications')
-        .update({
-          data: currentData,
-        } as Database['public']['Tables']['wmd_notifications']['Update'])
-        .eq('id', alert.id as string);
+      
+      const deliveryStatus = alert.deliveryStatus;
+      deliveryStatus[channel] = { sent: true, sentAt: new Date() };
+      
+      await db.update(wmdAlerts).set({
+        deliveryStatus: deliveryStatus,
+      }).where(eq(wmdAlerts.id, alert.id!));
     } catch (error) {
       console.error(`Failed to deliver alert via ${channel}:`, error);
-
-      const failureStatus = {
-        ...alert.delivery_status,
-        [channel]: {
-          sent: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
-      } as Record<string, { sent: boolean; sent_at?: string; error?: string }>;
-
-      const failureData = { ...(alert.data || {}), delivery_status: failureStatus, channels: alert.channels };
-      await supabase
-        .from('wmd_notifications')
-        .update({
-          data: failureData,
-        } as Database['public']['Tables']['wmd_notifications']['Update'])
-        .eq('id', alert.id as string);
+      
+      const deliveryStatus = alert.deliveryStatus;
+      deliveryStatus[channel] = {
+        sent: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+      
+      await db.update(wmdAlerts).set({
+        deliveryStatus: deliveryStatus,
+      }).where(eq(wmdAlerts.id, alert.id!));
     }
   }
 }
 
+/**
+ * Deliver in-game notification via WebSocket
+ */
 async function deliverInGameNotification(alert: WMDAlert): Promise<void> {
-  const supabase = createServiceClient();
   const recipients: string[] = [];
-
-  if (alert.player_id) {
-    recipients.push(alert.player_id);
+  
+  if (alert.playerId) {
+    recipients.push(alert.playerId);
   }
-
-  if (alert.clan_id) {
-    const { data: clan } = await supabase
-      .from('clan_members')
-      .select('player_id')
-      .eq('clan_id', alert.clan_id);
-
-    if (clan) {
-      recipients.push(...clan.map((m) => m.player_id));
+  
+  if (alert.clanId) {
+    const clanRow = await db.select().from(clans).where(eq(clans.id, alert.clanId)).limit(1);
+    const clan = clanRow[0];
+    if (clan && clan.members) {
+      recipients.push(...clan.members.map((m) => m.playerId));
     }
   }
-
-  if (alert.target_clan_id) {
-    const { data: targetClan } = await supabase
-      .from('clan_members')
-      .select('player_id')
-      .eq('clan_id', alert.target_clan_id);
-
-    if (targetClan) {
-      recipients.push(...targetClan.map((m) => m.player_id));
+  
+  if (alert.targetClanId) {
+    const targetClanRow = await db.select().from(clans).where(eq(clans.id, alert.targetClanId)).limit(1);
+    const targetClan = targetClanRow[0];
+    if (targetClan && targetClan.members) {
+      recipients.push(...targetClan.members.map((m) => m.playerId));
     }
   }
-
+  
   const uniqueRecipients = [...new Set(recipients)];
-
-  if (uniqueRecipients.length > 0) {
-    const notifications: Database['public']['Tables']['wmd_notifications']['Insert'][] = uniqueRecipients.map(playerId => {
-      const notifData: Json = {
-        alert_id: alert.id,
-        severity: alert.severity as string,
-        type: alert.type as string,
-      };
-      return {
-        id: generateId(),
-        player_id: playerId,
-        notification_type: WMD_ALERT_NOTIF_TYPE,
-        title: alert.title,
-        message: alert.message,
-        is_read: false,
-        created_at: new Date().toISOString(),
-        data: notifData,
-      };
-    });
-
-    for (const notification of notifications) {
-      await supabase.from('wmd_notifications').insert(notification);
-    }
+  
+  const notifications = uniqueRecipients.map(playerId => ({
+    id: `pn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    playerId,
+    type: 'WMD_ALERT',
+    alertId: alert.id || null,
+    title: alert.title,
+    message: alert.message,
+    severity: alert.severity,
+    read: 0,
+    createdAt: new Date()
+  }));
+  
+  if (notifications.length > 0) {
+    await db.insert(playerNotifications).values(notifications);
   }
-
+  
   console.log(`[WMD Alert] In-game notification sent to ${uniqueRecipients.length} players`);
 }
 
+/**
+ * Deliver dashboard notification
+ */
 async function deliverDashboardNotification(alert: WMDAlert): Promise<void> {
-  const supabase = createServiceClient();
-
-  const dashData: Json = {
-    alert_id: alert.id,
-    type: alert.type as string,
-    severity: alert.severity as string,
-    extra_data: alert.data ? JSON.parse(JSON.stringify(alert.data)) : undefined,
-  };
-
-  const dashNotif: Database['public']['Tables']['wmd_notifications']['Insert'] = {
-    id: generateId(),
-    player_id: 'DASHBOARD',
-    notification_type: DASHBOARD_NOTIF_TYPE,
+  await db.insert(adminDashboardNotifications).values({
+    id: `dash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    alertId: alert.id || null,
+    type: alert.type,
+    severity: alert.severity,
     title: alert.title,
     message: alert.message,
-    is_read: false,
-    created_at: new Date().toISOString(),
-    data: dashData,
-  };
-
-  await supabase.from('wmd_notifications').insert(dashNotif);
-
+    data: alert.data || null,
+    read: 0,
+    createdAt: new Date()
+  });
+  
   console.log(`[WMD Alert] Dashboard notification created: ${alert.title}`);
 }
 
+/**
+ * Deliver email notification
+ */
 async function deliverEmailNotification(alert: WMDAlert): Promise<void> {
   const emailData = {
     to: process.env.ADMIN_EMAIL || 'admin@darkframe.com',
@@ -318,21 +256,35 @@ async function deliverEmailNotification(alert: WMDAlert): Promise<void> {
       
       Type: ${alert.type}
       Severity: ${alert.severity}
-      Time: ${alert.created_at}
+      Time: ${alert.createdAt.toISOString()}
       
       ${alert.message}
       
-      ${alert.clan_name ? `Clan: ${alert.clan_name}` : ''}
-      ${alert.player_name ? `Player: ${alert.player_name}` : ''}
-      ${alert.target_clan_name ? `Target: ${alert.target_clan_name}` : ''}
+      ${alert.clanName ? `Clan: ${alert.clanName}` : ''}
+      ${alert.playerName ? `Player: ${alert.playerName}` : ''}
+      ${alert.targetClanName ? `Target: ${alert.targetClanName}` : ''}
       
       ---
       This is an automated alert from the DarkFrame WMD System.
     `
   };
-
+  
   console.log(`[WMD Alert] Email notification queued:`, emailData);
+  
+  await db.insert(emailQueue).values({
+    id: `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    to: emailData.to,
+    subject: emailData.subject,
+    body: emailData.body,
+    alertId: alert.id || null,
+    status: 'PENDING',
+    createdAt: new Date()
+  });
 }
+
+/**
+ * Alert factory functions for common WMD events
+ */
 
 export async function alertMissileLaunch(
   missileId: string,
@@ -346,13 +298,13 @@ export async function alertMissileLaunch(
   return createAlert({
     type: AlertType.MISSILE_LAUNCH,
     severity: AlertSeverity.CRITICAL,
-    title: `🚀 WMD Missile Launched!`,
+    title: `WMD Missile Launched!`,
     message: `Clan "${clanName}" has launched a ${warheadType} missile targeting "${targetClanName}". Impact expected at ${impactTime.toLocaleString()}.`,
-    clan_id: clanId,
-    clan_name: clanName,
-    target_clan_id: targetClanId,
-    target_clan_name: targetClanName,
-    missile_id: missileId,
+    clanId,
+    clanName,
+    targetClanId,
+    targetClanName,
+    missileId,
     data: { warheadType, impactTime: impactTime.toISOString() },
     channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD]
   });
@@ -370,13 +322,13 @@ export async function alertMissileImpact(
   return createAlert({
     type: AlertType.MISSILE_IMPACT,
     severity: AlertSeverity.CRITICAL,
-    title: `💥 WMD Missile Impact!`,
+    title: `WMD Missile Impact!`,
     message: `${warheadType} missile from "${clanName}" has struck "${targetClanName}" causing ${damage.toLocaleString()} damage!`,
-    clan_id: clanId,
-    clan_name: clanName,
-    target_clan_id: targetClanId,
-    target_clan_name: targetClanName,
-    missile_id: missileId,
+    clanId,
+    clanName,
+    targetClanId,
+    targetClanName,
+    missileId,
     data: { damage, warheadType },
     channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD]
   });
@@ -393,13 +345,13 @@ export async function alertMissileIntercepted(
   return createAlert({
     type: AlertType.MISSILE_INTERCEPTED,
     severity: AlertSeverity.WARNING,
-    title: `🛡️ Missile Intercepted!`,
+    title: `Missile Intercepted!`,
     message: `"${defenderClanName}" successfully intercepted a ${warheadType} missile from "${attackerClanName}"!`,
-    clan_id: attackerClanId,
-    clan_name: attackerClanName,
-    target_clan_id: defenderClanId,
-    target_clan_name: defenderClanName,
-    missile_id: missileId,
+    clanId: attackerClanId,
+    clanName: attackerClanName,
+    targetClanId: defenderClanId,
+    targetClanName: defenderClanName,
+    missileId,
     data: { warheadType },
     channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD]
   });
@@ -415,11 +367,11 @@ export async function alertVotePassed(
   return createAlert({
     type: AlertType.VOTE_PASSED,
     severity: AlertSeverity.WARNING,
-    title: `✅ WMD Vote Passed`,
+    title: `WMD Vote Passed`,
     message: `Clan "${clanName}" has approved a ${voteType} operation with ${(approvalRate * 100).toFixed(1)}% approval.`,
-    clan_id: clanId,
-    clan_name: clanName,
-    vote_id: voteId,
+    clanId,
+    clanName,
+    voteId,
     data: { voteType, approvalRate },
     channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD]
   });
@@ -435,11 +387,11 @@ export async function alertVoteFailed(
   return createAlert({
     type: AlertType.VOTE_FAILED,
     severity: AlertSeverity.INFO,
-    title: `❌ WMD Vote Failed`,
+    title: `WMD Vote Failed`,
     message: `Clan "${clanName}" failed to approve ${voteType} operation. Only ${(approvalRate * 100).toFixed(1)}% approval achieved.`,
-    clan_id: clanId,
-    clan_name: clanName,
-    vote_id: voteId,
+    clanId,
+    clanName,
+    voteId,
     data: { voteType, approvalRate },
     channels: [NotificationChannel.DASHBOARD]
   });
@@ -455,11 +407,11 @@ export async function alertVoteVetoed(
   return createAlert({
     type: AlertType.VOTE_VETOED,
     severity: AlertSeverity.WARNING,
-    title: `🚫 WMD Vote Vetoed`,
+    title: `WMD Vote Vetoed`,
     message: `Clan leader ${leaderName} vetoed the ${voteType} vote in "${clanName}".`,
-    clan_id: clanId,
-    clan_name: clanName,
-    vote_id: voteId,
+    clanId,
+    clanName,
+    voteId,
     data: { voteType, leaderName },
     channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD]
   });
@@ -472,10 +424,10 @@ export async function alertCooldownExpired(
   return createAlert({
     type: AlertType.COOLDOWN_EXPIRED,
     severity: AlertSeverity.INFO,
-    title: `⏰ WMD Cooldown Expired`,
+    title: `WMD Cooldown Expired`,
     message: `Clan "${clanName}" can now launch WMD operations again.`,
-    clan_id: clanId,
-    clan_name: clanName,
+    clanId,
+    clanName,
     channels: [NotificationChannel.IN_GAME]
   });
 }
@@ -491,12 +443,12 @@ export async function alertSuspiciousActivity(
   return createAlert({
     type: AlertType.SUSPICIOUS_ACTIVITY,
     severity: AlertSeverity.CRITICAL,
-    title: `🚩 Suspicious WMD Activity Detected`,
+    title: `Suspicious WMD Activity Detected`,
     message: `${activityType}: ${details}`,
-    player_id: playerId,
-    player_name: playerName,
-    clan_id: clanId,
-    clan_name: clanName,
+    playerId,
+    playerName,
+    clanId,
+    clanName,
     data: { activityType, details },
     channels: [NotificationChannel.DASHBOARD]
   });
@@ -512,11 +464,11 @@ export async function alertEmergencyDisarm(
   return createAlert({
     type: AlertType.EMERGENCY_DISARM,
     severity: AlertSeverity.CRITICAL,
-    title: `🛑 Emergency Missile Disarm`,
+    title: `Emergency Missile Disarm`,
     message: `Admin ${adminName} emergency-disarmed missile from "${clanName}". Reason: ${reason}`,
-    clan_id: clanId,
-    clan_name: clanName,
-    missile_id: missileId,
+    clanId,
+    clanName,
+    missileId,
     data: { adminName, reason },
     channels: [NotificationChannel.IN_GAME, NotificationChannel.DASHBOARD]
   });
@@ -525,269 +477,243 @@ export async function alertEmergencyDisarm(
 export async function alertSystemError(
   errorType: string,
   errorMessage: string,
-  context?: Record<string, unknown>
+  context?: WmdAlertData
 ): Promise<WMDAlert> {
   return createAlert({
     type: AlertType.SYSTEM_ERROR,
     severity: AlertSeverity.CRITICAL,
-    title: `⚠️ WMD System Error`,
+    title: `WMD System Error`,
     message: `${errorType}: ${errorMessage}`,
-    data: { errorType, errorMessage, context },
+    data: { errorType, errorMessage, ...(context ? { context: JSON.stringify(context) } : {}) },
     channels: [NotificationChannel.DASHBOARD]
   });
 }
 
+/**
+ * Acknowledge an alert
+ */
 export async function acknowledgeAlert(
   alertId: string,
   acknowledgedBy: string
 ): Promise<boolean> {
-  const supabase = createServiceClient();
-
-  const { data: existingAlert } = await supabase
-    .from('wmd_notifications')
-    .select('data')
-    .eq('id', alertId)
-    .maybeSingle();
-
-  if (!existingAlert) {
-    return false;
-  }
-
-  const existingData = (existingAlert.data as Record<string, unknown>) || {};
-  if (existingData.status !== AlertStatus.ACTIVE) {
-    return false;
-  }
-
-  const updatedData = {
-    ...existingData,
+  const result = await db.update(wmdAlerts).set({
     status: AlertStatus.ACKNOWLEDGED,
-    acknowledged_at: new Date().toISOString(),
-    acknowledged_by: acknowledgedBy,
-  };
-
-  const { error } = await supabase
-    .from('wmd_notifications')
-    .update({
-      data: updatedData,
-      is_read: true,
-    } as Database['public']['Tables']['wmd_notifications']['Update'])
-    .eq('id', alertId);
-
-  return !error;
+    acknowledgedAt: new Date(),
+    acknowledgedBy,
+  }).where(
+    and(
+      eq(wmdAlerts.id, alertId),
+      eq(wmdAlerts.status, AlertStatus.ACTIVE)
+    )
+  );
+  
+  return (result.rowCount ?? 0) > 0;
 }
 
+/**
+ * Resolve an alert
+ */
 export async function resolveAlert(
   alertId: string,
   resolvedBy: string,
   resolution?: string
 ): Promise<boolean> {
-  const supabase = createServiceClient();
-
-  const { data: existingAlert } = await supabase
-    .from('wmd_notifications')
-    .select('data')
-    .eq('id', alertId)
-    .maybeSingle();
-
-  if (!existingAlert) {
-    return false;
-  }
-
-  const existingData = (existingAlert.data as Record<string, unknown>) || {};
-  if (existingData.status !== AlertStatus.ACTIVE && existingData.status !== AlertStatus.ACKNOWLEDGED) {
-    return false;
-  }
-
-  const updatedData: Record<string, unknown> = {
-    ...existingData,
+  const updateData: Partial<typeof wmdAlerts.$inferInsert> = {
     status: AlertStatus.RESOLVED,
-    resolved_at: new Date().toISOString(),
-    resolved_by: resolvedBy,
+    resolvedAt: new Date(),
+    resolvedBy,
   };
-
+  
   if (resolution) {
-    updatedData.resolution = resolution;
+    const rows = await db.select().from(wmdAlerts).where(eq(wmdAlerts.id, alertId)).limit(1);
+    if (rows[0] && rows[0].data) {
+      const existingData: WmdAlertData = rows[0].data;
+      updateData.data = { ...existingData, resolution };
+    }
   }
-
-  const { error } = await supabase
-    .from('wmd_notifications')
-    .update({
-      data: updatedData,
-    } as Database['public']['Tables']['wmd_notifications']['Update'])
-    .eq('id', alertId);
-
-  return !error;
+  
+  const result = await db.update(wmdAlerts).set(updateData).where(
+    and(
+      eq(wmdAlerts.id, alertId),
+      or(
+        eq(wmdAlerts.status, AlertStatus.ACTIVE),
+        eq(wmdAlerts.status, AlertStatus.ACKNOWLEDGED)
+      )
+    )
+  );
+  
+  return (result.rowCount ?? 0) > 0;
 }
 
+/**
+ * Get active alerts
+ */
 export async function getActiveAlerts(
   filters?: {
     severity?: AlertSeverity;
     type?: AlertType;
-    clan_id?: string;
+    clanId?: string;
     limit?: number;
   }
 ): Promise<WMDAlert[]> {
-  const supabase = createServiceClient();
-
-  let query = supabase
-    .from('wmd_notifications')
-    .select('*')
-    .eq('notification_type', WMD_ALERT_NOTIF_TYPE)
-    .order('created_at', { ascending: false })
+  const conditions = [eq(wmdAlerts.status, AlertStatus.ACTIVE)];
+  
+  if (filters?.severity) conditions.push(eq(wmdAlerts.severity, filters.severity));
+  if (filters?.type) conditions.push(eq(wmdAlerts.type, filters.type));
+  if (filters?.clanId) conditions.push(eq(wmdAlerts.clanId, filters.clanId));
+  
+  const rows = await db.select().from(wmdAlerts)
+    .where(and(...conditions))
+    .orderBy(desc(wmdAlerts.createdAt))
     .limit(filters?.limit || 50);
-
-  if (filters?.clan_id) {
-    query = query.eq('player_id', filters.clan_id);
-  }
-
-  const { data, error } = await query;
-
-  if (error || !data) {
-    return [];
-  }
-
-  const result: WMDAlert[] = [];
-  for (const n of data) {
-    const nd = (n.data as Record<string, unknown>) || {};
-    if (nd.status !== AlertStatus.ACTIVE) continue;
-    if (filters?.severity && nd.severity !== filters.severity) continue;
-    if (filters?.type && nd.type !== filters.type) continue;
-
-    result.push({
-      id: n.id,
-      type: nd.type as AlertType,
-      severity: nd.severity as AlertSeverity,
-      status: nd.status as AlertStatus,
-      title: n.title,
-      message: n.message,
-      player_id: n.player_id,
-      player_name: nd.player_name as string | undefined,
-      clan_id: nd.clan_id as string | undefined,
-      clan_name: nd.clan_name as string | undefined,
-      missile_id: nd.missile_id as string | undefined,
-      vote_id: nd.vote_id as string | undefined,
-      operation_id: nd.operation_id as string | undefined,
-      data: nd.extra_data as Record<string, unknown> | undefined,
-      created_at: n.created_at,
-      channels: (nd.channels as NotificationChannel[]) || [],
-      delivery_status: (nd.delivery_status as Record<string, { sent: boolean; sent_at?: string; error?: string }>) || {},
-    });
-  }
-
-  return result;
+  
+  return rows.map(row => mapAlertRow(row));
 }
 
-export async function archiveOldAlerts(daysOld: number = 30): Promise<number> {
-  const supabase = createServiceClient();
-
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-  const cutoffStr = cutoffDate.toISOString();
-
-  const { data, error } = await supabase
-    .from('wmd_notifications')
-    .select('id,data')
-    .eq('notification_type', WMD_ALERT_NOTIF_TYPE)
-    .lte('created_at', cutoffStr);
-
-  if (error || !data) {
-    return 0;
+/**
+ * Get alert history
+ */
+export async function getAlertHistory(
+  filters?: {
+    startDate?: Date;
+    endDate?: Date;
+    severity?: AlertSeverity;
+    type?: AlertType;
+    clanId?: string;
+    status?: AlertStatus;
+    limit?: number;
   }
-
-  let archivedCount = 0;
-  for (const notification of data) {
-    const nd = (notification.data as Record<string, unknown>) || {};
-    if (nd.status === AlertStatus.RESOLVED) {
-      const updatedData = { ...nd, status: AlertStatus.ARCHIVED };
-      const { error: updateError } = await supabase
-        .from('wmd_notifications')
-        .update({
-          data: updatedData,
-        } as Database['public']['Tables']['wmd_notifications']['Update'])
-        .eq('id', notification.id);
-
-      if (!updateError) {
-        archivedCount++;
-      }
+): Promise<WMDAlert[]> {
+  const conditions = [];
+  
+  if (filters?.startDate || filters?.endDate) {
+    if (filters.startDate && filters.endDate) {
+      conditions.push(and(gte(wmdAlerts.createdAt, filters.startDate), lte(wmdAlerts.createdAt, filters.endDate)));
+    } else if (filters.startDate) {
+      conditions.push(gte(wmdAlerts.createdAt, filters.startDate));
+    } else if (filters.endDate) {
+      conditions.push(lte(wmdAlerts.createdAt, filters.endDate));
     }
   }
-
-  return archivedCount;
+  
+  if (filters?.severity) conditions.push(eq(wmdAlerts.severity, filters.severity));
+  if (filters?.type) conditions.push(eq(wmdAlerts.type, filters.type));
+  if (filters?.clanId) conditions.push(eq(wmdAlerts.clanId, filters.clanId));
+  if (filters?.status) conditions.push(eq(wmdAlerts.status, filters.status));
+  
+  const rows = await db.select().from(wmdAlerts)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(wmdAlerts.createdAt))
+    .limit(filters?.limit || 100);
+  
+  return rows.map(row => mapAlertRow(row));
 }
 
+/**
+ * Archive old alerts
+ */
+export async function archiveOldAlerts(daysOld: number = 30): Promise<number> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+  
+  const result = await db.update(wmdAlerts).set({
+    status: AlertStatus.ARCHIVED,
+  }).where(
+    and(
+      eq(wmdAlerts.status, AlertStatus.RESOLVED),
+      lte(wmdAlerts.resolvedAt, cutoffDate)
+    )
+  );
+  
+  return (result.rowCount ?? 0) || 0;
+}
+
+/**
+ * Get alert configuration
+ */
 export async function getAlertConfig(): Promise<AlertConfig> {
-  const supabase = createServiceClient();
-
-  const { data: config } = await supabase
-    .from('bot_config')
-    .select('config_value')
-    .eq('config_key', 'wmd_alerts_config')
-    .maybeSingle();
-
-  if (config?.config_value) {
-    const settings = config.config_value as Record<string, unknown>;
-    return {
-      enabled: settings.enabled as boolean ?? DEFAULT_CONFIG.enabled,
-      min_severity: settings.min_severity as AlertSeverity ?? DEFAULT_CONFIG.min_severity,
-      channels: settings.channels as NotificationChannel[] ?? DEFAULT_CONFIG.channels,
-      auto_acknowledge: settings.auto_acknowledge as boolean ?? DEFAULT_CONFIG.auto_acknowledge,
-      auto_archive_days: settings.auto_archive_days as number ?? DEFAULT_CONFIG.auto_archive_days,
-    };
+  const rows = await db.select().from(wmdConfig).where(eq(wmdConfig.key, 'alerts')).limit(1);
+  const row = rows[0];
+  if (row && row.value) {
+    return row.value.settings || DEFAULT_CONFIG;
   }
-
   return DEFAULT_CONFIG;
 }
 
+/**
+ * Update alert configuration
+ */
 export async function updateAlertConfig(
   config: Partial<AlertConfig>
 ): Promise<AlertConfig> {
-  const supabase = createServiceClient();
   const currentConfig = await getAlertConfig();
   const newConfig = { ...currentConfig, ...config };
-
-  const configValue: Json = JSON.parse(JSON.stringify(newConfig));
-  await supabase
-    .from('bot_config')
-    .upsert({
-      config_key: 'wmd_alerts_config',
-      config_value: configValue,
-    }, { onConflict: 'config_key' });
-
+  
+  const existing = await db.select().from(wmdConfig).where(eq(wmdConfig.key, 'alerts')).limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(wmdConfig).set({
+      value: { settings: newConfig },
+      updatedAt: new Date(),
+    }).where(eq(wmdConfig.key, 'alerts'));
+  } else {
+    await db.insert(wmdConfig).values({
+      id: `config_alerts_${Date.now()}`,
+      key: 'alerts',
+      value: { settings: newConfig },
+      updatedAt: new Date(),
+    });
+  }
+  
   return newConfig;
 }
 
+/**
+ * Background job to clean up old alerts
+ */
 export async function cleanupAlerts(): Promise<void> {
   const config = await getAlertConfig();
-
-  const archivedCount = await archiveOldAlerts(config.auto_archive_days);
+  
+  const archivedCount = await archiveOldAlerts(config.autoArchiveDays);
   console.log(`[WMD Alerts] Archived ${archivedCount} old alerts`);
-
-  const supabase = createServiceClient();
+  
   const deleteDate = new Date();
   deleteDate.setDate(deleteDate.getDate() - 90);
-  const deleteStr = deleteDate.toISOString();
+  
+  const result = await db.delete(wmdAlerts).where(
+    and(
+      eq(wmdAlerts.status, AlertStatus.ARCHIVED),
+      lte(wmdAlerts.resolvedAt, deleteDate)
+    )
+  );
+  
+  console.log(`[WMD Alerts] Deleted ${(result.rowCount ?? 0)} archived alerts older than 90 days`);
+}
 
-  const { data, error } = await supabase
-    .from('wmd_notifications')
-    .select('id,data')
-    .eq('notification_type', WMD_ALERT_NOTIF_TYPE)
-    .lte('created_at', deleteStr);
-
-  if (error || !data) {
-    return;
-  }
-
-  let deletedCount = 0;
-  for (const notification of data) {
-    const nd = (notification.data as Record<string, unknown>) || {};
-    if (nd.status === AlertStatus.ARCHIVED) {
-      await supabase
-        .from('wmd_notifications')
-        .delete()
-        .eq('id', notification.id);
-      deletedCount++;
-    }
-  }
-
-  console.log(`[WMD Alerts] Deleted ${deletedCount} archived alerts older than 90 days`);
+function mapAlertRow(row: typeof wmdAlerts.$inferSelect): WMDAlert {
+  return {
+    id: row.id,
+    type: row.type as AlertType,
+    severity: row.severity as AlertSeverity,
+    status: row.status as AlertStatus,
+    title: row.title,
+    message: row.message,
+    playerId: row.playerId || undefined,
+    playerName: row.playerName || undefined,
+    clanId: row.clanId || undefined,
+    clanName: row.clanName || undefined,
+    targetClanId: row.targetClanId || undefined,
+    targetClanName: row.targetClanName || undefined,
+    missileId: row.missileId || undefined,
+    voteId: row.voteId || undefined,
+    operationId: row.operationId || undefined,
+    data: row.data ?? undefined,
+    createdAt: new Date(row.createdAt),
+    acknowledgedAt: row.acknowledgedAt ? new Date(row.acknowledgedAt) : undefined,
+    acknowledgedBy: row.acknowledgedBy || undefined,
+    resolvedAt: row.resolvedAt ? new Date(row.resolvedAt) : undefined,
+    resolvedBy: row.resolvedBy || undefined,
+    channels: row.channels || [],
+    deliveryStatus: row.deliveryStatus || {},
+  };
 }

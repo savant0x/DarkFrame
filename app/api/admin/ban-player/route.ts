@@ -1,7 +1,6 @@
 /**
  * 📅 Created: 2025-01-18
  * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
- * 📅 Updated: 2026-05-15 — Fixed auth bypass: use requireAdminAuth instead of self-bypass
  * 🎯 OVERVIEW:
  * Ban Player Admin Endpoint
  * 
@@ -11,12 +10,13 @@
  * - Prevents future logins
  * - Requires ban reason and optional duration
  * - Logs all ban actions for accountability
- * - Admin-only access (verified via session/JWT)
+ * - Admin-only access (rank >= 5)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAdminAuth } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authService';
+import clientPromise from '@/lib/mongodb';
+import type { Player } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -37,23 +37,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('ban-player');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Admin authentication check
+    const user = await getAuthenticatedUser();
+    if (!user || !user.rank || user.rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin access required (rank 5+)',
+      });
+    }
 
     const body = await request.json();
     const validated = BanPlayerSchema.parse(body);
     const { username, reason, durationDays, autoResolveFlags } = validated;
 
-    const supabase = createServiceClient();
+    const client = await clientPromise;
+    const db = client.db('game');
+    const players = db.collection<Player>('players');
+    const bans = db.collection('bans');
+    const flags = db.collection('playerFlags');
 
-    // Check if target player exists
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (playerError || !player) {
+    // Check if player exists
+    const player = await players.findOne({ username });
+    if (!player) {
       return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
         message: 'Player not found',
         username,
@@ -61,7 +65,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Prevent banning admins
-    if (player.is_admin || (player.rank && player.rank >= 5)) {
+    if (player.rank && player.rank >= 5) {
       return createErrorResponse(ErrorCode.ADMIN_CANNOT_BAN_ADMIN, {
         message: 'Cannot ban admin accounts',
         username,
@@ -72,45 +76,70 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const bannedAt = new Date();
     const expiresAt = durationDays 
       ? new Date(bannedAt.getTime() + durationDays * 24 * 60 * 60 * 1000)
-      : null;
+      : null; // null = permanent ban
 
-    // Actually ban the player
-    await supabase.from('players').update({
-      is_banned: true,
-      banned_at: bannedAt.toISOString(),
-      ban_reason: reason.trim(),
-    }).eq('username', username);
+    // Create ban record
+    const banRecord = {
+      username,
+      bannedBy: user.username,
+      bannedAt,
+      expiresAt,
+      reason: reason.trim(),
+      isPermanent: !durationDays,
+      active: true
+    };
 
-    // Optionally resolve all active flags for this player
+    await bans.insertOne(banRecord);
+
+    // Update player account
+    await players.updateOne(
+      { username },
+      {
+        $set: {
+          banned: true,
+          bannedAt,
+          bannedBy: user.username,
+          banReason: reason.trim(),
+          banExpiresAt: expiresAt
+        }
+      }
+    );
+
+    // Optionally resolve all active flags
     if (autoResolveFlags) {
-      await supabase
-        .from('player_flags')
-        .update({ resolved: true })
-        .eq('player_username', username)
-        .eq('resolved', false);
+      await flags.updateMany(
+        { username, resolved: false },
+        {
+          $set: {
+            resolved: true,
+            resolvedBy: user.username,
+            resolvedAt: new Date(),
+            adminNotes: `Auto-resolved via player ban: ${reason.trim()}`
+          }
+        }
+      );
     }
 
     // Log admin action
-    await supabase.from('admin_logs').insert({
-      admin_username: auth.username,
+    const adminLogs = db.collection('adminLogs');
+    await adminLogs.insertOne({
+      adminUsername: user.username,
       action: 'BAN_PLAYER',
-      target: username,
-      details: {
-        reason: reason.trim(),
-        ban_duration: durationDays || 'permanent',
-        banned_at: bannedAt.toISOString(),
-        expires_at: expiresAt ? expiresAt.toISOString() : null,
-        is_permanent: !durationDays,
-        player_rank: player.rank,
-        player_metal: player.resources_metal,
-        player_energy: player.resources_energy,
-        auto_resolved_flags: autoResolveFlags
+      targetUsername: username,
+      reason: reason.trim(),
+      durationDays: durationDays || 'permanent',
+      timestamp: new Date(),
+      metadata: {
+        playerTier: (player as Player & { tier?: number }).tier ?? null,
+        playerRank: player.rank,
+        playerResources: player.resources,
+        autoResolvedFlags: autoResolveFlags
       }
     });
 
     log.info('Player banned successfully', {
-      adminUsername: auth.username,
-      targetUsername: username,
+      username,
+      bannedBy: user.username,
       isPermanent: !durationDays,
       durationDays: durationDays || 'permanent',
       flagsResolved: autoResolveFlags,
@@ -121,7 +150,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       message: `Player ${username} has been banned`,
       data: {
         username,
-        bannedBy: auth.username,
+        bannedBy: user.username,
         bannedAt,
         expiresAt,
         isPermanent: !durationDays,
@@ -151,10 +180,15 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('unban-player');
 
   try {
-    const auth = await requireAdminAuth(request);
-    if (auth instanceof NextResponse) return auth;
+    // Admin authentication check
+    const user = await getAuthenticatedUser();
+    if (!user || !user.rank || user.rank < 5) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Admin access required (rank 5+)',
+      });
+    }
 
-    const { searchParams } = request.nextUrl;
+    const { searchParams } = new URL(request.url);
     const username = searchParams.get('username');
 
     if (!username) {
@@ -163,42 +197,60 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       });
     }
 
-    const supabase = createServiceClient();
+    const client = await clientPromise;
+    const db = client.db('game');
+    const players = db.collection('players');
+    const bans = db.collection('bans');
 
-    // Check player exists
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .single();
+    // Update player account
+    const result = await players.updateOne(
+      { username },
+      {
+        $set: {
+          banned: false,
+          unbannedAt: new Date(),
+          unbannedBy: user.username
+        },
+        $unset: {
+          bannedAt: '',
+          bannedBy: '',
+          banReason: '',
+          banExpiresAt: ''
+        }
+      }
+    );
 
-    if (playerError || !player) {
+    if (result.modifiedCount === 0) {
       return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
         message: 'Player not found',
         username,
       });
     }
 
-    // Actually unban the player
-    await supabase.from('players').update({
-      is_banned: false,
-      banned_at: null,
-      ban_reason: null,
-    }).eq('username', username);
-
-    // Log unban action
-    await supabase.from('admin_logs').insert({
-      admin_username: auth.username,
-      action: 'UNBAN_PLAYER',
-      target: username,
-      details: {
-        unbannedAt: new Date().toISOString(),
+    // Deactivate ban records
+    await bans.updateMany(
+      { username, active: true },
+      {
+        $set: {
+          active: false,
+          unbannedAt: new Date(),
+          unbannedBy: user.username
+        }
       }
+    );
+
+    // Log admin action
+    const adminLogs = db.collection('adminLogs');
+    await adminLogs.insertOne({
+      adminUsername: user.username,
+      action: 'UNBAN_PLAYER',
+      targetUsername: username,
+      timestamp: new Date()
     });
 
     log.info('Player unbanned successfully', {
-      adminUsername: auth.username,
-      targetUsername: username,
+      username,
+      unbannedBy: user.username,
     });
 
     return NextResponse.json({
@@ -206,7 +258,7 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       message: `Player ${username} has been unbanned`,
       data: {
         username,
-        unbannedBy: auth.username,
+        unbannedBy: user.username,
         unbannedAt: new Date()
       }
     });
@@ -221,7 +273,7 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
 
 /**
  * 📝 IMPLEMENTATION NOTES:
- * - Updates player record directly with ban fields (no separate bans table)
+ * - Creates ban record in separate collection for history
  * - Updates player account to prevent login
  * - Supports both permanent and temporary bans
  * - Option to auto-resolve flags when banning

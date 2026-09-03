@@ -239,7 +239,7 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
             />
             {searchQuery && (
               <p className="text-sm text-gray-400 mt-2">
-                Found {filteredLeaderboard.length} player(s) matching "{searchQuery}"
+                Found {filteredLeaderboard.length} player(s) matching &quot;{searchQuery}&quot;
               </p>
             )}
           </div>

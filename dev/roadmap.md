@@ -1,168 +1,459 @@
-# 🗺️ DarkFrame — Product Roadmap
+# 🗺️ DarkFrame - Product Roadmap
 
 > Strategic vision, milestone planning, and feature evolution
 
-**Last Updated:** 2026-05-11
-**Project Started:** October 16, 2025
-**Current Status:** Factory & Unit Redesign — Complete, Awaiting DB Reset
+**Last Updated:** October 23, 2025  
+**Project Started:** October 16, 2025  
+**Current Status:** WMD Phase 1 Complete - Ready for Phase 2
 
 ---
 
-## 🎯 Project Vision
+## 🎯 **Project Vision**
 
-Build a **persistent multiplayer tile-based strategy game** where players compete for dominance on a **150×150 grid world**. Players explore, gather resources, build armies, engage in PVP combat, unlock technologies, form powerful clans, and compete for global supremacy.
+Build a **persistent multiplayer tile-based strategy game** where players compete for dominance on a **150×150 grid world**. Players explore, gather resources, build armies, engage in PVP combat, unlock technologies, form powerful clans with advanced warfare systems, and compete for global supremacy through weapons of mass destruction.
 
-### Long-Term Goals
-1. **Sustainable Economy** — Balanced faucets and sinks for multi-year lifecycle
-2. **Engaging Progression** — Months/years to max, not days
-3. **Active Engagement Loops** — Shrine, achievements, PvP, not just passive farming
-4. **Healthy Monetization** — VIP is valuable (2-3x speed) without being pay-to-win
-5. **No Forced Resets** — Territory decay + content cadence instead
-6. **Clan Endgame** — WMD system, territory control, clan warfare
-
----
-
-## 📊 Current Status
-
-### ✅ Completed
-- Phase 1-13: Core game systems (map, resources, combat, clans, etc.)
-- Supabase migration: 100% complete
-- Chat system: Fixed (persistence, online users)
-- Forest harvest bug: Fixed
-- 15+ FIDs closed and archived
-
-### 🔄 In Progress
-- None — all current FIDs complete
-
-### 📋 Planned
-- DB wipe and re-seed (required for all balance changes to take effect)
-- Bot dynamic scaling (new feature)
-- Clan bank upgrade RP costs (new feature)
-- WMD component RP surcharge (new feature)
-- Battle service full multi-phase combat implementation
-- After-Action Report text generation
-- Factory archetype assignment on map generation
-- Shrine sacrifice-digger asymptotic curve testing
+### **Long-Term Goals**
+1. **Engaging Endgame** - WMD system provides long-term strategic objectives
+2. **Clan Cooperation** - Democratic systems require teamwork and diplomacy
+3. **Economic Depth** - Trading, banking, and resource management
+4. **Competitive PVP** - Territory control and clan warfare
+5. **Monetization** - VIP system for sustainable development
 
 ---
 
-## 🏗️ Implementation Phases — ALL COMPLETE
+## 📊 **Current Status**
 
-### Phase 1-4: Economy Rebalance (FID-20260508-BALANCE-V2) ✅
-**Status:** COMPLETE — 16 changes across 14 files
-- Additive multipliers with diminishing returns ✅
-- Digger exponential decay ✅
-- Base harvest 400-750 ✅
-- XP per harvest 3 + polynomial curve ✅
-- Resource decay, PvP burn, army balance, flag, terrain, auto-farm, banks, forests, achievements ✅
+### ✅ **Completed Phases** (100%)
+- Phase 1-13: Core game systems
+- Auto-Farm System: 3-tier automation
+- VIP System: 5-tier monetization
+- WMD Phase 1: Complete foundation (types, schemas, services)
 
-### Factory & Unit Redesign (FID-20260511-FACTORY-UNIT-REDESIGN) ✅
-**Status:** COMPLETE — 20+ files modified
-- 65 unit types → 20 focused units (4 archetypes × 5 tiers) ✅
-- Linear slot regen → Burst+Decay model ✅
-- Simple STR vs DEF → Multi-phase combat algorithm ✅
-- Map entropy, terrain modifiers, factory archetypes ✅
-- Operational Data currency ✅
+### 🔄 **In Progress**
+- WMD Phase 2: API Routes & Database Integration
+
+### 📋 **Planned**
+- WMD Phase 3: Frontend Integration
+- Payment Integration: Stripe implementation
+- Production Deployment: Vercel/Railway hosting
 
 ---
 
-## 🔥 Key Balance Numbers
+## 🏗️ **Phase Timeline**
 
-### Economy (FID-20260508-BALANCE-V2)
-| System | Before | After |
-|--------|--------|-------|
-| Max multiplier | 8.8x+ (unbounded) | ~3-4x (additive diminishing) |
-| Diggers per 12h | ~400 | 0-3 |
-| Digger bonus cap | Unbounded (+973%) | ~200% asymptotic |
-| Base harvest | 800-1,500 | 400-750 |
-| XP per harvest | 20 | 3 |
-| XP to level 30 | 29K | ~1.23M |
-| Tier 5 unlock | Level 30, 50 RP | Level 50, 750 RP + 10M metal |
-| VIP resource bonus | 2x multiplicative | +50% additive |
-| PvP destruction | None | 20% burned |
-| Shrine max | +100% | +70% (diminishing) |
-| Daily RP from milestones | 6,000 | 1,500 |
-| Daily resources (full sweep) | ~193M | ~10-15M |
-| Time to max progression | 1-2 days | 6-12 months |
+```
+Week 1 (Oct 16-22, 2025)
+├─ Day 1-2: Phase 1-2 (Core + Resources) ✅
+├─ Day 3-4: Phase 3-8 (Advanced Systems) ✅
+├─ Day 5-6: Phase 9-13 (Clan Warfare) ✅
+└─ Day 7: Auto-Farm + VIP + WMD Phase 1 ✅
 
-### Factory & Units (FID-20260511-FACTORY-UNIT-REDESIGN)
-| System | Before | After |
-|--------|--------|-------|
-| Unit types | 65 (mirrored STR/DEF) | 20 (4 archetypes × 5 tiers) |
-| Cost scaling | Flat ~33-40 metal/STR | Orthogonal (30-85 metal/STR by tier) |
-| Slot scaling | Flat 100-3000 slots | Orthogonal (10-2.5 slots/STR by tier) |
-| Factory slots L1→L10 | 5,000→9,500 (linear) | 5,000→~41,000 (polynomial) |
-| Slot regen | Linear 416→791/hr | Burst 80% + 20% asymptotic decay |
-| Factory defense L10 | 500,000 | ~260,000 (constrained polynomial) |
-| Upgrade cost L10 cumulative | 112K metal | ~357K metal |
-| Map entropy | None | -1 level per 72h unoccupied |
-| Terrain modifiers | None | 5 types (Wasteland/Metal/Energy/Cave/Forest) |
-| Combat | STR vs DEF subtraction | Multi-phase (Artillery→Support→Vanguard→Casualties) |
-| Prestige currency | None | Operational Data (1 per 100 slots cycled) |
+Week 2 (Oct 23-29, 2025)
+├─ WMD Phase 2: API Routes (planned)
+├─ WMD Phase 3: Frontend Integration (planned)
+└─ Testing & Polish (planned)
+
+Week 3+ (Nov 2025)
+├─ Payment Integration
+├─ Production Deployment
+└─ Post-Launch Features
+```
 
 ---
 
-## 📈 Success Metrics
+## ✅ **COMPLETED MILESTONES**
 
-### Economy Health
-- **Faucet-to-sink ratio:** Target 5:1 to 10:1 (currently 100:1+)
-- **Daily resource accumulation:** Target 8-13M net (currently 193M+)
-- **Progression speed:** VIP 2-3x faster than F2P (not 100x)
+### **Phase 1: Core Foundation** (Oct 16, 2025)
+**Goal:** Establish MVP with map, players, and navigation
 
-### Player Progression
-- **Level 50:** ~6 months (currently 1 day)
-- **Level 100:** ~4 years
-- **All tier unlocks:** ~6 months (currently 1 session)
-- **All tech tree:** ~3-6 months (currently 1-2 sessions)
+**Features Delivered:**
+- 150×150 static map generation (22,500 tiles)
+- MongoDB persistence layer
+- Player registration & spawning
+- 9-direction tile navigation
+- Three-panel UI layout
+- Cookie-based JWT authentication
+- Multiple keyboard control schemes
 
-### Engagement
-- **Shrine loop:** Players log in every 2-4 hours to manage buffs
-- **Achievement system:** Constant micro-goals across all gameplay verticals
-- **PvP:** Active resource destruction drives conflict
-- **Content cadence:** New goals every month, major drops every 6 months
+**Impact:** Playable game foundation established
 
 ---
 
-## 🚀 Post-Reset Roadmap
+### **Phase 2: Resources & Combat** (Oct 17, 2025)
+**Goal:** Enable resource collection and factory conquest
 
-After DB reset and testing confirms all systems work:
+**Features Delivered:**
+- Resource harvesting (Metal, Energy, Cave items)
+- 12-hour split reset cycles
+- Cave exploration with loot drops
+- Diminishing returns for diggers
+- Factory attack mechanics
+- Unit production system (SOLDIERS)
+- 5-minute attack cooldowns
+- Inventory management
 
-### Immediate Testing
-1. **Factory cycling** — Capture → build → abandon → repeat
-2. **Unit production** — All 20 unit types buildable with correct costs/slots
-3. **PvP combat** — Multi-phase algorithm with intransitive counters
-4. **Map entropy** — Factories degrade after 72h unoccupied
-5. **Operational Data** — Earned from factory cycling, displayed in StatsPanel
-
-### Short-Term (Next 1-2 Sessions)
-6. **Battle Service Full Implementation** — Complete multi-phase combat
-7. **After-Action Report** — Readable combat log text generation
-8. **Factory Archetype Assignment** — Based on terrain during map generation
-9. **Shrine Sacrifice-Digger Testing** — Asymptotic curve verification
-
-### Medium-Term
-10. **Bot Dynamic Scaling** — Bots scale with player progression
-11. **Clan Bank Upgrade RP Costs** — New feature
-12. **WMD Component RP Surcharge** — New feature
-13. **Real-Time Systems** — WebSocket for live updates (replace polling)
-14. **Mobile Responsive** — Mobile-friendly UI
-
-### Long-Term
-15. **Payment Integration** — Stripe for VIP purchases (route exists)
-16. **Production Deployment** — Vercel/Railway hosting
-17. **Admin Tools** — Economy balancing dashboard, player moderation
-18. **World Events** — Server-wide events that create FOMO
-19. **Alliance System** — Multi-clan cooperation
-20. **Map Expansions** — New terrain types, new areas
+**Impact:** Core gameplay loop complete
 
 ---
 
-## 📞 Roadmap Updates
+### **Phase 3: Advanced Systems** (Oct 18, 2025)
+**Goal:** Progression, specialization, and economy
 
-This roadmap is a living document updated after each major milestone.
+**Features Delivered:**
+- Banking system (4 fixed locations)
+- Resource exchange (Metal ↔ Energy)
+- Shrine of Remembrance boosts
+- 10-level factory upgrades
+- Slot regeneration system
+- 40 unit types (5 tiers)
+- Level & XP system
+- 3 specialization trees
+- Discovery log (50+ discoveries)
+- Achievement system with rewards
 
-**Next Review:** After Phase 1 implementation complete
+**Impact:** Deep progression systems for player retention
 
 ---
 
-*Last Updated: May 6, 2026 — Economy Rebalance Planning Complete*
+### **Phase 4-8: Economy & Trading** (Oct 18, 2025)
+**Goal:** Player-driven economy and auction house
+
+**Features Delivered:**
+- Auction house with bidding
+- 24-48 hour auction durations
+- Bid history tracking
+- Automated auction resolution
+- Buyout options
+
+**Impact:** Player economy established
+
+---
+
+### **Phase 9-13: Clan Warfare** (Oct 19-20, 2025)
+**Goal:** Social systems and territorial competition
+
+**Features Delivered:**
+- Clan creation & management
+- Territory control system
+- Clan wars (declaration, raids, resolution)
+- Battle log system
+- Reputation system
+- Diplomacy features
+- Member roles & permissions
+
+**Impact:** Social layer adds community engagement
+
+---
+
+### **Auto-Farm System** (Oct 20, 2025)
+**Goal:** Automation for passive income
+
+**Features Delivered:**
+- 3-tier system (Basic/Advanced/Elite)
+- Resource collection scheduling
+- Factory scanning & targeting
+- Bot summoning mechanics
+- Background processing
+- Stats dashboard
+
+**Impact:** Convenience feature for active players
+
+---
+
+### **VIP System** (Oct 20-21, 2025)
+**Goal:** Monetization infrastructure
+
+**Features Delivered:**
+- 5 VIP tiers with progressive benefits
+- Duration packages (7/30/90 days)
+- Clan treasury funding
+- VIP-exclusive features
+- Purchase history tracking
+- Status indicators
+
+**Impact:** Revenue model established (pending payment integration)
+
+---
+
+### **WMD Phase 1: Foundation** (Oct 22, 2025)
+**Goal:** Complete backend infrastructure for endgame content
+
+**Features Delivered:**
+- **Type System:** 6 files, 3,683 lines
+  - Missile types (5 warhead types)
+  - Defense types (5 battery tiers)
+  - Intelligence types (10 mission types)
+  - Research types (30 techs, 3 tracks)
+  - Notification types (19 event types)
+
+- **Database:** 12 MongoDB collections
+  - Research progress tracking
+  - Missile inventory management
+  - Defense battery deployments
+  - Intelligence network
+  - Spy missions
+  - Clan voting records
+  - Notifications & consequences
+
+- **Service Layer:** 13 files, 5,096 lines
+  - researchService.ts (650 lines)
+  - spyService.ts (1,716 lines)
+  - missileService.ts (309 lines)
+  - defenseService.ts (326 lines)
+  - Clan voting & treasury integration
+  - Consequence & cooldown systems
+
+- **UI Components:** 8 React components
+  - WMD Hub with tab navigation
+  - Research, Missile, Defense, Intelligence panels
+  - Voting interface
+  - Notifications feed
+  - Mini-status widget
+
+**Impact:** Complete WMD backend ready for API integration
+
+---
+
+## 🔥 **CURRENT PRIORITY: WMD Phase 2**
+
+### **WMD Phase 2: API Routes** (In Planning)
+**Estimated Time:** 10-14 hours  
+**Priority:** HIGH  
+**Complexity:** 4/5
+
+**Goal:** Connect WMD services to database via API routes
+
+**API Routes to Build (~20 endpoints):**
+
+**Research System (4 routes):**
+- `POST /api/wmd/research/start` - Start tech research
+- `GET /api/wmd/research/status` - Get player progress
+- `GET /api/wmd/research/available` - List available techs
+- `GET /api/wmd/research/tree` - Get full tech tree
+
+**Missile System (6 routes):**
+- `POST /api/wmd/missiles/create` - Create new missile
+- `POST /api/wmd/missiles/[id]/assemble` - Add component
+- `POST /api/wmd/missiles/[id]/launch` - Launch at target
+- `GET /api/wmd/missiles` - List player's missiles
+- `GET /api/wmd/missiles/[id]` - Get missile details
+- `DELETE /api/wmd/missiles/[id]` - Dismantle missile
+
+**Defense System (5 routes):**
+- `POST /api/wmd/defense/deploy` - Deploy battery
+- `POST /api/wmd/defense/[id]/repair` - Repair battery
+- `POST /api/wmd/defense/[id]/resupply` - Resupply ammo
+- `GET /api/wmd/defense` - List batteries
+- `DELETE /api/wmd/defense/[id]` - Dismantle battery
+
+**Intelligence System (6 routes):**
+- `POST /api/wmd/intelligence/recruit` - Recruit spy
+- `POST /api/wmd/intelligence/[id]/train` - Train spy
+- `POST /api/wmd/intelligence/missions/start` - Start mission
+- `GET /api/wmd/intelligence/spies` - List spies
+- `GET /api/wmd/intelligence/missions` - List missions
+- `POST /api/wmd/intelligence/counter-intel` - Run sweep
+
+**Voting System (4 routes):**
+- `POST /api/wmd/voting/create` - Create clan vote
+- `POST /api/wmd/voting/[id]/vote` - Cast vote
+- `POST /api/wmd/voting/[id]/veto` - Leader veto
+- `GET /api/wmd/voting` - Get active votes
+
+**Notifications (1 route):**
+- `GET /api/wmd/notifications` - Get WMD notifications
+
+**Acceptance Criteria:**
+- All routes with JWT authentication
+- MongoDB integration complete
+- Comprehensive error handling
+- Input validation & sanitization
+- Clan treasury integration
+- Transaction logging
+- TypeScript 0 errors
+- JSDoc documentation
+
+---
+
+## 📋 **UPCOMING MILESTONES**
+
+### **WMD Phase 3: Frontend Integration** (Planned)
+**Estimated Time:** 8-12 hours  
+**Priority:** HIGH  
+**Complexity:** 3/5
+
+**Goal:** Connect UI components to API routes
+
+**Tasks:**
+1. Research Panel Integration (2-3 hours)
+   - Tech tree visualization
+   - Start research functionality
+   - Progress tracking display
+   - RP balance integration
+
+2. Missile System Integration (2-3 hours)
+   - Missile creation UI
+   - Component assembly interface
+   - Launch targeting system
+   - Missile inventory display
+
+3. Defense System Integration (1-2 hours)
+   - Battery deployment interface
+   - Repair/resupply controls
+   - Defense grid visualization
+   - Interception log display
+
+4. Intelligence Integration (2-3 hours)
+   - Spy recruitment interface
+   - Mission planning UI
+   - Intelligence reports display
+   - Counter-intel controls
+
+5. Voting Integration (1-2 hours)
+   - Vote creation form
+   - Voting interface
+   - Vote status display
+   - Leader veto controls
+
+**Acceptance Criteria:**
+- All panels functional
+- Real-time data fetching
+- Error handling with user feedback
+- Loading states
+- Success notifications
+- Responsive design
+
+---
+
+### **Payment Integration** (Planned)
+**Estimated Time:** 6-8 hours  
+**Priority:** MEDIUM  
+**Complexity:** 3/5
+
+**Goal:** Enable real money VIP purchases
+
+**Tasks:**
+- Stripe API integration
+- Payment flow UI
+- Webhook handling
+- Transaction logging
+- Refund support
+- Admin transaction management
+
+**Acceptance Criteria:**
+- Secure payment processing
+- Transaction history
+- Email confirmations
+- Admin oversight tools
+- Error handling
+
+---
+
+### **Production Deployment** (Planned)
+**Estimated Time:** 4-6 hours  
+**Priority:** MEDIUM  
+**Complexity:** 2/5
+
+**Goal:** Deploy to production hosting
+
+**Tasks:**
+- Platform selection (Vercel/Railway)
+- Environment configuration
+- Database migration
+- SSL/TLS setup
+- Monitoring & logging
+- Performance optimization
+
+**Acceptance Criteria:**
+- Live production URL
+- Secure HTTPS
+- Database persistence
+- Monitoring dashboard
+- Error tracking
+
+---
+
+## 🚀 **FUTURE ENHANCEMENTS** (Post-Launch)
+
+### **Phase 5+: Advanced Features**
+
+**Real-Time Systems:**
+- WebSocket integration for live updates
+- Push notifications for important events
+- Real-time clan chat
+- Live leaderboard updates
+
+**Analytics & Monitoring:**
+- APM (Application Performance Monitoring)
+- Error tracking (Sentry integration)
+- Player behavior analytics
+- Performance dashboards
+
+**Advanced Gameplay:**
+- Territory bonuses & buffs
+- Seasonal events & challenges
+- Limited-time game modes
+- Alliance system (multi-clan cooperation)
+- World events & global objectives
+
+**Quality of Life:**
+- Mobile-responsive design
+- Keyboard shortcut customization
+- UI theme options
+- Accessibility improvements
+- Tutorial system for new players
+
+**Admin Tools:**
+- Player moderation tools
+- Economy balancing dashboard
+- Event creation interface
+- Analytics & reporting
+- Automated anti-cheat systems
+
+---
+
+## 📈 **Success Metrics**
+
+### **Development Velocity** (Current)
+- **9.1 features/day** - Exceptional productivity
+- **1.48 hours/feature** - Consistent efficiency
+- **0 TypeScript errors** - Quality maintained
+- **3-5x faster** than estimates - Strong execution
+
+### **Target User Metrics** (Post-Launch)
+- **DAU (Daily Active Users):** Target 100+ in first month
+- **Retention Rate:** 40%+ day 1, 20%+ day 7
+- **Average Session Time:** 30+ minutes
+- **VIP Conversion Rate:** 5-10% of active players
+
+### **Technical Metrics** (Goals)
+- **API Response Time:** <100ms p95
+- **Page Load Time:** <2s initial, <500ms navigation
+- **Uptime:** 99.9%+
+- **Error Rate:** <0.1% of requests
+
+---
+
+## 🎯 **Prioritization Framework**
+
+When selecting next features, we evaluate:
+
+1. **User Experience Impact** - Does it significantly improve gameplay?
+2. **Technical Complexity** - Resource investment vs value delivered
+3. **Dependencies** - Prerequisites and blockers
+4. **Business Value** - Engagement, retention, monetization
+5. **Technical Debt** - Code quality, maintainability, scalability
+
+**Current Focus:** WMD system completion (high UX impact, strategic endgame content)
+
+---
+
+## 📞 **Roadmap Updates**
+
+This roadmap is a living document updated after each major milestone. Check back regularly for progress updates and new feature announcements.
+
+**Next Review:** After WMD Phase 2 completion
+
+---
+
+*Last Updated: October 23, 2025*

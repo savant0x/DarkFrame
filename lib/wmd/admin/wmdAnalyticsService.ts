@@ -17,7 +17,7 @@
  * - Time-series data for charting
  * 
  * Performance:
- * - Uses Supabase queries for aggregation
+ * - Uses Drizzle ORM queries for efficiency
  * - Time-range filtering to limit dataset size
  * - Results suitable for caching (consider Redis)
  * 
@@ -28,25 +28,27 @@
  * - lib/wmd/spyService.ts - Spy mission data source
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/types/database';
+import { db } from '@/lib/db';
+import { missiles, wmdClanVotes, wmdDefenseBatteries, wmdSpyMissions, clans } from '@/lib/db/schema';
+import { eq, and, gte, lte, inArray } from 'drizzle-orm';
 
-// Row type aliases for readability
-type MissileRow = Database['public']['Tables']['wmd_missiles']['Row'];
-type WarheadRow = Database['public']['Tables']['wmd_missile_warheads']['Row'];
-type LaunchHistoryRow = Database['public']['Tables']['wmd_launch_history']['Row'];
-type VoteRow = Database['public']['Tables']['wmd_clan_votes']['Row'];
-type BatteryRow = Database['public']['Tables']['wmd_defense_batteries']['Row'];
-type SpyMissionRow = Database['public']['Tables']['wmd_spy_missions']['Row'];
-type ClanRow = Database['public']['Tables']['clans']['Row'];
-type ClanMemberRow = Database['public']['Tables']['clan_members']['Row'];
+/** Member counts per clan id, read from `clans.members`. */
+async function getClanMemberCounts(clanIds: string[]): Promise<Map<string, number>> {
+  const uniqueIds = [...new Set(clanIds)];
+  if (uniqueIds.length === 0) return new Map();
+  const clanRows = await db
+    .select({ id: clans.id, members: clans.members })
+    .from(clans)
+    .where(inArray(clans.id, uniqueIds));
+  return new Map(clanRows.map(c => [c.id, c.members?.length ?? 0]));
+}
 
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
 
 export interface GlobalWMDStats {
-  timeRange: { start: string; end: string };
+  timeRange: { start: Date; end: Date };
   missiles: {
     total: number;
     active: number;
@@ -92,7 +94,7 @@ export interface GlobalWMDStats {
 export interface ClanWMDActivity {
   clanId: string;
   clanName: string;
-  timeRange: { start: string; end: string };
+  timeRange: { start: Date; end: Date };
   missiles: {
     launched: number;
     impacted: number;
@@ -124,11 +126,11 @@ export interface ClanWMDActivity {
     netChange: number;
     wmdPenalties: number;
   };
-  currentCooldown?: string;
+  currentCooldown?: Date;
 }
 
 export interface MissileImpactReport {
-  timeRange: { start: string; end: string };
+  timeRange: { start: Date; end: Date };
   totalImpacts: number;
   damageByType: {
     warheadType: string;
@@ -157,7 +159,7 @@ export interface MissileImpactReport {
 }
 
 export interface VotingPatterns {
-  timeRange: { start: string; end: string };
+  timeRange: { start: Date; end: Date };
   overallStats: {
     totalVotes: number;
     avgDuration: number;
@@ -177,14 +179,14 @@ export interface VotingPatterns {
     byWarheadType: Record<string, number>;
   };
   participationTrends: {
-    date: string;
+    date: Date;
     avgParticipation: number;
     votesCreated: number;
   }[];
 }
 
 export interface BalanceMetrics {
-  timeRange: { start: string; end: string };
+  timeRange: { start: Date; end: Date };
   offenseDefenseRatio: number;
   economicBalance: {
     avgClanSpending: number;
@@ -210,65 +212,12 @@ export interface BalanceMetrics {
 }
 
 export interface TimeSeriesData {
-  date: string;
+  date: Date;
   missilesLaunched: number;
   votesCreated: number;
   batteriesBuilt: number;
   totalDamage: number;
   interceptionRate: number;
-}
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Fetch all clan member usernames for a given clan.
- * Returns empty array if clan has no members.
- */
-async function getClanMemberIds(
-  supabase: SupabaseClient<Database>,
-  clanId: string
-): Promise<string[]> {
-  const { data } = await supabase
-    .from('clan_members')
-    .select('username')
-    .eq('clan_id', clanId);
-  return (data || []).map(m => m.username);
-}
-
-/**
- * Build a map of missile_id → warhead_type from wmd_missile_warheads.
- */
-async function getWarheadMap(
-  supabase: SupabaseClient<Database>,
-  missileIds: string[]
-): Promise<Record<string, string>> {
-  if (missileIds.length === 0) return {};
-  const { data } = await supabase
-    .from('wmd_missile_warheads')
-    .select('missile_id, warhead_type')
-    .in('missile_id', missileIds);
-  const map: Record<string, string> = {};
-  (data || []).forEach(w => { map[w.missile_id] = w.warhead_type; });
-  return map;
-}
-
-/**
- * Build a map of missile_id → LaunchHistoryRow from wmd_launch_history.
- */
-async function getLaunchHistoryMap(
-  supabase: SupabaseClient<Database>,
-  missileIds: string[]
-): Promise<Record<string, LaunchHistoryRow>> {
-  if (missileIds.length === 0) return {};
-  const { data } = await supabase
-    .from('wmd_launch_history')
-    .select('*')
-    .in('missile_id', missileIds);
-  const map: Record<string, LaunchHistoryRow> = {};
-  (data || []).forEach(h => { map[h.missile_id] = h; });
-  return map;
 }
 
 // ============================================================================
@@ -279,161 +228,135 @@ async function getLaunchHistoryMap(
  * Get global WMD statistics
  */
 export async function getGlobalWMDStats(
-  supabase: SupabaseClient<Database>,
-  startDate: string,
-  endDate: string
+  startDate: Date,
+  endDate: Date
 ): Promise<GlobalWMDStats> {
-  // === MISSILE STATISTICS ===
-  const { data: missiles, count: missileCountRaw } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact' })
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate);
-  const missileTotal = missileCountRaw || 0;
+  const missilesRows = await db.select().from(missiles).where(
+    and(gte(missiles.launchedAt, startDate), lte(missiles.launchedAt, endDate))
+  );
 
-  const missileList = missiles || [];
-  const missileIds = missileList.map(m => m.id);
+  const votesRows = await db.select().from(wmdClanVotes).where(
+    and(gte(wmdClanVotes.createdAt, startDate), lte(wmdClanVotes.createdAt, endDate))
+  );
 
-  // Fetch supplementary data
-  const warheadMap = await getWarheadMap(supabase, missileIds);
-  const launchHistoryMap = await getLaunchHistoryMap(supabase, missileIds);
+  const batteriesRows = await db.select().from(wmdDefenseBatteries).where(
+    and(gte(wmdDefenseBatteries.builtAt, startDate), lte(wmdDefenseBatteries.builtAt, endDate))
+  );
+
+  const missionsRows = await db.select().from(wmdSpyMissions).where(
+    and(gte(wmdSpyMissions.completedAt, startDate), lte(wmdSpyMissions.completedAt, endDate))
+  );
+
+  const totals = {
+    total: missilesRows.length,
+    active: missilesRows.filter(m => m.status === 'ACTIVE').length,
+    impacted: missilesRows.filter(m => m.status === 'IMPACTED').length,
+    intercepted: missilesRows.filter(m => m.status === 'INTERCEPTED').length,
+    adminDisarmed: missilesRows.filter(m => m.status === 'ADMIN_DISARMED').length,
+  };
 
   const byWarheadType: Record<string, number> = {};
-  let activeCount = 0, impactedCount = 0, interceptedCount = 0, adminDisarmedCount = 0;
-  let totalDamage = 0, totalFlightTime = 0;
-
-  missileList.forEach(m => {
-    const wt = warheadMap[m.id] || 'unknown';
-    byWarheadType[wt] = (byWarheadType[wt] || 0) + 1;
-    if (m.status === 'in_flight') activeCount++;
-    if (m.status === 'impacted') impactedCount++;
-    if (m.status === 'intercepted') interceptedCount++;
-    if (m.status === 'failed') adminDisarmedCount++;
-    const lh = launchHistoryMap[m.id];
-    totalDamage += lh?.damage_dealt || 0;
-    if (m.launched_at && lh?.launched_at) {
-      totalFlightTime += new Date(lh.launched_at).getTime() - new Date(m.launched_at).getTime();
-    }
+  missilesRows.forEach(m => {
+    byWarheadType[m.warheadType] = (byWarheadType[m.warheadType] || 0) + 1;
   });
 
-  // === VOTING STATISTICS ===
-  const { data: votes, count: voteCountRaw } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact' })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-  const voteTotal = voteCountRaw || 0;
+  const totalDamage = missilesRows.filter(m => m.status === 'IMPACTED').reduce((sum, m) => {
+    const damage = m.damageDealt;
+    return sum + (damage ? damage.unitsDestroyed : 0);
+  }, 0);
 
-  const voteList = votes || [];
-  let voteActive = 0, votePassed = 0, voteFailed = 0, voteVetoed = 0, voteExpired = 0;
-  let totalApprovalSum = 0, totalParticipationSum = 0;
+  const avgFlightTime = totals.impacted > 0
+    ? missilesRows.filter(m => m.status === 'IMPACTED' && m.flightTime).reduce((sum, m) => sum + (m.flightTime || 0), 0) / totals.impacted
+    : 0;
 
-  voteList.forEach(v => {
-    if (v.status === 'active') voteActive++;
-    if (v.status === 'passed') votePassed++;
-    if (v.status === 'failed') voteFailed++;
-    if (v.status === 'tied') voteVetoed++;
-    if (v.status === 'expired') voteExpired++;
-    const approvalRate = v.total_eligible > 0 ? (v.votes_for || 0) / v.total_eligible : 0;
-    totalApprovalSum += approvalRate;
-    if (v.total_eligible > 0) {
-      totalParticipationSum += ((v.votes_for || 0) + (v.votes_against || 0) + (v.votes_abstain || 0)) / v.total_eligible;
-    }
-  });
-  const avgApprovalRate = voteTotal > 0 ? (totalApprovalSum / (voteTotal || 1)) * 100 : 0;
-  const avgParticipationRate = voteTotal > 0 ? (totalParticipationSum / (voteTotal || 1)) * 100 : 0;
+  const voteData = {
+    total: votesRows.length,
+    active: votesRows.filter(v => v.status === 'ACTIVE').length,
+    passed: votesRows.filter(v => v.status === 'PASSED').length,
+    failed: votesRows.filter(v => v.status === 'FAILED').length,
+    vetoed: votesRows.filter(v => v.status === 'VETOED').length,
+    expired: votesRows.filter(v => v.status === 'EXPIRED').length,
+  };
 
-  // === DEFENSE STATISTICS ===
-  const { data: batteries, count: batteryCountRaw } = await supabase
-    .from('wmd_defense_batteries')
-    .select('*', { count: 'exact' })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-  const batteryTotal = batteryCountRaw || 0;
+  const avgApprovalRate = voteData.total > 0
+    ? votesRows.reduce((sum, v) => {
+        const forCount = v.votesFor?.length ?? 0;
+        const againstCount = v.votesAgainst?.length ?? 0;
+        const totalBallots = forCount + againstCount;
+        return sum + (totalBallots > 0 ? (forCount / totalBallots) * 100 : 0);
+      }, 0) / voteData.total
+    : 0;
 
-  const batteryList = batteries || [];
-  let batterOps = 0, batterRepair = 0;
-  batteryList.forEach(b => {
-    if (b.status === 'OPERATIONAL') batterOps++;
-    if (b.status === 'REPAIRING') batterRepair++;
-  });
+  const clanMemberCounts = await getClanMemberCounts(votesRows.map(v => v.clanId));
+  const avgParticipationRate = voteData.total > 0
+    ? votesRows.reduce((sum, v) => {
+        const ballots = (v.votesFor?.length ?? 0) + (v.votesAgainst?.length ?? 0);
+        const eligible = clanMemberCounts.get(v.clanId) ?? 0;
+        return sum + (eligible > 0 ? (ballots / eligible) * 100 : 0);
+      }, 0) / voteData.total
+    : 0;
 
-  // Count interceptions from wmd_interception_attempts
-  const { data: interceptionAttempts, count: interceptions } = await supabase
-    .from('wmd_interception_attempts')
-    .select('*', { count: 'exact' })
-    .gte('attempted_at', startDate)
-    .lte('attempted_at', endDate)
-    .eq('success', true);
-  const totalIntercepts = interceptions || 0;
-  const avgInterceptionRate = missileTotal > 0 ? (interceptedCount / missileTotal) * 100 : 0;
+  const defenseData = {
+    total: batteriesRows.length,
+    operational: batteriesRows.filter(b => b.status === 'OPERATIONAL').length,
+    repairing: batteriesRows.filter(b => b.status === 'REPAIRING').length,
+    totalInterceptions: batteriesRows.reduce((sum, b) => sum + (Number(b.interceptChance) || 0), 0),
+  };
 
-  // === SPY OPERATIONS STATISTICS ===
-  const { data: missions, count: missionCountRaw } = await supabase
-    .from('wmd_spy_missions')
-    .select('*', { count: 'exact' })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-  const missionTotal = missionCountRaw || 0;
+  const avgInterceptionRate = totals.total > 0 ? (totals.intercepted / totals.total) * 100 : 0;
 
-  const missionList = missions || [];
-  let missionSuccess = 0, missionFail = 0;
-  missionList.forEach(m => {
-    if (m.status === 'completed') missionSuccess++;
-    if (m.status === 'failed') missionFail++;
-  });
-  const avgSuccessRate = missionTotal > 0 ? (missionSuccess / missionTotal) * 100 : 0;
+  const spyData = {
+    total: missionsRows.length,
+    successful: missionsRows.filter(m => m.status === 'COMPLETED').length,
+    failed: missionsRows.filter(m => m.status === 'FAILED').length,
+  };
 
-  // === ECONOMIC STATISTICS ===
-  let totalCost = 0, totalMetal = 0, totalEnergy = 0;
-  missileList.forEach(m => {
-    const lh = launchHistoryMap[m.id];
-    totalCost += lh?.damage_dealt || 0;
-    totalMetal += lh?.damage_dealt ? lh.damage_dealt * 0.5 : 0;
-    totalEnergy += lh?.damage_dealt ? lh.damage_dealt * 0.5 : 0;
-  });
-  const avgCostPerMissile = missileTotal > 0 ? totalCost / missileTotal : 0;
+  const avgSuccessRate = spyData.total > 0 ? (spyData.successful / spyData.total) * 100 : 0;
+
+  const totalIntel = missionsRows.reduce((sum, m) => {
+    return sum + (m.intelGathered ? m.intelGathered.length : 0);
+  }, 0);
+
+  const    economicData = {
+      totalCost: missilesRows.reduce((sum, m) => {
+        return sum + (m.componentsWarhead ?? 0) + (m.componentsPropulsion ?? 0) + (m.componentsGuidance ?? 0) + (m.componentsPayload ?? 0) + (m.componentsStealth ?? 0);
+      }, 0),
+      count: missilesRows.length,
+    };
+
+  const avgCostPerMissile = economicData.count > 0 ? economicData.totalCost / economicData.count : 0;
 
   return {
     timeRange: { start: startDate, end: endDate },
     missiles: {
-      total: missileTotal || 0,
-      active: activeCount,
-      impacted: impactedCount,
-      intercepted: interceptedCount,
-      adminDisarmed: adminDisarmedCount,
+      ...totals,
       byWarheadType,
       totalDamage,
-      avgFlightTime: missileTotal > 0 ? totalFlightTime / missileTotal : 0,
+      avgFlightTime,
     },
     votes: {
-      total: voteTotal || 0,
-      active: voteActive,
-      passed: votePassed,
-      failed: voteFailed,
-      vetoed: voteVetoed,
-      expired: voteExpired,
+      ...voteData,
       avgApprovalRate,
       avgParticipationRate,
     },
     defense: {
-      batteriesBuilt: batteryTotal || 0,
-      batteriesOperational: batterOps,
-      batteriesRepairing: batterRepair,
-      totalInterceptions: totalIntercepts,
+      batteriesBuilt: defenseData.total,
+      batteriesOperational: defenseData.operational,
+      batteriesRepairing: defenseData.repairing,
+      totalInterceptions: defenseData.totalInterceptions,
       avgInterceptionRate,
     },
     spyOps: {
-      missionsCompleted: missionTotal || 0,
-      successfulMissions: missionSuccess,
-      failedMissions: missionFail,
+      missionsCompleted: spyData.total,
+      successfulMissions: spyData.successful,
+      failedMissions: spyData.failed,
       avgSuccessRate,
-      totalIntelGenerated: missionSuccess,
+      totalIntelGenerated: totalIntel,
     },
     economy: {
-      totalResourcesSpent: totalCost,
-      metalSpent: totalMetal,
-      energySpent: totalEnergy,
+      totalResourcesSpent: economicData.totalCost,
+      metalSpent: Math.floor(economicData.totalCost * 0.4),
+      energySpent: Math.floor(economicData.totalCost * 0.6),
       avgCostPerMissile,
     },
   };
@@ -443,125 +366,84 @@ export async function getGlobalWMDStats(
  * Get clan-specific WMD activity
  */
 export async function getClanWMDActivity(
-  supabase: SupabaseClient<Database>,
   clanId: string,
-  startDate: string,
-  endDate: string
+  startDate: Date,
+  endDate: Date
 ): Promise<ClanWMDActivity> {
-  // Get clan info
-  const { data: clan } = await supabase
-    .from('clans')
-    .select('name')
-    .eq('id', clanId)
-    .single();
+  const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanRows[0];
   const clanName = clan?.name || 'Unknown Clan';
 
-  // Get clan member usernames
-  const memberIds = await getClanMemberIds(supabase, clanId);
+  const missilesRows = await db.select().from(missiles).where(
+    and(eq(missiles.ownerClanId, clanId), gte(missiles.launchedAt, startDate), lte(missiles.launchedAt, endDate))
+  );
 
-  let missileList: MissileRow[] = [];
-  let mLaunched = 0;
-  if (memberIds.length > 0) {
-    const { data: missiles, count } = await supabase
-      .from('wmd_missiles')
-      .select('*', { count: 'exact' })
-      .in('owner_id', memberIds)
-      .gte('launched_at', startDate)
-      .lte('launched_at', endDate);
+  const missilesReceived = await db.select().from(missiles).where(
+    and(eq(missiles.targetId, clanId), gte(missiles.launchedAt, startDate), lte(missiles.launchedAt, endDate), eq(missiles.status, 'IMPACTED'))
+  );
 
-    missileList = missiles || [];
-    mLaunched = count || 0;
-  }
+  const votesRows = await db.select().from(wmdClanVotes).where(
+    and(eq(wmdClanVotes.clanId, clanId), gte(wmdClanVotes.createdAt, startDate), lte(wmdClanVotes.createdAt, endDate))
+  );
 
-  const missileIds = missileList.map(m => m.id);
-  const launchHistoryMap = await getLaunchHistoryMap(supabase, missileIds);
+  const batteriesRows = await db.select().from(wmdDefenseBatteries).where(
+    and(eq(wmdDefenseBatteries.clanId, clanId), gte(wmdDefenseBatteries.builtAt, startDate), lte(wmdDefenseBatteries.builtAt, endDate))
+  );
 
-  let mImpacted = 0, mIntercepted = 0, totalDamageDealt = 0;
-  missileList.forEach(m => {
-    if (m.status === 'impacted') mImpacted++;
-    if (m.status === 'intercepted') mIntercepted++;
-    totalDamageDealt += launchHistoryMap[m.id]?.damage_dealt || 0;
-  });
+  const spyMissionsRows = await db.select().from(wmdSpyMissions).where(
+    and(eq(wmdSpyMissions.senderClanId, clanId), gte(wmdSpyMissions.createdAt, startDate), lte(wmdSpyMissions.createdAt, endDate))
+  );
 
-  // Vote statistics (votes created by clan, based on clan_id on wmd_clan_votes)
-  const { data: votes, count: voteTotal } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact' })
-    .eq('clan_id', clanId)
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-  const voteList = votes || [];
-  let vPassed = 0, vFailed = 0, vVetoed = 0, vTotalApproval = 0;
-  voteList.forEach(v => {
-    if (v.status === 'passed') vPassed++;
-    if (v.status === 'failed') vFailed++;
-    if (v.status === 'tied') vVetoed++;
-    const approval = v.total_eligible > 0 ? (v.votes_for || 0) / v.total_eligible : 0;
-    vTotalApproval += approval;
-  });
+  const missileData = {
+    launched: missilesRows.length,
+    impacted: missilesRows.filter(m => m.status === 'IMPACTED').length,
+    intercepted: missilesRows.filter(m => m.status === 'INTERCEPTED').length,
+    totalDamageDealt: missilesRows.filter(m => m.status === 'IMPACTED').reduce((sum, m) => {
+      const damage = m.damageDealt;
+      return sum + (damage ? damage.unitsDestroyed : 0);
+    }, 0),
+  };
 
-  // Defense statistics (batteries owned by clan members)
-  let defenseTotal = 0;
-  let totalInterceptions = 0;
-  if (memberIds.length > 0) {
-    const { data: defenseList, count } = await supabase
-      .from('wmd_defense_batteries')
-      .select('*', { count: 'exact' })
-      .in('owner_id', memberIds)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate);
-    defenseTotal = count || 0;
+  const totalDamageReceived = missilesReceived.reduce((sum, m) => {
+    const damage = m.damageDealt;
+    return sum + (damage ? damage.unitsDestroyed : 0);
+  }, 0);
 
-    const batteryIds = (defenseList || []).map(b => b.id);
-    if (batteryIds.length > 0) {
-      const { data: interceptions, count: ic } = await supabase
-        .from('wmd_interception_attempts')
-        .select('*', { count: 'exact' })
-        .in('battery_id', batteryIds)
-        .eq('success', true);
-      totalInterceptions = ic || 0;
-    }
-  }
+  const voteData = {
+    created: votesRows.length,
+    passed: votesRows.filter(v => v.status === 'PASSED').length,
+    failed: votesRows.filter(v => v.status === 'FAILED').length,
+    vetoed: votesRows.filter(v => v.status === 'VETOED').length,
+  };
 
-  // Spy mission statistics
-  let spyTotal = 0;
-  let spySuccess = 0;
-  if (memberIds.length > 0) {
-    const { data: spyList, count } = await supabase
-      .from('wmd_spy_missions')
-      .select('*', { count: 'exact' })
-      .in('owner_id', memberIds)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate);
-    spyTotal = count || 0;
-    spySuccess = (spyList || []).filter(m => m.status === 'completed').length;
-  }
+  const avgApprovalRate = voteData.created > 0
+    ? votesRows.reduce((sum, v) => {
+        const forCount = v.votesFor?.length ?? 0;
+        const againstCount = v.votesAgainst?.length ?? 0;
+        const totalBallots = forCount + againstCount;
+        return sum + (totalBallots > 0 ? (forCount / totalBallots) * 100 : 0);
+      }, 0) / voteData.created
+    : 0;
 
   return {
     clanId,
     clanName,
     timeRange: { start: startDate, end: endDate },
     missiles: {
-      launched: mLaunched,
-      impacted: mImpacted,
-      intercepted: mIntercepted,
-      totalDamageDealt,
-      totalDamageReceived: 0,
+      ...missileData,
+      totalDamageReceived,
     },
     votes: {
-      created: voteTotal || 0,
-      passed: vPassed,
-      failed: vFailed,
-      vetoed: vVetoed,
-      avgApprovalRate: (voteTotal || 0) > 0 ? (vTotalApproval / (voteTotal || 1)) * 100 : 0,
+      ...voteData,
+      avgApprovalRate,
     },
     defense: {
-      batteriesBuilt: defenseTotal,
-      successfulInterceptions: totalInterceptions,
+      batteriesBuilt: batteriesRows.length,
+      successfulInterceptions: batteriesRows.reduce((sum, b) => sum + (Number(b.interceptChance) || 0), 0),
     },
     spyOps: {
-      missionsLaunched: spyTotal,
-      successfulMissions: spySuccess,
+      missionsLaunched: spyMissionsRows.length,
+      successfulMissions: spyMissionsRows.filter(m => m.status === 'COMPLETED').length,
     },
     economy: {
       totalSpent: 0,
@@ -572,7 +454,7 @@ export async function getClanWMDActivity(
       netChange: 0,
       wmdPenalties: 0,
     },
-    currentCooldown: undefined,
+    currentCooldown: clan?.wmdCooldownUntil ? new Date(clan.wmdCooldownUntil) : undefined,
   };
 }
 
@@ -580,86 +462,90 @@ export async function getClanWMDActivity(
  * Get missile impact report
  */
 export async function getMissileImpactReport(
-  supabase: SupabaseClient<Database>,
-  startDate: string,
-  endDate: string
+  startDate: Date,
+  endDate: Date
 ): Promise<MissileImpactReport> {
-  const { data: impacts, count: totalImpacts } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact' })
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate)
-    .eq('status', 'impacted');
+  const missilesRows = await db.select().from(missiles).where(
+    and(gte(missiles.launchedAt, startDate), lte(missiles.launchedAt, endDate))
+  );
 
-  const impactList = impacts || [];
-  const impactIds = impactList.map(m => m.id);
-  const warheadMap = await getWarheadMap(supabase, impactIds);
-  const launchHistoryMap = await getLaunchHistoryMap(supabase, impactIds);
+  const impactedMissiles = missilesRows.filter(m => m.status === 'IMPACTED');
+  const totalImpacts = impactedMissiles.length;
 
-  // Damage by warhead type
   const damageByTypeMap: Record<string, { impacts: number; totalDamage: number }> = {};
-  impactList.forEach(m => {
-    const wt = warheadMap[m.id] || 'unknown';
-    if (!damageByTypeMap[wt]) damageByTypeMap[wt] = { impacts: 0, totalDamage: 0 };
-    damageByTypeMap[wt].impacts++;
-    damageByTypeMap[wt].totalDamage += launchHistoryMap[m.id]?.damage_dealt || 0;
+  impactedMissiles.forEach(m => {
+    const dmg = m.damageDealt ? m.damageDealt.unitsDestroyed : 0;
+    if (!damageByTypeMap[m.warheadType]) {
+      damageByTypeMap[m.warheadType] = { impacts: 0, totalDamage: 0 };
+    }
+    damageByTypeMap[m.warheadType].impacts++;
+    damageByTypeMap[m.warheadType].totalDamage += dmg;
   });
 
-  const damageByType = Object.entries(damageByTypeMap).map(([warheadType, stats]) => ({
+  const damageByType = Object.entries(damageByTypeMap).map(([warheadType, data]) => ({
     warheadType,
-    impacts: stats.impacts,
-    totalDamage: stats.totalDamage,
-    avgDamage: stats.impacts > 0 ? stats.totalDamage / stats.impacts : 0,
+    impacts: data.impacts,
+    totalDamage: data.totalDamage,
+    avgDamage: data.impacts > 0 ? data.totalDamage / data.impacts : 0,
   })).sort((a, b) => b.totalDamage - a.totalDamage);
 
-  // Top targets by owner_id
-  const targetMap: Record<string, { hits: number; damage: number }> = {};
-  impactList.forEach(m => {
-    const t = m.owner_id || 'unknown';
-    if (!targetMap[t]) targetMap[t] = { hits: 0, damage: 0 };
-    targetMap[t].hits++;
-    targetMap[t].damage += launchHistoryMap[m.id]?.damage_dealt || 0;
+  const targetMap: Record<string, { hitsReceived: number; totalDamage: number }> = {};
+  impactedMissiles.forEach(m => {
+    const target = m.targetId || 'unknown';
+    const dmg = m.damageDealt ? m.damageDealt.unitsDestroyed : 0;
+    if (!targetMap[target]) {
+      targetMap[target] = { hitsReceived: 0, totalDamage: 0 };
+    }
+    targetMap[target].hitsReceived++;
+    targetMap[target].totalDamage += dmg;
   });
+
   const topTargets = Object.entries(targetMap)
-    .sort(([, a], [, b]) => b.damage - a.damage)
+    .sort((a, b) => b[1].totalDamage - a[1].totalDamage)
     .slice(0, 10)
-    .map(([clanId, v]) => ({ clanId, clanName: clanId, hitsReceived: v.hits, totalDamage: v.damage }));
+    .map(([clanId, data]) => ({
+      clanId,
+      clanName: clanId,
+      hitsReceived: data.hitsReceived,
+      totalDamage: data.totalDamage,
+    }));
 
-  // Top attackers by owner_id
-  const attackerMap: Record<string, { fired: number; damage: number }> = {};
-  impactList.forEach(m => {
-    const a = m.owner_id || 'unknown';
-    if (!attackerMap[a]) attackerMap[a] = { fired: 0, damage: 0 };
-    attackerMap[a].fired++;
-    attackerMap[a].damage += launchHistoryMap[m.id]?.damage_dealt || 0;
+  const attackerMap: Record<string, { missilesFired: number; totalDamage: number }> = {};
+  impactedMissiles.forEach(m => {
+    if (m.ownerClanId === null) return; // missiles fired without a clan cannot be attributed
+    const dmg = m.damageDealt ? m.damageDealt.unitsDestroyed : 0;
+    if (!attackerMap[m.ownerClanId]) {
+      attackerMap[m.ownerClanId] = { missilesFired: 0, totalDamage: 0 };
+    }
+    attackerMap[m.ownerClanId].missilesFired++;
+    attackerMap[m.ownerClanId].totalDamage += dmg;
   });
+
   const topAttackers = Object.entries(attackerMap)
-    .sort(([, a], [, b]) => b.damage - a.damage)
+    .sort((a, b) => b[1].totalDamage - a[1].totalDamage)
     .slice(0, 10)
-    .map(([clanId, v]) => ({ clanId, clanName: clanId, missilesFired: v.fired, totalDamage: v.damage }));
+    .map(([clanId, data]) => ({
+      clanId,
+      clanName: clanId,
+      missilesFired: data.missilesFired,
+      totalDamage: data.totalDamage,
+    }));
 
-  // Interception analysis
-  const { data: allMissiles, count: allTotal } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact' })
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate)
-    .in('status', ['impacted', 'intercepted']);
-
-  const allList = allMissiles || [];
-  const intercepted = allList.filter(m => m.status === 'intercepted').length;
-  const interceptionRate = (allTotal || 0) > 0 ? (intercepted / (allTotal || 1)) * 100 : 0;
+  const allMissiles = missilesRows.filter(m => m.status === 'IMPACTED' || m.status === 'INTERCEPTED');
+  const totalAttempts = allMissiles.length;
+  const successful = allMissiles.filter(m => m.status === 'INTERCEPTED').length;
+  const interceptionRate = totalAttempts > 0 ? (successful / totalAttempts) * 100 : 0;
 
   return {
     timeRange: { start: startDate, end: endDate },
-    totalImpacts: totalImpacts || 0,
+    totalImpacts,
     damageByType,
     topTargets,
     topAttackers,
     interceptionAnalysis: {
-      totalAttempts: allTotal || 0,
-      successful: intercepted,
-      failed: (allTotal || 0) - intercepted,
+      totalAttempts,
+      successful,
+      failed: totalAttempts - successful,
       rate: interceptionRate,
     },
   };
@@ -669,55 +555,79 @@ export async function getMissileImpactReport(
  * Get voting pattern analysis
  */
 export async function getVotingPatterns(
-  supabase: SupabaseClient<Database>,
-  startDate: string,
-  endDate: string
+  startDate: Date,
+  endDate: Date
 ): Promise<VotingPatterns> {
-  const { data: votes, count: votesCountRaw } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact' })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-  const totalVotes = votesCountRaw || 0;
+  const votesRows = await db.select().from(wmdClanVotes).where(
+    and(gte(wmdClanVotes.createdAt, startDate), lte(wmdClanVotes.createdAt, endDate))
+  );
 
-  const voteList = votes || [];
+  const memberCountByClan = await getClanMemberCounts(votesRows.map(v => v.clanId));
 
-  let totalDuration = 0, totalParticipationSum = 0, totalApprovalSum = 0;
-  voteList.forEach(v => {
-    if (v.closed_at && v.created_at) {
-      totalDuration += new Date(v.closed_at).getTime() - new Date(v.created_at).getTime();
+  const totalVotes = votesRows.length;
+  const avgApprovalRate = totalVotes > 0
+    ? votesRows.reduce((sum, v) => {
+        const forCount = v.votesFor?.length ?? 0;
+        const againstCount = v.votesAgainst?.length ?? 0;
+        const totalBallots = forCount + againstCount;
+        return sum + (totalBallots > 0 ? (forCount / totalBallots) * 100 : 0);
+      }, 0) / totalVotes
+    : 0;
+
+  const avgParticipation = totalVotes > 0
+    ? votesRows.reduce((sum, v) => {
+        const ballots = (v.votesFor?.length ?? 0) + (v.votesAgainst?.length ?? 0);
+        const eligible = memberCountByClan.get(v.clanId) ?? 0;
+        return sum + (eligible > 0 ? (ballots / eligible) * 100 : 0);
+      }, 0) / totalVotes
+    : 0;
+
+  const avgDuration = totalVotes > 0
+    ? votesRows.reduce((sum, v) => {
+        if (v.resolvedAt) {
+          return sum + (new Date(v.resolvedAt).getTime() - new Date(v.createdAt).getTime());
+        }
+        return sum;
+      }, 0) / totalVotes
+    : 0;
+
+  const byVoteTypeMap: Record<string, { votes: number; passed: number; totalApprovalThreshold: number; totalParticipation: number }> = {};
+  votesRows.forEach(v => {
+    if (!byVoteTypeMap[v.voteType]) {
+      byVoteTypeMap[v.voteType] = { votes: 0, passed: 0, totalApprovalThreshold: 0, totalParticipation: 0 };
     }
-    if (v.total_eligible > 0) {
-      totalParticipationSum += ((v.votes_for || 0) + (v.votes_against || 0) + (v.votes_abstain || 0)) / v.total_eligible;
-    }
-    const approval = v.total_eligible > 0 ? (v.votes_for || 0) / v.total_eligible : 0;
-    totalApprovalSum += approval;
+    byVoteTypeMap[v.voteType].votes++;
+    if (v.resolvedAt && (v.votesFor?.length ?? 0) > (v.votesAgainst?.length ?? 0)) byVoteTypeMap[v.voteType].passed++;
+    byVoteTypeMap[v.voteType].totalApprovalThreshold += v.requiredVotes;
+    const ballots = (v.votesFor?.length ?? 0) + (v.votesAgainst?.length ?? 0);
+    const eligible = memberCountByClan.get(v.clanId) ?? 0;
+    byVoteTypeMap[v.voteType].totalParticipation += eligible > 0 ? (ballots / eligible) * 100 : 0;
   });
 
-  const avgDuration = totalVotes > 0 ? totalDuration / totalVotes : 0;
-  const avgParticipation = totalVotes > 0 ? (totalParticipationSum / totalVotes) * 100 : 0;
-  const avgApproval = totalVotes > 0 ? (totalApprovalSum / totalVotes) * 100 : 0;
+  const byWarheadType = Object.entries(byVoteTypeMap).map(([type, data]) => ({
+    type,
+    votes: data.votes,
+    passRate: data.votes > 0 ? (data.passed / data.votes) * 100 : 0,
+    avgApprovalThreshold: data.votes > 0 ? data.totalApprovalThreshold / data.votes : 0,
+    avgParticipation: data.votes > 0 ? data.totalParticipation / data.votes : 0,
+  }));
 
-  // Veto analysis (tied status is closest to veto)
-  const vetoed = voteList.filter(v => v.status === 'tied');
-  const vetoRate = totalVotes > 0 ? (vetoed.length / totalVotes) * 100 : 0;
+  // The live voting model (wmd_clan_votes) has no veto mechanism.
+  const totalVetoes = 0;
+  const vetoRate = 0;
   const vetoByType: Record<string, number> = {};
-  vetoed.forEach(v => {
-    const t = v.vote_type || 'unknown';
-    vetoByType[t] = (vetoByType[t] || 0) + 1;
-  });
 
   return {
     timeRange: { start: startDate, end: endDate },
     overallStats: {
-      totalVotes: totalVotes || 0,
+      totalVotes,
       avgDuration,
       avgParticipation,
-      avgApprovalRate: avgApproval,
+      avgApprovalRate,
     },
-    byWarheadType: [],
+    byWarheadType,
     vetoAnalysis: {
-      totalVetoes: vetoed.length,
+      totalVetoes,
       vetoRate,
       byWarheadType: vetoByType,
     },
@@ -729,22 +639,22 @@ export async function getVotingPatterns(
  * Get balance metrics
  */
 export async function getBalanceMetrics(
-  supabase: SupabaseClient<Database>,
-  startDate: string,
-  endDate: string
+  startDate: Date,
+  endDate: Date
 ): Promise<BalanceMetrics> {
   const warnings: string[] = [];
 
-  const { data: missiles, count: missileCountRaw } = await supabase
-    .from('wmd_missiles')
-    .select('*', { count: 'exact' })
-    .gte('launched_at', startDate)
-    .lte('launched_at', endDate);
-  const missileTotal = missileCountRaw || 0;
+  const missilesRows = await db.select().from(missiles).where(
+    and(gte(missiles.launchedAt, startDate), lte(missiles.launchedAt, endDate))
+  );
 
-  const missileList = missiles || [];
-  const intercepted = missileList.filter(m => m.status === 'intercepted').length;
-  const offenseDefenseRatio = missileTotal > 0 ? intercepted / missileTotal : 0;
+  const votesRows = await db.select().from(wmdClanVotes).where(
+    and(gte(wmdClanVotes.createdAt, startDate), lte(wmdClanVotes.createdAt, endDate))
+  );
+
+  const total = missilesRows.length;
+  const intercepted = missilesRows.filter(m => m.status === 'INTERCEPTED').length;
+  const offenseDefenseRatio = total > 0 ? intercepted / total : 0;
 
   if (offenseDefenseRatio < 0.1) {
     warnings.push('Defense severely underpowered - <10% interception rate');
@@ -752,35 +662,34 @@ export async function getBalanceMetrics(
     warnings.push('Defense may be overpowered - >50% interception rate');
   }
 
-  const { data: votes, count: voteCountRaw2 } = await supabase
-    .from('wmd_clan_votes')
-    .select('*', { count: 'exact' })
-    .gte('created_at', startDate)
-    .lte('created_at', endDate);
-  const voteTotal = voteCountRaw2 || 0;
-  const voteList = votes || [];
-  const passedVotes = voteList.filter(v => v.status === 'passed').length;
-  const vetoedVotes = voteList.filter(v => v.status === 'tied').length;
-  const avgVoteApprovalRate = voteTotal > 0 ? passedVotes / voteTotal : 0;
-  const vetoRate = voteTotal > 0 ? (vetoedVotes / voteTotal) * 100 : 0;
+  const totalVotes = votesRows.length;
+  const vetoed = 0; // The live voting model (wmd_clan_votes) has no veto mechanism.
+  const avgVoteApprovalRate = totalVotes > 0
+    ? votesRows.reduce((sum, v) => {
+        const forCount = v.votesFor?.length ?? 0;
+        const againstCount = v.votesAgainst?.length ?? 0;
+        const totalBallots = forCount + againstCount;
+        return sum + (totalBallots > 0 ? (forCount / totalBallots) * 100 : 0);
+      }, 0) / totalVotes
+    : 0;
+  const vetoRate = totalVotes > 0 ? (vetoed / totalVotes) * 100 : 0;
 
-  if (avgVoteApprovalRate < 0.4) {
+  if (avgVoteApprovalRate < 40) {
     warnings.push('Low vote approval rates - consensus difficult to reach');
   }
   if (vetoRate > 20) {
     warnings.push('High veto rate - clan leaders blocking too many votes');
   }
 
-  // Activity distribution based on owner_id
   const clanActivityMap: Record<string, number> = {};
-  missileList.forEach(m => {
-    const cid = m.owner_id || 'unknown';
-    clanActivityMap[cid] = (clanActivityMap[cid] || 0) + 1;
+  missilesRows.forEach(m => {
+    clanActivityMap[m.ownerClanId ?? 'UNASSIGNED'] = (clanActivityMap[m.ownerClanId ?? 'UNASSIGNED'] || 0) + 1;
   });
-  const clanActivities = Object.values(clanActivityMap).sort((a, b) => b - a);
-  const totalActivity = clanActivities.reduce((s, v) => s + v, 0);
-  const top10Percent = Math.max(1, Math.floor(clanActivities.length * 0.1));
-  const top10Activity = clanActivities.slice(0, top10Percent).reduce((s, v) => s + v, 0);
+
+  const clanActivity = Object.entries(clanActivityMap).sort((a, b) => b[1] - a[1]);
+  const totalActivity = clanActivity.reduce((sum, c) => sum + c[1], 0);
+  const top10Percent = Math.max(1, Math.floor(clanActivity.length * 0.1));
+  const top10Activity = clanActivity.slice(0, top10Percent).reduce((sum, c) => sum + c[1], 0);
   const concentrationIndex = totalActivity > 0 ? top10Activity / totalActivity : 0;
 
   if (concentrationIndex > 0.7) {
@@ -802,11 +711,11 @@ export async function getBalanceMetrics(
     },
     votingHealth: {
       avgApprovalRate: avgVoteApprovalRate,
-      vetoRate: Math.round(vetoRate),
+      vetoRate,
       consensusLevel: 0,
     },
     activityDistribution: {
-      activeClans: clanActivities.length,
+      activeClans: clanActivity.length,
       inactiveClans: 0,
       concentrationIndex,
     },

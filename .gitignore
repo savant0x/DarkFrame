@@ -50,3 +50,13 @@ next-env.d.ts
 *.swp
 *.swo
 *~
+
+# migration scratch files (one-off scripts hardcoding the old D: drive, stale lint dumps, leftovers)
+/fix_alliance.js
+/fix_wmd_files.js
+/convert-schemas.ps1
+/D*devDarkFramefix_sub.ps1
+/_consumer_files.txt
+/_lint_current.json
+/lib/clanAllianceService.ts.bak
+/__temp_patches/

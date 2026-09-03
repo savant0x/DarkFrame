@@ -9,14 +9,16 @@
  * applies gathering bonuses to final harvest amounts.
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { db } from '@/lib/db';
+import { players, tiles, flags } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { 
+  Player, 
   Tile, 
   TerrainType, 
   GAME_CONSTANTS,
   HarvestRecord 
 } from '@/types';
-import type { Tables, Database } from '@/types/database';
 import { getHarvestSuccessMessage } from './harvestMessages';
 
 /**
@@ -27,8 +29,30 @@ export interface HarvestResult {
   message: string;
   metalGained?: number;
   energyGained?: number;
-  itemFound?: any;
-  updatedPlayer?: Tables<'players'>;
+  itemFound?: any; // Will be defined in CaveItemService
+  updatedPlayer?: Player;
+}
+
+/**
+ * Map a flat database row to a Player object with nested structure
+ */
+function mapRowToPlayer(row: typeof players.$inferSelect): Player {
+  return {
+    ...row,
+    resources: {
+      metal: Number(row.resourcesMetal),
+      energy: Number(row.resourcesEnergy),
+    },
+    gatheringBonus: {
+      metalBonus: Number(row.gatheringBonusMetalBonus),
+      energyBonus: Number(row.gatheringBonusEnergyBonus),
+    },
+    activeBoosts: {
+      gatheringBoost: row.activeBoostsGatheringBoost ? Number(row.activeBoostsGatheringBoost) : 0,
+      expiresAt: row.activeBoostsExpiresAt,
+    },
+    vip: row.vip === 1,
+  } as unknown as Player;
 }
 
 /**
@@ -54,8 +78,10 @@ export function getCurrentResetPeriod(x: number): string {
   const dateString = `${year}-${month}-${day}`;
   
   if (x >= 1 && x <= 75) {
+    // These tiles reset at midnight
     return `${dateString}-AM`;
   } else {
+    // These tiles reset at noon
     return `${dateString}-PM`;
   }
 }
@@ -74,20 +100,26 @@ export function getCurrentResetPeriod(x: number): string {
  */
 export function getTimeUntilReset(x: number): number {
   const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
   
   if (x >= 1 && x <= 75) {
+    // Reset at midnight
     const nextReset = new Date(now);
     nextReset.setHours(0, 0, 0, 0);
     
+    // If it's already past midnight, next reset is tomorrow midnight
     if (nextReset <= now) {
       nextReset.setDate(nextReset.getDate() + 1);
     }
     
     return nextReset.getTime() - now.getTime();
   } else {
+    // Reset at noon
     const nextReset = new Date(now);
     nextReset.setHours(12, 0, 0, 0);
     
+    // If it's already past noon, next reset is tomorrow noon
     if (nextReset <= now) {
       nextReset.setDate(nextReset.getDate() + 1);
     }
@@ -109,29 +141,31 @@ export function getTimeUntilReset(x: number): number {
  */
 export async function canHarvestTile(
   playerId: string,
-  tile: { x: number; y: number; terrain: string }
+  tile: Tile
 ): Promise<boolean> {
   try {
-    const supabase = createServiceClient();
-    
-    const terrainValues = [TerrainType.Metal, TerrainType.Energy, TerrainType.Cave, TerrainType.Forest] as string[];
-    if (!terrainValues.includes(tile.terrain)) {
+    // Check if tile is harvestable type
+    if (![TerrainType.Metal, TerrainType.Energy, TerrainType.Cave].includes(tile.terrain)) {
       return false;
     }
     
+    // Get current reset period
     const currentPeriod = getCurrentResetPeriod(tile.x);
     
-    const { data: records, error } = await supabase
-      .from('tile_harvest_records')
-      .select('*')
-      .eq('tile_x', tile.x)
-      .eq('tile_y', tile.y)
-      .eq('player_id', playerId)
-      .eq('reset_period', currentPeriod);
+    // Check if player has already harvested this tile in current period
+    const tileRows = await db.select().from(tiles).where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y))).limit(1);
+    const tileDoc = tileRows[0];
     
-    if (error) throw error;
+    if (!tileDoc || !tileDoc.lastHarvestedBy) {
+      return true; // No harvest records, can harvest
+    }
     
-    return !records || records.length === 0;
+    const existingHarvest = tileDoc.lastHarvestedBy.find(
+      (record: HarvestRecord) => 
+        record.playerId === playerId && record.resetPeriod === currentPeriod
+    );
+    
+    return !existingHarvest; // Can harvest if no record found
     
   } catch (error) {
     console.error('❌ Error checking harvest eligibility:', error);
@@ -191,8 +225,7 @@ export async function harvestResourceTile(
   tile: Tile
 ): Promise<HarvestResult> {
   try {
-    const supabase = createServiceClient();
-    
+    // Verify tile type
     if (![TerrainType.Metal, TerrainType.Energy].includes(tile.terrain)) {
       return {
         success: false,
@@ -200,6 +233,7 @@ export async function harvestResourceTile(
       };
     }
     
+    // Check if can harvest
     const canHarvest = await canHarvestTile(playerId, tile);
     if (!canHarvest) {
       return {
@@ -208,130 +242,115 @@ export async function harvestResourceTile(
       };
     }
     
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', playerId)
-      .single();
+    // Get player data
+    const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const playerRow = playerRows[0];
     
-    if (playerError || !player) {
+    if (!playerRow) {
       return {
         success: false,
         message: 'Player not found'
       };
     }
     
+    const player = mapRowToPlayer(playerRow);
+    
+    // Generate base amount
     const baseAmount = generateBaseHarvestAmount();
-
-    // Get permanent sacrificed digger bonus (handle both old and new schema)
-    const permanentBonus = tile.terrain === TerrainType.Metal
-      ? (player.sacrificed_metal_bonus || player.gathering_metal_bonus || 0)
-      : (player.sacrificed_energy_bonus || player.gathering_energy_bonus || 0);
-
-    // DEPRECATED: kept for backwards compatibility during migration
-    const temporaryBonus = 0;
-
-    // Fetch shrine bonus from player's active boosts
+    
+    // Get permanent digger bonuses
+    const permanentBonus = tile.terrain === TerrainType.Metal 
+      ? player.gatheringBonus.metalBonus 
+      : player.gatheringBonus.energyBonus;
+    
+    // Get temporary boost (DEPRECATED - kept for backwards compatibility)
+    const temporaryBonus = player.activeBoosts.gatheringBoost || 0;
+    
+    // Calculate shrine boost from active boosts
     let shrineBonus = 0;
-    try {
-      const { data: shrineBoosts } = await supabase
-        .from('player_shrine_boosts')
-        .select('yield_bonus')
-        .eq('player_username', playerId)
-        .gt('expires_at', new Date().toISOString());
-      if (shrineBoosts && shrineBoosts.length > 0) {
-        // Use diminishing stacking for shrine: +25/+20/+15/+10 = +70% max
-        const raw = shrineBoosts.reduce((sum, b) => sum + (b.yield_bonus || 0), 0);
-        let effective = 0;
-        let remaining = raw * 100; // Convert to percentage points
-        const t1 = Math.min(remaining, 25); effective += t1; remaining -= t1;
-        if (remaining > 0) { const t2 = Math.min(remaining, 20); effective += t2; remaining -= t2; }
-        if (remaining > 0) { const t3 = Math.min(remaining, 15); effective += t3; remaining -= t3; }
-        if (remaining > 0) { effective += Math.min(remaining, 10); }
-        shrineBonus = effective;
+    if (player.shrineBoosts && player.shrineBoosts.length > 0) {
+      const now = new Date();
+      // Filter out expired boosts and sum yield bonuses
+      const originalLength = player.shrineBoosts.length;
+      player.shrineBoosts = player.shrineBoosts.filter(
+        boost => new Date(boost.expiresAt) > now
+      );
+      
+      shrineBonus = player.shrineBoosts.reduce((sum, boost) => {
+        return sum + (boost.yieldBonus * 100); // Convert 0.25 to 25%
+      }, 0);
+      
+      // Update player to remove expired boosts if any were filtered
+      if (player.shrineBoosts.length < originalLength) {
+        await db.update(players).set({ shrineBoosts: player.shrineBoosts }).where(eq(players.username, playerId));
       }
-    } catch (error) {
-      console.error('❌ Error fetching shrine boosts:', error);
     }
-
-    // Check VIP status for +50% bonus (additive, not multiplicative)
-    let vipBonus = 0;
-    if (player.is_vip && player.vip_expiration && new Date(player.vip_expiration) > new Date()) {
-      vipBonus = 50; // +50% additive
+    
+    // Check VIP status for 2x resource multiplier
+    let vipMultiplier = 1;
+    if (player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date()) {
+      vipMultiplier = 2; // VIP gets 2x resources
     }
-
-    // Check Flag Bearer status for +50% bonus (additive, not multiplicative)
-    let flagBearerBonus = 0;
+    
+    // Check Flag Bearer status for +100% bonus (2x multiplier)
+    let flagBearerMultiplier = 1;
     let isPlayerFlagBearer = false;
     try {
-      const { data: flagDoc } = await supabase
-        .from('flags')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
-      if (flagDoc && flagDoc.bearer_username === playerId) {
-        flagBearerBonus = 50; // +50% additive
+      const flagRows = await db.select().from(flags).limit(1);
+      const flagRow = flagRows[0];
+      if (flagRow && flagRow.currentHolderUsername === playerId) {
+        flagBearerMultiplier = 2; // Flag bearer gets +100% = 2x resources
         isPlayerFlagBearer = true;
       }
     } catch (error) {
       console.error('❌ Error checking flag bearer status:', error);
+      // Don't fail harvest if flag check fails
     }
-
-    // Calculate total multiplier using additive diminishing returns
-    const { calculateTotalMultiplier } = await import('@/lib/multiplierService');
-    const totalMultiplier = calculateTotalMultiplier([
-      { name: 'VIP', bonusPercent: vipBonus },
-      { name: 'Flag Bearer', bonusPercent: flagBearerBonus },
-      { name: 'Shrine', bonusPercent: shrineBonus },
-    ]);
-
-    // Calculate final amount: base × (1 + permanent%) × totalMultiplier
-    let finalAmount = calculateHarvestAmount(baseAmount, permanentBonus, temporaryBonus);
-    finalAmount = Math.floor(finalAmount * totalMultiplier);
-
+    
+    // Calculate final amount with all bonuses (including shrine boosts)
+    let finalAmount = calculateHarvestAmount(baseAmount, permanentBonus, temporaryBonus + shrineBonus);
+    
+    // Apply VIP multiplier
+    finalAmount = Math.floor(finalAmount * vipMultiplier);
+    
+    // Apply Flag Bearer multiplier
+    finalAmount = Math.floor(finalAmount * flagBearerMultiplier);
+    
     // Apply balance penalty/bonus to gathering (if player has units)
-    if (player.total_strength || player.total_defense) {
+    if (player.totalStrength || player.totalDefense) {
       const { calculateBalanceEffects, applyBalanceToGathering } = await import('@/lib/balanceService');
       const balanceEffects = calculateBalanceEffects(
-        player.total_strength || 0,
-        player.total_defense || 0
+        player.totalStrength || 0,
+        player.totalDefense || 0
       );
       finalAmount = applyBalanceToGathering(finalAmount, balanceEffects);
     }
     
-    // Update player resources
-    const resourceColumn = tile.terrain === TerrainType.Metal ? 'resources_metal' : 'resources_energy';
-    const currentAmount = tile.terrain === TerrainType.Metal ? player.resources_metal : player.resources_energy;
+    // Update player resources (read-add-update pattern)
+    if (tile.terrain === TerrainType.Metal) {
+      const currentMetal = Number(playerRow.resourcesMetal);
+      const newMetal = BigInt(currentMetal + finalAmount);
+      await db.update(players).set({ resourcesMetal: Number(newMetal) }).where(eq(players.username, playerId));
+    } else {
+      const currentEnergy = Number(playerRow.resourcesEnergy);
+      const newEnergy = BigInt(currentEnergy + finalAmount);
+      await db.update(players).set({ resourcesEnergy: Number(newEnergy) }).where(eq(players.username, playerId));
+    }
     
-    const { error: updateError } = await supabase
-      .from('players')
-      .update({ [resourceColumn]: currentAmount + finalAmount } as Database['public']['Tables']['players']['Update'])
-      .eq('username', playerId);
-    
-    if (updateError) throw new Error(updateError.message);
-    
-    // Mark tile as harvested — use upsert with conflict detection to prevent TOCTOU
+    // Mark tile as harvested and track daily milestone progress
     const currentPeriod = getCurrentResetPeriod(tile.x);
     
-    const { error: recordError } = await supabase
-      .from('tile_harvest_records')
-      .insert({
-        tile_x: tile.x,
-        tile_y: tile.y,
-        player_id: playerId,
-        reset_period: currentPeriod,
-        harvested_at: new Date().toISOString()
-      });
+    // Read current harvest records, push new one, update
+    const tileRows = await db.select().from(tiles).where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y))).limit(1);
+    const tileDoc = tileRows[0];
+    const harvestRecords = tileDoc?.lastHarvestedBy || [];
+    harvestRecords.push({
+      playerId,
+      timestamp: new Date(),
+      resetPeriod: currentPeriod
+    });
     
-    if (recordError) {
-      if (recordError.code === '23505') {
-        return {
-          success: false,
-          message: 'You have already harvested this tile. It will reset later.'
-        };
-      }
-      throw new Error(recordError.message);
-    }
+    await db.update(tiles).set({ lastHarvestedBy: harvestRecords }).where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
     
     // Track daily harvest milestone progress and award RP
     try {
@@ -343,22 +362,22 @@ export async function harvestResourceTile(
       }
     } catch (error) {
       console.error('❌ Error checking harvest milestone:', error);
+      // Don't fail harvest if milestone check fails
     }
     
     // Get updated player
-    const { data: updatedPlayer } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', playerId)
-      .single();
+    const updatedPlayerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const updatedPlayer = updatedPlayerRows[0] ? mapRowToPlayer(updatedPlayerRows[0]) : undefined;
     
     // Generate success message with VIP and Flag Bearer indicators
     let successMessage = getHarvestSuccessMessage(tile.terrain, finalAmount);
-    if (vipBonus > 0) {
-      successMessage += ` ⚡ VIP +${vipBonus}%!`;
+    if (vipMultiplier === 2) {
+      const baseHarvestAmount = Math.floor(finalAmount / (flagBearerMultiplier === 2 ? 4 : 2)); // Divide by 4 if both VIP and Flag, else 2
+      successMessage += ` ⚡ VIP 2x Boost! (+${baseHarvestAmount} bonus)`;
     }
     if (isPlayerFlagBearer) {
-      successMessage += ` 🚩 Flag Bearer +${flagBearerBonus}%!`;
+      const baseHarvestAmount = Math.floor(finalAmount / (vipMultiplier === 2 ? 4 : 2)); // Divide by 4 if both VIP and Flag, else 2
+      successMessage += ` 🚩 Flag Bearer +100%! (+${baseHarvestAmount} bonus)`;
     }
     
     const result: HarvestResult = {
@@ -395,7 +414,7 @@ export async function harvestResourceTile(
  */
 export async function getHarvestStatus(
   playerId: string,
-  tile: { x: number; y: number; terrain: string }
+  tile: Tile
 ): Promise<{
   canHarvest: boolean;
   timeUntilReset: number;
@@ -422,7 +441,7 @@ export async function getHarvestStatus(
 // ============================================================
 // - Reset periods calculated based on server time
 // - Tiles 1-75 reset at 00:00, tiles 76-150 reset at 12:00
-// - Per-player harvest tracking via tile_harvest_records table
+// - Per-player harvest tracking prevents farming same tile multiple times
 // - Bonuses stack: permanent + temporary
 // - Cave tile harvesting handled by CaveItemService
 // - Reset scheduler will clean old harvest records periodically

@@ -1,29 +1,6 @@
-/**
- * Clan Perk Management Service
- * 
- * Created: 2025-10-18
- * 
- * OVERVIEW:
- * Manages clan perk system with 4 tiers (Bronze, Silver, Gold, Legendary) and 4 categories
- * (Combat, Economic, Social, Strategic). Perks provide passive bonuses to all clan members
- * and require specific clan levels to unlock. Activation costs resources from clan bank.
- * 
- * Core Systems:
- * - Perk Catalog: 16 total perks (4 tiers x 4 categories)
- * - Tier Unlocking: Bronze (Lvl 5), Silver (Lvl 10), Gold (Lvl 15), Legendary (Lvl 20)
- * - Activation Management: Purchase perks using clan bank resources
- * - Active Perk Limits: Max 4 active perks at once (1 per category recommended)
- * - Cost Scaling: Bronze (100K/100K/10K), Silver (250K/250K/25K), Gold (500K/500K/50K), Legendary (1M/1M/100K)
- * 
- * Perk Categories:
- * - COMBAT: Attack/Defense bonuses for battles (5-25% boost)
- * - ECONOMIC: Resource generation and efficiency (5-20% boost)
- * - SOCIAL: Member benefits and capacity (XP boost, max members)
- * - STRATEGIC: Territory and warfare bonuses (territory cost reduction, war bonuses)
- */
-
-import { createServiceClient } from '@/lib/supabase/server';
-import crypto from 'crypto';
+import { db } from '@/lib/db';
+import { clans } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   Clan,
   ClanPerk,
@@ -31,133 +8,10 @@ import {
   ClanPerkCategory,
   CLAN_PERK_CATALOG,
   CLAN_PERK_LIMITS,
-  ClanRole,
-  hasPermission,
 } from '@/types/clan.types';
 
-function mapRowToClanPerk(row: Record<string, unknown>): ClanPerk {
-  return {
-    id: row.perk_id as string,
-    name: row.name as string,
-    description: (row.description as string) || '',
-    category: row.category as ClanPerkCategory,
-    tier: row.tier as ClanPerkTier,
-    requiredLevel: row.required_level as number,
-    cost: {
-      metal: row.cost_metal as number,
-      energy: row.cost_energy as number,
-      researchPoints: row.cost_rp as number,
-    },
-    bonus: {
-      type: row.bonus_type as ClanPerk['bonus']['type'],
-      value: row.bonus_value as number,
-    },
-    activatedAt: row.activated_at ? new Date(row.activated_at as string) : undefined,
-    activatedBy: row.activated_by as string | undefined,
-  };
-}
-
-function mapRowToClanMember(row: Record<string, unknown>) {
-  return {
-    playerId: row.player_id as string,
-    username: row.username as string,
-    role: row.role as ClanRole,
-    joinedAt: new Date(row.joined_at as string),
-    lastActive: new Date(row.last_active as string),
-  };
-}
-
-async function fetchFullClan(supabase: ReturnType<typeof createServiceClient>, clanId: string): Promise<Clan> {
-  const { data: clanRow, error } = await supabase
-    .from('clans')
-    .select('*')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clanRow) {
-    throw new Error('Clan not found');
-  }
-
-  const { data: memberRows } = await supabase
-    .from('clan_members')
-    .select('*')
-    .eq('clan_id', clanId);
-
-  const { data: perkRows } = await supabase
-    .from('clan_perks')
-    .select('*')
-    .eq('clan_id', clanId);
-
-  const r = clanRow as Record<string, unknown>;
-  const members = (memberRows || []).map(mapRowToClanMember);
-  const activePerks = (perkRows || []).map(mapRowToClanPerk);
-
-  const clanSettings = (r.clan_settings as Record<string, unknown>) || {};
-
-  return {
-    _id: r.id as string,
-    name: r.name as string,
-    tag: r.tag as string,
-    description: r.description as string,
-    leaderId: r.leader_id as string,
-    members,
-    maxMembers: r.max_members as number,
-    level: {
-      currentLevel: r.clan_level as number,
-      totalXP: r.total_xp as number,
-      currentLevelXP: r.current_level_xp as number,
-      xpToNextLevel: r.xp_to_next_level as number,
-      featuresUnlocked: [],
-      milestonesCompleted: [],
-      lastLevelUp: r.last_level_up ? new Date(r.last_level_up as string) : undefined,
-      lastXPGain: r.last_xp_gain ? new Date(r.last_xp_gain as string) : undefined,
-      prestigeBadge: r.prestige_badge as string | undefined,
-    },
-    createdAt: new Date(r.created_at as string),
-    settings: {
-      messageOfTheDay: (clanSettings.messageOfTheDay as string) || '',
-      isRecruiting: (clanSettings.isRecruiting as boolean) || false,
-      minLevelToJoin: (clanSettings.minLevelToJoin as number) || 1,
-      requiresApproval: (clanSettings.requiresApproval as boolean) || false,
-      allowTerritoryControl: (clanSettings.allowTerritoryControl as boolean) !== false,
-      allowWarDeclarations: (clanSettings.allowWarDeclarations as boolean) !== false,
-    },
-    stats: {
-      totalPower: r.total_power as number || 0,
-      totalTerritories: r.total_territories as number || 0,
-      totalMonuments: r.total_monuments as number || 0,
-      warsWon: r.wars_won as number || 0,
-      warsLost: r.wars_lost as number || 0,
-      totalRP: r.total_rp as number || 0,
-    },
-    research: {
-      researchPoints: r.research_points as number || 0,
-      unlockedTechs: r.unlocked_research as string[] || [],
-      activeResearch: r.active_research as string | null,
-    },
-    bank: {
-      treasury: {
-        metal: r.bank_treasury_metal as number || 0,
-        energy: r.bank_treasury_energy as number || 0,
-        researchPoints: r.bank_treasury_rp as number || 0,
-      },
-      taxRates: {
-        metal: r.bank_tax_metal as number || 0,
-        energy: r.bank_tax_energy as number || 0,
-        researchPoints: r.bank_tax_rp as number || 0,
-      },
-      upgradeLevel: r.bank_upgrade_level as number || 1,
-      capacity: r.bank_capacity as number || 0,
-      transactions: [],
-    },
-    activePerks,
-    territories: [],
-    monuments: [],
-    wars: {
-      active: [],
-      history: [],
-    },
-  };
+export function initializeClanPerkService(): void {
+  // No-op: Drizzle uses direct db import
 }
 
 export async function activatePerk(
@@ -171,10 +25,8 @@ export async function activatePerk(
   costPaid: { metal: number; energy: number; researchPoints: number };
   message: string;
 }> {
-  const supabase = createServiceClient();
-
-  const clan = await fetchFullClan(supabase, clanId);
-
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0] as unknown as Clan;
   if (!clan) {
     throw new Error('Clan not found');
   }
@@ -184,6 +36,7 @@ export async function activatePerk(
     throw new Error('Player is not a member of this clan');
   }
 
+  const { hasPermission } = await import('@/types/clan.types');
   if (!hasPermission(member.role, 'canManageResearch')) {
     throw new Error('Insufficient permissions to activate perks');
   }
@@ -202,7 +55,7 @@ export async function activatePerk(
     throw new Error(`Clan must be level ${perk.requiredLevel} to activate this perk`);
   }
 
-  const tierUnlocked = await isTierUnlocked(supabase, clanId, perk.tier);
+  const tierUnlocked = await isTierUnlocked(clan, perk.tier);
   if (!tierUnlocked) {
     throw new Error(`${perk.tier} tier perks are not unlocked yet`);
   }
@@ -228,36 +81,24 @@ export async function activatePerk(
     activatedBy: playerId,
   };
 
-  await supabase.from('clan_perks').insert({
-    id: crypto.randomUUID(),
-    clan_id: clanId,
-    perk_id: perk.id,
-    name: perk.name,
-    description: perk.description,
-    category: perk.category,
-    tier: perk.tier,
-    required_level: perk.requiredLevel,
-    cost_metal: perk.cost.metal,
-    cost_energy: perk.cost.energy,
-    cost_rp: perk.cost.researchPoints,
-    bonus_type: perk.bonus.type,
-    bonus_value: perk.bonus.value,
-    activated_at: new Date().toISOString(),
-    activated_by: playerId,
-  });
+  const updatedPerks = [...clan.activePerks, activatedPerk];
 
-  await supabase
-    .from('clans')
-    .update({
-      bank_treasury_metal: clan.bank.treasury.metal - metal,
-      bank_treasury_energy: clan.bank.treasury.energy - energy,
-      bank_treasury_rp: clan.bank.treasury.researchPoints - researchPoints,
+  await db.update(clans)
+    .set({
+      activePerks: updatedPerks as any,
+      bankTreasuryMetal: Number(BigInt(Number(clan.bank.treasury.metal) - metal)),
+      bankTreasuryEnergy: Number(BigInt(Number(clan.bank.treasury.energy) - energy)),
+      bankTreasuryResearchPoints: clan.bank.treasury.researchPoints - researchPoints,
     })
-    .eq('id', clanId);
+    .where(eq(clans.id, clanId));
 
-  await logPerkActivity(supabase, clanId, playerId, 'activate', perkId, perk.name);
+  await logPerkActivity(clanId, playerId, 'activate', perkId, perk.name);
 
-  const updatedClan = await fetchFullClan(supabase, clanId);
+  const updatedResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const updatedClan = updatedResult[0] as unknown as Clan;
+  if (!updatedClan) {
+    throw new Error('Failed to retrieve updated clan');
+  }
 
   return {
     success: true,
@@ -278,10 +119,8 @@ export async function deactivatePerk(
   perkName: string;
   message: string;
 }> {
-  const supabase = createServiceClient();
-
-  const clan = await fetchFullClan(supabase, clanId);
-
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0] as unknown as Clan;
   if (!clan) {
     throw new Error('Clan not found');
   }
@@ -291,6 +130,7 @@ export async function deactivatePerk(
     throw new Error('Player is not a member of this clan');
   }
 
+  const { hasPermission } = await import('@/types/clan.types');
   if (!hasPermission(member.role, 'canManageResearch')) {
     throw new Error('Insufficient permissions to deactivate perks');
   }
@@ -300,15 +140,21 @@ export async function deactivatePerk(
     throw new Error('Perk is not currently active');
   }
 
-  await supabase
-    .from('clan_perks')
-    .delete()
-    .eq('clan_id', clanId)
-    .eq('perk_id', perkId);
+  const updatedPerks = clan.activePerks.filter((p) => p.id !== perkId);
 
-  await logPerkActivity(supabase, clanId, playerId, 'deactivate', perkId, activePerk.name);
+  await db.update(clans)
+    .set({
+      activePerks: updatedPerks as any,
+    })
+    .where(eq(clans.id, clanId));
 
-  const updatedClan = await fetchFullClan(supabase, clanId);
+  await logPerkActivity(clanId, playerId, 'deactivate', perkId, activePerk.name);
+
+  const updatedResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const updatedClan = updatedResult[0] as unknown as Clan;
+  if (!updatedClan) {
+    throw new Error('Failed to retrieve updated clan');
+  }
 
   return {
     success: true,
@@ -324,36 +170,19 @@ export async function getAvailablePerks(clanId: string): Promise<{
   activeCount: number;
   maxActive: number;
 }> {
-  const supabase = createServiceClient();
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0] as unknown as Clan;
 
-  const { data: clan, error } = await supabase
-    .from('clans')
-    .select('clan_level')
-    .eq('id', clanId)
-    .single();
-
-  if (error || !clan) {
+  if (!clan) {
     throw new Error('Clan not found');
   }
 
-  const { data: perks } = await supabase
-    .from('clan_perks')
-    .select('*')
-    .eq('clan_id', clanId);
-
-  const currentLevel = (clan as Record<string, unknown>).clan_level as number;
-  const activePerks = (perks || []).map(mapRowToClanPerk);
+  const currentLevel = clan.level.currentLevel;
   const unlocked: ClanPerk[] = [];
   const locked: Array<ClanPerk & { levelsToUnlock: number }> = [];
 
   for (const perk of CLAN_PERK_CATALOG) {
-    const tierUnlockLevels: Record<ClanPerkTier, number> = {
-      BRONZE: 5,
-      SILVER: 10,
-      GOLD: 15,
-      LEGENDARY: 20,
-    };
-    const tierAvailable = currentLevel >= tierUnlockLevels[perk.tier];
+    const tierAvailable = await isTierUnlocked(clan, perk.tier);
 
     if (currentLevel >= perk.requiredLevel && tierAvailable) {
       unlocked.push(perk);
@@ -368,7 +197,7 @@ export async function getAvailablePerks(clanId: string): Promise<{
   return {
     unlocked,
     locked,
-    activeCount: activePerks.length,
+    activeCount: clan.activePerks.length,
     maxActive: CLAN_PERK_LIMITS.MAX_ACTIVE_PERKS,
   };
 }
@@ -383,18 +212,13 @@ export async function getActivePerks(clanId: string): Promise<{
     territoryCostReduction: number;
   };
 }> {
-  const supabase = createServiceClient();
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0] as unknown as Clan;
 
-  const { data: perks, error } = await supabase
-    .from('clan_perks')
-    .select('*')
-    .eq('clan_id', clanId);
-
-  if (error) {
+  if (!clan) {
     throw new Error('Clan not found');
   }
 
-  const activePerks = (perks || []).map(mapRowToClanPerk);
   const totalBonuses = {
     attack: 0,
     defense: 0,
@@ -403,7 +227,7 @@ export async function getActivePerks(clanId: string): Promise<{
     territoryCostReduction: 0,
   };
 
-  for (const perk of activePerks) {
+  for (const perk of clan.activePerks) {
     switch (perk.bonus.type) {
       case 'attack':
         totalBonuses.attack += perk.bonus.value;
@@ -424,7 +248,7 @@ export async function getActivePerks(clanId: string): Promise<{
   }
 
   return {
-    perks: activePerks,
+    perks: clan.activePerks,
     totalBonuses,
   };
 }
@@ -475,9 +299,12 @@ export async function getRecommendedPerks(clanId: string): Promise<
     priority: 'high' | 'medium' | 'low';
   }>
 > {
-  const supabase = createServiceClient();
+  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+  const clan = clanResult[0] as unknown as Clan;
 
-  const clan = await fetchFullClan(supabase, clanId);
+  if (!clan) {
+    throw new Error('Clan not found');
+  }
 
   const recommendations: Array<{
     perk: ClanPerk;
@@ -559,7 +386,7 @@ export async function getRecommendedPerks(clanId: string): Promise<
       return tierOrder[b.tier] - tierOrder[a.tier];
     });
 
-  for (const perk of remainingPerks.slice(0, Math.max(0, remainingSlots - recommendations.length))) {
+  for (const perk of remainingPerks.slice(0, remainingSlots - recommendations.length)) {
     recommendations.push({
       perk,
       reason: 'High tier perk with strong bonuses',
@@ -570,11 +397,7 @@ export async function getRecommendedPerks(clanId: string): Promise<
   return recommendations;
 }
 
-async function isTierUnlocked(
-  supabase: ReturnType<typeof createServiceClient>,
-  clanId: string,
-  tier: ClanPerkTier
-): Promise<boolean> {
+async function isTierUnlocked(clan: Clan, tier: ClanPerkTier): Promise<boolean> {
   const tierLevels: Record<ClanPerkTier, number> = {
     BRONZE: 5,
     SILVER: 10,
@@ -582,33 +405,25 @@ async function isTierUnlocked(
     LEGENDARY: 20,
   };
 
-  const { data: clan } = await supabase
-    .from('clans')
-    .select('clan_level')
-    .eq('id', clanId)
-    .single();
-
-  if (!clan) return false;
-
-  return ((clan as Record<string, unknown>).clan_level as number) >= tierLevels[tier];
+  return clan.level.currentLevel >= tierLevels[tier];
 }
 
 async function logPerkActivity(
-  supabase: ReturnType<typeof createServiceClient>,
   clanId: string,
   playerId: string,
   action: 'activate' | 'deactivate',
   perkId: string,
   perkName: string
 ): Promise<void> {
-  await supabase.from('clan_activity').insert({
-    clan_id: clanId,
-    activity_type: action === 'activate' ? 'PERK_ACTIVATED' : 'PERK_DEACTIVATED',
-    player_id: playerId,
-    created_at: new Date().toISOString(),
-    details: {
-      perk_id: perkId,
-      perk_name: perkName,
-    },
+  const { modLog } = await import('@/lib/db/schema');
+
+  await db.insert(modLog).values({
+    id: `ml-${Date.now()}`,
+    moderatorId: playerId,
+    action: action === 'activate' ? 'PERK_ACTIVATED' : 'PERK_DEACTIVATED',
+    targetId: clanId,
+    reason: `Perk ${action}: ${perkName}`,
+    details: JSON.stringify({ perkId, perkName }),
+    createdAt: new Date(),
   });
 }

@@ -1,57 +1,54 @@
+/**
+ * Tutorial Action Tracking API Endpoint
+ * 
+ * GET /api/tutorial/tracking?playerId=X&stepId=Y
+ * Returns the current tracking data for a specific step (e.g., target coordinates for MOVE_TO_COORDS)
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
-  createErrorFromException,
-  ErrorCode,
-  getActionTracking,
-  logger,
-} from '@/lib';
+import clientPromise from '@/lib/mongodb';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = rateLimiter(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const playerId = auth.playerId;
-
     const { searchParams } = new URL(request.url);
+    const playerId = searchParams.get('playerId');
     const stepId = searchParams.get('stepId');
 
-    if (!stepId) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Missing stepId parameter');
+    if (!playerId || !stepId) {
+      return NextResponse.json(
+        { error: 'Missing playerId or stepId parameter' },
+        { status: 400 }
+      );
     }
 
-    const tracking = await getActionTracking(playerId, stepId);
+    const mongoClient = await clientPromise;
+    const db = mongoClient.db('darkframe');
+    const trackingCollection = db.collection('tutorial_action_tracking');
+
+    const tracking = await trackingCollection.findOne({ 
+      playerId, 
+      stepId 
+    });
 
     if (!tracking) {
       return NextResponse.json({});
     }
 
-    // Access optional coordinate/move tracking fields that may be stored alongside core tracking data
-    const trackingWithCoords = tracking as typeof tracking & {
-      targetX?: number;
-      targetY?: number;
-      startX?: number;
-      startY?: number;
-      moveCount?: number;
-    };
-
+    // Return tracking data (target coords, move count, etc.)
     return NextResponse.json({
-      targetX: trackingWithCoords.targetX,
-      targetY: trackingWithCoords.targetY,
-      startX: trackingWithCoords.startX,
-      startY: trackingWithCoords.startY,
-      moveCount: trackingWithCoords.moveCount,
+      targetX: tracking.targetX,
+      targetY: tracking.targetY,
+      startX: tracking.startX,
+      startY: tracking.startY,
+      moveCount: tracking.moveCount,
       currentCount: tracking.currentCount,
     });
 
   } catch (error) {
-    logger.error('Tutorial tracking fetch error:', error);
-    return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
+    console.error('Tutorial tracking fetch error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch tracking data' },
+      { status: 500 }
+    );
   }
-});
+}

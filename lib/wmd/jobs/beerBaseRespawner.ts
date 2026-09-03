@@ -21,7 +21,10 @@
  * - Idempotent and error-resistant
  */
 
+import { db } from '@/lib/db';
 import { weeklyBeerBaseRespawn, getBeerBaseConfig, getCurrentBeerBaseCount, getTargetBeerBaseCount, spawnBeerBases } from '@/lib/beerBaseService';
+
+type Database = typeof db;
 
 /**
  * Last respawn timestamp to track weekly resets
@@ -76,18 +79,19 @@ async function isWeeklyRespawnTime(): Promise<boolean> {
  * 
  * Runs every 60 seconds to ensure Beer Bases are always available.
  * 
+ * @param _db - Drizzle database connection (unused, service functions handle DB)
  * @returns Number of Beer Bases spawned this cycle
  * 
  * @example
  * ```typescript
  * // Called by scheduler every 60 seconds
- * const spawned = await beerBaseRespawner();
+ * const spawned = await beerBaseRespawner(db);
  * if (spawned > 0) {
  *   console.log(`Spawned ${spawned} Beer Bases to maintain population`);
  * }
  * ```
  */
-export async function beerBaseRespawner(): Promise<number> {
+export async function beerBaseRespawner(_db: Database): Promise<number> {
   try {
     // Check if it's time for weekly full respawn
     const shouldWeeklyRespawn = await isWeeklyRespawnTime();

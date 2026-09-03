@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/leave/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
  * 
  * OVERVIEW:
  * Clan leave endpoint. Allows players to voluntarily leave their current clan.
@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireClanMembership, withRequestLogging, createRouteLogger } from '@/lib';
+import { getClientAndDatabase, requireClanMembership, withRequestLogging, createRouteLogger } from '@/lib';
 import { leaveClan } from '@/lib/clanService';
 
 /**
@@ -46,6 +46,8 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
   const endTimer = log.time('clanLeave');
   
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) {
       log.warn('Clan leave attempted without membership');
@@ -55,6 +57,8 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     const { auth, clan, clanId } = result;
 
     log.debug('Clan leave request', { playerId: auth.playerId, clanName: clan.name, clanId });
+
+    
 
     await leaveClan(clanId, auth.playerId);
 

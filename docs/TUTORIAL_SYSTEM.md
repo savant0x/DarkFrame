@@ -7,7 +7,7 @@ The **Interactive Tutorial Quest System** guides new players through DarkFrame's
 **Key Features:**
 - 6 progressive quest chains with 17 total steps
 - Interactive element highlighting using react-joyride
-- Real-time progress tracking in Supabase PostgreSQL
+- Real-time progress tracking in MongoDB
 - Persistent mini-quest tracker panel
 - Optional quest skipping with confirmation
 - Reward distribution (Metal, Oil, XP, Items, Achievements)
@@ -73,7 +73,7 @@ components/tutorial/
   ├── TutorialQuestPanel.tsx     # Mini quest tracker (250+ lines)
   └── index.ts                   # Component exports
 app/api/tutorial/route.ts        # REST API endpoints (240+ lines)
-Run database migrations to create tutorial tables
+scripts/setup-tutorial-indexes.js # MongoDB index setup
 ```
 
 **Total:** ~1,437 lines of production-ready code
@@ -87,11 +87,38 @@ Run database migrations to create tutorial tables
 npm install react-joyride @types/react-joyride
 ```
 
-### 2. Database Setup
+### 2. MongoDB Indexes
+Run these commands in MongoDB shell or Compass:
 
-Run Supabase migrations:
-```bash
-npx supabase db push
+```javascript
+use darkframe;
+
+// Unique index on playerId
+db.tutorial_progress.createIndex(
+  { playerId: 1 }, 
+  { unique: true, name: "playerId_unique" }
+);
+
+// Analytics index
+db.tutorial_progress.createIndex(
+  { tutorialComplete: 1 }, 
+  { name: "tutorialComplete_index" }
+);
+
+// Cleanup index
+db.tutorial_progress.createIndex(
+  { lastUpdated: 1 }, 
+  { name: "lastUpdated_index" }
+);
+
+// Compound index for active queries
+db.tutorial_progress.createIndex(
+  { tutorialComplete: 1, currentQuestId: 1 }, 
+  { name: "active_tutorial_index" }
+);
+
+// Verify
+db.tutorial_progress.getIndexes();
 ```
 
 **OR** run the setup script:
@@ -125,9 +152,7 @@ export const DEFAULT_TUTORIAL_CONFIG: TutorialConfig = {
 
 ---
 
-## 📊 Database Schema
-
-Tutorial progress is tracked in the Supabase `players` table (tutorial-related columns) and `tutorial_progress` table.
+## 📊 MongoDB Schema
 
 ### Collection: `tutorial_progress`
 
@@ -257,7 +282,7 @@ Persistent mini-tracker in bottom-right corner.
 
 ## 🧪 Testing Checklist
 
-- [ ] **Database Setup**: Run Supabase migrations
+- [ ] **Database Setup**: Run MongoDB index creation commands
 - [ ] **New Player Flow**: Create fresh account, verify tutorial auto-starts
 - [ ] **Quest Progression**: Complete all 6 quests, verify rewards awarded
 - [ ] **Skip Functionality**: Test quest skip and full tutorial skip
@@ -332,10 +357,10 @@ db.tutorial_progress.aggregate([
 - Check `DEFAULT_TUTORIAL_CONFIG.enabled` is `true`
 - Verify player level is between `minimumLevel` and `maximumLevel`
 - Check browser console for errors
-- Verify database connection is active
+- Verify MongoDB connection is active
 
 ### Progress not saving
-- Ensure database migrations are applied
+- Ensure MongoDB indexes are created
 - Check `tutorial_progress` collection exists
 - Verify API routes return 200 status
 - Check browser network tab for failed requests
@@ -346,7 +371,7 @@ db.tutorial_progress.aggregate([
 - Implement item/achievement reward handlers (marked TODO)
 
 ### Performance issues
-- Verify database indexes are active: Check Supabase Dashboard
+- Verify MongoDB indexes are active: `db.tutorial_progress.getIndexes()`
 - Check query execution plans: `.explain("executionStats")`
 - Reduce `TutorialQuestPanel` refresh interval if needed (default: 5s)
 
@@ -390,7 +415,7 @@ db.tutorial_progress.aggregate([
 
 **External Resources:**
 - [react-joyride Documentation](https://docs.react-joyride.com/)
-- [Supabase Docs](https://supabase.com/docs)
+- [MongoDB Indexes Guide](https://docs.mongodb.com/manual/indexes/)
 - [Next.js API Routes](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
 
 ---
@@ -400,7 +425,7 @@ db.tutorial_progress.aggregate([
 - [x] NPM packages installed (react-joyride)
 - [x] TypeScript files created (no compile errors)
 - [x] Components integrated into game UI
-- [ ] Database migrations pushed to production
+- [ ] MongoDB indexes created in production database
 - [ ] Tutorial tested with real player account
 - [ ] Analytics queries validated
 - [ ] README updated with tutorial section
@@ -413,7 +438,7 @@ db.tutorial_progress.aggregate([
 For issues or questions:
 1. Check this documentation first
 2. Review `dev/FID-20251025-101_IMPLEMENTATION_SUMMARY.md`
-3. Check database logs for errors
+3. Search MongoDB logs for errors
 4. Check browser console for client-side errors
 5. Verify API routes with Postman/curl
 

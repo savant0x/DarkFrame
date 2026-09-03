@@ -1,7 +1,6 @@
 /**
  * Messaging Socket.io Event Handlers
  * Created: 2025-10-25
- * Updated: 2026-05-26 — Migrated from messagingService to dmService (Supabase)
  * Feature: FID-20251025-102
  * 
  * OVERVIEW:
@@ -30,73 +29,8 @@ import type {
 } from '@/types/websocket';
 import {
   sendDirectMessage,
-  markMessageRead,
-} from '@/lib/dmService';
-import type { DirectMessage } from '@/types/directMessage';
-import { DMMessageStatus } from '@/types/directMessage';
-
-function mapDMStatusToWSStatus(status: DMMessageStatus): MessagingMessagePayload['status'] {
-  switch (status) {
-    case DMMessageStatus.SENT:
-      return 'sent';
-    case DMMessageStatus.DELIVERED:
-      return 'delivered';
-    case DMMessageStatus.READ:
-      return 'read';
-    default:
-      return 'sent';
-  }
-}
-
-function parseConversationParticipants(conversationId: string): [string, string] {
-  if (conversationId.startsWith('dm_')) {
-    const parts = conversationId.substring(3).split('_');
-    const splitIdx = Math.floor(parts.length / 2);
-    const a = parts.slice(0, splitIdx + 1).join('_');
-    const b = parts.slice(splitIdx + 1).join('_');
-    return [a, b];
-  }
-  return ['', ''];
-}
-
-function buildMessagePayload(message: DirectMessage): MessagingMessagePayload {
-  return {
-    _id: message.id,
-    conversationId: message.conversationId,
-    senderId: message.senderId,
-    recipientId: message.recipientId,
-    content: message.content,
-    contentType: 'text',
-    status: mapDMStatusToWSStatus(message.status),
-    createdAt: message.timestamp,
-    readAt: undefined,
-  };
-}
-
-function buildConversationPayload(
-  conversationId: string,
-  senderId: string,
-  recipientId: string,
-  lastMessageContent: string
-): MessagingConversationPayload {
-  const now = new Date();
-  return {
-    _id: conversationId,
-    participants: [senderId, recipientId].sort(),
-    lastMessage: {
-      content: lastMessageContent,
-      senderId,
-      createdAt: now,
-      status: 'sent',
-    },
-    unreadCount: {
-      [senderId]: 0,
-      [recipientId]: 1,
-    },
-    createdAt: now,
-    updatedAt: now,
-  };
-}
+  markMessagesAsRead,
+} from '@/lib/messagingService';
 
 /**
  * Handle sending a message via Socket.io
@@ -128,42 +62,76 @@ export async function handleMessageSend(
 
     console.log(`[Messaging] Message send: ${sender.username} → ${data.recipientId}`);
 
+    // Send message via service (validates, filters profanity, saves to DB)
     const result = await sendDirectMessage(sender.username, {
       recipientId: data.recipientId,
       content: data.content,
+      contentType: 'text',
     });
 
-    const messagePayload = buildMessagePayload(result.message);
-    const conversationPayload = buildConversationPayload(
-      result.conversationId,
-      sender.username,
-      data.recipientId,
-      result.message.content
-    );
+    if (!result.success || !result.message || !result.conversation) {
+      console.error('[Messaging] Message send failed:', result.error);
+      socket.emit('message:error', {
+        error: result.error || 'Failed to send message',
+        code: 'SEND_FAILED',
+        tempId: data.tempId,
+      });
+      callback?.({ success: false, error: result.error });
+      return;
+    }
 
-    const conversationRoom = `conversation_${result.conversationId}`;
+    const { message, conversation } = result;
+
+    // Join sender to conversation room if not already in it
+    const conversationRoom = `conversation_${conversation._id}`;
     socket.join(conversationRoom);
 
+    // Convert message to WebSocket payload format
+    const messagePayload: MessagingMessagePayload = {
+      _id: message._id.toString(),
+      conversationId: message.conversationId.toString(),
+      senderId: message.senderId,
+      recipientId: message.recipientId,
+      content: message.content,
+      contentType: message.contentType,
+      status: message.status,
+      createdAt: message.createdAt,
+      readAt: message.readAt,
+    };
+
+    // Convert conversation to WebSocket payload format
+    const conversationPayload: MessagingConversationPayload = {
+      _id: conversation._id.toString(),
+      participants: conversation.participants,
+      lastMessage: conversation.lastMessage,
+      unreadCount: conversation.unreadCount,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    };
+
+    // Emit to conversation room (includes sender for confirmation)
     io.to(conversationRoom).emit('message:receive', messagePayload);
+
+    // Also emit to recipient's personal room in case they're not in conversation room yet
     io.to(`user_${data.recipientId}`).emit('message:receive', messagePayload);
 
+    // Emit conversation update to both participants
     io.to(`user_${sender.username}`).emit('conversation:updated', conversationPayload);
     io.to(`user_${data.recipientId}`).emit('conversation:updated', conversationPayload);
 
-    console.log(`[Messaging] Message sent successfully: ${result.message.id}`);
-    callback?.({ success: true, messageId: result.message.id });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+    console.log(`[Messaging] Message sent successfully: ${message._id}`);
+    callback?.({ success: true, messageId: message._id.toString() });
+  } catch (error: any) {
     console.error('[Messaging] Error in handleMessageSend:', {
-      error: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
+      error: error.message,
+      stack: error.stack,
     });
     socket.emit('message:error', {
-      error: errorMessage,
-      code: 'SEND_FAILED',
+      error: 'Internal server error',
+      code: 'SERVER_ERROR',
       tempId: data.tempId,
     });
-    callback?.({ success: false, error: errorMessage });
+    callback?.({ success: false, error: 'Internal server error' });
   }
 }
 
@@ -189,11 +157,19 @@ export async function handleMessageRead(
 
     console.log(`[Messaging] Marking message as read: ${data.messageId || 'all'} by ${reader.username}`);
 
-    const result = await markMessageRead(reader.username, {
-      conversationId: data.conversationId,
-      messageIds: data.messageId ? [data.messageId] : undefined,
-    });
+    // Mark message(s) as read in database
+    const result = await markMessagesAsRead(
+      data.conversationId,
+      reader.username,
+      data.messageId ? [data.messageId] : undefined
+    );
 
+    if (!result.success) {
+      console.error('[Messaging] Failed to mark messages as read:', result.error);
+      return;
+    }
+
+    // Broadcast read receipt to conversation room
     const conversationRoom = `conversation_${data.conversationId}`;
     const receiptPayload: MessagingReadReceiptPayload = {
       conversationId: data.conversationId,
@@ -204,11 +180,11 @@ export async function handleMessageRead(
     
     io.to(conversationRoom).emit('message:read', receiptPayload);
 
-    console.log(`[Messaging] Read receipt sent: ${result.markedCount} messages marked as read`);
-  } catch (error: unknown) {
+    console.log(`[Messaging] Read receipt sent: ${result.readCount} messages marked as read`);
+  } catch (error: any) {
     console.error('[Messaging] Error in handleMessageRead:', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
+      error: error.message,
+      stack: error.stack,
     });
   }
 }
@@ -238,10 +214,13 @@ export async function handleTypingStart(
       timestamp: new Date(),
     };
 
+    // Broadcast to conversation room (excluding sender)
     const conversationRoom = `conversation_${data.conversationId}`;
     socket.to(conversationRoom).emit('typing:start', typingPayload);
+
+    // Also emit to recipient's personal room
     socket.to(`user_${data.recipientId}`).emit('typing:start', typingPayload);
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('[Messaging] Error in handleTypingStart:', error);
   }
 }
@@ -271,10 +250,13 @@ export async function handleTypingStop(
       timestamp: new Date(),
     };
 
+    // Broadcast to conversation room (excluding sender)
     const conversationRoom = `conversation_${data.conversationId}`;
     socket.to(conversationRoom).emit('typing:stop', typingPayload);
+
+    // Also emit to recipient's personal room
     socket.to(`user_${data.recipientId}`).emit('typing:stop', typingPayload);
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('[Messaging] Error in handleTypingStop:', error);
   }
 }
@@ -298,7 +280,7 @@ export async function handleJoinConversation(
     socket.join(conversationRoom);
     
     console.log(`[Messaging] ${user.username} joined conversation room: ${conversationRoom}`);
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('[Messaging] Error in handleJoinConversation:', error);
   }
 }
@@ -322,7 +304,43 @@ export async function handleLeaveConversation(
     socket.leave(conversationRoom);
     
     console.log(`[Messaging] ${user.username} left conversation room: ${conversationRoom}`);
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('[Messaging] Error in handleLeaveConversation:', error);
   }
 }
+
+/**
+ * IMPLEMENTATION NOTES:
+ * 
+ * 1. Room Strategy:
+ *    - conversation_{id}: All participants in a conversation
+ *    - user_{username}: Personal room for each user
+ *    - Dual broadcast ensures delivery even if not in conversation room
+ * 
+ * 2. Message Flow:
+ *    - Client emits message:send
+ *    - Server validates, saves to DB, filters profanity
+ *    - Server broadcasts message:receive to conversation room
+ *    - Server also sends to recipient's user room
+ *    - Recipient(s) receive message in real-time
+ * 
+ * 3. Typing Indicators:
+ *    - Debounced on client (500ms)
+ *    - Auto-stop after 3 seconds of no input
+ *    - Broadcast only to conversation participants
+ * 
+ * 4. Read Receipts:
+ *    - Triggered when message enters viewport
+ *    - Batch update for multiple messages
+ *    - Broadcast to sender for UI update
+ * 
+ * 5. Error Handling:
+ *    - Authentication errors: Emit error event to client
+ *    - Validation errors: Return error in callback
+ *    - Server errors: Log and emit generic error
+ * 
+ * 6. Performance:
+ *    - Room-based broadcasting for efficient delivery
+ *    - No database polling - fully event-driven
+ *    - Rate limiting handled by messagingService
+ */

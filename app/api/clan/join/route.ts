@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/join/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
  * 
  * OVERVIEW:
  * Clan join endpoint. Allows players to accept invitations and join clans.
@@ -23,6 +23,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { 
+  getClientAndDatabase, 
   requireAuth, 
   withRequestLogging, 
   createRouteLogger,
@@ -34,7 +35,7 @@ import {
   createValidationErrorResponse,
   ErrorCode
 } from '@/lib';
-import { joinClan, joinClanDirectly } from '@/lib/clanService';
+import { joinClan } from '@/lib/clanService';
 import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.clanAction);
@@ -63,6 +64,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clanJoin');
   
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) {
       log.warn('Unauthenticated clan join attempt');
@@ -70,34 +73,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     const body = await request.json();
-
-    // Direct join by clanId (no invitation needed for public clans)
-    if (body.clanId) {
-      const result = await joinClanDirectly(body.clanId, auth.playerId);
-      log.info('Player joined clan directly', { 
-        playerId: auth.playerId, 
-        clanId: body.clanId
-      });
-      return NextResponse.json({
-        success: true,
-        clan: result.clan,
-        message: `Welcome to ${result.clan.name}!`,
-      });
-    }
-
-    // Invitation-based join
     const validated = JoinClanSchema.parse(body);
+
     log.debug('Processing clan invitation', { 
       playerId: auth.playerId, 
       invitationId: validated.invitationId 
     });
+
+    
 
     const result = await joinClan(validated.invitationId, auth.playerId);
 
     log.info('Player joined clan', { 
       playerId: auth.playerId, 
       clanName: result.clan.name,
-      clanId: result.clan.id 
+      clanId: result.clan._id 
     });
 
     return NextResponse.json({

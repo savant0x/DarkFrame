@@ -28,17 +28,18 @@
  * - Transaction history maintained for auditing
  * 
  * DEPENDENCIES:
- * - lib/supabase/server (Supabase connection)
+ * - lib/db (Drizzle ORM connection)
+ * - lib/db/schema (players table)
  * - types/stripe.types (VIP tiers and payment types)
- * - types/database.types (User and PaymentTransaction schemas)
  * 
  * Created: 2025-10-24
  * Feature: FID-20251024-STRIPE
  * Author: ECHO v5.1
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { TablesInsert, TablesUpdate } from '@/types/database';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, gt, desc, sql } from 'drizzle-orm';
 import { 
   VIPTier, 
   getVIPDurationDays,
@@ -47,44 +48,14 @@ import {
 } from '@/types/stripe.types';
 
 /**
- * Record a payment transaction in the database.
- */
-export async function recordPaymentTransaction(params: {
-  userId: string;
-  username: string;
-  tier: VIPTier;
-  amount: number;
-  stripeSessionId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  status: 'pending' | 'completed' | 'failed' | 'refunded';
-}): Promise<void> {
-  const supabase = createServiceClient();
-  const { error } = await supabase.from('payment_transactions').insert({
-    user_id: params.userId,
-    username: params.username,
-    tier: params.tier,
-    amount: params.amount,
-    stripe_session_id: params.stripeSessionId,
-    stripe_customer_id: params.stripeCustomerId,
-    stripe_subscription_id: params.stripeSubscriptionId,
-    status: params.status,
-    created_at: new Date().toISOString(),
-  });
-  if (error) {
-    console.error('[Subscription] Failed to record payment transaction:', error);
-  }
-}
-
-/**
  * Grant VIP Status
  * 
- * Grants VIP status to a user after successful payment. Updates user record
+ * Grants VIP status to a user after successful payment. Updates player record
  * with VIP expiration date and Stripe customer ID for future management.
  * Idempotent - safe to call multiple times for same transaction.
  * 
  * @param {object} params - VIP grant parameters
- * @param {string} params.userId - User ID to grant VIP
+ * @param {string} params.userId - User ID (maps to players.mongoId) to grant VIP
  * @param {VIPTier} params.tier - VIP tier purchased
  * @param {string} params.stripeCustomerId - Stripe Customer ID for portal access
  * @param {string} params.stripeSubscriptionId - Stripe Subscription ID for tracking
@@ -107,8 +78,6 @@ export async function grantVIP(params: {
   stripeSubscriptionId: string;
 }): Promise<boolean> {
   try {
-    const supabase = createServiceClient();
-    
     console.log('Attempting to grant VIP:', {
       userId: params.userId,
       tier: params.tier,
@@ -121,39 +90,43 @@ export async function grantVIP(params: {
     expirationDate.setDate(expirationDate.getDate() + durationDays);
     
     // Try to find the player first
-    const { data: player } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', params.userId)
-      .single();
+    const player = await db.select().from(players).where(eq(players.mongoId, params.userId)).limit(1).then(rows => rows[0]);
     
     if (!player) {
       console.error('Player not found for VIP grant:', {
         userId: params.userId,
-        tableName: 'players'
+        collectionName: 'players'
       });
+      
+      // Try alternative query to get sample player structure
+      const samplePlayer = await db.select().from(players).limit(1).then(rows => rows[0]);
+      console.log('Sample player document structure:', samplePlayer ? Object.keys(samplePlayer) : 'No players found');
+      
       return false;
     }
     
     console.log('Player found, updating VIP status:', {
-      playerUsername: player.username,
-      currentVIP: player.is_vip || false
+      playerId: player.mongoId,
+      currentVIP: player.vip || false
     });
     
     // Update player record with VIP status
-    const { error } = await supabase
-      .from('players')
-      .update({
-        is_vip: true,
-        vip_expiration: expirationDate.toISOString(),
-        vip_tier: params.tier,
-        stripe_customer_id: params.stripeCustomerId,
-        stripe_subscription_id: params.stripeSubscriptionId,
-        vip_last_updated: new Date().toISOString(),
+    const result = await db.update(players)
+      .set({
+        vip: 1,
+        vipExpiration: expirationDate,
+        vipTier: params.tier,
+        stripeCustomerId: params.stripeCustomerId,
+        stripeSubscriptionId: params.stripeSubscriptionId,
+        vipLastUpdated: new Date(),
       })
-      .eq('username', params.userId);
+      .where(eq(players.mongoId, params.userId));
     
-    if (error) {
+    console.log('VIP grant update result:', {
+      affectedRows: (result as any).affectedRows ?? 0
+    });
+    
+    if ((result as any).affectedRows === 0) {
       console.error('Player not matched in update query');
       return false;
     }
@@ -177,7 +150,7 @@ export async function grantVIP(params: {
  * Revokes VIP status from a user. Called when subscription is cancelled
  * or payment fails. Maintains Stripe customer ID for potential re-subscription.
  * 
- * @param {string} userId - User ID to revoke VIP
+ * @param {string} userId - User ID (maps to players.mongoId) to revoke VIP
  * @returns {Promise<boolean>} True if VIP revoked successfully
  * 
  * @throws {Error} If database operation fails
@@ -190,19 +163,16 @@ export async function grantVIP(params: {
  */
 export async function revokeVIP(userId: string): Promise<boolean> {
   try {
-    const supabase = createServiceClient();
-    
-    const { error } = await supabase
-      .from('players')
-      .update({
-        is_vip: false,
-        vip_expiration: null,
-        vip_tier: null,
-        vip_last_updated: new Date().toISOString(),
+    const result = await db.update(players)
+      .set({
+        vip: 0,
+        vipExpiration: null,
+        vipTier: null,
+        vipLastUpdated: new Date(),
       })
-      .eq('username', userId);
+      .where(eq(players.mongoId, userId));
     
-    if (error) {
+    if (((result as any).affectedRows ?? 0) === 0) {
       console.error('Player not found for VIP revocation:', userId);
       return false;
     }
@@ -222,7 +192,7 @@ export async function revokeVIP(userId: string): Promise<boolean> {
  * Adds additional time to current expiration date (doesn't reset from today).
  * 
  * @param {object} params - Extension parameters
- * @param {string} params.userId - User ID to extend
+ * @param {string} params.userId - User ID (maps to players.mongoId) to extend
  * @param {VIPTier} params.tier - VIP tier being renewed
  * @returns {Promise<boolean>} True if extension successful
  * 
@@ -237,42 +207,30 @@ export async function extendVIP(params: {
   tier: VIPTier;
 }): Promise<boolean> {
   try {
-    const supabase = createServiceClient();
+    // Get current player to check existing expiration
+    const player = await db.select().from(players).where(eq(players.mongoId, params.userId)).limit(1).then(rows => rows[0]);
     
-    // Get current user to check existing expiration
-    const { data: user } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', params.userId)
-      .single();
-    
-    if (!user) {
-      console.error('User not found for VIP extension:', params.userId);
+    if (!player) {
+      console.error('Player not found for VIP extension:', params.userId);
       return false;
     }
     
     // Calculate new expiration from current expiration (or now if expired)
-    const currentExpiration = user.vip_expiration ? new Date(user.vip_expiration) : new Date();
+    const currentExpiration = player.vipExpiration || new Date();
     const baseDate = currentExpiration > new Date() ? currentExpiration : new Date();
     
     const durationDays = getVIPDurationDays(params.tier);
     const newExpiration = new Date(baseDate);
     newExpiration.setDate(newExpiration.getDate() + durationDays);
     
-    const { error } = await supabase
-      .from('players')
-      .update({
-        is_vip: true,
-        vip_expiration: newExpiration.toISOString(),
-        vip_tier: params.tier,
-        vip_last_updated: new Date().toISOString(),
+    const result = await db.update(players)
+      .set({
+        vip: 1,
+        vipExpiration: newExpiration,
+        vipTier: params.tier,
+        vipLastUpdated: new Date(),
       })
-      .eq('username', params.userId);
-    
-    if (error) {
-      console.error('Failed to extend VIP:', error);
-      return false;
-    }
+      .where(eq(players.mongoId, params.userId));
     
     console.log('VIP extended successfully:', {
       userId: params.userId,
@@ -280,30 +238,96 @@ export async function extendVIP(params: {
       newExpiration,
     });
     
-    return true;
+    return ((result as any).affectedRows ?? 0) > 0;
   } catch (error) {
     console.error('Failed to extend VIP:', error);
     return false;
   }
 }
 
-function toVIPTier(value: string): VIPTier {
-  switch (value) {
-    case 'WEEKLY': return VIPTier.WEEKLY;
-    case 'MONTHLY': return VIPTier.MONTHLY;
-    case 'QUARTERLY': return VIPTier.QUARTERLY;
-    case 'BIANNUAL': return VIPTier.BIANNUAL;
-    case 'YEARLY': return VIPTier.YEARLY;
-    default: return VIPTier.MONTHLY;
+/**
+ * Record Payment Transaction
+ * 
+ * Creates a payment transaction record for auditing and analytics.
+ * Stores all payment details including amount, status, and Stripe IDs.
+ * Uses raw SQL since paymentTransactions table is not in Drizzle schema yet.
+ * 
+ * @param {object} transaction - Transaction details
+ * @param {string} transaction.userId - User who made payment
+ * @param {string} transaction.username - Username for display
+ * @param {string} transaction.stripeCustomerId - Stripe Customer ID
+ * @param {string} transaction.stripeSessionId - Checkout Session ID
+ * @param {string} transaction.stripeSubscriptionId - Subscription ID
+ * @param {number} transaction.amount - Payment amount in USD cents
+ * @param {VIPTier} transaction.tier - VIP tier purchased
+ * @param {string} transaction.status - Payment status (completed, failed, refunded)
+ * @returns {Promise<string | null>} Transaction ID or null if failed
+ * 
+ * @example
+ * const txnId = await recordPaymentTransaction({
+ *   userId: '507f1f77bcf86cd799439011',
+ *   username: 'player123',
+ *   stripeCustomerId: 'cus_1234abcd',
+ *   stripeSessionId: 'cs_test_5678',
+ *   stripeSubscriptionId: 'sub_9012',
+ *   amount: 1499,
+ *   tier: VIPTier.MONTHLY,
+ *   status: 'completed'
+ * });
+ */
+export async function recordPaymentTransaction(transaction: {
+  userId: string;
+  username: string;
+  stripeCustomerId: string;
+  stripeSessionId: string;
+  stripeSubscriptionId: string;
+  amount: number;
+  tier: VIPTier;
+  status: 'completed' | 'failed' | 'refunded';
+}): Promise<string | null> {
+  try {
+    const now = new Date();
+    const completedAt = transaction.status === 'completed' ? now : null;
+    const refundedAt = transaction.status === 'refunded' ? now : null;
+    
+    const result = await db.execute(sql`
+      INSERT INTO paymentTransactions (
+        userId, username, stripeCustomerId, stripeSessionId, stripeSubscriptionId,
+        stripePriceId, amount, tier, status, createdAt, completedAt, refundedAt
+      ) VALUES (
+        ${transaction.userId}, ${transaction.username}, ${transaction.stripeCustomerId},
+        ${transaction.stripeSessionId}, ${transaction.stripeSubscriptionId},
+        ${VIP_PRICING[transaction.tier].stripePriceId}, ${transaction.amount},
+        ${transaction.tier}, ${transaction.status}, ${now}, ${completedAt}, ${refundedAt}
+      )
+    `);
+    
+    const transactionId = (result as any).insertId?.toString() || 'unknown';
+    
+    console.log('Payment transaction recorded:', {
+      transactionId,
+      userId: transaction.userId,
+      amount: transaction.amount,
+      status: transaction.status,
+    });
+    
+    return transactionId;
+  } catch (error) {
+    console.error('Failed to record payment transaction:', error);
+    return null;
   }
 }
 
 /**
- * Get payment transactions for a user
- *
- * @param userId - User ID to get payment history for
- * @param limit - Maximum number of transactions to return
- * @returns Promise resolving to array of payment transactions
+ * Get User Payment History
+ * 
+ * Retrieves all payment transactions for a specific user.
+ * Used for admin dashboard and user billing history display.
+ * Uses raw SQL since paymentTransactions table is not in Drizzle schema yet.
+ * 
+ * @param {string} userId - User ID to get payment history for
+ * @param {number} [limit=50] - Maximum number of transactions to return
+ * @returns {Promise<PaymentTransaction[]>} Array of payment transactions
  * 
  * @example
  * const history = await getUserPaymentHistory('507f1f77bcf86cd799439011', 10);
@@ -314,30 +338,14 @@ export async function getUserPaymentHistory(
   limit: number = 50
 ): Promise<PaymentTransaction[]> {
   try {
-    const supabase = createServiceClient();
+    const result = await db.execute(sql`
+      SELECT * FROM paymentTransactions
+      WHERE userId = ${userId}
+      ORDER BY createdAt DESC
+      LIMIT ${limit}
+    `);
     
-    const { data: transactions } = await supabase
-      .from('payment_transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    
-    return (transactions || []).map((row) => ({
-      id: row.id,
-      userId: row.user_id,
-      username: row.username,
-      stripeCustomerId: row.stripe_customer_id ?? '',
-      stripeSessionId: row.stripe_session_id ?? undefined,
-      stripeSubscriptionId: row.stripe_subscription_id ?? undefined,
-      stripePriceId: row.stripe_price_id ?? '',
-      amount: row.amount,
-      tier: toVIPTier(row.tier),
-      status: row.status,
-      createdAt: new Date(row.created_at),
-      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
-      refundedAt: row.refunded_at ? new Date(row.refunded_at) : undefined,
-    }));
+    return result as unknown as PaymentTransaction[];
   } catch (error) {
     console.error('Failed to get user payment history:', error);
     return [];
@@ -347,11 +355,11 @@ export async function getUserPaymentHistory(
 /**
  * Get User by Stripe Customer ID
  * 
- * Retrieves user record using Stripe Customer ID. Used in webhook
+ * Retrieves player record using Stripe Customer ID. Used in webhook
  * processing when we only have Stripe data and need to find the user.
  * 
  * @param {string} stripeCustomerId - Stripe Customer ID
- * @returns {Promise<{id: string, username: string, email: string} | null>} User object or null
+ * @returns {Promise<{id: string, username: string, email: string} | null>} Player object or null
  * 
  * @example
  * const user = await getUserByStripeCustomerId('cus_1234abcd');
@@ -363,15 +371,19 @@ export async function getUserByStripeCustomerId(
   stripeCustomerId: string
 ): Promise<{ id: string; username: string; email: string } | null> {
   try {
-    const supabase = createServiceClient();
+    const result = await db.select({
+      id: players.mongoId,
+      username: players.username,
+      email: players.email,
+    }).from(players)
+      .where(eq(players.stripeCustomerId, stripeCustomerId))
+      .limit(1);
     
-    const { data: user } = await supabase
-      .from('players')
-      .select('id, username, email')
-      .eq('stripe_customer_id', stripeCustomerId)
-      .single();
+    if (!result || result.length === 0) {
+      return null;
+    }
     
-    return user as { id: string; username: string; email: string } | null;
+    const row = result[0]; return { id: (row as any).mongoId || row.id || row.username, username: row.username, email: row.email };
   } catch (error) {
     console.error('Failed to get user by Stripe customer ID:', error);
     return null;
@@ -384,7 +396,7 @@ export async function getUserByStripeCustomerId(
  * Checks if user currently has active VIP status. Validates expiration
  * date and automatically revokes if expired.
  * 
- * @param {string} userId - User ID to check
+ * @param {string} userId - User ID to check (maps to players.mongoId)
  * @returns {Promise<{isVIP: boolean, tier?: VIPTier, expiresAt?: Date}>} VIP status
  * 
  * @example
@@ -397,20 +409,26 @@ export async function checkVIPStatus(
   userId: string
 ): Promise<{ isVIP: boolean; tier?: VIPTier; expiresAt?: Date }> {
   try {
-    const supabase = createServiceClient();
+    const result = await db.select({
+      vip: players.vip,
+      vipExpiration: players.vipExpiration,
+      vipTier: players.vipTier,
+    }).from(players)
+      .where(eq(players.mongoId, userId))
+      .limit(1);
     
-    const { data: user } = await supabase
-      .from('players')
-      .select('is_vip, vip_expiration, vip_tier')
-      .eq('username', userId)
-      .single();
+    if (!result || result.length === 0) {
+      return { isVIP: false };
+    }
     
-    if (!user || !user.is_vip) {
+    const player = result[0];
+    
+    if (!player.vip) {
       return { isVIP: false };
     }
     
     // Check if VIP expired
-    if (user.vip_expiration && new Date(user.vip_expiration) < new Date()) {
+    if (player.vipExpiration && player.vipExpiration < new Date()) {
       // Auto-revoke expired VIP
       await revokeVIP(userId);
       return { isVIP: false };
@@ -418,8 +436,8 @@ export async function checkVIPStatus(
     
     return {
       isVIP: true,
-      tier: user.vip_tier as VIPTier | undefined,
-      expiresAt: user.vip_expiration ? new Date(user.vip_expiration) : undefined,
+      tier: player.vipTier as VIPTier,
+      expiresAt: player.vipExpiration || undefined,
     };
   } catch (error) {
     console.error('Failed to check VIP status:', error);
@@ -439,26 +457,28 @@ export async function checkVIPStatus(
  * - Auto-revoke on expiration check (cleanup for missed webhooks)
  * 
  * DATABASE SCHEMA:
- * players table:
- *   - vip: boolean (VIP status flag)
- *   - vip_expiration: timestamp (when VIP expires)
- *   - vip_tier: VIPTier enum (subscription tier)
- *   - stripe_customer_id: string (for portal access)
- *   - stripe_subscription_id: string (for management)
- *   - vip_last_updated: timestamp (audit trail)
+ * players table (via Drizzle ORM):
+ *   - vip: tinyint (VIP status flag: 0 or 1)
+ *   - vipExpiration: datetime (when VIP expires)
+ *   - vipTier: varchar(20) (subscription tier)
+ *   - stripeCustomerId: varchar(255) (for portal access)
+ *   - stripeSubscriptionId: varchar(255) (for management)
+ *   - vipLastUpdated: datetime (audit trail)
+ *   - mongoId: varchar(24) (legacy MongoDB ObjectId for backward compatibility)
  * 
- * payment_transactions table:
- *   - user_id: uuid (user who paid)
+ * paymentTransactions table (via raw SQL - not in Drizzle schema):
+ *   - userId: string (user who paid)
  *   - username: string (display name)
- *   - stripe_customer_id: string (Stripe customer)
- *   - stripe_session_id: string (checkout session)
- *   - stripe_subscription_id: string (subscription)
+ *   - stripeCustomerId: string (Stripe customer)
+ *   - stripeSessionId: string (checkout session)
+ *   - stripeSubscriptionId: string (subscription)
+ *   - stripePriceId: string (price ID)
  *   - amount: number (USD cents)
- *   - tier: VIPTier (subscription tier)
+ *   - tier: string (subscription tier)
  *   - status: string (completed, failed, refunded)
- *   - created_at: timestamp (transaction start)
- *   - completed_at?: timestamp (payment success)
- *   - refunded_at?: timestamp (refund processed)
+ *   - createdAt: datetime (transaction start)
+ *   - completedAt: datetime (payment success)
+ *   - refundedAt: datetime (refund processed)
  * 
  * ERROR HANDLING:
  * - All functions return boolean success flags

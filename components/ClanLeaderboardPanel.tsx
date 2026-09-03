@@ -43,7 +43,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { StaggerChildren, StaggerItem } from '@/components/transitions';
@@ -99,30 +99,9 @@ export default function ClanLeaderboardPanel({ onClose }: ClanLeaderboardPanelPr
   const totalPages = Math.ceil(totalClans / clansPerPage);
 
   /**
-   * Fetch leaderboard data when category, page, or search changes
-   */
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [category, currentPage, searchQuery]);
-
-  /**
-   * Handle ESC key to close panel
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  /**
    * Fetches leaderboard data from API
    */
-  const fetchLeaderboard = async () => {
+  const fetchLeaderboard = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -145,7 +124,25 @@ export default function ClanLeaderboardPanel({ onClose }: ClanLeaderboardPanelPr
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [category, currentPage, searchQuery, clansPerPage]);
+
+  /**
+   * Fetch leaderboard data when category, page, or search changes
+   */
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [fetchLeaderboard]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   /**
    * Handles category change and resets to page 1

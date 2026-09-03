@@ -19,61 +19,45 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/authMiddleware';
-import { createServiceClient } from '@/lib/supabase/server';
-import { createRateLimiter, ENDPOINT_RATE_LIMITS, getPlayerCombatHistory, logger } from '@/lib';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { getPlayerCombatHistory } from '@/lib/battleService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = rateLimiter(async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.playerId;
-
+    // Get query parameters
     const { searchParams } = new URL(request.url);
+    const usernameParam = searchParams.get('username');
     const summaryParam = searchParams.get('summary');
     const limitParam = searchParams.get('limit');
-    const limit = Math.min(parseInt(limitParam || '10', 10), 50);
+    const limit = Math.min(parseInt(limitParam || '10', 10), 50); // Max 50 logs
 
+    // Determine username from auth or query parameter
+    let username: string;
+    
+    if (usernameParam) {
+      // Allow username from query parameter (for summary counts)
+      username = usernameParam;
+    } else {
+      // Verify authentication
+      const authResult = await verifyAuth();
+      if (!authResult || !authResult.username) {
+        return NextResponse.json(
+          { success: false, error: 'Authentication required' },
+          { status: 401 }
+        );
+      }
+      username = authResult.username;
+    }
+
+    // Handle summary request (just counts, no auth required)
     if (summaryParam === 'true') {
-      const supabase = createServiceClient();
-
-      const baseQuery = supabase
-        .from('battle_logs')
-        .select('*', { count: 'exact', head: true })
-        .or(`attacker_username.eq.${username},defender_username.eq.${username}`);
-
-      const attackQuery = supabase
-        .from('battle_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('attacker_username', username);
-
-      const defenseQuery = supabase
-        .from('battle_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('defender_username', username);
-
-      const infantryQuery = supabase
-        .from('battle_logs')
-        .select('*', { count: 'exact', head: true })
-        .or(`attacker_username.eq.${username},defender_username.eq.${username}`)
-        .eq('battle_type', 'INFANTRY');
-
-      const [totalRes, attackRes, defenseRes, infantryRes] = await Promise.all([
-        baseQuery,
-        attackQuery,
-        defenseQuery,
-        infantryQuery,
-      ]);
-
+      // For now, return zero counts - this endpoint would need battle log collection
       return NextResponse.json({
         success: true,
-        attackCount: attackRes.count ?? 0,
-        defenseCount: defenseRes.count ?? 0,
-        infantryCount: infantryRes.count ?? 0,
-        landMineCount: 0,
-        totalCount: totalRes.count ?? 0,
+        attackCount: 0,
+        defenseCount: 0,
+        infantryCount: 0,
+        landMineCount: 0
       });
     }
 
@@ -87,7 +71,7 @@ export const GET = rateLimiter(async (request: NextRequest) => {
     });
 
   } catch (error) {
-    logger.error('Fetch battle logs error:', error);
+    console.error('Fetch battle logs error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -97,4 +81,4 @@ export const GET = rateLimiter(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-});
+}

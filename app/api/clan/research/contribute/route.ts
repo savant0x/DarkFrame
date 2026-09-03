@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/research/contribute/route.ts
  * @created 2025-10-18
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
  * 
  * OVERVIEW:
  * Clan research contribution endpoint. Allows members to contribute personal RP to clan pool.
@@ -22,21 +22,35 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  contributeRP,
-  logger,
-} from '@/lib';
+import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import { contributeRP } from '@/lib/clanResearchService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+/**
+ * POST /api/clan/research/contribute
+ * Contribute RP to clan research pool
+ * 
+ * @param request - NextRequest with authentication cookie and contribution amount in body
+ * @returns NextResponse with updated clan RP total
+ * 
+ * @example
+ * POST /api/clan/research/contribute
+ * Body: { amount: 500 }
+ * Response: { success: true, newTotal: 12500, contributed: 500, message: "Successfully contributed..." }
+ * 
+ * @throws {400} Invalid amount (must be positive number)
+ * @throws {400} Insufficient research points
+ * @throws {401} Unauthorized
+ * @throws {500} Failed to contribute RP
+ */
+export async function POST(request: NextRequest) {
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clanId } = result;
+
+    
 
     const body = await request.json();
     const { amount } = body;
@@ -57,28 +71,26 @@ export const POST = rateLimiter(async (request: NextRequest) => {
         contributed: contributionResult.contributed,
         message: `Successfully contributed ${amount} RP to clan research fund`,
       });
-    } catch (err: unknown) {
-      const errMessage = err instanceof Error ? err.message : String(err);
-      if (errMessage.includes('not a member')) {
+    } catch (err: any) {
+      if (err.message.includes('not a member')) {
         return NextResponse.json(
           { error: 'You are not a member of this clan' },
           { status: 400 }
         );
       }
-      if (errMessage.includes('Insufficient research points')) {
+      if (err.message.includes('Insufficient research points')) {
         return NextResponse.json(
-          { error: `Insufficient RP (you have ${auth.player.research_points || 0})` },
+          { error: `Insufficient RP (you have ${auth.player.researchPoints || 0})` },
           { status: 400 }
         );
       }
       throw err;
     }
-  } catch (error: unknown) {
-    logger.error('Error contributing RP:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to contribute RP';
+  } catch (error: any) {
+    console.error('Error contributing RP:', error);
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error.message || 'Failed to contribute RP' },
       { status: 500 }
     );
   }
-});
+}

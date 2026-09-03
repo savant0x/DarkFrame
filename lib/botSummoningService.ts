@@ -26,8 +26,9 @@
  * - Cooldown: 168 hours (7 days) from last summon
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
-import type { TablesInsert } from '@/types/database';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, isNotNull, desc, sql } from 'drizzle-orm';
 import { type Player, BotSpecialization } from '@/types/game.types';
 import { createBotPlayer } from '@/lib/botService';
 
@@ -53,14 +54,8 @@ export async function summonBots(
   message: string;
   bots?: Array<{ username: string; position: { x: number; y: number } }>;
 }> {
-  const supabase = createServiceClient();
-
-  // Check cooldown
-  const { data: player } = await supabase
-    .from('players')
-    .select('*')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
   if (!player) {
     return {
@@ -70,7 +65,7 @@ export async function summonBots(
   }
 
   // Check tech requirement
-  const unlockedTechs = player.unlocked_techs || [];
+  const unlockedTechs = (player.unlockedTechs as string[]) || [];
   if (!unlockedTechs.includes('bot-summoning-circle')) {
     return {
       success: false,
@@ -78,7 +73,7 @@ export async function summonBots(
     };
   }
 
-  const lastSummon = player.last_bot_summon as string | undefined;
+  const lastSummon = player.lastBotSummon as Date | undefined;
   if (lastSummon) {
     const now = new Date();
     const cooldownMs = SUMMONING_CONFIG.COOLDOWN_HOURS * 60 * 60 * 1000;
@@ -98,7 +93,6 @@ export async function summonBots(
   // Generate spawn positions
   const spawnPositions: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < SUMMONING_CONFIG.BOT_COUNT; i++) {
-    // Random offset within radius
     const angle = Math.random() * 2 * Math.PI;
     const distance = Math.random() * SUMMONING_CONFIG.SPAWN_RADIUS;
     const offsetX = Math.round(Math.cos(angle) * distance);
@@ -111,29 +105,24 @@ export async function summonBots(
   }
 
   // Create bots
-  const botsToInsert = [];
+  const botsToInsert: any[] = [];
   const botInfo: Array<{ username: string; position: { x: number; y: number } }> = [];
 
   for (const position of spawnPositions) {
-    // Calculate zone from position
     const zone = Math.floor(position.x / 50) * 3 + Math.floor(position.y / 50);
     
-    // Create bot with resource multiplier
     const bot = await createBotPlayer(zone, specialization, false);
 
-    // Apply resource multiplier (with safety checks)
     if (bot.resources) {
       bot.resources.metal = Math.floor(bot.resources.metal * SUMMONING_CONFIG.RESOURCE_MULTIPLIER);
       bot.resources.energy = Math.floor(bot.resources.energy * SUMMONING_CONFIG.RESOURCE_MULTIPLIER);
     }
 
-    // Set position
     bot.base = position;
     bot.currentPosition = position;
 
-    // Mark as summoned (for tracking)
     if (bot.botConfig) {
-      bot.botConfig.summonedBy = playerId;
+      (bot.botConfig as any).summonedBy = playerId;
       bot.botConfig.summonedAt = new Date();
     }
 
@@ -144,40 +133,11 @@ export async function summonBots(
     });
   }
 
-  // Insert bots into database
   if (botsToInsert.length > 0) {
-    const rows: TablesInsert<'players'>[] = botsToInsert.map((bot) => ({
-      username: bot.username ?? `bot_${Date.now()}`,
-      email: bot.email ?? `bot_${Date.now()}@darkframe.game`,
-      password: bot.password ?? `bot_${Date.now()}_pwd`,
-      is_bot: true,
-      is_special_base: false,
-      is_admin: false,
-      level: bot.level ?? 1,
-      xp: bot.xp ?? 0,
-      rank: bot.rank ?? 1,
-      resources_metal: bot.resources?.metal ?? 0,
-      resources_energy: bot.resources?.energy ?? 0,
-      total_strength: bot.totalStrength ?? 0,
-      total_defense: bot.totalDefense ?? 0,
-      current_x: bot.currentPosition?.x ?? 1,
-      current_y: bot.currentPosition?.y ?? 1,
-      base_x: bot.base?.x ?? 1,
-      base_y: bot.base?.y ?? 1,
-      factory_count: 0,
-      inventory_capacity: 2000,
-      research_points: 0,
-      last_bot_summon: new Date().toISOString(),
-      bot_config: bot.botConfig ?? {},
-    }));
-    await supabase.from('players').insert(rows);
+    await db.insert(players).values(botsToInsert as any);
   }
 
-  // Update player's last summon time
-  await supabase
-    .from('players')
-    .update({ last_bot_summon: new Date().toISOString() })
-    .eq('username', playerId);
+  await db.update(players).set({ lastBotSummon: new Date() }).where(eq(players.username, playerId));
 
   return {
     success: true,
@@ -197,18 +157,14 @@ export async function getSummoningStatus(
   lastSummon?: Date;
   nextSummonTime?: Date;
 }> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase
-    .from('players')
-    .select('last_bot_summon')
-    .eq('username', playerId)
-    .single();
+  const playerRows = await db.select({ lastBotSummon: players.lastBotSummon }).from(players).where(eq(players.username, playerId)).limit(1);
+  const player = playerRows[0];
 
   if (!player) {
     return { canSummon: false };
   }
 
-  const lastSummon = player.last_bot_summon ? new Date(player.last_bot_summon) : undefined;
+  const lastSummon = player.lastBotSummon as Date | undefined;
 
   if (!lastSummon) {
     return { canSummon: true };
@@ -216,12 +172,12 @@ export async function getSummoningStatus(
 
   const now = new Date();
   const cooldownMs = SUMMONING_CONFIG.COOLDOWN_HOURS * 60 * 60 * 1000;
-  const nextSummonTime = new Date(lastSummon.getTime() + cooldownMs);
+  const nextSummonTime = new Date(new Date(lastSummon).getTime() + cooldownMs);
 
   if (now >= nextSummonTime) {
     return {
       canSummon: true,
-      lastSummon,
+      lastSummon: new Date(lastSummon),
     };
   }
 
@@ -232,7 +188,7 @@ export async function getSummoningStatus(
   return {
     canSummon: false,
     hoursRemaining,
-    lastSummon,
+    lastSummon: new Date(lastSummon),
     nextSummonTime,
   };
 }
@@ -251,20 +207,20 @@ export async function getSummoningStats(): Promise<{
     summonedAt: Date;
   }>;
 }> {
-  const supabase = createServiceClient();
+  const summonersResult = await db.select({ count: sql<number>`count(*)` }).from(players).where(isNotNull(players.lastBotSummon));
+  const summoners = summonersResult[0]?.count || 0;
 
-  // Count players who have summoned
-  const { count: summoners } = await supabase
-    .from('players')
-    .select('*', { count: 'exact', head: true })
-    .not('last_bot_summon', 'is', null);
+  const allPlayers = await db.select({
+    username: players.username,
+    isBot: players.isBot,
+    botConfig: players.botConfig,
+    lastBotSummon: players.lastBotSummon,
+  }).from(players).where(eq(players.isBot, 1));
 
-  // Count summoned bots by specialization
-  const { data: summonedBots } = await supabase
-    .from('players')
-    .select('*')
-    .eq('is_bot', true)
-    .not('bot_config->summoned_by', 'is', null);
+  const summonedBots = allPlayers.filter(p => {
+    const config = p.botConfig as any;
+    return config?.summonedBy;
+  });
 
   const summonsBySpec: Record<string, number> = {
     Hoarder: 0,
@@ -274,29 +230,27 @@ export async function getSummoningStats(): Promise<{
     Ghost: 0,
   };
 
-  (summonedBots || []).forEach((bot: any) => {
-    const spec = bot.bot_config?.specialization || 'Balanced';
+  summonedBots.forEach((bot) => {
+    const config = bot.botConfig as any;
+    const spec = config?.specialization || 'Balanced';
     summonsBySpec[spec] = (summonsBySpec[spec] || 0) + 1;
   });
 
-  // Get recent summons (group by player and summon time)
-  const { data: recentSummoners } = await supabase
-    .from('players')
-    .select('username, last_bot_summon')
-    .not('last_bot_summon', 'is', null)
-    .order('last_bot_summon', { ascending: false })
-    .limit(10);
+  const recentSummoners = await db.select({
+    username: players.username,
+    lastBotSummon: players.lastBotSummon,
+  }).from(players).where(isNotNull(players.lastBotSummon)).orderBy(desc(players.lastBotSummon)).limit(10);
 
-  const recentSummons = (recentSummoners || []).map((player: any) => ({
+  const recentSummons = recentSummoners.map((player) => ({
     playerName: player.username,
-    specialization: 'Unknown' as BotSpecialization, // Would need to track this separately
+    specialization: 'Unknown' as BotSpecialization,
     botCount: SUMMONING_CONFIG.BOT_COUNT,
-    summonedAt: new Date(player.last_bot_summon),
+    summonedAt: player.lastBotSummon as Date,
   }));
 
   return {
-    totalSummons: (summonedBots || []).length,
-    activePlayerSummoners: summoners || 0,
+    totalSummons: summonedBots.length,
+    activePlayerSummoners: summoners,
     summonsBySpecialization: summonsBySpec as Record<BotSpecialization, number>,
     recentSummons,
   };
@@ -320,9 +274,9 @@ export function formatTimeRemaining(hours: number): string {
  * - Summons 5 bots of chosen specialization
  * - Bots spawn within 20-tile radius of player position
  * - Resource multiplier: 1.5x base resources (significant but not Beer Base level)
- * - Cooldown: 168 hours (7 days) stored in player.last_bot_summon
+ * - Cooldown: 168 hours (7 days) stored in player.lastBotSummon
  * - Tech requirement: 'bot-summoning-circle' (enforced at API level)
- * - Summoned bots marked with bot_config.summoned_by and bot_config.summoned_at
+ * - Summoned bots marked with botConfig.summonedBy and botConfig.summonedAt
  * - Spawn positions use polar coordinates for circular distribution
  * - Zone calculated from final position for proper bot placement
  * - All 5 bots inserted in single database operation

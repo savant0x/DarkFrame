@@ -18,10 +18,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { requireAuth } from '@/lib/authMiddleware';
 import { createRateLimiter } from '@/lib/redis';
-import { sendVeteranNotification } from '@/lib/chatService';
+import { sendVeteranNotification, isVeteran } from '@/lib/chatService';
 import type { PlayerContext } from '@/lib/channelService';
 
 // ============================================================================
@@ -42,12 +41,19 @@ interface AskVeteransBody {
 
 // Create Redis-based rate limiter for veteran help requests
 // Falls back to in-memory Map if Redis unavailable
-const veteranRequestLimiter = createRateLimiter({
-  keyPrefix: 'veteran_help',
-  maxRequests: 1,
-  windowSeconds: 5 * 60, // 5 minutes
-  fallbackToMemory: true,
-});
+let veteranRequestLimiter: ReturnType<typeof createRateLimiter> | null = null;
+
+function getVeteranRequestLimiter() {
+  if (!veteranRequestLimiter) {
+    veteranRequestLimiter = createRateLimiter({
+      keyPrefix: 'veteran_help',
+      maxRequests: 1,
+      windowSeconds: 5 * 60, // 5 minutes
+      fallbackToMemory: true,
+    });
+  }
+  return veteranRequestLimiter;
+}
 
 /**
  * Check if player can send veteran help request
@@ -56,7 +62,7 @@ const veteranRequestLimiter = createRateLimiter({
  * @returns True if allowed, false if rate limited
  */
 async function canSendVeteranRequest(username: string): Promise<boolean> {
-  return await veteranRequestLimiter.check(username);
+  return await getVeteranRequestLimiter().check(username);
 }
 
 /**
@@ -66,8 +72,12 @@ async function canSendVeteranRequest(username: string): Promise<boolean> {
  * @returns Seconds remaining, or 0 if no cooldown
  */
 async function getRemainingCooldown(username: string): Promise<number> {
-  return await veteranRequestLimiter.getRemainingTime(username);
+  return await getVeteranRequestLimiter().getRemainingTime(username);
 }
+
+// ============================================================================
+// AUTHENTICATION (PLACEHOLDER)
+// ============================================================================
 
 // ============================================================================
 // POST /api/chat/ask-veterans - Send Help Request
@@ -95,31 +105,13 @@ async function getRemainingCooldown(username: string): Promise<number> {
  */
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-
     // Authenticate user
-    const tokenPayload = await getAuthenticatedUser();
-    if (!tokenPayload) {
-      return NextResponse.json(
-        { success: false, error: 'Authentication required' },
-        { status: 401 }
-      );
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) {
+      return auth; // Return 401 error
     }
 
-    const { data: player, error: playerError } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', tokenPayload.username)
-      .single();
-
-    if (playerError || !player) {
-      return NextResponse.json(
-        { success: false, error: 'Player not found' },
-        { status: 404 }
-      );
-    }
-
-    const username = player.username;
+    const { username, player } = auth;
 
     // Check level requirement (only new players can ask for help)
     const playerLevel = player.level || 1;

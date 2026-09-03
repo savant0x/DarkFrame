@@ -28,44 +28,14 @@
  * Zone 6: (0-49, 100-149) | Zone 7: (50-99, 100-149)| Zone 8: (100-149, 100-149)
  * 
  * DEPENDENCIES:
- * - lib/supabase/server.ts: Supabase database access
+ * - lib/mongodb.ts: Database access
  * - types/game.types.ts: Player, BotConfig, BotReputation types
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { connectToDatabase } from './mongodb';
 import type { Player } from '@/types/game.types';
-import type { Tables } from '@/types/database';
 import { BotReputation } from '@/types/game.types';
 import { removeBeerBase } from './beerBaseService';
-
-/**
- * Maps a flat DB player row to the Player domain type.
- * Only maps fields used by this service; nested objects use empty defaults.
- */
-function mapPlayerRow(row: Tables<'players'>): Player {
-  return {
-    username: row.username,
-    email: row.email,
-    password: row.password,
-    base: { x: row.base_x, y: row.base_y },
-    currentPosition: { x: row.current_x, y: row.current_y },
-    resources: { metal: row.resources_metal, energy: row.resources_energy },
-    bank: { metal: row.bank_metal, energy: row.bank_energy, lastDeposit: row.bank_last_deposit ? new Date(row.bank_last_deposit) : null },
-    inventory: { items: [], capacity: 100, metalDiggerCount: 0, energyDiggerCount: 0 },
-    gatheringBonus: { metalBonus: 0, energyBonus: 0 },
-    activeBoosts: { gatheringBoost: null, expiresAt: null },
-    shrineBoosts: [],
-    units: [],
-    totalStrength: row.total_strength || 0,
-    totalDefense: row.total_defense || 0,
-    xp: row.xp || 0,
-    level: row.level || 1,
-    researchPoints: row.research_points || 0,
-    unlockedTiers: [],
-    isAdmin: row.is_admin || false,
-    isBot: row.is_bot || false,
-  };
-}
 
 /**
  * Zone adjacency map for zone-weighted targeting
@@ -295,51 +265,37 @@ export async function processBotAttack(bot: Player, target: Player): Promise<{
     timestamp: Date;
   };
 }> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
   
   try {
     // Calculate combat
     const combat = calculateCombat(bot, target);
     
-    // Fetch current bot/target data for read-then-write
-    const { data: currentBot } = await supabase.from('players').select('*').eq('username', bot.username).single();
-    const { data: currentTarget } = await supabase.from('players').select('*').eq('username', target.username).single();
-    const { data: currentBotConfig } = await supabase.from('bots').select('defeated_count').eq('username', bot.username).single();
+    // Prepare updates
+    const botUpdates: Record<string, any> = {
+      'botConfig.attackCooldown': calculateCooldown(bot.botConfig?.specialization || 'balanced'),
+    };
     
-    if (!currentBot || !currentTarget) {
-      throw new Error('Bot or target player not found');
-    }
-    
-    // Update bot attack cooldown on bots table (flat column, not JSON)
-    await supabase.from('bots')
-      .update({ attack_cooldown: calculateCooldown(bot.botConfig?.specialization || 'balanced').toISOString() })
-      .eq('username', bot.username);
+    const targetUpdates: Record<string, any> = {
+      xp: (target.xp || 0) + combat.xpAwarded,
+    };
     
     let message = '';
     
     if (combat.botWins) {
       // Bot wins: Steal resources from target
-      const botMetal = currentBot.resources_metal || 0;
-      const botEnergy = currentBot.resources_energy || 0;
-      const targetMetal = currentTarget.resources_metal || 0;
-      const targetEnergy = currentTarget.resources_energy || 0;
+      botUpdates['resources.metal'] = (bot.resources?.metal || 0) + combat.resourcesStolen.metal;
+      botUpdates['resources.energy'] = (bot.resources?.energy || 0) + combat.resourcesStolen.energy;
       
-      const newBotMetal = botMetal + combat.resourcesStolen.metal;
-      const newBotEnergy = botEnergy + combat.resourcesStolen.energy;
-      const newTargetMetal = Math.max(0, targetMetal - combat.resourcesStolen.metal);
-      const newTargetEnergy = Math.max(0, targetEnergy - combat.resourcesStolen.energy);
-
-      await supabase.from('players').update({ resources_metal: newBotMetal, resources_energy: newBotEnergy, xp: (currentBot.xp || 0) + (combat.botWins ? combat.xpAwarded : 0) }).eq('username', bot.username);
-      await supabase.from('players').update({ resources_metal: newTargetMetal, resources_energy: newTargetEnergy, xp: (currentTarget.xp || 0) + (combat.botWins ? 0 : combat.xpAwarded) }).eq('username', target.username);
+      targetUpdates['resources.metal'] = Math.max(0, (target.resources?.metal || 0) - combat.resourcesStolen.metal);
+      targetUpdates['resources.energy'] = Math.max(0, (target.resources?.energy || 0) - combat.resourcesStolen.energy);
       
       message = `${bot.username} attacked and stole ${combat.resourcesStolen.metal} Metal and ${combat.resourcesStolen.energy} Energy!`;
     } else {
       // Target wins: Bot is defeated
       const lootBonus = calculateLootBonus(target);
-      const botMetal = currentBot.resources_metal || 0;
-      const botEnergy = currentBot.resources_energy || 0;
-      const targetMetal = currentTarget.resources_metal || 0;
-      const targetEnergy = currentTarget.resources_energy || 0;
+      const botMetal = bot.resources?.metal || 0;
+      const botEnergy = bot.resources?.energy || 0;
       
       const lootMetal = Math.floor(botMetal * lootBonus);
       const lootEnergy = Math.floor(botEnergy * lootBonus);
@@ -348,31 +304,52 @@ export async function processBotAttack(bot: Player, target: Player): Promise<{
       const isBeerBase = bot.botConfig?.isSpecialBase === true;
       
       if (isBeerBase) {
+        // Beer Bases: Remove completely from database (NOT Full Permanence)
         try {
           await removeBeerBase(bot.username);
-          message = `🍺 You defeated Beer Base ${bot.username} and looted ${lootMetal} Metal and ${lootEnergy} Energy! The base has been destroyed!`;
+          message = `🍺 You defeated Beer Base ${bot.username} and looted ${lootMetal} Metal and ${lootEnergy} Energy! The base has been destroyed! (+${50 + (bot.botConfig?.tier || 1) * 25} XP)`;
         } catch (error) {
           console.error('Failed to remove Beer Base:', error);
+          // Fallback to normal defeat handling if removal fails
+          botUpdates['resources.metal'] = 0;
+          botUpdates['resources.energy'] = 0;
+          botUpdates['botConfig.lastDefeated'] = new Date();
         }
       } else {
-        // Regular bots: reset resources, update defeat tracking on bots table
-        await supabase.from('players').update({ resources_metal: 0, resources_energy: 0 }).eq('username', bot.username);
-        await supabase.from('bots').update({
-          last_defeated: new Date().toISOString(),
-          defeated_count: (currentBotConfig?.defeated_count || 0) + 1,
-          revenge_target: target.username,
-        }).eq('username', bot.username);
-        message = `You defended against ${bot.username} and looted ${lootMetal} Metal and ${lootEnergy} Energy!`;
+        // Regular bots: Full Permanence (resources → 0, stay on map)
+        botUpdates['resources.metal'] = 0;
+        botUpdates['resources.energy'] = 0;
+        botUpdates['botConfig.lastDefeated'] = new Date();
+        botUpdates['botConfig.defeatedCount'] = (bot.botConfig?.defeatedCount || 0) + 1;
+        botUpdates['botConfig.reputation'] = updateReputation((bot.botConfig?.defeatedCount || 0) + 1);
+        botUpdates['botConfig.revengeTarget'] = target.username; // Set revenge target
+        botUpdates['botConfig.lastResourceRegen'] = new Date(); // Start regeneration timer
+        
+        message = `You defended against ${bot.username} and looted ${lootMetal} Metal and ${lootEnergy} Energy! (+${50 + (bot.botConfig?.tier || 1) * 25} XP)`;
       }
       
-      // Give loot to target
-      const newTargetMetal = targetMetal + lootMetal;
-      const newTargetEnergy = targetEnergy + lootEnergy;
-      const bonusXP = 50 + (bot.botConfig?.tier || 1) * 25;
-      const newTargetXP = (currentTarget.xp || 0) + bonusXP;
+      targetUpdates['resources.metal'] = (target.resources?.metal || 0) + lootMetal;
+      targetUpdates['resources.energy'] = (target.resources?.energy || 0) + lootEnergy;
       
-      await supabase.from('players').update({ resources_metal: newTargetMetal, resources_energy: newTargetEnergy, xp: newTargetXP }).eq('username', target.username);
+      // Bonus XP for defeating bots (extra bonus for Beer Bases)
+      const bonusXP = isBeerBase 
+        ? (50 + (bot.botConfig?.tier || 1) * 25) * 1.5  // 50% more XP for Beer Bases
+        : 50 + (bot.botConfig?.tier || 1) * 25;         // Standard: 75-125 XP
+      targetUpdates.xp = (target.xp || 0) + bonusXP;
     }
+    
+    // Apply updates to database (only if bot still exists - Beer Bases are removed)
+    if (Object.keys(botUpdates).length > 0) {
+      await db.collection<Player>('players').updateOne(
+        { username: bot.username },
+        { $set: botUpdates }
+      );
+    }
+    
+    await db.collection<Player>('players').updateOne(
+      { username: target.username },
+      { $set: targetUpdates }
+    );
     
     // Create combat log entry
     const combatLog = {
@@ -422,7 +399,7 @@ export async function runBotAttackCycle(): Promise<{
   playerVictories: number;
   errors: string[];
 }> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
   const errors: string[] = [];
   let processed = 0;
   let attacks = 0;
@@ -431,15 +408,14 @@ export async function runBotAttackCycle(): Promise<{
   
   try {
     // Get all bots and players
-    const { data: bots } = await supabase.from('players').select('*').eq('is_bot', true);
-    const { data: players } = await supabase.from('players').select('*').neq('is_bot', true);
+    const [bots, players] = await Promise.all([
+      db.collection<Player>('players').find({ isBot: true }).toArray(),
+      db.collection<Player>('players').find({ isBot: { $ne: true } }).toArray(),
+    ]);
     
-    const allBots: Player[] = (bots || []).map(mapPlayerRow);
-    const allPlayers: Player[] = (players || []).map(mapPlayerRow);
+    console.log(`[Bot Attacks] Processing ${bots.length} bots...`);
     
-    console.log(`[Bot Attacks] Processing ${allBots.length} bots...`);
-    
-    for (const bot of allBots) {
+    for (const bot of bots) {
       try {
         processed++;
         
@@ -454,7 +430,7 @@ export async function runBotAttackCycle(): Promise<{
         }
         
         // Select target
-        const target = await selectTarget(bot, allPlayers);
+        const target = await selectTarget(bot, players);
         if (!target) {
           continue;
         }
@@ -508,7 +484,7 @@ export async function runBotAttackCycle(): Promise<{
  * Get bot attack history for a player (for UI display)
  */
 export async function getBotAttackHistory(username: string, limit: number = 10): Promise<any[]> {
-  const supabase = createServiceClient();
+  const db = await connectToDatabase();
   
   try {
     // This would require a combat_log collection in production

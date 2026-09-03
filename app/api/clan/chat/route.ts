@@ -1,7 +1,7 @@
 /**
  * @file app/api/clan/chat/route.ts
  * @created 2025-10-18
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
+ * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
  * 
  * OVERVIEW:
  * Clan chat functionality with message sending, history retrieval, editing, and moderation.
@@ -28,6 +28,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  getClientAndDatabase,
   requireClanMembership,
   withRequestLogging,
   createRouteLogger,
@@ -36,9 +37,7 @@ import {
   createErrorResponse,
   createErrorFromException,
   ErrorCode,
-  logger,
 } from '@/lib';
-import { createServiceClient } from '@/lib/supabase/server';
 import {
   sendClanChatMessage,
   getClanChatMessages,
@@ -75,9 +74,13 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('chat-get');
   
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { clanId } = result;
+
+    
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
@@ -91,13 +94,13 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       if (isNaN(since.getTime())) {
         return NextResponse.json({ error: 'Invalid since timestamp' }, { status: 400 });
       }
-      messages = await getMessagesSince(clanId, sinceParam);
+      messages = await getMessagesSince(clanId, since);
     } else {
       const before = beforeParam ? new Date(beforeParam) : undefined;
       if (beforeParam && before && isNaN(before.getTime())) {
         return NextResponse.json({ error: 'Invalid before timestamp' }, { status: 400 });
       }
-      messages = await getClanChatMessages(clanId, limit, beforeParam || undefined);
+      messages = await getClanChatMessages(clanId, limit, before);
     }
 
     log.info('Chat messages retrieved', { clanId, messageCount: messages.length });
@@ -106,7 +109,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       messages,
       count: messages.length,
     });
-  } catch (error: unknown) {
+  } catch (error: any) {
     log.error('Failed to retrieve chat messages', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -136,9 +139,13 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
  */
 export async function POST(request: NextRequest) {
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clan, clanId } = result;
+
+    
 
     const body = await request.json();
     const { message, type } = body;
@@ -156,13 +163,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (messageType === MessageType.ANNOUNCEMENT) {
-      const supabase = createServiceClient();
-      const { data: member } = await supabase
-        .from('clan_members')
-        .select('role')
-        .eq('clan_id', clanId)
-        .eq('player_id', auth.username)
-        .maybeSingle();
+      const member = clan.members.find((m: any) => m.playerId === auth.playerId);
       if (!member || member.role !== 'LEADER') {
         return NextResponse.json(
           { error: 'Only leaders can send announcements' },
@@ -177,24 +178,23 @@ export async function POST(request: NextRequest) {
       success: true,
       message: chatMessage,
     });
-  } catch (error: unknown) {
-    logger.error('Error sending chat message:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes('Recruits must wait')) {
-      return NextResponse.json({ error: errorMessage }, { status: 403 });
+  } catch (error: any) {
+    console.error('Error sending chat message:', error);
+    
+    if (error.message.includes('Recruits must wait')) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
-
-    if (errorMessage.includes('Rate limit exceeded')) {
-      return NextResponse.json({ error: errorMessage }, { status: 429 });
+    
+    if (error.message.includes('Rate limit exceeded')) {
+      return NextResponse.json({ error: error.message }, { status: 429 });
     }
-
-    if (errorMessage.includes('too long')) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 });
+    
+    if (error.message.includes('too long')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: errorMessage || 'Failed to send message' },
+      { error: error.message || 'Failed to send message' },
       { status: 500 }
     );
   }
@@ -221,9 +221,13 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth } = result;
+
+    
 
     const body = await request.json();
     const { messageId, message } = body;
@@ -241,24 +245,23 @@ export async function PUT(request: NextRequest) {
       success: true,
       message: updatedMessage,
     });
-  } catch (error: unknown) {
-    logger.error('Error editing chat message:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes('Can only edit your own')) {
-      return NextResponse.json({ error: errorMessage }, { status: 403 });
+  } catch (error: any) {
+    console.error('Error editing chat message:', error);
+    
+    if (error.message.includes('Can only edit your own')) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
-
-    if (errorMessage.includes('within')) {
-      return NextResponse.json({ error: errorMessage }, { status: 403 });
+    
+    if (error.message.includes('within')) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
-
-    if (errorMessage.includes('too long')) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 });
+    
+    if (error.message.includes('too long')) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: errorMessage || 'Failed to edit message' },
+      { error: error.message || 'Failed to edit message' },
       { status: 500 }
     );
   }
@@ -282,9 +285,13 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const { client, db } = await getClientAndDatabase();
+
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clanId } = result;
+
+    
 
     const { searchParams } = new URL(request.url);
     const messageId = searchParams.get('messageId');
@@ -302,19 +309,18 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: 'Message deleted successfully',
     });
-  } catch (error: unknown) {
-    logger.error('Error deleting chat message:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    if (errorMessage.includes('Can only delete your own')) {
-      return NextResponse.json({ error: errorMessage }, { status: 403 });
+  } catch (error: any) {
+    console.error('Error deleting chat message:', error);
+    
+    if (error.message.includes('Can only delete your own')) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
 
     return NextResponse.json(
-      { error: errorMessage || 'Failed to delete message' },
+      { error: error.message || 'Failed to delete message' },
       { status: 500 }
     );
   }
 }
 
-export const runtime = 'nodejs';
+

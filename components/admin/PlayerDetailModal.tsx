@@ -354,12 +354,12 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                 <div className="space-y-4">
                   <div className="bg-gray-800 p-4 rounded-lg mb-4">
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">Activity Summary</h3>
-                    <p className="text-gray-400">Total Actions: {activityData.stats?.totalActions ?? 0}</p>
-                    <p className="text-gray-400">Most Common: {activityData.stats?.mostCommonAction ?? 'N/A'}</p>
+                    <p className="text-gray-400">Total Actions: {activityData.stats.totalActions}</p>
+                    <p className="text-gray-400">Most Common: {activityData.stats.mostCommonAction}</p>
                   </div>
 
                   <div className="space-y-2">
-                    {(activityData.activities || []).map((activity, idx) => (
+                    {activityData.activities.map((activity, idx) => (
                       <div key={idx} className="bg-gray-800 p-3 rounded">
                         <div className="flex justify-between items-start">
                           <div>
@@ -381,13 +381,13 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                 <div className="space-y-4">
                   <div className="bg-gray-800 p-4 rounded-lg mb-4">
                     <h3 className="text-lg font-semibold text-gray-300 mb-2">Session Summary</h3>
-                    <p className="text-gray-400">Total Sessions: {sessionData.stats?.totalSessions ?? 0}</p>
-                    <p className="text-gray-400">Avg Duration: {formatDuration(sessionData.stats?.avgDuration ?? 0)}</p>
-                    <p className="text-gray-400">Total Play Time: {formatDuration(sessionData.stats?.totalPlayTime ?? 0)}</p>
+                    <p className="text-gray-400">Total Sessions: {sessionData.stats.totalSessions}</p>
+                    <p className="text-gray-400">Avg Duration: {formatDuration(sessionData.stats.avgDuration)}</p>
+                    <p className="text-gray-400">Total Play Time: {formatDuration(sessionData.stats.totalPlayTime)}</p>
                   </div>
 
                   <div className="space-y-2">
-                    {(sessionData.sessions || []).map((session, idx) => (
+                    {sessionData.sessions.map((session, idx) => (
                       <div key={idx} className="bg-gray-800 p-3 rounded">
                         <p className="text-white">Started: {formatDateTime(session.startTime.toISOString())}</p>
                         {session.endTime && (
@@ -443,7 +443,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                               </p>
                               <p className="text-gray-400 text-sm">{formatDateTime(flag.timestamp.toISOString())}</p>
                             </div>
-                            <p className="text-gray-500 text-sm">{typeof flag.details === 'string' ? flag.details : JSON.stringify(flag.details)}</p>
+                            <p className="text-gray-500 text-sm">{flag.details}</p>
                           </div>
                         </div>
                       ))

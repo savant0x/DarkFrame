@@ -3,9 +3,9 @@
  * Created: 2025-10-17
  * 
  * OVERVIEW:
- * POST endpoint for abandoning a player-owned factory. Clears ownership
- * while preserving the factory level and all upgrades, allowing any player
- * to claim it. Strategic repositioning tool.
+ * POST endpoint for abandoning a player-owned factory. Resets factory to
+ * unclaimed state (Level 1, no owner), allowing player to free up a factory
+ * slot when at the 10-factory limit. Strategic repositioning tool.
  * 
  * REQUEST BODY:
  * {
@@ -28,10 +28,11 @@
  * 
  * ABANDON BEHAVIOR:
  * - Owner set to null (becomes unclaimed)
- * - Level is PRESERVED (factory keeps all upgrades)
- * - Slots are PRESERVED
- * - Any player can claim the factory at its current level
- * - Units are NOT deleted — they remain with the player
+ * - Level reset to 1
+ * - Slots reset to base capacity (10)
+ * - usedSlots reset to 0
+ * - Defense unchanged (tile property)
+ * - All player units at factory are LOST
  * 
  * USE CASES:
  * - Player at 10-factory limit wants to claim better location
@@ -41,24 +42,25 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireAuth,
-  FACTORY_UPGRADE,
-  getFactoryStats,
-  logger,
-} from '@/lib';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { connectToDatabase } from '@/lib/mongodb';
+import { getFactoryStats, FACTORY_UPGRADE } from '@/lib/factoryUpgradeService';
+import { Factory, Unit, Player } from '@/types/game.types';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STRICT);
-
-export const POST = rateLimiter(async (request: NextRequest) => {
+export async function POST(request: NextRequest) {
   try {
-    const auth = await requireAuth(request);
-    if (auth instanceof NextResponse) return auth;
-    const username = auth.username;
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
+    const username = authResult.username;
+
+    // Parse request body
     const body = await request.json();
     const { factoryX, factoryY } = body;
 
@@ -70,17 +72,19 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       );
     }
 
-    const supabase = createServiceClient();
+    // Connect to database
+    const db = await connectToDatabase();
+    const factoriesCollection = db.collection<Factory>('factories');
+    const playersCollection = db.collection<Player>('players');
+    const unitsCollection = db.collection<Unit>('units');
 
     // Find the factory
-    const { data: factory, error: factoryError } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('x', factoryX)
-      .eq('y', factoryY)
-      .maybeSingle();
+    const factory = await factoriesCollection.findOne({
+      x: factoryX,
+      y: factoryY
+    });
 
-    if (factoryError || !factory) {
+    if (!factory) {
       return NextResponse.json(
         { success: false, error: 'Factory not found at these coordinates' },
         { status: 404 }
@@ -99,62 +103,109 @@ export const POST = rateLimiter(async (request: NextRequest) => {
     const baseStats = getFactoryStats(FACTORY_UPGRADE.MIN_LEVEL);
 
     // Count units at this factory (they will be lost)
-    const { count: unitsAtFactory, error: countError } = await supabase
-      .from('player_units')
-      .select('*', { count: 'exact', head: true })
-      .eq('player_username', username)
-      .eq('produced_at_x', factoryX)
-      .eq('produced_at_y', factoryY);
+    const unitsAtFactory = await unitsCollection.countDocuments({
+      owner: username,
+      factoryX: factoryX,
+      factoryY: factoryY
+    });
 
-    // Reset factory to unclaimed state (units are NOT deleted — they remain with the player)
+    // Reset factory to unclaimed state
     const now = new Date();
-    const { error: updateError } = await supabase
-      .from('factories')
-      .update({
-        owner: null,
-        level: FACTORY_UPGRADE.MIN_LEVEL,
-        slots: baseStats.maxSlots,
-        last_slot_regen: now.toISOString(),
-        last_attacked_by: null,
-        last_attack_time: null
-      })
-      .eq('x', factoryX)
-      .eq('y', factoryY);
+    const updateResult = await factoriesCollection.updateOne(
+      { x: factoryX, y: factoryY },
+      {
+        $set: {
+          owner: null,
+          level: FACTORY_UPGRADE.MIN_LEVEL,
+          slots: baseStats.maxSlots,
+          usedSlots: 0,
+          lastSlotRegen: now,
+          lastAttackedBy: null,
+          lastAttackTime: null
+        }
+      }
+    );
 
-    if (updateError) {
+    if (updateResult.modifiedCount === 0) {
       return NextResponse.json(
         { success: false, error: 'Failed to abandon factory' },
         { status: 500 }
       );
     }
 
+    // Delete all units that were produced at this factory
+    // This is intentional - abandoning a factory loses all its units
+    let unitsLost = 0;
+    let strLost = 0;
+    let defLost = 0;
+
+    if (unitsAtFactory > 0) {
+      const unitsToDelete = await unitsCollection
+        .find({
+          owner: username,
+          factoryX: factoryX,
+          factoryY: factoryY
+        })
+        .toArray();
+
+      // Calculate total STR/DEF lost
+      for (const unit of unitsToDelete) {
+        strLost += unit.strength || 0;
+        defLost += unit.defense || 0;
+      }
+
+      // Delete units
+      const deleteResult = await unitsCollection.deleteMany({
+        owner: username,
+        factoryX: factoryX,
+        factoryY: factoryY
+      });
+
+      unitsLost = deleteResult.deletedCount;
+
+      // Update player's total strength and defense
+      await playersCollection.updateOne(
+        { username },
+        {
+          $inc: {
+            totalStrength: -strLost,
+            totalDefense: -defLost
+          }
+        }
+      );
+    }
+
     // Count remaining factories owned by player
-    const { count: factoriesOwned } = await supabase
-      .from('factories')
-      .select('*', { count: 'exact', head: true })
-      .eq('owner', username);
+    const factoriesOwned = await factoriesCollection.countDocuments({
+      owner: username
+    });
 
     // Fetch the reset factory
-    const { data: resetFactory } = await supabase
-      .from('factories')
-      .select('*')
-      .eq('x', factoryX)
-      .eq('y', factoryY)
-      .maybeSingle();
+    const resetFactory = await factoriesCollection.findOne({
+      x: factoryX,
+      y: factoryY
+    });
 
-    // Build response message — units are NOT deleted, they remain with the player
-    const maxFactories = 10; // Hard cap of 10 factories per player
-    const message = `Factory abandoned successfully. You now own ${factoriesOwned}/${maxFactories} factories.`;
+    // Build response message
+    let message = `Factory abandoned successfully. You now own ${factoriesOwned}/${FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER} factories.`;
+    if (unitsLost > 0) {
+      message += ` Warning: ${unitsLost} units were lost (${strLost} STR, ${defLost} DEF).`;
+    }
 
     return NextResponse.json({
       success: true,
       message,
       factory: resetFactory,
       factoriesOwned,
+      unitsLost: {
+        count: unitsLost,
+        strength: strLost,
+        defense: defLost
+      }
     });
 
   } catch (error) {
-    logger.error('Factory abandon error:', error);
+    console.error('Factory abandon error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -164,7 +215,7 @@ export const POST = rateLimiter(async (request: NextRequest) => {
       { status: 500 }
     );
   }
-});
+}
 
 /**
  * IMPLEMENTATION NOTES:
@@ -172,8 +223,8 @@ export const POST = rateLimiter(async (request: NextRequest) => {
  * 1. Abandon Consequences:
  *    - Factory becomes immediately claimable by anyone
  *    - All upgrade progress lost (no refund)
- *    - Units produced at factory are NOT deleted — they remain with the player
- *    - Player's STR/DEF totals are unchanged
+ *    - All units produced at factory are deleted
+ *    - Player's STR/DEF totals updated accordingly
  * 
  * 2. Strategic Considerations:
  *    - Abandoning is permanent and costly
@@ -182,8 +233,10 @@ export const POST = rateLimiter(async (request: NextRequest) => {
  *    - UI should show confirmation dialog before abandoning
  * 
  * 3. Unit Handling:
- *    - Units are never deleted on abandon
- *    - Player's total army stats are preserved
+ *    - Units are tracked by factory coordinates
+ *    - Abandoning factory deletes all its units
+ *    - Player's total army stats are recalculated
+ *    - Response includes units lost count for feedback
  * 
  * 4. Factory Limit Management:
  *    - Abandoning frees a factory slot (if at 10 limit)

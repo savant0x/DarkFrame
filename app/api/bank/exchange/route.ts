@@ -1,7 +1,6 @@
 /**
  * @file app/api/bank/exchange/route.ts
  * @created 2025-10-17
- * @updated 2026-05-03 — Migrated from MongoDB to Supabase
  * @overview Resource exchange API endpoint with 20% fee
  * 
  * OVERVIEW:
@@ -23,92 +22,139 @@ import {
 } from '@/lib';
 import { ExchangeSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
-import { createServiceClient } from '@/lib/supabase/server';
+import { verifyAuth } from '@/lib/authMiddleware';
+import { db } from '@/lib/db';
+import { players, tiles } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { Player, Tile, TerrainType, Resources } from '@/types';
 
-const EXCHANGE_FEE_RATE = 0.20;
-const EXCHANGE_RATE = 0.80;
+const EXCHANGE_FEE_RATE = 0.20; // 20% fee
+const EXCHANGE_RATE = 0.80; // Player receives 80% of what they give
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.BANK);
 
+/**
+ * POST /api/bank/exchange
+ * 
+ * Exchange Metal ↔ Energy with 20% fee
+ * 
+ * Request body:
+ * ```json
+ * {
+ *   "fromResource": "metal" | "energy",
+ *   "amount": number
+ * }
+ * ```
+ * 
+ * Success Response:
+ * ```json
+ * {
+ *   "success": true,
+ *   "message": "Exchanged 1,000 Energy for 800 Metal (20% fee)",
+ *   "inventory": { metal: 800, energy: 49000 },
+ *   "exchangeDetails": {
+ *     "given": { type: "energy", amount: 1000 },
+ *     "received": { type: "metal", amount: 800 },
+ *     "feeAmount": 200
+ *   }
+ * }
+ * ```
+ */
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('BankExchangeAPI');
   const endTimer = log.time('bank-exchange');
   
   try {
-    const validated = ExchangeSchema.parse(await request.json());
-    const username = (validated as Record<string, unknown>).username as string;
-    if (!username) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Username required' });
-    }
-
-    const supabase = createServiceClient();
-
-    const { data: player } = await supabase
-      .from('players')
-      .select('*')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (!player) {
-      return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, { message: 'Player not found', context: { username } });
-    }
-
-    // Check if player is at an exchange bank tile
-    const { data: currentTile } = await supabase
-      .from('tiles')
-      .select('terrain, bank_type')
-      .eq('x', player.current_x)
-      .eq('y', player.current_y)
-      .maybeSingle();
-
-    if (!currentTile || currentTile.terrain !== 'Bank' || currentTile.bank_type !== 'exchange') {
-      return createErrorResponse(ErrorCode.BANK_INVALID_LOCATION, {
-        message: 'You must be at an Exchange Bank tile to exchange resources',
-        context: { position: { x: player.current_x, y: player.current_y } },
+    // Verify authentication
+    const authResult = await verifyAuth();
+    if (!authResult || !authResult.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
+        message: 'Authentication required',
       });
     }
 
+    const validated = ExchangeSchema.parse(await request.json());
+    const username = authResult.username;
+
+    // Get player
+    const playerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const player = playerResult[0];
+
+    if (!player) {
+      return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, {
+        message: 'Player not found',
+        context: { username },
+      });
+    }
+
+    // Check if player is at an exchange bank tile
+    const currentTileResult = await db.select().from(tiles).where(
+      and(eq(tiles.x, player.currentPositionX), eq(tiles.y, player.currentPositionY))
+    ).limit(1);
+    const currentTile = currentTileResult[0];
+
+    if (!currentTile || currentTile.terrain !== TerrainType.Bank || currentTile.bankType !== 'exchange') {
+      return createErrorResponse(ErrorCode.BANK_INVALID_LOCATION, {
+        message: 'You must be at an Exchange Bank tile to exchange resources',
+        context: { position: { x: player.currentPositionX, y: player.currentPositionY } },
+      });
+    }
+
+    // Calculate exchange
     const toResource = validated.fromResource === 'metal' ? 'energy' : 'metal';
     const receivedAmount = Math.floor(validated.amount * EXCHANGE_RATE);
     const feeAmount = validated.amount - receivedAmount;
 
-    const currentFrom = validated.fromResource === 'metal' ? player.resources_metal : player.resources_energy;
-    if (currentFrom < validated.amount) {
+    // Check if player has enough of the source resource
+    const currentAmount = Number(validated.fromResource === 'metal' ? Number(player.resourcesMetal) : Number(player.resourcesEnergy));
+    if (currentAmount < validated.amount) {
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
         message: `Insufficient ${validated.fromResource}`,
-        context: { have: currentFrom, need: validated.amount, fromResource: validated.fromResource },
+        context: { 
+          have: currentAmount, 
+          need: validated.amount,
+          fromResource: validated.fromResource,
+        },
       });
     }
 
-    const currentTo = toResource === 'metal' ? player.resources_metal : player.resources_energy;
+    // Update player resources
+    const newFromAmount = BigInt(currentAmount - validated.amount);
+    const newToAmount = BigInt(Number(validated.fromResource === 'metal' ? Number(player.resourcesEnergy) : Number(player.resourcesMetal)) + receivedAmount);
 
     if (validated.fromResource === 'metal') {
-      await supabase
-        .from('players')
-        .update({
-          resources_metal: currentFrom - validated.amount,
-          resources_energy: currentTo + receivedAmount,
-        })
-        .eq('username', username);
+      await db.update(players).set({
+        resourcesMetal: Number(newFromAmount),
+        resourcesEnergy: Number(newToAmount),
+      }).where(eq(players.username, username));
     } else {
-      await supabase
-        .from('players')
-        .update({
-          resources_energy: currentFrom - validated.amount,
-          resources_metal: currentTo + receivedAmount,
-        })
-        .eq('username', username);
+      await db.update(players).set({
+        resourcesEnergy: Number(newFromAmount),
+        resourcesMetal: Number(newToAmount),
+      }).where(eq(players.username, username));
     }
 
-    log.info('Resource exchange completed', { username, from: validated.fromResource, to: toResource, given: validated.amount, received: receivedAmount });
+    // Get updated player data
+    const updatedPlayerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const updatedPlayer = updatedPlayerResult[0];
+
+    const updatedResources = {
+      metal: Number(updatedPlayer!.resourcesMetal),
+      energy: Number(updatedPlayer!.resourcesEnergy),
+    };
+
+    log.info('Resource exchange completed', { 
+      username, 
+      from: validated.fromResource, 
+      to: toResource, 
+      given: validated.amount, 
+      received: receivedAmount 
+    });
 
     return NextResponse.json({
       success: true,
       message: `Exchanged ${validated.amount.toLocaleString()} ${validated.fromResource.charAt(0).toUpperCase() + validated.fromResource.slice(1)} for ${receivedAmount.toLocaleString()} ${toResource.charAt(0).toUpperCase() + toResource.slice(1)} (20% fee)`,
-      inventory: {
-        metal: validated.fromResource === 'metal' ? currentFrom - validated.amount : currentTo + receivedAmount,
-        energy: validated.fromResource === 'energy' ? currentFrom - validated.amount : currentTo + receivedAmount,
-      },
+      inventory: updatedResources,
       exchangeDetails: {
         given: { type: validated.fromResource, amount: validated.amount },
         received: { type: toResource, amount: receivedAmount },

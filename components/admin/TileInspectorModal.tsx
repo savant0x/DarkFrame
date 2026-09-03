@@ -295,8 +295,8 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
                               <div>
                                 <p className="text-gray-500">Resources</p>
                                 <p className="text-white">
-                                  {typeof tile.resources.metal === 'number' && `${tile.resources.metal} M `}
-                                  {typeof tile.resources.energy === 'number' && `${tile.resources.energy} E`}
+                                  {tile.resources.metal && `${tile.resources.metal} M `}
+                                  {tile.resources.energy && `${tile.resources.energy} E`}
                                 </p>
                               </div>
                             )}

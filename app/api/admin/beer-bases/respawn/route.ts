@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getAuthenticatedUser } from '@/lib/authService';
 import { manualBeerBaseRespawn } from '@/lib/beerBaseService';
 import {
   withRequestLogging,

@@ -21,21 +21,43 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
-import {
-  createRateLimiter,
-  ENDPOINT_RATE_LIMITS,
-  requireClanMembership,
-  getDistributionHistory,
-  logger,
-} from '@/lib';
+import { requireClanMembership } from '@/lib/authMiddleware';
+import { getDistributionHistory } from '@/lib/clanDistributionService';
 
-const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
-
-export const GET = rateLimiter(async (request: NextRequest) => {
+/**
+ * GET /api/clan/bank/distribution-history
+ * View distribution history for player's clan
+ * 
+ * @param request - NextRequest with auth cookie and optional query params
+ * @returns NextResponse with distribution history or error
+ * 
+ * @example
+ * GET /api/clan/bank/distribution-history?limit=50
+ * Response: {
+ *   success: true,
+ *   history: [
+ *     {
+ *       _id: "...",
+ *       method: "EQUAL_SPLIT",
+ *       distributedBy: "playerId",
+ *       distributedByUsername: "PlayerName",
+ *       timestamp: "2025-10-18T10:30:00Z",
+ *       totalDistributed: { metal: 100000, energy: 0, rp: 0 },
+ *       recipients: [{ playerId: "...", username: "...", amount: 10000 }],
+ *       notes: "Equal split: 10000 metal per member"
+ *     }
+ *   ],
+ *   count: 25
+ * }
+ * 
+ * @throws {400} Not in clan
+ * @throws {401} Not authenticated
+ * @throws {403} Not a clan member
+ * @throws {500} Server error
+ */
+export async function GET(request: NextRequest) {
   try {
-    const supabase = createServiceClient();
-    const result = await requireClanMembership(request, supabase);
+    const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
 
     const { clanId } = result;
@@ -50,14 +72,14 @@ export const GET = rateLimiter(async (request: NextRequest) => {
     return NextResponse.json({
       success: true,
       history: history.map((record) => ({
-        id: record.id?.toString(),
+        _id: record._id?.toString(),
         method: record.method,
-        distributedBy: record.distributed_by,
-        distributedByUsername: record.distributed_by_username,
+        distributedBy: record.distributedBy,
+        distributedByUsername: record.distributedByUsername,
         timestamp: record.timestamp,
-        totalDistributed: record.total_distributed,
+        totalDistributed: record.totalDistributed,
         recipients: record.recipients.map((r) => ({
-          playerId: r.player_id,
+          playerId: r.playerId,
           username: r.username,
           amount: r.amount,
           percentage: r.percentage,
@@ -66,13 +88,11 @@ export const GET = rateLimiter(async (request: NextRequest) => {
       })),
       count: history.length,
     });
-  } catch (error: unknown) {
-    logger.error('Distribution history error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch distribution history';
+  } catch (error: any) {
+    console.error('Distribution history error:', error);
     return NextResponse.json(
-      { error: errorMessage },
+      { error: error.message || 'Failed to fetch distribution history' },
       { status: 500 }
     );
   }
-});
-
+}

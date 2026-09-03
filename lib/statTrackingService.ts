@@ -1,60 +1,173 @@
 /**
  * @file lib/statTrackingService.ts
  * @created 2025-01-17
- * @overview Automatic stat tracking for achievement progress — Supabase backend
+ * @overview Automatic stat tracking for achievement progress
+ * 
+ * OVERVIEW:
+ * Provides helper functions to track player statistics for achievement system.
+ * Called automatically throughout the codebase when relevant actions occur.
+ * Updates PlayerStats fields which are checked against achievement requirements.
+ * 
+ * TRACKED STATS:
+ * - battlesWon: PvP victories
+ * - totalUnitsBuilt: All units created
+ * - totalResourcesGathered: Lifetime resource collection
+ * - totalResourcesBanked: Lifetime bank deposits
+ * - shrineTradeCount: Shrine trade completions
+ * - cavesExplored: Cave and forest explorations
  */
 
-import { createServiceClient } from '@/lib/supabase/server';
+import { getCollection } from './mongodb';
+import { logger } from './logger';
 import { checkAchievements } from './achievementService';
 
-export async function trackBattleWon(username: string): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('stat_battles_won').eq('username', username).single();
-  if (!player) return;
-  await supabase.from('players').update({ stat_battles_won: (player.stat_battles_won || 0) + 1 }).eq('username', username);
-  await checkAchievements(username);
+/**
+ * Initialize stats object if it doesn't exist
+ */
+async function ensureStatsExist(playerId: string) {
+  const playersCollection = await getCollection('players');
+  const player = await playersCollection.findOne({ username: playerId });
+
+  if (!player || player.stats) {
+    return; // Stats already exist or player doesn't exist
+  }
+
+  await playersCollection.updateOne(
+    { username: playerId },
+    {
+      $set: {
+        stats: {
+          battlesWon: 0,
+          totalUnitsBuilt: 0,
+          totalResourcesGathered: 0,
+          totalResourcesBanked: 0,
+          shrineTradeCount: 0,
+          cavesExplored: 0
+        }
+      } as any
+    }
+  );
 }
 
-export async function trackUnitBuilt(username: string, quantity: number = 1): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('stat_total_units_built').eq('username', username).single();
-  if (!player) return;
-  await supabase.from('players').update({ stat_total_units_built: (player.stat_total_units_built || 0) + quantity }).eq('username', username);
-  await checkAchievements(username);
+/**
+ * Track battle victory
+ * 
+ * @param playerId - Player username
+ */
+export async function trackBattleWon(playerId: string) {
+  await ensureStatsExist(playerId);
+  
+  const playersCollection = await getCollection('players');
+  await playersCollection.updateOne(
+    { username: playerId },
+    { $inc: { 'stats.battlesWon': 1 } as any }
+  );
+
+  // Check for achievement unlocks
+  await checkAchievements(playerId);
 }
 
-export async function trackResourcesGathered(username: string, amount: number): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('stat_total_resources_gathered').eq('username', username).single();
-  if (!player) return;
-  await supabase.from('players').update({ stat_total_resources_gathered: (player.stat_total_resources_gathered || 0) + amount }).eq('username', username);
-  await checkAchievements(username);
+/**
+ * Track unit build
+ * 
+ * @param playerId - Player username
+ * @param quantity - Number of units built
+ */
+export async function trackUnitBuilt(playerId: string, quantity: number = 1) {
+  await ensureStatsExist(playerId);
+  
+  const playersCollection = await getCollection('players');
+  await playersCollection.updateOne(
+    { username: playerId },
+    { $inc: { 'stats.totalUnitsBuilt': quantity } as any }
+  );
+
+  // Check for achievement unlocks
+  await checkAchievements(playerId);
 }
 
-export async function trackResourcesBanked(username: string, amount: number): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('stat_total_resources_banked').eq('username', username).single();
-  if (!player) return;
-  await supabase.from('players').update({ stat_total_resources_banked: (player.stat_total_resources_banked || 0) + amount }).eq('username', username);
-  await checkAchievements(username);
+/**
+ * Track resource gathering
+ * 
+ * @param playerId - Player username
+ * @param amount - Total resources gathered (metal + energy)
+ */
+export async function trackResourcesGathered(playerId: string, amount: number) {
+  await ensureStatsExist(playerId);
+  
+  const playersCollection = await getCollection('players');
+  await playersCollection.updateOne(
+    { username: playerId },
+    { $inc: { 'stats.totalResourcesGathered': amount } as any }
+  );
+
+  // Check for achievement unlocks
+  await checkAchievements(playerId);
 }
 
-export async function trackShrineTrade(username: string): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('stat_shrine_trade_count').eq('username', username).single();
-  if (!player) return;
-  await supabase.from('players').update({ stat_shrine_trade_count: (player.stat_shrine_trade_count || 0) + 1 }).eq('username', username);
-  await checkAchievements(username);
+/**
+ * Track bank deposit
+ * 
+ * @param playerId - Player username
+ * @param amount - Total resources banked (metal + energy)
+ */
+export async function trackResourcesBanked(playerId: string, amount: number) {
+  await ensureStatsExist(playerId);
+  
+  const playersCollection = await getCollection('players');
+  await playersCollection.updateOne(
+    { username: playerId },
+    { $inc: { 'stats.totalResourcesBanked': amount } as any }
+  );
+
+  // Check for achievement unlocks
+  await checkAchievements(playerId);
 }
 
-export async function trackCaveExplored(username: string): Promise<void> {
-  const supabase = createServiceClient();
-  const { data: player } = await supabase.from('players').select('stat_caves_explored').eq('username', username).single();
-  if (!player) return;
-  await supabase.from('players').update({ stat_caves_explored: (player.stat_caves_explored || 0) + 1 }).eq('username', username);
-  await checkAchievements(username);
+/**
+ * Track shrine trade
+ * 
+ * @param playerId - Player username
+ */
+export async function trackShrineTrade(playerId: string) {
+  await ensureStatsExist(playerId);
+  
+  const playersCollection = await getCollection('players');
+  await playersCollection.updateOne(
+    { username: playerId },
+    { $inc: { 'stats.shrineTradeCount': 1 } as any }
+  );
+
+  // Check for achievement unlocks
+  await checkAchievements(playerId);
 }
 
-export async function triggerAchievementCheck(username: string): Promise<void> {
-  await checkAchievements(username);
+/**
+ * Track cave/forest exploration
+ * 
+ * @param playerId - Player username
+ */
+export async function trackCaveExplored(playerId: string) {
+  await ensureStatsExist(playerId);
+  
+  const playersCollection = await getCollection('players');
+  await playersCollection.updateOne(
+    { username: playerId },
+    { $inc: { 'stats.cavesExplored': 1 } as any }
+  );
+
+  // Check for achievement unlocks
+  await checkAchievements(playerId);
+}
+
+/**
+ * Manually trigger achievement check
+ * Called after level-ups or specialization mastery changes
+ * 
+ * @param playerId - Player username
+ * @returns Newly unlocked achievements
+ */
+export async function triggerAchievementCheck(playerId: string) {
+  await ensureStatsExist(playerId);
+  return await checkAchievements(playerId);
 }
