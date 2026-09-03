@@ -8,7 +8,7 @@
 
 const { MongoClient } = require('mongodb');
 
-const MONGODB_URI = process.env.MONGODB_URI || 'REDACTED_MONGO_URI_<username>:<password>@@darkframe.wtlbe6a.mongodb.net/darkframe?retryWrites=true&w=majority&appName=darkframe';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/darkframe';
 
 async function fixPlayerSchema() {
   const client = new MongoClient(MONGODB_URI);

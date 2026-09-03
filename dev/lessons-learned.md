@@ -2153,7 +2153,7 @@ SETUP.md ✅
 - **ALWAYS** use MongoDB MCP (`mcp_mongodb_*` tools) for database operations
 - **NEVER** write custom scripts when MCP tools can do the job
 - **CONNECTION STRING:** Use exact connection string from `.env.local` file
-  - `REDACTED_MONGO_URI_<username>:<password>@@darkframe.wtlbe6a.mongodb.net/darkframe?retryWrites=true&w=majority&appName=darkframe`
+  - (redacted 2026-09-03: a live Atlas credential was quoted here historically; the real value lives only in `.env.local`, which is git-ignored)
 - **AVAILABLE TOOLS:** connect, find, count, insert-many, update-many, delete-many, aggregate, list-databases, list-collections
 - **BENEFITS:** No code to maintain, no dependencies to install, instant results, safer queries
 **Prevention:**
