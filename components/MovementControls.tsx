@@ -24,6 +24,13 @@ export default function MovementControls() {
         return;
       }
 
+      // Modifier-held presses belong to hotkey combos (Shift+E = Beer Bases,
+      // etc.) — movement claims the BARE keys only. KeyToDirection matches
+      // uppercase letters too ('D'), which would otherwise double-fire.
+      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+        return;
+      }
+
       const direction = KeyToDirection[event.key];
       if (direction && !isLoading) {
         console.log(`[MovementControls] Received '${event.key}' keypress - moving ${direction}`);

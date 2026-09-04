@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Keyboard, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';
 import { HotkeyConfig, HotkeyCategory } from '@/types/hotkey.types';
+import { findHotkeyConflicts } from '@/lib/hotkeyRegistry';
 
 interface HotkeyManagerPanelProps {
   isOpen: boolean;
@@ -35,24 +36,10 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
   }, [isOpen]);
 
   const detectConflicts = useCallback(() => {
-    const keyMap = new Map<string, string[]>();
-
-    hotkeys.forEach((hk) => {
-      const keyCombo = `${hk.requiresShift ? 'Shift+' : ''}${hk.requiresCtrl ? 'Ctrl+' : ''}${hk.requiresAlt ? 'Alt+' : ''}${hk.key}`;
-      if (!keyMap.has(keyCombo)) {
-        keyMap.set(keyCombo, []);
-      }
-      keyMap.get(keyCombo)!.push(hk.action);
-    });
-
-    const conflictingActions: string[] = [];
-    keyMap.forEach((actions) => {
-      if (actions.length > 1) {
-        conflictingActions.push(...actions);
-      }
-    });
-
-    setConflicts(conflictingActions);
+    // Shared registry: duplicates AND bare movement-key binds (qweasdzxc) are
+    // both violations of the single-mapping invariant.
+    const conflicts = findHotkeyConflicts(hotkeys);
+    setConflicts(conflicts.flatMap((c) => c.actions));
   }, [hotkeys]);
 
   // Check for conflicts whenever hotkeys change
@@ -71,7 +58,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
       } else {
         setMessage({ type: 'error', text: data.message || 'Failed to load hotkeys' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Network error loading hotkeys' });
     } finally {
       setLoading(false);
@@ -100,7 +87,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
       } else {
         setMessage({ type: 'error', text: data.message || 'Failed to save hotkeys' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Network error saving hotkeys' });
     } finally {
       setSaving(false);
@@ -127,7 +114,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
       } else {
         setMessage({ type: 'error', text: data.message || 'Failed to reset hotkeys' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Network error resetting hotkeys' });
     } finally {
       setSaving(false);

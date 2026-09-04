@@ -99,9 +99,10 @@ export default function BotScannerPanel() {
         return;
       }
       
-      // Bot Scanner hotkey: 'X' (moved off 'B', which is now Bank — see DEFAULT_HOTKEYS)
-      if (e.key === 'x' || e.key === 'X') {
+      // Bot Scanner hotkey: Shift+X (bare X is movement South — single-mapping rule).
+      if ((e.key === 'x' || e.key === 'X') && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         if (status?.unlocked) {
+          e.preventDefault();
           setIsOpen(prev => !prev);
         }
       }

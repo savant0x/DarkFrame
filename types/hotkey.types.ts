@@ -82,7 +82,12 @@ export interface HotkeySettings {
 }
 
 /**
- * Default hotkey configuration
+ * Default hotkey configuration.
+ *
+ * RULE (see lib/hotkeyRegistry.ts): every key has exactly ONE mapping, and the
+ * movement keys qweasdzxc are RESERVED for movement — never bound as a bare
+ * hotkey (Shift/Ctrl/Alt combos are fine; MovementControls ignores presses
+ * with modifiers held). Displaced actions keep their mnemonic via Shift+key.
  */
 export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   // Panels
@@ -138,22 +143,24 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   {
     action: HotkeyAction.FLAG_TRACKER,
     key: 'q',
-    displayName: 'Flag Tracker',
-    description: 'Toggle flag bearer tracker',
+    displayName: 'Flag Tracker (legacy default)',
+    description: 'Legacy binding — unused (tracker is permanent); q is reserved for movement',
     category: HotkeyCategory.PANELS,
+    requiresShift: true,
   },
   {
     action: HotkeyAction.BEER_BASE_PANEL,
     key: 'e',
-    displayName: 'Beer Bases',
-    description: 'Toggle Beer Base attack panel',
+    displayName: 'Beer Bases (Shift+E)',
+    description: 'Toggle Beer Base attack panel — Shift+E (E alone is movement)',
     category: HotkeyCategory.COMBAT,
+    requiresShift: true,
   },
   {
     action: HotkeyAction.BOT_SCANNER,
     key: 'x',
-    displayName: 'Bot Scanner',
-    description: 'Toggle bot scanner panel (requires tech unlock)',
+    displayName: 'Bot Scanner (Shift+X)',
+    description: 'Toggle bot scanner panel (requires tech unlock) — Shift+X (X alone is movement)',
     category: HotkeyCategory.COMBAT,
     requiresShift: true,
   },
@@ -183,9 +190,10 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   {
     action: HotkeyAction.CLAN_VIEW,
     key: 'c',
-    displayName: 'Clan View',
-    description: 'Toggle clan panel view',
+    displayName: 'Clan View (Shift+C)',
+    description: 'Toggle clan panel view — Shift+C (C alone is movement)',
     category: HotkeyCategory.VIEWS,
+    requiresShift: true,
   },
   {
     action: HotkeyAction.CLAN_LEADERBOARD,
@@ -207,15 +215,15 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
     action: HotkeyAction.AUTO_FARM_TOGGLE,
     key: 'f',
     displayName: 'Auto-Farm Toggle (Shift+F)',
-    description: 'Start/pause/resume auto-farming',
+    description: 'Start/pause/resume auto-farming — Shift+F (F alone harvests)',
     category: HotkeyCategory.AUTO_FARM,
     requiresShift: true,
   },
   {
     action: HotkeyAction.AUTO_FARM_STATS,
     key: 's',
-    displayName: 'Auto-Farm Stats',
-    description: 'Toggle auto-farm statistics display',
+    displayName: 'Auto-Farm Stats (Shift+S)',
+    description: 'Toggle auto-farm statistics display — Shift+S (S alone is refresh/movement)',
     category: HotkeyCategory.AUTO_FARM,
     requiresShift: true,
   },
@@ -230,10 +238,11 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   },
   {
     action: HotkeyAction.HARVEST_CAVE_FOREST,
-    key: 'f',
-    displayName: 'Harvest Cave/Forest',
-    description: 'Explore caves or harvest forest resources',
+    key: 'v',
+    displayName: 'Harvest Cave/Forest (Shift+V)',
+    description: 'Explore caves or harvest forest — Shift+V (F alone is Auto-Farm, G alone is harvest)',
     category: HotkeyCategory.RESOURCES,
+    requiresShift: true,
   },
   
   // Combat

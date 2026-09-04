@@ -165,17 +165,19 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
   // ============================================================
 
   /**
-   * Handle keyboard shortcut (D key) to toggle panel
+   * Handle keyboard shortcut (Shift+D) to toggle panel.
+   * Bare D is movement East — single-mapping rule (see lib/hotkeyRegistry.ts).
    */
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'd' || e.key === 'D') {
+      if ((e.key === 'd' || e.key === 'D') && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         // Ignore if typing in input field
         if (isTypingInInput()) {
           return;
         }
         
         if (isOpen) {
+          e.preventDefault();
           onClose();
         }
       }

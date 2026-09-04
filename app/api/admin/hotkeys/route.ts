@@ -14,6 +14,7 @@ import { gameConfig } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { DEFAULT_HOTKEYS, HotkeyConfig, HotkeySettings } from '@/types/hotkey.types';
+import { findHotkeyConflicts } from '@/lib/hotkeyRegistry';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -125,6 +126,17 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
           'Each hotkey must have action, key, displayName, and category'
         );
       }
+    }
+    
+    // Single-mapping invariant (lib/hotkeyRegistry): no bare movement key binds,
+    // no duplicate combos. Rejected server-side so a tampered admin client cannot
+    // install a conflicting config that then ships to every panel.
+    const conflicts = findHotkeyConflicts(hotkeys as HotkeyConfig[]);
+    if (conflicts.length > 0) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Hotkey configuration violates the single-mapping invariant',
+        conflicts,
+      });
     }
     
     const existingSettings = await getHotkeySettings();

@@ -1,18 +1,14 @@
 /**
  * Beer Base Panel Component
  * Created: 2025-01-23
+ * Updated: 2026-09-04 — intel gating (organic discovery)
  * 
  * OVERVIEW:
- * UI component for the Beer Base feature. Displays Beer Base locations with power tiers,
- * allows players to attack Beer Bases for loot. Activated by hotkey (configurable in admin panel).
- * 
- * FEATURES:
- * - Lists all Beer Bases with power tier and location
- * - Shows distance from player
- * - Displays loot potential and army composition
- * - Attack functionality with battle results
- * - Keyboard hotkey support (configurable)
- * - Beer Base highlighting with 🍺 icon
+ * UI component for the Beer Base feature. Lists Beer Bases for exploration:
+ * only the name, power tier (visible on the map), and coarse distance are
+ * shown from afar — army size, strength, defense, loot, specialization, tier,
+ * and exact position are revealed ONLY when the player stands on the base's
+ * tile (server-gated). Attack requires presence at the base.
  */
 
 'use client';
@@ -22,18 +18,30 @@ import { useGameContext } from '@/context/GameContext';
 import { formatNumberAbbreviated } from '@/utils/formatting';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 
-interface BeerBase {
+/** Full intel — served only when the player is standing on the base tile. */
+interface BeerBaseScanned {
   username: string;
   position: { x: number; y: number };
   distance: number;
   totalStrength: number;
-  totalDefense: number;
+  totalDefense: number;  
   resources: { metal: number; energy: number };
   armySize: number;
   powerTier: string;
   specialization: string;
   tier: number;
+  scanned: true;
 }
+
+/** Far-field view: name, tier, and the hot/cold distance compass only. */
+interface BeerBaseUnscanned {
+  username: string;
+  powerTier: string;
+  distance: number;
+  scanned: false;
+}
+
+type BeerBase = BeerBaseScanned | BeerBaseUnscanned;
 
 interface BeerBaseListResponse {
   success: boolean;
@@ -60,7 +68,6 @@ export default function BeerBasePanel() {
   const [totalCount, setTotalCount] = useState(0);
   const [attacking, setAttacking] = useState<string | null>(null);
   const [attackResult, setAttackResult] = useState<AttackResult | null>(null);
-  const [sortBy, setSortBy] = useState<'distance' | 'power' | 'loot'>('distance');
   const [hotkeyConfig, setHotkeyConfig] = useState<string>('E');
 
   // Load Beer Base list
@@ -69,7 +76,7 @@ export default function BeerBasePanel() {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/beer-bases/list?username=${encodeURIComponent(player.username)}`);
+      const response = await fetch('/api/beer-bases/list');
       const data: BeerBaseListResponse = await response.json();
 
       if (data.success) {
@@ -83,7 +90,8 @@ export default function BeerBasePanel() {
     }
   }, [player?.username]);
 
-  // Load hotkey configuration
+  // Load hotkey configuration (Shift+E by default — bare E is movement).
+  const [hotkeyShift, setHotkeyShift] = useState(true);
   useEffect(() => {
     const loadHotkey = async () => {
       try {
@@ -93,6 +101,7 @@ export default function BeerBasePanel() {
           const beerBaseHotkey = data.hotkeys.find((h: { action: string }) => h.action === 'BEER_BASE_PANEL');
           if (beerBaseHotkey) {
             setHotkeyConfig(beerBaseHotkey.key.toUpperCase());
+            setHotkeyShift(beerBaseHotkey.requiresShift === true);
           }
         }
       } catch {
@@ -111,7 +120,10 @@ export default function BeerBasePanel() {
         return;
       }
 
-      if (e.key.toUpperCase() === hotkeyConfig && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      // Single-mapping invariant: this combo fires ONLY here. The Shift
+      // requirement (default) keeps bare E exclusively movement's.
+      const shiftOk = hotkeyShift ? e.shiftKey : true;
+      if (e.key.toUpperCase() === hotkeyConfig && shiftOk && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
         setIsOpen(prev => !prev);
         if (!isOpen) {
@@ -128,12 +140,15 @@ export default function BeerBasePanel() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isOpen, hotkeyConfig, fetchBeerBases]);
+  }, [isOpen, hotkeyConfig, hotkeyShift, fetchBeerBases]);
 
-  // Load Beer Bases when panel opens
+  // Load Beer Bases when panel opens; re-fetch on the move so the distance
+  // compass stays live and standing on a tile flips that base to scanned.
   useEffect(() => {
     if (isOpen && player?.username) {
       fetchBeerBases();
+      const interval = setInterval(fetchBeerBases, 5000);
+      return () => clearInterval(interval);
     }
   }, [isOpen, player, fetchBeerBases]);
 
@@ -195,20 +210,10 @@ export default function BeerBasePanel() {
     }
   };
 
-  // Sort Beer Bases
+  // Sort Beer Bases. Distance only — power/loot sorting would require the
+  // hidden intel; the server already orders by distance as well.
   const getSortedBeerBases = (): BeerBase[] => {
-    const sorted = [...beerBases];
-    
-    switch (sortBy) {
-      case 'distance':
-        return sorted.sort((a, b) => a.distance - b.distance);
-      case 'power':
-        return sorted.sort((a, b) => (b.totalStrength + b.totalDefense) - (a.totalStrength + a.totalDefense));
-      case 'loot':
-        return sorted.sort((a, b) => (b.resources.metal + b.resources.energy) - (a.resources.metal + a.resources.energy));
-      default:
-        return sorted;
-    }
+    return [...beerBases].sort((a, b) => a.distance - b.distance);
   };
 
   if (!isOpen) return null;
@@ -237,41 +242,9 @@ export default function BeerBasePanel() {
           </div>
         </div>
 
-        {/* Controls */}
+        {/* Controls — distance sort only: power/loot would leak hidden intel */}
         <div className="bg-gray-800 p-3 border-b border-gray-700 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400">Sort by:</span>
-            <button
-              onClick={() => setSortBy('distance')}
-              className={`px-3 py-1 text-xs rounded ${
-                sortBy === 'distance'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              Distance
-            </button>
-            <button
-              onClick={() => setSortBy('power')}
-              className={`px-3 py-1 text-xs rounded ${
-                sortBy === 'power'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              Power
-            </button>
-            <button
-              onClick={() => setSortBy('loot')}
-              className={`px-3 py-1 text-xs rounded ${
-                sortBy === 'loot'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-              }`}
-            >
-              Loot
-            </button>
-          </div>
+          <span className="text-sm text-gray-400">Sorted by distance — walk to a base to scan its stats</span>
           <button
             onClick={fetchBeerBases}
             disabled={loading}
@@ -295,7 +268,11 @@ export default function BeerBasePanel() {
               {getSortedBeerBases().map((base, index) => (
                 <div
                   key={index}
-                  className="bg-gray-800 p-4 rounded border-2 border-yellow-500/50 hover:border-yellow-500 transition-all"
+                  className={`bg-gray-800 p-4 rounded border-2 transition-all ${
+                    base.scanned
+                      ? 'border-yellow-500 hover:border-yellow-400'
+                      : 'border-gray-600/60 hover:border-yellow-500/50'
+                  }`}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
@@ -303,7 +280,11 @@ export default function BeerBasePanel() {
                         🍺 {base.username}
                       </span>
                       <div className="text-sm text-gray-400">
-                        <span className="capitalize">{base.specialization}</span> - Tier {base.tier}
+                        {base.scanned ? (
+                          <span className="capitalize">{base.specialization} - Tier {base.tier}</span>
+                        ) : (
+                          <span className="italic text-gray-500">Unscouted — walk here to scan</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
@@ -311,7 +292,9 @@ export default function BeerBasePanel() {
                         {base.powerTier.toUpperCase()}
                       </div>
                       <div className="text-xs text-gray-500">
-                        Position: ({base.position.x}, {base.position.y})
+                        {base.scanned
+                          ? `Position: (${base.position.x}, ${base.position.y})`
+                          : 'Position: ???'}
                       </div>
                     </div>
                   </div>
@@ -325,28 +308,46 @@ export default function BeerBasePanel() {
                     </div>
                     <div>
                       <div className="text-gray-400 text-xs">Army Size</div>
-                      <div className="font-bold text-white">{formatNumberAbbreviated(base.armySize)} units</div>
+                      {base.scanned ? (
+                        <div className="font-bold text-white">{formatNumberAbbreviated(base.armySize)} units</div>
+                      ) : (
+                        <div className="font-bold text-gray-600">???</div>
+                      )}
                     </div>
                     <div>
                       <div className="text-gray-400 text-xs">Strength</div>
-                      <div className="font-bold text-red-400">{formatNumberAbbreviated(base.totalStrength)}</div>
+                      {base.scanned ? (
+                        <div className="font-bold text-red-400">{formatNumberAbbreviated(base.totalStrength)}</div>
+                      ) : (
+                        <div className="font-bold text-gray-600">???</div>
+                      )}
                     </div>
                     <div>
                       <div className="text-gray-400 text-xs">Defense</div>
-                      <div className="font-bold text-blue-400">{formatNumberAbbreviated(base.totalDefense)}</div>
+                      {base.scanned ? (
+                        <div className="font-bold text-blue-400">{formatNumberAbbreviated(base.totalDefense)}</div>
+                      ) : (
+                        <div className="font-bold text-gray-600">???</div>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="text-sm">
                       <span className="text-gray-400">Loot: </span>
-                      <span className="text-cyan-400 font-bold">
-                        {formatNumberAbbreviated(base.resources.metal)} 🔩
-                      </span>
-                      <span className="text-gray-400"> + </span>
-                      <span className="text-yellow-400 font-bold">
-                        {formatNumberAbbreviated(base.resources.energy)} ⚡
-                      </span>
+                      {base.scanned ? (
+                        <>
+                          <span className="text-cyan-400 font-bold">
+                            {formatNumberAbbreviated(base.resources.metal)} 🔩
+                          </span>
+                          <span className="text-gray-400"> + </span>
+                          <span className="text-yellow-400 font-bold">
+                            {formatNumberAbbreviated(base.resources.energy)} ⚡
+                          </span>
+                        </>
+                      ) : (
+                        <span className="font-bold text-gray-600">??? — stand on the base to scan it</span>
+                      )}
                     </div>
                     <button
                       onClick={() => handleAttack(base.username)}
@@ -391,7 +392,7 @@ export default function BeerBasePanel() {
         {/* Footer */}
         <div className="bg-gray-800 p-3 border-t border-gray-700 text-center">
           <p className="text-xs text-gray-400">
-            Press <kbd className="px-2 py-1 bg-gray-700 rounded border border-gray-600 text-yellow-300">{hotkeyConfig}</kbd> to toggle • ESC to close
+            Press <kbd className="px-2 py-1 bg-gray-700 rounded border border-gray-600 text-yellow-300">{hotkeyShift ? 'Shift+' : ''}{hotkeyConfig}</kbd> to toggle • ESC to close
           </p>
         </div>
       </div>

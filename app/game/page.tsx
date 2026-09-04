@@ -426,8 +426,8 @@ export default function GamePage() {
       return; // Prevent F key from triggering harvest
     }
 
-    // 'C' key - Toggle Clan Panel
-    if (key === 'c') {
+    // 'Shift+C' key - Toggle Clan Panel (bare C is movement SE — single-mapping rule)
+    if (key === 'c' && event.shiftKey) {
       setCurrentView(prev => prev === 'CLAN' ? 'TILE' : 'CLAN');
     }
 
@@ -452,8 +452,9 @@ export default function GamePage() {
       handleHarvest();
     }
 
-    // 'F' key - Harvest for Cave/Forest
-    if (key === 'f') {
+    // 'Shift+V' key - Harvest for Cave/Forest (was bare F; F alone is AutoFarm
+    // and V was chosen per DEFAULT_HOTKEYS — single-mapping rule, no movement key)
+    if (key === 'v' && event.shiftKey) {
       if (!currentTile || (currentTile.terrain !== TerrainType.Cave && currentTile.terrain !== TerrainType.Forest)) {
         return;
       }

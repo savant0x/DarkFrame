@@ -456,6 +456,12 @@ export interface Player {
   referralMilestonesReached?: number[]; // Milestones achieved (e.g., [5, 10, 25])
   signupIP?: string; // IP address used during signup (for abuse detection)
   createdAt?: Date;
+  // Account-ban gate (admin anti-cheat ban flow; enforced at login)
+  banned?: boolean;
+  banReason?: string | null;
+  bannedAt?: Date | null;
+  bannedBy?: string | null;
+  banExpiresAt?: Date | null;
 }
 
 /**

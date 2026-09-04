@@ -55,7 +55,7 @@ interface SpecializationData {
   name: string;
   icon: string;
   description: string;
-  bonuses: any;
+  bonuses: DoctrineConfig['bonuses'];
   masteryLevel: number;
   masteryXP: number;
 }
@@ -103,8 +103,40 @@ const SpecializationPanel: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [doctrines, setDoctrines] = useState<Record<string, DoctrineConfig>>({});
-  const [eligibility, setEligibility] = useState<any>(null);
-  const [respecEligibility, setRespecEligibility] = useState<any>(null);
+  /** Shape of GET /api/specialization/choose success payload (subset consumed here). */
+  interface ChooseSpecializationResponse {
+    success: boolean;
+    hasSpecialization?: boolean;
+    canChoose?: boolean;
+    reason?: string;
+    requirements?: {
+      currentLevel: number;
+      requiredLevel: number;
+      currentRP: number;
+      requiredRP: number;
+    };
+    doctrines?: Record<string, DoctrineConfig>;
+    specialization?: SpecializationData;
+    [key: string]: unknown;
+  }
+  const [eligibility, setEligibility] = useState<ChooseSpecializationResponse | null>(null);
+  /** Shape of GET /api/specialization/switch eligibility payload (subset consumed here). */
+  interface RespecEligibilityResponse {
+    success: boolean;
+    canRespec?: boolean;
+    reason?: string;
+    costs?: {
+      rp: number;
+      metal: number;
+      energy: number;
+      cooldownHours: number;
+    };
+    cooldown?: {
+      active: boolean;
+      remainingHours: number;
+    };
+  }
+  const [respecEligibility, setRespecEligibility] = useState<RespecEligibilityResponse | null>(null);
   const [masteryStatus, setMasteryStatus] = useState<MasteryStatus | null>(null);
   const [showRespecConfirm, setShowRespecConfirm] = useState(false);
   const [selectedDoctrine, setSelectedDoctrine] = useState<string | null>(null);
@@ -118,7 +150,10 @@ const SpecializationPanel: React.FC = () => {
    */
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      // Shift+P: bare P is the game page's Player Leaderboard — single-mapping rule.
+      // (This panel lives on /game/specialization; the Shift requirement keeps the
+      // binding distinct if both pages ever share a layout.)
+      if (e.key.toLowerCase() === 'p' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         // Ignore if typing in input field
         if (isTypingInInput()) {
           return;
