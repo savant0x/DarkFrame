@@ -162,6 +162,39 @@ export function usePolling<T = unknown>({
   const isMountedRef = useRef(true);
   const currentBackoffRef = useRef(interval);
 
+  //
+  // FLOOD FIX (2026-09-04): Callers pass inline closures (fetchFn/onData/onError),
+  // which get a NEW identity on every render. The old code put `fetch` — a
+  // useCallback over those props — in the loop effect's dependency array, so every
+  // render tore down the interval, re-ran the effect, and fired an immediate
+  // "initial fetch". Result: requests as fast as round-trips complete (observed:
+  // 70k requests in ~2 minutes on production). The loop now reads the LATEST
+  // callbacks through refs and only restarts when polling actually should
+  // start/stop (enabled / visibility / pauseWhenInactive).
+  //
+  const fetchFnRef = useRef(fetchFn);
+  const onDataRef = useRef(onData);
+  const onErrorRef = useRef(onError);
+  const desiredIntervalRef = useRef(interval);
+
+  useEffect(() => {
+    fetchFnRef.current = fetchFn;
+  });
+  useEffect(() => {
+    onDataRef.current = onData;
+  });
+  useEffect(() => {
+    onErrorRef.current = onError;
+  });
+  useEffect(() => {
+    desiredIntervalRef.current = interval;
+  });
+
+  // Circuit breaker: stop polling after this many consecutive failures instead of
+  // retrying forever. Resumes when the tab becomes visible again (or on remount).
+  const consecutiveFailuresRef = useRef(0);
+  const MAX_CONSECUTIVE_FAILURES = 5;
+
   // ============================================================================
   // VISIBILITY TRACKING
   // ============================================================================
@@ -184,6 +217,7 @@ export function usePolling<T = unknown>({
   // FETCH FUNCTION
   // ============================================================================
 
+  // Stable identity: reads the latest callbacks via refs (see flood-fix note above).
   const fetch = useCallback(async () => {
     if (!isMountedRef.current) return;
 
@@ -191,7 +225,7 @@ export function usePolling<T = unknown>({
     setError(null);
 
     try {
-      const result = await fetchFn();
+      const result = await fetchFnRef.current();
       
       if (!isMountedRef.current) return;
 
@@ -199,11 +233,12 @@ export function usePolling<T = unknown>({
       setError(null);
       
       // Reset backoff on success
-      currentBackoffRef.current = interval;
-      setBackoffDelay(interval);
+      currentBackoffRef.current = desiredIntervalRef.current;
+      setBackoffDelay(desiredIntervalRef.current);
+      consecutiveFailuresRef.current = 0;
 
-      if (onData) {
-        onData(result);
+      if (onDataRef.current) {
+        onDataRef.current(result);
       }
     } catch (err) {
       if (!isMountedRef.current) return;
@@ -211,15 +246,19 @@ export function usePolling<T = unknown>({
       const error = err instanceof Error ? err : new Error('Unknown error');
       setError(error);
 
-      // Exponential backoff
-      currentBackoffRef.current = Math.min(
-        currentBackoffRef.current * BACKOFF_MULTIPLIER,
-        MAX_BACKOFF
+      // Exponential backoff (clamped to [MIN_BACKOFF, MAX_BACKOFF])
+      currentBackoffRef.current = Math.max(
+        MIN_BACKOFF,
+        Math.min(
+          currentBackoffRef.current * BACKOFF_MULTIPLIER,
+          MAX_BACKOFF
+        )
       );
       setBackoffDelay(currentBackoffRef.current);
+      consecutiveFailuresRef.current += 1;
 
-      if (onError) {
-        onError(error);
+      if (onErrorRef.current) {
+        onErrorRef.current(error);
       }
 
       console.error('[usePolling] Error:', error);
@@ -228,16 +267,16 @@ export function usePolling<T = unknown>({
         setIsLoading(false);
       }
     }
-  }, [fetchFn, interval, onData, onError]);
+  }, []);
 
   // ============================================================================
   // POLLING LOOP
   // ============================================================================
 
   useEffect(() => {
-    // Clear existing interval
+    // Clear existing timer
     if (intervalRef.current) {
-      clearInterval(intervalRef.current);
+      clearTimeout(intervalRef.current);
       intervalRef.current = null;
     }
 
@@ -249,20 +288,35 @@ export function usePolling<T = unknown>({
 
     setIsPolling(true);
 
-    // Initial fetch
-    fetch();
+    // Self-scheduling loop: the next request is scheduled only AFTER the current
+    // one completes (plus the backoff delay). Guarantees at most one in-flight
+    // request per hook, regardless of how slow the server is.
+    let cancelled = false;
 
-    // Set up interval
-    intervalRef.current = setInterval(() => {
-      fetch();
-    }, currentBackoffRef.current);
+    const tick = async () => {
+      if (cancelled || !isMountedRef.current) return;
+      // Circuit breaker: too many consecutive failures — stand down instead of
+      // hammering a failing endpoint. A visibilitychange flips isTabVisible,
+      // which re-runs this effect and resets the loop (fresh chances).
+      if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
+        setIsPolling(false);
+        return;
+      }
+      await fetch();
+      if (cancelled || !isMountedRef.current) return;
+      intervalRef.current = setTimeout(tick, currentBackoffRef.current);
+    };
+
+    void tick();
 
     return () => {
+      cancelled = true;
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
     };
+    // `fetch` is stable ([] deps); inline closures from callers are read via refs.
   }, [enabled, isTabVisible, pauseWhenInactive, fetch]);
 
   // ============================================================================
@@ -314,6 +368,12 @@ export function usePolling<T = unknown>({
  *    - Doubles on each error: 3s → 6s → 12s → 24s
  *    - Caps at MAX_BACKOFF (30s) to prevent infinite delays
  *    - Resets to original interval on successful fetch
+ * 
+ * 2b. Flood Safety (2026-09-04):
+ *    - The loop never restarts because a caller re-rendered. Inline
+ *      fetchFn/onData/onError closures are read through refs each tick.
+ *    - Self-scheduling timeout: next request waits for the previous one to
+ *      finish. One in-flight request per hook, always.
  * 
  * 3. Memory Management:
  *    - Uses isMountedRef to prevent state updates after unmount

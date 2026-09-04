@@ -201,18 +201,32 @@ export function GameProvider({ children }: GameProviderProps) {
    * Load tile data from API
    */
   async function loadTileData(x: number, y: number) {
-    try {
-      const response = await fetch(`/api/tile?x=${x}&y=${y}`);
-      const data = await response.json();
+    // Retry with backoff: under load (or during a transient blip) the first fetch
+    // can fail — previously a single failure left `currentTile` null forever and
+    // the game view stuck on "Loading tile..." with no self-heal.
+    const MAX_ATTEMPTS = 3;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(`/api/tile?x=${x}&y=${y}`);
+        const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(extractApiErrorMessage(data, 'Failed to load tile data'));
+        if (!data.success) {
+          throw new Error(extractApiErrorMessage(data, 'Failed to load tile data'));
+        }
+
+        setCurrentTile(data.data);
+        return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to load tile';
+        if (attempt < MAX_ATTEMPTS) {
+          const delayMs = 1000 * attempt;
+          logger.warn(`Tile load attempt ${attempt} failed, retrying in ${delayMs}ms`, { x, y, error: msg });
+          await new Promise((r) => setTimeout(r, delayMs));
+        } else {
+          logger.error('Error loading tile data (all retries exhausted)', err instanceof Error ? err : new Error(msg));
+          setError(msg);
+        }
       }
-
-      setCurrentTile(data.data);
-    } catch (err) {
-      logger.error('Error loading tile data', err instanceof Error ? err : new Error(String(err)));
-      setError(err instanceof Error ? err.message : 'Failed to load tile');
     }
   }
 
