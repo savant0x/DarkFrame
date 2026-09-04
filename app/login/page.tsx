@@ -7,11 +7,9 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -40,7 +38,10 @@ export default function LoginPage() {
         // Cookie handles authentication persistence
         // No need to save to localStorage - GameContext reads from JWT cookie
         
-        router.push('/game');
+        // Hard navigation, not router.push: GameContext (mounted in the root layout)
+        // runs its session check exactly once per mount. A soft push would reuse the
+        // pre-login "no session" state and bounce straight back to /login.
+        window.location.href = '/game';
       } else {
         // Extract message from error object (API returns {code, message, timestamp, stack})
         const errorMessage = typeof data.error === 'object' && data.error?.message 
@@ -83,6 +84,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="email"
                 className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="your.email@example.com"
                 disabled={isLoading}
@@ -100,6 +102,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
                 className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="••••••••"
                 disabled={isLoading}

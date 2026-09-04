@@ -20,11 +20,9 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 import { logger } from '@/lib/logger';
+import { JWT_SECRET } from '@/lib/jwt';
 
 const COOKIE_NAME = 'darkframe_session';
-// Must match lib/authMiddleware.ts — Edge runtime: jose only, no DB, no Node crypto
-const JWT_SECRET = process.env.JWT_SECRET || 'darkframe-secret-change-in-production';
-
 /**
  * Add security headers to response
  * 

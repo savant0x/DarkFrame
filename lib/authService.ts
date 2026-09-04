@@ -7,8 +7,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
+import { JWT_SECRET } from './jwt';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'darkframe-secret-change-in-production';
 const SALT_ROUNDS = 10;
 
 // Cookie configuration

@@ -87,12 +87,15 @@ describe('harvestService', () => {
       expect(Math.abs(amTime - pmTime)).toBeGreaterThan(0);
     });
 
-    it('should return value less than 12 hours (43200000 ms)', () => {
+    it('should return value less than 24 hours (86400000 ms)', () => {
       const tileX = 75;
       const timeUntilReset = getTimeUntilReset(tileX);
-      const twelveHoursMs = 12 * 60 * 60 * 1000;
+      // Reset is at the next midnight, so the wait is always < 24h (it is only
+      // < 12h during the afternoon half of the day — the old bound was flaky).
+      const twentyFourHoursMs = 24 * 60 * 60 * 1000;
       
-      expect(timeUntilReset).toBeLessThanOrEqual(twelveHoursMs);
+      expect(timeUntilReset).toBeGreaterThan(0);
+      expect(timeUntilReset).toBeLessThanOrEqual(twentyFourHoursMs);
     });
   });
 

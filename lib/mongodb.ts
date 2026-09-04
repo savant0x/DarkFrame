@@ -23,6 +23,7 @@ import type { SQL } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import type { QueryResult } from 'pg';
 import * as schema from '@/lib/db/schema';
+import { generateId } from './utils';
 
 /**
  * Mongo→Postgres compatibility seam.
@@ -185,7 +186,12 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
       conditions.push(eq(column, coerceScalar(value)));
     }
   }
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  // Mongo semantics: a non-empty filter that references only unknown/dot-path keys
+  // matches NOTHING. Returning `undefined` here would silently degrade to
+  // "match everything" — a whole-table hazard for update/delete and wrong results
+  // for reads. The explicit always-false clause keeps every caller scoped.
+  // (Truly empty filters `{}` still return undefined = match all, as in Mongo.)
+  return conditions.length > 0 ? and(...conditions) : sql`false`;
 }
 
 /** Extract a string id from a document's `id`/`_id` field, if present. */
@@ -194,6 +200,38 @@ function extractId(doc: object): string | null {
   if (typeof record.id === 'string' && record.id) return record.id;
   if (typeof record._id === 'string' && record._id) return record._id;
   return null;
+}
+
+/**
+ * Ensure an insert payload carries a value for the table's required `id` PK.
+ *
+ * Every table in this schema uses a Mongo-style `id: varchar(24)` primary key, but the
+ * Mongo driver auto-generates `_id` while this shim historically did not — so any
+ * insert of a doc without an explicit id crashed with `null value in column "id"`.
+ * Accepts a doc's `id` or Mongo `_id` (string or ObjectId-like) and generates the rest.
+ */
+function ensureRowId(
+  table: PgTable,
+  payload: Record<string, DocumentValue>,
+  originalDoc: object
+): Record<string, DocumentValue> {
+  const columns = getTableColumns(table) as Record<string, { dataType?: string }>;
+  if (!columns.id) return payload; // table has no id column — nothing to fill
+  const record = originalDoc as Record<string, unknown>;
+  const existing =
+    payload.id ??
+    (typeof record._id === 'string' && record._id ? record._id : undefined) ??
+    (record._id && typeof (record._id as { toString?: () => string }).toString === 'function' &&
+      (record._id as object).constructor.name !== 'Object'
+      ? String(record._id)
+      : undefined);
+  if (existing !== undefined) {
+    return { ...payload, id: existing };
+  }
+  const generated = generateId();
+  // Reflect the generated id back onto the caller's doc (Mongo inserts do this for _id).
+  record.id = generated;
+  return { ...payload, id: generated };
 }
 
 /**
@@ -353,7 +391,8 @@ export class Collection<T = Record<string, unknown>> {
   async insertOne(doc: object): Promise<{ insertedId: string | null }> {
     const t = this.table();
     if (!t) return { insertedId: null };
-    await drizzleDb.insert(t).values(normalizeScalarBooleans(doc));
+    const normalized = ensureRowId(t, normalizeScalarBooleans(doc), doc);
+    await drizzleDb.insert(t).values(normalized);
     return { insertedId: extractId(doc) };
   }
 
@@ -366,7 +405,9 @@ export class Collection<T = Record<string, unknown>> {
     // Chunk so each statement stays well under the cap (2,000 rows * 4 bound cols = 8,000).
     const CHUNK_SIZE = 2000;
     for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
-      const chunk = docs.slice(i, i + CHUNK_SIZE).map((d) => normalizeScalarBooleans(d));
+      const chunk = docs
+        .slice(i, i + CHUNK_SIZE)
+        .map((d) => ensureRowId(t, normalizeScalarBooleans(d), d));
       await drizzleDb.insert(t).values(chunk);
     }
     return { insertedIds: docs.map((d) => extractId(d)) };

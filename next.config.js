@@ -37,9 +37,9 @@ const nextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://js.stripe.com",
               "worker-src 'self' blob:", // Allow Web Workers for canvas-confetti
-              "style-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "img-src 'self' data: https:",
-              "font-src 'self' data:",
+              "font-src 'self' data: https://fonts.gstatic.com",
               "connect-src 'self' ws: wss:",
             ].join('; '),
           },

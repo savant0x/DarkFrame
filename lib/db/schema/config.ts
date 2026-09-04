@@ -77,9 +77,20 @@ export const playerSessions = pgTable('player_sessions', {
 	token: varchar('token', { length: 255 }).notNull(),
 	expiresAt: timestamp('expires_at').notNull(),
 	createdAt: timestamp('created_at').notNull(),
+	// Session-analytics fields (Mongo-parity; consumed by lib/sessionTracker).
+	// Nullable so legacy auth-token rows remain valid.
+	sessionId: varchar('session_id', { length: 64 }),
+	startTime: timestamp('start_time'),
+	endTime: timestamp('end_time'),
+	duration: integer('duration'),
+	actionsCount: integer('actions_count').default(0),
+	resourcesGainedMetal: integer('resources_gained_metal').default(0),
+	resourcesGainedEnergy: integer('resources_gained_energy').default(0),
+	ipAddress: varchar('ip_address', { length: 64 }),
 }, (table) => [
 	index('player_sessions_user_id_idx').on(table.userId),
 	index('player_sessions_token_idx').on(table.token),
+	index('player_sessions_session_id_idx').on(table.sessionId),
 ]);
 
 export const playerActivity = pgTable('player_activity', {
@@ -88,6 +99,9 @@ export const playerActivity = pgTable('player_activity', {
 	action: varchar('action', { length: 50 }).notNull(),
 	timestamp: timestamp('timestamp').notNull(),
 	details: jsonb('details').$type<any>(),
+	// Mongo-parity analytics fields (lib/activityLogger); nullable for legacy rows.
+	sessionId: varchar('session_id', { length: 64 }),
+	metadata: jsonb('metadata').$type<any>(),
 }, (table) => [
 	index('player_activity_player_timestamp_idx').on(table.playerId, table.timestamp),
 ]);

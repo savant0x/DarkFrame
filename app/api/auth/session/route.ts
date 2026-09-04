@@ -18,14 +18,10 @@ import {
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   createErrorResponse,
-  createErrorFromException,
   ErrorCode,
 } from '@/lib';
 import { jwtVerify } from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
-);
+import { JOSE_SECRET } from '@/lib/jwt';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
@@ -60,7 +56,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     }
     
     // Verify JWT token
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JOSE_SECRET);
     
     log.debug('Session validated', { username: payload.username });
     

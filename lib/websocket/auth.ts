@@ -43,14 +43,11 @@ export interface AuthenticationResult {
   user?: AuthenticatedUser;
   error?: string;
 }
+import { JOSE_SECRET } from '@/lib/jwt';
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
-
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'darkframe-secret-change-in-production'
-);
 
 // Must match the session cookie set by lib/authService.ts and read by middleware.ts
 const JWT_COOKIE_NAME = 'darkframe_session';
@@ -82,7 +79,7 @@ async function verifyJWT(token: string): Promise<{
   exp: number;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, JOSE_SECRET);
     
     // Real tokens minted by lib/authService.generateToken carry { username, email, isAdmin }
     // — there is no userId claim. Require only username.

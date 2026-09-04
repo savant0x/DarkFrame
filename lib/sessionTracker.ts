@@ -1,136 +1,138 @@
 /**
  * @file lib/sessionTracker.ts
- * @created 2025-10-18
- * @overview Session tracking middleware for login/logout and duration analytics
- * 
- * OVERVIEW:
- * Manages player sessions from login to logout, tracking duration, activity counts,
- * and resource gains per session. Used for analytics, anti-cheat detection, and
- * admin monitoring of player engagement patterns.
- * 
- * Features:
- * - Automatic session creation on login
- * - Session update on activity
- * - Session closure on logout
- * - Idle session timeout handling
- * - Session analytics queries
+ * @overview Session tracking for login/logout and duration analytics.
+ *
+ * Rewritten to write the REAL Postgres `player_sessions` table via drizzle. The previous
+ * version inserted Mongo-shaped docs through the compat shim, which crashed on every
+ * login (`null value in column "id"`) because the table requires an `id` PK the shim
+ * never generated and the doc carried no `token`/`expires_at` values.
+ *
+ * Row layout (see lib/db/schema/config.ts): legacy auth-token rows keep the required
+ * columns (id, user_id, token, expires_at, created_at); analytics tracking adds the
+ * nullable session_id/start/end/duration/actions/resources/ip columns.
  */
 
-import { getCollection } from './mongodb';
-import { PlayerSession, Resources } from '@/types';
+import { db } from './db';
+import { playerSessions } from './db/schema';
+import { and, eq, isNull, isNotNull, lt, gte, desc, sql } from 'drizzle-orm';
+import type { PlayerSession, Resources } from '@/types';
+import { generateId } from './utils';
 import { randomBytes } from 'node:crypto';
 
-// ============================================================
-// SESSION MANAGEMENT FUNCTIONS
-// ============================================================
+/** One day, for the required `expires_at` column on tracker rows. */
+const TRACKER_ROW_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Generate unique session ID
- * 
- * @returns Unique session identifier
+ * Generate unique session ID (`session_<ts>_<hex>`, fits varchar(64)).
  */
 function generateSessionId(): string {
   return `session_${Date.now()}_${randomBytes(8).toString('hex')}`;
 }
 
+/** Map a row of `player_sessions` to the domain PlayerSession shape. */
+function mapRow(row: typeof playerSessions.$inferSelect): PlayerSession {
+  return {
+    userId: row.userId,
+    username: row.userId,
+    sessionId: row.sessionId ?? row.token,
+    startTime: row.startTime ?? row.createdAt,
+    endTime: row.endTime ?? undefined,
+    duration: row.duration ?? undefined,
+    actionsCount: row.actionsCount ?? 0,
+    resourcesGained: {
+      metal: row.resourcesGainedMetal ?? 0,
+      energy: row.resourcesGainedEnergy ?? 0,
+    },
+    ipAddress: row.ipAddress ?? undefined,
+  };
+}
+
 /**
- * Start a new player session
- * Called on login to create session record
- * 
+ * Start a new player session. Called on login.
+ *
  * @param userId - Player username
  * @param ipAddress - Client IP address (optional, for multi-account detection)
  * @returns Session ID for use in subsequent requests
- * 
- * @example
- * const sessionId = await startSession('PlayerOne', req.ip);
- * // Store sessionId in cookie or response
  */
 export async function startSession(
   userId: string,
   ipAddress?: string
 ): Promise<string> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
     const sessionId = generateSessionId();
+    const now = new Date();
 
-    const session: PlayerSession = {
+    await db.insert(playerSessions).values({
+      id: generateId(),
       userId,
-      username: userId,
+      token: sessionId, // tracker rows double the session id as their token value
+      expiresAt: new Date(now.getTime() + TRACKER_ROW_TTL_MS),
+      createdAt: now,
       sessionId,
-      startTime: new Date(),
+      startTime: now,
       actionsCount: 0,
-      resourcesGained: { metal: 0, energy: 0 },
-      ipAddress,
-    };
-
-    await sessionCollection.insertOne(session);
+      resourcesGainedMetal: 0,
+      resourcesGainedEnergy: 0,
+      ipAddress: ipAddress ?? null,
+    });
 
     console.log(`🎮 Session started: ${userId} - ${sessionId}`);
     return sessionId;
   } catch (error) {
+    // Non-fatal: analytics must never break login.
     console.error('Failed to start session:', error);
-    // Return fallback session ID even on error
     return generateSessionId();
   }
 }
 
 /**
- * Update session with activity
- * Called after each player action to track activity count and resources
- * 
+ * Update session with activity (action count + optional resource gains).
+ *
  * @param sessionId - Session identifier
  * @param resourcesGained - Resources gained in this action (optional)
- * 
- * @example
- * await updateSession(sessionId, { metal: 500 });
  */
 export async function updateSession(
   sessionId: string,
   resourcesGained?: Partial<Resources>
 ): Promise<void> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
-
-    const update: any = {
-      $inc: { actionsCount: 1 },
-    };
-
-    // Add resources if provided
-    if (resourcesGained) {
-      if (resourcesGained.metal) {
-        update.$inc['resourcesGained.metal'] = resourcesGained.metal;
-      }
-      if (resourcesGained.energy) {
-        update.$inc['resourcesGained.energy'] = resourcesGained.energy;
-      }
-    }
-
-    await sessionCollection.updateOne(
-      { sessionId, endTime: { $exists: false } }, // Only update active sessions
-      update
-    );
+    await db
+      .update(playerSessions)
+      .set({
+        actionsCount: sql`coalesce(${playerSessions.actionsCount}, 0) + 1`,
+        ...(resourcesGained?.metal
+          ? {
+              resourcesGainedMetal: sql`coalesce(${playerSessions.resourcesGainedMetal}, 0) + ${Math.floor(resourcesGained.metal)}`,
+            }
+          : {}),
+        ...(resourcesGained?.energy
+          ? {
+              resourcesGainedEnergy: sql`coalesce(${playerSessions.resourcesGainedEnergy}, 0) + ${Math.floor(resourcesGained.energy)}`,
+            }
+          : {}),
+      })
+      .where(
+        and(eq(playerSessions.sessionId, sessionId), isNull(playerSessions.endTime))
+      );
   } catch (error) {
     console.error('Failed to update session:', error);
   }
 }
 
 /**
- * End a player session
- * Called on logout to finalize session duration and mark as complete
- * 
+ * End a player session (logout): finalize duration.
+ *
  * @param sessionId - Session identifier
- * 
- * @example
- * await endSession(sessionId);
  */
 export async function endSession(sessionId: string): Promise<void> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
-
-    const session = await sessionCollection.findOne({
-      sessionId,
-      endTime: { $exists: false },
-    });
+    const [session] = await db
+      .select()
+      .from(playerSessions)
+      .where(
+        and(eq(playerSessions.sessionId, sessionId), isNull(playerSessions.endTime))
+      )
+      .limit(1);
 
     if (!session) {
       console.warn(`Session not found or already ended: ${sessionId}`);
@@ -138,17 +140,14 @@ export async function endSession(sessionId: string): Promise<void> {
     }
 
     const endTime = new Date();
-    const duration = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000);
-
-    await sessionCollection.updateOne(
-      { sessionId },
-      {
-        $set: {
-          endTime,
-          duration,
-        },
-      }
+    const duration = Math.floor(
+      (endTime.getTime() - (session.startTime ?? session.createdAt).getTime()) / 1000
     );
+
+    await db
+      .update(playerSessions)
+      .set({ endTime, duration })
+      .where(eq(playerSessions.id, session.id));
 
     console.log(`🛑 Session ended: ${session.userId} - Duration: ${duration}s`);
   } catch (error) {
@@ -157,30 +156,21 @@ export async function endSession(sessionId: string): Promise<void> {
 }
 
 /**
- * Get active session for a user
- * Used to check if user has an ongoing session
- * 
+ * Get the active (not yet ended) session for a user, if any.
+ *
  * @param userId - Player username
- * @returns Active session or null
- * 
- * @example
- * const activeSession = await getActiveSession('PlayerOne');
- * if (activeSession) {
- *   console.log(`Active session: ${activeSession.sessionId}`);
- * }
  */
 export async function getActiveSession(
   userId: string
 ): Promise<PlayerSession | null> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
-
-    const session = await sessionCollection.findOne({
-      userId,
-      endTime: { $exists: false },
-    });
-
-    return session;
+    const [row] = await db
+      .select()
+      .from(playerSessions)
+      .where(and(eq(playerSessions.userId, userId), isNull(playerSessions.endTime)))
+      .orderBy(desc(playerSessions.startTime))
+      .limit(1);
+    return row ? mapRow(row) : null;
   } catch (error) {
     console.error('Failed to get active session:', error);
     return null;
@@ -188,53 +178,40 @@ export async function getActiveSession(
 }
 
 /**
- * Close idle sessions (sessions with no activity for X hours)
- * Should be run periodically (e.g., hourly cron job)
- * 
+ * Close idle sessions (no activity for `idleHours` hours).
+ *
  * @param idleHours - Hours of inactivity before closing (default: 4)
  * @returns Number of sessions closed
- * 
- * @example
- * const closed = await closeIdleSessions(4);
- * console.log(`Closed ${closed} idle sessions`);
  */
 export async function closeIdleSessions(idleHours: number = 4): Promise<number> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
     const cutoffTime = new Date(Date.now() - idleHours * 60 * 60 * 1000);
 
-    // Find sessions started before cutoff and not yet ended
-    const idleSessions = await sessionCollection
-      .find({
-        startTime: { $lt: cutoffTime },
-        endTime: { $exists: false },
-      })
-      .toArray();
-
-    let closedCount = 0;
-
-    for (const session of idleSessions) {
-      const endTime = new Date();
-      const duration = Math.floor((endTime.getTime() - session.startTime.getTime()) / 1000);
-
-      await sessionCollection.updateOne(
-        { sessionId: session.sessionId },
-        {
-          $set: {
-            endTime,
-            duration,
-          },
-        }
+    const idleRows = await db
+      .select()
+      .from(playerSessions)
+      .where(
+        and(
+          lt(playerSessions.startTime, cutoffTime),
+          isNull(playerSessions.endTime)
+        )
       );
 
-      closedCount++;
+    for (const row of idleRows) {
+      const endTime = new Date();
+      const duration = Math.floor(
+        (endTime.getTime() - (row.startTime ?? row.createdAt).getTime()) / 1000
+      );
+      await db
+        .update(playerSessions)
+        .set({ endTime, duration })
+        .where(eq(playerSessions.id, row.id));
     }
 
-    if (closedCount > 0) {
-      console.log(`🧹 Closed ${closedCount} idle sessions`);
+    if (idleRows.length > 0) {
+      console.log(`🧹 Closed ${idleRows.length} idle sessions`);
     }
-
-    return closedCount;
+    return idleRows.length;
   } catch (error) {
     console.error('Failed to close idle sessions:', error);
     return 0;
@@ -246,35 +223,27 @@ export async function closeIdleSessions(idleHours: number = 4): Promise<number> 
 // ============================================================
 
 /**
- * Get total session time for a player in time period
- * 
- * @param userId - Player username
- * @param hoursAgo - How many hours back to search
- * @returns Total session time in seconds
- * 
- * @example
- * const totalTime = await getTotalSessionTime('PlayerOne', 24);
- * const hours = Math.floor(totalTime / 3600);
- * console.log(`Played ${hours} hours in last 24h`);
+ * Total session time (seconds) for a player within the last `hoursAgo` hours.
  */
 export async function getTotalSessionTime(
   userId: string,
   hoursAgo: number
 ): Promise<number> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
     const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-
-    const sessions = await sessionCollection
-      .find({
-        userId,
-        startTime: { $gte: cutoffTime },
-        duration: { $exists: true },
+    const [row] = await db
+      .select({
+        total: sql<number>`coalesce(sum(${playerSessions.duration}), 0)`,
       })
-      .toArray();
-
-    const totalSeconds = sessions.reduce((sum: any, session: any) => sum + (session.duration || 0), 0);
-    return totalSeconds;
+      .from(playerSessions)
+      .where(
+        and(
+          eq(playerSessions.userId, userId),
+          gte(playerSessions.startTime, cutoffTime),
+          isNotNull(playerSessions.duration)
+        )
+      );
+    return Number(row?.total ?? 0);
   } catch (error) {
     console.error('Failed to get total session time:', error);
     return 0;
@@ -282,29 +251,21 @@ export async function getTotalSessionTime(
 }
 
 /**
- * Get session count for a player in time period
- * 
- * @param userId - Player username
- * @param hoursAgo - How many hours back to search
- * @returns Number of sessions
- * 
- * @example
- * const sessions = await getSessionCount('PlayerOne', 168); // Last week
+ * Number of sessions for a player within the last `hoursAgo` hours.
  */
 export async function getSessionCount(
   userId: string,
   hoursAgo: number
 ): Promise<number> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
     const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-
-    const count = await sessionCollection.countDocuments({
-      userId,
-      startTime: { $gte: cutoffTime },
-    });
-
-    return count;
+    const [row] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(playerSessions)
+      .where(
+        and(eq(playerSessions.userId, userId), gte(playerSessions.startTime, cutoffTime))
+      );
+    return Number(row?.count ?? 0);
   } catch (error) {
     console.error('Failed to get session count:', error);
     return 0;
@@ -312,36 +273,27 @@ export async function getSessionCount(
 }
 
 /**
- * Get average session duration for a player
- * 
- * @param userId - Player username
- * @param hoursAgo - How many hours back to search
- * @returns Average session duration in seconds
- * 
- * @example
- * const avgDuration = await getAverageSessionDuration('PlayerOne', 168);
- * console.log(`Average session: ${Math.floor(avgDuration / 60)} minutes`);
+ * Average session duration (seconds) within the last `hoursAgo` hours.
  */
 export async function getAverageSessionDuration(
   userId: string,
   hoursAgo: number
 ): Promise<number> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
     const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-
-    const sessions = await sessionCollection
-      .find({
-        userId,
-        startTime: { $gte: cutoffTime },
-        duration: { $exists: true },
+    const [row] = await db
+      .select({
+        avg: sql<number>`coalesce(avg(${playerSessions.duration}), 0)`,
       })
-      .toArray();
-
-    if (sessions.length === 0) return 0;
-
-    const totalSeconds = sessions.reduce((sum: any, session: any) => sum + (session.duration || 0), 0);
-    return Math.floor(totalSeconds / sessions.length);
+      .from(playerSessions)
+      .where(
+        and(
+          eq(playerSessions.userId, userId),
+          gte(playerSessions.startTime, cutoffTime),
+          isNotNull(playerSessions.duration)
+        )
+      );
+    return Math.floor(Number(row?.avg ?? 0));
   } catch (error) {
     console.error('Failed to get average session duration:', error);
     return 0;
@@ -349,29 +301,23 @@ export async function getAverageSessionDuration(
 }
 
 /**
- * Get recent sessions for a player
- * 
+ * Most recent sessions for a player.
+ *
  * @param userId - Player username
  * @param limit - Maximum number of sessions to return
- * @returns Array of recent sessions
- * 
- * @example
- * const recentSessions = await getRecentSessions('PlayerOne', 10);
  */
 export async function getRecentSessions(
   userId: string,
   limit: number = 10
 ): Promise<PlayerSession[]> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
-
-    const sessions = await sessionCollection
-      .find({ userId })
-      .sort({ startTime: -1 })
-      .limit(limit)
-      .toArray();
-
-    return sessions;
+    const rows = await db
+      .select()
+      .from(playerSessions)
+      .where(eq(playerSessions.userId, userId))
+      .orderBy(desc(playerSessions.startTime))
+      .limit(limit);
+    return rows.map(mapRow);
   } catch (error) {
     console.error('Failed to get recent sessions:', error);
     return [];
@@ -379,24 +325,16 @@ export async function getRecentSessions(
 }
 
 /**
- * Get all currently active sessions (for admin monitoring)
- * 
- * @returns Array of active sessions across all players
- * 
- * @example
- * const activeSessions = await getAllActiveSessions();
- * console.log(`${activeSessions.length} players online`);
+ * All currently active sessions across all players (admin monitoring).
  */
 export async function getAllActiveSessions(): Promise<PlayerSession[]> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
-
-    const sessions = await sessionCollection
-      .find({ endTime: { $exists: false } })
-      .sort({ startTime: -1 })
-      .toArray();
-
-    return sessions;
+    const rows = await db
+      .select()
+      .from(playerSessions)
+      .where(isNull(playerSessions.endTime))
+      .orderBy(desc(playerSessions.startTime));
+    return rows.map(mapRow);
   } catch (error) {
     console.error('Failed to get all active sessions:', error);
     return [];
@@ -404,27 +342,21 @@ export async function getAllActiveSessions(): Promise<PlayerSession[]> {
 }
 
 /**
- * Clean up old session records (data retention)
- * Should be run periodically (e.g., daily cron job)
- * 
- * @param daysToKeep - How many days of data to retain (default: 90)
+ * Delete session records older than `daysToKeep` days (data retention).
+ *
  * @returns Number of records deleted
- * 
- * @example
- * const deleted = await cleanupOldSessions(90);
- * console.log(`Cleaned up ${deleted} old session records`);
  */
 export async function cleanupOldSessions(daysToKeep: number = 90): Promise<number> {
   try {
-    const sessionCollection = await getCollection<PlayerSession>('playerSessions');
     const cutoffDate = new Date(Date.now() - daysToKeep * 24 * 60 * 60 * 1000);
-
-    const result = await sessionCollection.deleteMany({
-      startTime: { $lt: cutoffDate },
-    });
-
-    console.log(`🧹 Cleaned up ${result.deletedCount} old session records`);
-    return result.deletedCount || 0;
+    const deleted = await db
+      .delete(playerSessions)
+      .where(lt(playerSessions.startTime, cutoffDate));
+    const count = deleted.rowCount ?? 0;
+    if (count > 0) {
+      console.log(`🧹 Cleaned up ${count} old session records`);
+    }
+    return count;
   } catch (error) {
     console.error('Failed to cleanup old sessions:', error);
     return 0;
@@ -434,11 +366,9 @@ export async function cleanupOldSessions(daysToKeep: number = 90): Promise<numbe
 // ============================================================
 // IMPLEMENTATION NOTES:
 // ============================================================
-// - Session IDs are cryptographically unique to prevent collisions
-// - Active sessions have no endTime field (null/undefined)
-// - Session updates are non-blocking to avoid impacting gameplay
-// - Idle session cleanup prevents database bloat from disconnects
-// - IP address tracking enables multi-account detection
-// - All timestamps use UTC for consistency across timezones
-// - Session analytics support admin dashboard metrics
+// - Writes go to the real pg `player_sessions` table (no compat shim).
+// - Tracker rows are distinct from the auth-session rows the login flow's
+//   `token`/`expires_at` columns were designed for; both coexist via the
+//   nullable analytics columns (migration 0006).
+// - All updates are non-fatal: analytics failures must not break gameplay.
 // ============================================================
