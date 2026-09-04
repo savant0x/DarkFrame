@@ -18,24 +18,57 @@ import { Player, Tile, MovementDirection } from '@/types';
 
 /**
  * Get tile at specific coordinates
- * 
+ *
+ * The pg `tiles` table stores booleans as smallint (0/1); the domain Tile type
+ * expects real booleans. Normalize at this seam so every consumer (move, tile,
+ * login, register, harvest-status routes) receives domain-shaped data.
+ *
  * @param x - X coordinate (1-150)
  * @param y - Y coordinate (1-150)
  * @returns Promise that resolves to tile data or null if not found
  */
 export async function getTileAt(x: number, y: number): Promise<Tile | null> {
   try {
-    const tilesCollection = await getCollection<Tile>('tiles');
-    const tile = await tilesCollection.findOne({ x, y });
-    
+    const tilesCollection = await getCollection<{
+      x: number;
+      y: number;
+      terrain: string;
+      occupiedByBase: number | null;
+      baseOwner: string | null;
+      baseGreeting: string | null;
+      lastHarvestedBy: unknown[] | null;
+      bankType: string | null;
+      hasFlagBearer: number | null;
+      hasTrail: number | null;
+      trailTimestamp: Date | null;
+      trailExpiresAt: Date | null;
+    }>('tiles');
+    const row = await tilesCollection.findOne({ x, y });
+    if (!row) return null;
+
+    const tile: Tile = {
+      x: row.x,
+      y: row.y,
+      terrain: row.terrain as Tile['terrain'],
+      ...(row.occupiedByBase !== null && { occupiedByBase: row.occupiedByBase === 1 }),
+      ...(row.baseOwner !== null && { baseOwner: row.baseOwner }),
+      ...(row.baseGreeting !== null && { baseGreeting: row.baseGreeting }),
+      ...(row.lastHarvestedBy !== null && { lastHarvestedBy: row.lastHarvestedBy as Tile['lastHarvestedBy'] }),
+      ...(row.bankType !== null && { bankType: row.bankType as Tile['bankType'] }),
+      ...(row.hasFlagBearer !== null && { hasFlagBearer: row.hasFlagBearer === 1 }),
+      ...(row.hasTrail !== null && { hasTrail: row.hasTrail === 1 }),
+      ...(row.trailTimestamp !== null && { trailTimestamp: row.trailTimestamp }),
+      ...(row.trailExpiresAt !== null && { trailExpiresAt: row.trailExpiresAt }),
+    };
+
     // 🔍 DEBUG: Log tile data for base investigation
-    if (tile && tile.occupiedByBase) {
+    if (tile.occupiedByBase) {
       console.log(`🔍 BASE TILE (${x}, ${y}):`, {
         terrain: tile.terrain,
         occupiedByBase: tile.occupiedByBase
       });
     }
-    
+
     return tile;
   } catch (error) {
     console.error('❌ Error getting tile:', error);

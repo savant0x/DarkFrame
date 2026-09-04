@@ -39,6 +39,22 @@ const GameContext = createContext<GameContextState | undefined>(undefined);
 /**
  * Game context provider props
  */
+/**
+ * Extract a human-readable message from an API error payload.
+ * Structured responses carry `error: { code, message, details }`; older paths
+ * may carry a plain string. Prevents `[object Object]` leaking to the UI.
+ */
+function extractApiErrorMessage(data: unknown, fallback: string): string {
+  const err = (data as { error?: unknown } | null)?.error;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const e = err as { code?: string; message?: string };
+    const msg = [e.code, e.message].filter(Boolean).join(': ');
+    if (msg) return msg;
+  }
+  return fallback;
+}
+
 interface GameProviderProps {
   children: ReactNode;
 }
@@ -190,7 +206,7 @@ export function GameProvider({ children }: GameProviderProps) {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to load tile data');
+        throw new Error(extractApiErrorMessage(data, 'Failed to load tile data'));
       }
 
       setCurrentTile(data.data);
@@ -227,7 +243,7 @@ export function GameProvider({ children }: GameProviderProps) {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Failed to move');
+        throw new Error(extractApiErrorMessage(data, 'Failed to move'));
       }
 
       setPlayer(data.data.player);

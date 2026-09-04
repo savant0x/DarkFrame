@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { movePlayer } from '@/lib/movementService';
-import { ApiResponse, MoveResponse, Player, MovementDirection } from '@/types';
+import { ApiResponse, MoveResponse, MovementDirection } from '@/types';
 
 /** Tutorial move-tracking doc as read/written by this route. */
 interface TutorialMoveTracking {
@@ -26,13 +26,11 @@ import { logMovement } from '@/lib/activityLogger';
 import { updateSession } from '@/lib/sessionTracker';
 import { getCollection } from '@/lib/mongodb';
 import { detectSpeedHack } from '@/lib/antiCheatDetector';
-import { 
-  withRequestLogging, 
+import {  withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   MoveSchema,
-  createErrorResponse,
   createErrorFromException,
   createValidationErrorResponse,
   ErrorCode
@@ -84,9 +82,16 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     log.debug('Movement initiated', { username, direction });
     
     // Get player's current position before moving
-    const playersCollection = await getCollection<Player>('players');
+    // NOTE: the Mongo→pg compat shim returns RAW rows — flat currentPositionX/Y, no nested
+    // currentPosition object. Read the flat columns (row is null only if the player is missing).
+    const playersCollection = await getCollection<{
+      currentPositionX: number;
+      currentPositionY: number;
+    }>('players');
     const playerBefore = await playersCollection.findOne({ username });
-    const oldPosition = playerBefore ? { x: playerBefore.currentPosition.x, y: playerBefore.currentPosition.y } : null;
+    const oldPosition = playerBefore
+      ? { x: playerBefore.currentPositionX, y: playerBefore.currentPositionY }
+      : null;
     
     // Move player
     const { player, tile } = await movePlayer(username, direction as MovementDirection);
@@ -134,7 +139,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       const mongoClient = await clientPromise;
       const db = mongoClient.db('darkframe');
       
-      const { quest, step, progress } = await getCurrentQuestAndStep(player.username);
+      const { step, progress } = await getCurrentQuestAndStep(player.username);
       log.info('🎓 Tutorial step retrieved', { 
         hasStep: !!step, 
         stepId: step?.id,
@@ -434,7 +439,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
               }],
               $slice: -200 // Keep only last 200 trail tiles (performance optimization)
             }
-          } as any
+          }
         }
       );
       
@@ -446,7 +451,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
             trail: {
               expiresAt: { $lt: now }
             }
-          } as any
+          }
         }
       );
     }

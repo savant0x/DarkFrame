@@ -460,6 +460,7 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-03 (015): edge-runtime fix — middleware self-contained via jose (Node `crypto` chain cut; auth cycle live-verified) | implemented |
 | Session 2026-09-03 (015): player row→domain mapper — `getPlayer`/`getPlayerByUsername` now return full domain `Player` (`currentPosition`, `resources`, `bank`, `inventory`); creators re-read through the single mapper; 3 `any`s retyped | implemented |
 | Session 2026-09-03 (015): flag-bot boot failure + BeerBase `countDocuments` crash discovered live | recorded (`[OPEN-OUT-OF-SCOPE]` #20/#21) |
+| Session 2026-09-03 (015): movement pipeline fixed — route's raw-row access (flat `currentPositionX/Y` via shim), `getTileAt` smallint→boolean seam normalization (5 route consumers), client structured-error formatting (`[object Object]`); live move (73,70)→(73,69) verified | implemented |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.
