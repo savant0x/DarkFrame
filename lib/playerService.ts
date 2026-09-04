@@ -11,6 +11,43 @@ import { eq, and, isNull, sql } from 'drizzle-orm';
 import { GAME_CONSTANTS, UnitTier } from '@/types';
 import type { Player } from '@/types/game.types';
 
+/**
+ * Map a flat pg `players` row to the nested domain `Player` shape the client
+ * and API contract expect (Mongo-era documents embedded base/currentPosition/
+ * resources/bank; Postgres stores them as flat columns).
+ *
+ * Single source of truth for this mapping (Law 13) — every getter must go
+ * through this; returning raw rows leaks `currentPositionX/Y`-style columns
+ * and crashes the game client (`player.currentPosition.x` etc.).
+ */
+function mapRowToPlayer(row: typeof players.$inferSelect): Player {
+  return {
+    ...row,
+    isAdmin: row.isAdmin === 1,
+    vip: row.vip === 1,
+    base: { x: row.baseX, y: row.baseY },
+    currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
+    resources: { metal: row.resourcesMetal, energy: row.resourcesEnergy },
+    bank: { metal: row.bankMetal, energy: row.bankEnergy, lastDeposit: row.bankLastDeposit },
+    rank: row.rank ?? 1,
+    inventory: {
+      items: row.inventoryItems,
+      capacity: row.inventoryCapacity,
+      metalDiggerCount: row.inventoryMetalDiggerCount,
+      energyDiggerCount: row.inventoryEnergyDiggerCount,
+    },
+    // pg numeric columns arrive as strings — convert to the domain's numbers
+    gatheringBonus: {
+      metalBonus: Number(row.gatheringBonusMetalBonus),
+      energyBonus: Number(row.gatheringBonusEnergyBonus),
+    },
+    activeBoosts: {
+      gatheringBoost: row.activeBoostsGatheringBoost === null ? null : Number(row.activeBoostsGatheringBoost),
+      expiresAt: row.activeBoostsExpiresAt,
+    },
+  } as unknown as Player;
+}
+
 export async function usernameExists(username: string): Promise<boolean> {
   try {
     const result = await db.select({ count: sql`count(*)` }).from(players).where(eq(players.username, username));
@@ -21,17 +58,17 @@ export async function usernameExists(username: string): Promise<boolean> {
   }
 }
 
-export async function getPlayerByUsername(username: string): Promise<any> {
+export async function getPlayerByUsername(username: string): Promise<Player | null> {
   try {
     const result = await db.select().from(players).where(eq(players.username, username)).limit(1);
-    return result[0] || null;
+    return result[0] ? mapRowToPlayer(result[0]) : null;
   } catch (error) {
     console.error('Error fetching player:', error);
     throw error;
   }
 }
 
-export async function findAndClaimSpawnTile(): Promise<any> {
+export async function findAndClaimSpawnTile(): Promise<typeof tiles.$inferSelect | null> {
   try {
     const availableTiles = await db.select().from(tiles).where(and(eq(tiles.terrain, 'Wasteland'), isNull(tiles.occupiedByBase)));
     if (availableTiles.length === 0) {
@@ -49,7 +86,7 @@ export async function findAndClaimSpawnTile(): Promise<any> {
   }
 }
 
-export async function createPlayer(username: string): Promise<any> {
+export async function createPlayer(username: string): Promise<Player> {
   try {
     if (!username || username.trim().length === 0) throw new Error('Username cannot be empty');
     if (username.length < 3 || username.length > 20) throw new Error('Username must be between 3 and 20 characters');
@@ -88,7 +125,10 @@ export async function createPlayer(username: string): Promise<any> {
     };
     await db.insert(players).values(newPlayer);
     console.log('Created player: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
-    return { username: username.trim(), base: { x: spawnTile.x, y: spawnTile.y }, currentPosition: { x: spawnTile.x, y: spawnTile.y }, resources: { metal: GAME_CONSTANTS.STARTING_RESOURCES.metal, energy: GAME_CONSTANTS.STARTING_RESOURCES.energy }, level: 1 };
+    // Return the full domain Player from the inserted row (single mapping path)
+    const created = await getPlayerByUsername(username.trim());
+    if (!created) throw new Error('Player creation failed: row not found after insert');
+    return created;
   } catch (error) {
     console.error('Error creating player:', error);
     throw error;
@@ -105,27 +145,19 @@ export async function emailInUse(email: string): Promise<boolean> {
   }
 }
 
-export async function getPlayerByEmail(email: string): Promise<any> {
+export async function getPlayerByEmail(email: string): Promise<Player | null> {
   try {
     const result = await db.select().from(players).where(eq(players.email, email.toLowerCase().trim())).limit(1);
     const row = result[0];
     if (!row) return null;
-    // pg rows are flat; compose the nested domain shape the auth routes and
-    // clients expect (Mongo-era rows stored base/currentPosition embedded).
-    return {
-      ...row,
-      isAdmin: row.isAdmin === 1,
-      vip: row.vip === 1,
-      base: { x: row.baseX, y: row.baseY },
-      currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
-    };
+    return mapRowToPlayer(row);
   } catch (error) {
     console.error('Error getting player by email:', error);
     throw error;
   }
 }
 
-export async function createPlayerWithAuth(username: string, email: string, hashedPassword: string): Promise<any> {
+export async function createPlayerWithAuth(username: string, email: string, hashedPassword: string): Promise<Player> {
   try {
     if (!username || username.trim().length === 0) throw new Error('Username cannot be empty');
     if (username.length < 3 || username.length > 20) throw new Error('Username must be between 3 and 20 characters');
@@ -166,7 +198,10 @@ export async function createPlayerWithAuth(username: string, email: string, hash
     };
     await db.insert(players).values(newPlayer);
     console.log('Created player with auth: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
-    return { username: username.trim(), email: email.toLowerCase().trim(), base: { x: spawnTile.x, y: spawnTile.y }, currentPosition: { x: spawnTile.x, y: spawnTile.y }, resources: { metal: GAME_CONSTANTS.STARTING_RESOURCES.metal, energy: GAME_CONSTANTS.STARTING_RESOURCES.energy }, level: 1 };
+    // Return the full domain Player from the inserted row (single mapping path)
+    const created = await getPlayerByUsername(username.trim());
+    if (!created) throw new Error('Player creation failed: row not found after insert');
+    return created;
   } catch (error) {
     console.error('Error creating player with auth:', error);
     throw error;
