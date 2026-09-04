@@ -60,3 +60,4 @@ next-env.d.ts
 /_lint_current.json
 /lib/clanAllianceService.ts.bak
 /__temp_patches/
+/push-cred-helper.sh
