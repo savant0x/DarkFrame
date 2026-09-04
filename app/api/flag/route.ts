@@ -19,7 +19,7 @@ import type { Player } from '@/types/game.types';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { type FlagBearer, type FlagAPIResponse, type FlagAttackRequest, type FlagAttackResponse, FLAG_CONFIG } from '@/types/flag.types';
 import { calculateDistance } from '@/lib/flagService';
-import { handleFlagBotDefeat } from '@/lib/flagBotService';
+import { handleFlagBotDefeat, initializeFlagSystem } from '@/lib/flagBotService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -67,8 +67,33 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
       trail?: Array<{ x: number; y: number; expiresAt: Date }>;
     }>('flags').findOne({});
     
-    // No flag holder found
+    // No flag holder found — lazily ensure the system is initialized.
+    // Historically initializeFlagSystem() ran only at server.ts boot (long-running
+    // host), so on serverless (Vercel) no bearer ever existed and the client's
+    // flag module silently never rendered. This call is idempotent (returns fast
+    // when the flag document already exists).
+    let retryDoc = flagDoc;
     if (!flagDoc || !flagDoc.currentHolder) {
+      try {
+        await initializeFlagSystem();
+        retryDoc = await db.collection<{
+          currentHolder?: {
+            playerId?: string;
+            botId?: string;
+            username: string;
+            level: number;
+            position: { x: number; y: number };
+            claimedAt: Date;
+          };
+          trail?: Array<{ x: number; y: number; expiresAt: Date }>;
+        }>('flags').findOne({});
+      } catch (initError) {
+        log.warn('Lazy flag initialization failed', initError instanceof Error ? initError : new Error(String(initError)));
+      }
+    }
+
+    // Still no holder after the lazy init attempt
+    if (!retryDoc || !retryDoc.currentHolder) {
       return NextResponse.json({
         success: true,
         data: null,
@@ -76,7 +101,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
       });
     }
     
-    const holder = flagDoc.currentHolder;
+    const holder = retryDoc.currentHolder;
     
     // Get current HP from holder (player or bot)
     const holderId = holder.playerId || holder.botId;
@@ -95,7 +120,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
     
     // Get trail data (filter out expired tiles)
     const now = new Date();
-    const trail = (flagDoc.trail || []).filter((t: any) => new Date(t.expiresAt) > now);
+    const trail = (retryDoc.trail || []).filter((t: any) => new Date(t.expiresAt) > now);
     
     // Build FlagBearer response
     const bearer: FlagBearer = {

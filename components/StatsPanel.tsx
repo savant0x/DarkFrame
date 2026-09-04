@@ -393,7 +393,9 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
                   player.balanceEffects.ratio < 0.8 ? 'bg-red-500/20 text-red-300' :
                   'bg-green-500/20 text-green-300'
                 }`}>
-                  {((player.totalStrength / (player.totalStrength + player.totalDefense)) * 100).toFixed(0)}%
+                  {player.totalStrength + player.totalDefense > 0
+                    ? `${((player.totalStrength / (player.totalStrength + player.totalDefense)) * 100).toFixed(0)}%`
+                    : '—%'}
                 </span>
               )}
             </div>
@@ -413,7 +415,9 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
                   player.balanceEffects.ratio > 1.2 ? 'bg-red-500/20 text-red-300' :
                   'bg-green-500/20 text-green-300'
                 }`}>
-                  {((player.totalDefense / (player.totalStrength + player.totalDefense)) * 100).toFixed(0)}%
+                  {player.totalStrength + player.totalDefense > 0
+                    ? `${((player.totalDefense / (player.totalStrength + player.totalDefense)) * 100).toFixed(0)}%`
+                    : '—%'}
                 </span>
               )}
             </div>
