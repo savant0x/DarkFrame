@@ -1,4 +1,4 @@
-/* Audit tool: dead client wiring - fetch() call sites with no matching route on disk. Permanent regression gate: re-run after any route or panel change. */*
+/* Audit tool: dead client wiring - fetch() call sites with no matching route on disk. Permanent regression gate: re-run after any route or panel change. */
 const fs = require('fs');
 const path = require('path');
 
