@@ -80,7 +80,7 @@ const [email, password] = process.argv.slice(2);
 
 if (!email || !password) {
   console.error('\n❌ Usage: node scripts/debug-login.js <email> <password>\n');
-  console.error('Example: node scripts/debug-login.js spencerhowell84@gmail.com MyPassword123\n');
+  console.error('Example: node scripts/debug-login.js player@example.com MyPassword123\n');
   process.exit(1);
 }
 

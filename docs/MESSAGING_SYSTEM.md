@@ -1184,7 +1184,7 @@ db.conversations.countDocuments({
    - Browser/environment details
 
 **Contact:**
-- GitHub Issues: [Repository Issues](https://github.com/fame0528/DarkFrame/issues)
+- GitHub Issues: [Repository Issues](https://github.com/savant0x/DarkFrame/issues)
 - Email: support@darkframe.game
 
 ---

@@ -447,8 +447,8 @@ public/                # Static assets
 ## 📞 **SUPPORT REFERENCES**
 
 ### **Project Details**
-- **Repository:** DarkFrame (GitHub: fame0528/DarkFrame)
-- **Owner:** fame0528
+- **Repository:** DarkFrame (GitHub: savant0x/DarkFrame)
+- **Owner:** savant0x
 - **Project Type:** Strategy war game (multiplayer, real-time)
 - **Current Branch:** main
 - **Development Environment:** Windows with PowerShell
@@ -494,7 +494,7 @@ public/                # Static assets
 5. **Security first** - Validate inputs, sanitize outputs, no sensitive data exposure
    - OWASP Top 10 compliance by default
 
-### **For User (fame0528):**
+### **For User (savant0x):**
 
 - ✅ Server running on http://localhost:3000
 - ✅ Database healthy at ~1% usage (485 MB crisis resolved)
@@ -696,7 +696,7 @@ When starting new chat:
 
 ## 📞 **SUPPORT REFERENCES**
 
-- **User:** fame0528 (GitHub owner)
+- **User:** savant0x (GitHub owner)
 - **Project:** DarkFrame (strategy war game)
 - **Tech Stack:** Next.js 14, TypeScript, MongoDB, Stripe, Socket.io
 - **Development Approach:** ECHO v5.1 with mandatory complete file reads

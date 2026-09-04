@@ -104,7 +104,7 @@
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/fame0528/DarkFrame.git
+   git clone https://github.com/savant0x/DarkFrame.git
    cd DarkFrame
    ```
 
@@ -779,6 +779,6 @@ MIT License - See [LICENSE](./LICENSE) file for details
 
 ⭐ Star this repo if you find it useful!
 
-[Report Bug](https://github.com/fame0528/DarkFrame/issues) · [Request Feature](https://github.com/fame0528/DarkFrame/issues) · [Documentation](./docs)
+[Report Bug](https://github.com/savant0x/DarkFrame/issues) · [Request Feature](https://github.com/savant0x/DarkFrame/issues) · [Documentation](./docs)
 
 </div>

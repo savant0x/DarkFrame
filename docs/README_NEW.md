@@ -106,7 +106,7 @@ DarkFrame is a **persistent online strategy game** where players compete for dom
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/fame0528/DarkFrame.git
+   git clone https://github.com/savant0x/DarkFrame.git
    cd DarkFrame
    ```
 
@@ -329,9 +329,9 @@ This is currently a personal project, but feel free to:
 
 ## 📞 **Contact**
 
-- **GitHub:** [@fame0528](https://github.com/fame0528)
-- **Repository:** [DarkFrame](https://github.com/fame0528/DarkFrame)
-- **Issues:** [Report bugs](https://github.com/fame0528/DarkFrame/issues)
+- **GitHub:** [@savant0x](https://github.com/savant0x)
+- **Repository:** [DarkFrame](https://github.com/savant0x/DarkFrame)
+- **Issues:** [Report bugs](https://github.com/savant0x/DarkFrame/issues)
 
 ---
 

@@ -384,8 +384,8 @@
 
 ## 📞 **PROJECT CONTACTS**
 
-- **Repository:** [github.com/fame0528/DarkFrame](https://github.com/fame0528/DarkFrame)
-- **Developer:** fame0528
+- **Repository:** [github.com/savant0x/DarkFrame](https://github.com/savant0x/DarkFrame)
+- **Developer:** savant0x
 - **Development System:** ECHO v5.1 (Anti-Drift Expert Coder)
 
 ---

@@ -7,7 +7,7 @@ const fs = require('fs').promises;
 const path = require('path');
 
 // Configuration
-const OWNER = 'fame0528';
+const OWNER = 'savant0x';
 const REPO = 'DarkFrame';
 const BRANCH = 'main';
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // Must be set
