@@ -576,7 +576,7 @@ function generateBeerBaseUnits(
   const pickRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   
   // Helper to create PlayerUnit
-  const createUnit = (unit: any, quantity: number): PlayerUnit => {
+  const createUnit = (unit: { type: UnitType; str: number; def: number; name: string }, quantity: number): PlayerUnit => {
     const rarity = unit.str + unit.def >= 500 ? 'legendary' : 
                    unit.str + unit.def >= 200 ? 'epic' :
                    unit.str + unit.def >= 100 ? 'rare' :
@@ -770,12 +770,12 @@ function applyVarietyEnforcement(tiers: PowerTier[], config: BeerBaseConfig): Po
   
   // Count current tier distribution
   const tierCounts = {
-    [PowerTier.Weak]: tiers.filter((t: any) => t === PowerTier.Weak).length,
-    [PowerTier.Mid]: tiers.filter((t: any) => t === PowerTier.Mid).length,
-    [PowerTier.Strong]: tiers.filter((t: any) => t === PowerTier.Strong).length,
-    [PowerTier.Elite]: tiers.filter((t: any) => t === PowerTier.Elite).length,
-    [PowerTier.Ultra]: tiers.filter((t: any) => t === PowerTier.Ultra).length,
-    [PowerTier.Legendary]: tiers.filter((t: any) => t === PowerTier.Legendary).length,
+    [PowerTier.Weak]: tiers.filter((t) => t === PowerTier.Weak).length,
+    [PowerTier.Mid]: tiers.filter((t) => t === PowerTier.Mid).length,
+    [PowerTier.Strong]: tiers.filter((t) => t === PowerTier.Strong).length,
+    [PowerTier.Elite]: tiers.filter((t) => t === PowerTier.Elite).length,
+    [PowerTier.Ultra]: tiers.filter((t) => t === PowerTier.Ultra).length,
+    [PowerTier.Legendary]: tiers.filter((t) => t === PowerTier.Legendary).length,
   };
   
   const total = tiers.length;
@@ -1156,10 +1156,13 @@ export async function spawnBeerBase(): Promise<string> {
   bot.totalStrength = totalStrength;
   bot.totalDefense = totalDefense;
   
-  // Generate unique username using timestamp + random suffix to avoid race conditions
-  const timestamp = Date.now();
-  const randomSuffix = Math.floor(Math.random() * 10000);
-  bot.username = `🍺BeerBase-${powerTier}-${timestamp}-${randomSuffix}`;
+  // Generate unique username using timestamp + random suffix to avoid race conditions.
+  // MUST fit players.username varchar(20): the legacy emoji format (34 chars) crashed
+  // every Beer Base insert. Fixed-width format b<tier><ts8><rand4> = 14 chars, with the
+  // tier letter (W/M/S/E/U/L) extractable at index 1.
+  const timestamp = Date.now().toString().slice(-8);
+  const randomSuffix = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
+  bot.username = `b${powerTier[0]}${timestamp}${randomSuffix}`;
   
   // Set appropriate level based on power tier
   switch (powerTier) {

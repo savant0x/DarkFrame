@@ -4,7 +4,7 @@
  * @overview Auction House service for P2P trading system
  */
 
-import { getCollection } from './mongodb';
+import { getCollection, type MongoFilter, type MongoUpdate, type SortSpec } from './mongodb';
 import { 
   AuctionListing, 
   AuctionBid, 
@@ -15,10 +15,9 @@ import {
   CreateAuctionRequest,
   PlaceBidRequest,
   AUCTION_CONFIG,
-  MarketStats,
-  AuctionSearchFilters
+  AuctionSearchFilters,
 } from '@/types/auction.types';
-import { Player, PlayerUnit, UnitType } from '@/types/game.types';
+import { Player } from '@/types/game.types';
 import { logger } from './logger';
 
 /**
@@ -161,7 +160,7 @@ export async function createAuctionListing(
     await playersCollection.updateOne(
       { username: sellerUsername },
       {
-        $inc: { 'resources.metal': -listingFee },
+        $inc: { resources_metal: -listingFee },
         ...itemValidation.lockUpdate
       }
     );
@@ -190,7 +189,7 @@ export async function createAuctionListing(
 async function validateAndLockItem(
   player: Player,
   item: AuctionItem
-): Promise<{ success: boolean; message: string; error?: string; lockUpdate?: any }> {
+): Promise<{ success: boolean; message: string; error?: string; lockUpdate?: MongoUpdate }> {
   
   if (item.itemType === AuctionItemType.Unit) {
     // Validate unit ownership
@@ -198,7 +197,7 @@ async function validateAndLockItem(
       return { success: false, message: 'Unit ID is required', error: 'INVALID_ITEM' };
     }
 
-    const unit = player.units.find((u: any) => u.unitId === item.unitId);
+    const unit = player.units.find((u) => u.unitId === item.unitId);
     if (!unit) {
       return { success: false, message: 'Unit not found', error: 'UNIT_NOT_FOUND' };
     }
@@ -246,7 +245,7 @@ async function validateAndLockItem(
       return { success: false, message: 'Tradeable item quantity required', error: 'INVALID_ITEM' };
     }
 
-    const tradeableItems = player.inventory?.items.filter((i: any) => i.type === 'TRADEABLE_ITEM') || [];
+    const tradeableItems = player.inventory?.items.filter((i) => i.type === 'TRADEABLE_ITEM') || [];
     const totalCount = tradeableItems.reduce((sum, i) => sum + (i.quantity || 1), 0);
 
     if (totalCount < item.tradeableItemQuantity) {
@@ -346,7 +345,7 @@ export async function placeBid(
     };
 
     // Mark previous winning bid as not winning
-    const updatedBids = auction.bids.map((b: any) => ({ ...b, isWinning: false }));
+    const updatedBids = auction.bids.map((b: AuctionBid) => ({ ...b, isWinning: false }));
     updatedBids.push(newBid);
 
     // Update auction
@@ -463,12 +462,12 @@ export async function buyoutAuction(
     // Transfer money (buyer pays, seller receives minus fee)
     await playersCollection.updateOne(
       { username: buyerUsername },
-      { $inc: { 'resources.metal': -auction.buyoutPrice } }
+      { $inc: { resources_metal: -auction.buyoutPrice } }
     );
 
     await playersCollection.updateOne(
       { username: auction.sellerUsername },
-      { $inc: { 'resources.metal': sellerReceives } }
+      { $inc: { resources_metal: sellerReceives } }
     );
 
     // Update auction status
@@ -534,7 +533,7 @@ async function transferAuctionItem(
   if (item.itemType === AuctionItemType.Unit) {
     // Transfer unit
     const seller = await playersCollection.findOne({ username: fromUsername });
-    const unit = seller?.units.find((u: any) => u.unitId === item.unitId);
+    const unit = seller?.units.find((u) => u.unitId === item.unitId);
     
     if (!unit) {
       return { success: false, message: 'Unit not found', error: 'UNIT_NOT_FOUND' };
@@ -583,7 +582,6 @@ export async function cancelAuction(
   auctionId: string
 ): Promise<{ success: boolean; message: string; error?: string }> {
   try {
-    const playersCollection = await getCollection<Player>('players');
     const auctionsCollection = await getCollection<AuctionListing>('auctions');
 
     // Get auction
@@ -654,8 +652,8 @@ export async function getAuctions(
   try {
     const auctionsCollection = await getCollection<AuctionListing>('auctions');
 
-    // Build query
-    const query: any = { status: AuctionStatus.Active };
+    // Build query (auctions schema has direct columns: status, item type, seller)
+    const query: MongoFilter = { status: AuctionStatus.Active };
 
     if (filters.itemType) {
       query['item.itemType'] = filters.itemType;
@@ -670,11 +668,11 @@ export async function getAuctions(
     }
 
     if (filters.minPrice) {
-      query.currentBid = { ...query.currentBid, $gte: filters.minPrice };
+      query.currentBid = { ...(query.currentBid as Record<string, unknown> | undefined), $gte: filters.minPrice };
     }
 
     if (filters.maxPrice) {
-      query.currentBid = { ...query.currentBid, $lte: filters.maxPrice };
+      query.currentBid = { ...(query.currentBid as Record<string, unknown> | undefined), $lte: filters.maxPrice };
     }
 
     if (filters.hasBuyout !== undefined) {
@@ -690,7 +688,7 @@ export async function getAuctions(
     }
 
     // Sorting
-    let sort: any = {};
+    let sort: SortSpec = { createdAt: -1 };
     switch (filters.sortBy) {
       case 'price_asc':
         sort = { currentBid: 1 };

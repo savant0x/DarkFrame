@@ -30,10 +30,10 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import type { Server as HTTPServer } from 'http';
-import type { NextServer } from 'next/dist/server/next';
 import { getSocketIOServer } from './lib/websocket/server';
 import { startWMDJobs, stopWMDJobs } from './lib/wmd/jobs/scheduler';
 import { startFlagBotJob, stopFlagBotJob } from './lib/jobs/flagBotManager';
+import { startBeerBaseJob, stopBeerBaseJob } from './lib/jobs/beerBaseManager';
 import { connectToDatabase } from './lib/mongodb';
 
 // Environment configuration
@@ -106,7 +106,7 @@ async function startServer(): Promise<void> {
     // ============================================================
     try {
       console.log('[Server] 🔄 Running Factory Slots startup migration...');
-      const db = await connectToDatabase();
+      await connectToDatabase();
       const { runFactorySlotsMigration } = await import('./lib/migrations/factorySlots');
       const result = await runFactorySlotsMigration();
       console.log('[Server] ✅ Factory Slots migration:', result.message, {
@@ -125,7 +125,7 @@ async function startServer(): Promise<void> {
     // Initialize WMD Background Jobs
     try {
       console.log('[Server] 🔄 Starting WMD background jobs...');
-      const db = await connectToDatabase();
+      await connectToDatabase();
       const jobsResult = startWMDJobs();
       
       if (jobsResult.success) {
@@ -144,7 +144,7 @@ async function startServer(): Promise<void> {
     // Initialize Flag Bot Background Job
     try {
       console.log('[Server] 🔄 Starting Flag Bot background job...');
-      const db = await connectToDatabase();
+      await connectToDatabase();
       const flagJobResult = await startFlagBotJob();
       
       if (flagJobResult.success) {
@@ -153,11 +153,20 @@ async function startServer(): Promise<void> {
         console.error('[Server] ⚠️  Flag bot job failed to start:', flagJobResult.message);
       }
     } catch (err) {
-      console.error('[Server] ⚠️  Flag bot job initialization failed:', {
-        error: err instanceof Error ? err.message : String(err),
-        stack: dev && err instanceof Error ? err.stack : undefined,
-      });
-      console.log('[Server] ⚠️  Server will run without Flag Bot background job');
+      console.error('[Server] ❌ Error starting flag bot job:', err);
+    }
+
+    // Initialize Beer Base Weekly Respawn Job
+    try {
+      console.log('[Server] 🔄 Starting Beer Base respawn job...');
+      const beerJobResult = startBeerBaseJob();
+      if (beerJobResult.success) {
+        console.log('[Server] ✅ Beer Base job started:', beerJobResult.message);
+      } else {
+        console.error('[Server] ⚠️  Beer Base job failed to start:', beerJobResult.message);
+      }
+    } catch (err) {
+      console.error('[Server] ❌ Error starting Beer Base job:', err);
     }
 
     // ============================================================
@@ -165,7 +174,7 @@ async function startServer(): Promise<void> {
     // ============================================================
     try {
       console.log('[Server] 🔄 Starting Factory Slot Regeneration background job...');
-      const db = await connectToDatabase();
+      await connectToDatabase();
       const { startFactorySlotRegenJob } = await import('./lib/jobs/factorySlotRegeneration');
       const factoryJobResult = await startFactorySlotRegenJob();
       
@@ -218,6 +227,14 @@ async function startServer(): Promise<void> {
         console.log('[Server] ✅ Flag bot job stopped:', flagStopResult.message);
       } catch (err) {
         console.error('[Server] ⚠️  Error stopping Flag bot job:', err);
+      }
+
+      // Stop Beer Base respawn job
+      try {
+        stopBeerBaseJob();
+        console.log('[Server] ✅ Beer Base job stopped');
+      } catch (err) {
+        console.error('[Server] ⚠️  Error stopping Beer Base job:', err);
       }
       
       // Stop Factory Slot Regeneration background job

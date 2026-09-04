@@ -18,7 +18,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedPlayer } from '@/lib/wmd/apiHelpers';
-import { getNotifications } from '@/lib/wmd/notificationService';
 import { getDatabase } from '@/lib/mongodb';
 
 /**
@@ -89,27 +88,28 @@ export async function PATCH(req: NextRequest) {
     
     const db = await getDatabase();
     const collection = db.collection('wmd_notifications');
-    
+
+    // The pivot schema models "read" as viewedBy[] + viewCount (no read/readAt columns).
+    // $addToSet appends the viewer without duplicates; $inc bumps the view counter.
+    const markRead = async (filter: Parameters<typeof collection.updateMany>[0]) => {
+      await collection.updateMany(filter, {
+        $addToSet: { viewedBy: auth.playerId },
+        $inc: { viewCount: 1 },
+      });
+    };
+
     // Mark all as read
     if (notificationIds === 'all') {
-      await collection.updateMany(
-        { targetId: auth.playerId, read: false },
-        { $set: { read: true, readAt: new Date() } }
-      );
-      
+      await markRead({ targetId: auth.playerId });
       return NextResponse.json({
         success: true,
         message: 'All notifications marked as read',
       });
     }
-    
+
     // Mark specific notifications as read
     if (Array.isArray(notificationIds)) {
-      await collection.updateMany(
-        { notificationId: { $in: notificationIds }, targetId: auth.playerId },
-        { $set: { read: true, readAt: new Date() } }
-      );
-      
+      await markRead({ notificationId: { $in: notificationIds }, targetId: auth.playerId });
       return NextResponse.json({
         success: true,
         message: `${notificationIds.length} notifications marked as read`,

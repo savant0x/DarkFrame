@@ -26,10 +26,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq, and, or, gt, lt, gte, lte, desc, asc, like, sql } from 'drizzle-orm';
+import { eq, and, lt, gte, desc } from 'drizzle-orm';
 import { Filter } from 'bad-words';
 import { db } from '@/lib/db';
-import { chatMessages, chatReadStatus, wordBlacklist, players } from '@/lib/db/schema';
+import { chatMessages, wordBlacklist, players } from '@/lib/db/schema';
 import {
   ChannelType,
   canWriteChannel,
@@ -236,7 +236,7 @@ export function parseItemLinks(message: string): string[] {
  * @param itemName - Item name to validate
  * @returns True if item exists
  */
-export async function validateItem(itemName: string): Promise<boolean> {
+export async function validateItem(_itemName: string): Promise<boolean> {
   try {
     // TODO: Implement when items table is added to schema
     // Example: const item = await db.select().from(items).where(eq(items.name, itemName)).limit(1);
@@ -394,7 +394,8 @@ export async function sendGlobalChatMessage(
     const now = new Date();
     const monthCategory = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    const messageId = randomUUID();
+    // chat_messages.id is varchar(24) — randomUUID() (36 chars) overflows the column
+    const messageId = randomUUID().replace(/-/g, '').slice(0, 24);
 
     const chatMessage: ChatMessage = {
       id: messageId,
@@ -536,7 +537,8 @@ export async function deleteGlobalChatMessage(
       })
       .where(eq(chatMessages.id, messageId));
 
-    return (result as any).affectedRows > 0;
+    // drizzle pg returns rowCount (affectedRows is a MySQL-ism — always undefined here)
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('[ChatService] Delete message error:', error);
     return false;
@@ -593,7 +595,8 @@ export async function editGlobalChatMessage(
       })
       .where(eq(chatMessages.id, messageId));
     
-    return { success: (result as any).affectedRows > 0 };
+    // drizzle pg returns rowCount (affectedRows is a MySQL-ism — always undefined here)
+    return { success: (result.rowCount ?? 0) > 0 };
   } catch (error) {
     console.error('[ChatService] Edit message error:', error);
     return { success: false, error: 'Failed to edit message' };
@@ -662,8 +665,10 @@ export async function purgeOldMessages(): Promise<number> {
     
     const result = await db.delete(chatMessages).where(lt(chatMessages.timestamp, oneYearAgo));
     
-    console.log(`[ChatService] Purged ${(result as any).affectedRows} old messages`);
-    return (result as any).affectedRows;
+    // drizzle pg returns rowCount (affectedRows is a MySQL-ism — always undefined here)
+    const purged = result.rowCount ?? 0;
+    console.log(`[ChatService] Purged ${purged} old messages`);
+    return purged;
   } catch (error) {
     console.error('[ChatService] Purge old messages error:', error);
     return 0;

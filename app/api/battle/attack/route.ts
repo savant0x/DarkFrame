@@ -70,14 +70,18 @@ const handler = rateLimiter(async (req: NextRequest) => {
       details: battleLog,
     });
     
-    if (defender.startsWith('🍺BeerBase-') && battleLog.outcome === 'ATTACKER_WIN') {
+    // Beer Base usernames: legacy '🍺BeerBase-<TIER>-…' or compact 'b<TIER><ts8><rand4>'
+    const isBeerBase = defender.startsWith('🍺BeerBase-') || /^b[WMSEUL]\d{12}$/.test(defender);
+    if (isBeerBase && battleLog.outcome === 'ATTACKER_WIN') {
       try {
         const defenderDocResult = await db.select().from(players).where(eq(players.username, defender)).limit(1);
         const defenderDoc = defenderDocResult[0];
         
         if (defenderDoc && defenderDoc.isSpecialBase) {
-          const tierMatch = defender.match(/🍺BeerBase-(\w+)-/);
-          const tierName = tierMatch ? tierMatch[1] : 'WEAK';
+          const compactTier = defender.match(/^b([WMSEUL])\d{12}$/);
+          const tierName = compactTier
+            ? ({ W: 'WEAK', M: 'MID', S: 'STRONG', E: 'ELITE', U: 'ULTRA', L: 'LEGENDARY' } as Record<string, string>)[compactTier[1]] ?? 'WEAK'
+            : defender.match(/🍺BeerBase-(\w+)-/)?.[1] ?? 'WEAK';
           
           const tierMap: Record<string, number> = {
             'WEAK': 0, 'MID': 1, 'STRONG': 2, 'ELITE': 3, 'ULTRA': 4, 'LEGENDARY': 5
