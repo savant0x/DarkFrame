@@ -18,10 +18,12 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyToken, getAuthCookie } from '@/lib/authMiddleware';
+import { jwtVerify } from 'jose';
 import { logger } from '@/lib/logger';
 
 const COOKIE_NAME = 'darkframe_session';
+// Must match lib/authMiddleware.ts — Edge runtime: jose only, no DB, no Node crypto
+const JWT_SECRET = process.env.JWT_SECRET || 'darkframe-secret-change-in-production';
 
 /**
  * Add security headers to response
@@ -116,10 +118,12 @@ export async function middleware(request: NextRequest) {
       return addSecurityHeaders(response);
     }
 
-    // Verify JWT token
-    const user = await verifyToken(token);
+    // Verify JWT token (Edge-safe: jose verifies directly against the cookie value)
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+    const user = payload as { username?: string } | null;
     
-    if (!user) {
+    if (!user?.username) {
       // Invalid or expired token - redirect to login
       logger.info('Unauthenticated access attempt (invalid token)', { path: request.nextUrl.pathname });
       const loginUrl = new URL('/login', request.url);
