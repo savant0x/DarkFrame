@@ -7,12 +7,12 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
-import { JWT_SECRET } from './jwt';
+import { JWT_SECRET, SESSION_COOKIE_NAME } from './jwt';
 
 const SALT_ROUNDS = 10;
 
-// Cookie configuration
-const COOKIE_NAME = 'darkframe_session';
+// Cookie configuration (FID-20260904-005 §5.0: single source of truth in lib/jwt)
+const COOKIE_NAME = SESSION_COOKIE_NAME;
 const SESSION_DURATION = 60 * 60; // 1 hour in seconds
 const REMEMBER_ME_DURATION = 30 * 24 * 60 * 60; // 30 days in seconds
 

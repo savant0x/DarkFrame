@@ -43,14 +43,15 @@ export interface AuthenticationResult {
   user?: AuthenticatedUser;
   error?: string;
 }
-import { JOSE_SECRET } from '@/lib/jwt';
+import { JOSE_SECRET, SESSION_COOKIE_NAME } from '@/lib/jwt';
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
 
 // Must match the session cookie set by lib/authService.ts and read by middleware.ts
-const JWT_COOKIE_NAME = 'darkframe_session';
+// (FID-20260904-005 §5.0: name sourced from lib/jwt — single source of truth)
+const JWT_COOKIE_NAME = SESSION_COOKIE_NAME;
 
 // ============================================================================
 // COOKIE PARSER

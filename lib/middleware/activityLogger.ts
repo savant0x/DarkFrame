@@ -22,6 +22,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/authService';
+import { SESSION_COOKIE_NAME } from '@/lib/jwt';
 import { logActivity } from '@/lib/activityLogService';
 import { ActionType, ActionCategory, getActionCategory } from '@/types/activityLog.types';
 
@@ -154,7 +155,8 @@ async function extractPlayerInfo(req: NextRequest): Promise<{
   sessionId?: string;
 } | null> {
   try {
-    const token = req.cookies.get('token')?.value;
+    // FID-20260904-005 §7: was the phantom 'auth-token'/'token' class — no route ever sets it
+    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
     if (!token) return null;
     
     const payload = await verifyToken(token);

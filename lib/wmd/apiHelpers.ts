@@ -15,6 +15,7 @@
 
 import { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
+import { SESSION_COOKIE_NAME } from '@/lib/jwt';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -34,8 +35,8 @@ export async function verifyAuth(request: NextRequest): Promise<string | null> {
     // 'darkframe_session') — so every WMD feature returned AUTH_UNAUTHORIZED
     // for all logged-in users and the entire system was unreachable.
     const token =
-      request.cookies.get('darkframe_session')?.value ??
-      request.cookies.get('auth-token')?.value; // legacy fallback
+      request.cookies.get(SESSION_COOKIE_NAME)?.value ??
+      request.cookies.get('auth-token')?.value; // legacy fallback (pre-FID-20260904-005 phantom name)
     if (!token) return null;
 
     const { payload } = await jwtVerify(token, JWT_SECRET);

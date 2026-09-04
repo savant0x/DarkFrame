@@ -465,12 +465,16 @@ Status → `converged`. Implementation (IMPLEMENT phase) is authorized per §8 d
 | ----- | ---- | ----- | ----- |
 | 0 | lib/wmd/apiHelpers.ts | +7 −1 | DONE pre-convergence (`f4b6fed`) — recorded as hotfix, re-verified below |
 | 0 | components/StatsPanel.tsx, app/api/flag/route.ts | +35 −6 | DONE pre-convergence (`84101c6`) — M5/M6 |
-| 0 | hooks/usePolling.ts, context/GameContext.tsx, __tests__/hooks/ | +269 −31 | DONE pre-convergence (`8cc6587`) — M8 |
+| 0 | hooks/usePolling.ts, context/GameContext.tsx, __tests__/hooks/ | +269 −31 | DONE post-convergence — M8 |
 | 0 | lib/tutorialService.ts, components/tutorial/TutorialQuestPanel.tsx | +74 −16 | DONE pre-convergence (`b3e2b56`) — M7 |
-| 1 | (auth sweep files) | — | pending convergence |
-| 2 | (persistence files) | — | pending convergence |
-| 3 | (dead-wire rebuilds) | — | pending convergence |
-| 4 | (de-mock + @ts-nocheck + lint) | — | pending convergence |
+| 1a | lib/jwt.ts, lib/authMiddleware.ts, lib/authService.ts, lib/websocket/auth.ts, lib/wmd/apiHelpers.ts, lib/middleware/activityLogger.ts | ~+20 −10 | **DONE (IMPLEMENT)** — `SESSION_COOKIE_NAME` created in lib/jwt; 3 defaults + 4 local consts repointed; FIFTH phantom site found during implementation (`activityLogger.ts:157` read `'token'`) and fixed — validates the §5.0 consolidation design. Gates: tsc 0; 341 tests + 4 sanitize proofs green. |
+| 1b | lib/playerSanitize.ts (new), lib/playerService.ts, app/api/auth/login/route.ts, __tests__/lib/playerSanitize.proof.test.ts | +160 −8 | **DONE (IMPLEMENT)** — allowlist sanitizer + `includePrivate` opt-in on getPlayerByUsername/getPlayerByEmail; login switched from rest-spread denylist to allowlist. LIVE PROOF (dev server :51514): login 200 → zero sensitive keys, allowlist fields only; `/api/player` 200 → no password/email/signupIp/stripeCustomerId/referredBy, client-critical fields (currentPosition/resources/bank/baseX) intact. |
+| 1c | (shim a–e) | — | pending |
+| 1d | (migration 0009 + schema mirror) | — | pending |
+| 2 | (auth sweep per-route) | — | pending |
+| 3 | (persistence sequence) | — | pending |
+| 4 | (dead-wire rebuilds) | — | pending |
+| 5 | (de-mock + @ts-nocheck + lint-zero) | — | pending |
 
 - **Verification evidence:** per-phase (pasted at implementation time).
 - **Call-graph reachability evidence:** per-phase greps (per §5 verification plans).

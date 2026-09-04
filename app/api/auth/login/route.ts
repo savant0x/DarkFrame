@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlayerByEmail } from '@/lib/playerService';
+import { sanitizePlayer } from '@/lib/playerSanitize';
 import { getTileAt } from '@/lib/movementService';
 import { verifyPassword, generateToken, setAuthCookie } from '@/lib/authService';
 import { 
@@ -38,7 +39,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     log.debug('Login attempt', { email, rememberMe });
     
     // Get player by email
-    const player = await getPlayerByEmail(email);
+    const player = await getPlayerByEmail(email, { includePrivate: true });
     if (!player) {
       log.warn('Login failed', { reason: 'user_not_found', email });
       return createErrorResponse(ErrorCode.AUTH_INVALID_CREDENTIALS);
@@ -94,9 +95,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       player.currentPosition.y
     );
     
-    // Remove password from response
-    const { password: _pw, ...playerWithoutPassword } = player;
-    void _pw;
+    // FID-20260904-005 §5.1: response hygiene — allowlist projection, not a denylist
+    // rest-spread (a new sensitive column would leak by default under the old pattern).
+    const playerWithoutPassword = sanitizePlayer(player);
     
     log.info('Login successful', { 
       username: player.username, 

@@ -10,6 +10,7 @@ import { players, tiles } from '@/lib/db/schema';
 import { eq, and, isNull, sql } from 'drizzle-orm';
 import { GAME_CONSTANTS, UnitTier } from '@/types';
 import type { Player } from '@/types/game.types';
+import { sanitizePlayer } from '@/lib/playerSanitize';
 
 /**
  * Map a flat pg `players` row to the nested domain `Player` shape the client
@@ -116,10 +117,19 @@ export async function usernameExists(username: string): Promise<boolean> {
   }
 }
 
-export async function getPlayerByUsername(username: string): Promise<Player | null> {
+export async function getPlayerByUsername(
+  username: string,
+  options: { includePrivate?: boolean } = {}
+): Promise<Player | null> {
   try {
     const result = await db.select().from(players).where(eq(players.username, username)).limit(1);
-    return result[0] ? mapRowToPlayer(result[0]) : null;
+    if (!result[0]) return null;
+    const mapped = mapRowToPlayer(result[0]);
+    // FID-20260904-005 §5.0: public callers get the allowlist projection by default
+    // (password/email/signupIp/stripe ids can NEVER ride along). The private view —
+    // full mapped row — is an explicit, greppable opt-in (`{ includePrivate: true }`)
+    // reserved for the bcrypt-compare path in auth and same-module trusted callers.
+    return options.includePrivate ? mapped : (sanitizePlayer(mapped) as unknown as Player);
   } catch (error) {
     console.error('Error fetching player:', error);
     throw error;
@@ -208,12 +218,18 @@ export async function emailInUse(email: string): Promise<boolean> {
   }
 }
 
-export async function getPlayerByEmail(email: string): Promise<Player | null> {
+export async function getPlayerByEmail(
+  email: string,
+  options: { includePrivate?: boolean } = {}
+): Promise<Player | null> {
   try {
     const result = await db.select().from(players).where(eq(players.email, email.toLowerCase().trim())).limit(1);
     const row = result[0];
     if (!row) return null;
-    return mapRowToPlayer(row);
+    const mapped = mapRowToPlayer(row);
+    // FID-20260904-005 §5.0: same allowlist default as getPlayerByUsername; the login
+    // route opts into the private view ONLY for the bcrypt compare + ban fields.
+    return options.includePrivate ? mapped : (sanitizePlayer(mapped) as unknown as Player);
   } catch (error) {
     console.error('Error getting player by email:', error);
     throw error;
@@ -271,7 +287,10 @@ export async function createPlayerWithAuth(username: string, email: string, hash
   }
 }
 
-export async function getPlayer(username: string): Promise<Player | null> {
-  return getPlayerByUsername(username);
+export async function getPlayer(
+  username: string,
+  options: { includePrivate?: boolean } = {}
+): Promise<Player | null> {
+  return getPlayerByUsername(username, options);
 }
 

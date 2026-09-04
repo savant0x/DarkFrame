@@ -15,9 +15,11 @@
 
 import { jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
+import { SESSION_COOKIE_NAME } from '@/lib/jwt';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'darkframe-secret-change-in-production';
-const COOKIE_NAME = 'darkframe_session';
+// FID-20260904-005 §5.0: cookie name now sourced from lib/jwt (single source of truth).
+const COOKIE_NAME = SESSION_COOKIE_NAME;
 
 export interface TokenPayload {
   username: string;
@@ -119,7 +121,7 @@ export interface AuthResult {
  * Comprehensive auth helper for API routes
  * 
  * @param request - NextRequest object
- * @param cookieName - Name of the auth cookie (default: 'token')
+ * @param cookieName - Name of the auth cookie (default: SESSION_COOKIE_NAME — the cookie login actually sets)
  * @returns AuthResult or null if authentication fails
  * 
  * @example
@@ -131,7 +133,7 @@ export interface AuthResult {
  */
 export async function authenticateRequest(
   request: NextRequest,
-  cookieName: string = 'token'
+  cookieName: string = SESSION_COOKIE_NAME
 ): Promise<AuthResult | null> {
   try {
     // Test-only bypass for integration tests without JWT
@@ -187,7 +189,7 @@ export async function authenticateRequest(
  * Returns 401 response if not authenticated
  * 
  * @param request - NextRequest object
- * @param cookieName - Name of the auth cookie (default: 'token')
+ * @param cookieName - Name of the auth cookie (default: SESSION_COOKIE_NAME — the cookie login actually sets)
  * @returns AuthResult or NextResponse (401 error)
  * 
  * @example
@@ -197,7 +199,7 @@ export async function authenticateRequest(
  */
 export async function requireAuth(
   request: NextRequest,
-  cookieName: string = 'token'
+  cookieName: string = SESSION_COOKIE_NAME
 ): Promise<AuthResult | NextResponse> {
   const auth = await authenticateRequest(request, cookieName);
   
@@ -216,7 +218,7 @@ export async function requireAuth(
  * Returns 401 if not authenticated, 403 if not admin
  * 
  * @param request - NextRequest object
- * @param cookieName - Name of the auth cookie (default: 'token')
+ * @param cookieName - Name of the auth cookie (default: SESSION_COOKIE_NAME — the cookie login actually sets)
  * @returns AuthResult or NextResponse (401/403 error)
  * 
  * @example
@@ -226,7 +228,7 @@ export async function requireAuth(
  */
 export async function requireAdmin(
   request: NextRequest,
-  cookieName: string = 'token'
+  cookieName: string = SESSION_COOKIE_NAME
 ): Promise<AuthResult | NextResponse> {
   const auth = await requireAuth(request, cookieName);
   
