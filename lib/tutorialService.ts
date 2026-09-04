@@ -773,6 +773,11 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
     console.log(`[Tutorial] Created progress for ${playerId}: Quest ${firstQuest._id}, Step ${firstStep.id}, currentStepStartedAt initialized`);
     
     const id = randomUUID().replace(/-/g, '').substring(0, 24);
+    // RACE-SAFE: multiple concurrent first-polls (e.g. the quest panel and the
+    // overlay) can both observe "no progress row" at once. Without the conflict
+    // clause the loser hit the player_id unique index and the endpoint 500'd
+    // until the winner's row landed (observed on production: bursts of 500s
+    // then 200s). The loser instead re-reads and adopts the winner's row.
     await db.insert(tutorialProgress).values({
       id,
       playerId: newProgress.playerId,
@@ -790,11 +795,19 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
       lastUpdated: newProgress.lastUpdated,
       totalStepsCompleted: newProgress.totalStepsCompleted,
       totalTimeSpent: newProgress.totalTimeSpent,
-    });
-    progress = { ...newProgress, _id: id as any };
+    }).onConflictDoNothing({ target: tutorialProgress.playerId });
+
+    // Adopt whichever row is actually there now (ours, or the race winner's).
+    const afterInsert = await db.select().from(tutorialProgress).where(eq(tutorialProgress.playerId, playerId)).limit(1);
+    if (afterInsert.length > 0) {
+      progress = mapProgressRow(afterInsert[0]);
+    } else {
+      progress = { ...newProgress, _id: id as any };
+    }
     
     // Initialize action tracking for first step if it has a target count
-    if (firstStep.validationData) {
+    // (only when WE created the row; the winner already did it)
+    if (firstStep.validationData && afterInsert.length > 0 && afterInsert[0].id === id) {
       const { requiredMoves, requiredHarvests, requiredAttacks } = firstStep.validationData;
       const targetCount = requiredMoves || requiredHarvests || requiredAttacks;
       if (targetCount) {
@@ -927,6 +940,9 @@ export async function updateActionTracking(
     );
   } else {
     const id = randomUUID().replace(/-/g, '').substring(0, 24);
+    // RACE-SAFE: concurrent first-increments for the same (player, step) both see
+    // "missing"; the loser would hit tutorial_action_player_step_unique. On
+    // conflict someone else already created the row — nothing to do.
     await db.insert(tutorialActionTracking).values({
       id,
       playerId,
@@ -934,7 +950,7 @@ export async function updateActionTracking(
       actionType: trackingData,
       completed: 0,
       lastUpdated: new Date(),
-    });
+    }).onConflictDoNothing({ target: [tutorialActionTracking.playerId, tutorialActionTracking.stepId] });
   }
 }
 

@@ -45,7 +45,6 @@ export default function TutorialQuestPanel({
   playerId,
   isVisible = true,
   onSkip,
-  onMinimize,
 }: TutorialQuestPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -85,22 +84,38 @@ export default function TutorialQuestPanel({
         setTargetCoords({ x: staticTargetX, y: staticTargetY });
       } else {
         // Dynamic coordinates - poll for them (generated on first move)
-        const intervalId = setInterval(async () => {
+        // Self-scheduling poll for dynamically generated coords (created on
+        // first move). 500ms starts; backs off to 2s while the coords don't
+        // exist yet, so a slow step doesn't hammer the endpoint.
+        let coordDelay = 500;
+        let coordTimer: ReturnType<typeof setTimeout> | null = null;
+        let coordCancelled = false;
+
+        const pollCoords = async () => {
+          if (coordCancelled) return;
           try {
             const response = await fetch(`/api/tutorial/tracking?playerId=${playerId}&stepId=${currentStep.id}`);
+            if (coordCancelled) return;
             if (response.ok) {
               const data = await response.json();
               if (data.targetX !== undefined && data.targetY !== undefined) {
                 setTargetCoords({ x: data.targetX, y: data.targetY });
-                clearInterval(intervalId); // Stop polling once we have coords
+                return; // Stop polling once we have coords
               }
             }
           } catch (error) {
             logger.error('Failed to load target coordinates', error as Error);
           }
-        }, 500);
+          coordDelay = Math.min(coordDelay * 2, 2000);
+          coordTimer = setTimeout(pollCoords, coordDelay);
+        };
 
-        return () => clearInterval(intervalId);
+        void pollCoords();
+
+        return () => {
+          coordCancelled = true;
+          if (coordTimer) clearTimeout(coordTimer);
+        };
       }
     } else {
       setTargetCoords(null);
@@ -110,9 +125,14 @@ export default function TutorialQuestPanel({
   /**
    * Load current quest data with progress tracking
    */
-  const loadQuestData = useCallback(async () => {
+  const loadQuestData = useCallback(async (): Promise<boolean> => {
     try {
       const response = await fetch(`/api/tutorial?playerId=${playerId}`);
+      if (!response.ok) {
+        // Transient server error: leave state untouched, let the poller back off.
+        logger.warn(`Tutorial state fetch failed (${response.status})`);
+        return false;
+      }
       const data = await response.json();
 
       if (data.quest && data.step) {
@@ -173,20 +193,42 @@ export default function TutorialQuestPanel({
       }
 
       setIsLoading(false);
+      return true;
     } catch (error) {
       logger.error('Error loading quest data', error as Error);
       setIsLoading(false);
+      return false;
     }
   }, [playerId]);
 
   useEffect(() => {
     if (!isVisible) return;
-    
-    loadQuestData();
-    
-    // Refresh every 1 second for real-time updates
-    const interval = setInterval(loadQuestData, 1000);
-    return () => clearInterval(interval);
+
+    // Self-scheduling poll (same pattern as usePolling flood-fix): one request
+    // in flight, next scheduled only after completion, exponential backoff on
+    // failures. The old setInterval(…, 1000) fired a request every second no
+    // matter what — overlapping serverless cold-starts and pile-ups on slow
+    // networks (and a 500 body was parsed as data since response.ok was never
+    // checked).
+    let cancelled = false;
+    let delay = 1000;
+    const MAX_DELAY = 5000;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      if (cancelled) return;
+      const ok = await loadQuestData();
+      if (cancelled) return;
+      delay = ok ? 3000 : Math.min(delay * 2, MAX_DELAY); // 3s steady cadence, backoff to 5s on errors
+      timer = setTimeout(tick, delay);
+    };
+
+    void tick();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [playerId, isVisible, loadQuestData]);
 
   /**
