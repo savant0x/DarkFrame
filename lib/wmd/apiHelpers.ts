@@ -29,7 +29,13 @@ const JWT_SECRET = new TextEncoder().encode(
  */
 export async function verifyAuth(request: NextRequest): Promise<string | null> {
   try {
-    const token = request.cookies.get('auth-token')?.value;
+    // Read the real session cookie. This helper historically looked for a
+    // cookie named 'auth-token', which no route ever sets (login sets
+    // 'darkframe_session') — so every WMD feature returned AUTH_UNAUTHORIZED
+    // for all logged-in users and the entire system was unreachable.
+    const token =
+      request.cookies.get('darkframe_session')?.value ??
+      request.cookies.get('auth-token')?.value; // legacy fallback
     if (!token) return null;
 
     const { payload } = await jwtVerify(token, JWT_SECRET);
