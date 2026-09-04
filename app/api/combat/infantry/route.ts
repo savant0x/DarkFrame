@@ -27,6 +27,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { executeInfantryAttack } from '@/lib/battleService';
+import { verifyPresence } from '@/lib/presenceCheck';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { 
   withRequestLogging, 
   createRouteLogger, 
@@ -68,6 +72,22 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'Cannot attack yourself'
       });
+    }
+
+    // Presence: PvP requires standing on the defender's tile. Both positions
+    // come from the DB — the client cannot claim a location.
+    const [defenderRow] = await db
+      .select({ x: players.currentPositionX, y: players.currentPositionY })
+      .from(players)
+      .where(eq(players.username, validated.targetUsername))
+      .limit(1);
+    if (!defenderRow) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target player not found' });
+    }
+    const presence = await verifyPresence(attackerId, { x: Number(defenderRow.x), y: Number(defenderRow.y) });
+    if (!presence.ok) {
+      log.debug('Infantry combat blocked: not at target location', { attacker: attackerId, at: presence.attackerPosition });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: presence.reason });
     }
 
     log.debug('Infantry combat initiated', { 

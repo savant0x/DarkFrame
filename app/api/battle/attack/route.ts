@@ -16,6 +16,7 @@ import {
   requireAuth
 } from '@/lib';
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
+import { verifyPresence } from '@/lib/presenceCheck';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -45,6 +46,23 @@ const handler = rateLimiter(async (req: NextRequest) => {
       return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, {
         fields: ['attacker', 'defender', 'factoryLocation', 'attackerUnits', 'defenderUnits']
       });
+    }
+    
+    // The attacker is the session user — a body-supplied attacker name would let
+    // anyone fight as anyone.
+    if (attacker !== auth.username) {
+      log.warn('Battle attack attacker/session mismatch', { attacker, session: auth.username });
+      return createErrorResponse(ErrorCode.AUTH_FORBIDDEN, { message: 'Attacker must be the authenticated user' });
+    }
+    
+    // Presence: attacker must be standing at the battle location (DB position).
+    const presence = await verifyPresence(auth.username, {
+      x: Number(factoryLocation.x),
+      y: Number(factoryLocation.y),
+    });
+    if (!presence.ok) {
+      log.warn('Battle attack blocked: not at location', { attacker, factoryLocation, at: presence.attackerPosition });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: presence.reason });
     }
     
     log.debug('Resolving battle', { attacker, defender, location: factoryLocation });

@@ -13,20 +13,25 @@ import { db } from '@/lib/db';
 import { players, flags } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { type FlagAttackRequest, type FlagAttackResponse, type FlagAPIResponse, FLAG_CONFIG } from '@/types/flag.types';
-import { Player } from '@/types/game.types';
+import { type FlagAttackResponse, type FlagAPIResponse, FLAG_CONFIG } from '@/types/flag.types';
 import { 
   withRequestLogging, 
   createRouteLogger, 
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   FlagAttackSchema,
-  createErrorResponse,
-  createErrorFromException,
-  createValidationErrorResponse,
-  ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
+import { verifyPresence } from '@/lib/presenceCheck';
+
+/** Shape of the currentHolder blob stored in the flags row. */
+interface FlagHolder {
+  playerId?: string;
+  botId?: string;
+  username: string;
+  hp?: number;
+  position: { x: number; y: number };
+}
 
 /**
  * Calculate distance between two points
@@ -84,7 +89,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       });
     }
     
-    const holder = flagDoc.currentHolder as any;
+    const holder = flagDoc.currentHolder as unknown as FlagHolder;
     
     // Verify target is current bearer (handle bot attacks)
     const holderId = holder.playerId || holder.botId || '';
@@ -115,8 +120,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       }, { status: 404 });
     }
     
-    // Validate attack range
-    const distance = calculateDistance(validated.attackerPosition, holder.position);
+    // Validate attack range against the DATABASE position — the client-supplied
+    // attackerPosition is never trusted (it was trivially spoofable).
+    const presence = await verifyPresence(user.username, holder.position, FLAG_CONFIG.ATTACK_RANGE);
+    if (!presence.ok) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          success: false,
+          error: presence.reason ?? 'Not in range',
+          damage: 0
+        },
+        timestamp: new Date()
+      });
+    }
+    const distance = calculateDistance(presence.attackerPosition!, holder.position);
     
     if (distance > FLAG_CONFIG.ATTACK_RANGE) {
       return NextResponse.json({
@@ -133,10 +151,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
     }
     
     // Get target (bearer)
-    let target: any = null;
-    if (holder.playerId) {
-      [target] = await db.select().from(players).where(eq(players.username, holder.username));
-    } else if (holder.botId) {
+    let target: typeof players.$inferSelect | null = null;
+    if (holder.playerId || holder.botId) {
       [target] = await db.select().from(players).where(eq(players.username, holder.username));
     }
     
@@ -167,13 +183,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       const now = new Date();
       const expiresAt = new Date(now.getTime() + 8 * 60 * 1000); // 8 minutes from now
       
-      const trailData = [{
-        x: attacker.currentPositionX,
-        y: attacker.currentPositionY,
-        timestamp: now,
-        expiresAt: expiresAt
-      }];
-      
+      void expiresAt; // trail persistence lands with the trail table (see SCOPE)
       await db.update(flags).set({
         currentHolder: attacker.username,
         currentHolderUsername: attacker.username,
@@ -195,8 +205,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       });
     }
     
-    // Bearer survived - update HP in holder data
-    const updatedHolder = { ...holder, hp: bearerHP };
+    // Bearer survived - report remaining HP. HP persistence lands with the
+    // trail/HP storage work; per-hit state resets via the capture path.
+    void initialHP;
     
     return NextResponse.json({
       success: true,
