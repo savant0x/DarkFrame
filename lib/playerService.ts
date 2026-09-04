@@ -25,6 +25,8 @@ export function mapRowToPlayer(row: typeof players.$inferSelect): Player {
     ...row,
     isAdmin: row.isAdmin === 1,
     vip: row.vip === 1,
+    isBot: row.isBot === 1,
+    isSpecialBase: row.isSpecialBase === 1,
     base: { x: row.baseX, y: row.baseY },
     currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
     resources: { metal: row.resourcesMetal, energy: row.resourcesEnergy },
@@ -46,6 +48,62 @@ export function mapRowToPlayer(row: typeof players.$inferSelect): Player {
       expiresAt: row.activeBoostsExpiresAt,
     },
   } as unknown as Player;
+}
+
+/**
+ * Inverse of the canonical `mapRowToPlayer` — converts a domain `Player` (nested
+ * `base`/`currentPosition`/`resources`, boolean `isBot`/`isSpecialBase`/`isAdmin`/`vip`)
+ * into the flat row shape the drizzle `players` table expects. The single mapping path
+ * for direct `db.insert(players)` sites (bots, flag bot); new-player creation builds
+ * rows directly.
+ */
+export function mapDomainPlayerToRow(player: Partial<Player> & { username: string }): typeof players.$inferInsert {
+  return {
+    username: player.username,
+    // notNull columns without defaults — every insert site must supply them (bots always
+    // carry base/currentPosition; '' matches createPlayer's convention for email/password)
+    email: player.email ?? '',
+    password: player.password ?? '',
+    baseX: player.base?.x ?? 0,
+    baseY: player.base?.y ?? 0,
+    currentPositionX: player.currentPosition?.x ?? 0,
+    currentPositionY: player.currentPosition?.y ?? 0,
+    ...(player.resources ? { resourcesMetal: Math.floor(player.resources.metal), resourcesEnergy: Math.floor(player.resources.energy) } : {}),
+    ...(player.bank ? { bankMetal: Math.floor(player.bank.metal), bankEnergy: Math.floor(player.bank.energy), bankLastDeposit: player.bank.lastDeposit } : {}),
+    ...(player.rank !== undefined ? { rank: player.rank } : {}),
+    ...(player.inventory ? {
+      inventoryItems: player.inventory.items,
+      inventoryCapacity: player.inventory.capacity,
+      inventoryMetalDiggerCount: player.inventory.metalDiggerCount,
+      inventoryEnergyDiggerCount: player.inventory.energyDiggerCount,
+    } : {}),
+    ...(player.gatheringBonus ? {
+      gatheringBonusMetalBonus: String(player.gatheringBonus.metalBonus),
+      gatheringBonusEnergyBonus: String(player.gatheringBonus.energyBonus),
+    } : {}),
+    ...(player.activeBoosts ? {
+      activeBoostsGatheringBoost: player.activeBoosts.gatheringBoost === null ? null : String(player.activeBoosts.gatheringBoost),
+      activeBoostsExpiresAt: player.activeBoosts.expiresAt,
+    } : {}),
+    ...(player.shrineBoosts !== undefined ? { shrineBoosts: player.shrineBoosts } : {}),
+    ...(player.units !== undefined ? { units: player.units } : {}),
+    ...(player.totalStrength !== undefined ? { totalStrength: player.totalStrength } : {}),
+    ...(player.totalDefense !== undefined ? { totalDefense: player.totalDefense } : {}),
+    ...(player.xp !== undefined ? { xp: player.xp } : {}),
+    ...(player.level !== undefined ? { level: player.level } : {}),
+    ...(player.researchPoints !== undefined ? { researchPoints: player.researchPoints } : {}),
+    ...(player.unlockedTiers !== undefined ? { unlockedTiers: player.unlockedTiers } : {}),
+    ...(player.specialization !== undefined ? { specialization: player.specialization } : {}),
+    // pg smallint booleans — never insert raw JS booleans (pg rejects `true` for smallint)
+    ...(player.isBot !== undefined ? { isBot: player.isBot ? 1 : 0 } : {}),
+    ...(player.isSpecialBase !== undefined ? { isSpecialBase: player.isSpecialBase ? 1 : 0 } : {}),
+    ...(player.isAdmin !== undefined ? { isAdmin: player.isAdmin ? 1 : 0 } : {}),
+    ...(player.vip !== undefined ? { vip: player.vip ? 1 : 0 } : {}),
+    ...(player.botConfig !== undefined ? { botConfig: player.botConfig } : {}),
+    ...(player.currentHP !== undefined ? { currentHP: player.currentHP } : {}),
+    ...(player.maxHP !== undefined ? { maxHP: player.maxHP } : {}),
+    ...(player.createdAt ? { createdAt: player.createdAt } : {}),
+  };
 }
 
 export async function usernameExists(username: string): Promise<boolean> {

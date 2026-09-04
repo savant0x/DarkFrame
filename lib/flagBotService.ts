@@ -24,9 +24,11 @@
 
 import { db } from '@/lib/db';
 import { players, flags } from '@/lib/db/schema';
-import { eq, or, like, sql } from 'drizzle-orm';
+import { eq, like, sql } from 'drizzle-orm';
 import { BotSpecialization, type Player, type Position } from '@/types/game.types';
 import { createBotPlayer } from '@/lib/botService';
+import { mapRowToPlayer, mapDomainPlayerToRow, getPlayerByUsername } from '@/lib/playerService';
+import { generateId } from '@/lib/utils';
 import { FLAG_CONFIG } from '@/types/flag.types';
 
 /**
@@ -65,18 +67,22 @@ export async function getFlagBot(): Promise<Player | null> {
     const flagDoc = flagRows[0];
     
     if (!flagDoc || !flagDoc.currentHolder) {
-      return null; // Flag held by player or doesn't exist
+      return null; // Flag unclaimed or doesn't exist
     }
     
-    const holder = flagDoc.currentHolder as any;
-    if (!holder?.botId) {
-      return null;
-    }
+    // currentHolder stores the holder's username (string) — every writer in this file
+    // (createFlagBot, handleFlagBotDefeat) sets it that way; the old object-with-botId
+    // shape never existed, so this read path always returned null.
+    const holderRows = await db.select().from(players).where(eq(players.username, flagDoc.currentHolder)).limit(1);
+    if (!holderRows[0]) return null;
     
-    // Get the bot from players table
-    const botRows = await db.select().from(players).where(eq(players.username, holder.botId)).limit(1);
+    const holder = mapRowToPlayer(holderRows[0]);
     
-    return (botRows[0] as unknown as Player) || null;
+    // Only the bot is "the flag bot" — when a player holds the flag, return null
+    // (the job uses that to skip movement)
+    if (!holder.isBot) return null;
+    
+    return holder;
   } catch (error) {
     console.error('❌ Error getting flag bot:', error);
     return null;
@@ -132,19 +138,18 @@ export async function createFlagBot(position?: Position): Promise<Player> {
       username: `Flag-Bearer-${Math.floor(Math.random() * 9999)}`,
     };
     
-    // Insert bot into database
-    await db.insert(players).values(flagBot as any);
+    // Insert bot into database — domain→row mapping (nested base/currentPosition/resources →
+    // flat columns, boolean isBot → smallint; raw domain objects crash pg smallint columns)
+    await db.insert(players).values(mapDomainPlayerToRow(flagBot));
     const botId = flagBot.username;
     
     // Initialize or update flags table
     const existingFlagRows = await db.select().from(flags).limit(1);
     const existingFlag = existingFlagRows[0];
     
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 8 * 60 * 1000); // 8 minutes from now
-    
     const flagData = {
-      id: crypto.randomUUID(),
+      // id is varchar(24) — crypto.randomUUID() (36 chars) overflows the column
+      id: generateId(),
       currentHolder: botId,
       currentHolderUsername: flagBot.username,
       lastCapturedAt: new Date(),
@@ -165,7 +170,10 @@ export async function createFlagBot(position?: Position): Promise<Player> {
       await db.insert(flags).values(flagData);
     }
     
-    const createdBot = { ...flagBot } as Player;
+    // Re-read through the single mapping path — verifies the insert landed and the
+    // returned Player reflects the actual row
+    const createdBot = await getPlayerByUsername(flagBot.username);
+    if (!createdBot) throw new Error('Flag bot insert did not persist');
     
     console.log(`✅ Flag bot created: ${createdBot.username} at (${createdBot.currentPosition.x}, ${createdBot.currentPosition.y})`);
     
@@ -197,7 +205,7 @@ export async function createFlagBot(position?: Position): Promise<Player> {
 export async function moveFlagBot(botId: string): Promise<Position> {
   try {
     const botRows = await db.select().from(players).where(eq(players.username, botId)).limit(1);
-    const bot = botRows[0] as unknown as Player | undefined;
+    const bot = botRows[0] ? mapRowToPlayer(botRows[0]) : undefined;
     
     if (!bot) {
       throw new Error('Flag bot not found');
@@ -256,8 +264,8 @@ export async function handleFlagBotDefeat(
     const botRows = await db.select().from(players).where(eq(players.username, botId)).limit(1);
     const victorRows = await db.select().from(players).where(eq(players.username, victorId)).limit(1);
     
-    const bot = botRows[0] as unknown as Player | undefined;
-    const victor = victorRows[0] as unknown as Player | undefined;
+    const bot = botRows[0] ? mapRowToPlayer(botRows[0]) : undefined;
+    const victor = victorRows[0] ? mapRowToPlayer(victorRows[0]) : undefined;
     
     if (!bot || !victor) {
       throw new Error('Bot or victor not found');

@@ -31,6 +31,7 @@ import { players } from '@/lib/db/schema';
 import { eq, isNotNull, desc, sql } from 'drizzle-orm';
 import { type Player, BotSpecialization } from '@/types/game.types';
 import { createBotPlayer } from '@/lib/botService';
+import { mapDomainPlayerToRow } from '@/lib/playerService';
 
 /**
  * Summoning configuration
@@ -105,7 +106,7 @@ export async function summonBots(
   }
 
   // Create bots
-  const botsToInsert: any[] = [];
+  const botsToInsert: Array<Partial<Player> & { username: string }> = [];
   const botInfo: Array<{ username: string; position: { x: number; y: number } }> = [];
 
   for (const position of spawnPositions) {
@@ -122,11 +123,12 @@ export async function summonBots(
     bot.currentPosition = position;
 
     if (bot.botConfig) {
-      (bot.botConfig as any).summonedBy = playerId;
-      bot.botConfig.summonedAt = new Date();
+      const config = bot.botConfig as { summonedBy?: string; summonedAt?: Date };
+      config.summonedBy = playerId;
+      config.summonedAt = new Date();
     }
 
-    botsToInsert.push(bot);
+    botsToInsert.push({ ...bot, username: bot.username || `Bot-${Date.now()}-${botsToInsert.length}` });
     botInfo.push({
       username: bot.username || 'Unknown',
       position,
@@ -134,7 +136,9 @@ export async function summonBots(
   }
 
   if (botsToInsert.length > 0) {
-    await db.insert(players).values(botsToInsert as any);
+    // Domain→row mapping — raw domain objects (boolean isBot, nested base/resources)
+    // crash or silently drop on direct drizzle inserts
+    await db.insert(players).values(botsToInsert.map(mapDomainPlayerToRow));
   }
 
   await db.update(players).set({ lastBotSummon: new Date() }).where(eq(players.username, playerId));
@@ -218,7 +222,7 @@ export async function getSummoningStats(): Promise<{
   }).from(players).where(eq(players.isBot, 1));
 
   const summonedBots = allPlayers.filter(p => {
-    const config = p.botConfig as any;
+    const config = p.botConfig as { summonedBy?: string } | null;
     return config?.summonedBy;
   });
 
@@ -231,7 +235,7 @@ export async function getSummoningStats(): Promise<{
   };
 
   summonedBots.forEach((bot) => {
-    const config = bot.botConfig as any;
+    const config = bot.botConfig as { specialization?: string } | null;
     const spec = config?.specialization || 'Balanced';
     summonsBySpec[spec] = (summonsBySpec[spec] || 0) + 1;
   });
