@@ -155,6 +155,9 @@ export async function middleware(request: NextRequest) {
  * Uses matcher patterns to define protected routes.
  */
 export const config = {
+  // Node.js runtime (Vercel-recommended; Edge is deprecated and its bundler
+  // rejects this module's @/lib imports). Same auth behavior, better perf.
+  runtime: 'nodejs',
   matcher: [
     '/game/:path*', // Protect /game and all sub-routes
   ]
