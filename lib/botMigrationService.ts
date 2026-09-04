@@ -24,7 +24,7 @@
 
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 export type BotSpecialization = 'Hoarder' | 'Fortress' | 'Raider' | 'Balanced' | 'Ghost';
 
@@ -64,10 +64,6 @@ const NEST_LOCATIONS: Position[] = [
   { x: 4500, y: 4500 },
 ];
 
-function calculateDistance(pos1: Position, pos2: Position): number {
-  return Math.sqrt(Math.pow(pos2.x - pos1.x, 2) + Math.pow(pos2.y - pos1.y, 2));
-}
-
 function getRandomPosition(): Position {
   return {
     x: Math.floor(Math.random() * MIGRATION_CONFIG.MAP_SIZE),
@@ -84,8 +80,8 @@ async function isSafePosition(position: Position): Promise<boolean> {
       AND current_position_y >= ${position.y - MIGRATION_CONFIG.SAFE_DISTANCE}
       AND current_position_y <= ${position.y + MIGRATION_CONFIG.SAFE_DISTANCE}
   `);
-  const cnt = Number(((result as any)[0] as any).cnt);
-  return cnt === 0;
+  const firstRow = (result.rows as Array<Record<string, unknown>>)[0];
+  return Number(firstRow?.cnt ?? 0) === 0;
 }
 
 async function findSafePosition(maxRetries = 10): Promise<Position> {
@@ -104,7 +100,7 @@ async function getMigrationPositionRaider(): Promise<Position> {
     WHERE is_bot != 1
     LIMIT 20
   `);
-  const playerRows = playerResult.rows as any[];
+  const playerRows = playerResult.rows as Array<{ username: string; current_position_x: number; current_position_y: number }>;
 
   if (playerRows.length === 0) {
     return getRandomPosition();
@@ -190,7 +186,7 @@ export async function executeMigration(
   };
 
   for (const bot of botsToMigrate) {
-    const specialization = bot.botConfig?.specialization as BotSpecialization;
+    const specialization = bot.botConfig?.specialization as unknown as BotSpecialization;
     if (!specialization) continue;
 
     const newPosition = await getMigrationPosition(specialization);
@@ -228,14 +224,14 @@ export async function getMigrationHistory(limit = 10): Promise<MigrationEvent[]>
     LIMIT ${limit}
   `);
 
-  return (rows.rows as any[]).map((row: any) => ({
-    timestamp: new Date(row.timestamp),
-    botsMigrated: row.bots_migrated,
+  return (rows.rows as Array<Record<string, unknown>>).map((row) => ({
+    timestamp: new Date(row.timestamp as string),
+    botsMigrated: row.bots_migrated as number,
     bySpecialization: typeof row.by_specialization === 'string'
-      ? JSON.parse(row.by_specialization)
+      ? JSON.parse(row.by_specialization as string)
       : row.by_specialization,
-    triggeredBy: row.triggered_by,
-    triggeredByUser: row.triggered_by_user || undefined,
+    triggeredBy: row.triggered_by as MigrationEvent['triggeredBy'],
+    triggeredByUser: (row.triggered_by_user as string | null) || undefined,
   }));
 }
 

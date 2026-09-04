@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
+import type { BotConfig } from '@/types/game.types';
 import { eq, and } from 'drizzle-orm';
 import {
   withRequestLogging,
@@ -100,8 +101,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     let regeneratedCount = 0;
 
     for (const bot of bots) {
-      const tier = (bot.botConfig as any)?.tier || 1;
-      const isSpecialBase = (bot.botConfig as any)?.isSpecialBase || false;
+      const tier = bot.botConfig?.tier || 1;
+      const isSpecialBase = bot.botConfig?.isSpecialBase || false;
       const tierResources = TIER_RESOURCES[tier - 1] || TIER_RESOURCES[0];
 
       // Special bases have 3x resources
@@ -110,19 +111,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       const maxEnergy = BigInt(tierResources.energy * multiplier);
 
       // Update bot config with new timestamps
-      const existingBotConfig = bot.botConfig || {};
-      const updatedBotConfig = {
+      const existingBotConfig = bot.botConfig;
+      const updatedBotConfig: BotConfig = {
         ...existingBotConfig,
         lastResourceRegen: new Date(),
         lastGrowth: new Date(),
-      };
+      } as BotConfig;
 
       // Set resources to max and reset regen timestamp
       await db.update(players)
         .set({
           resourcesMetal: Number(maxMetal),
           resourcesEnergy: Number(maxEnergy),
-          botConfig: JSON.stringify(updatedBotConfig),
+          botConfig: updatedBotConfig,
         })
         .where(eq(players.username, bot.username));
 

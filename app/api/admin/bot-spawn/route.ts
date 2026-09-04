@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
+import type { PlayerUnit, BotConfig } from '@/types/game.types';
 import { eq } from 'drizzle-orm';
 import {
   withRequestLogging,
@@ -104,35 +105,44 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         email: `${username}@bot.local`,
         password: 'BOT_NO_LOGIN',
         isBot: 1,
+        baseX: botPosition.x,
+        baseY: botPosition.y,
         currentPositionX: botPosition.x,
         currentPositionY: botPosition.y,
-        resourcesMetal: BigInt(resourceAmount * multiplier),
-        resourcesEnergy: BigInt(Math.floor(resourceAmount * 0.6 * multiplier)),
-        units: JSON.stringify([
+        resourcesMetal: Number(BigInt(resourceAmount * multiplier)),
+        resourcesEnergy: Number(BigInt(Math.floor(resourceAmount * 0.6 * multiplier))),
+        units: [
           { soldiers: { ATK: 0, DEF: 0, count: 0 } },
           { tanks: { ATK: 0, DEF: 0, count: 0 } },
           { aircraft: { ATK: 0, DEF: 0, count: 0 } },
-        ]),
+        ] as unknown as PlayerUnit[],
         totalStrength: 0,
         totalDefense: 0,
         xp: 0,
         level: 1,
         researchPoints: 0,
         unlockedTiers: [1],
-        botConfig: JSON.stringify({
+        botConfig: {
           specialization,
           tier,
           lastGrowth: new Date(),
           lastResourceRegen: new Date(),
           attackCooldown: new Date(0),
-          revengeTarget: null,
+          revengeTarget: undefined,
           isSpecialBase: isSpecialBase || false,
-        }),
+          defeatedCount: 0,
+          reputation: { defeatedCount: 0, lastDefeated: undefined, threatLevel: 0 },
+          movement: 'stationary',
+          zone: Math.floor((botPosition.x + botPosition.y) / 33),
+          nestAffinity: null,
+          bountyValue: 0,
+          permanentBase: false,
+        } as unknown as BotConfig,
         createdAt: new Date(),
       };
 
       // Insert bot
-      await (db as any).insert(players).values(botDoc);
+      await db.insert(players).values(botDoc);
       spawnedBots.push(username);
     }
 

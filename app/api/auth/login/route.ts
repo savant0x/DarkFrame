@@ -51,8 +51,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.AUTH_INVALID_CREDENTIALS);
     }
     
-    // Generate JWT token with isAdmin flag
-    const token = generateToken(player.username, player.email, rememberMe || false, player.isAdmin || false);
+    // Account-ban gate (admin anti-cheat ban flow; migration 0007). Expired temporary
+    // bans are treated as lifted here — the unban route is the permanent path.
+    const banActive = !!player.banned && (!player.banExpiresAt || new Date(player.banExpiresAt) > new Date());
+    if (banActive) {
+      log.warn('Login blocked', { reason: 'account_banned', username: player.username });
+      return NextResponse.json(
+        { success: false, error: 'AUTH_FORBIDDEN', message: 'Account suspended', reason: player.banReason || 'Violation of the rules' },
+        { status: 403 }
+      );
+    }
+    
+    // Generate JWT token with isAdmin flag. rank rides along because 54 admin endpoints
+    // gate on rank >= 5 (the account-ban gate columns don't affect rank — admins are rank 1
+    // in the current schema but isAdmin=true is the operative admin signal).
+    const token = generateToken(
+      player.username,
+      player.email,
+      rememberMe || false,
+      player.isAdmin || false,
+      player.rank ?? 1
+    );
     
     // Set HTTP-only cookie
     await setAuthCookie(token, rememberMe || false);
@@ -76,7 +95,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     );
     
     // Remove password from response
-    const { password: _, ...playerWithoutPassword } = player;
+    const { password: _pw, ...playerWithoutPassword } = player;
+    void _pw;
     
     log.info('Login successful', { 
       username: player.username, 

@@ -60,7 +60,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Get current flags for logging
+    // Get current flags for logging (player_flags is username-keyed as of migration 0007;
+    // the pre-0007 `{ username }` filter hit no column and deleted zero rows while
+    // reporting success).
     const currentFlags = await db.collection('playerFlags')
       .find({ username })
       .toArray();
@@ -76,7 +78,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       targetUsername: username,
       details: {
         flagsCleared: result.deletedCount,
-        previousFlags: currentFlags.map((f: any) => ({
+        previousFlags: currentFlags.map((f: Record<string, unknown>) => ({
           flagType: f.flagType,
           severity: f.severity,
           timestamp: f.timestamp

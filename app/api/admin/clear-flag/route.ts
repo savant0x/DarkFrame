@@ -60,7 +60,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     const flag = flagResult[0];
-    const details = (flag.details as Record<string, any>) || {};
+    const details = (flag.details as Record<string, unknown>) || {};
 
     // Update flag as resolved
     const updatedDetails = {
@@ -80,7 +80,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       id: `modlog_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       moderatorId: user.username,
       action: 'CLEAR_FLAG',
-      targetId: flag.playerId,
+      targetId: flag.playerId ?? '',
       reason: adminNotes.trim(),
       details: JSON.stringify({
         flagType: details.flagType,

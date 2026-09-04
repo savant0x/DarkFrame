@@ -46,6 +46,7 @@ export {
   shrineBlessings,
   achievements,
   auctions,
+  tradeHistory,
   playerSessions,
   playerActivity,
   playerFlags,

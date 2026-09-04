@@ -1,14 +1,16 @@
-import { pgTable, varchar, integer, smallint, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, varchar, integer, smallint, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const migrations = pgTable('migrations', {
 	id: varchar('id', { length: 100 }).primaryKey(),
 	appliedAt: timestamp('applied_at').notNull(),
-	details: jsonb('details').$type<any>(),
+	details: jsonb('details').$type<Record<string, unknown>>(),
 });
 
 export const gameConfig = pgTable('game_config', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	type: varchar('type', { length: 30 }).notNull(),
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface without index signature
 	config: jsonb('config').notNull().$type<any>(),
 }, (table) => [
 	index('game_config_type_idx').on(table.type),
@@ -57,7 +59,7 @@ export const achievements = pgTable('achievements', {
 export const auctions = pgTable('auctions', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	sellerId: varchar('seller_id', { length: 20 }).notNull(),
-	itemData: jsonb('item_data').notNull().$type<any>(),
+	itemData: jsonb('item_data').notNull().$type<Record<string, unknown>>(),
 	startingPrice: integer('starting_price').notNull(),
 	currentBid: integer('current_bid'),
 	currentBidder: varchar('current_bidder', { length: 20 }),
@@ -65,10 +67,48 @@ export const auctions = pgTable('auctions', {
 	expiresAt: timestamp('expires_at').notNull(),
 	status: varchar('status', { length: 20 }).notNull().default('active'),
 	createdAt: timestamp('created_at').notNull(),
+	// Domain bridge (migration 0008): `doc` jsonb holds the full AuctionListing document
+	// (item, bids[], fees, timestamps); the plain columns below mirror the doc fields the
+	// service filters/sorts/looks up on, so SQL indexes stay usable. They are NOT generated
+	// columns — the service writes these fields directly via $set and generated columns
+	// reject writes; the shim's DOC_TABLES mapping keeps columns and doc in sync.
+	doc: jsonb('doc').notNull().default({}),
+	auctionId: varchar('auction_id', { length: 64 }),
+	sellerUsername: varchar('seller_username', { length: 20 }),
+	highestBidder: varchar('highest_bidder', { length: 20 }),
+	winnerUsername: varchar('winner_username', { length: 20 }),
+	startingBid: integer('starting_bid'),
+	reservePrice: integer('reserve_price'),
+	listingFee: integer('listing_fee'),
+	clanOnly: smallint('clan_only').notNull().default(0),
+	settled: smallint('settled').notNull().default(0),
+	finalPrice: integer('final_price'),
+	durationHours: integer('duration_hours'),
+	closedAt: timestamp('closed_at'),
 }, (table) => [
-	index('auctions_seller_id_idx').on(table.sellerId),
-	index('auctions_status_idx').on(table.status),
-	index('auctions_expires_at_idx').on(table.expiresAt),
+	uniqueIndex('auctions_auction_id_uniq').on(table.auctionId).where(sql`auction_id IS NOT NULL`),
+	index('auctions_seller_username_idx').on(table.sellerUsername),
+	index('auctions_status_created_idx').on(table.status, table.createdAt),
+]);
+
+/** Completed trade records written at buyout (TradeHistory domain shape). */
+export const tradeHistory = pgTable('trade_history', {
+	id: varchar('id', { length: 24 }).primaryKey(),
+	tradeId: varchar('trade_id', { length: 40 }).notNull(),
+	auctionId: varchar('auction_id', { length: 64 }).notNull(),
+	sellerUsername: varchar('seller_username', { length: 20 }).notNull(),
+	buyerUsername: varchar('buyer_username', { length: 20 }).notNull(),
+	item: jsonb('item').notNull(),
+	finalPrice: integer('final_price').notNull(),
+	saleFee: integer('sale_fee').notNull(),
+	sellerReceived: integer('seller_received').notNull(),
+	tradeType: varchar('trade_type', { length: 10 }).notNull().default('buyout'),
+	completedAt: timestamp('completed_at').notNull(),
+}, (table) => [
+	index('trade_history_trade_id_idx').on(table.tradeId),
+	index('trade_history_auction_id_idx').on(table.auctionId),
+	index('trade_history_seller_idx').on(table.sellerUsername),
+	index('trade_history_buyer_idx').on(table.buyerUsername),
 ]);
 
 export const playerSessions = pgTable('player_sessions', {
@@ -98,22 +138,35 @@ export const playerActivity = pgTable('player_activity', {
 	playerId: varchar('player_id', { length: 20 }).notNull(),
 	action: varchar('action', { length: 50 }).notNull(),
 	timestamp: timestamp('timestamp').notNull(),
-	details: jsonb('details').$type<any>(),
+	details: jsonb('details').$type<Record<string, unknown>>(),
 	// Mongo-parity analytics fields (lib/activityLogger); nullable for legacy rows.
 	sessionId: varchar('session_id', { length: 64 }),
-	metadata: jsonb('metadata').$type<any>(),
+	metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
 }, (table) => [
 	index('player_activity_player_timestamp_idx').on(table.playerId, table.timestamp),
 ]);
 
 export const playerFlags = pgTable('player_flags', {
 	id: varchar('id', { length: 24 }).primaryKey(),
-	playerId: varchar('player_id', { length: 20 }).notNull(),
-	flag: varchar('flag', { length: 50 }).notNull(),
-	details: jsonb('details').$type<any>(),
+	// Legacy pivot columns — nullable as of migration 0007: the anti-cheat detector's
+	// domain insert doesn't supply them and no reader consumes them.
+	playerId: varchar('player_id', { length: 20 }),
+	flag: varchar('flag', { length: 50 }),
+	details: jsonb('details').$type<Record<string, unknown>>(),
 	createdAt: timestamp('created_at').notNull(),
+	// Anti-cheat domain shape (lib/antiCheatDetector + admin flag endpoints).
+	// Nullable where legacy rows may lack the value.
+	username: varchar('username', { length: 20 }),
+	flagType: varchar('flag_type', { length: 50 }),
+	severity: varchar('severity', { length: 10 }).default('LOW'),
+	evidence: text('evidence'),
+	metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
+	resolved: smallint('resolved').default(0),
+	occurrenceCount: integer('occurrence_count').default(1),
 }, (table) => [
 	index('player_flags_player_id_idx').on(table.playerId),
+	index('player_flags_username_idx').on(table.username),
+	index('player_flags_resolved_idx').on(table.resolved),
 ]);
 
 export const typingIndicators = pgTable('typing_indicators', {

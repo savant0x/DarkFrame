@@ -18,8 +18,17 @@ export const bans = pgTable('bans', {
 	reason: text('reason').notNull(),
 	expiresAt: timestamp('expires_at'),
 	createdAt: timestamp('created_at').notNull(),
+	// Account-ban domain columns (admin ban flow). The table is SHARED with channel bans
+	// (lib/moderationService: playerId + moderatorId = channelId); account rows carry
+	// bannedBy and are distinguished from channel rows by that column being set.
+	username: varchar('username', { length: 20 }),
+	bannedBy: varchar('banned_by', { length: 20 }),
+	bannedAt: timestamp('banned_at'),
+	isPermanent: smallint('is_permanent').default(0),
+	active: smallint('active').default(0),
 }, (table) => [
 	index('bans_player_id_idx').on(table.playerId),
+	index('bans_username_active_idx').on(table.username, table.active),
 ]);
 
 export const modLog = pgTable('mod_log', {

@@ -50,11 +50,17 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 /**
  * Generate JWT token with user information
  */
-export function generateToken(username: string, email: string, rememberMe: boolean = false, isAdmin: boolean = false): string {
+export function generateToken(
+  username: string,
+  email: string,
+  rememberMe: boolean = false,
+  isAdmin: boolean = false,
+  rank?: number
+): string {
   const expiresIn = rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION;
-  
+
   return jwt.sign(
-    { username, email, isAdmin },
+    { username, email, isAdmin, rank },
     JWT_SECRET,
     { expiresIn }
   );

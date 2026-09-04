@@ -42,23 +42,40 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     }
 
     const { searchParams } = new URL(request.url);
-    const flagType = searchParams.get('flagType');
-    const severity = searchParams.get('severity');
+    const flagTypeFilter = searchParams.get('flagType');
+    const severityFilter = searchParams.get('severity');
     const resolved = searchParams.get('resolved') === 'true';
 
     const allFlags = await db.select().from(playerFlags);
 
     const filteredFlags = allFlags.filter((f) => {
-      const details = f.details || {};
-      if (flagType && details.flagType !== flagType) return false;
-      if (severity && details.severity !== severity) return false;
-      if (details.resolved !== resolved) return false;
+      // Domain columns (migration 0007) with details-jsonb fallback for legacy rows.
+      const details = (f.details || {}) as Record<string, unknown>;
+      const flagType = f.flagType ?? details.flagType;
+      const severity = f.severity ?? details.severity;
+      const isResolved = f.resolved === 1 || details.resolved === true;
+      if (flagTypeFilter && flagType !== flagTypeFilter) return false;
+      if (severityFilter && severity !== severityFilter) return false;
+      if (isResolved !== resolved) return false;
       return true;
     });
 
-    const grouped: Record<string, any> = {};
+    interface FlagGroup {
+      username: string;
+      totalFlags: number;
+      criticalCount: number;
+      highCount: number;
+      mediumCount: number;
+      lowCount: number;
+      flags: Array<Record<string, unknown>>;
+      latestFlagDate: Date | null;
+      oldestFlagDate: Date | null;
+    }
+
+    const grouped: Record<string, FlagGroup> = {};
     for (const flag of filteredFlags) {
-      const username = flag.playerId;
+      const details = (flag.details || {}) as Record<string, unknown>;
+      const username = flag.username ?? flag.playerId ?? 'unknown';
       if (!grouped[username]) {
         grouped[username] = {
           username,
@@ -72,8 +89,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
           oldestFlagDate: null as Date | null,
         };
       }
-      const details = flag.details || {};
-      const sev = details.severity || 'LOW';
+      const sev = flag.severity ?? details.severity ?? 'LOW';
       grouped[username].totalFlags++;
       if (sev === 'CRITICAL') grouped[username].criticalCount++;
       else if (sev === 'HIGH') grouped[username].highCount++;
@@ -82,14 +98,14 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
       grouped[username].flags.push({
         id: flag.id,
-        flagType: details.flagType || flag.flag,
+        flagType: flag.flagType ?? details.flagType ?? flag.flag,
         severity: sev,
         description: details.description || '',
-        evidence: details.evidence || null,
-        metadata: details.metadata || null,
-        occurrenceCount: details.occurrenceCount || 1,
+        evidence: flag.evidence ?? details.evidence ?? null,
+        metadata: flag.metadata ?? details.metadata ?? null,
+        occurrenceCount: flag.occurrenceCount ?? details.occurrenceCount ?? 1,
         createdAt: flag.createdAt,
-        resolved: details.resolved || false,
+        resolved: flag.resolved === 1 || details.resolved === true,
         resolvedBy: details.resolvedBy || null,
         resolvedAt: details.resolvedAt || null,
       });
@@ -103,7 +119,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       }
     }
 
-    const flaggedPlayers = Object.values(grouped).sort((a: any, b: any) => {
+    const flaggedPlayers = Object.values(grouped).sort((a: FlagGroup, b: FlagGroup) => {
       if (b.criticalCount !== a.criticalCount) return b.criticalCount - a.criticalCount;
       if (b.highCount !== a.highCount) return b.highCount - a.highCount;
       if (b.mediumCount !== a.mediumCount) return b.mediumCount - a.mediumCount;
@@ -111,7 +127,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     });
 
     const enrichedData = await Promise.all(
-      flaggedPlayers.map(async (fp: any) => {
+      flaggedPlayers.map(async (fp: FlagGroup) => {
         const playerRows = await db.select().from(players).where(eq(players.username, fp.username));
         const player = playerRows[0] || null;
         return {
@@ -142,11 +158,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     const stats = {
       totalFlaggedPlayers: flaggedPlayers.length,
-      totalFlags: flaggedPlayers.reduce((sum: number, p: any) => sum + p.totalFlags, 0),
-      criticalPlayers: flaggedPlayers.filter((p: any) => p.criticalCount > 0).length,
-      highPlayers: flaggedPlayers.filter((p: any) => p.highCount > 0).length,
-      mediumPlayers: flaggedPlayers.filter((p: any) => p.mediumCount > 0).length,
-      lowPlayers: flaggedPlayers.filter((p: any) => p.lowCount > 0).length,
+      totalFlags: flaggedPlayers.reduce((sum: number, p: FlagGroup) => sum + p.totalFlags, 0),
+      criticalPlayers: flaggedPlayers.filter((p: FlagGroup) => p.criticalCount > 0).length,
+      highPlayers: flaggedPlayers.filter((p: FlagGroup) => p.highCount > 0).length,
+      mediumPlayers: flaggedPlayers.filter((p: FlagGroup) => p.mediumCount > 0).length,
+      lowPlayers: flaggedPlayers.filter((p: FlagGroup) => p.lowCount > 0).length,
     };
 
     log.info('Flagged players retrieved', {
@@ -161,8 +177,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       data: enrichedData,
       stats,
       filters: {
-        flagType: flagType || 'all',
-        severity: severity || 'all',
+        flagType: flagTypeFilter || 'all',
+        severity: severityFilter || 'all',
         resolved,
       },
     });
