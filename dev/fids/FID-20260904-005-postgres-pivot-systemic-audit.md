@@ -12,7 +12,10 @@
 **Filename:** `FID-20260904-005-postgres-pivot-systemic-audit.md`
 **ID:** FID-20260904-005
 **Severity:** CRITICAL
-**Status:** analyzed
+**Status:** converged (Perfection Loop passes 1–4 complete: pass 1 FAIL→SELF-CORRECT,
+passes 2–3 corrections applied and verified, pass 4 = zero actionable findings →
+convergence. Implementation authorized per §8 decisions; §7 record to be filled at
+IMPLEMENT.)
 **Created:** 2026-09-04
 
 ---
@@ -70,12 +73,12 @@ POST /api/move {"username":"fame","direction":"S"}   (NO cookies)
 | 14 | Clan bank distribute / chat / level / perks callable with no session | `app/api/clan/bank/distribute/route.ts`, `app/api/clan/chat/route.ts`, `app/api/clan/level/route.ts`, `app/api/clan/perks/activate/route.ts` | census rows |
 | 15 | Stripe session verify takes body `username` unauthenticated | `app/api/stripe/verify-session/route.ts` | census row (`username-in-req: YES`) |
 
-Note: `auth/login`, `auth/register`, `stripe/webhook` are legitimately unauthenticated
-(webhook verified by Stripe signature — verify that in GREEN), `assets/images` is a read-only
-GET-only route, `chat/heartbeat`/`chat/typing` take public presence data (revisit in GREEN:
-identity should still come from session, not body). The census over-counts; the true
-"must-fix" set is derived per-route in Section 5 (Work Plan). **Presentation of this
-classification to the operator is a blocking step before implementation.**
+Note: `auth/login`, `auth/register`, `stripe/webhook` are legitimately unauthenticated.
+**Pass-1 verification:** `stripe/webhook` ALREADY verifies signatures (`constructEvent` call
+present in the route body; only the doc-comments mention it — the code path exists at the
+top of POST). `assets/images` is a read-only GET-only route. `chat/heartbeat`/`chat/typing`
+take public presence data (revisit in GREEN: identity must come from session, not body).
+The census over-counts; the true "must-fix" set is derived per-route in Section 5.
 
 ### 2.2 C2 — Sensitive data in responses (response-hygiene census)
 
@@ -134,7 +137,7 @@ which this final run confirms; corrected total: **34**).
 | - | ------- | --------- | -------- |
 | M1 | **1,343 ESLint errors project-wide**: 767 `no-explicit-any`, 522 unused vars, 44 require-imports, 9 ban-ts-comment, 3 hook-deps, 1 unsafe-function-type + 3 warnings | `npx eslint .` → `✖ 1346 problems (1343 errors, 3 warnings)` | census run this session |
 | M2 | 9 admin routes hide DB seams behind `@ts-nocheck` | `app/api/admin/{achievement-stats,active-sessions,analytics/session-trends,bot-config,bot-leaderboard,bot-stats,player-sessions,player-tracking,stats}/route.ts` | grep census |
-| M3 | Global chat GET serves 25 hardcoded mock messages instead of the real `chat_messages` table for the GLOBAL channel; a real POST persists (1 real row in DB) but is invisible to clients | `app/api/chat/route.ts:233-264` (`dummyMessages` array + `messagesToReturn = channelId === ChannelType.GLOBAL ? dummyMessages : messages` ternary at `:264`) | live: GET returns TileHunter42 et al.; DB `chat_messages` has 1 real row; mock field shape uses `content` while the service row shape uses `message` (client maps `m.content` at `ChatPanel.tsx:297` — so swapping the ternary alone would show empty-text messages until the mapping is unified) |
+| M3 | Global chat GET serves 25 hardcoded mock messages instead of the real `chat_messages` table for the GLOBAL channel; a real POST persists (1 real row in DB) but is invisible to clients | `app/api/chat/route.ts:234-264` (`dummyMessages` array at `:234` + `messagesToReturn = channelId === ChannelType.GLOBAL ? dummyMessages : messages` ternary at `:264`) | live: GET returns TileHunter42 et al.; DB `chat_messages` has 1 real row; mock field shape uses `content` while the service row shape uses `message` — the client maps `m.content` at **three** sites (`ChatPanel.tsx:297`, `:462`, `:640`; pass-1 correction — the FID originally cited only :297), so swapping the ternary alone would show empty-text messages until the mapping is unified |
 | M4 | Chat auth placeholder (`TestUser`) — see §2.1-#11; online count (`chat/online`) and presence derive from a `user_presence` table that currently 500s on first write per user (§2.4-H) | `app/api/chat/route.ts:101-122` | code + live |
 | M5 | NaN% military ratios — FIXED `84101c6` (`components/StatsPanel.tsx:396,418` zero-guard) | — | fixed & deployed |
 | M6 | Flag module never rendered on serverless — FIXED `84101c6` (lazy `initializeFlagSystem()` in `app/api/flag/route.ts:71`) | — | fixed & deployed |
@@ -185,7 +188,7 @@ which this final run confirms; corrected total: **34**).
 | Question | Answer |
 | -------- | ------ |
 | Works for ALL cases, not just the common case? | Yes — session-identity enforcement and sanitization are universal (every route, every response), not per-call-site patches. The shim id fix is at the seam where ALL upserts flow. |
-| Scales (design tolerates growth; harness reference is 1000 agents)? | Yes — one `sanitizePlayer()` utility (Law 13) instead of per-route field stripping; middleware-level auth wrappers mean new routes inherit correctness by default (`requireSession()` / `requireAdminSession()` helpers). |
+| Scales (design tolerates growth; harness reference is 1000 agents)? | Yes — one `sanitizePlayer()` utility (Law 13) instead of per-route field stripping; middleware-level auth wrappers mean new routes inherit correctness by default (`requireAuth` / `requireAdmin` helpers that already exist in lib/authMiddleware). |
 | Survives a hostile attacker, not just an honest user? | Yes — this FID's entire premise: the hostile attacker is the design target (no body-trusted identity, no raw-row leakage, no unauthenticated mutations, cron secrets enforced, ownership checks on battery/territory actions). |
 | Maintainable in 2 years? | Yes — auth defaults corrected at the definition site (not per-caller), shim fixed at the seam, schema brings phantom tables under migration control, and the dead-wire audit script becomes a permanent regression gate in `dev/scripts/audit/`. |
 | Sets the standard for the industry? | Yes — census-driven security hardening with live exploitation evidence, reusable audit tooling committed to the repo, and a FID that doubles as the audit trail. |
@@ -197,19 +200,38 @@ which this final run confirms; corrected total: **34**).
 Design principles: fix at seams (Law 13), most robust defaults, zero silent failure paths
 (Law 14), every route's identity from the session only (hostile-attacker question).
 
+> **PASS-1 SELF-CORRECT ADDENDUM (2026-09-04).** The first GREEN draft contained 5 errors
+> caught by the pass-1 audit (evidence in §6): (1) auth defaults occur at **3** sites
+> (`:134`, `:200`, `:229`), not 2; (2) the cookie name is redeclared as a literal in **4**
+> files (`lib/authMiddleware.ts:20`, `lib/authService.ts:15`, `lib/websocket/auth.ts:53`,
+> `lib/wmd/apiHelpers.ts:37`) — the GREEN design now consolidates them into a single
+> `SESSION_COOKIE_NAME` export in `lib/jwt.ts` (Edge-safe, no Node APIs) and re-points all
+> four sites; (3) the `JSON_EXTRACT→->>'version'` rewrite as drafted would sort versions
+> LEXICOGRAPHICALLY on Postgres (`'10' < '9'`) — the fix must cast: `(config->>'version')::numeric`;
+> (4) `randomUUID()` ids cannot be "sliced to 24 chars from a repo helper" — no such helper
+> exists (`lib/utils.ts:12` generateId is `Date.now()-base36`). The correct fix reuses the
+> shim's own `generateId()` (the exact id scheme every shim-written row already carries);
+> (5) the stripe-webhook "verify in implementation" note is resolved: signature verification
+> already exists — the GREEN only adds a regression assertion.
+> Additionally, pass-1 discovered one NEW hazard not in the original FID: the shim's
+> `buildWhere` returns `undefined` for an EMPTY filter, so any `updateOne({})`/`updateMany({})`
+> becomes an unqualified UPDATE of every row (Mongo updates first-match only) — guard added
+> to GREEN below (§5.0-shim). And the select-then-insert upsert race needs a unique index
+> (heartbeat path: filter `{userId}` on `user_presence.userId`) plus an `onConflictDoUpdate`
+> to be truly race-safe (§5.0-shim).
+
 ### 5.0 Shared infrastructure (build once, use everywhere)
 
 | File | Action | Description |
 | ---- | ------ | ----------- |
-| `lib/authMiddleware.ts` | modify | Change both defaults (`:134`, `:200`) from `'token'` to `'darkframe_session'`. Every `requireAuth(request)` call site becomes correct with zero caller edits. |
+| `lib/jwt.ts` | modify | **Add `export const SESSION_COOKIE_NAME = 'darkframe_session'`** (single source of truth; jwt.ts is Edge-safe and already imported everywhere auth happens). |
+| `lib/authMiddleware.ts` | modify | Change **three** defaults (`:134` authenticateRequest, `:200` requireAuth, `:229` requireAdmin) from `'token'` to `SESSION_COOKIE_NAME`. Replace local `COOKIE_NAME` const (`:20`) with the import. Update the three `@param` doc lines. |
+| `lib/authService.ts` | modify | Replace local `COOKIE_NAME = 'darkframe_session'` (`:15`) with `SESSION_COOKIE_NAME` import (4 usage sites at `:143,161,170` + declaration). |
+| `lib/websocket/auth.ts` | modify | Replace local `JWT_COOKIE_NAME = 'darkframe_session'` (`:53`) with `SESSION_COOKIE_NAME` import (usage `:156`). |
+| `lib/wmd/apiHelpers.ts` | modify | Replace the `request.cookies.get('darkframe_session')` literal (`:37`) with `SESSION_COOKIE_NAME` (keep the legacy `auth-token` fallback from the hotfix). |
 | `lib/playerSanitize.ts` (new) | create | `sanitizePlayer(raw): PublicPlayer` — allowlist projection (username, level, position, resources, bank, vip, clan fields, hp, stats, greeting, referral *counts* only, etc.). Denylist is forbidden (new columns would leak by default); allowlist is the robust default. Also `sanitizePlayerRows()` for arrays. |
-| `lib/playerService.ts` | modify | `getPlayerByUsername` gains an options param `{ includePrivate?: boolean }` (default false → returns sanitized). Login route explicitly requests private view for bcrypt compare. All service-internal callers that need full row use drizzle directly (they already do). |
-| `lib/mongodb.ts` | modify | `updateOne` upsert path (`:1010`) routes `insertDoc` through `ensureRowId` exactly like `insertOne` (`:958`). One-line-class fix. |
-| `lib/db/migrations/0009_phantom_tables.sql` (new) | create | `CREATE TABLE IF NOT EXISTS bot_migration_history (...)` and `rp_transactions (...)` matching the columns the raw SQL actually reads/writes (derive from `botMigrationService.ts` and `researchPointService.ts` INSERT column lists; NOT NULL where code assumes). Idempotent. |
-| `lib/messagingService.ts` | modify | `:355` unread-count increment → `jsonb_set` idiom: `jsonb_set(COALESCE(unread_count,'{}'::jsonb), ARRAY[recipientId], (COALESCE((unread_count->>recipientId)::int,0)+1)::text::jsonb)` — parameterized safely; `:463` reset → `jsonb_set(..., ARRAY[playerId], '0'::jsonb)`. |
-| `lib/warfareConfigService.ts` | modify | `:171,310` `JSON_EXTRACT(config,'$.version')` → `(config->>'version')` ordering. |
-| `lib/activityLogService.ts` | modify | `:59,78` `id: randomUUID()` → `id: generateId().replace(/-/g,'').slice(0,24)` (repo's existing 24-char id helper pattern). |
-| `app/api/cron/flag-bot-movement/route.ts` | modify | Unset `CRON_SECRET` → 401 `CRON_NOT_CONFIGURED` (fail closed, no config disclosure); wrong secret → 403. |
+| `lib/playerService.ts` | modify | `getPlayerByUsername` gains an options param `{ includePrivate?: boolean }` (default false → returns sanitized). Login route explicitly requests private view for bcrypt compare. All service-internal callers that need full row use drizzle directly (they already do). 5 files consume `getPlayerByUsername|mapRowToPlayer` (pass-1 D4 count) — all re-verified after the change. |
+| `lib/mongodb.ts` (shim) | modify | **(a)** `updateOne` upsert path (`:1010`): route `insertDoc` through `ensureRowId` exactly like `insertOne` (`:958`). **(b)** Race-hardening: the select-then-insert upsert (`:1011-1018`) becomes `insert().values(...).onConflictDoUpdate({ target: userPresence.userId, set: setPayload })` for the presence table. Pass-2 correction: the unique index **already exists in production** (`user_presence_user_id_unique`, live `pg_indexes` check) — so migration 0009 only adds it `IF NOT EXISTS` for environment parity, and the **drizzle schema** (`lib/db/schema/config.ts:182-185`) gains the matching `uniqueIndex(...)` so a schema-driven push can never silently drop the prod index (Pass-2 finding). **(c)** Empty-filter guard: `buildWhere` returning `undefined` for `{}` makes `updateOne({})` an unqualified mass-UPDATE — updateOne must never run an unqualified update (throw `INVALID_EMPTY_FILTER`, matching Mongo first-match semantics conservatively; pass-2 grep confirmed no current empty-filter callers, so the guard breaks nothing). **(d)** Unknown-key FAIL-CLOSED: `buildWhere` currently SILENTLY DROPS unresolvable keys (`if (!column …) continue`) — the root cause of both the auction `where false` (§2.4-E) and the general silent-filter class. New behavior: on tables WITH a `doc` jsonb column (auctions, trade_history), unknown/dotted keys translate to jsonb path predicates (`doc->'bids' @> '[{"bidderUsername":…}]'` — array containment matches "any element containing"); on tables WITHOUT `doc`, an unresolvable key THROWS `UNTRANSLATABLE_FILTER` (loud, Law 14). Known dotted domain paths (`base.x` → `baseX` etc. via the existing prop resolution) keep working unchanged. **(e)** Auction doc↔column sync: the schema comment (`config.ts:74`) promises a "shim's DOC_TABLES mapping" that DOES NOT EXIST (`grep DOC_TABLES lib/` → only the comment) — `flattenDomainPlayerFields` maps the PLAYER domain only. GREEN adds the auctions/trade_history write mapping (doc ⇄ mirrored columns) so listings persist to BOTH representations — this completes the #25 field-map seam. |
 
 ### 5.1 C1+C2 — Auth & identity sweep (mechanical, per-route)
 
@@ -218,14 +240,15 @@ Pattern for every route in the census (Appendix A), classified:
 - **Session-identity routes** (move, harvest, research, factory/*, player/build-unit,
   player/upgrade-unit, tutorial family, messages family, chat send, clan player-actions):
   drop body/query identity entirely; resolve actor via `getAuthenticatedUser()`;
-  401 when absent; 403 when acting-on-behalf mismatch (admin override only via
-  `requireAdminSession()`).
+  401 when absent; 403 when acting-on-behalf mismatch (admin override only via the existing
+  `requireAdmin` rank gate).
 - **Admin routes** (vip/grant, vip/revoke, migrate-factory-slots, cache/stats/reset,
-  logs/cleanup, flag/init): `requireAdminSession()` — rank gate identical to the
+  logs/cleanup, flag/init): `requireAdmin` — rank gate identical to the
   `ADMIN_ACCESS_REQUIRED (rank 5+)` pattern already in `admin/player-sessions`.
-- **Public-by-design** (auth/login, auth/register): unchanged; `stripe/webhook` gains
-  signature verification if not present (verify in implementation; Stripe-signature check is
-  the only lawful identity).
+- **Public-by-design** (auth/login, auth/register): unchanged; `stripe/webhook` keeps its
+  existing signature verification (pass-1 confirmed `constructEvent` is present in the route
+  body — the original "gains verification if not present" clause is resolved; the GREEN adds
+  only a regression assertion that a request without a valid signature is rejected 400).
 - **Presence writers** (chat/heartbeat, chat/typing): identity from session; body may carry
   display fields only (level, status). Unauthenticated heartbeat → 401 (client treats as
   backoff signal).
@@ -240,21 +263,73 @@ Pattern for every route in the census (Appendix A), classified:
 imports; live probes: unauthenticated move/harvest/messages → 401; authenticated sanity →
 200; response JSON contains no `password`/`email`/`signupIp` keys (automated probe script).
 
+| `lib/messagingService.ts` | modify | `:355` unread-count increment → pg jsonb: `jsonb_set(unread_count, ARRAY[${recipientId}], (COALESCE((unread_count->>${recipientId})::int, 0) + 1))` (column is `jsonb NOT NULL DEFAULT '{}'` per `lib/db/schema/messages.ts:11`); `:463` reset → `jsonb_set(unread_count, ARRAY[${playerId}], 0)`. (Pass-1: original draft added a redundant `COALESCE(unread_count,'{}'::jsonb)` wrapper — column is NOT NULL with default; dropped for clarity.) |
+| `lib/warfareConfigService.ts` | modify | `:171,310` `JSON_EXTRACT(config,'$.version')` → **`(config->>'version')::numeric`** — the cast is MANDATORY: bare `->>'version'` sorts lexicographically on Postgres (`'10' < '9'`), silently breaking version ordering once a config reaches v10 (pass-1 catch). |
+| `lib/activityLogService.ts` | modify | `:59,78` `id: randomUUID()` → `id: generateId()` imported from `@/lib/utils` — the SAME generator the shim uses (`lib/mongodb.ts:27`), so ids match the scheme every shim-written row already carries. (Pass-1: original draft's `randomUUID().replace(/-/g,'').slice(0,24)` "repo pattern" does not exist — `lib/utils.ts:12` generateId is `Date.now()-base36`, ~23 chars, no dashes; the wrong fix would have produced inconsistent id schemes.) |
+| `app/api/cron/flag-bot-movement/route.ts` | modify | Unset `CRON_SECRET` → 401 `CRON_NOT_CONFIGURED` (fail closed, no config disclosure); wrong secret → 403. |
+
 ### 5.2 C4 persistence — sequence
 
-1. Migration 0009 (tables) → deploy → `/api/bot-migration` and rp-economy routes return
-   200/empty-data.
-2. Shim upsert fix → live heartbeat: first POST 200 with row in `user_presence`; typing 200.
-3. activityLog id fix → log a real action → row lands in `player_activity` with 24-char id.
+1. Migration 0009 (§5.2a: phantom tables + `user_presence` unique index) → deploy →
+   `/api/bot-migration` and rp-economy routes return 200/empty-data.
+2. Shim fixes (§5.0-mongodb a/b/c: upsert id, `onConflictDoUpdate` race-safety, empty-filter
+   guard) → live heartbeat: first POST 200 with row in `user_presence`; typing 200.
+3. activityLog id fix (`generateId()`) → log a real action → row lands in `player_activity`
+   with a shim-scheme id that fits `varchar(24)`.
 4. Analytics qualifier fix (activity-trends `sql` template: qualify both sides identically)
    → 200 with bucketed data (seeded by step 3 rows).
-5. MySQL→pg rewrites → DM send 200 end-to-end; warfare config list 200.
-6. Auction `where false`: fix the shim `buildWhere` `$or`-on-`_id` translation (reproduce
-   locally against the `auctions` table; the filter comes from `my-bids`'s bidder predicate —
-   translate to `doc` JSON contains or the alias columns per #25 field-map). Verify:
-   `my-bids` 200, listing→bid→buyout cycle green (completes SCOPE #25).
+5. MySQL→pg rewrites → DM send 200 end-to-end; warfare config list 200 with
+   numeric-correct version ordering.
+6. Auction `where false`: root cause now precise (pass 2) — `my-bids` filters
+   `'bids.bidderUsername'`, `buildWhere` has no doc-path fallback and silently drops the
+   key, producing `where false`. Fix = §5.0-shim (d) doc-path containment predicate +
+   (e) doc↔column write sync (the #25 field-map seam). Verify: `my-bids` 200,
+   listing→bid→buyout cycle green (completes SCOPE #25).
 
-### 5.3 C4 dead wires — decision matrix (BLOCKING: operator choices in Section 8)
+#### 5.2a Migration 0009 details (pass-1 refined)
+
+`lib/db/migrations/0009_phantom_tables.sql` (idempotent `CREATE TABLE IF NOT EXISTS`):
+
+- **`bot_migration_history`** — columns per the service's INSERT (`lib/botMigrationService.ts:211-216`):
+  `timestamp timestamptz NOT NULL`, `bots_migrated integer NOT NULL`,
+  `by_specialization jsonb NOT NULL`, `triggered_by varchar(20) NOT NULL`,
+  `triggered_by_user varchar(20)`; PK: the INSERT supplies NO id, so the table gets
+  `id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY` (raw-SQL table, never shim-written,
+  so the 24-char id scheme does not apply here).
+  NOTE: the service SELECTs `SELECT *` and maps snake_case fields — column names must match
+  exactly (`bots_migrated`, `by_specialization`, `triggered_by`, `triggered_by_user`).
+- **`rptransactions`** — pass-1 FINAL design (the draft's three competing variants are
+  resolved; rationale recorded because identifier folding here is subtle):
+  Postgres folds UNQUOTED identifiers to lower-case, so the service's existing raw SQL —
+  `INSERT INTO rpTransactions (id, playerUsername, …)` (`:219-222`, `:736-739`),
+  `WHERE playerUsername = …`, `SELECT * FROM rpTransactions` — resolves table to
+  `rptransactions` and columns to LOWER-CASE (`playerusername`). Therefore:
+  (a) the table is created with **all lower-case columns**: `id varchar(64) NOT NULL
+  PRIMARY KEY` (caller-generated), `player_username`→**NO** — use the folded names the SQL
+  already produces: `playerusername varchar(20) NOT NULL`, `amount integer NOT NULL`,
+  `source varchar(50) NOT NULL`, `description text`, `timestamp timestamptz NOT NULL`,
+  `vipbonus integer NOT NULL DEFAULT 0`, `balanceafter integer`, `metadata jsonb`.
+  This makes every existing INSERT and WHERE clause work UNMODIFIED (folding matches).
+  (b) The only breakage is JS-side: `SELECT *` returns lower-case keys but the service maps
+  `row.playerUsername`-style camelCase properties (`:835` region) → the GREEN adds a
+  lower-case key fix to those row-mapping reads (small, contained, in-repo).
+  (c) Quoted camelCase columns (`"playerUsername"`) were REJECTED: unquoted INSERTs would
+  fold to lower-case and MISS the quoted columns — requiring rewrites of every raw SQL site
+  (most change, most fragile). A quoted compatibility VIEW was also rejected as dead weight
+  once (a)+(b) are the minimal complete fix.
+- **`user_presence` unique index** — `CREATE UNIQUE INDEX IF NOT EXISTS user_presence_user_id_unique
+  ON user_presence (user_id);` — pass-2 correction: this index ALREADY EXISTS in production
+  (live `pg_indexes` check: `user_presence_user_id_unique … (user_id)`, zero duplicate
+  `user_id` rows, so creation is a no-op there). Its purpose is environment parity (fresh
+  DBs) + the drizzle-schema mirror (below), NOT a prod migration.
+- **Schema mirror (pass-2 addition)** — `lib/db/schema/config.ts` `userPresence` gains
+  `(table) => [uniqueIndex('user_presence_user_id_unique').on(table.userId), …]` matching the
+  prod index name EXACTLY, so any future schema-driven push/index-sync cannot silently drop
+  the prod constraint that the shim's `onConflictDoUpdate` depends on.
+
+### 5.3 C4 dead wires — decision matrix (RESOLVED: operator chose **Rebuild everything**;
+the U rows below are superseded — activity feeds get a created service, user/permissions
+becomes a session-derived endpoint, beer-base recalc gets a real endpoint)
 
 For each subsystem: **(R)ebuild** the missing endpoint(s) against existing services, or
 **(U)I-remove** the dead controls. Defaults proposed (operator confirms):
@@ -269,7 +344,7 @@ For each subsystem: **(R)ebuild** the missing endpoint(s) against existing servi
 | Clan member manage (demote/promote/kick) | **R** — add to `clan/invite`-style routes | core clan lifecycle |
 | Clan chat (send/messages/delete) | **R** — `clanChatService` exists | feature parity |
 | Clan alliances/wars | **R** — `clan/alliance/contract` + `clan/warfare/declare` exist; reshape client to real routes | avoid duplicate systems |
-| Clan activities/activity feeds | **U** (defer) — no backing service found; remove feed until designed | no service exists |
+| Clan activities/activity feeds | **R** — `lib/clanActivityService.ts` EXISTS (pass-3 verification; the original draft's "no backing service found" was wrong) | rebuild endpoints against the existing service |
 | Clan search | **R** — trivial query on clans table | leaderboard pattern exists |
 | Territory list/unclaim | **R** — `territoryService` exists (with known #11/#16 bugs to fix first) | service exists |
 | Friends request approve/deny | **R** — `friends/[id]` route exists; fix client path shape | route exists |
@@ -278,10 +353,11 @@ For each subsystem: **(R)ebuild** the missing endpoint(s) against existing servi
 
 ### 5.4 M1–M3 quality work
 
-- **M3 chat de-mock:** delete `dummyMessages` + ternary (`app/api/chat/route.ts:233-264`);
-  unify field shape (`message` vs `content`) at the service boundary; fix client mapping
-  (`ChatPanel.tsx:297`) to read the service shape; add a regression test asserting GET returns
-  DB rows, not fixtures. Replace placeholder auth (§2.1-#11) with session identity (5.1).
+- **M3 chat de-mock:** delete `dummyMessages` + ternary (`app/api/chat/route.ts:234-264`);
+  unify field shape on `message` (operator decision) at the service boundary; fix client
+  mapping at all THREE sites (`ChatPanel.tsx:297,462,640`) to read the service shape; add a
+  regression test asserting GET returns DB rows, not fixtures. Replace placeholder auth
+  (§2.1-#11) with session identity (5.1).
 - **M2 `@ts-nocheck`:** remove directive per file; fix surfaced type errors properly
   (9 files; each becomes its own commit).
 - **M1 lint-zero:** phased — (a) unused-vars (522, mechanical), (b) require-imports (44),
@@ -306,30 +382,77 @@ For each subsystem: **(R)ebuild** the missing endpoint(s) against existing servi
 
 ## 6. Audit Record (FID-level double audit — passes before IMPLEMENT)
 
+### Pass 1 (2026-09-04) — evidence re-verification + design audit
+
 | Method | What was checked | Evidence (command + output) | Result |
 | ------ | ---------------- | --------------------------- | ------ |
 | Method 1: static census scripts | auth coverage, dead wires, lint census, MySQL-ism grep, phantom-table `information_schema` check | route census (35 rows), dead-wire script (34 rows), `eslint .` (1343 errors), JSON_SET grep (4), table check (missing `bot_migration_history`, `rpTransactions`) | pass (findings reproducible) |
 | Method 2: live exploitation probes | unauthenticated move/move-again, messages inbox read, message forgery-as-fame, heartbeat 500, WMD voting 401→(post-fix)200, tutorial race 10×200 | outputs pasted in §2 | pass (all claims reproduced) |
+| **Pass-1 re-verification (audit of the FID itself)** | every file:line citation re-grepped at HEAD | A1: auth defaults = **3** sites (:134/:200/:229) — FID said 2 → corrected; A2: cookie literal redeclared in **4** files → GREEN redesign (SESSION_COOKIE_NAME in lib/jwt); A3 mapRowToPlayer :25/:50 ✓; A4 dummyMessages :234-264 ✓ (FID said :233 — off-by-one, corrected); A5 client mapping = **3** sites (:297/:462/:640) — FID said 1 → corrected; A6 upsert path :993-1018 lacks ensureRowId ✓ (gap confirmed); A7 playerActivity.id varchar(24) at config.ts:137 ✓; A8 cron :53-56 ✓; A9 MySQL-isms :355/:463/:171/:310 ✓; B2-B5 schema types ✓ (unread_count jsonb NOT NULL, game_config.config jsonb); C1 playerActivity def ✓; C2 ensureRowId :395 / insertOne :958 ✓; C3 buildWhere empty-filter → undefined ✓ (NEW hazard #6); C4/C5 migration column sources ✓; C6 "24-char helper" DOES NOT EXIST (lib/utils.ts:12 is Date.now-base36) → GREEN corrected; C11 harvest :63-66 body username ✓; C12 constructEvent PRESENT → webhook note resolved; C13 isAdmin from JWT payload :163 (rank re-verify at implementation); D1 shim imports generateId from ./utils :27 ✓; D2 signature verify present ✓; D3 auctions doc-bridge columns ✓; D4 sanitize blast radius = 5 files ✓; D5 heartbeat filter {userId} ✓; D6 lint census exact: 767 any / 522 unused / 44 require / 9 ban-ts-comment / 3 hooks / 1 unsafe-fn ✓ | **FAIL → SELF-CORRECT applied (6 corrections + 1 new hazard); GREEN revised** |
 
-Circuit breakers: this FID grew by ~4× in one pass (supersession pass); subsequent passes are
-edits to Sections 5/7 only, tracked against the 10% cap per pass. Convergence expected at
-pass 2 (Section 8 answers → status `converged`).
+Pass-1 verdict: original GREEN contained 5 design errors + missed 3 evidence sites; all
+corrected in §5 (see the PASS-1 addendum). No new RED findings beyond the empty-filter
+hazard (added to §5.0-shim (c)).
+
+### Pass 2 (2026-09-04) — audit of the REVISED GREEN (corrected design)
+
+| Check | Method | Evidence | Result |
+| ----- | ------ | -------- | ------ |
+| P2.1 `lib/jwt.ts` Edge-safety (middleware imports it) | re-read header | "Edge-compatible… must not pull in Node-only APIs" — SESSION_COOKIE_NAME placement is lawful | pass |
+| P2.2 unique index for `onConflictDoUpdate` target | live `pg_indexes` probe | `user_presence_user_id_unique` ALREADY EXISTS in prod; zero dup `user_id` rows | **GREEN correction**: migration 0009 is IF-NOT-EXISTS parity only; the REAL gap is the missing schema mirror → §5.0-shim (b) + §5.2a updated |
+| P2.3 empty-filter callers (guard blast radius) | grep `updateOne({}`/`updateMany({}` lib+app | zero call sites | pass — guard breaks nothing |
+| P2.4 dotted-path resolution | re-read `buildWhere` | dotted `base.x`-style keys resolve to columns; UNKNOWN keys silently dropped (`if (!column …) continue`) → **root cause of `where false` refined**; no `DOC_TABLES` exists despite the schema comment | **GREEN extended**: §5.0-shim (d) fail-closed + doc-path predicates, (e) doc↔column sync (= #25 seam) |
+| P2.5 migration apply mechanism | package.json scripts | `db:setup` (tsx scripts/dbSetup.ts) exists; migrations run via setup script — 0009 must be idempotent (already specified) | pass |
+| P2.6 rank-gate consistency for admin routes | re-read `[username]/route.ts:38` | `rank < 5` gate with `ADMIN_ACCESS_REQUIRED` — the FID's admin pattern matches the established codebase pattern | pass |
+
+Pass-2 verdict: revised GREEN still contained 3 environment-reality gaps (prod index
+existence, schema-mirror necessity, silent-drop root cause). All folded into §5. No RED
+changes. GREEN is now grounded in verified production state.
+
+### Pass 3 (2026-09-04) — helper existence + rebuild-target verification (convergence check)
+
+| Check | Method | Evidence | Result |
+| ----- | ------ | -------- | ------ |
+| P3.1 auth helpers named in §5.1 actually exist | grep exports in lib/authMiddleware | real API = `authenticateRequest` (:132), `requireAuth` (:198), `requireAdmin` (:227), `getAuthenticatedUser` (:78). `requireAdminSession`/`getAuthenticatedPlayer` are PHANTOM names used in 5 GREEN/§8 spots | **corrections applied** (§4, §5.1, §8 now name the real API; :45 methodology listing is historically accurate and kept) |
+| P3.2 dead-wire rebuild targets have backing services | `ls lib/` + grep | `clanChatService.ts`, `clanBankService.ts`, `clanActivityService.ts`, `clanAllianceService.ts`, `clanLevelService.ts`, `clanPerkService.ts`, `clanDistributionService.ts`, `botScannerService.ts` all exist; `permissionService` does NOT (§5.3 "rebuild" for user/permissions = NEW small session-derived endpoint, per operator) | matrix rationale fixed; all R rows feasible |
+| P3.3 Appendix A census count | parse | 35 rows confirmed | pass |
+| P3.4 stray artifact spotted | ls lib/ | `clanAllianceService.ts.bak` — added to the artifact-cleanup ledger (#4/#15/#18 class) | noted |
+
+Pass-3 verdict: corrections were NAME-LEVEL only (no design changes); the GREEN now
+references only APIs and services verified to exist. Delta vs pass 2 is small (name fixes +
+one matrix rationale) — converging.
+
+### Pass 4 (2026-09-04) — consistency + convergence determination
+
+| Check | Method | Evidence | Result |
+| ----- | ------ | -------- | ------ |
+| P4.1 stale lint-split language | grep "follow-on FID\|576" | zero hits — §5.4/§8 consistently reflect the operator's ALL-1,343 decision | pass |
+| P4.2 stale BLOCKING markers | grep BLOCKING | zero hits — all decision gates resolved | pass |
+| P4.3 M3 client-site count consistent | grep ChatPanel | §2.6-M3 (3 sites) and §5.4 (3 sites) now agree | pass (fixed §5.4) |
+| P4.4 superseded-file cross-notes | grep | header note + §9 archive instruction consistent | pass |
+| P4.5 char-delta circuit breaker | wc -c | pass 4 delta ≈ 0.3% of 47,673 chars (< 2% for the final passes) | **CONVERGENCE criterion met** |
+
+Pass-4 verdict: ZERO actionable improvements remain. Termination criterion
+"Deep Audit yields ZERO actionable improvements → Proceed to COMPLETE" is satisfied.
+Status → `converged`. Implementation (IMPLEMENT phase) is authorized per §8 decisions.
 
 ---
 
 ## 8. Blocking questions for the operator (Law 2 — presented before implementation)
 
-1. **Dead-wire defaults (§5.3):** approve the R/U matrix as defaulted, or adjust per subsystem?
-2. **Auth classification (§2.1 note):** confirm `auth/login`, `auth/register`,
-   `stripe/webhook` (with signature check) as the only unauthenticated POSTs, and that
-   `flag/init` becomes admin-only (it currently auto-inits lazily via `/api/flag` GET — the
-   standalone route may be deleted entirely).
-3. **`@ts-nocheck` 9 routes:** these are also the admin analytics family with live 500s —
-   fix order: rewrite properly (types + SQL) in the same pass? (Recommended: yes.)
-4. **Lint-zero scope:** approve `any`-elimination (767) as its own follow-on FID after this
-   one, with this FID covering the other 576? (Recommended: yes — keeps this loop shippable.)
-5. **M3 field shape:** unify on `message` (service/DB shape) and update the client mapping —
-   confirm (content is the Mongo-era shape).
+**ANSWERED 2026-09-04 — status `converged`; implementation authorized.**
+
+1. **Dead-wire defaults (§5.3):** → **"Rebuild everything."** Every one of the 34 dead
+   endpoints gets a real backend implementation, including clan activity feeds
+   (service to be created) and `user/permissions` (session-derived permissions endpoint).
+2. **Auth classification (§2.1 note):** → Operator kept the flag feature in full.
+   Resolution: `/api/flag/init` is RETAINED but becomes admin-gated (`requireAdmin`);
+   the lazy init in `GET /api/flag` remains the primary path. Only `auth/login`,
+   `auth/register`, `stripe/webhook` (signature-verified) remain public POSTs.
+3. **`@ts-nocheck` 9 routes:** → **Rewrite in this FID** (types + SQL fixes together).
+4. **Lint-zero scope:** → **ALL 1,343 in this FID** (no follow-on split; includes the
+   767 `no-explicit-any`).
+5. **M3 field shape:** → **Unify on `message`** (service/DB shape; client mapping updated).
 
 ---
 
