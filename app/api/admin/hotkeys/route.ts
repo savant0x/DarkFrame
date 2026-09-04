@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ============================================================
 // FILE: app/api/admin/hotkeys/route.ts
 // CREATED: 2025-01-23
@@ -12,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { gameConfig } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { DEFAULT_HOTKEYS, HotkeyConfig, HotkeySettings } from '@/types/hotkey.types';
 import {
@@ -25,29 +24,38 @@ import {
   ErrorCode,
 } from '@/lib';
 
-const HOTKEY_CONFIG_KEY = 'hotkey_settings';
+/** Single-row convention for this config: one game_config row, id/type = 'hotkeys'. */
+const HOTKEY_CONFIG_TYPE = 'hotkeys';
+
+/** Shape stored in the game_config jsonb `config` column. */
+interface StoredHotkeyConfig {
+  version: number;
+  hotkeys: HotkeyConfig[];
+  modifiedBy: string;
+  lastModified: string;
+}
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 const putRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 const postRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
 async function getHotkeySettings(): Promise<HotkeySettings | null> {
-  const result = await db.select().from(gameConfig).where(eq(gameConfig.key, HOTKEY_CONFIG_KEY)).limit(1);
+  const result = await db.select().from(gameConfig).where(eq(gameConfig.type, HOTKEY_CONFIG_TYPE)).limit(1);
   if (!result || result.length === 0) return null;
-  const row = result[0];
+  const stored = result[0].config as Partial<StoredHotkeyConfig> | null;
   return {
-    version: Number(row.value) || 1,
-    lastModified: new Date(),
-    modifiedBy: 'system',
-    hotkeys: row.details as HotkeyConfig[] || DEFAULT_HOTKEYS,
-  } as HotkeySettings;
+    version: Number(stored?.version) || 1,
+    lastModified: stored?.lastModified ? new Date(stored.lastModified) : new Date(),
+    modifiedBy: stored?.modifiedBy || 'system',
+    hotkeys: stored?.hotkeys || DEFAULT_HOTKEYS,
+  };
 }
 
 /**
  * GET /api/admin/hotkeys
  * Retrieve current hotkey configuration
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/hotkeys');
   const endTimer = log.time('get-hotkeys');
 
@@ -123,36 +131,32 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
     
     const newVersion = (existingSettings?.version || 0) + 1;
     
-    const newSettings: HotkeySettings = {
+    const storedConfig: StoredHotkeyConfig = {
       version: newVersion,
-      lastModified: new Date(),
-      modifiedBy: user.username,
       hotkeys: hotkeys as HotkeyConfig[],
+      modifiedBy: user.username,
+      lastModified: new Date().toISOString(),
     };
     
     await db.insert(gameConfig).values({
-      key: HOTKEY_CONFIG_KEY,
-      value: String(newVersion),
-      details: newSettings,
-      updatedAt: new Date(),
-    }).onDuplicateKeyUpdate({
-      set: {
-        value: String(newVersion),
-        details: newSettings,
-        updatedAt: new Date(),
-      },
+      id: HOTKEY_CONFIG_TYPE,
+      type: HOTKEY_CONFIG_TYPE,
+      config: storedConfig,
+    }).onConflictDoUpdate({
+      target: gameConfig.id,
+      set: { config: storedConfig },
     });
     
     log.info('Hotkey settings updated', {
       adminUsername: user.username,
-      version: newSettings.version,
+      version: storedConfig.version,
       hotkeyCount: hotkeys.length,
     });
     
     return NextResponse.json({
       success: true,
       message: 'Hotkey settings updated successfully',
-      version: newSettings.version,
+      version: storedConfig.version,
     });
   } catch (error) {
     log.error('Failed to update hotkey settings', error instanceof Error ? error : new Error(String(error)));
@@ -166,7 +170,7 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
  * POST /api/admin/hotkeys/reset
  * Reset hotkeys to default configuration (admin only)
  */
-export const POST = withRequestLogging(postRateLimiter(async (request: NextRequest) => {
+export const POST = withRequestLogging(postRateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/hotkeys');
   const endTimer = log.time('reset-hotkeys');
 
@@ -180,24 +184,20 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
       return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
     }
     
-    const resetSettings: HotkeySettings = {
+    const storedConfig: StoredHotkeyConfig = {
       version: 1,
-      lastModified: new Date(),
-      modifiedBy: user.username,
       hotkeys: DEFAULT_HOTKEYS,
+      modifiedBy: user.username,
+      lastModified: new Date().toISOString(),
     };
     
     await db.insert(gameConfig).values({
-      key: HOTKEY_CONFIG_KEY,
-      value: '1',
-      details: resetSettings,
-      updatedAt: new Date(),
-    }).onDuplicateKeyUpdate({
-      set: {
-        value: '1',
-        details: resetSettings,
-        updatedAt: new Date(),
-      },
+      id: HOTKEY_CONFIG_TYPE,
+      type: HOTKEY_CONFIG_TYPE,
+      config: storedConfig,
+    }).onConflictDoUpdate({
+      target: gameConfig.id,
+      set: { config: storedConfig },
     });
     
     log.info('Hotkey settings reset to defaults', {

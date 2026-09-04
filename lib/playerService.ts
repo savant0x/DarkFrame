@@ -20,7 +20,7 @@ import type { Player } from '@/types/game.types';
  * through this; returning raw rows leaks `currentPositionX/Y`-style columns
  * and crashes the game client (`player.currentPosition.x` etc.).
  */
-function mapRowToPlayer(row: typeof players.$inferSelect): Player {
+export function mapRowToPlayer(row: typeof players.$inferSelect): Player {
   return {
     ...row,
     isAdmin: row.isAdmin === 1,
@@ -68,7 +68,7 @@ export async function getPlayerByUsername(username: string): Promise<Player | nu
   }
 }
 
-export async function findAndClaimSpawnTile(): Promise<typeof tiles.$inferSelect | null> {
+export async function findAndClaimSpawnTile(ownerUsername?: string): Promise<typeof tiles.$inferSelect | null> {
   try {
     const availableTiles = await db.select().from(tiles).where(and(eq(tiles.terrain, 'Wasteland'), isNull(tiles.occupiedByBase)));
     if (availableTiles.length === 0) {
@@ -77,8 +77,13 @@ export async function findAndClaimSpawnTile(): Promise<typeof tiles.$inferSelect
     }
     const randomIndex = Math.floor(Math.random() * availableTiles.length);
     const selectedTile = availableTiles[randomIndex];
-    await db.update(tiles).set({ occupiedByBase: 1 }).where(and(eq(tiles.x, selectedTile.x), eq(tiles.y, selectedTile.y), isNull(tiles.occupiedByBase)));
-    console.log('Claimed spawn tile at (' + selectedTile.x + ', ' + selectedTile.y + ')');
+    // Mark the tile occupied AND attribute it to the claiming player — base_owner is what
+    // the map/UI reads to display whose base a tile is (lost in the Mongo→pg pivot).
+    await db.update(tiles).set({
+      occupiedByBase: 1,
+      ...(ownerUsername ? { baseOwner: ownerUsername } : {}),
+    }).where(and(eq(tiles.x, selectedTile.x), eq(tiles.y, selectedTile.y), isNull(tiles.occupiedByBase)));
+    console.log('Claimed spawn tile at (' + selectedTile.x + ', ' + selectedTile.y + ')' + (ownerUsername ? ' for ' + ownerUsername : ''));
     return selectedTile;
   } catch (error) {
     console.error('Error finding spawn tile:', error);
@@ -92,7 +97,7 @@ export async function createPlayer(username: string): Promise<Player> {
     if (username.length < 3 || username.length > 20) throw new Error('Username must be between 3 and 20 characters');
     const exists = await usernameExists(username);
     if (exists) throw new Error('Username already taken');
-    const spawnTile = await findAndClaimSpawnTile();
+    const spawnTile = await findAndClaimSpawnTile(username.trim());
     if (!spawnTile) throw new Error('No available spawn locations');
     const newPlayer = {
       username: username.trim(),
@@ -165,7 +170,7 @@ export async function createPlayerWithAuth(username: string, email: string, hash
     if (exists) throw new Error('Username already taken');
     const emailExists = await emailInUse(email);
     if (emailExists) throw new Error('Email already registered');
-    const spawnTile = await findAndClaimSpawnTile();
+    const spawnTile = await findAndClaimSpawnTile(username.trim());
     if (!spawnTile) throw new Error('No available spawn locations');
     const newPlayer = {
       username: username.trim(),

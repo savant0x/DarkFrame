@@ -163,7 +163,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const updatedPlayer = updatedPlayerResult[0] || player;
     
     // Remove password from response
-    const { password: _, ...playerWithoutPassword } = updatedPlayer || player;
+    const playerWithoutPassword: Record<string, unknown> = { ...(updatedPlayer || player) } as Record<string, unknown>;
+    delete playerWithoutPassword.password;
     
     // Set httpOnly cookie
     const response = NextResponse.json({
@@ -179,8 +180,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }, { status: 201 });
     
-    // Set secure cookie
-    response.cookies.set('auth-token', token, {
+    // Set secure session cookie — MUST be 'darkframe_session': that is the name middleware.ts,
+    // the WebSocket auth, and lib/authService.setAuthCookie all read.
+    response.cookies.set('darkframe_session', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

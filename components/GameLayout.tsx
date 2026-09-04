@@ -74,7 +74,7 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
   battleLogs, 
   backgroundImage,
   chatUser,
-  tutorialQuestPanel,
+  tutorialQuestPanel: _tutorialQuestPanel,
   initialChatTab,
   onChatTabChange,
   onDMUnreadCountChange,
@@ -169,7 +169,9 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
         </aside>
 
         {/* Center Panel - Tile View */}
-        <main className="flex-1 flex bg-transparent overflow-hidden" aria-label="Game world view">
+        {/* scrollable so expanded tile content (factory status, attack results) below the
+            tile image stays reachable instead of being clipped */}
+        <main className="flex-1 flex bg-transparent overflow-y-auto" aria-label="Game world view">
           <ErrorBoundary>
             {tileView}
           </ErrorBoundary>

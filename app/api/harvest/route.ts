@@ -9,7 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb';
 import { harvestResourceTile, getHarvestStatus } from '@/lib/harvestService';
 import { harvestCaveTile, harvestForestTile } from '@/lib/caveItemService';
-import { Player, Tile, TerrainType } from '@/types';
+import { TerrainType } from '@/types';
+import { getTileAt } from '@/lib/movementService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { checkDiscoveryDrop } from '@/lib/discoveryService';
 import { trackResourcesGathered, trackCaveExplored } from '@/lib/statTrackingService';
@@ -69,8 +70,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     
     log.debug('Processing harvest request', { username });
     
-    // Get player
-    const playersCollection = await getCollection<Player>('players');
+    // Get player (compat shim returns RAW rows — flat columns only)
+    const playersCollection = await getCollection<{
+      username: string;
+      currentPositionX: number;
+      currentPositionY: number;
+    }>('players');
     const player = await playersCollection.findOne({ username });
     
     if (!player) {
@@ -78,15 +83,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
     }
     
-    // Get tile at player's current position
-    const tilesCollection = await getCollection<Tile>('tiles');
-    const tile = await tilesCollection.findOne({
-      x: player.currentPosition.x,
-      y: player.currentPosition.y
-    });
+    // Get tile at player's current position (getTileAt returns the domain-mapped tile)
+    const tile = await getTileAt(player.currentPositionX, player.currentPositionY);
     
     if (!tile) {
-      log.warn('Tile not found', { position: player.currentPosition });
+      log.warn('Tile not found', { position: { x: player.currentPositionX, y: player.currentPositionY } });
       return createErrorResponse(ErrorCode.INTERNAL_ERROR);
     }
     
@@ -171,7 +172,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
             username,
             (metalGained || 0) > (energyGained || 0) ? 'metal' : 'energy',
             totalGained,
-            (player as any).tier || 1
+            1 // legacy `tier` concept no longer exists on the pg schema; default tier
           );
           
           if (resourceCheck.suspicious) {
@@ -209,9 +210,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         xpResult = await awardXP(username, XPAction.HARVEST_RESOURCE);
       }
     }
-    
-    // Get updated player data (includes new XP/level and discoveries)
-    const updatedPlayer = await playersCollection.findOne({ username });
     
     const resultSummary = {
       success: result.success,

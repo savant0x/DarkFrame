@@ -352,8 +352,8 @@ export default function GamePage() {
 
     const key = event.key.toLowerCase();
 
-    // 'K' key - Open Bank Panel (K for banK, since B is for Bot Scanner)
-    if (key === 'k') {
+    // 'B' key - Open Bank Panel (B for Bank; Beer Base moved to 'E', Bot Scanner to 'X')
+    if (key === 'b') {
       if (!currentTile || currentTile.terrain !== TerrainType.Bank) {
         setPanelMessage('❌ You must be at a Bank tile to access banking services');
         setTimeout(() => setPanelMessage(''), 3000);

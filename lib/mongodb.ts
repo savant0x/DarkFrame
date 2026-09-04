@@ -112,6 +112,16 @@ function getTable(name: string): PgTable | undefined {
 }
 
 /**
+ * pg smallint columns cannot be compared to JS booleans (`is_bot = true` is invalid SQL).
+ * The schema has no boolean columns, so coerce JS true/false to 1/0 everywhere filters are
+ * built. Non-boolean scalars pass through untouched.
+ */
+function coerceScalar(value: unknown): unknown {
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  return value;
+}
+
+/**
  * Mongo stores flags as booleans, but the pg schema models them as smallint.
  * Convert top-level scalar booleans to 1/0 on write paths only — nested values
  * inside jsonb columns must pass through untouched. Accepts any object because
@@ -151,12 +161,12 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
     const column = columns[key];
     if (!column || Array.isArray(value)) continue;
     if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
-      if (value.$lt !== undefined) conditions.push(lt(column, value.$lt));
-      if (value.$lte !== undefined) conditions.push(lte(column, value.$lte));
-      if (value.$gt !== undefined) conditions.push(gt(column, value.$gt));
-      if (value.$gte !== undefined) conditions.push(gte(column, value.$gte));
-      if (value.$in !== undefined && Array.isArray(value.$in)) conditions.push(inArray(column, value.$in));
-      if (value.$ne !== undefined) conditions.push(ne(column, value.$ne));
+      if (value.$lt !== undefined) conditions.push(lt(column, coerceScalar(value.$lt)));
+      if (value.$lte !== undefined) conditions.push(lte(column, coerceScalar(value.$lte)));
+      if (value.$gt !== undefined) conditions.push(gt(column, coerceScalar(value.$gt)));
+      if (value.$gte !== undefined) conditions.push(gte(column, coerceScalar(value.$gte)));
+      if (value.$in !== undefined && Array.isArray(value.$in)) conditions.push(inArray(column, value.$in.map(coerceScalar)));
+      if (value.$ne !== undefined) conditions.push(ne(column, coerceScalar(value.$ne)));
       if (value.$exists !== undefined) {
         conditions.push(value.$exists ? isNotNull(column) : isNull(column));
       }
@@ -172,7 +182,7 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
         }
       }
     } else {
-      conditions.push(eq(column, value));
+      conditions.push(eq(column, coerceScalar(value)));
     }
   }
   return conditions.length > 0 ? and(...conditions) : undefined;

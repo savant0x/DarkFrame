@@ -49,10 +49,11 @@ export interface AuthenticationResult {
 // ============================================================================
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
+  process.env.JWT_SECRET || 'darkframe-secret-change-in-production'
 );
 
-const JWT_COOKIE_NAME = 'auth-token';
+// Must match the session cookie set by lib/authService.ts and read by middleware.ts
+const JWT_COOKIE_NAME = 'darkframe_session';
 
 // ============================================================================
 // COOKIE PARSER
@@ -83,12 +84,14 @@ async function verifyJWT(token: string): Promise<{
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     
-    if (!payload.userId || !payload.username) {
+    // Real tokens minted by lib/authService.generateToken carry { username, email, isAdmin }
+    // — there is no userId claim. Require only username.
+    if (!payload.username) {
       return null;
     }
     
     return {
-      userId: payload.userId as string,
+      userId: (payload.userId as string) || (payload.username as string),
       username: payload.username as string,
       iat: payload.iat || 0,
       exp: payload.exp || 0,

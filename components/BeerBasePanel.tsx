@@ -61,7 +61,7 @@ export default function BeerBasePanel() {
   const [attacking, setAttacking] = useState<string | null>(null);
   const [attackResult, setAttackResult] = useState<AttackResult | null>(null);
   const [sortBy, setSortBy] = useState<'distance' | 'power' | 'loot'>('distance');
-  const [hotkeyConfig, setHotkeyConfig] = useState<string>('B');
+  const [hotkeyConfig, setHotkeyConfig] = useState<string>('E');
 
   // Load Beer Base list
   const fetchBeerBases = useCallback(async () => {
@@ -90,13 +90,13 @@ export default function BeerBasePanel() {
         const response = await fetch('/api/admin/hotkeys');
         if (response.ok) {
           const data = await response.json();
-          const beerBaseHotkey = data.hotkeys.find((h: any) => h.action === 'BEER_BASE_PANEL');
+          const beerBaseHotkey = data.hotkeys.find((h: { action: string }) => h.action === 'BEER_BASE_PANEL');
           if (beerBaseHotkey) {
             setHotkeyConfig(beerBaseHotkey.key.toUpperCase());
           }
         }
-      } catch (error) {
-        // Use default 'B' if hotkey fetch fails
+      } catch {
+        // Keep default hotkey if fetch fails
       }
     };
 

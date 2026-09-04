@@ -42,14 +42,14 @@ interface PlayerData {
   createdAt?: string;
   lastActive?: string;
   totalPlayTime?: number;
-  achievements?: any[];
+  achievements?: unknown[];
 }
 
 interface ActivityData {
   activities: Array<{
     actionType: string;
     timestamp: Date;
-    details: any;
+    details: Record<string, unknown> | null;
   }>;
   stats: {
     totalActions: number;
@@ -106,11 +106,22 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
           fetch(`/api/admin/anti-cheat/player-flags?username=${username}`)
         ]);
 
+        // Some admin endpoints were removed in the Postgres pivot and may return an HTML
+        // error/404 page — parse defensively and skip any response that is not JSON.
+        const safeJson = async (res: Response) => {
+          const text = await res.text();
+          try {
+            return JSON.parse(text);
+          } catch {
+            return { success: false };
+          }
+        };
+
         const [playerJson, activityJson, sessionJson, flagJson] = await Promise.all([
-          playerRes.json(),
-          activityRes.json(),
-          sessionRes.json(),
-          flagRes.json()
+          safeJson(playerRes),
+          safeJson(activityRes),
+          safeJson(sessionRes),
+          safeJson(flagRes)
         ]);
 
         if (playerJson.success) {
@@ -162,7 +173,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
       } else {
         alert(`Error: ${data.error}`);
       }
-    } catch (err) {
+    } catch {
       alert('Failed to ban player');
     } finally {
       setActionLoading(false);
@@ -187,7 +198,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
       } else {
         alert(`Error: ${data.error}`);
       }
-    } catch (err) {
+    } catch {
       alert('Failed to unban player');
     } finally {
       setActionLoading(false);
@@ -220,7 +231,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
       } else {
         alert(`Error: ${data.error}`);
       }
-    } catch (err) {
+    } catch {
       alert('Failed to give resources');
     } finally {
       setActionLoading(false);
@@ -245,7 +256,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
       } else {
         alert(`Error: ${data.error}`);
       }
-    } catch (err) {
+    } catch {
       alert('Failed to clear flags');
     } finally {
       setActionLoading(false);

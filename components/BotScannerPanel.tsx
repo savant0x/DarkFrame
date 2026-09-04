@@ -99,7 +99,8 @@ export default function BotScannerPanel() {
         return;
       }
       
-      if (e.key === 'b' || e.key === 'B') {
+      // Bot Scanner hotkey: 'X' (moved off 'B', which is now Bank — see DEFAULT_HOTKEYS)
+      if (e.key === 'x' || e.key === 'X') {
         if (status?.unlocked) {
           setIsOpen(prev => !prev);
         }

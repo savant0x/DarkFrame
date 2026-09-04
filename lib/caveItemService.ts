@@ -9,7 +9,10 @@
  * returns system to prevent veteran player dominance.
  */
 
-import { getCollection, type MongoUpdate } from './mongodb';
+import { db } from '@/lib/db';
+import { players, tiles } from '@/lib/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
+import { mapRowToPlayer } from './playerService';
 import { 
   Player,
   Tile,
@@ -332,16 +335,16 @@ export async function harvestCaveTile(
       };
     }
     
-    // Get player data
-    const playersCollection = await getCollection<Player>('players');
-    const player = await playersCollection.findOne({ username: playerId });
-    
-    if (!player) {
+    // Get player data (drizzle — the Mongo shim returns raw rows without domain nesting)
+    const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const playerRow = playerRows[0];
+    if (!playerRow) {
       return {
         success: false,
         message: 'Player not found'
       };
     }
+    const player = mapRowToPlayer(playerRow);
     
     // Check inventory capacity
     if (player.inventory.items.length >= player.inventory.capacity) {
@@ -356,22 +359,18 @@ export async function harvestCaveTile(
     
     if (!item) {
       // No item dropped (70% of the time)
-      // Mark tile as harvested
-      const tilesCollection = await getCollection<Tile>('tiles');
+      // Mark tile as harvested (drizzle: append record to the jsonb harvest log atomically)
       const currentPeriod = getCurrentResetPeriod(tile.x);
       
-      await tilesCollection.updateOne(
-        { x: tile.x, y: tile.y },
-        {
-          $push: {
-            lastHarvestedBy: {
-              playerId,
-              timestamp: new Date(),
-              resetPeriod: currentPeriod
-            }
-          }
-        }
-      );
+      await db.update(tiles)
+        .set({
+          lastHarvestedBy: sql`coalesce(${tiles.lastHarvestedBy}, '[]'::jsonb) || ${JSON.stringify([{
+            playerId,
+            timestamp: new Date(),
+            resetPeriod: currentPeriod
+          }])}::jsonb`,
+        })
+        .where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
       
       return {
         success: true,
@@ -383,55 +382,45 @@ export async function harvestCaveTile(
     item.foundAt = { x: tile.x, y: tile.y };
     
     let bonusApplied = 0;
-    let updateQuery: MongoUpdate = {
-      $push: {
-        'inventory.items': item
-      }
-    };
+    let bonusUpdates: Partial<typeof players.$inferInsert> = {};
     
     // If it's a digger, apply bonus
     if ([ItemType.MetalDigger, ItemType.EnergyDigger, ItemType.UniversalDigger].includes(item.type)) {
       bonusApplied = applyDiggerBonus(player, item);
       
       // Update player's gathering bonus and digger counts
-      updateQuery = {
-        $push: {
-          'inventory.items': item
-        },
-        $set: {
-          'gatheringBonus.metalBonus': player.gatheringBonus.metalBonus,
-          'gatheringBonus.energyBonus': player.gatheringBonus.energyBonus,
-          'inventory.metalDiggerCount': player.inventory.metalDiggerCount,
-          'inventory.energyDiggerCount': player.inventory.energyDiggerCount
-        }
+      bonusUpdates = {
+        gatheringBonusMetalBonus: String(player.gatheringBonus.metalBonus),
+        gatheringBonusEnergyBonus: String(player.gatheringBonus.energyBonus),
+        inventoryMetalDiggerCount: player.inventory.metalDiggerCount,
+        inventoryEnergyDiggerCount: player.inventory.energyDiggerCount,
       };
     }
     
-    // Update player
-    await playersCollection.updateOne(
-      { username: playerId },
-      updateQuery
-    );
+    // Update player: append the item to the inventory jsonb + apply digger-bonus fields
+    await db.update(players)
+      .set({
+        inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify([item])}::jsonb`,
+        ...bonusUpdates,
+      })
+      .where(eq(players.username, playerId));
     
-    // Mark tile as harvested
-    const tilesCollection = await getCollection<Tile>('tiles');
+    // Mark tile as harvested (drizzle: append record to the jsonb harvest log atomically)
     const currentPeriod = getCurrentResetPeriod(tile.x);
     
-    await tilesCollection.updateOne(
-      { x: tile.x, y: tile.y },
-      {
-        $push: {
-          lastHarvestedBy: {
-            playerId,
-            timestamp: new Date(),
-            resetPeriod: currentPeriod
-          }
-        }
-      }
-    );
+    await db.update(tiles)
+      .set({
+        lastHarvestedBy: sql`coalesce(${tiles.lastHarvestedBy}, '[]'::jsonb) || ${JSON.stringify([{
+          playerId,
+          timestamp: new Date(),
+          resetPeriod: currentPeriod
+        }])}::jsonb`,
+      })
+      .where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
     
-    // Get updated player
-    const updatedPlayer = await playersCollection.findOne({ username: playerId });
+    // Get updated player (domain-mapped)
+    const updatedRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const updatedPlayer = updatedRows[0] ? mapRowToPlayer(updatedRows[0]) : null;
     
     // Generate success message
     let message = '';
@@ -497,16 +486,16 @@ export async function harvestForestTile(
       };
     }
     
-    // Get player data
-    const playersCollection = await getCollection<Player>('players');
-    const player = await playersCollection.findOne({ username: playerId });
-    
-    if (!player) {
+    // Get player data (drizzle — the Mongo shim returns raw rows without domain nesting)
+    const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const playerRow = playerRows[0];
+    if (!playerRow) {
       return {
         success: false,
         message: 'Player not found'
       };
     }
+    const player = mapRowToPlayer(playerRow);
     
     // Check inventory capacity
     if (player.inventory.items.length >= player.inventory.capacity) {
@@ -521,22 +510,18 @@ export async function harvestForestTile(
     
     if (!item) {
       // No item dropped (50% of the time, better than caves at 70%)
-      // Mark tile as harvested
-      const tilesCollection = await getCollection<Tile>('tiles');
+      // Mark tile as harvested (drizzle: append record to the jsonb harvest log atomically)
       const currentPeriod = getCurrentResetPeriod(tile.x);
       
-      await tilesCollection.updateOne(
-        { x: tile.x, y: tile.y },
-        {
-          $push: {
-            lastHarvestedBy: {
-              playerId,
-              timestamp: new Date(),
-              resetPeriod: currentPeriod
-            }
-          }
-        }
-      );
+      await db.update(tiles)
+        .set({
+          lastHarvestedBy: sql`coalesce(${tiles.lastHarvestedBy}, '[]'::jsonb) || ${JSON.stringify([{
+            playerId,
+            timestamp: new Date(),
+            resetPeriod: currentPeriod
+          }])}::jsonb`,
+        })
+        .where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
       
       return {
         success: true,
@@ -548,55 +533,45 @@ export async function harvestForestTile(
     item.foundAt = { x: tile.x, y: tile.y };
     
     let bonusApplied = 0;
-    let updateQuery: MongoUpdate = {
-      $push: {
-        'inventory.items': item
-      }
-    };
+    let bonusUpdates: Partial<typeof players.$inferInsert> = {};
     
     // If it's a digger, apply bonus
     if ([ItemType.MetalDigger, ItemType.EnergyDigger, ItemType.UniversalDigger].includes(item.type)) {
       bonusApplied = applyDiggerBonus(player, item);
       
       // Update player's gathering bonus and digger counts
-      updateQuery = {
-        $push: {
-          'inventory.items': item
-        },
-        $set: {
-          'gatheringBonus.metalBonus': player.gatheringBonus.metalBonus,
-          'gatheringBonus.energyBonus': player.gatheringBonus.energyBonus,
-          'inventory.metalDiggerCount': player.inventory.metalDiggerCount,
-          'inventory.energyDiggerCount': player.inventory.energyDiggerCount
-        }
+      bonusUpdates = {
+        gatheringBonusMetalBonus: String(player.gatheringBonus.metalBonus),
+        gatheringBonusEnergyBonus: String(player.gatheringBonus.energyBonus),
+        inventoryMetalDiggerCount: player.inventory.metalDiggerCount,
+        inventoryEnergyDiggerCount: player.inventory.energyDiggerCount,
       };
     }
     
-    // Update player
-    await playersCollection.updateOne(
-      { username: playerId },
-      updateQuery
-    );
+    // Update player: append the item to the inventory jsonb + apply digger-bonus fields
+    await db.update(players)
+      .set({
+        inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify([item])}::jsonb`,
+        ...bonusUpdates,
+      })
+      .where(eq(players.username, playerId));
     
-    // Mark tile as harvested
-    const tilesCollection = await getCollection<Tile>('tiles');
+    // Mark tile as harvested (drizzle: append record to the jsonb harvest log atomically)
     const currentPeriod = getCurrentResetPeriod(tile.x);
     
-    await tilesCollection.updateOne(
-      { x: tile.x, y: tile.y },
-      {
-        $push: {
-          lastHarvestedBy: {
-            playerId,
-            timestamp: new Date(),
-            resetPeriod: currentPeriod
-          }
-        }
-      }
-    );
+    await db.update(tiles)
+      .set({
+        lastHarvestedBy: sql`coalesce(${tiles.lastHarvestedBy}, '[]'::jsonb) || ${JSON.stringify([{
+          playerId,
+          timestamp: new Date(),
+          resetPeriod: currentPeriod
+        }])}::jsonb`,
+      })
+      .where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
     
-    // Get updated player
-    const updatedPlayer = await playersCollection.findOne({ username: playerId });
+    // Get updated player (domain-mapped)
+    const updatedRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    const updatedPlayer = updatedRows[0] ? mapRowToPlayer(updatedRows[0]) : null;
     
     // Generate success message
     let message = '';
@@ -670,16 +645,16 @@ export async function awardTutorialDiggerToPlayer(
   username: string
 ): Promise<{ success: boolean; message: string; digger?: InventoryItem }> {
   try {
-    // Get player
-    const playersCollection = await getCollection<Player>('players');
-    const player = await playersCollection.findOne({ username });
-    
-    if (!player) {
+    // Get player (drizzle — domain-mapped row)
+    const playerRows = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const playerRow = playerRows[0];
+    if (!playerRow) {
       return { 
         success: false, 
         message: 'Player not found' 
       };
     }
+    const player = mapRowToPlayer(playerRow);
     
     // Check inventory capacity
     if (player.inventory.items.length >= player.inventory.capacity) {
@@ -693,22 +668,17 @@ export async function awardTutorialDiggerToPlayer(
     const digger = createTutorialDigger();
     
     // Update player with ALL digger-related fields
-    await playersCollection.updateOne(
-      { username },
-      {
-        $push: {
-          'inventory.items': digger
-        },
-        $inc: {
-          // Universal digger increments BOTH counts
-          'inventory.metalDiggerCount': 1,
-          'inventory.energyDiggerCount': 1,
-          // Add 5% to BOTH bonuses
-          'gatheringBonus.metalBonus': 5.0,
-          'gatheringBonus.energyBonus': 5.0
-        }
-      }
-    );
+    await db.update(players)
+      .set({
+        inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify([digger])}::jsonb`,
+        // Universal digger increments BOTH counts
+        inventoryMetalDiggerCount: sql`coalesce(${players.inventoryMetalDiggerCount}, 0) + 1`,
+        inventoryEnergyDiggerCount: sql`coalesce(${players.inventoryEnergyDiggerCount}, 0) + 1`,
+        // Add 5% to BOTH bonuses
+        gatheringBonusMetalBonus: sql`coalesce(${players.gatheringBonusMetalBonus}, '0') + 5.0`,
+        gatheringBonusEnergyBonus: sql`coalesce(${players.gatheringBonusEnergyBonus}, '0') + 5.0`,
+      })
+      .where(eq(players.username, username));
     
     console.log(`🎓 Tutorial digger awarded to ${username}: +5% metal & energy gathering`);
     

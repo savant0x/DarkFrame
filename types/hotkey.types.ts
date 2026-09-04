@@ -74,7 +74,7 @@ export enum HotkeyCategory {
  * Hotkey configuration document stored in MongoDB
  */
 export interface HotkeySettings {
-  _id?: any;
+  _id?: string;
   version: number;
   lastModified: Date;
   modifiedBy: string;
@@ -88,7 +88,7 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   // Panels
   {
     action: HotkeyAction.BANK_PANEL,
-    key: 'k',
+    key: 'b',
     displayName: 'Bank Panel',
     description: 'Open banking services (must be at Bank tile)',
     category: HotkeyCategory.PANELS,
@@ -144,14 +144,14 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   },
   {
     action: HotkeyAction.BEER_BASE_PANEL,
-    key: 'b',
+    key: 'e',
     displayName: 'Beer Bases',
     description: 'Toggle Beer Base attack panel',
     category: HotkeyCategory.COMBAT,
   },
   {
     action: HotkeyAction.BOT_SCANNER,
-    key: 'b',
+    key: 'x',
     displayName: 'Bot Scanner',
     description: 'Toggle bot scanner panel (requires tech unlock)',
     category: HotkeyCategory.COMBAT,
@@ -206,7 +206,7 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   {
     action: HotkeyAction.AUTO_FARM_TOGGLE,
     key: 'f',
-    displayName: 'Auto-Farm Toggle',
+    displayName: 'Auto-Farm Toggle (Shift+F)',
     description: 'Start/pause/resume auto-farming',
     category: HotkeyCategory.AUTO_FARM,
     requiresShift: true,
