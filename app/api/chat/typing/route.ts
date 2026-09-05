@@ -42,6 +42,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 // ============================================================================
 // TYPES
@@ -115,7 +116,24 @@ export async function POST(request: NextRequest) {
   try {
     // Parse request body
     const body: PostTypingRequest = await request.json();
-    const { channelId, userId, username } = body;
+    const { channelId, userId: bodyUserId, username: bodyUsername } = body;
+
+    // FID-20260904-005 §5.1 (presence writers): identity from the SESSION, not the body.
+    const auth = await getAuthenticatedUser();
+    if (!auth?.username) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    const userId = auth.username;
+    const username = auth.username;
+    if ((bodyUserId && bodyUserId !== userId) || (bodyUsername && bodyUsername !== username)) {
+      return NextResponse.json(
+        { success: false, error: 'Identity mismatch' },
+        { status: 403 }
+      );
+    }
 
     // Validate inputs
     if (!channelId || typeof channelId !== 'string') {

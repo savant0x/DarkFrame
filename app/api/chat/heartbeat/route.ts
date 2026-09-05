@@ -36,6 +36,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 // ============================================================================
 // TYPES
@@ -106,7 +107,27 @@ export async function POST(request: NextRequest) {
   try {
     // Parse request body
     const body: PostHeartbeatRequest = await request.json();
-    const { userId, username, level, isVIP, status = 'Online' } = body;
+    const { userId: bodyUserId, username: bodyUsername, level, isVIP, status = 'Online' } = body;
+
+    // FID-20260904-005 §5.1 (presence writers): identity comes from the SESSION — a
+    // client-supplied userId/username lets any caller write presence as anyone else
+    // (impersonation of the online list). Body identity fields are accepted for
+    // backwards compatibility but MUST match the session when present.
+    const auth = await getAuthenticatedUser();
+    if (!auth?.username) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    const userId = auth.username;
+    const username = auth.username;
+    if ((bodyUserId && bodyUserId !== userId) || (bodyUsername && bodyUsername !== username)) {
+      return NextResponse.json(
+        { success: false, error: 'Identity mismatch' },
+        { status: 403 }
+      );
+    }
 
     // Validate inputs
     if (!userId || typeof userId !== 'string') {

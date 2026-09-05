@@ -21,6 +21,7 @@ import {
   getTableName,
 } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import { PgTable } from 'drizzle-orm/pg-core';
 import type { QueryResult } from 'pg';
 import * as schema from '@/lib/db/schema';
@@ -177,7 +178,15 @@ const PLAYER_DOT_PATH_COLUMNS: Record<string, string> = {
  * through `PLAYER_DOT_PATH_COLUMNS`. Returns undefined when nothing maps.
  */
 function resolveKeyToProp(table: PgTable, key: string): string | undefined {
-  if (!key.includes('.')) return getTableColumns(table)[key] ? key : undefined;
+  if (!key.includes('.')) {
+    const columns = getTableColumns(table);
+    if (columns[key]) return key;
+    // Mongo-era snake_case alias (e.g. `resources_metal` for the resourcesMetal column):
+    // these arrive in legacy $inc payloads (auction payments, listing fees) and resolve
+    // to nothing today, silently dropping real-money writes. Map "X_y" → "xY".
+    const camel = key.replace(/_([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase());
+    return columns[camel] ? camel : undefined;
+  }
   const mapped = PLAYER_DOT_PATH_COLUMNS[key];
   return mapped && getTableColumns(table)[mapped] ? mapped : undefined;
 }
@@ -193,6 +202,7 @@ function resolveKeyToProp(table: PgTable, key: string): string | undefined {
  */
 function shapeRowAliases(table: PgTable, row: Record<string, unknown>): Record<string, unknown> {
   const columns = getTableColumns(table);
+  if (isAuctionsTable(table)) return shapeRowAuctions(table, row);
   if (columns.resourcesMetal === undefined || row.resources !== undefined) return row;
   return {
     ...row,
@@ -312,6 +322,7 @@ function flattenDomainPlayerFields(
   for (const k of ['base', 'currentPosition', 'resources', 'bank', 'inventory', 'gatheringBonus', 'activeBoosts']) {
     delete payload[k];
   }
+  syncAuctionDocFields(table, payload);
   return payload;
 }
 
@@ -342,7 +353,16 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
     // anything else stays unmapped (falls through to the match-nothing guard below).
     const prop = resolveKeyToProp(table, key);
     const column = prop ? columns[prop] : undefined;
-    if (!column || Array.isArray(value)) continue;
+    if (!column || Array.isArray(value)) {
+      // FID-20260904-005 §5.0 (d): doc-tables translate unmapped dotted keys into jsonb
+      // containment predicates over their `doc` column instead of silently matching
+      // nothing (the auction my-bids `where false` bug).
+      if (columns.doc && key.includes('.') && !key.startsWith('$')) {
+        const docPredicate = buildDocPathPredicate(columns.doc, key, value);
+        if (docPredicate) conditions.push(docPredicate);
+      }
+      continue;
+    }
     if (typeof value === 'object' && value !== null && !(value instanceof Date)) {
       if (value.$lt !== undefined) conditions.push(lt(column, coerceScalar(value.$lt)));
       if (value.$lte !== undefined) conditions.push(lte(column, coerceScalar(value.$lte)));
@@ -376,12 +396,180 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
   return conditions.length > 0 ? and(...conditions) : sql`false`;
 }
 
+/**
+ * Dot-path equality over a doc-table's jsonb document column (FID-20260904-005 §5.0 (d)).
+ * Mongo-era filters like { 'bids.bidderUsername': u } address a field INSIDE the stored
+ * document (optionally through an array — "any element matches"). Translated to jsonb
+ * containment: doc @> '{"bids":[{"bidderUsername":u}]}' matches exactly when some bids
+ * element carries that bidderUsername. Previously such keys fell through to the
+ * match-nothing guard — the auction my-bids `where false` bug.
+ */
+function buildDocPathPredicate(docColumn: unknown, key: string, value: unknown): SQL | undefined {
+  const path = key.split('.');
+  if (path.length < 2) return undefined;
+  // DUAL containment probe. The leaf is emitted twice — wrapped in a single-element
+  // array ("some element of doc.bids contains the probe"; jsonb arrays reject bare
+  // object probes — live-verified my-bids 500) and as a plain object (for
+  // object-shaped containers like active_boosts). For any given container exactly
+  // one shape can match, so the OR is precise, not a fuzzy fallback.
+  const leaf = { [path[path.length - 1]]: value };
+  let arr: unknown = [leaf];
+  let obj: unknown = leaf;
+  for (let i = path.length - 2; i >= 0; i--) {
+    arr = { [path[i]]: arr };
+    obj = { [path[i]]: obj };
+  }
+  return sql`(${docColumn} @> ${JSON.stringify(arr)}::jsonb OR ${docColumn} @> ${JSON.stringify(obj)}::jsonb)`;
+}
+
 /** Extract a string id from a document's `id`/`_id` field, if present. */
 function extractId(doc: object): string | null {
   const record = doc as Record<string, DocumentValue>;
   if (typeof record.id === 'string' && record.id) return record.id;
   if (typeof record._id === 'string' && record._id) return record._id;
   return null;
+}
+
+/**
+ * Auction domain ⇄ column sync (FID-20260904-005 §5.0 (e) — completes the #25 seam).
+ * The `auctions` table mirrors scalar fields of the AuctionListing document (migration
+ * 0008) so SQL indexes stay usable, while the full doc lives in `doc` jsonb. The
+ * schema comment promised this mapping; it never existed. Writes: on any auction row
+ * payload, store the doc and fill the mirrored columns the doc carries (never
+ * overwriting explicit flat keys). Reads: shapeRowAuctions rebuilds the domain doc
+ * by overlaying non-null columns onto `doc` (column values win — they are the
+ * indexed truth) so findOne/find/aggregate consumers see the Mongo-era shape.
+ */
+const AUCTION_DOC_COLUMNS: Array<{ docKey: string; column: string }> = [
+  { docKey: 'auctionId', column: 'auctionId' },
+  { docKey: 'sellerUsername', column: 'sellerUsername' },
+  { docKey: 'startingBid', column: 'startingBid' },
+  { docKey: 'currentBid', column: 'currentBid' },
+  { docKey: 'buyoutPrice', column: 'buyoutPrice' },
+  { docKey: 'reservePrice', column: 'reservePrice' },
+  { docKey: 'listingFee', column: 'listingFee' },
+  { docKey: 'clanOnly', column: 'clanOnly' },
+  { docKey: 'settled', column: 'settled' },
+  { docKey: 'finalPrice', column: 'finalPrice' },
+  { docKey: 'winnerUsername', column: 'winnerUsername' },
+  { docKey: 'highestBidder', column: 'highestBidder' },
+  { docKey: 'status', column: 'status' },
+  { docKey: 'createdAt', column: 'createdAt' },
+  { docKey: 'expiresAt', column: 'expiresAt' },
+  { docKey: 'closedAt', column: 'closedAt' },
+  { docKey: 'duration', column: 'durationHours' },
+];
+
+function isAuctionsTable(table: PgTable): boolean {
+  return getTableName(table) === 'auctions';
+}
+
+function syncAuctionDocFields(table: PgTable, payload: Record<string, DocumentValue>): void {
+  if (!isAuctionsTable(table)) return;
+  const columns = getTableColumns(table);
+  // (i) Synthesize the stored document when the caller passes the AuctionListing domain
+  // doc directly (createAuctionListing's insertOne) — there is no explicit `doc` key,
+  // every top-level payload key IS a document field.
+  if (columns.doc && (payload.doc === undefined || payload.doc === null)) {
+    const synthesized: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(payload)) {
+      if (k === 'id' || k === '_id') continue;
+      synthesized[k] = v;
+    }
+    payload.doc = synthesized;
+  }
+  const docValue = payload.doc;
+  if (docValue === undefined || docValue === null || typeof docValue !== 'object' || Array.isArray(docValue)) return;
+  const doc = docValue as Record<string, unknown>;
+  // (ii) Legacy NOT NULL mirrors from the pre-#25 columns the domain service never
+  // writes (seller_id/item_data/starting_price) — without these every insert 500s.
+  if (payload.itemData === undefined) {
+    const item = doc.item !== undefined ? doc.item : payload.item;
+    if (item !== undefined) payload.itemData = item;
+  }
+  if (payload.sellerId === undefined) {
+    const seller = doc.sellerUsername !== undefined ? doc.sellerUsername : payload.sellerUsername;
+    if (seller !== undefined) payload.sellerId = seller;
+  }
+  if (payload.startingPrice === undefined) {
+    const start = doc.startingBid !== undefined ? doc.startingBid : payload.startingBid;
+    if (start !== undefined) payload.startingPrice = start;
+  }
+  // (iii) Mirror doc fields the indexed columns exist for.
+  for (const { docKey, column } of AUCTION_DOC_COLUMNS) {
+    if (doc[docKey] === undefined) continue;
+    if (payload[column] !== undefined) continue; // explicit flat key wins
+    const value = doc[docKey];
+    if (value instanceof Date) {
+      payload[column] = value;
+    } else if (typeof value === 'boolean') {
+      payload[column] = value ? 1 : 0; // pg smallint mirrors
+    } else if (docKey === 'duration' && typeof value === 'number') {
+      payload[column] = value;
+    } else if (typeof value === 'string' || typeof value === 'number') {
+      payload[column] = value;
+    }
+    // nested/other shapes stay doc-only
+  }
+}
+
+function shapeRowAuctions(table: PgTable, row: Record<string, unknown>): Record<string, unknown> {
+  if (!isAuctionsTable(table)) return row;
+  const doc = (row.doc && typeof row.doc === 'object' && !Array.isArray(row.doc) ? { ...(row.doc as Record<string, unknown>) } : {});
+  for (const { docKey, column } of AUCTION_DOC_COLUMNS) {
+    const colValue = row[column];
+    if (colValue === undefined || colValue === null) continue;
+    // column is the indexed truth — overlay onto the doc
+    if (docKey === 'clanOnly' || docKey === 'settled') {
+      doc[docKey] = colValue === 1;
+    } else if (docKey === 'duration') {
+      doc.duration = colValue;
+    } else {
+      doc[docKey] = colValue;
+    }
+  }
+  // Legacy read-back: the domain `item` lives only in the pre-#25 item_data column
+  // when the doc copy predates the bridge.
+  if (doc.item === undefined && row.itemData !== undefined && row.itemData !== null) {
+    doc.item = row.itemData;
+  }
+  return { ...row, ...doc, doc };
+}
+
+/**
+ * Unique conflict targets for race-safe upserts (FID-20260904-005 §5.0 (b)).
+ * Keyed by SQL table name; every entry MUST correspond to a real unique index
+ * (verified live in prod during the FID audit) or the insert itself would fail.
+ */
+const CONFLICT_TARGETS: Record<string, { columns: PgColumn[] }> = {
+  user_presence: { columns: [schema.userPresence.userId] },
+  tutorial_action_tracking: {
+    columns: [schema.tutorialActionTracking.playerId, schema.tutorialActionTracking.stepId],
+  },
+};
+
+function getConflictTarget(
+  collectionName: string,
+  table: PgTable
+): PgColumn[] | undefined {
+  const entry =
+    CONFLICT_TARGETS[getTableName(table)] ??
+    (TABLE_REGISTRY[collectionName] === table ? CONFLICT_TARGETS[collectionName] : undefined);
+  if (!entry) return undefined;
+  // Guard against a stale entry pointing at columns absent from the resolved table.
+  const cols = getTableColumns(table);
+  return entry.columns.every((c) => Object.values(cols).includes(c)) ? entry.columns : undefined;
+}
+
+/**
+ * drizzle `set()` accepts SQL fragments but our onConflictDoUpdate path needs plain
+ * values — detect fragments so callers carrying them take the safe select-then-insert
+ * path instead.
+ */
+function hasSqlFragments(payload: Record<string, SetOp>): boolean {
+  return Object.values(payload).some(
+    (v) => typeof v === 'object' && v !== null && 'queryChunks' in (v as object)
+  );
 }
 
 /**
@@ -437,6 +625,29 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
       // pg smallint columns reject JS booleans on write just as in filters — coerce
       payload[prop] = coerceScalar(value) as SetOp;
       hasOps = true;
+      // Doc-table consistency: a column that mirrors a doc field must also update the
+      // stored doc copy, or reads overlaying "column wins" hide the divergence while
+      // the raw doc rots (schema comment's sync promise).
+      const mirrored = AUCTION_DOC_COLUMNS.find((m) => m.column === prop);
+      if (mirrored && columns.doc && isAuctionsTable(table)) {
+        const base = payload.doc ?? sql`${columns.doc}`;
+        payload.doc = sql`jsonb_set(coalesce(${base}, '{}'::jsonb), '{${sql.raw(mirrored.docKey)}}'::text[], ${JSON.stringify(coerceScalar(value)) ?? 'null'}::jsonb)`;
+      }
+    } else if (columns.doc && key.includes('.')) {
+      // FID-20260904-005 §5.0 (d): dotted $set on a doc-table targets a field INSIDE the
+      // stored document. Rewrite the stored doc with jsonb_set at the mapped path so the
+      // update lands in place (previously silently dropped). Chained when multiple doc
+      // paths are set in one update (each builds on the previous fragment).
+      const path = key.split('.').map((seg) => `{${seg}}`).join(',');
+      const base = payload.doc ?? sql`${columns.doc}`;
+      payload.doc = sql`jsonb_set(coalesce(${base}, '{}'::jsonb), '{${sql.raw(path)}}'::text[], ${JSON.stringify(value) ?? 'null'}::jsonb)`;
+      hasOps = true;
+    } else if (columns.doc && isAuctionsTable(table)) {
+      // Doc-table $set of a field with no dedicated column (e.g. bids, settledAt,
+      // saleFee): store inside the synthesized document instead of silently dropping.
+      const base = payload.doc ?? sql`${columns.doc}`;
+      payload.doc = sql`jsonb_set(coalesce(${base}, '{}'::jsonb), '{${sql.raw(key)}}'::text[], ${JSON.stringify(value) ?? 'null'}::jsonb)`;
+      hasOps = true;
     }
   }
   for (const key of Object.keys(update.$unset ?? {})) {
@@ -450,6 +661,11 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
     if (column) {
       payload[key] = sql`coalesce(${column}, '[]'::jsonb) || ${JSON.stringify([value])}::jsonb`;
       hasOps = true;
+    } else if (columns.doc && isAuctionsTable(table)) {
+      // Atomic array append inside the stored doc (placeBid's $push: { bids: bid }).
+      const base = payload.doc ?? sql`${columns.doc}`;
+      payload.doc = sql`jsonb_set(coalesce(${base}, '{}'::jsonb), '{${sql.raw(key)}}'::text[], coalesce(${base}->'${sql.raw(key)}', '[]'::jsonb) || ${JSON.stringify([value])}::jsonb)`;
+      hasOps = true;
     }
   }
   for (const [key, value] of Object.entries(update.$pull ?? {})) {
@@ -459,12 +675,20 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
       hasOps = true;
     }
   }
+  // $inc: merge EVERY entry (plain keys, snake aliases, and dot-paths that resolve to
+  // flat columns) by resolved column BEFORE emitting SQL — createAuctionListing sends
+  // `resources_metal: -fee` and `resources.metal: -amount` in ONE update, both resolving
+  // to resourcesMetal; sequential loops overwrote each other and the fee vanished.
+  const incDeltas = new Map<string, number>();
   for (const [key, delta] of Object.entries(update.$inc ?? {})) {
-    const column = columns[key];
-    if (column) {
-      payload[key] = sql`coalesce(${column}, 0) + ${delta}`;
-      hasOps = true;
+    const prop = resolveKeyToProp(table, key);
+    if (prop && typeof delta === 'number' && Number.isFinite(delta)) {
+      incDeltas.set(prop, (incDeltas.get(prop) ?? 0) + delta);
     }
+  }
+  for (const [prop, total] of incDeltas) {
+    payload[prop] = sql`coalesce(${columns[prop]}, 0) + ${total}`;
+    hasOps = true;
   }
   // Dot-path $inc over jsonb columns (e.g. 'stats.battlesWon', 'resources.metal'): the
   // legacy Mongo shape addresses a subfield of a document column. Translated to jsonb_set
@@ -472,15 +696,7 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
   // payments and stat counters never moved).
   for (const [dotPath, delta] of Object.entries(update.$inc ?? {})) {
     if (!dotPath.includes('.')) continue;
-    // Known domain dot paths ('resources.metal') target flat numeric columns — the
-    // auction/factory/build-unit economy moves through these; jsonb arithmetic below
-    // handles the rest ('stats.battlesWon').
-    const flatProp = resolveKeyToProp(table, dotPath);
-    if (flatProp) {
-      payload[flatProp] = sql`coalesce(${columns[flatProp]}, 0) + ${delta}`;
-      hasOps = true;
-      continue;
-    }
+    if (incDeltas.has(resolveKeyToProp(table, dotPath) ?? '')) continue; // handled above
     const [root, ...path] = dotPath.split('.');
     const column = columns[root];
     if (!column || path.length === 0) continue;
@@ -988,6 +1204,12 @@ export class Collection<T = Record<string, unknown>> {
   ): Promise<{ modifiedCount: number }> {
     const t = this.table();
     if (!t) return { modifiedCount: 0 };
+    // FID-20260904-005 §5.0 (c): an empty filter would become an unqualified UPDATE of
+    // every row (buildWhere returns undefined for {}). Mongo updateOne matches the FIRST
+    // document only — mass-update is never the requested semantic. Fail loudly instead.
+    if (!filter || Object.keys(filter).length === 0) {
+      throw new Error('INVALID_EMPTY_FILTER: updateOne requires a non-empty filter (Mongo first-match semantics; refusing unqualified mass update)');
+    }
     const w = buildWhere(t, filter);
     const setPayload = buildSetPayload(t, update);
     if (options?.upsert && setPayload) {
@@ -1004,11 +1226,39 @@ export class Collection<T = Record<string, unknown>> {
       for (const [key, value] of Object.entries(update.$set ?? {})) {
         insertDoc[key] = value;
       }
+      // FID-20260904-005 §5.0 (a): route the composed insert through ensureRowId exactly
+      // like insertOne — the prior path inserted with `values (default, …)` against the
+      // varchar(24) id PK and every first-presence upsert 500'd (chat heartbeat/typing,
+      // tutorial move-tracking, beer-base config).
+      const normalizedInsert = ensureRowId(
+        t,
+        flattenDomainPlayerFields(t, normalizeScalarBooleans(insertDoc)),
+        insertDoc
+      );
+      // FID-20260904-005 §5.0 (b): the historical select-then-insert raced under two
+      // concurrent first-writes (both select empty, both insert, loser 500s on the unique
+      // index — the same class as the tutorial progress race). Where a unique conflict
+      // target exists, upsert atomically via onConflictDoUpdate.
+      const conflictTarget = getConflictTarget(this.name, t);
+      if (conflictTarget && setPayload && !hasSqlFragments(setPayload) && Object.keys(normalizedInsert).length > 0) {
+        await drizzleDb
+          .insert(t)
+          .values(normalizedInsert)
+          .onConflictDoUpdate({ target: conflictTarget, set: normalizedInsert });
+        return { modifiedCount: 1 };
+      }
+      if (conflictTarget && !setPayload && !hasSqlFragments(normalizedInsert) && Object.keys(normalizedInsert).length > 0) {
+        await drizzleDb
+          .insert(t)
+          .values(normalizedInsert)
+          .onConflictDoNothing({ target: conflictTarget });
+        return { modifiedCount: 1 };
+      }
       const existing = w
         ? await drizzleDb.select().from(t).where(w).limit(1)
         : await drizzleDb.select().from(t).limit(1);
       if (existing.length === 0) {
-        await drizzleDb.insert(t).values(insertDoc);
+        await drizzleDb.insert(t).values(normalizedInsert);
         return { modifiedCount: 1 };
       }
     }

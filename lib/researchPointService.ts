@@ -559,13 +559,14 @@ export async function getPlayerRPStats(playerUsername: string): Promise<{
     `);
 
     const recentTransactions: RPTransaction[] = ((recentTxRows.rows as any[]) || []).map((row: any) => ({
-      playerUsername: row.playerUsername,
+      // FID-20260904-005 §5.2a: lower-case folded keys (see note above).
+      playerUsername: row.playerusername ?? row.playerUsername,
       amount: Number(row.amount),
       source: row.source as RPSource,
       description: row.description,
       timestamp: new Date(row.timestamp),
-      vipBonus: Boolean(row.vipBonus),
-      balanceAfter: Number(row.balanceAfter),
+      vipBonus: Boolean(row.vipbonus ?? row.vipBonus),
+      balanceAfter: row.balanceafter === null || row.balanceafter === undefined ? Number(row.balanceAfter ?? 0) : Number(row.balanceafter),
       metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
     }));
 
@@ -820,13 +821,15 @@ export async function getRPTransactionHistory(
     `);
 
     const transactions: RPTransaction[] = ((transactionsRows.rows as any[]) || []).map((row: any) => ({
-      playerUsername: row.playerUsername,
+      // FID-20260904-005 §5.2a: Postgres folds the raw SQL's unquoted identifiers to
+      // lower-case, so SELECT * returns lower-case keys. Map defensively from both shapes.
+      playerUsername: row.playerusername ?? row.playerUsername,
       amount: Number(row.amount),
       source: row.source as RPSource,
       description: row.description,
       timestamp: new Date(row.timestamp),
-      vipBonus: Boolean(row.vipBonus),
-      balanceAfter: Number(row.balanceAfter),
+      vipBonus: Boolean(row.vipbonus ?? row.vipBonus),
+      balanceAfter: row.balanceafter === null || row.balanceafter === undefined ? Number(row.balanceAfter ?? 0) : Number(row.balanceafter),
       metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
     }));
 

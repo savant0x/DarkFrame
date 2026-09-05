@@ -14,6 +14,9 @@ export const gameConfig = pgTable('game_config', {
 	config: jsonb('config').notNull().$type<any>(),
 }, (table) => [
 	index('game_config_type_idx').on(table.type),
+	// FID-20260904-005 §5.2a: unique target for the beer-base config race-safe upsert
+	// (shim onConflictDoUpdate on { type }). Mirrors migration 0009.
+	uniqueIndex('game_config_type_unique').on(table.type),
 ]);
 
 export const botConfig = pgTable('bot_config', {

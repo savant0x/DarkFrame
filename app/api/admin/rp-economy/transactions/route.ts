@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authService';
 import {
   withRequestLogging,
@@ -50,32 +50,38 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const conditions: string[] = [];
-    const params: (string | number | Date)[] = [];
+    // FID-20260904-005 §5.2a: pg-dialect rewrite. The Mongo-era version used MySQL
+    // `?` placeholders that never bound under drizzle (500 on every call), and named
+    // the CamelCase table. Bound parameters now ride in the sql template; the table
+    // is the lowercase `rptransactions` created by migration 0009.
+    const conditions: SQL[] = [];
 
     if (dateFilter) {
-      conditions.push('timestamp >= ?');
-      params.push(dateFilter.toISOString());
+      conditions.push(sql`timestamp >= ${dateFilter.toISOString()}`);
     }
     if (source !== 'all') {
-      conditions.push('source = ?');
-      params.push(source);
+      conditions.push(sql`source = ${source}`);
     }
     if (username) {
-      conditions.push('playerUsername LIKE ?');
-      params.push(`%${username}%`);
+      conditions.push(sql`playerusername ILIKE ${`%${username}%`}`);
     }
 
-    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const whereClause = conditions.length > 0 ? sql` WHERE ${sql.join(conditions, sql` AND `)}` : sql``;
 
     const result = await db.execute(sql`
-      SELECT * FROM rpTransactions
-      ${sql.raw(whereClause)}
+      SELECT * FROM rptransactions${whereClause}
       ORDER BY timestamp DESC
       LIMIT 100
     `);
 
-    const transactions = (result as any).length > 0 ? (result as any) : [];
+    // FID-20260904-005 §5.2a: Postgres folds the unquoted identifiers to lower-case,
+    // so SELECT * returns lower-case keys — project them back to the API's camelCase.
+    const transactions = ((result as any).length > 0 ? (result as any) : []).map((r: Record<string, unknown>) => ({
+      ...r,
+      playerUsername: r.playerusername ?? r.playerUsername,
+      vipBonus: Boolean(r.vipbonus ?? r.vipBonus),
+      balanceAfter: r.balanceafter ?? r.balanceAfter,
+    }));
 
     log.info('RP transactions retrieved', {
       transactionCount: transactions.length,
