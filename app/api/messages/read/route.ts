@@ -43,6 +43,12 @@ export async function POST(request: NextRequest) {
       messageIds
     );
 
+    // Surface service-level denial (non-participant / unknown conversation) as
+    // a real 403 — NextResponse.json defaults to 200 even for success:false.
+    if (!result.success) {
+      return NextResponse.json(result, { status: 403 });
+    }
+
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('Error in POST /api/messages/read:', error);

@@ -20,9 +20,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify cron secret
+    // Verify cron secret — fail closed when unset (a literal 'Bearer undefined'
+    // would otherwise match and open the cron to anyone).
     const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       logger.warn('Unauthorized cron access attempt', { path: '/api/cron/purge-old-data' });
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

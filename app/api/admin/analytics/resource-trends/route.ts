@@ -68,8 +68,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const isHourly = period === '24h';
     const intervalMs = isHourly ? 3600000 : 86400000; // 1 hour or 1 day
 
-    // Time-bucket expression (epoch ms floored to the interval boundary)
-    const bucketExpr = sql<number>`FLOOR(EXTRACT(EPOCH FROM ${playerActivity.timestamp}) * 1000 / ${intervalMs}) * ${intervalMs}`;
+    // Time-bucket expression (epoch ms floored to the interval boundary).
+    // Interval inlined via sql.raw so select/groupBy/orderBy emit byte-identical
+    // expressions — templated params break Postgres GROUP BY matching (42803).
+    // intervalMs is a fixed number from the periodHours map, never user input.
+    const bucketExpr = sql<number>`FLOOR(EXTRACT(EPOCH FROM ${playerActivity.timestamp}) * 1000 / ${sql.raw(String(intervalMs))}) * ${sql.raw(String(intervalMs))}`;
     // details jsonb -> numeric sums (harvest/attack actions carry resourcesGained)
     const metalExpr = sql<number>`COALESCE(SUM(COALESCE(((${playerActivity.details}->'resourcesGained'->>'metal'))::numeric, 0)), 0)`;
     const energyExpr = sql<number>`COALESCE(SUM(COALESCE(((${playerActivity.details}->'resourcesGained'->>'energy'))::numeric, 0)), 0)`;
