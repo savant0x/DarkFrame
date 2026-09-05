@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { mutes, bans, modLog, warnings, wordBlacklist, players } from '@/lib/db/schema';
 import { eq, gt, lte, desc, and, isNull, isNotNull } from 'drizzle-orm';
 import { Filter } from 'bad-words';
+import { generateId } from '@/lib/utils';
 
 export enum MuteDuration {
   ONE_HOUR = '1h',
@@ -257,7 +258,7 @@ export async function muteUserForSpam(
     const expiryTime = new Date(startTime.getTime() + AUTO_MUTE_DURATION_MS);
 
     await db.insert(mutes).values({
-      id: `${userId}-${Date.now()}`,
+      id: generateId(), // pg: varchar(24) — `${userId}-${Date.now()}` overflows for real usernames
       playerId: userId,
       moderatorId: 'SYSTEM',
       reason,
@@ -283,7 +284,7 @@ export async function recordWarning(
     const username = playerResult[0]?.username || userId;
 
     await db.insert(warnings).values({
-      id: `${userId}-${Date.now()}`,
+      id: generateId(), // pg: varchar(24)
       playerId: userId,
       moderatorId: 'SYSTEM',
       reason,
@@ -308,7 +309,7 @@ export async function recordWarning(
         const expiryTime = new Date(startTime.getTime() + MUTE_DURATIONS[MuteDuration.TWENTY_FOUR_HOURS]!);
 
         await db.insert(mutes).values({
-          id: `${userId}-${Date.now()}`,
+          id: generateId(), // pg: varchar(24)
           playerId: userId,
           moderatorId: 'SYSTEM',
           reason: `Auto-ban: ${AUTO_BAN_THRESHOLD} warnings in 24 hours`,
@@ -351,13 +352,15 @@ export async function getActiveWarnings(userId: string): Promise<UserWarning[]> 
 
 export async function cleanupExpiredWarnings(): Promise<number> {
   try {
-    const result = await db.delete(warnings).where(eq(warnings.expired, 1));
+    // pg: RETURNING ... length is the portable affected-row count (mysql2 affectedRows does not exist)
+    const result = await db.delete(warnings).where(eq(warnings.expired, 1)).returning({ id: warnings.id });
+    const affected = result.length;
 
-    if ((result as any)[0]?.affectedRows > 0) {
-      console.log(`[ModerationService] Cleaned up ${(result as any)[0]?.affectedRows} expired warnings`);
+    if (affected > 0) {
+      console.log(`[ModerationService] Cleaned up ${affected} expired warnings`);
     }
 
-    return (result as any)[0]?.affectedRows;
+    return affected;
   } catch (error) {
     console.error('[ModerationService] Cleanup expired warnings error:', error);
     return 0;
@@ -419,7 +422,7 @@ export async function muteUser(
     const startTime = new Date();
     const durationMs = MUTE_DURATIONS[duration];
     const expiryTime = durationMs ? new Date(startTime.getTime() + durationMs) : null;
-    const muteId = `${userId}-${Date.now()}`;
+    const muteId = generateId(); // pg: varchar(24)
 
     await db.insert(mutes).values({
       id: muteId,
@@ -473,9 +476,9 @@ export async function unmuteUser(
       return { success: false, error: 'User is not muted' };
     }
 
-    const result = await db.delete(mutes).where(eq(mutes.id, muteResult[0].id));
+    const result = await db.delete(mutes).where(eq(mutes.id, muteResult[0].id)).returning({ id: mutes.id });
 
-    if ((result as any)[0]?.affectedRows === 0) {
+    if (result.length === 0) {
       return { success: false, error: 'Failed to unmute user' };
     }
 
@@ -587,7 +590,9 @@ export async function banFromChannel(
       return { success: false, error: 'User is already banned from this channel' };
     }
 
-    const banId = `${userId}-${channelId}-${Date.now()}`;
+    // pg: id must fit varchar(24) — the old `${userId}-${channelId}-${Date.now()}` template
+    // overflowed for any real username and made every channel-ban insert fail
+    const banId = generateId();
 
     await db.insert(bans).values({
       id: banId,
@@ -647,9 +652,9 @@ export async function unbanFromChannel(
       return { success: false, error: 'User is not banned from this channel' };
     }
 
-    const result = await db.delete(bans).where(eq(bans.id, banResult[0].id));
+    const result = await db.delete(bans).where(eq(bans.id, banResult[0].id)).returning({ id: bans.id });
 
-    if ((result as any)[0]?.affectedRows === 0) {
+    if (result.length === 0) {
       return { success: false, error: 'Failed to unban user' };
     }
 
@@ -784,9 +789,9 @@ export async function removeFromBlacklist(
 
     const normalized = word.toLowerCase().trim();
 
-    const result = await db.delete(wordBlacklist).where(eq(wordBlacklist.word, normalized));
+    const result = await db.delete(wordBlacklist).where(eq(wordBlacklist.word, normalized)).returning({ id: wordBlacklist.id });
 
-    if ((result as any)[0]?.affectedRows === 0) {
+    if (result.length === 0) {
       return { success: false, error: 'Word not found in blacklist' };
     }
 
@@ -898,10 +903,10 @@ export async function expireTemporaryMutes(): Promise<number> {
           isNotNull(mutes.expiresAt),
           lte(mutes.expiresAt, now)
         )
-      );
+      ).returning({ id: mutes.id });
 
-      console.log(`[ModerationService] Expired ${(result as any)[0]?.affectedRows} temporary mutes`);
-      return (result as any)[0]?.affectedRows;
+      console.log(`[ModerationService] Expired ${result.length} temporary mutes`);
+      return result.length;
     }
 
     return 0;

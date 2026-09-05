@@ -26,6 +26,7 @@
 import { eq, and, or, inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
+import { generateId } from '@/lib/utils';
 import {
   Clan,
   ClanMember,
@@ -114,7 +115,13 @@ function rowToClan(row: typeof clans.$inferSelect): Clan {
  * @returns Player row or null
  */
 async function getPlayerById(playerId: string) {
-  const result = await db.select().from(players).where(eq(players.mongoId, playerId)).limit(1);
+  // FID-20260904-005 §5.1 residual #4: post-migration players have NO mongo_id
+  // (the column is NULL for every row), and session identity carries the username.
+  // Callers pass auth.playerId = username, so the lookup matches on username;
+  // mongo_id is kept only as a legacy fallback for pre-migration rows.
+  const byUsername = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  if (byUsername.length > 0) return byUsername[0];
+  const result = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
   return result[0] || null;
 }
 
@@ -323,7 +330,7 @@ export async function createClan(
     clanId,
     clanName: clanName,
     clanRole: ClanRole.LEADER,
-  }).where(eq(players.mongoId, playerId));
+  }).where(eq(players.username, playerId)); // pg: identity is username (mongo_id is NULL post-migration)
   
   // Log activity
   await logClanActivity(clanId, ClanActivityType.CLAN_CREATED, playerId, {
@@ -398,7 +405,7 @@ export async function invitePlayerToClan(
   clanId: string,
   inviterId: string,
   inviteeId: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; invitationId?: string }> {
   // Get clan
   const clan = await getClanById(clanId);
   if (!clan) {
@@ -438,14 +445,18 @@ export async function invitePlayerToClan(
   }
   
   // Create invitation
-  // TODO: clan_invitations table schema not yet created - using raw SQL
-  await db.execute(sql`
+  // pg: clan_invitations (migration 0013) has no id default — generateId() yields
+  // 23 chars, fitting the varchar(24) PK. RETURNING id so the caller can hand the
+  // invitee their invitationId (required by POST /api/clan/join).
+  const inserted = await db.execute<{ id: string }>(sql`
     INSERT INTO clan_invitations 
-    (clan_id, clan_name, inviter_id, inviter_username, invitee_id, invitee_username, created_at, expires_at, status)
-    VALUES (${clanId}, ${clan.name}, ${inviterId}, ${inviterMember.username}, ${inviteeId}, ${invitee.username}, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY), 'pending')
+    (id, clan_id, clan_name, inviter_id, inviter_username, invitee_id, invitee_username, created_at, expires_at, status)
+    VALUES (${generateId()}, ${clanId}, ${clan.name}, ${inviterId}, ${inviterMember.username}, ${inviteeId}, ${invitee.username}, NOW(), NOW() + INTERVAL '7 days', 'pending')
+    RETURNING id
   `);
+  const invitationId = inserted.rows[0]?.id;
   
-  return { success: true, message: `Invitation sent to ${invitee.username}` };
+  return { success: true, message: `Invitation sent to ${invitee.username}`, invitationId };
 }
 
 /**
@@ -470,12 +481,17 @@ export async function joinClan(
     LIMIT 1
   `);
   
-  const rows = (invitationResult as any)[0];
+  // pg: db.execute returns QueryResult — rows live on .rows (mysql2 array access was invalid)
+  const rows = (invitationResult as unknown as { rows: Record<string, unknown>[] }).rows;
   if (!rows || rows.length === 0) {
     throw new Error('Invitation not found or already processed');
   }
   
-  const invitation = rows[0];
+  const invitation = rows[0] as {
+    id: string;
+    clan_id: string;
+    expires_at: string | Date;
+  };
   
   // Check expiration
   if (new Date() > new Date(invitation.expires_at)) {
@@ -519,7 +535,7 @@ export async function joinClan(
   // Add member to clan - read JSON array, modify, then update
   const updatedMembers = [...clan.members, newMember];
   await db.update(clans).set({
-    members: updatedMembers as any,
+    members: updatedMembers,
   }).where(eq(clans.id, invitation.clan_id));
   
   // Update player with clan info (INCLUDING clanName for display)
@@ -527,7 +543,7 @@ export async function joinClan(
     clanId: invitation.clan_id,
     clanName: clan.name,
     clanRole: ClanRole.RECRUIT,
-  }).where(eq(players.mongoId, playerId));
+  }).where(eq(players.username, playerId)); // pg: identity is username
   
   // Mark invitation as accepted
   await db.execute(sql`
@@ -584,7 +600,7 @@ export async function leaveClan(clanId: string, playerId: string): Promise<{ suc
     clanId: null,
     clanName: null,
     clanRole: null,
-  }).where(eq(players.mongoId, playerId));
+  }).where(eq(players.username, playerId)); // pg: identity is username
   
   // Log activity
   await logClanActivity(clanId, ClanActivityType.MEMBER_LEFT, playerId, {
@@ -668,7 +684,7 @@ export async function kickMember(
     clanId: null,
     clanName: null,
     clanRole: null,
-  }).where(eq(players.mongoId, targetId));
+  }).where(eq(players.username, targetId));
   
   // Log activity
   await logClanActivity(clanId, ClanActivityType.MEMBER_KICKED, kickerId, {
@@ -776,7 +792,7 @@ export async function promoteMember(
   // Update player role
   await db.update(players).set({
     clanRole: newRole,
-  }).where(eq(players.mongoId, targetId));
+  }).where(eq(players.username, targetId));
   
   // Log activity
   const isPromotion = newRank > targetRank;
@@ -857,11 +873,11 @@ export async function transferLeadership(
   // Update player roles
   await db.update(players).set({
     clanRole: ClanRole.CO_LEADER,
-  }).where(eq(players.mongoId, currentLeaderId));
+  }).where(eq(players.username, currentLeaderId));
   
   await db.update(players).set({
     clanRole: ClanRole.LEADER,
-  }).where(eq(players.mongoId, newLeaderId));
+  }).where(eq(players.username, newLeaderId));
   
   // Log activity
   await logClanActivity(clanId, ClanActivityType.LEADERSHIP_TRANSFERRED, currentLeaderId, {
@@ -964,7 +980,7 @@ export async function disbandClan(clanId: string, playerId: string): Promise<{ s
   await db.update(players).set({
     clanId: null,
     clanRole: null,
-  }).where(inArray(players.mongoId, memberIds));
+  }).where(inArray(players.username, memberIds));
   
   // Delete clan
   await db.delete(clans).where(eq(clans.id, clanId));

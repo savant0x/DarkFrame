@@ -269,7 +269,8 @@ export async function cleanupOldActivities(
       AND timestamp < ${cutoffDate}
   `);
   
-  return Number((result as unknown as any).affectedRows || 0);
+  // pg: QueryResult.rowCount carries the affected-row count (mysql2 affectedRows does not exist)
+  return result.rowCount ?? 0;
 }
 
 export async function getActivityTimeline(

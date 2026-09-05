@@ -118,21 +118,40 @@ export const CONTRACT_LIMITS: Record<AllianceType, ContractType[]> = {
   ],
 };
 
-function rowToAlliance(row: any): Alliance {
+// Typed accessors for pg rows (jsonb columns arrive already-parsed; tolerate string forms)
+function asString(v: unknown): string {
+  return typeof v === 'string' ? v : String(v ?? '');
+}
+function asDate(v: unknown): Date {
+  return new Date(v as string | number | Date);
+}
+function asJson<T>(v: unknown, fallback: T): T {
+  if (v == null) return fallback;
+  if (typeof v === 'string') {
+    try {
+      return JSON.parse(v) as T;
+    } catch {
+      return fallback;
+    }
+  }
+  return v as T;
+}
+
+function rowToAlliance(row: Record<string, unknown>): Alliance {
   return {
-    _id: row.id,
-    clanIds: JSON.parse(row.clan_ids),
-    type: row.type,
-    status: row.status,
-    proposedBy: row.proposed_by,
-    proposedAt: new Date(row.proposed_at),
-    acceptedAt: row.accepted_at ? new Date(row.accepted_at) : undefined,
-    contracts: typeof row.contracts === 'string' ? JSON.parse(row.contracts) : (row.contracts || []),
-    cost: typeof row.cost === 'string' ? JSON.parse(row.cost) : row.cost,
-    brokenAt: row.broken_at ? new Date(row.broken_at) : undefined,
-    brokenBy: row.broken_by || undefined,
-    cooldownUntil: row.cooldown_until ? new Date(row.cooldown_until) : undefined,
-    metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata,
+    _id: String(row.id),
+    clanIds: asJson<[string, string]>(row.clan_ids, ['', '']),
+    type: asString(row.type) as AllianceType,
+    status: asString(row.status) as AllianceStatus,
+    proposedBy: asString(row.proposed_by),
+    proposedAt: asDate(row.proposed_at),
+    acceptedAt: row.accepted_at != null ? asDate(row.accepted_at) : undefined,
+    contracts: asJson<AllianceContract[]>(row.contracts, []),
+    cost: asJson<Alliance['cost']>(row.cost, { metal: 0, energy: 0 }),
+    brokenAt: row.broken_at != null ? asDate(row.broken_at) : undefined,
+    brokenBy: row.broken_by != null ? asString(row.broken_by) : undefined,
+    cooldownUntil: row.cooldown_until != null ? asDate(row.cooldown_until) : undefined,
+    metadata: asJson<Alliance['metadata']>(row.metadata, { createdBy: '', createdByUsername: '' }),
   };
 }
 
@@ -161,30 +180,32 @@ export async function proposeAlliance(
     throw new Error('Only Leaders or Co-Leaders can propose alliances');
   }
   
+  // pg: jsonb-array containment probe must be array-shaped (["id"], not "id"),
+  // and drizzle results carry .rows (mysql2-style array indexing is invalid)
   const existingRows = await db.execute(sql`
     SELECT * FROM clan_alliances
-    WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(proposingClanId)})
-      AND JSON_CONTAINS(clan_ids, ${JSON.stringify(targetClanId)})
+    WHERE clan_ids @> ${JSON.stringify([proposingClanId])}::jsonb
+      AND clan_ids @> ${JSON.stringify([targetClanId])}::jsonb
       AND status IN (${AllianceStatus.PROPOSED}, ${AllianceStatus.ACTIVE})
     LIMIT 1
   `);
   
-  if ((existingRows as any).length > 0) {
+  if (existingRows.rows.length > 0) {
     throw new Error('Alliance already exists or is pending');
   }
   
   const brokenRows = await db.execute(sql`
     SELECT * FROM clan_alliances
-    WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(proposingClanId)})
-      AND JSON_CONTAINS(clan_ids, ${JSON.stringify(targetClanId)})
+    WHERE clan_ids @> ${JSON.stringify([proposingClanId])}::jsonb
+      AND clan_ids @> ${JSON.stringify([targetClanId])}::jsonb
       AND status = ${AllianceStatus.BROKEN}
       AND cooldown_until > NOW()
     LIMIT 1
   `);
   
-  if ((brokenRows as any).length > 0) {
-    const brokenRow = (brokenRows as any)[0] as any;
-    const hoursRemaining = Math.ceil((new Date(brokenRow.cooldown_until).getTime() - Date.now()) / 3600000);
+  if (brokenRows.rows.length > 0) {
+    const brokenRow = brokenRows.rows[0] as Record<string, unknown>;
+    const hoursRemaining = Math.ceil((asDate(brokenRow.cooldown_until).getTime() - Date.now()) / 3600000);
     throw new Error(`Alliance cooldown active. ${hoursRemaining} hours remaining.`);
   }
   
@@ -223,15 +244,17 @@ export async function proposeAlliance(
     },
   };
   
+  // pg: RETURNING id replaces the MySQL insertId
   const result = await db.execute(sql`
     INSERT INTO clan_alliances
     (clan_ids, type, status, proposed_by, proposed_at, contracts, cost, metadata)
     VALUES (${JSON.stringify(alliance.clanIds)}, ${alliance.type}, ${alliance.status},
             ${alliance.proposedBy}, ${alliance.proposedAt}, ${JSON.stringify(alliance.contracts)},
             ${JSON.stringify(alliance.cost)}, ${JSON.stringify(alliance.metadata)})
+    RETURNING id
   `);
-  
-  const createdAlliance = { ...alliance, _id: (result as any).insertId?.toString() } as Alliance;
+  const insertedId = (result.rows[0] as { id: number | string } | undefined)?.id;
+  const createdAlliance = { ...alliance, _id: insertedId?.toString() } as Alliance;
   
   await db.execute(sql`
     INSERT INTO clan_activities
@@ -267,11 +290,11 @@ export async function acceptAlliance(
   acceptedBy: string
 ): Promise<Alliance> {
   const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  if ((allianceRows as any).length === 0) {
+  if (allianceRows.rows.length === 0) {
     throw new Error('Alliance not found');
   }
   
-  const alliance = rowToAlliance((allianceRows as any)[0]);
+  const alliance = rowToAlliance(allianceRows.rows[0]);
   
   if (alliance.status !== AllianceStatus.PROPOSED) {
     throw new Error('Alliance is not in proposed state');
@@ -350,7 +373,7 @@ export async function acceptAlliance(
   `);
   
   const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  return rowToAlliance((updatedRows as any)[0]);
+  return rowToAlliance(updatedRows.rows[0]);
 }
 
 export async function breakAlliance(
@@ -359,11 +382,11 @@ export async function breakAlliance(
   brokenBy: string
 ): Promise<Alliance> {
   const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  if ((allianceRows as any).length === 0) {
+  if (allianceRows.rows.length === 0) {
     throw new Error('Alliance not found');
   }
   
-  const alliance = rowToAlliance((allianceRows as any)[0]);
+  const alliance = rowToAlliance(allianceRows.rows[0]);
   
   if (alliance.status !== AllianceStatus.ACTIVE) {
     throw new Error('Alliance is not active');
@@ -427,7 +450,7 @@ export async function breakAlliance(
   `);
   
   const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  return rowToAlliance((updatedRows as any)[0]);
+  return rowToAlliance(updatedRows.rows[0]);
 }
 
 export async function addContract(
@@ -438,11 +461,11 @@ export async function addContract(
   terms: AllianceContract['terms']
 ): Promise<Alliance> {
   const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  if ((allianceRows as any).length === 0) {
+  if (allianceRows.rows.length === 0) {
     throw new Error('Alliance not found');
   }
   
-  const alliance = rowToAlliance((allianceRows as any)[0]);
+  const alliance = rowToAlliance(allianceRows.rows[0]);
   
   if (alliance.status !== AllianceStatus.ACTIVE) {
     throw new Error('Alliance must be active to add contracts');
@@ -502,7 +525,7 @@ export async function addContract(
   `);
   
   const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  return rowToAlliance((updatedRows as any)[0]);
+  return rowToAlliance(updatedRows.rows[0]);
 }
 
 export async function removeContract(
@@ -512,11 +535,11 @@ export async function removeContract(
   contractType: ContractType
 ): Promise<Alliance> {
   const allianceRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  if ((allianceRows as any).length === 0) {
+  if (allianceRows.rows.length === 0) {
     throw new Error('Alliance not found');
   }
   
-  const alliance = rowToAlliance((allianceRows as any)[0]);
+  const alliance = rowToAlliance(allianceRows.rows[0]);
   
   if (!alliance.clanIds.includes(clanId)) {
     throw new Error('Clan is not part of this alliance');
@@ -552,7 +575,7 @@ export async function removeContract(
   `);
   
   const updatedRows = await db.execute(sql`SELECT * FROM clan_alliances WHERE id = ${allianceId} LIMIT 1`);
-  return rowToAlliance((updatedRows as any)[0]);
+  return rowToAlliance(updatedRows.rows[0]);
 }
 
 function validateContractTerms(contractType: ContractType, terms: AllianceContract['terms']): void {
@@ -584,16 +607,16 @@ export async function getAlliancesForClan(
   clanId: string,
   includeInactive = false
 ): Promise<Alliance[]> {
-  let query = sql`SELECT * FROM clan_alliances WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId)})`;
+  let query = sql`SELECT * FROM clan_alliances WHERE clan_ids @> ${JSON.stringify([clanId])}::jsonb`;
   
   if (!includeInactive) {
-    query = sql`SELECT * FROM clan_alliances WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId)}) AND status IN (${AllianceStatus.PROPOSED}, ${AllianceStatus.ACTIVE})`;
+    query = sql`SELECT * FROM clan_alliances WHERE clan_ids @> ${JSON.stringify([clanId])}::jsonb AND status IN (${AllianceStatus.PROPOSED}, ${AllianceStatus.ACTIVE})`;
   }
   
   query = sql`${query} ORDER BY proposed_at DESC`;
   
   const result = await db.execute(query);
-  return (result.rows as any[]).map(rowToAlliance);
+  return result.rows.map((r) => rowToAlliance(r as Record<string, unknown>));
 }
 
 export async function getAllianceBetweenClans(
@@ -602,14 +625,14 @@ export async function getAllianceBetweenClans(
 ): Promise<Alliance | null> {
   const result = await db.execute(sql`
     SELECT * FROM clan_alliances
-    WHERE JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId1)})
-      AND JSON_CONTAINS(clan_ids, ${JSON.stringify(clanId2)})
+    WHERE clan_ids @> ${JSON.stringify([clanId1])}::jsonb
+      AND clan_ids @> ${JSON.stringify([clanId2])}::jsonb
       AND status = ${AllianceStatus.ACTIVE}
     LIMIT 1
   `);
   
-  if ((result as any).length === 0) return null;
-  return rowToAlliance((result as any)[0]);
+  if (result.rows.length === 0) return null;
+  return rowToAlliance(result.rows[0]);
 }
 
 export async function areAllies(clanId1: string, clanId2: string): Promise<boolean> {

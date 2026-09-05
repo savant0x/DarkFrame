@@ -111,7 +111,7 @@ export default function ReputationPanel() {
   const [sortBy, setSortBy] = useState<'defeats' | 'reputation' | 'recent'>('defeats');
 
   // ============================================================================
-  // DATA FETCHING (Mock for now - integrate with bot scanner service)
+  // DATA FETCHING (live bot reputation from /api/bot-scanner/tracked)
   // ============================================================================
 
   useEffect(() => {
@@ -120,45 +120,29 @@ export default function ReputationPanel() {
         setLoading(true);
         setError(null);
 
-        // TODO: Replace with actual API call to bot scanner service
-        // const response = await fetch('/api/bot-scanner/tracked');
-        // const data = await response.json();
+        // Real data: botConfig defeat counters maintained by botCombatService
+        const response = await fetch('/api/bot-scanner/tracked');
+        const data = await response.json();
 
-        // Mock data for demonstration
-        const mockBots: TrackedBot[] = [
-          {
-            botId: 'bot-001',
-            botName: 'IronVault_42',
-            specialization: 'Fortress',
-            tier: 5,
-            defeats: 35,
-            reputation: 'legendary',
-            lastDefeatAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-            totalLoot: { metal: 450000, energy: 280000 },
-          },
-          {
-            botId: 'bot-002',
-            botName: 'GhostRaider_13',
-            specialization: 'Ghost',
-            tier: 4,
-            defeats: 18,
-            reputation: 'infamous',
-            lastDefeatAt: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
-            totalLoot: { metal: 280000, energy: 190000 },
-          },
-          {
-            botId: 'bot-003',
-            botName: 'Hoarder_99',
-            specialization: 'Hoarder',
-            tier: 3,
-            defeats: 8,
-            reputation: 'notorious',
-            lastDefeatAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-            totalLoot: { metal: 120000, energy: 80000 },
-          },
-        ];
+        if (!data.success) {
+          throw new Error(data.message || 'Failed to load tracked bots');
+        }
 
-        setTrackedBots(mockBots);
+        const bots: TrackedBot[] = (data.bots || []).map((b: Record<string, unknown>) => ({
+          botId: String(b.botId),
+          botName: String(b.botName),
+          specialization: String(b.specialization),
+          tier: Number(b.tier),
+          defeats: Number(b.defeats),
+          reputation: String(b.reputation) as BotReputation,
+          lastDefeatAt: b.lastDefeatAt ? new Date(String(b.lastDefeatAt)) : new Date(0),
+          totalLoot: {
+            metal: Number((b.totalLoot as { metal?: number } | undefined)?.metal ?? 0),
+            energy: Number((b.totalLoot as { energy?: number } | undefined)?.energy ?? 0),
+          },
+        }));
+
+        setTrackedBots(bots);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load tracked bots');
       } finally {

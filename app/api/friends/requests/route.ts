@@ -30,7 +30,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getPendingRequests, getSentRequests } from '@/lib/friendService';
 import { ValidationError } from '@/lib/common/errors';
@@ -66,11 +65,7 @@ import type { FriendRequestWithPlayer } from '@/types/friend';
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
-
-    // 2. Authenticate user
+    // Authenticate user (Postgres pivot: services own all persistence — no Mongo client here)
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     

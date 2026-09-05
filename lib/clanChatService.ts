@@ -140,12 +140,13 @@ export async function sendClanChatMessage(
     AND deleted_at IS NULL
   `);
   
-  const recentMessages = Number((rateResult as any)[0]?.cnt || 0);
+  const recentMessages = Number((rateResult.rows[0] as { cnt?: string | number } | undefined)?.cnt || 0);
   if (recentMessages >= CHAT_LIMITS.RATE_LIMIT_MESSAGES) {
     throw new Error(`Rate limit exceeded. Max ${CHAT_LIMITS.RATE_LIMIT_MESSAGES} messages per ${CHAT_LIMITS.RATE_LIMIT_WINDOW_SECONDS} seconds`);
   }
   
-  const playerResult = await db.select().from(players).where(eq(players.mongoId, playerId)).limit(1);
+  // pg: identity is username (mongo_id is NULL post-migration)
+  const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
   const player = playerResult[0];
   
   const messageId = crypto.randomUUID().slice(0, 24);
@@ -236,20 +237,20 @@ export async function getClanChatMessages(
   query = sql`${query} ORDER BY timestamp DESC LIMIT ${cappedLimit}`;
   
   const messages = await db.execute(query);
-  return (messages as any).map((row: any) => ({
-    id: row.id,
-    clanId: row.clan_id,
-    type: row.type,
-    playerId: row.player_id,
-    username: row.username,
-    role: row.role,
-    message: row.message,
-    timestamp: new Date(row.timestamp),
-    editedAt: row.edited_at ? new Date(row.edited_at) : undefined,
-    deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
-    deletedBy: row.deleted_by,
-    eventType: row.event_type,
-    eventData: row.event_data ? JSON.parse(row.event_data) : undefined,
+  return (messages.rows as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    clanId: String(row.clan_id),
+    type: String(row.type) as MessageType,
+    playerId: row.player_id != null ? String(row.player_id) : undefined,
+    username: row.username != null ? String(row.username) : undefined,
+    role: row.role != null ? String(row.role) : undefined,
+    message: String(row.message),
+    timestamp: new Date(row.timestamp as string),
+    editedAt: row.edited_at ? new Date(row.edited_at as string) : undefined,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at as string) : undefined,
+    deletedBy: row.deleted_by != null ? String(row.deleted_by) : undefined,
+    eventType: row.event_type != null ? String(row.event_type) : undefined,
+    eventData: row.event_data ? (typeof row.event_data === 'string' ? JSON.parse(row.event_data) : row.event_data) : undefined,
   }));
 }
 
@@ -338,7 +339,7 @@ export async function deleteClanChatMessage(
   playerId: string
 ): Promise<void> {
   const messageResult = await db.execute(sql`SELECT * FROM clan_chat_messages WHERE id = ${messageId} LIMIT 1`);
-  const message = ((messageResult as any) as any[])[0];
+  const message = messageResult.rows[0] as Record<string, unknown> | undefined;
   
   if (!message) {
     throw new Error('Message not found');
@@ -390,7 +391,7 @@ export async function getMessageCount(clanId: string): Promise<number> {
     WHERE clan_id = ${clanId} AND deleted_at IS NULL
   `);
   
-  return Number((result as any)[0]?.cnt || 0);
+  return Number((result.rows[0] as { cnt?: string | number } | undefined)?.cnt || 0);
 }
 
 /**
@@ -410,19 +411,19 @@ export async function getMessagesSince(clanId: string, since: Date): Promise<Cha
     ORDER BY timestamp ASC
   `);
   
-  return (messages as any).map((row: any) => ({
-    id: row.id,
-    clanId: row.clan_id,
-    type: row.type,
-    playerId: row.player_id,
-    username: row.username,
-    role: row.role,
-    message: row.message,
-    timestamp: new Date(row.timestamp),
-    editedAt: row.edited_at ? new Date(row.edited_at) : undefined,
-    deletedAt: row.deleted_at ? new Date(row.deleted_at) : undefined,
-    deletedBy: row.deleted_by,
-    eventType: row.event_type,
-    eventData: row.event_data ? JSON.parse(row.event_data) : undefined,
+  return (messages.rows as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    clanId: String(row.clan_id),
+    type: String(row.type) as MessageType,
+    playerId: row.player_id != null ? String(row.player_id) : undefined,
+    username: row.username != null ? String(row.username) : undefined,
+    role: row.role != null ? String(row.role) : undefined,
+    message: String(row.message),
+    timestamp: new Date(row.timestamp as string),
+    editedAt: row.edited_at ? new Date(row.edited_at as string) : undefined,
+    deletedAt: row.deleted_at ? new Date(row.deleted_at as string) : undefined,
+    deletedBy: row.deleted_by != null ? String(row.deleted_by) : undefined,
+    eventType: row.event_type != null ? String(row.event_type) : undefined,
+    eventData: row.event_data ? (typeof row.event_data === 'string' ? JSON.parse(row.event_data) : row.event_data) : undefined,
   }));
 }

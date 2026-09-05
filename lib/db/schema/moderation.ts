@@ -35,7 +35,7 @@ export const modLog = pgTable('mod_log', {
 	id: varchar('id', { length: 24 }).primaryKey().$defaultFn(() => crypto.randomUUID().slice(0, 24)),
 	moderatorId: varchar('moderator_id', { length: 20 }).notNull(),
 	action: varchar('action', { length: 50 }).notNull(),
-	targetId: varchar('target_id', { length: 20 }).notNull(),
+	targetId: varchar('target_id', { length: 24 }).notNull(),
 	reason: text('reason'),
 	details: text('details'),
 	createdAt: timestamp('created_at').notNull(),

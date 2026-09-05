@@ -21,6 +21,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
+import { inArray } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
 import {
   muteUser,
   unmuteUser,
@@ -30,11 +33,11 @@ import {
   removeFromBlacklist,
   getActiveMutes,
   getActiveChannelBans,
+  getBlacklist,
   getModerationHistory,
   isAdmin,
   type MuteDuration,
 } from '@/lib/moderationService';
-import type { PlayerContext } from '@/lib/channelService';
 
 // ============================================================================
 // TYPES
@@ -75,35 +78,6 @@ interface ModerationQuery {
   targetUserId?: string;
   moderatorId?: string;
   limit?: string;
-}
-
-// ============================================================================
-// AUTHENTICATION (PLACEHOLDER)
-// ============================================================================
-
-/**
- * Get authenticated user from request
- * 
- * TODO: Replace with actual authentication once next-auth is installed
- * 
- * @param request - Next.js request object
- * @returns Player context or null if not authenticated
- */
-async function getAuthenticatedUser(
-  request: NextRequest
-): Promise<PlayerContext | null> {
-  // TODO: Implement actual authentication
-  // See app/api/chat/route.ts for implementation notes
-
-  // PLACEHOLDER: Mock admin user for development
-  return {
-    username: 'AdminUser',
-    level: 100,
-    isVIP: true,
-    clanId: undefined,
-    isMuted: false,
-    channelBans: [],
-  };
 }
 
 // ============================================================================
@@ -399,11 +373,18 @@ export async function GET(request: NextRequest) {
     switch (type) {
       case 'mutes': {
         const mutes = await getActiveMutes();
+        // Enrich with usernames (playerId and moderatorId both reference players.username)
+        const ids = [...new Set(mutes.flatMap((m) => [m.playerId, m.moderatorId]))].filter(Boolean);
+        const nameMap = new Map<string, string>();
+        if (ids.length > 0) {
+          const rows = await db.select({ username: players.username }).from(players).where(inArray(players.username, ids));
+          for (const r of rows) nameMap.set(r.username, r.username);
+        }
         return NextResponse.json(
           {
             success: true,
             type: 'mutes',
-            data: mutes,
+            data: mutes.map((m) => ({ ...m, username: nameMap.get(m.playerId) ?? m.playerId, mutedBy: nameMap.get(m.moderatorId) ?? m.moderatorId })),
             count: mutes.length,
           },
           { status: 200 }
@@ -412,11 +393,19 @@ export async function GET(request: NextRequest) {
 
       case 'bans': {
         const bans = await getActiveChannelBans();
+        // Channel-ban rows store the channelId in moderatorId (see banFromChannel);
+        // only the playerId needs username enrichment.
+        const ids = [...new Set(bans.map((b) => b.playerId))].filter(Boolean);
+        const nameMap = new Map<string, string>();
+        if (ids.length > 0) {
+          const rows = await db.select({ username: players.username }).from(players).where(inArray(players.username, ids));
+          for (const r of rows) nameMap.set(r.username, r.username);
+        }
         return NextResponse.json(
           {
             success: true,
             type: 'bans',
-            data: bans,
+            data: bans.map((b) => ({ ...b, username: nameMap.get(b.playerId) ?? b.playerId, channelId: b.moderatorId })),
             count: bans.length,
           },
           { status: 200 }
@@ -424,15 +413,13 @@ export async function GET(request: NextRequest) {
       }
 
       case 'blacklist': {
-        // Note: getBlacklist() is not imported yet
-        // TODO: Import and use when available
+        const blacklist = await getBlacklist();
         return NextResponse.json(
           {
             success: true,
             type: 'blacklist',
-            data: [],
-            count: 0,
-            note: 'Blacklist endpoint not yet implemented',
+            data: blacklist,
+            count: blacklist.length,
           },
           { status: 200 }
         );

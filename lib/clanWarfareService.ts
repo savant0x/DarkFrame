@@ -18,13 +18,10 @@ interface ClanWarfareRow {
   name: string;
   tag: string;
   members: Array<{ playerId: string; role: string }>;
-  level: { currentLevel: number };
-  bank?: {
-    treasury?: {
-      metal?: bigint | number | null;
-      energy?: bigint | number | null;
-    };
-  };
+  // pg row shape (drizzle): flat columns, NOT nested domain objects
+  levelCurrentLevel: number;
+  bankTreasuryMetal: number | null;
+  bankTreasuryEnergy: number | null;
   activePerks?: Array<{ bonus?: { type?: string; value?: number } | null }>;
   territories?: Array<{
     clanId: string;
@@ -80,9 +77,9 @@ export async function declareWar(
     throw new Error('Only Leaders, Co-Leaders, and Officers can declare war');
   }
 
-  if (clan.level.currentLevel < WAR_CONSTANTS.MIN_LEVEL_TO_DECLARE_WAR) {
+  if (clan.levelCurrentLevel < WAR_CONSTANTS.MIN_LEVEL_TO_DECLARE_WAR) {
     throw new Error(
-      `Clan level ${WAR_CONSTANTS.MIN_LEVEL_TO_DECLARE_WAR} required to declare war (current: ${clan.level.currentLevel})`
+      `Clan level ${WAR_CONSTANTS.MIN_LEVEL_TO_DECLARE_WAR} required to declare war (current: ${clan.levelCurrentLevel})`
     );
   }
 
@@ -103,8 +100,8 @@ export async function declareWar(
     energy: Math.floor(baseCost.energy * (1 - costReduction / 100)),
   };
 
-  const currentMetal = Number(clan.bank?.treasury?.metal ?? 0n);
-  const currentEnergy = Number(clan.bank?.treasury?.energy ?? 0n);
+  const currentMetal = Number(clan.bankTreasuryMetal ?? 0);
+  const currentEnergy = Number(clan.bankTreasuryEnergy ?? 0);
 
   if (currentMetal < finalCost.metal) {
     throw new Error(`Insufficient Metal (need ${finalCost.metal}, have ${currentMetal})`);
@@ -113,14 +110,9 @@ export async function declareWar(
     throw new Error(`Insufficient Energy (need ${finalCost.energy}, have ${currentEnergy})`);
   }
 
-  await db.update(clans)
-    .set({
-      bankTreasuryMetal: Number(BigInt(currentMetal - finalCost.metal)),
-      bankTreasuryEnergy: Number(BigInt(currentEnergy - finalCost.energy)),
-      statsTotalTerritories: (clan.statsTotalTerritories || 0) + 1,
-    })
-    .where(eq(clans.id, clanId));
-
+  // Atomicity (FID §5.2 money-loss class): the treasury debit and the WAR_DECLARED
+  // record must commit together. Previously a failed mod_log insert (id overflow /
+  // target_id width) left the treasury debited with no war in existence.
   const warId = `${clanId}-${targetClanId}-${Date.now()}`;
   const warDoc: ClanWar = {
     warId,
@@ -141,13 +133,27 @@ export async function declareWar(
   };
 
   const { modLog } = await import('@/lib/db/schema');
-  await db.insert(modLog).values({
-    moderatorId: playerId,
-    action: 'WAR_DECLARED',
-    targetId: targetClanId,
-    reason: `War declared on ${targetClan.name}`,
-    details: JSON.stringify({ warId, targetClanId, cost: finalCost }),
-    createdAt: new Date(),
+  // pg: mod_log.id is varchar(24) with no auto default that fits — drizzle's uuid
+  // default (36 chars) overflows. generateId() yields 23 chars (FID §5.2 id-overflow class).
+  const { generateId } = await import('@/lib/utils');
+
+  await db.transaction(async (tx) => {
+    await tx.insert(modLog).values({
+      id: generateId(),
+      moderatorId: playerId,
+      action: 'WAR_DECLARED',
+      targetId: targetClanId,
+      reason: `War declared on ${targetClan.name}`,
+      details: JSON.stringify({ warId, attackerClanId: clanId, targetClanId, cost: finalCost }),
+      createdAt: new Date(),
+    });
+
+    await tx.update(clans)
+      .set({
+        bankTreasuryMetal: Number(BigInt(currentMetal - finalCost.metal)),
+        bankTreasuryEnergy: Number(BigInt(currentEnergy - finalCost.energy)),
+      })
+      .where(eq(clans.id, clanId));
   });
 
   return {
