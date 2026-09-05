@@ -157,11 +157,14 @@ export async function createAuctionListing(
     await auctionsCollection.insertOne(auction);
 
     // Deduct listing fee and lock item
+    // Merge the listing fee into the item-lock $inc (fee + locked amount share the
+    // resources_metal column). Spreading lockUpdate OVER $inc REPLACED the fee entry,
+    // so sellers never actually paid the listing fee (live-verified: 10 metal refund).
+    const lockInc = (itemValidation.lockUpdate?.$inc ?? {}) as Record<string, number>;
     await playersCollection.updateOne(
       { username: sellerUsername },
       {
-        $inc: { resources_metal: -listingFee },
-        ...itemValidation.lockUpdate
+        $inc: { resources_metal: -listingFee, ...lockInc }
       }
     );
 

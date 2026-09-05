@@ -469,14 +469,23 @@ Status → `converged`. Implementation (IMPLEMENT phase) is authorized per §8 d
 | 0 | lib/tutorialService.ts, components/tutorial/TutorialQuestPanel.tsx | +74 −16 | DONE pre-convergence (`b3e2b56`) — M7 |
 | 1a | lib/jwt.ts, lib/authMiddleware.ts, lib/authService.ts, lib/websocket/auth.ts, lib/wmd/apiHelpers.ts, lib/middleware/activityLogger.ts | ~+20 −10 | **DONE (IMPLEMENT)** — `SESSION_COOKIE_NAME` created in lib/jwt; 3 defaults + 4 local consts repointed; FIFTH phantom site found during implementation (`activityLogger.ts:157` read `'token'`) and fixed — validates the §5.0 consolidation design. Gates: tsc 0; 341 tests + 4 sanitize proofs green. |
 | 1b | lib/playerSanitize.ts (new), lib/playerService.ts, app/api/auth/login/route.ts, __tests__/lib/playerSanitize.proof.test.ts | +160 −8 | **DONE (IMPLEMENT)** — allowlist sanitizer + `includePrivate` opt-in on getPlayerByUsername/getPlayerByEmail; login switched from rest-spread denylist to allowlist. LIVE PROOF (dev server :51514): login 200 → zero sensitive keys, allowlist fields only; `/api/player` 200 → no password/email/signupIp/stripeCustomerId/referredBy, client-critical fields (currentPosition/resources/bank/baseX) intact. |
-| 1c | (shim a–e) | — | pending |
-| 1d | (migration 0009 + schema mirror) | — | pending |
+| 1c | lib/mongodb.ts | +180 −30 | **DONE (IMPLEMENT, live-verified)** — (a) upsert insert route now passes through `ensureRowId` (first-presence upserts no longer `values (default,…)` 500); (b) race-safe `onConflictDoUpdate` against verified unique indexes (`user_presence.user_id`, composite `tutorial_action_tracking`); (c) `updateOne`/`updateMany` reject empty filters (`INVALID_EMPTY_FILTER`); (d) doc-path filters translate to jsonb containment (dual array/object probe — bare-object probes fail against jsonb arrays, live-proven); (e) auctions doc↔column bridge completed: `insertOne` synthesizes `doc` from the domain listing, fills legacy NOT NULL mirrors (seller_id/item_data/starting_price), `$set` of mirrored columns syncs the doc copy via chained `jsonb_set`, non-column `$set` and `$push` (placeBid bids) land inside `doc`, `$pull` similarly; reads overlay non-null columns onto doc; (f) **snake-case alias resolution** in `resolveKeyToProp` (`resources_metal` → `resourcesMetal`) plus **$inc delta merging by resolved column** (two loops previously overwrote each other — buyer debit and seller credit were silently dropped); (g) empty-filter `updateOne` mass-update hazard closed. |
+| 1d | lib/db/migrations/0009_phantom_tables.sql, 0009b_auction_doc_bridge_parity.sql (new), lib/db/schema/config.ts, lib/researchPointService.ts, app/api/admin/rp-economy/transactions/route.ts | +120 | **DONE (IMPLEMENT, live-verified)** — 0009 creates `rptransactions` + `bot_migration_history` + index parity; RP row-mapping fixed to lowercase pg keys. **0009b lesson (recorded):** migration 0008 had been EDITED after it was already applied, so the live `auctions` table held the pre-#25 shape and `trade_history` never existed — migrations are immutable once applied; corrections go in a NEW file. 0009b rebuilds `auctions` with the doc bridge (0 rows live, verified lossless) and creates `trade_history`. Also fixed `rp-economy/transactions` MySQL-dialect `?`-placeholders (never bound under drizzle) → pg `sql` template with bound params; heartbeat/typing now take identity from the session, not the body. |
+| 3a | (persistence — early slice pulled forward) | — | **PARTIAL** — heartbeat 401/200, typing 200, bot-migration 200, rp-economy 200, my-bids 200, auction create/bid/buyout 200 all live-verified (see below). Remaining Phase 3 items (analytics SQL qualifiers, DM/warfare MySQL rewrites, activityLog 24-char ids) pending. |
 | 2 | (auth sweep per-route) | — | pending |
-| 3 | (persistence sequence) | — | pending |
 | 4 | (dead-wire rebuilds) | — | pending |
 | 5 | (de-mock + @ts-nocheck + lint-zero) | — | pending |
 
-- **Verification evidence:** per-phase (pasted at implementation time).
+- **Verification evidence (1c/1d, 2026-09-05, dev server :51234 on transaction pooler :6543):**
+  - heartbeat no-auth **401**; authed **200/200** (insert + update paths of the race-safe upsert)
+  - typing **200**; bot-migration **200** (phantom table created); rp-economy/transactions **200** with mapped keys
+  - my-bids **200** (doc-path containment predicate; single-element-array wrap proven required)
+  - **FULL LISTING→BID→BUYOUT CYCLE** (two accounts, all amounts DB-verified):
+    seller fame 5000 → **4890** (= 5000 − 150 fee − 150 item + 190 sale; buyer 10000 → **9800** (= −200 buyout);
+    auction row `sold/settled`, final 200, winner verifybuyer; `trade_history` row final 200, fee 10, seller-received 190;
+    doc.bids = 1 entry; doc.item intact.
+  - **Env discovery (out-of-scope surface, needs operator-visible note):** Supabase SESSION pooler (pg :5432, pool_size 15) rejects connections once serverless functions + local processes exceed 15 session clients (`EMAXCONNSESSION` — root cause of production pool-exhaustion 500s). Serverless deployment must use the TRANSACTION pooler (same host, port 6543). Local verification switched to :6543; Vercel env change to follow.
+  - Gates: tsc 0 · 341 tests green · eslint delta 0 (2 pre-existing `any` at identical HEAD positions) |
 - **Call-graph reachability evidence:** per-phase greps (per §5 verification plans).
 
 ---
