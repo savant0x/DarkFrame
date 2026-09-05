@@ -28,6 +28,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   getClientAndDatabase,
   requireClanMembership,
@@ -144,12 +145,22 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
   const endTimer = log.time('award-xp');
   
   try {
-    const body = await request.json();
-    const { clanId, source, amount, playerId } = body;
-
-    if (!clanId || !source || amount === undefined || !playerId) {
+    // FID-20260904-005 §5.1: XP awards are attributed to the SESSION user — the body
+    // playerId was trusted from the wire (unauthenticated XP forgery for any clan).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
       return NextResponse.json(
-        { error: 'Missing required fields: clanId, source, amount, playerId' },
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { clanId, source, amount } = body;
+
+    if (!clanId || !source || amount === undefined) {
+      return NextResponse.json(
+        { error: 'Missing required fields: clanId, source, amount' },
         { status: 400 }
       );
     }
@@ -182,7 +193,7 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
 
     
 
-    const result = await awardClanXP(clanId, source, amount, playerId);
+    const result = await awardClanXP(clanId, source, amount, authUser.username);
 
     const response: any = {
       success: result.success,

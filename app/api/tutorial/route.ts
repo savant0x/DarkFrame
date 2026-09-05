@@ -20,6 +20,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import type { Player } from '@/types/game.types';
 import {
   getCurrentQuestAndStep,
@@ -69,9 +70,16 @@ export const dynamic = 'force-dynamic'; // Prevent caching, ensure fresh data
 
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const playerId = searchParams.get('playerId');
-    const checkEligibility = searchParams.get('checkEligibility') === 'true';
+    // FID-20260904-005 §5.1: session identity — query playerId ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const playerId = authUser.username;
+    const checkEligibility = request.nextUrl.searchParams.get('checkEligibility') === 'true';
 
     if (!playerId) {
       return NextResponse.json(

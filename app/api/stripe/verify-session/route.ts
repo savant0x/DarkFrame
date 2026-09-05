@@ -26,6 +26,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { retrieveCheckoutSession } from '@/lib/stripe/stripeService';
 import { grantVIP, recordPaymentTransaction } from '@/lib/stripe/subscriptionService';
 import { VIPTier } from '@/types/stripe.types';
@@ -54,6 +55,18 @@ import { logger } from '@/lib/logger/productionLogger';
  */
 export async function POST(request: NextRequest) {
   try {
+    // FID-20260904-005 §5.1: this route ACTIVATES VIP for whoever the checkout metadata
+    // names — it must never run without a session, and the session user must BE the
+    // checkout's buyer (otherwise any authenticated user could activate someone else's
+    // VIP, or an anonymous caller could probe arbitrary session IDs).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { success: false, message: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { sessionId } = await request.json();
     
     if (!sessionId) {
@@ -92,10 +105,18 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Extract metadata
+    // Extract metadata + verify the buyer matches the session user (identity binding).
     const userId = session.metadata?.userId;
     const username = session.metadata?.username;
     const tier = session.metadata?.tier as VIPTier;
+    
+    if (username !== authUser.username) {
+      logger.warn('Checkout session buyer does not match session user', { sessionId, sessionUser: username, authUser: authUser.username });
+      return NextResponse.json(
+        { success: false, message: 'Checkout session does not belong to this account' },
+        { status: 403 }
+      );
+    }
     
     if (!userId || !username || !tier) {
       logger.error('Session missing required metadata', undefined, {

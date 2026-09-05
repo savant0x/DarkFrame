@@ -371,6 +371,33 @@ export async function sendDirectMessage(
 }
 
 /**
+ * FID-20260904-005 §5.1: return the conversation ONLY if `playerId` is a participant.
+ * Used by API routes to enforce that a session user can only read conversations they
+ * belong to (the history route previously served any conversationId to anyone).
+ * @returns Conversation or null when not found / not a participant
+ */
+export async function getConversationForParticipant(
+  conversationId: string,
+  playerId: string
+): Promise<Conversation | null> {
+  try {
+    const rows = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    const participants = row.participants as string[];
+    if (!Array.isArray(participants) || !participants.includes(playerId)) return null;
+    return mapConversationToType(row);
+  } catch (error: any) {
+    console.error('Error in getConversationForParticipant:', error);
+    return null;
+  }
+}
+
+/**
  * Get message history for a conversation
  * @param request - Request with conversation ID and pagination
  * @returns List of messages

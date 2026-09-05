@@ -16,6 +16,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getConversationForParticipant } from '@/lib/messagingService';
 import {
   sendDirectMessage,
   getMessageHistory,
@@ -29,9 +31,18 @@ import {
 
 export async function GET(request: NextRequest) {
   try {
+    // FID-20260904-005 §5.1: reading a conversation requires SESSION membership in it.
+    // The prior route served any conversationId to anyone (no auth at all).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
-    const playerId = searchParams.get('playerId');
     const limit = searchParams.get('limit');
     const before = searchParams.get('before');
     const after = searchParams.get('after');
@@ -40,6 +51,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'conversationId is required' },
         { status: 400 }
+      );
+    }
+
+    const membership = await getConversationForParticipant(conversationId, authUser.username);
+    if (!membership) {
+      return NextResponse.json(
+        { success: false, error: 'Conversation not found' },
+        { status: 404 }
       );
     }
 
@@ -66,17 +85,27 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { senderId, recipientId, content, contentType } = body;
-
-    if (!senderId || !recipientId || !content) {
+    // FID-20260904-005 §5.1: the sender is the SESSION user. The body `senderId` was
+    // previously trusted — an unauthenticated caller forged messages as any player.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
       return NextResponse.json(
-        { success: false, error: 'senderId, recipientId, and content are required' },
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { recipientId, content, contentType } = body;
+
+    if (!recipientId || !content) {
+      return NextResponse.json(
+        { success: false, error: 'recipientId and content are required' },
         { status: 400 }
       );
     }
 
-    const result = await sendDirectMessage(senderId, {
+    const result = await sendDirectMessage(authUser.username, {
       recipientId,
       content,
       contentType,

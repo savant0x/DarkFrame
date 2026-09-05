@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { factories } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
+import { requireAdmin } from '@/lib/authMiddleware';
 
 const FACTORY_UPGRADE = {
   BASE_SLOTS: 5000,
@@ -27,7 +28,13 @@ function getMaxSlots(level: number): number {
 
 export async function POST(request: NextRequest) {
   try {
-    const allFactories = await db.select().from(factories);
+    // FID-20260904-005 §5.1: admin-only (was callable by anyone).
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
+    }
+
+      const allFactories = await db.select().from(factories);
     
     if (allFactories.length === 0) {
       return NextResponse.json({

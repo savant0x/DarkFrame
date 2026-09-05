@@ -17,6 +17,7 @@ import {
   createValidationErrorResponse,
   ErrorCode
 } from '@/lib';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.factoryBuild);
@@ -35,21 +36,28 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('produceUnit');
   
   try {
+    // FID-20260904-005 §5.1: session identity — body username ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
+
     const body = await request.json();
     const validated = FactoryProduceSchema.parse(body);
+    const username = authUser.username;
 
     log.debug('Factory produce request', { 
-      username: validated.username, 
+      username,
       x: validated.x, 
       y: validated.y 
     });
 
     // Produce unit
-    const result = await produceUnit(validated.username, validated.x, validated.y);
+    const result = await produceUnit(username, validated.x, validated.y);
     
     if (!result.success) {
       log.warn('Factory production failed', { 
-        username: validated.username, 
+        username, 
         reason: result.message 
       });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { 
@@ -58,7 +66,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     log.info('Unit produced successfully', { 
-      username: validated.username, 
+      username,
       factoryLocation: `(${validated.x}, ${validated.y})` 
     });
     

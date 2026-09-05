@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db';
 import { eq } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 /**
  * Calculate upgrade cost based on current stat value
@@ -43,13 +44,23 @@ function calculateUpgradeCost(currentValue: number): { metal: number; energy: nu
  */
 export async function POST(request: NextRequest) {
   try {
+    // FID-20260904-005 §5.1: session identity — body username ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const username = authUser.username;
+
     const body = await request.json();
-    const { username, type } = body;
+    const { type } = body;
 
     // Validation
-    if (!username || !type) {
+    if (!type) {
       return NextResponse.json(
-        { error: 'Username and type are required' },
+        { error: 'Type is required' },
         { status: 400 }
       );
     }

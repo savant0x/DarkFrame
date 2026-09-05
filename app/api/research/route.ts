@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import type { Player } from '@/types/game.types';
 import { 
   withRequestLogging, 
@@ -103,11 +104,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('research');
 
   try {
+    // FID-20260904-005 §5.1: session identity — body username ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
+
     const body = await request.json();
     const validated = ResearchTechSchema.parse(body);
+    const username = authUser.username;
 
     log.debug('Research request', { 
-      username: validated.username, 
+      username,
       technologyId: validated.technologyId 
     });
 
@@ -125,13 +133,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const db = client.db('darkframe');
     const playersCollection = db.collection<Player & { unlockedTechnologies?: string[]; gold?: number }>('players');
 
-    // Fetch player by username
+    // Fetch player by session username
     const player = await playersCollection.findOne({
-      username: validated.username,
+      username,
     });
 
     if (!player) {
-      log.warn('Player not found', { username: validated.username });
+      log.warn('Player not found', { username: username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'Player not found'
       });
@@ -143,7 +151,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Check if already unlocked
     if (unlockedTechnologies.includes(validated.technologyId)) {
       log.debug('Technology already unlocked', { 
-        username: validated.username, 
+        username: username, 
         technologyId: validated.technologyId 
       });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
@@ -156,7 +164,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       if (!unlockedTechnologies.includes(prereqId)) {
         const prereq = TECHNOLOGIES[prereqId];
         log.debug('Prerequisite not met', { 
-          username: validated.username,
+          username: username,
           required: prereqId,
           name: prereq?.name 
         });
@@ -169,7 +177,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Check if player has enough gold
     if ((player.gold ?? 0) < technology.cost) {
       log.debug('Insufficient gold', { 
-        username: validated.username,
+        username: username,
         required: technology.cost,
         available: player.gold 
       });
@@ -180,7 +188,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Deduct gold and unlock technology atomically
     const updateResult = await playersCollection.updateOne(
-      { username: validated.username },
+      { username: username },
       {
         $inc: { gold: -technology.cost },
         $push: { unlockedTechnologies: validated.technologyId },
@@ -190,7 +198,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     if (updateResult.modifiedCount === 0) {
       log.error('Failed to update player', new Error('Database update failed'), {
-        username: validated.username,
+        username: username,
         technologyId: validated.technologyId
       });
       return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
@@ -200,11 +208,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Fetch updated player
     const updatedPlayer = await playersCollection.findOne({
-      username: validated.username,
+      username: username,
     });
 
     log.info('Technology researched successfully', { 
-      username: validated.username,
+      username: username,
       technology: technology.name,
       cost: technology.cost
     });

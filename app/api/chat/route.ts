@@ -36,6 +36,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/authMiddleware';
 import {
   sendGlobalChatMessage,
   getGlobalChatMessages,
@@ -81,44 +82,25 @@ interface PostChatBody {
 }
 
 // ============================================================================
-// AUTHENTICATION (PLACEHOLDER)
-// ============================================================================
+// AUTHENTICATION (SESSION)
 
 /**
- * Get authenticated user from request
- * 
- * TODO: Replace with actual authentication once next-auth is installed
- * For now, this is a placeholder that returns mock user data
- * 
- * @param request - Next.js request object
- * @returns Player context or null if not authenticated
+ * Get the chat PlayerContext from the SESSION (FID-20260904-005 §5.1). The prior
+ * implementation was a placeholder returning a hardcoded TestUser — every chat
+ * write executed as that identity. Identity now resolves from the session cookie.
  */
-async function getAuthenticatedUser(
+async function getChatPlayerContext(
   request: NextRequest
 ): Promise<PlayerContext | null> {
-  // TODO: Implement actual authentication
-  // Example with next-auth (when installed):
-  // const session = await getServerSession(authOptions);
-  // if (!session?.user) return null;
-  // 
-  // const player = await db.collection('players').findOne({ username: session.user.name });
-  // return {
-  //   username: player.username,
-  //   level: player.level,
-  //   isVIP: player.isVIP,
-  //   clanId: player.clanId,
-  //   isMuted: false, // Will be checked by moderationService
-  //   channelBans: [], // Will be fetched from moderationService
-  // };
+  const auth = await authenticateRequest(request);
+  if (!auth) return null;
 
-  // PLACEHOLDER: Mock user for development
-  // Replace this entire function when authentication is ready
   return {
-    username: 'TestUser',
-    level: 10,
-    isVIP: false,
-    clanId: undefined,
-    isMuted: false,
+    username: auth.username,
+    level: auth.player.level ?? 1,
+    isVIP: !!auth.player.vip,
+    clanId: auth.player.clanId ?? undefined,
+    isMuted: false, // checked via checkMuteStatus by callers
     channelBans: [],
   };
 }
@@ -145,7 +127,7 @@ async function getAuthenticatedUser(
 export async function GET(request: NextRequest) {
   try {
     // Authenticate user
-    const user = await getAuthenticatedUser(request);
+    const user = await getChatPlayerContext(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
@@ -307,7 +289,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Authenticate user
-    const user = await getAuthenticatedUser(request);
+    const user = await getChatPlayerContext(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
@@ -492,7 +474,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     // Authenticate user
-    const user = await getAuthenticatedUser(request);
+    const user = await getChatPlayerContext(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
@@ -595,7 +577,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Authenticate user
-    const user = await getAuthenticatedUser(request);
+    const user = await getChatPlayerContext(request);
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },

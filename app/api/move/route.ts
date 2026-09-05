@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { movePlayer } from '@/lib/movementService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { ApiResponse, MoveResponse, MovementDirection } from '@/types';
 
 /** Tutorial move-tracking doc as read/written by this route. */
@@ -74,10 +75,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('playerMovement');
   
   try {
-    // Parse and validate request body
+    // FID-20260904-005 §5.1: identity comes from the SESSION, never the body. The
+    // Mongo-era route moved whatever `username` the caller supplied (live-exploited).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    // Parse and validate request body (direction only — body username is ignored)
     const body = await request.json();
     const validated = MoveSchema.parse(body);
-    const { username, direction } = validated;
+    const username = authUser.username;
+    const direction = validated.direction;
     
     log.debug('Movement initiated', { username, direction });
     

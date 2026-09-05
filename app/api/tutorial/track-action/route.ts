@@ -13,6 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import clientPromise from '@/lib/mongodb';
 import {
   
@@ -44,9 +45,18 @@ function normalizeDirection(direction: string | undefined): string | undefined {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { playerId, action, data } = body;
+    // FID-20260904-005 §5.1: session identity — body playerId ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const playerId = authUser.username;
+    const { action, data } = body;
 
-    if (!playerId || !action) {
+    if (!action) {
       return NextResponse.json(
         { error: 'playerId and action are required' },
         { status: 400 }

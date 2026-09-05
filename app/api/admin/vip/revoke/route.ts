@@ -4,7 +4,7 @@
  * @overview Admin API - Revoke VIP status from user
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
@@ -20,22 +20,23 @@ import {
   ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
+import { requireAdmin } from '@/lib/authMiddleware';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminVIPRevoke);
 
-export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
+export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('AdminVIPRevokeAPI');
   const endTimer = log.time('revokeVIP');
   
   try {
+    // FID-20260904-005 §5.1: admin-only (TODO placeholder removed).
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
+    }
+
     const body = await request.json();
     const validated = RevokeVIPSchema.parse(body);
-
-    // TODO: Add admin authentication check
-    // const adminUsername = request.headers.get('x-admin-username');
-    // if (!await isAdmin(adminUsername)) {
-    //   return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
-    // }
 
     log.debug('VIP revoke request', { username: validated.username });
 

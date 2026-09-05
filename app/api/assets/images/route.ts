@@ -9,7 +9,8 @@
  * Enables dynamic image loading without hardcoded paths or strict naming conventions.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/authMiddleware';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -126,8 +127,14 @@ export async function GET() {
  * POST /api/assets/images?action=refresh
  * Clears cache and rebuilds image manifest (for development)
  */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    // FID-20260904-005 §5.1: manifest refresh is an admin action (cache invalidation).
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
 
