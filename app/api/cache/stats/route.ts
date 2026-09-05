@@ -23,7 +23,8 @@
  * - Production: Requires admin authentication (TODO)
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { isRedisAvailable, getRedisInfo, getRedisMemoryStats, getRedisClient } from '@/lib/redis';
 import { getCacheStats } from '@/lib/cacheService';
 import { CachePrefix } from '@/lib/cacheKeys';
@@ -189,9 +190,14 @@ export async function GET(): Promise<NextResponse<CacheStatsResponse | { error: 
  * 
  * @returns Success message
  */
-export async function POST(): Promise<NextResponse<{ success: boolean; message: string }>> {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // TODO: Add admin authentication in production
+    // FID-20260904-005 §5.1: admin-only (TODO placeholder removed; the production
+    // blanket-403 is replaced by a real admin gate).
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
+    }
     if (process.env.NODE_ENV === 'production') {
       return NextResponse.json(
         { success: false, message: 'Stats reset disabled in production' },

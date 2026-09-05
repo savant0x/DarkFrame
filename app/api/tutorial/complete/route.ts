@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { completeStep } from '@/lib/tutorialService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { logger } from '@/lib/logger';
 
 /**
@@ -11,9 +12,18 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { playerId, questId, stepId, validationData } = body;
+    // FID-20260904-005 §5.1: session identity — body playerId ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const playerId = authUser.username;
+    const { questId, stepId, validationData } = body;
 
-    if (!playerId || !questId || !stepId) {
+    if (!questId || !stepId) {
       return NextResponse.json(
         { error: 'Missing required fields: playerId, questId, stepId' },
         { status: 400 }

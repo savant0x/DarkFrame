@@ -13,22 +13,33 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { markMessagesAsRead } from '@/lib/messagingService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { conversationId, playerId, messageIds } = body;
-
-    if (!conversationId || !playerId) {
+    // FID-20260904-005 §5.1: mark-as-read acts on the SESSION user's inbox only —
+    // the body `playerId` was previously trusted (cross-player read-state tampering).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
       return NextResponse.json(
-        { success: false, error: 'conversationId and playerId are required' },
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { conversationId, messageIds } = body;
+
+    if (!conversationId) {
+      return NextResponse.json(
+        { success: false, error: 'conversationId is required' },
         { status: 400 }
       );
     }
 
     const result = await markMessagesAsRead(
       conversationId,
-      playerId,
+      authUser.username,
       messageIds
     );
 

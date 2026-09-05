@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { declineTutorial } from '@/lib/tutorialService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 
@@ -61,7 +62,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { playerId, confirmed } = validation.data;
+    // FID-20260904-005 §5.1: session identity — body playerId ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const { confirmed } = validation.data;
+    const playerId = authUser.username;
 
     // Execute decline
     const result = await declineTutorial(playerId, confirmed);

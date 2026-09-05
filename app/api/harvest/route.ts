@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { harvestResourceTile, getHarvestStatus } from '@/lib/harvestService';
 import { harvestCaveTile, harvestForestTile } from '@/lib/caveItemService';
 import { TerrainType } from '@/types';
@@ -63,10 +64,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('harvestOperation');
   
   try {
+    // FID-20260904-005 §5.1: identity from the session — the body `username` is ignored
+    // (the Mongo-era route harvested for whatever username the caller supplied).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
+
     // Parse and validate request body
     const body = await request.json();
     const validated = HarvestSchema.parse(body);
-    const { username } = validated;
+    const username = authUser.username;
     
     log.debug('Processing harvest request', { username });
     

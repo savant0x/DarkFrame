@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { getPlayer } from '@/lib/playerService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { UNIT_BLUEPRINTS, UnitBlueprint, UnitCategory } from '@/types/units.types';
 import { UNIT_CONFIGS, UnitType } from '@/types/game.types';
 import type { Player, Factory } from '@/types/game.types';
@@ -43,16 +44,16 @@ export const GET = withRequestLogging(async (request: NextRequest) => {
   const endTimer = log.time('fetchUnitData');
   
   try {
-    const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
-
-    if (!username) {
-      log.warn('Unit data request without username');
+    // FID-20260904-005 §5.1: session identity — query username ignored (unit data is
+    // per-player; the session user sees their own).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
       return NextResponse.json(
-        { success: false, error: 'Username is required' },
-        { status: 400 }
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
       );
     }
+    const username = authUser.username;
 
     log.debug('Fetching unit data', { username });
 
@@ -143,11 +144,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('buildUnit');
   
   try {
+    // FID-20260904-005 §5.1: session identity — body username ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
+    }
+
     const body = await request.json();
     const validated = BuildUnitSchema.parse(body);
+    const username = authUser.username;
 
     log.debug('Unit build request', { 
-      username: validated.username, 
+      username,
       unitTypeId: validated.unitTypeId, 
       quantity: validated.quantity 
     });
@@ -156,7 +164,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const unitBlueprint = UNIT_BLUEPRINTS[validated.unitTypeId];
     if (!unitBlueprint) {
       log.warn('Invalid unit type', { 
-        username: validated.username, 
+        username: username, 
         unitTypeId: validated.unitTypeId 
       });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
@@ -165,9 +173,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Get player data with factory count
-    const player = await getPlayer(validated.username);
+    const player = await getPlayer(username);
     if (!player) {
-      log.warn('Player not found for unit build', { username: validated.username });
+      log.warn('Player not found for unit build', { username: username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'Player not found'
       });
@@ -183,7 +191,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
       if (playerRP < rpRequired) {
         log.warn('Insufficient research points', { 
-          username: validated.username, 
+          username: username, 
           required: rpRequired, 
           have: playerRP 
         });
@@ -195,7 +203,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
       if (playerLevel < levelRequired) {
         log.warn('Insufficient level', { 
-          username: validated.username, 
+          username: username, 
           required: levelRequired, 
           have: playerLevel 
         });
@@ -209,12 +217,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const client = await clientPromise;
     const factoriesDb = client.db('darkframe');
     const factories = await factoriesDb.collection<Factory>('factories')
-      .find({ owner: validated.username })
+      .find({ owner: username })
       .sort({ x: 1, y: 1 }) // Sort by coordinates for consistent ordering
       .toArray();
 
     if (factories.length === 0) {
-      log.warn('No factories owned', { username: validated.username });
+      log.warn('No factories owned', { username: username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'You must own at least one factory to build units'
       });
@@ -228,7 +236,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     if (validated.quantity > totalFactoryBuildSlots) {
       log.warn('Insufficient factory build slots', { 
-        username: validated.username, 
+        username: username, 
         available: totalFactoryBuildSlots, 
         needed: validated.quantity 
       });
@@ -247,7 +255,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Check resources
     if (playerMetal < totalMetalCost) {
       log.warn('Insufficient metal', { 
-        username: validated.username, 
+        username: username, 
         needed: totalMetalCost, 
         have: playerMetal 
       });
@@ -260,7 +268,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     if (playerEnergy < totalEnergyCost) {
       log.warn('Insufficient energy', { 
-        username: validated.username, 
+        username: username, 
         needed: totalEnergyCost, 
         have: playerEnergy 
       });
@@ -329,7 +337,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Update player in database
     const updateResult = await playersCollection.updateOne(
-      { username: validated.username },
+      { username: username },
       {
         $push: { units: { $each: newUnits } } as any,
         $inc: {
@@ -345,7 +353,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     if (updateResult.modifiedCount === 0) {
       log.error('Failed to update player for unit build', new Error('Database update failed'), { 
-        username: validated.username 
+        username: username 
       });
       return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
         message: 'Failed to build units'
@@ -361,7 +369,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     log.info('Units built successfully', { 
-      username: validated.username, 
+      username: username, 
       unitType: unitBlueprint.name, 
       quantity: validated.quantity, 
       strengthGained, 

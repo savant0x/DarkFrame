@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { authenticateRequest } from '@/lib/authMiddleware';
 import { connectToDatabase } from '@/lib/mongodb';
 import type { Player } from '@/types/game.types';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
@@ -46,11 +46,10 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
   const endTimer = log.time('buildFactoryUnit');
   
   try {
-    // 1. Verify authentication
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('darkframe_session');
-    
-    if (!sessionCookie) {
+    // FID-20260904-005 §5.1: real session auth. The prior code read the session cookie
+    // but treated the JWT STRING as the username — lookups could never succeed.
+    const auth = await authenticateRequest(request);
+    if (!auth) {
       log.warn('Unauthenticated factory build attempt');
       return NextResponse.json(
         { success: false, message: 'Not authenticated' },
@@ -58,7 +57,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       );
     }
 
-    const username = sessionCookie.value;
+    const username = auth.username;
 
     // 2. Parse request body
     const body: BuildUnitRequest = await request.json();

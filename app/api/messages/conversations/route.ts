@@ -12,22 +12,26 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getConversations } from '@/lib/messagingService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 export async function GET(request: NextRequest) {
   try {
+    // FID-20260904-005 §5.1: the inbox is the SESSION user's inbox — the query
+    // playerId (impersonation live-proven in the FID RED) is ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const playerId = authUser.username;
+
     const { searchParams } = new URL(request.url);
-    const playerId = searchParams.get('playerId');
     const limit = searchParams.get('limit');
     const offset = searchParams.get('offset');
     const includeArchived = searchParams.get('includeArchived');
     const sortBy = searchParams.get('sortBy') as 'recent' | 'unread' | 'pinned' | undefined;
-
-    if (!playerId) {
-      return NextResponse.json(
-        { success: false, error: 'playerId is required' },
-        { status: 400 }
-      );
-    }
 
     const result = await getConversations({
       playerId,

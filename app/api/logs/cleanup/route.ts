@@ -28,7 +28,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { cleanupOldLogs } from '@/lib/activityLogService';
 import clientPromise from '@/lib/mongodb';
 import { BattleLog } from '@/types/activityLog.types';
@@ -65,31 +65,12 @@ import { BattleLog } from '@/types/activityLog.types';
  */
 export async function POST(req: NextRequest) {
   try {
-    // Extract and verify authentication token
-    const token = req.cookies.get('token')?.value;
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
-    }
-
-    const payload = await verifyToken(token);
-    if (!payload) {
-      return NextResponse.json(
-        { error: 'Invalid or expired token' },
-        { status: 401 }
-      );
-    }
-
-    // Authorization: Only administrators can trigger cleanup
-    // TODO: Implement proper admin role check from user profile/database
-    const isAdmin = false; // Placeholder - implement admin check
-    if (!isAdmin) {
-      return NextResponse.json(
-        { error: 'Administrator access required' },
-        { status: 403 }
-      );
+    // FID-20260904-005 §5.1: real admin gate. The prior code read the phantom 'token'
+    // cookie (nothing sets it) and then hardcoded isAdmin=false — the route could NEVER
+    // succeed and was dead weight; now it requires an actual admin session.
+    const adminAuth = await requireAdmin(req);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
 
     // Parse query parameters

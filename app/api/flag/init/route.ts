@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { initializeFlagSystem } from '@/lib/flagBotService';
 import { 
   withRequestLogging, 
@@ -30,6 +31,12 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.FLAG_INIT);
  * @returns Success message
  */
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest): Promise<NextResponse> => {
+    // FID-20260904-005 §8 decision 2: retained but admin-gated (was an open write).
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
+    }
+
   const log = createRouteLogger('flag-init');
   const endTimer = log.time('flag-init');
   
