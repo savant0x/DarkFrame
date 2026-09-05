@@ -168,7 +168,7 @@ export async function loadWarfareConfig(): Promise<WarfareConfig> {
     .select()
     .from(gameConfig)
     .where(eq(gameConfig.type, 'warfare'))
-    .orderBy(desc(sql`JSON_EXTRACT(${gameConfig.config}, '$.version')`))
+    .orderBy(desc(sql`(${gameConfig.config}->>'version')::numeric`))
     .limit(1);
 
   if (results.length > 0) {
@@ -307,7 +307,7 @@ export async function getConfigHistory(limit = 10): Promise<WarfareConfig[]> {
     .select()
     .from(gameConfig)
     .where(eq(gameConfig.type, 'warfare'))
-    .orderBy(desc(sql`JSON_EXTRACT(${gameConfig.config}, '$.version')`))
+    .orderBy(desc(sql`(${gameConfig.config}->>'version')::numeric`))
     .limit(limit);
 
   return results.map(row => row.config as WarfareConfig);

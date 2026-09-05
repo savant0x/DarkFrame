@@ -24,7 +24,7 @@
 import { db } from '@/lib/db';
 import { playerActivity } from '@/lib/db/schema';
 import { eq, and, or, gte, lte, desc, inArray, sql, lt } from 'drizzle-orm';
-import { randomUUID } from 'node:crypto';
+import { generateId } from '@/lib/utils';
 import {
   ActivityLog,
   ActivityLogQuery,
@@ -56,7 +56,9 @@ const MAX_QUERY_LIMIT = 1000;
 export async function logActivity(logEntry: Omit<ActivityLog, '_id'>): Promise<string> {
   try {
     const entry = {
-      id: randomUUID(),
+      // 24-char column budget: generateId() (timestamp-base36 + 9 random chars) fits;
+      // randomUUID() (36 chars) overflows and fails every write.
+      id: generateId(),
       playerId: logEntry.playerId || '',
       action: logEntry.actionType,
       timestamp: logEntry.timestamp || new Date(),
@@ -75,7 +77,7 @@ export async function logActivity(logEntry: Omit<ActivityLog, '_id'>): Promise<s
 export async function logActivitiesBulk(logEntries: Omit<ActivityLog, '_id'>[]): Promise<string[]> {
   try {
     const entries = logEntries.map(entry => ({
-      id: randomUUID(),
+      id: generateId(),
       playerId: entry.playerId || '',
       action: entry.actionType,
       timestamp: entry.timestamp || new Date(),

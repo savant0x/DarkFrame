@@ -352,7 +352,7 @@ export async function sendDirectMessage(
         lastMessageCreatedAt: message.createdAt,
         lastMessageStatus: message.status,
         updatedAt: now,
-        unreadCount: sql`JSON_SET(COALESCE(${conversations.unreadCount}, '{}'), '$.${request.recipientId}', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(${conversations.unreadCount}, '$.${request.recipientId}')), 0) + 1)`,
+        unreadCount: sql`jsonb_set(COALESCE(${conversations.unreadCount}, '{}'::jsonb), ARRAY[${request.recipientId}]::text[], to_jsonb(COALESCE((${conversations.unreadCount}->>${request.recipientId})::numeric, 0) + 1))`,
       })
       .where(eq(conversations.id, conversation._id as string));
 
@@ -464,6 +464,13 @@ export async function markMessagesAsRead(
   try {
     const now = new Date();
 
+    // Participant gate: only conversation members may touch its read state
+    // (a non-participant session could otherwise zero anyone's unread counts).
+    const conversation = await getConversationForParticipant(conversationId, playerId);
+    if (!conversation) {
+      return { success: false, error: 'Conversation not found or access denied' };
+    }
+
     // Build query conditions
     const conditions = [
       eq(messages.conversationId, conversationId),
@@ -487,7 +494,7 @@ export async function markMessagesAsRead(
     // Update conversation unread count
     await db.update(conversations)
       .set({
-        unreadCount: sql`JSON_SET(COALESCE(${conversations.unreadCount}, '{}'), '$.${playerId}', 0)`,
+        unreadCount: sql`jsonb_set(COALESCE(${conversations.unreadCount}, '{}'::jsonb), ARRAY[${playerId}]::text[], to_jsonb(0))`,
       })
       .where(eq(conversations.id, conversationId));
 
