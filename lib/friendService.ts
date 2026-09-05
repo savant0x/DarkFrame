@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
 import { db } from '@/lib/db';
+import { generateId } from '@/lib/utils';
 import { friends, friendRequests, players } from '@/lib/db/schema';
 import { eq, or, and, inArray, desc, like, count, sql, lt, gt, ne } from 'drizzle-orm';
 import {
@@ -112,7 +112,8 @@ export async function sendFriendRequest(
     now.getTime() + FRIEND_CONSTANTS.REQUEST_EXPIRATION_DAYS * 24 * 60 * 60 * 1000
   );
 
-  const requestId = randomUUID();
+  // pg: ids must fit varchar(24) — randomUUID() is 36 chars and overflows the column
+  const requestId = generateId();
   await db.insert(friendRequests).values({
     id: requestId,
     from: userId,
@@ -182,7 +183,7 @@ export async function acceptRequest(
   }
 
   const now = new Date();
-  const friendshipId = randomUUID();
+  const friendshipId = generateId(); // pg: varchar(24)
   await db.insert(friends).values({
     id: friendshipId,
     userId: request.from,
@@ -271,9 +272,9 @@ export async function removeFriend(
       and(eq(friends.userId, userId), eq(friends.friendId, friendId), eq(friends.status, FriendStatus.ACCEPTED)),
       and(eq(friends.userId, friendId), eq(friends.friendId, userId), eq(friends.status, FriendStatus.ACCEPTED))
     )
-  );
+  ).returning({ id: friends.id }); // pg: RETURNING length replaces mysql2 affectedRows
 
-  if ((result as any).affectedRows === 0) {
+  if (result.length === 0) {
     throw new NotFoundError('Friendship not found');
   }
 
@@ -501,7 +502,7 @@ export async function blockUser(
     }).where(eq(friends.id, existingBlock[0].id));
   } else {
     await db.insert(friends).values({
-      id: randomUUID(),
+      id: generateId(), // pg: varchar(24)
       userId,
       friendId: targetUserId,
       status: FriendStatus.BLOCKED,
@@ -536,9 +537,9 @@ export async function unblockUser(
       eq(friends.friendId, targetUserId),
       eq(friends.status, FriendStatus.BLOCKED)
     )
-  );
+  ).returning({ id: friends.id }); // pg: RETURNING length replaces mysql2 affectedRows
 
-  if ((result as any).affectedRows === 0) {
+  if (result.length === 0) {
     throw new NotFoundError('Block entry not found');
   }
 

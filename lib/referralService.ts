@@ -542,16 +542,16 @@ export async function validateReferral(referralId: string): Promise<boolean> {
   if (milestone) {
     if (milestone.title) {
       await db.update(players).set({
-        referralTitles: sql`JSON_ARRAY_APPEND(COALESCE(${players.referralTitles}, '[]'), '$', ${milestone.title})`
+        referralTitles: sql`COALESCE(${players.referralTitles}, '[]'::jsonb) || to_jsonb(${milestone.title}::text)` // pg: jsonb array append (was MySQL JSON_ARRAY_APPEND)
       }).where(eq(players.username, record.referrerPlayerId));
     }
     if (milestone.badge) {
       await db.update(players).set({
-        referralBadges: sql`JSON_ARRAY_APPEND(COALESCE(${players.referralBadges}, '[]'), '$', ${milestone.badge})`
+        referralBadges: sql`COALESCE(${players.referralBadges}, '[]'::jsonb) || to_jsonb(${milestone.badge}::text)` // pg: jsonb array append
       }).where(eq(players.username, record.referrerPlayerId));
     }
     await db.update(players).set({
-      referralMilestonesReached: sql`JSON_ARRAY_APPEND(COALESCE(${players.referralMilestonesReached}, '[]'), '$', ${newTotalReferrals})`
+      referralMilestonesReached: sql`COALESCE(${players.referralMilestonesReached}, '[]'::jsonb) || to_jsonb(${newTotalReferrals}::int)` // pg: jsonb array append
     }).where(eq(players.username, record.referrerPlayerId));
   }
   

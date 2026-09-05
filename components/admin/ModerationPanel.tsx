@@ -200,7 +200,7 @@ export default function ModerationPanel() {
    */
   const loadUserPermissions = useCallback(async () => {
     try {
-      // TODO Task 8: Implement /api/user/permissions endpoint
+      // Session-derived permissions (FID-20260904-005 §5.3: /api/user/permissions rebuilt)
       const response = await fetch('/api/user/permissions');
       const data = await response.json();
       
@@ -225,12 +225,12 @@ export default function ModerationPanel() {
 
     setIsLoading(true);
     try {
-      // TODO Task 8: Implement /api/admin/moderation endpoint
+      // Single admin/moderation route serves all four datasets via ?type= (FID-20260904-005 §5.3)
       const [mutesRes, bansRes, blacklistRes, logsRes] = await Promise.all([
-        fetch('/api/admin/moderation/mutes'),
-        fetch('/api/admin/moderation/bans'),
-        fetch('/api/admin/moderation/blacklist'),
-        fetch('/api/admin/moderation/logs'),
+        fetch('/api/admin/moderation?type=mutes'),
+        fetch('/api/admin/moderation?type=bans'),
+        fetch('/api/admin/moderation?type=blacklist'),
+        fetch('/api/admin/moderation?type=history&limit=200'),
       ]);
 
       const [mutesData, bansData, blacklistData, logsData] = await Promise.all([
@@ -240,10 +240,10 @@ export default function ModerationPanel() {
         logsRes.json(),
       ]);
 
-      setMutedUsers(mutesData.mutes || []);
-      setBannedUsers(bansData.bans || []);
-      setBlacklistedWords(blacklistData.words || []);
-      setModerationLogs(logsData.logs || []);
+      setMutedUsers(mutesData.data || []);
+      setBannedUsers(bansData.data || []);
+      setBlacklistedWords(blacklistData.data || []);
+      setModerationLogs(logsData.data || []);
     } catch (error) {
       console.error('Failed to load moderation data:', error);
       toast.error('Failed to load moderation data');
@@ -261,11 +261,11 @@ export default function ModerationPanel() {
    */
   const handleUnmute = useCallback(async (userId: string, channelId: ChannelType) => {
     try {
-      // TODO Task 8: Implement unmute API endpoint
-      const response = await fetch('/api/admin/moderation/unmute', {
-        method: 'POST',
+      // DELETE /api/admin/moderation { action: 'unmute' } (channelId not needed — mutes are global)
+      const response = await fetch('/api/admin/moderation', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, channelId }),
+        body: JSON.stringify({ action: 'unmute', targetUserId: userId }),
       });
 
       if (!response.ok) throw new Error('Failed to unmute user');
@@ -283,11 +283,11 @@ export default function ModerationPanel() {
    */
   const handleUnban = useCallback(async (userId: string, channelId: ChannelType) => {
     try {
-      // TODO Task 8: Implement unban API endpoint
-      const response = await fetch('/api/admin/moderation/unban', {
-        method: 'POST',
+      // DELETE /api/admin/moderation { action: 'unban_from_channel' } (channel rows store channelId in moderatorId)
+      const response = await fetch('/api/admin/moderation', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, channelId }),
+        body: JSON.stringify({ action: 'unban_from_channel', targetUserId: userId, channelId }),
       });
 
       if (!response.ok) throw new Error('Failed to unban user');
@@ -310,11 +310,16 @@ export default function ModerationPanel() {
     }
 
     try {
-      // TODO Task 8: Implement add blacklist word API endpoint
-      const response = await fetch('/api/admin/moderation/blacklist', {
+      // POST /api/admin/moderation { action: 'add_to_blacklist' }
+      const response = await fetch('/api/admin/moderation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ word: newWord.trim(), severity: newWordSeverity }),
+        body: JSON.stringify({
+          action: 'add_to_blacklist',
+          word: newWord.trim(),
+          category: 'custom',
+          reason: `Blacklist word (${newWordSeverity} severity)`,
+        }),
       });
 
       if (!response.ok) throw new Error('Failed to add word to blacklist');
@@ -334,9 +339,14 @@ export default function ModerationPanel() {
    */
   const handleRemoveBlacklistWord = useCallback(async (wordId: string) => {
     try {
-      // TODO Task 8: Implement remove blacklist word API endpoint
-      const response = await fetch(`/api/admin/moderation/blacklist/${wordId}`, {
+      // DELETE /api/admin/moderation { action: 'remove_from_blacklist', word } — the word itself is the key
+      const word = blacklistedWords.find((w) => w.id === wordId)?.word;
+      if (!word) throw new Error('Word not found');
+
+      const response = await fetch('/api/admin/moderation', {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'remove_from_blacklist', word }),
       });
 
       if (!response.ok) throw new Error('Failed to remove word from blacklist');
@@ -347,7 +357,7 @@ export default function ModerationPanel() {
       console.error('Failed to remove word from blacklist:', error);
       toast.error('Failed to remove word from blacklist');
     }
-  }, [loadModerationData]);
+  }, [blacklistedWords, loadModerationData]);
 
   /**
    * Bulk unmute selected users
@@ -949,13 +959,12 @@ export default function ModerationPanel() {
  * 1. Access Control:
  *    - Checks user.isAdmin before rendering panel
  *    - Redirects non-admins with access denied message
- *    - TODO Task 8: Implement /api/user/permissions endpoint
+ *    - Permissions come from the session-derived /api/user/permissions endpoint
  * 
  * 2. Data Loading:
- *    - Fetches all moderation data on mount
+ *    - Fetches all moderation data on mount via /api/admin/moderation?type=...
  *    - Auto-refreshes every 30 seconds
  *    - Manual refresh button available
- *    - TODO Task 8: Implement /api/admin/moderation/* endpoints
  * 
  * 3. Real-time Updates:
  *    - Countdown timers update every second

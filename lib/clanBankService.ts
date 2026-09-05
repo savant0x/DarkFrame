@@ -122,7 +122,7 @@ async function getClanById(clanId: string): Promise<Clan | null> {
  * Get player by MongoDB-style ID (uses mongoId field)
  */
 async function getPlayerById(playerId: string) {
-  const result = await db.select().from(players).where(eq(players.mongoId, playerId)).limit(1);
+  const result = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
   return result[0] || null;
 }
 
@@ -244,7 +244,7 @@ export async function depositToBank(
     resourcesMetal: Number(player.resourcesMetal) - depositMetal,
     resourcesEnergy: Number(player.resourcesEnergy) - depositEnergy,
     researchPoints: player.researchPoints - depositRP,
-  }).where(eq(players.mongoId, playerId));
+  }).where(eq(players.username, playerId));
   
   await logClanActivity(clanId, ClanActivityType.BANK_DEPOSIT, playerId, {
     resources,
@@ -344,7 +344,7 @@ export async function withdrawFromBank(
       resourcesMetal: Number(player.resourcesMetal) + withdrawMetal,
       resourcesEnergy: Number(player.resourcesEnergy) + withdrawEnergy,
       researchPoints: player.researchPoints + withdrawRP,
-    }).where(eq(players.mongoId, playerId));
+    }).where(eq(players.username, playerId));
   }
   
   await logClanActivity(clanId, ClanActivityType.BANK_WITHDRAWAL, playerId, {

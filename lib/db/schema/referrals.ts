@@ -24,6 +24,7 @@ export const referrals = pgTable('referrals', {
 	rewardsDataMilestone: integer('rewards_data_milestone'),
 	welcomePackageGiven: smallint('welcome_package_given').notNull().default(0),
 	flaggedForAbuse: smallint('flagged_for_abuse').notNull().default(0),
+	invalidated: smallint('invalidated').notNull().default(0), // migration 0011 — admin invalidation marker
 	flagReason: varchar('flag_reason', { length: 255 }),
 	adminNotes: text('admin_notes'),
 	createdAt: timestamp('created_at').notNull(),

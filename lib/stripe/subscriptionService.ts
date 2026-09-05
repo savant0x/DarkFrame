@@ -291,18 +291,20 @@ export async function recordPaymentTransaction(transaction: {
     const refundedAt = transaction.status === 'refunded' ? now : null;
     
     const result = await db.execute(sql`
-      INSERT INTO paymentTransactions (
-        userId, username, stripeCustomerId, stripeSessionId, stripeSubscriptionId,
-        stripePriceId, amount, tier, status, createdAt, completedAt, refundedAt
+      INSERT INTO "paymentTransactions" (
+        "userId", username, "stripeCustomerId", "stripeSessionId", "stripeSubscriptionId",
+        "stripePriceId", amount, tier, status, "createdAt", "completedAt", "refundedAt"
       ) VALUES (
         ${transaction.userId}, ${transaction.username}, ${transaction.stripeCustomerId},
         ${transaction.stripeSessionId}, ${transaction.stripeSubscriptionId},
         ${VIP_PRICING[transaction.tier].stripePriceId}, ${transaction.amount},
         ${transaction.tier}, ${transaction.status}, ${now}, ${completedAt}, ${refundedAt}
       )
+      RETURNING id
     `);
     
-    const transactionId = (result as any).insertId?.toString() || 'unknown';
+    // pg: RETURNING id replaces the MySQL insertId
+    const transactionId = (result.rows[0] as { id: number } | undefined)?.id?.toString() || 'unknown';
     
     console.log('Payment transaction recorded:', {
       transactionId,
@@ -339,13 +341,13 @@ export async function getUserPaymentHistory(
 ): Promise<PaymentTransaction[]> {
   try {
     const result = await db.execute(sql`
-      SELECT * FROM paymentTransactions
-      WHERE userId = ${userId}
-      ORDER BY createdAt DESC
+      SELECT * FROM "paymentTransactions"
+      WHERE "userId" = ${userId}
+      ORDER BY "createdAt" DESC
       LIMIT ${limit}
     `);
     
-    return result as unknown as PaymentTransaction[];
+    return result.rows as unknown as PaymentTransaction[];
   } catch (error) {
     console.error('Failed to get user payment history:', error);
     return [];

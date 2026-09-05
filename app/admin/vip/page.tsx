@@ -117,23 +117,19 @@ export default function VIPSubscriptionPage() {
     setLoading(true);
     
     try {
-      // TODO: Implement API endpoints when Stripe integration is ready
-      // const res = await fetch('/api/admin/vip/subscriptions');
-      // const data = await res.json();
-      // if (data.success) {
-      //   setActiveSubscriptions(data.subscriptions);
-      //   setMrr(data.analytics.mrr);
-      //   setArr(data.analytics.arr);
-      //   setActiveVipCount(data.analytics.activeCount);
-      //   setChurnRate(data.analytics.churnRate);
-      // }
-      
-      // Placeholder data
-      setActiveVipCount(0);
-      setMrr(0);
-      setArr(0);
-      setChurnRate(0);
-      setTotalRevenue(0);
+      // Real data (FID-20260904-005 §5.3): players VIP rows + paymentTransactions analytics
+      const res = await fetch('/api/admin/vip/subscriptions');
+      const data = await res.json();
+      if (data.success) {
+        setActiveSubscriptions(data.subscriptions);
+        setMrr(data.analytics.mrr);
+        setArr(data.analytics.arr);
+        setActiveVipCount(data.analytics.activeCount);
+        setChurnRate(data.analytics.churnRate);
+        setTotalRevenue(data.analytics.mrr);
+      } else {
+        console.error('Failed to load subscription data:', data.message);
+      }
     } catch (error) {
       console.error('Failed to load subscription data:', error);
     } finally {

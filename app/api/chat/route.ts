@@ -208,48 +208,15 @@ export async function GET(request: NextRequest) {
       since,
     };
 
-    // Fetch messages
+    // Fetch messages (FID-20260904-005 §5.4-M3: dummy fixture removed — GET serves
+    // real DB rows for every channel; no channel-specific mock path remains)
     const messages = await getGlobalChatMessages(getMessagesRequest);
-
-    // TEMPORARY: Add realistic dummy messages for testing/design purposes
-    // These match the production API response format exactly
-    const dummyMessages = [
-      { id: 'msg_1', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: 'just got VIP — harvests are way smoother now', timestamp: new Date(Date.now() - 3600000), edited: false },
-      { id: 'msg_2', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: 'congrats! 2x boost makes metal tiles actually viable', timestamp: new Date(Date.now() - 3400000), edited: false },
-      { id: 'msg_3', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: 'shrine gave me a solid boost today — energy tiles are flowing', timestamp: new Date(Date.now() - 3200000), edited: false },
-      { id: 'msg_4', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: 'anyone farming near 110.98?', timestamp: new Date(Date.now() - 3000000), edited: false },
-      { id: 'msg_5', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: "I'm at 112.97, just cleared a metal node", timestamp: new Date(Date.now() - 2800000), edited: false },
-      { id: 'msg_6', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: 'reminder: G for surface, F for cave tiles', timestamp: new Date(Date.now() - 2600000), edited: false },
-      { id: 'msg_7', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: '@ObsidianWolf just hit #2 on the leaderboard 👀', timestamp: new Date(Date.now() - 2400000), edited: false },
-      { id: 'msg_8', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: "that guy's everywhere — flag holder again too", timestamp: new Date(Date.now() - 2200000), edited: false },
-      { id: 'msg_9', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: "dang, ObsidianWolf took the flag — I couldn't afford to pay them anymore", timestamp: new Date(Date.now() - 2000000), edited: false },
-      { id: 'msg_10', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: "flag's at 40.40 now, confirmed", timestamp: new Date(Date.now() - 1800000), edited: false },
-      { id: 'msg_11', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: 'how do I build units again?', timestamp: new Date(Date.now() - 1600000), edited: false },
-      { id: 'msg_12', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: 'capture a factory + have metal/energy', timestamp: new Date(Date.now() - 1400000), edited: false },
-      { id: 'msg_13', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: 'then go to left panel → Military → Build Units', timestamp: new Date(Date.now() - 1200000), edited: false },
-      { id: 'msg_14', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: 'just built 3 scouts — heading toward 33.44', timestamp: new Date(Date.now() - 1000000), edited: false },
-      { id: 'msg_15', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: 'shrine + VIP gave me 2,280 from a metal node — solid', timestamp: new Date(Date.now() - 800000), edited: false },
-      { id: 'msg_16', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: 'anyone trading artifacts?', timestamp: new Date(Date.now() - 600000), edited: false },
-      { id: 'msg_17', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: "I've got a spare Flag Bearer at 108.60", timestamp: new Date(Date.now() - 400000), edited: false },
-      { id: 'msg_18', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: '@NovaDrift just hit level 12 — grats!', timestamp: new Date(Date.now() - 300000), edited: false },
-      { id: 'msg_19', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: "Harvest Calculator is 🔥 — finally know what I'm getting", timestamp: new Date(Date.now() - 200000), edited: false },
-      { id: 'msg_20', channelId: ChannelType.GLOBAL, senderId: 'user3', senderUsername: 'NovaDrift', senderLevel: 12, senderIsVIP: false, content: "cave gave me a legendary digger — didn't expect that", timestamp: new Date(Date.now() - 150000), edited: false },
-      { id: 'msg_21', channelId: ChannelType.GLOBAL, senderId: 'user1', senderUsername: 'TileHunter42', senderLevel: 18, senderIsVIP: true, content: 'metal + shrine + VIP is the move right now', timestamp: new Date(Date.now() - 100000), edited: false },
-      { id: 'msg_22', channelId: ChannelType.GLOBAL, senderId: 'user4', senderUsername: 'CraterSoul', senderLevel: 15, senderIsVIP: false, content: 'Clan "Ashborn" just declared war on "NightHowlers" 😬', timestamp: new Date(Date.now() - 80000), edited: false },
-      { id: 'msg_23', channelId: ChannelType.GLOBAL, senderId: 'user5', senderUsername: 'VoidRunner', senderLevel: 22, senderIsVIP: true, content: "if NightHowlers finish WMD research, it's gonna get messy fast", timestamp: new Date(Date.now() - 60000), edited: false },
-      { id: 'msg_24', channelId: ChannelType.GLOBAL, senderId: 'user6', senderUsername: 'DustWarden', senderLevel: 30, senderIsVIP: false, content: 'anyone online near 25.25? I see movement', timestamp: new Date(Date.now() - 40000), edited: false },
-      { id: 'msg_25', channelId: ChannelType.GLOBAL, senderId: 'user2', senderUsername: 'EchoSpire', senderLevel: 25, senderIsVIP: false, content: 'prepping units now — not waiting to get nuked', timestamp: new Date(Date.now() - 20000), edited: false },
-    ];
-
-    // Return dummy messages instead of real ones for design testing
-    // When production backend is ready, just remove this ternary and return messages directly
-    const messagesToReturn = channelId === ChannelType.GLOBAL ? dummyMessages : messages;
 
     return NextResponse.json(
       {
         success: true,
-        messages: messagesToReturn,
-        count: messagesToReturn.length,
+        messages,
+        count: messages.length,
         channelId,
       },
       { status: 200 }

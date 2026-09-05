@@ -37,7 +37,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { acceptRequest, declineRequest, removeFriend } from '@/lib/friendService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
@@ -82,11 +81,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
-
-    // 2. Authenticate user
+    // Authenticate user (Postgres pivot: services own all persistence)
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     
@@ -210,11 +205,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
-
-    // 2. Authenticate user
+    // Authenticate user (Postgres pivot: services own all persistence)
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     

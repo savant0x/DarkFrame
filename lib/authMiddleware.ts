@@ -267,8 +267,11 @@ export async function requireClanMembership(
     return auth;
   }
   
-  // Find clan by playerId - clans.members is a JSON column, need to check if playerId is in it
-  const clanResult = await db.select().from(clans).where(sql`JSON_CONTAINS(${clans.members}, JSON_ARRAY(${auth.playerId}))`).limit(1);
+  // Find clan by playerId — clans.members is a jsonb array of {playerId, ...} objects
+  // (pg: @> containment with an array-shaped probe; the previous MySQL JSON_CONTAINS
+  // was invalid on Postgres and 500ed every clan route)
+  const probe = JSON.stringify([{ playerId: auth.playerId }]);
+  const clanResult = await db.select().from(clans).where(sql`${clans.members} @> ${probe}::jsonb`).limit(1);
   
   if (clanResult.length === 0) {
     return NextResponse.json(
