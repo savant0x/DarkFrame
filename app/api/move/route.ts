@@ -108,6 +108,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Move player
     const { player, tile } = await movePlayer(username, direction as MovementDirection);
 
+    // FID-20260906-010 R1: guarantee the documented domain shape on the way out.
+    // Clients (AutoFarm engine, GameContext) read nested `currentPosition: Position`.
+    // When the mapper produced no nested alias, compose it from the row's flat
+    // columns (typed via the row shape, not the Player interface, which does not
+    // declare flat position fields). Preserve-don't-overwrite: a freshly moved,
+    // server-confirmed nested position is never clobbered by the stale flat row.
+    const rawPos = player as unknown as Record<string, unknown>;
+    if ((!player.currentPosition || typeof player.currentPosition.x !== 'number' || typeof player.currentPosition.y !== 'number')
+      && typeof rawPos.currentPositionX === 'number' && typeof rawPos.currentPositionY === 'number') {
+      player.currentPosition = { x: rawPos.currentPositionX as number, y: rawPos.currentPositionY as number };
+    }
+
     // Defensive: Ensure player.currentPosition is always present and valid
     if (!player.currentPosition || typeof player.currentPosition.x !== 'number' || typeof player.currentPosition.y !== 'number') {
       // Fallback: Use tile position if available, else oldPosition, else (1,1)

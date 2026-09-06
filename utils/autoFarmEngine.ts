@@ -658,33 +658,26 @@ export class AutoFarmEngine {
       }
       
       // Verify we moved to the expected position
-      // Try multiple paths to extract position from response
-      // IMPORTANT: Move API returns { success: true, data: { player: {...}, currentTile: {...} } }
-      // Position is at data.player.currentPosition (NOT data.data.player.currentPosition)
+      // FID-20260906-010 R2: the move API's documented contract is
+      // { success, data: { player, currentTile } } — read data.data.player first.
+      // The route (R1) now also normalizes nested currentPosition from flat columns,
+      // so the legacy paths below exist only as defensive fallbacks.
       let newPos;
-      if (data.player?.currentPosition) {
-        newPos = data.player.currentPosition;
-        console.log('[AutoFarm] Extracted position from data.player.currentPosition:', newPos);
-      } else if (data.data?.player?.currentPosition) {
+      if (data.data?.player?.currentPosition) {
         newPos = data.data.player.currentPosition;
-        console.log('[AutoFarm] Extracted position from data.data.player.currentPosition (fallback):', newPos);
+      } else if (data.data?.player?.currentPositionX !== undefined) {
+        // Last-resort: flat columns if a future serialization drops the nested alias
+        const px = data.data.player.currentPositionX;
+        const py = data.data.player.currentPositionY;
+        if (typeof px === 'number' && typeof py === 'number') {
+          newPos = { x: px, y: py };
+        }
+      } else if (data.player?.currentPosition) {
+        newPos = data.player.currentPosition;
       } else if (data.data?.newPosition) {
         newPos = data.data.newPosition;
-        console.log('[AutoFarm] Extracted position from data.data.newPosition (fallback):', newPos);
       } else if (data.newPosition) {
         newPos = data.newPosition;
-        console.log('[AutoFarm] Extracted position from data.newPosition (fallback):', newPos);
-      } else {
-        console.error('[AutoFarm] Could not extract position from response. Response structure:', {
-          hasData: !!data.data,
-          hasPlayer: !!data.player,
-          hasPlayerCurrentPosition: !!data.player?.currentPosition,
-          dataPlayerExists: !!data.data?.player,
-          dataPlayerCurrentPosition: !!data.data?.player?.currentPosition,
-          dataKeys: data.data ? Object.keys(data.data) : [],
-          playerKeys: data.player ? Object.keys(data.player) : [],
-          topLevelKeys: Object.keys(data)
-        });
       }
       
       if (newPos && newPos.x === position.x && newPos.y === position.y) {
