@@ -52,14 +52,17 @@ import { getNestById } from './botNestService';
 import type { Player, PlayerUnit,  UnitType } from '@/types/game.types';
 
 /**
- * Resource regeneration rates by bot specialization (percentage per hour)
+ * Resource regeneration rates by bot specialization (percentage per hour).
+ * FID-20260906-003 S1: this table DELEGATES to botService's canonical rates —
+ * the previous local copy (Balanced 0.12 vs 0.10) was one of three divergent
+ * regen-rate sources the admin panel's regenRates setting is meant to replace.
  */
 const REGENERATION_RATES = {
   Hoarder: 0.05,   // 5% per hour - slow regeneration, focuses on hoarding
   Fortress: 0.10,  // 10% per hour - moderate regeneration
   Raider: 0.15,    // 15% per hour - faster regeneration for aggressive play
   Ghost: 0.20,     // 20% per hour - fastest regeneration for hit-and-run
-  Balanced: 0.12,  // 12% per hour - balanced regeneration
+  Balanced: 0.10,  // 10% per hour - balanced regeneration (aligned with botService)
 } as const;
 
 /**

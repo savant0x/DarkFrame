@@ -32,7 +32,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { battleLogs, playerActivity, playerFlags, playerSessions, modLog } from '@/lib/db/schema';
+import { generateId } from '@/lib/utils';
 import { 
   withRequestLogging, 
   createRouteLogger, 
@@ -47,6 +49,14 @@ import {
 import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.ADMIN_OPERATIONS);
+
+/** Per-action drizzle delete target (FID-20260906-003 S6: pg-native rewrite). */
+const RESET_TARGETS = {
+  'clear-battle-logs': { table: battleLogs, idColumn: battleLogs.battleId, actionType: 'CLEAR_BATTLE_LOGS', noun: 'battle logs' },
+  'clear-activity-logs': { table: playerActivity, idColumn: playerActivity.id, actionType: 'CLEAR_ACTIVITY_LOGS', noun: 'activity records' },
+  'reset-flags': { table: playerFlags, idColumn: playerFlags.id, actionType: 'RESET_ALL_FLAGS', noun: 'anti-cheat flags' },
+  'clear-sessions': { table: playerSessions, idColumn: playerSessions.id, actionType: 'CLEAR_ALL_SESSIONS', noun: 'player sessions' },
+} as const;
 
 /**
  * POST handler - Execute system reset
@@ -87,63 +97,28 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       adminUsername: user.username 
     });
 
-    // Get admin logs collection for audit trail
-    const adminLogsCollection = await getCollection('adminLogs');
+    // FID-20260906-003 S6: pg-native rewrite. The Mongo-era version deleted
+    // from shim collections (phantom on Postgres — every action deleted
+    // NOTHING and reported success) and audited to a phantom adminLogs
+    // collection. Drizzle delete + mod_log row now; deletedCount is real.
+    const target = RESET_TARGETS[validated.action];
+    const deletedRows = await db.delete(target.table).returning({ id: target.idColumn });
+    const deletedCount = deletedRows.length;
+    const message = `Deleted ${deletedCount} ${target.noun}`;
+    const actionType = target.actionType;
 
-    let deletedCount = 0;
-    let message = '';
-    let actionType = '';
-
-    // Execute the requested action
-    switch (validated.action) {
-      case 'clear-battle-logs': {
-        const battleLogsCollection = await getCollection('battleLogs');
-        const result = await battleLogsCollection.deleteMany({});
-        deletedCount = result.deletedCount || 0;
-        message = `Deleted ${deletedCount} battle logs`;
-        actionType = 'CLEAR_BATTLE_LOGS';
-        break;
-      }
-
-      case 'clear-activity-logs': {
-        const activityCollection = await getCollection('playerActivity');
-        const result = await activityCollection.deleteMany({});
-        deletedCount = result.deletedCount || 0;
-        message = `Deleted ${deletedCount} activity records`;
-        actionType = 'CLEAR_ACTIVITY_LOGS';
-        break;
-      }
-
-      case 'reset-flags': {
-        const flagsCollection = await getCollection('playerFlags');
-        const result = await flagsCollection.deleteMany({});
-        deletedCount = result.deletedCount || 0;
-        message = `Cleared ${deletedCount} anti-cheat flags`;
-        actionType = 'RESET_ALL_FLAGS';
-        break;
-      }
-
-      case 'clear-sessions': {
-        const sessionsCollection = await getCollection('playerSessions');
-        const result = await sessionsCollection.deleteMany({});
-        deletedCount = result.deletedCount || 0;
-        message = `Deleted ${deletedCount} player sessions`;
-        actionType = 'CLEAR_ALL_SESSIONS';
-        break;
-      }
-    }
-
-    // Log the admin action for audit trail
-    await adminLogsCollection.insertOne({
-      timestamp: new Date(),
-      adminUsername: user.username,
-      actionType,
-      targetUsername: 'SYSTEM',
-      details: {
-        action: validated.action,
+    // Audit trail (mod_log — the same table anti-cheat/ban writes).
+    await db.insert(modLog).values({
+      id: generateId().slice(0, 24),
+      moderatorId: user.username.slice(0, 20),
+      action: actionType,
+      targetId: 'SYSTEM',
+      details: JSON.stringify({
+        requestedAction: validated.action,
         deletedCount,
         message,
-      },
+      }),
+      createdAt: new Date(),
     });
 
     log.warn('System reset completed', { 

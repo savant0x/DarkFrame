@@ -40,6 +40,7 @@ export {
 } from './notifications';
 export { mutes, bans, modLog, warnings, wordBlacklist } from './moderation';
 export {
+  migrations,
   gameConfig,
   botConfig,
   flags,

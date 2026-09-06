@@ -142,8 +142,26 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       case 'analytics': {
         const { start, end } = parseDateRange(request);
         const analytics = await getGlobalWMDStats(start, end);
+        // FID-20260906-003 S2: adapt to the admin UI's contract (AdminView.tsx
+        // reads missiles.hit/successRate/avgDamage, votes.approvalRate as a 0..1
+        // fraction). Service fields are kept (additive) so modals don't regress.
+        const missileTotal = analytics.missiles?.total ?? 0;
+        const impacted = analytics.missiles?.impacted ?? 0;
+        const adaptedAnalytics = {
+          ...analytics,
+          missiles: {
+            ...analytics.missiles,
+            hit: impacted,
+            successRate: missileTotal > 0 ? impacted / missileTotal : 0,
+            avgDamage: impacted > 0 ? (analytics.missiles.totalDamage ?? 0) / impacted : 0,
+          },
+          votes: {
+            ...analytics.votes,
+            approvalRate: (analytics.votes.avgApprovalRate ?? 0) / 100,
+          },
+        };
         log.info('WMD analytics retrieved', { action, startDate: start, endDate: end });
-        return NextResponse.json({ success: true, data: analytics });
+        return NextResponse.json({ success: true, data: adaptedAnalytics });
       }
 
       case 'impacts': {
@@ -180,8 +198,29 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
       default: {
         const status = await getWMDSystemStatus();
+        // FID-20260906-003 S2: adapt to the admin UI's contract (AdminView.tsx
+        // reads activeOperations{missiles,votes}, jobs.scheduled, alerts[]).
+        // Previously zero key overlap → the tab rendered 0 everywhere.
+        const adaptedStatus = {
+          ...status,
+          activeOperations: {
+            missiles: status.activeMissiles,
+            votes: status.activeVotes,
+          },
+          jobs: {
+            ...status.scheduler,
+            scheduled: Object.values(status.scheduler.jobs).filter((j) => j.running).length,
+          },
+          alerts: status.recentAlerts.map((a) => ({
+            type: a.type,
+            message: a.message,
+            severity: a.severity,
+            acknowledged: a.acknowledged,
+            createdAt: a.timestamp,
+          })),
+        };
         log.info('WMD system status retrieved', { action: 'status' });
-        return NextResponse.json({ success: true, data: status });
+        return NextResponse.json({ success: true, data: adaptedStatus });
       }
     }
   } catch (error) {

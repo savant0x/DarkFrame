@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authService';
 import {
   withRequestLogging,
@@ -48,27 +48,33 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    const conditions = ['amount > 0'];
-    const params: (string | number)[] = [];
-
+    // FID-20260906-003 S4: pg-dialect rewrite. The Mongo-era version built a
+    // MySQL-style 'timestamp >= ?' filter and interpolated it with sql.raw —
+    // the ? never binds under drizzle/postgres, so every dated period 500'd.
+    // Bound parameters now ride in the sql template (sibling pattern from the
+    // transactions route); the table is the lowercase rptransactions (0009).
+    const conditions: SQL[] = [sql`amount > 0`];
     if (dateFilter) {
-      conditions.push('timestamp >= ?');
-      params.push(dateFilter.toISOString());
+      conditions.push(sql`"timestamp" >= ${dateFilter.toISOString()}`);
     }
-
-    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+    const whereClause = sql` WHERE ${sql.join(conditions, sql` AND `)}`;
 
     const result = await db.execute(sql`
-      SELECT source, SUM(amount) as totalRP, COUNT(*) as transactionCount, AVG(amount) as averageAmount
-      FROM rpTransactions
-      ${sql.raw(whereClause)}
+      SELECT source, SUM(amount) as "totalRP", COUNT(*) as "transactionCount", AVG(amount) as "averageAmount"
+      FROM rptransactions${whereClause}
       GROUP BY source
-      ORDER BY totalRP DESC
+      ORDER BY "totalRP" DESC
     `);
 
-    const resultRows = result as unknown as { rows?: Array<{ source: string; totalRP: number; players: number }> };
-    const rows: Array<{ source: string; totalRP: number; players: number; transactionCount: number; averageAmount: number }> = (resultRows.rows ?? []) as Array<{ source: string; totalRP: number; players: number; transactionCount: number; averageAmount: number }>;
-    const totalGeneration = rows.reduce((sum, item) => sum + Number(item.totalRP), 0);
+    const resultRows = result as unknown as { rows?: Array<{ source: string; totalRP: string | number; transactionCount: string | number; averageAmount: string | number }> };
+    const rows = (resultRows.rows ?? []).map((r) => ({
+      source: r.source,
+      totalRP: Number(r.totalRP),
+      transactionCount: Number(r.transactionCount),
+      averageAmount: Number(r.averageAmount),
+      players: 0,
+    }));
+    const totalGeneration = rows.reduce((sum, item) => sum + item.totalRP, 0);
 
     const sources = rows.map((item) => ({
       source: item.source,

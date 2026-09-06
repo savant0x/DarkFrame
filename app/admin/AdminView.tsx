@@ -122,6 +122,34 @@ interface BeerEffectivenessStats {
   peakHours?: Array<{ hour: number; count: number }>;
 }
 
+// GET /api/admin/health → panel header strip payload (FID-20260906-003 S7)
+interface HealthPayload {
+  db: { ok: boolean; latencyMs: number };
+  migrations: { latest: string; upToDate: boolean };
+  env: { jwtSecret: boolean; databaseUrl: boolean; cronSecret: boolean; stripeSecretKey: boolean };
+  cron: { reachable: boolean; note: string };
+  wmdAlerts: { unacknowledged: number; latest: Array<{ type: string; severity: string; message: string; createdAt: string }> };
+  checkedAt: string;
+}
+
+/**
+ * FID-20260906-003 S5: fetch wrapper with one retry on 5xx/network errors.
+ * The dashboard bursts ~8 parallel fetches on mount; Supavisor's 15-client
+ * session cap occasionally sheds one under load, blanking whole panels until a
+ * manual reload. 4xx responses are returned as-is (retrying can't fix auth/validation).
+ */
+const fetchAdminJson = async (path: string, retries = 1): Promise<Response> => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(path);
+      if (res.ok || res.status < 500 || attempt >= retries) return res;
+    } catch (err) {
+      if (attempt >= retries) throw err;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+  }
+};
+
 // app/api/admin/rp-economy/*
 interface RpStats {
   totalRP: number;
@@ -178,6 +206,8 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
   const [players, setPlayers] = useState<PlayerListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // FID-20260906-003 S7: system health strip payload (GET /api/admin/health).
+  const [health, setHealth] = useState<{ data: HealthPayload } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [showTileInspector, setShowTileInspector] = useState(false);
@@ -309,11 +339,11 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       setLoading(true);
       try {
         const [statsRes, playersRes, botStatsRes, botConfigRes, beerBaseConfigRes] = await Promise.all([
-          fetch('/api/admin/stats'),
-          fetch('/api/admin/players'),
-          fetch('/api/admin/bot-stats'),
-          fetch('/api/admin/bot-config'),
-          fetch('/api/admin/beer-bases/config')
+          fetchAdminJson('/api/admin/stats'),
+          fetchAdminJson('/api/admin/players'),
+          fetchAdminJson('/api/admin/bot-stats'),
+          fetchAdminJson('/api/admin/bot-config'),
+          fetchAdminJson('/api/admin/beer-bases/config')
         ]);
 
         const statsData = await statsRes.json();
@@ -375,14 +405,14 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         }
 
         // Load WMD status
-        const wmdStatusRes = await fetch('/api/admin/wmd?action=status');
+        const wmdStatusRes = await fetchAdminJson('/api/admin/wmd?action=status');
         const wmdStatusData = await wmdStatusRes.json();
         if (wmdStatusData.success) {
           setWmdStatus(wmdStatusData.data);
         }
 
         // Load WMD analytics
-        const wmdAnalyticsRes = await fetch(`/api/admin/wmd?action=analytics&range=${wmdTimeRange}`);
+        const wmdAnalyticsRes = await fetchAdminJson(`/api/admin/wmd?action=analytics&range=${wmdTimeRange}`);
         const wmdAnalyticsData = await wmdAnalyticsRes.json();
         if (wmdAnalyticsData.success) {
           setWmdAnalytics(wmdAnalyticsData.data);
@@ -397,6 +427,11 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
 
     loadStats();
     loadVipUsers(); // Load VIP users on mount
+    // FID-20260906-003 S7: health strip load (one retry, never blocks the panel).
+    fetchAdminJson('/api/admin/health')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setHealth(data?.success ? data : null))
+      .catch((err) => console.error('Failed to load admin health:', err));
   }, [player, isAdmin, wmdTimeRange]);
 
   // Reload WMD analytics when time range changes
@@ -823,10 +858,10 @@ By Specialization:
     
     try {
       const [activityRes, resourceRes, sessionRes, flagsRes] = await Promise.all([
-        fetch(`/api/admin/analytics/activity-trends?period=${analyticsPeriod}`),
-        fetch(`/api/admin/analytics/resource-trends?period=${analyticsPeriod}`),
-        fetch(`/api/admin/analytics/session-trends?period=${analyticsPeriod}`),
-        fetch('/api/admin/anti-cheat/flagged-players')
+        fetchAdminJson(`/api/admin/analytics/activity-trends?period=${analyticsPeriod}`),
+        fetchAdminJson(`/api/admin/analytics/resource-trends?period=${analyticsPeriod}`),
+        fetchAdminJson(`/api/admin/analytics/session-trends?period=${analyticsPeriod}`),
+        fetchAdminJson('/api/admin/anti-cheat/flagged-players')
       ]);
       
       const [activityJson, resourceJson, sessionJson, flagsJson] = await Promise.all([
@@ -941,9 +976,9 @@ By Specialization:
     
     try {
       const [statsRes, txRes, topRes] = await Promise.all([
-        fetch('/api/admin/rp-economy/stats'),
-        fetch(`/api/admin/rp-economy/transactions?period=${rpDateFilter}&source=${rpSourceFilter}&username=${rpUsernameFilter}`),
-        fetch(`/api/admin/rp-economy/top-players?period=${rpDateFilter}`)
+        fetchAdminJson('/api/admin/rp-economy/stats'),
+        fetchAdminJson(`/api/admin/rp-economy/transactions?period=${rpDateFilter}&source=${rpSourceFilter}&username=${rpUsernameFilter}`),
+        fetchAdminJson(`/api/admin/rp-economy/top-players?period=${rpDateFilter}`)
       ]);
       
       if (statsRes.ok) {
@@ -1073,6 +1108,43 @@ By Specialization:
         {error && (
           <div className="bg-red-900/50 border border-red-600 rounded-lg p-4 mb-6">
             <p className="text-red-400">{error}</p>
+          </div>
+        )}
+
+        {/* FID-20260906-003 S7: system health strip — real checks, no mocks. */}
+        {health && (
+          <div className={`rounded-lg p-3 mb-6 border flex flex-wrap items-center gap-x-5 gap-y-2 text-sm ${health.data.db.ok && health.data.migrations.upToDate && health.data.env.jwtSecret && health.data.env.databaseUrl ? 'bg-gray-800/60 border-green-700/50' : 'bg-red-950/60 border-red-700'}`}>
+            <span className="font-semibold text-gray-300">System Health</span>
+            <span className="flex items-center gap-1.5">
+              <span className={health.data.db.ok ? 'text-green-400' : 'text-red-400'}>●</span>
+              <span className="text-gray-400">DB</span>
+              <span className={health.data.db.ok ? 'text-green-400' : 'text-red-400'}>{health.data.db.ok ? `${health.data.db.latencyMs}ms` : 'down'}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className={health.data.migrations.upToDate ? 'text-green-400' : 'text-yellow-400'}>●</span>
+              <span className="text-gray-400">Migrations</span>
+              <span className="text-gray-500" title={health.data.migrations.latest}>{health.data.migrations.upToDate ? 'current' : `behind (${health.data.migrations.latest})`}</span>
+            </span>
+            {(['jwtSecret', 'databaseUrl', 'cronSecret', 'stripeSecretKey'] as const).map((k) => (
+              <span key={k} className="flex items-center gap-1.5">
+                <span className={health!.data.env[k] ? 'text-green-400' : 'text-red-400'}>●</span>
+                <span className="text-gray-400 text-xs uppercase">{k.replace('Secret', '').replace('Key', '')}</span>
+              </span>
+            ))}
+            <span className="flex items-center gap-1.5" title={health.data.cron.note}>
+              <span className={health.data.cron.reachable ? 'text-green-400' : health.data.cron.note.includes('skipped') ? 'text-yellow-400' : 'text-red-400'}>●</span>
+              <span className="text-gray-400">Cron</span>
+            </span>
+            {health.data.wmdAlerts.unacknowledged > 0 ? (
+              <button
+                onClick={() => document.getElementById('admin-wmd-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="ml-auto bg-red-900/70 border border-red-500 px-3 py-1 rounded text-red-200 hover:bg-red-800/70 transition-colors"
+              >
+                ⚠ {health.data.wmdAlerts.unacknowledged} WMD alert{health.data.wmdAlerts.unacknowledged === 1 ? '' : 's'} — review
+              </button>
+            ) : (
+              <span className="ml-auto text-green-400">WMD alerts clear</span>
+            )}
           </div>
         )}
 
@@ -2555,7 +2627,7 @@ By Specialization:
             </div>
 
             {/* WMD System Oversight */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-pink-500/30">
+            <div id="admin-wmd-section" className="bg-gray-800 rounded-lg p-6 border-2 border-pink-500/30">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-pink-400">☢️ WMD System Oversight</h2>
                 <div className="flex items-center gap-2">

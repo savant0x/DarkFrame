@@ -164,7 +164,16 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     });
 
   } catch (error) {
-    log.error('Failed to fetch activity trends', error instanceof Error ? error : new Error(String(error)));
+    // FID-20260906-003 S5: drizzle wraps the pg error in err.cause — log it too,
+    // or every 500 shows an empty message (the pool-exhaustion diagnosis took a
+    // manual log dig because of this). The logger prints Error objects as
+    // {message, stack, name}, so the cause rides as its own entry.
+    const err = error instanceof Error ? error : new Error(String(error));
+    log.error('Failed to fetch activity trends', err);
+    const cause = (err as Error & { cause?: unknown }).cause;
+    if (cause !== undefined) {
+      log.error('activity-trends cause', cause instanceof Error ? cause : undefined);
+    }
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
     endTimer();

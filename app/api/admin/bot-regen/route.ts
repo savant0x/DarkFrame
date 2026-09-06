@@ -12,7 +12,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, modLog } from '@/lib/db/schema';
+import { generateId } from '@/lib/utils';
 import type { BotConfig } from '@/types/game.types';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -115,6 +116,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         .where(eq(players.username, bot.username));
 
       regeneratedCount++;
+    }
+
+    // FID-20260906-003 S6: resource mutation → mod_log audit row.
+    if (regeneratedCount > 0) {
+      await db.insert(modLog).values({
+        id: generateId().slice(0, 24),
+        moderatorId: tokenPayload.username.slice(0, 20),
+        action: 'ADMIN_BOT_REGEN',
+        targetId: (username || 'ALL_BOTS').slice(0, 24),
+        details: JSON.stringify({ botsAffected: regeneratedCount, username: username || 'all' }),
+        createdAt: new Date(),
+      });
     }
 
     log.info('Bot resources regenerated', {

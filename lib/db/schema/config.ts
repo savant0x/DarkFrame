@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, varchar, integer, smallint, bigint, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, integer, smallint, bigint, real, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const migrations = pgTable('migrations', {
 	id: varchar('id', { length: 100 }).primaryKey(),
@@ -24,6 +24,14 @@ export const botConfig = pgTable('bot_config', {
 	spawnRate: integer('spawn_rate').notNull(),
 	totalBots: integer('total_bots').notNull(),
 	lastSpawn: timestamp('last_spawn'),
+	// Global bot-system settings (FID-20260906-003 S1): the admin panel's five
+	// knobs persist here under the 'global' row. spawnRate ≡ dailySpawnCount,
+	// totalBots ≡ totalBotCap; the two columns below add migration % + regen rates.
+	migrationPercent: real('migration_percent').notNull().default(0.3),
+	regenRates: jsonb('regen_rates')
+		.notNull()
+		.default(sql`'{"hoarder":0.05,"fortress":0.10,"raider":0.15,"ghost":0.20,"balanced":0.10}'::jsonb`)
+		.$type<Record<string, number>>(),
 });
 
 export const flags = pgTable('flags', {

@@ -11,9 +11,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, modLog } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { generateId } from '@/lib/utils';
+import { getGlobalBotConfig, saveGlobalBotConfig } from '@/lib/botConfigService';
+import { z } from 'zod';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -59,14 +62,16 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       });
     }
 
-    // Get bot username from query params
+    // Get bot username from query params; without `username`, return the
+    // GLOBAL bot-system settings (FID-20260906-003 S1: this bare-GET path was
+    // previously a guaranteed 400 — the panel's mount fetch never worked).
     const { searchParams } = new URL(request.url);
     const botUsername = searchParams.get('username');
 
     if (!botUsername) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, {
-        message: 'Bot username is required',
-      });
+      const global = await getGlobalBotConfig();
+      log.info('Global bot configuration retrieved', { adminUser: tokenPayload.username });
+      return NextResponse.json({ success: true, data: global });
     }
 
     // Fetch bot
@@ -118,28 +123,36 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 }));
 
 // ============================================================================
-// PATCH - Update Bot Configuration
+// PATCH - Update Bot Configuration (per-bot) OR Global Bot Settings
 // ============================================================================
 
 /**
  * PATCH /api/admin/bot-config
  * Rate Limited: 30 req/hour (admin bot management)
- * Updates bot configuration settings
- * Requires admin privileges (rank >= 5)
- * 
- * Request body:
- * {
- *   username: string,
- *   updates: {
- *     specialization?: string,
- *     tier?: number,
- *     position?: { x: number, y: number },
- *     resources?: { metal?: number, energy?: number },
- *     isSpecialBase?: boolean
- *   }
- * }
+ * Two disjoint request shapes, distinguished by the presence of `username`
+ * (FID-20260906-003 S1):
+ *
+ * 1. GLOBAL (the admin panel's bot-system settings — previously 400'd on
+ *    every save because only the per-bot shape existed):
+ *    { totalBotCap?: 1..5000, dailySpawnCount?: 0..1000,
+ *      migrationPercent?: 0..1, regenRates?: Record<string, 0..1> }
+ *    → upserts the bot_config 'global' row via botConfigService.
+ *
+ * 2. PER-BOT (unchanged contract):
+ *    { username, updates: { specialization?, tier?, position?, resources?,
+ *      isSpecialBase? } }
+ *
+ * Both require admin privileges.
  */
 const patchRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
+
+/** Validation bounds for the global settings shape (FID-003 S1). */
+const GlobalBotConfigPatchSchema = z.object({
+  totalBotCap: z.number().int().min(1).max(5000).optional(),
+  dailySpawnCount: z.number().int().min(0).max(1000).optional(),
+  migrationPercent: z.number().min(0).max(1).optional(),
+  regenRates: z.record(z.string(), z.number().min(0).max(1)).optional(),
+}).strict();
 
 export const PATCH = withRequestLogging(patchRateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('AdminBotConfigPatchAPI');
@@ -161,8 +174,42 @@ export const PATCH = withRequestLogging(patchRateLimiter(async (request: NextReq
       });
     }
 
-    // Parse request body
-    const body = await request.json();
+    const body: unknown = await request.json();
+
+    // ---- Shape 1: global bot-system settings ----
+    if (
+      body !== null && typeof body === 'object' &&
+      !('username' in body) &&
+      ('totalBotCap' in body || 'dailySpawnCount' in body || 'migrationPercent' in body || 'regenRates' in body)
+    ) {
+      const globalPatch = GlobalBotConfigPatchSchema.parse(body);
+      const current = await getGlobalBotConfig();
+      const next = {
+        totalBotCap: globalPatch.totalBotCap ?? current.totalBotCap,
+        dailySpawnCount: globalPatch.dailySpawnCount ?? current.dailySpawnCount,
+        migrationPercent: globalPatch.migrationPercent ?? current.migrationPercent,
+        regenRates: { ...current.regenRates, ...(globalPatch.regenRates ?? {}) },
+      };
+      await saveGlobalBotConfig(next);
+
+      // FID-003 S6: global config changes are audited.
+      await db.insert(modLog).values({
+        id: generateId().slice(0, 24),
+        moderatorId: tokenPayload.username.slice(0, 20),
+        action: 'ADMIN_BOT_CONFIG_GLOBAL',
+        targetId: 'global',
+        details: JSON.stringify({ changes: globalPatch, next }),
+        createdAt: new Date(),
+      });
+
+      log.info('Global bot configuration saved', {
+        changes: Object.keys(globalPatch),
+        adminUser: tokenPayload.username,
+      });
+      return NextResponse.json({ success: true, message: 'Bot configuration saved successfully', data: next });
+    }
+
+    // ---- Shape 2: per-bot configuration (unchanged) ----
     const validated = BotConfigPatchSchema.parse(body);
     const { username, updates } = validated;
 
@@ -218,6 +265,16 @@ export const PATCH = withRequestLogging(patchRateLimiter(async (request: NextReq
       await db.update(players)
         .set(setClause)
         .where(and(eq(players.username, username), eq(players.isBot, 1)));
+
+      // FID-003 S6: per-bot config changes are audited.
+      await db.insert(modLog).values({
+        id: generateId().slice(0, 24),
+        moderatorId: tokenPayload.username.slice(0, 20),
+        action: 'ADMIN_BOT_CONFIG',
+        targetId: username.slice(0, 24),
+        details: JSON.stringify({ updatesApplied: Object.keys(setClause) }),
+        createdAt: new Date(),
+      });
     }
 
     log.info('Bot configuration updated successfully', {
