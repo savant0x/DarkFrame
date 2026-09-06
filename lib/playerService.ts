@@ -9,8 +9,9 @@ import { db } from '@/lib/db';
 import { players, tiles } from '@/lib/db/schema';
 import { eq, and, isNull, sql } from 'drizzle-orm';
 import { GAME_CONSTANTS, UnitTier } from '@/types';
-import type { Player } from '@/types/game.types';
-import { sanitizePlayer } from '@/lib/playerSanitize';
+import type { Player, PlayerInventory } from '@/types/game.types';
+import { sanitizePlayer, type SanitizedPlayer } from '@/lib/playerSanitize';
+export type { SanitizedPlayer } from '@/lib/playerSanitize';
 
 /**
  * Map a flat pg `players` row to the nested domain `Player` shape the client
@@ -22,19 +23,28 @@ import { sanitizePlayer } from '@/lib/playerSanitize';
  * and crashes the game client (`player.currentPosition.x` etc.).
  */
 export function mapRowToPlayer(row: typeof players.$inferSelect): Player {
-  return {
+  // Nullable row columns → optional domain fields (`null` = "never set"), normalized
+  // in ONE place so every field below is explicitly verified against the contract.
+  // The old `as unknown as Player` here silently widened the row and forced every
+  // downstream seam to re-cast with `unknown`.
+  const orUndefined = <T,>(v: T | null): T | undefined => (v === null ? undefined : v);
+  // pg smallint booleans → domain booleans.
+  const bit = (v: number | null): boolean => v === 1;
+
+  const mapped: Player = {
     ...row,
-    isAdmin: row.isAdmin === 1,
-    vip: row.vip === 1,
-    isBot: row.isBot === 1,
-    isSpecialBase: row.isSpecialBase === 1,
+    isAdmin: bit(row.isAdmin),
+    vip: bit(row.vip),
+    isBot: bit(row.isBot),
+    isSpecialBase: bit(row.isSpecialBase),
     base: { x: row.baseX, y: row.baseY },
     currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
     resources: { metal: row.resourcesMetal, energy: row.resourcesEnergy },
     bank: { metal: row.bankMetal, energy: row.bankEnergy, lastDeposit: row.bankLastDeposit },
     rank: row.rank ?? 1,
     inventory: {
-      items: row.inventoryItems,
+      // The column honestly holds both item shapes (see PlayerInventory.items doc).
+      items: row.inventoryItems as PlayerInventory['items'],
       capacity: row.inventoryCapacity,
       metalDiggerCount: row.inventoryMetalDiggerCount,
       energyDiggerCount: row.inventoryEnergyDiggerCount,
@@ -48,7 +58,78 @@ export function mapRowToPlayer(row: typeof players.$inferSelect): Player {
       gatheringBoost: row.activeBoostsGatheringBoost === null ? null : Number(row.activeBoostsGatheringBoost),
       expiresAt: row.activeBoostsExpiresAt,
     },
-  } as unknown as Player;
+    balanceEffects: orUndefined(row.balanceEffects),
+    unlockedTechs: orUndefined(row.unlockedTechs),
+    concentrationZones: orUndefined(row.concentrationZones),
+    lastBotSummon: orUndefined(row.lastBotSummon),
+    fastTravelWaypoints: orUndefined(row.fastTravelWaypoints),
+    lastFastTravel: orUndefined(row.lastFastTravel),
+    dailyBounties: orUndefined(row.dailyBounties),
+    specialization: orUndefined(row.specialization),
+    discoveries: orUndefined(row.discoveries),
+    achievements: orUndefined(row.achievements),
+    stats: orUndefined(row.stats),
+    factoryCount: row.factoryCount ?? 0,
+    lastXPAward: orUndefined(row.lastXPAward),
+    lastLevelUp: orUndefined(row.lastLevelUp),
+    rpHistory: orUndefined(row.rpHistory),
+    baseGreeting: orUndefined(row.baseGreeting),
+    battleStats: orUndefined(row.battleStats) as Player['battleStats'],
+    botConfig: orUndefined(row.botConfig),
+    clanId: orUndefined(row.clanId),
+    clanName: orUndefined(row.clanName),
+    clanRole: orUndefined(row.clanRole),
+    clanLevel: orUndefined(row.clanLevel),
+    vipExpiration: orUndefined(row.vipExpiration),
+    vipTier: orUndefined(row.vipTier),
+    vipLastUpdated: orUndefined(row.vipLastUpdated),
+    lastLoginDate: orUndefined(row.lastLoginDate),
+    loginStreak: orUndefined(row.loginStreak),
+    lastStreakReward: orUndefined(row.lastStreakReward),
+    currentHP: orUndefined(row.currentHP),
+    maxHP: orUndefined(row.maxHP),
+    lastFlagAttack: orUndefined(row.lastFlagAttack),
+    referralCode: orUndefined(row.referralCode),
+    referralLink: orUndefined(row.referralLink),
+    referredBy: orUndefined(row.referredBy),
+    referredByUsername: orUndefined(row.referredByUsername),
+    referralValidated: row.referralValidated === null ? undefined : row.referralValidated === 1,
+    referralValidatedAt: orUndefined(row.referralValidatedAt),
+    totalReferrals: orUndefined(row.totalReferrals),
+    pendingReferrals: orUndefined(row.pendingReferrals),
+    referralTitles: orUndefined(row.referralTitles),
+    referralBadges: orUndefined(row.referralBadges),
+    lastReferralValidated: orUndefined(row.lastReferralValidated),
+    referralMilestonesReached: orUndefined(row.referralMilestonesReached),
+    // Composed from denormalized reward columns (row has no such object).
+    referralRewardsEarned:
+      row.referralRewardsMetal === null &&
+      row.referralRewardsEnergy === null &&
+      row.referralRewardsRp === null &&
+      row.referralRewardsXp === null &&
+      row.referralRewardsVipDays === null
+        ? undefined
+        : {
+            metal: row.referralRewardsMetal ?? 0,
+            energy: row.referralRewardsEnergy ?? 0,
+            rp: row.referralRewardsRp ?? 0,
+            xp: row.referralRewardsXp ?? 0,
+            vipDays: row.referralRewardsVipDays ?? 0,
+          },
+    // pg smallint booleans: null = never set, else 0|1 → boolean.
+    banned: row.banned === null ? undefined : row.banned === 1,
+    banReason: orUndefined(row.banReason),
+    bannedAt: orUndefined(row.bannedAt),
+    bannedBy: orUndefined(row.bannedBy),
+    banExpiresAt: orUndefined(row.banExpiresAt),
+    stripeCustomerId: orUndefined(row.stripeCustomerId),
+    stripeSubscriptionId: orUndefined(row.stripeSubscriptionId),
+    // pg numeric arrives as string; the domain multiplier is a number (default 1.0).
+    referralMultiplier: row.referralMultiplier === null ? undefined : Number(row.referralMultiplier),
+    signupIP: orUndefined(row.signupIP),
+    createdAt: orUndefined(row.createdAt),
+  };
+  return mapped;
 }
 
 /**
@@ -117,10 +198,13 @@ export async function usernameExists(username: string): Promise<boolean> {
   }
 }
 
-export async function getPlayerByUsername(
+/** Overloads: the public (sanitized) view and the private full-row view are
+ * distinct, honestly-typed shapes — no `unknown` bridge casts at call sites.
+ * Default is the sanitized projection (FID-20260904-005 §5.0). */
+async function getPlayerByUsernameImpl(
   username: string,
-  options: { includePrivate?: boolean } = {}
-): Promise<Player | null> {
+  options: { includePrivate?: boolean }
+): Promise<Player | SanitizedPlayer | null> {
   try {
     const result = await db.select().from(players).where(eq(players.username, username)).limit(1);
     if (!result[0]) return null;
@@ -129,11 +213,20 @@ export async function getPlayerByUsername(
     // (password/email/signupIp/stripe ids can NEVER ride along). The private view —
     // full mapped row — is an explicit, greppable opt-in (`{ includePrivate: true }`)
     // reserved for the bcrypt-compare path in auth and same-module trusted callers.
-    return options.includePrivate ? mapped : (sanitizePlayer(mapped) as unknown as Player);
+    return options.includePrivate ? mapped : sanitizePlayer(mapped);
   } catch (error) {
     console.error('Error fetching player:', error);
     throw error;
   }
+}
+
+export function getPlayerByUsername(username: string, options: { includePrivate: true }): Promise<Player | null>;
+export function getPlayerByUsername(username: string, options?: { includePrivate?: false }): Promise<SanitizedPlayer | null>;
+export function getPlayerByUsername(
+  username: string,
+  options: { includePrivate?: boolean } = {}
+): Promise<Player | SanitizedPlayer | null> {
+  return getPlayerByUsernameImpl(username, options);
 }
 
 export async function findAndClaimSpawnTile(ownerUsername?: string): Promise<typeof tiles.$inferSelect | null> {
@@ -198,10 +291,11 @@ export async function createPlayer(username: string): Promise<Player> {
     };
     await db.insert(players).values(newPlayer);
     console.log('Created player: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
-    // Return the full domain Player from the inserted row (single mapping path)
-    const created = await getPlayerByUsername(username.trim());
-    if (!created) throw new Error('Player creation failed: row not found after insert');
-    return created;
+    // Return the full domain Player: read the freshly-inserted row through the
+    // single mapping path (private read — the creator owns the new row).
+    const [row] = await db.select().from(players).where(eq(players.username, username.trim())).limit(1);
+    if (!row) throw new Error('Player creation failed: row not found after insert');
+    return mapRowToPlayer(row);
   } catch (error) {
     console.error('Error creating player:', error);
     throw error;
@@ -218,10 +312,12 @@ export async function emailInUse(email: string): Promise<boolean> {
   }
 }
 
+export function getPlayerByEmail(email: string, options: { includePrivate: true }): Promise<Player | null>;
+export function getPlayerByEmail(email: string, options?: { includePrivate?: false }): Promise<SanitizedPlayer | null>;
 export async function getPlayerByEmail(
   email: string,
   options: { includePrivate?: boolean } = {}
-): Promise<Player | null> {
+): Promise<Player | SanitizedPlayer | null> {
   try {
     const result = await db.select().from(players).where(eq(players.email, email.toLowerCase().trim())).limit(1);
     const row = result[0];
@@ -229,7 +325,7 @@ export async function getPlayerByEmail(
     const mapped = mapRowToPlayer(row);
     // FID-20260904-005 §5.0: same allowlist default as getPlayerByUsername; the login
     // route opts into the private view ONLY for the bcrypt compare + ban fields.
-    return options.includePrivate ? mapped : (sanitizePlayer(mapped) as unknown as Player);
+    return options.includePrivate ? mapped : sanitizePlayer(mapped);
   } catch (error) {
     console.error('Error getting player by email:', error);
     throw error;
@@ -277,20 +373,22 @@ export async function createPlayerWithAuth(username: string, email: string, hash
     };
     await db.insert(players).values(newPlayer);
     console.log('Created player with auth: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
-    // Return the full domain Player from the inserted row (single mapping path)
-    const created = await getPlayerByUsername(username.trim());
-    if (!created) throw new Error('Player creation failed: row not found after insert');
-    return created;
+    // Same private re-read through the mapping path as createPlayer.
+    const [row] = await db.select().from(players).where(eq(players.username, username.trim())).limit(1);
+    if (!row) throw new Error('Player creation failed: row not found after insert');
+    return mapRowToPlayer(row);
   } catch (error) {
     console.error('Error creating player with auth:', error);
     throw error;
   }
 }
 
-export async function getPlayer(
+export function getPlayer(username: string, options: { includePrivate: true }): Promise<Player | null>;
+export function getPlayer(username: string, options?: { includePrivate?: false }): Promise<SanitizedPlayer | null>;
+export function getPlayer(
   username: string,
   options: { includePrivate?: boolean } = {}
-): Promise<Player | null> {
-  return getPlayerByUsername(username, options);
+): Promise<Player | SanitizedPlayer | null> {
+  return getPlayerByUsernameImpl(username, options);
 }
 

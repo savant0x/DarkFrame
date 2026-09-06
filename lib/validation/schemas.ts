@@ -24,7 +24,7 @@
 
 import { z } from 'zod';
 import { AuctionItemType, ResourceType } from '@/types/auction.types';
-import { UnitType } from '@/types/game.types';
+import { UnitType, MovementDirection } from '@/types/game.types';
 import { MissileComponent } from '@/types/wmd';
 
 // ============================================================================
@@ -144,7 +144,10 @@ export type BattleAttackRequest = z.infer<typeof BattleAttackSchema>;
  */
 export const MoveSchema = z.object({
   username: UsernameSchema,
-  direction: z.enum(['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'REFRESH']),
+  // Derived from the domain enum (single source of truth): no drift between
+  // validation and the MovementDirection type, and `validated.direction` is
+  // genuinely typed as MovementDirection — no casts downstream.
+  direction: z.nativeEnum(MovementDirection),
 });
 
 export type MoveRequest = z.infer<typeof MoveSchema>;

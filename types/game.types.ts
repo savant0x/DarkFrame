@@ -249,6 +249,46 @@ export enum AchievementRarity {
  * @property reward - Prestige unit unlocked and RP bonus
  * @property unlockedAt - When achievement was earned
  */
+/** One entry of the tiles.lastHarvestedBy jsonb array — who harvested a tile,
+ * when, and within which daily reset period (used for diminishing-returns and
+ * milestone tracking). */
+export interface HarvestRecord {
+  playerId: string;
+  timestamp: Date;
+  resetPeriod: string;
+}
+
+/**
+ * The client-facing Player: the full domain shape minus every field that must
+ * never leave the server (the FORBIDDEN set in lib/playerSanitize.ts). All API
+ * payloads that embed a player (session, /api/player, /api/move, public
+ * profiles) are typed with this — the compiler now enforces "no private field
+ * ever reaches a client contract".
+ */
+export type SanitizedPlayer = Omit<
+  Player,
+  | 'password'
+  | 'email'
+  | 'signupIP'
+  | 'stripeCustomerId'
+  | 'stripeSubscriptionId'
+  | 'referredBy'
+  | 'referredByUsername'
+>;
+
+/**
+ * Tutorial systems append lightweight unlock MARKERS to the same achievements
+ * column the achievement service writes full definitions to. The union is the
+ * honest contract; narrow with `'achievementId' in entry` / `'id' in entry`.
+ */
+export interface AchievementMarker {
+  achievementId: string;
+  unlockedAt: Date;
+  source: string;
+}
+
+export type AchievementRecord = Achievement | AchievementMarker;
+
 export interface Achievement {
   id: string;
   name: string;
@@ -406,7 +446,7 @@ export interface Player {
   }; // Daily bot defeat bounties (3 per day)
   specialization?: Specialization; // Player's specialization doctrine (Level 15+)
   discoveries?: Discovery[]; // Ancient technologies discovered (Phase 2+)
-  achievements?: Achievement[]; // Unlocked achievements with prestige units (Phase 3+)
+  achievements?: AchievementRecord[]; // Unlocked achievements — full records or tutorial markers (see AchievementRecord)
   stats?: PlayerStats; // Gameplay statistics for achievement tracking (Phase 3+)
   factoryCount?: number; // Number of factories owned
   lastXPAward?: Date; // Last time XP was awarded
@@ -484,7 +524,10 @@ export interface ResearchPointHistory {
  * @property energyDiggerCount - Count of energy diggers collected (for diminishing returns)
  */
 export interface PlayerInventory {
-  items: InventoryItem[];
+  /** Column holds both harvested/found items and tutorial-granted records
+   * (TutorialInventoryItem) — the union is the honest contract; narrow with
+   * `'foundAt' in item` when reading. */
+  items: Array<InventoryItem | TutorialInventoryItem>;
   capacity: number;
   metalDiggerCount: number;
   energyDiggerCount: number;
@@ -816,7 +859,7 @@ export interface MoveRequest {
  * Movement response
  */
 export interface MoveResponse {
-  player: Player;
+  player: SanitizedPlayer;
   currentTile: Tile;
 }
 

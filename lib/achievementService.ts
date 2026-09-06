@@ -250,7 +250,9 @@ export async function checkAchievements(playerId: string): Promise<Achievement[]
   }
 
   const existingAchievements = player.achievements || [];
-  const unlockedIds = existingAchievements.map((a: Achievement) => a.id);
+  // Dedup on the union: full records carry `id`; tutorial markers carry `achievementId`
+  // (they represent the same "already earned" fact).
+  const unlockedIds = existingAchievements.map((a) => ('id' in a ? a.id : a.achievementId));
   const newlyUnlocked: Achievement[] = [];
 
   // Check each achievement
@@ -370,7 +372,7 @@ export async function getAchievementProgress(playerId: string) {
   }
 
   const unlockedAchievements = player.achievements || [];
-  const unlockedIds = unlockedAchievements.map((a: Achievement) => a.id);
+  const unlockedIds = unlockedAchievements.map((a) => ('id' in a ? a.id : a.achievementId));
 
   // Calculate progress for each achievement
   const allAchievements = Object.values(ACHIEVEMENTS).map(config => {
@@ -418,7 +420,7 @@ export async function getAchievementProgress(playerId: string) {
       isUnlocked,
       currentValue,
       progressPercent,
-      unlockedAt: isUnlocked ? unlockedAchievements.find((a: Achievement) => a.id === config.id)?.unlockedAt : undefined
+      unlockedAt: isUnlocked ? unlockedAchievements.find((a) => 'id' in a && a.id === config.id)?.unlockedAt : undefined
     };
   });
 
@@ -466,7 +468,9 @@ export async function getUnlockedPrestigeUnits(playerId: string): Promise<string
     return [];
   }
 
-  return player.achievements.map((a: Achievement) => a.reward.unitUnlock);
+  return player.achievements
+    .filter((a): a is Achievement => 'id' in a)
+    .map((a) => a.reward.unitUnlock);
 }
 
 /**

@@ -1,5 +1,5 @@
 import { pgTable, varchar, integer, smallint, timestamp, numeric, jsonb, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import type { InventoryItem, TutorialInventoryItem, ShrineBoost, PlayerUnit, BalanceEffects, BotConfig, ResearchPointHistory } from '@/types/game.types';
+import type { InventoryItem, TutorialInventoryItem, ShrineBoost, PlayerUnit, BalanceEffects, BotConfig, ResearchPointHistory, Discovery, AchievementRecord, PlayerStats } from '@/types/game.types';
 import type { PlayerBounties } from '@/lib/bountyBoardService';
 import type { Specialization } from '@/lib/specializationService';
 
@@ -42,9 +42,9 @@ export const players = pgTable('players', {
 	lastFastTravel: timestamp('last_fast_travel'),
 	dailyBounties: jsonb('daily_bounties').$type<PlayerBounties | null>(),
 	specialization: jsonb('specialization').$type<Specialization | null>(),
-	discoveries: jsonb('discoveries').$type<Record<string, unknown>[]>(),
-	achievements: jsonb('achievements').$type<Record<string, unknown>[]>(),
-	stats: jsonb('stats').$type<Record<string, number>>(),
+	discoveries: jsonb('discoveries').$type<Discovery[]>(),
+	achievements: jsonb('achievements').$type<AchievementRecord[]>(),
+	stats: jsonb('stats').$type<PlayerStats>(),
 	factoryCount: integer('factory_count').default(0),
 	lastXPAward: timestamp('last_xp_award'),
 	lastLevelUp: timestamp('last_level_up'),
@@ -53,7 +53,7 @@ export const players = pgTable('players', {
 	battleStats: jsonb('battle_stats').$type<Record<string, unknown>>(),
 	isBot: smallint('is_bot').default(0),
 	isSpecialBase: smallint('is_special_base').default(0),
-	botConfig: jsonb('bot_config').$type<BotConfig>(),
+	botConfig: jsonb('bot_config').$type<BotConfig | null>(),
 	clanId: varchar('clan_id', { length: 24 }),
 	clanName: varchar('clan_name', { length: 30 }),
 	clanRole: varchar('clan_role', { length: 20 }),
