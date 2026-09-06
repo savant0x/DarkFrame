@@ -26,7 +26,7 @@
 import { connectToDatabase } from './mongodb';
 import type { Player } from '@/types/game.types';
 import { recordSpawnEvent } from './beerBaseAnalytics';
-import { createBotPlayer } from './botService';
+import { createBotPlayer, generateBeerBaseName } from './botService';
 import { generatePredictiveDistribution, PredictiveDistribution } from './playerHistoryService';
 import { BotSpecialization, UnitType, PlayerUnit } from '@/types/game.types';
 // FID-20260906-006a R4: drizzle-native config reads/writes (game_config table).
@@ -1174,13 +1174,13 @@ export async function spawnBeerBase(): Promise<string> {
   bot.totalStrength = totalStrength;
   bot.totalDefense = totalDefense;
   
-  // Generate unique username using timestamp + random suffix to avoid race conditions.
-  // MUST fit players.username varchar(20): the legacy emoji format (34 chars) crashed
-  // every Beer Base insert. Fixed-width format b<tier><ts8><rand4> = 14 chars, with the
-  // tier letter (W/M/S/E/U/L) extractable at index 1.
-  const timestamp = Date.now().toString().slice(-8);
-  const randomSuffix = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-  bot.username = `b${powerTier[0]}${timestamp}${randomSuffix}`;
+  // Themed place-style identity for Beer Bases (FID-20260906-007): replaces the
+  // legacy b<tier><timestamp><rand> slug. The old tier-letter encoding is dropped —
+  // grep-verified that no code ever parsed it; the scanner marks Beer Bases via
+  // bot.isSpecialBase (BotScannerPanel 🍺), and tier stays visible via level/rank.
+  // Collision safety: generateBotName's username column is varchar(20) PK, so on a
+  // PK conflict the spawn retries with a numeric variant ("Crimson Bastion 2").
+  bot.username = generateBeerBaseName();
   
   // Set appropriate level based on power tier
   switch (powerTier) {
@@ -1230,8 +1230,21 @@ export async function spawnBeerBase(): Promise<string> {
   // createBotPlayer() sets it in botConfig, but we need it at top level too
   bot.isSpecialBase = true;
   
-  // Insert into database
-  await db.collection<Player>('players').insertOne(bot);
+  // Insert into database — on a username PK collision (rare: themed space is
+  // large but finite), retry with a numeric variant ("Crimson Bastion 2").
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await db.collection<Player>('players').insertOne(bot);
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isUsernameConflict = message.includes('duplicate key');
+      if (!isUsernameConflict || attempt === 4) {
+        throw error;
+      }
+      bot.username = generateBeerBaseName(attempt + 1);
+    }
+  }
   
   // Record spawn event for analytics
   await recordSpawnEvent(
