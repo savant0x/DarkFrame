@@ -238,6 +238,13 @@ All findings cataloged before any fix is designed. Every claim reproducible at `
   owner `DELETE` → 200; subsequent GET confirms the message is gone. tsc 0.
 - **Census re-check:** `grep -rln "username: 'TestUser'" app/api/` → zero matches.
 
+### 7.3 Follow-up discovery: flag cron destroyed human holders + CRON_SECRET unset (found during Phase-6 prod sweep)
+
+- **Discovery context:** Phase-6 live prod route sweep (135 GET routes) surfaced a single 500: `/api/cron/flag-bot-movement`. Root cause: `CRON_SECRET` was never configured on Vercel (route fail-closed by design).
+- **Latent data-destroying defect found while fixing:** the cron called `resetFlagBot()` whenever the flag was held >1h — and `resetFlagBot` **deletes the players row of whoever holds the flag**. A human capturing the flag would have their entire account deleted by the next cron tick. The route's bot-detection (`currentHolder.botId`) also never matched Postgres rows, so bot teleportation was dead code.
+- **Fix:** route rewritten Postgres-native (drizzle): bot detection via `^Flag-Bearer-` on the flat `current_holder` username; **reset now applies only to bot holders** — human holders keep the flag until defeated (rule documented in route header). `CRON_SECRET` generated and stored on Vercel (production) + local `.env.local`; `.env.example` carries a placeholder only.
+- **Verification (all live):** no-auth → 401 · bad token → 401 · bot holder <1h → `moved` (30,27 → 41,121) · **human holder >1h → protected** (`action:none`, `fame` row still exists) · bot holder >1h → `reset` (new bot `Flag-Bearer-8916`, exactly 1 bearer bot in DB). tsc 0.
+
 ### 7.2 Follow-up discovery: flag feature dead end-to-end (tracker panel, map glimmer, trail, attacks)
 
 - **Operator report:** right-sidebar flag tracker missing; map "glimmer" never seen; flag should always be visible under the WMD widget.
@@ -259,15 +266,24 @@ All findings cataloged before any fix is designed. Every claim reproducible at `
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 errors · [ ] lint census at defined zero-state · [ ] tests pass ·
-  [ ] call-graph proven · [ ] prod sweep 0×5xx
-- **Commit hash (G2):** _pending_
-- **Staging plan (G3/G4):** one logical commit per batch (gates; de-mock; M2+lint) —
-  path-scoped `git add`.
-- **Commit message (G8):** `fix(admin): unify admin gates, de-mock dashboard, M2/M1 lint push (FID-20260905-001)`
-- **Archive:** both this FID and FID-20260904-005 move to `dev/fids/archive/` on close;
-  CHANGELOG entries appended; archival logged in session summary.
+- **Gates:** [x] typecheck 0 errors · [x] lint census at defined zero-state (app/api = 0;
+  repo 1,294 → 592, remainder documented in tooling/tests/lib/components with override for
+  CommonJS tooling) · [x] tests pass (341) · [x] call-graph proven (censuses re-run at zero) ·
+  [x] prod sweep 0×5xx (135 GET routes; the one failure — cron secret — fixed in §7.3)
+- **Commit hashes (G2):** batch gates/de-mock/M2/lint + chat = `7dda6b8`; chat auth hole =
+  `3cc3400`; flag revival = `fe8fb68`; trail-on-map = (this closure); cron fix = (this closure)
+- **Follow-up discoveries folded in:** §7.1 (chat delete/edit TestUser identity hole),
+  §7.2 (flag feature dead end-to-end — revived with flag_trail 0015), §7.3 (cron deleted
+  human flag holders + CRON_SECRET unset — fixed, verified live)
+- **Archive:** this FID and FID-20260904-005 moved to `dev/fids/archive/`; CHANGELOG
+  created with full session record.
 
 ---
 
-**Final status:** converged
+**Final status:** converged · implemented (batches 1–4 + §7.1–§7.3) · closed 2026-09-06
+
+---
+
+**Closure addendum (2026-09-06):** all batches implemented and verified live; three
+post-convergence discoveries (§7.1–§7.3) folded into the same loop with live verification
+each. Full session record in `CHANGELOG.md`. Archived to `dev/fids/archive/`.
