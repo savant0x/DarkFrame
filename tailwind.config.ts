@@ -19,6 +19,20 @@ const config: Config = {
           green: '#10b981',
           yellow: '#fbbf24',
         },
+
+        // FID-20260906-005 R1: the 17-component UI kit (components/ui) is built on
+        // the `primary-*` palette, which was never defined — every bg-primary-*
+        // button rendered with a transparent background. Anchored to the theme's
+        // neon blue so primary buttons/badges/focus rings render as designed.
+        primary: {
+          300: '#66d9ff',
+          400: '#33ccff',
+          500: '#00b8ff',
+          600: '#0080ff',   // neon.blue
+          700: '#0066cc',
+          800: '#004d99',
+          900: '#003366',
+        },
         
         // Background colors - Deep space theme
         'bg-space': '#0a0e27',        // Deep space background
