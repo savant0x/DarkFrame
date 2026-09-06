@@ -30,14 +30,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AuctionListing, AuctionItemType, AuctionSearchFilters } from '@/types/auction.types';
-import { UnitType } from '@/types';
+import { AuctionListing } from '@/types/auction.types';
+
 import { AuctionListingCard } from './AuctionListingCard';
 import { CreateListingModal } from './CreateListingModal';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Panel } from './ui/Panel';
-import { Input } from './ui/Input';
+
 import { StaggerChildren, StaggerItem } from './transitions/StaggerChildren';
 import { LoadingSpinner } from './transitions/LoadingSpinner';
 import { useIsMobile } from '@/hooks/useMediaQuery';

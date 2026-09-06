@@ -41,7 +41,7 @@ import type { PlayerContext } from '@/lib/channelService';
  * @returns Player context or null if not authenticated
  */
 async function getAuthenticatedUser(
-  request: NextRequest
+  _request: NextRequest
 ): Promise<PlayerContext | null> {
   // PLACEHOLDER: Mock user for development
   // Replace this entire function when authentication is ready
@@ -121,7 +121,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft-delete message (preserve original content for moderation)
-    const now = new Date();
+    const _now = new Date();
     const result = await db.update(chatMessages)
       .set({
         deleted: 1,
@@ -130,7 +130,8 @@ export async function DELETE(request: NextRequest) {
       })
       .where(eq(chatMessages.id, messageId));
 
-    if ((result as any).affectedRows === 0) {
+    const affected = Array.isArray(result) ? result.length : (result as unknown as { rowCount?: number }).rowCount ?? 0;
+    if (affected === 0) {
       return NextResponse.json(
         { success: false, error: 'Failed to delete message' },
         { status: 500 }

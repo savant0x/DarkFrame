@@ -17,7 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/authMiddleware';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase, type DocumentValue } from '@/lib/mongodb';
 import type { Player } from '@/types/game.types';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
 import { applySlotRegeneration, hasEnoughSlots, consumeSlots } from '@/lib/slotRegenService';
@@ -199,7 +199,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
         },
         $push: {
           units: { $each: newUnits }
-        } as any,
+        } as unknown as Record<string, DocumentValue>,
         $set: {
           totalStrength: newTotalStrength,
           totalDefense: newTotalDefense
@@ -271,7 +271,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       {
         success: false,
         message: 'Internal server error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Unknown error'
       },
       { status: 500 }
     );

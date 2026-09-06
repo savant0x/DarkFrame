@@ -23,7 +23,7 @@
  * - lib/clanActivityService.ts for activity logging
  */
 
-import { eq, and, or, inArray, sql } from 'drizzle-orm';
+import { eq,   inArray, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { generateId } from '@/lib/utils';
@@ -33,9 +33,9 @@ import {
   ClanRole,
   ClanActivityType,
   ClanBank,
-  ClanPerk,
+
   CLAN_CONSTANTS,
-  CLAN_BANK_CONSTANTS,
+
   hasPermission,
 } from '@/types/clan.types';
 
@@ -130,7 +130,7 @@ async function getPlayerById(playerId: string) {
  * @param username - Player username
  * @returns Player row or null
  */
-async function getPlayerByUsername(username: string) {
+async function _getPlayerByUsername(username: string) {
   const result = await db.select().from(players).where(eq(players.username, username)).limit(1);
   return result[0] || null;
 }

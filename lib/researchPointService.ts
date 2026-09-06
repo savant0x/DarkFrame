@@ -24,8 +24,8 @@
 
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { eq, and, gte, desc, sql } from 'drizzle-orm';
-import type { Player, ResearchPointHistory } from '@/types/game.types';
+import { eq, and, gte,  sql } from 'drizzle-orm';
+import type {  ResearchPointHistory } from '@/types/game.types';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -706,7 +706,7 @@ export async function spendRP(
     const updatedHistory = [...existingHistory, transaction];
 
     // Update player RP balance and history with optimistic locking
-    const updateResult = await db.update(players)
+    const _updateResult = await db.update(players)
       .set({
         researchPoints: newBalance,
         rpHistory: updatedHistory,

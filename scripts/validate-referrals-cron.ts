@@ -45,7 +45,7 @@ async function runValidation() {
     await client.connect();
     const db = client.db(DB_NAME);
     const referralsCollection = db.collection('referrals');
-    const playersCollection = db.collection('players');
+    const _playersCollection = db.collection('players');
 
     // Calculate cutoff date (7 days ago)
     const cutoffDate = new Date();

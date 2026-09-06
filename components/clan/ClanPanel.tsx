@@ -49,20 +49,20 @@ import {
   Info,
   TrendingUp,
   Calendar,
-  MapPin,
+
   Loader2,
   UserCog,
   Wallet,
   Check,
   X,
   AlertCircle,
-  Zap
+  
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
 import { ClanRole } from '@/types/clan.types';
-import CreateClanModal from './CreateClanModal';
-import JoinClanModal from './JoinClanModal';
+
+
 import ClanMembersPanel from './ClanMembersPanel';
 import ClanBankPanel from './ClanBankPanel';
 import ClanTerritoryPanel from './ClanTerritoryPanel';
@@ -74,7 +74,7 @@ interface ClanPanelProps {
   onClose: () => void;
 }
 
-export default function ClanPanel({ isOpen, onClose }: ClanPanelProps) {
+export default function ClanPanel({ isOpen }: ClanPanelProps) {
   const { player, refreshPlayer } = useGameContext();
   const [isLoading, setIsLoading] = useState(false);
   const [clanData, setClanData] = useState<Clan | null>(null);
@@ -322,9 +322,9 @@ function ClanManagementView({
   // Determine player's role and permissions
   const playerMember = clanData.members.find(m => m.username === player.username);
   const playerRole = playerMember?.role || ClanRole.MEMBER;
-  const isLeader = playerRole === ClanRole.LEADER;
-  const isCoLeader = playerRole === ClanRole.CO_LEADER;
-  const isOfficer = playerRole === ClanRole.OFFICER;
+  const _isLeader = playerRole === ClanRole.LEADER;
+  const _isCoLeader = playerRole === ClanRole.CO_LEADER;
+  const _isOfficer = playerRole === ClanRole.OFFICER;
 
   return (
     <div className="h-full w-full flex flex-col space-y-4 p-4">
@@ -692,7 +692,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
       const response = await fetch(`/api/clan/check-name?name=${encodeURIComponent(name)}`);
       const data = await response.json();
       setNameAvailable(data.available);
-    } catch (error) {
+    } catch {
       setNameAvailable(null);
     } finally {
       setIsCheckingName(false);

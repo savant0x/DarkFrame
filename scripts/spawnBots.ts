@@ -14,12 +14,11 @@
  * - Manual spawn: node scripts/spawnBots.ts --count 10 --zone 4
  */
 
-import { connectToDatabase, getDatabase } from '../lib/mongodb';
+import {  getDatabase } from '../lib/mongodb';
 import { createBotPlayer, calculateZone } from '../lib/botService';
 import { BOT_NESTS, getRandomPositionNearNest } from '@/lib/botNestService';
 import { shouldAttractToBeacon, incrementAttractedCount } from '@/lib/botMagnetService';
 import { getZoneSpawnPosition } from '@/lib/concentrationZoneService';
-import { type BotSpecialization } from '@/types/game.types';
 
 // ============================================================
 // SPAWN CONFIGURATION

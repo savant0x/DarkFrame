@@ -43,7 +43,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
  * Returns current bounties and stats for the authenticated player
  * Auto-refreshes bounties if new day
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('bounty-board-get');
   const endTimer = log.time('bounty-board-get');
 

@@ -43,7 +43,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.FAST_TRAVEL);
 /**
  * GET - Get fast travel status and waypoints
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const tokenPayload = await getAuthenticatedUser();
 

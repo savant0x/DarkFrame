@@ -23,7 +23,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import { requireClanMembership } from '@/lib';
 import { unlockResearch } from '@/lib/clanResearchService';
 
 /**
@@ -50,7 +50,6 @@ import { unlockResearch } from '@/lib/clanResearchService';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -77,55 +76,55 @@ export async function POST(request: NextRequest) {
         totalBonuses: unlockResult.totalBonuses,
         message: `Successfully unlocked ${unlockResult.research.name}`,
       });
-    } catch (err: any) {
-      if (err.message.includes('not found')) {
+    } catch (err) {
+      if (err instanceof Error ? err.message : String(err).includes('not found')) {
         return NextResponse.json(
           { error: 'Research node not found' },
           { status: 404 }
         );
       }
-      if (err.message.includes('not a member')) {
+      if (err instanceof Error ? err.message : String(err).includes('not a member')) {
         return NextResponse.json(
           { error: 'You are not a member of this clan' },
           { status: 400 }
         );
       }
-      if (err.message.includes('Insufficient permissions')) {
+      if (err instanceof Error ? err.message : String(err).includes('Insufficient permissions')) {
         return NextResponse.json(
           { error: 'Only Leaders, Co-Leaders, and Officers can unlock research' },
           { status: 403 }
         );
       }
-      if (err.message.includes('already unlocked')) {
+      if (err instanceof Error ? err.message : String(err).includes('already unlocked')) {
         return NextResponse.json(
           { error: 'Research already unlocked' },
           { status: 400 }
         );
       }
-      if (err.message.includes('level') && err.message.includes('required')) {
+      if (err instanceof Error ? err.message : String(err).includes('level') && err instanceof Error ? err.message : String(err).includes('required')) {
         return NextResponse.json(
-          { error: err.message },
+          { error: err instanceof Error ? err.message : String(err) },
           { status: 400 }
         );
       }
-      if (err.message.includes('Prerequisite not met')) {
+      if (err instanceof Error ? err.message : String(err).includes('Prerequisite not met')) {
         return NextResponse.json(
-          { error: err.message },
+          { error: err instanceof Error ? err.message : String(err) },
           { status: 400 }
         );
       }
-      if (err.message.includes('Insufficient research points')) {
+      if (err instanceof Error ? err.message : String(err).includes('Insufficient research points')) {
         return NextResponse.json(
-          { error: err.message },
+          { error: err instanceof Error ? err.message : String(err) },
           { status: 400 }
         );
       }
       throw err;
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error unlocking research:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to unlock research' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to unlock research' },
       { status: 500 }
     );
   }

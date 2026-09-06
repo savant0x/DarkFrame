@@ -13,13 +13,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuctions } from '@/lib/auctionService';
 import { AuctionSearchFilters, AuctionItemType, ResourceType } from '@/types/auction.types';
 import { UnitType } from '@/types';
-import { logger } from '@/lib/logger';
+
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';

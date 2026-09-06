@@ -18,7 +18,7 @@ import { Player } from '@/types';
  * Get current player's full profile data
  * Uses cookie authentication
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Authenticate user from cookie
     const user = await getAuthenticatedUser();

@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/authMiddleware';
-import { queryActivityLogs, getPlayerActivityLogs } from '@/lib/activityLogService';
+import { queryActivityLogs } from '@/lib/activityLogService';
 import { ActionType, ActionCategory } from '@/types/activityLog.types';
 
 /**
@@ -146,10 +146,10 @@ export async function GET(req: NextRequest) {
         offset
       }
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] Error querying activity logs:', error);
     return NextResponse.json(
-      { error: 'Failed to query activity logs', details: error.message },
+      { error: 'Failed to query activity logs', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

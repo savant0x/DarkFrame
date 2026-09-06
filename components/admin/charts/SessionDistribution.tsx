@@ -32,7 +32,7 @@ interface SessionDistributionProps {
   error?: string | null;
 }
 
-export default function SessionDistribution({ buckets, period, loading, error }: SessionDistributionProps) {
+export default function SessionDistribution({ buckets, loading, error }: SessionDistributionProps) {
   // Format duration for display
   const formatDuration = (ms: number) => {
     const hours = Math.floor(ms / 3600000);

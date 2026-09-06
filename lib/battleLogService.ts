@@ -30,7 +30,7 @@ import {
   BattleLogStats,
   BattleType,
   BattleOutcome,
-  UnitSnapshot
+
 } from '@/types/activityLog.types';
 
 // ============================================================================

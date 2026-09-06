@@ -25,7 +25,7 @@ import { randomUUID } from 'node:crypto';
 import { Filter } from 'bad-words';
 import { db } from '@/lib/db';
 import { conversations, messages } from '@/lib/db/schema';
-import { eq, and, isNull, desc, asc, sql, ne, like } from 'drizzle-orm';
+import { eq, and, isNull, desc,  sql, ne } from 'drizzle-orm';
 import type {
   Message,
   Conversation,
@@ -38,7 +38,7 @@ import type {
   MessagesResponse,
   RateLimitState,
   MessageStatus,
-  DEFAULT_MESSAGING_CONFIG,
+
 } from '@/types/messaging.types';
 
 // Initialize profanity filter

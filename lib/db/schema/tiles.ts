@@ -1,4 +1,4 @@
-import { pgTable, varchar, smallint, timestamp, jsonb, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, smallint, timestamp, jsonb, primaryKey } from 'drizzle-orm/pg-core';
 
 export const tiles = pgTable('tiles', {
 	x: smallint('x').notNull(),

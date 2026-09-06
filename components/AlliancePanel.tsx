@@ -64,10 +64,10 @@ interface AlliancePanelProps {
 type AllianceType = 'NAP' | 'TRADE_AGREEMENT' | 'MILITARY_PACT' | 'FEDERATION';
 type ContractType = 'RESOURCE_SHARING' | 'DEFENSE_PACT' | 'WAR_SUPPORT' | 'JOINT_RESEARCH';
 
-export function AlliancePanel({ clanId, playerId, role, clanName, treasuryMetal }: AlliancePanelProps) {
+export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProps) {
   const [alliances, setAlliances] = useState<Alliance[]>([]);
   const [pendingProposals, setPendingProposals] = useState<Alliance[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [_isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showProposeModal, setShowProposeModal] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);

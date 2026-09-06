@@ -44,7 +44,7 @@ import { ValidationError, NotFoundError } from '@/lib/common/errors';
 import type {
   SendMessageRequest,
   SendMessageResponse,
-  GetConversationsResponse,
+
 } from '@/types/directMessage';
 
 // ============================================================================
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
+    const _db = mongoClient.db('darkframe');
 
     // 2. Authenticate user
     const auth = await requireAuth(request);
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     let body: unknown;
     try {
       body = await request.json();
-    } catch (parseError) {
+    } catch {
       return NextResponse.json(
         { success: false, error: 'Invalid JSON in request body' },
         { status: 400 }
@@ -189,7 +189,7 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
+    const _db = mongoClient.db('darkframe');
 
     // 2. Authenticate user
     const auth = await requireAuth(request);

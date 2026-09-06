@@ -35,11 +35,11 @@ import {
   Shield, 
   Users, 
   AlertTriangle,
-  TrendingUp,
+
   Clock,
   Trophy,
   Handshake,
-  UserPlus,
+
   X,
   CheckCircle2,
   XCircle,
@@ -339,7 +339,7 @@ interface WarCardProps {
   onRefresh: () => void;
 }
 
-function WarCard({ war, currentClanId, onRefresh }: WarCardProps) {
+function WarCard({ war, currentClanId }: WarCardProps) {
   const isAttacker = war.attackerClanId === currentClanId;
   const opponentId = isAttacker ? war.defenderClanId : war.attackerClanId;
   

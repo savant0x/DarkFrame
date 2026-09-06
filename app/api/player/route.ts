@@ -9,10 +9,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlayer } from '@/lib/playerService';
-import { ApiResponse, ApiError } from '@/types';
+import { ApiResponse } from '@/types';
 import { calculateBalanceEffects } from '@/lib/balanceService';
 import { getXPProgress } from '@/lib/xpService';
-import { logger } from '@/lib/logger';
+
 import {
   withRequestLogging,
   createRouteLogger,

@@ -38,7 +38,7 @@ interface FlagDoc {
     botId?: string;
   };
 }
-import { ObjectId } from 'mongodb';
+
 
 async function cleanupDuplicateFlags() {
   try {

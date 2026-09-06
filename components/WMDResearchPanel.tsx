@@ -26,7 +26,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useGameContext } from '@/context/GameContext';
-import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { showSuccess, showError } from '@/lib/toastService';
 
 interface Tech {
   id: string;
@@ -189,7 +189,7 @@ export default function WMDResearchPanel() {
     return `${hours}h ${minutes}m`;
   };
 
-  const filteredTechs = selectedTrack === 'ALL' 
+  const _filteredTechs = selectedTrack === 'ALL' 
     ? techs 
     : techs.filter(t => t.track === selectedTrack);
 

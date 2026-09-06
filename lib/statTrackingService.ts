@@ -18,7 +18,7 @@
  */
 
 import { getCollection } from './mongodb';
-import { logger } from './logger';
+
 import { checkAchievements } from './achievementService';
 
 /**

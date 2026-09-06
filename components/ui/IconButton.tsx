@@ -20,7 +20,7 @@
 
 'use client';
 
-import { ReactNode, ButtonHTMLAttributes } from 'react';
+import { ReactNode } from 'react';
 import { motion, HTMLMotionProps } from 'framer-motion';
 import { tapScale } from '@/lib/animations';
 

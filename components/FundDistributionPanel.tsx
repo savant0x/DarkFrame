@@ -61,7 +61,6 @@ type ResourceType = 'metal' | 'energy' | 'rp';
 
 export function FundDistributionPanel({
   clanId,
-  playerId,
   role,
   treasuryMetal,
   treasuryEnergy,

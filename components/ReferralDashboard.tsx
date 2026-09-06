@@ -24,8 +24,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useGameContext } from '@/context/GameContext';
-import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { showSuccess, showError } from '@/lib/toastService';
 
 interface ReferralStats {
   code: string;
@@ -65,7 +64,6 @@ interface ReferralStats {
 }
 
 export default function ReferralDashboard() {
-  const { player } = useGameContext();
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -117,7 +115,7 @@ export default function ReferralDashboard() {
       setCopied(true);
       showSuccess(`${label} copied to clipboard!`);
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
+    } catch {
       showError('Failed to copy to clipboard');
     }
   };

@@ -76,7 +76,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     // FID-20260904-005 §5.2a: Postgres folds the unquoted identifiers to lower-case,
     // so SELECT * returns lower-case keys — project them back to the API's camelCase.
-    const transactions = ((result as any).length > 0 ? (result as any) : []).map((r: Record<string, unknown>) => ({
+    const txRows = (result as unknown as { rows?: Array<Record<string, unknown>> }).rows ?? [];
+    const transactions = txRows.map((r) => ({
       ...r,
       playerUsername: r.playerusername ?? r.playerUsername,
       vipBonus: Boolean(r.vipbonus ?? r.vipBonus),

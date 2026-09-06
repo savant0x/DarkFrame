@@ -23,7 +23,6 @@ import {
   setConcentrationZones,
   getConcentrationZones,
   clearConcentrationZones,
-  type ConcentrationZone,
 } from '@/lib/concentrationZoneService';
 import {
   withRequestLogging,
@@ -40,7 +39,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 /**
  * GET - Get player's concentration zones
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('concentration-zones-get');
   const endTimer = log.time('concentration-zones-get');
 
@@ -152,7 +151,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 /**
  * DELETE - Clear concentration zones
  */
-export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const DELETE = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('concentration-zones-delete');
   const endTimer = log.time('concentration-zones-delete');
 

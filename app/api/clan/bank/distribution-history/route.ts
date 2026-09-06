@@ -88,10 +88,10 @@ export async function GET(request: NextRequest) {
       })),
       count: history.length,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Distribution history error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch distribution history' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to fetch distribution history' },
       { status: 500 }
     );
   }

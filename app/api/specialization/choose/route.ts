@@ -132,7 +132,7 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
  * 
  * @returns Eligibility info with requirements
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     // Verify authentication
     const user = await verifyAuth();

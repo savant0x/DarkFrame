@@ -27,7 +27,7 @@
  */
 
 import { getRedisClient, isRedisAvailable } from './redis';
-import { CacheTTL } from './cacheKeys';
+
 
 /**
  * Cache statistics for monitoring
@@ -264,7 +264,7 @@ export async function getCacheMultiple<T>(keys: string[]): Promise<(T | null)[]>
     
     const cached = await redis.mget(...keys);
 
-    return cached.map((value: string | null, index: number) => {
+    return cached.map((value: string | null, _index: number) => {
       if (value) {
         updateStats('hit');
         return JSON.parse(value) as T;

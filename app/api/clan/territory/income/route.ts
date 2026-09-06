@@ -24,7 +24,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase } from '@/lib/mongodb';
+
 import { requireClanMembership, requireAdmin } from '@/lib/authMiddleware';
 import {
   getProjectedTerritoryIncome,
@@ -58,7 +58,6 @@ import {
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const { client, db } = await getClientAndDatabase();
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
 
@@ -84,10 +83,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       ...projection,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error getting territory income projection:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to get income projection' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to get income projection' },
       { status: 500 }
     );
   }
@@ -119,7 +118,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const { client, db } = await getClientAndDatabase();
     const authResult = await requireAdmin(request);
     if (authResult instanceof NextResponse) return authResult;
 
@@ -151,10 +149,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(collectionResult);
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error collecting territory income:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to collect income' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to collect income' },
       { status: 500 }
     );
   }

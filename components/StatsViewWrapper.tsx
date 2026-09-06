@@ -808,7 +808,7 @@ interface SortButtonProps {
   onClick: () => void;
 }
 
-function SortButton({ label, field, active, onClick }: SortButtonProps) {
+function SortButton({ label, active, onClick }: SortButtonProps) {
   return (
     <button
       onClick={onClick}

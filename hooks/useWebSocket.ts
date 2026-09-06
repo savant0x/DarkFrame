@@ -47,7 +47,7 @@ type ServerEventHandler<E extends ServerEventNames> = ServerToClientEvents[E] ex
   ? (...args: P) => void
   : never;
 
-type ClientEventData<E extends ClientEventNames> = ClientToServerEvents[E] extends (data: infer D, ...args: any[]) => void
+type _ClientEventData<E extends ClientEventNames> = ClientToServerEvents[E] extends (data: infer D, ...args: any[]) => void
   ? D
   : never;
 
@@ -135,7 +135,7 @@ interface UseWebSocketReturn {
  */
 export function useWebSocket(): UseWebSocketReturn {
   const { socket, isConnected, connectionState, reconnect } = useWebSocketContext();
-  const listenersRef = useRef<Map<string, Function>>(new Map());
+  const listenersRef = useRef<Map<string, (...args: unknown[]) => void>>(new Map());
 
   /**
    * Emit event to server (type-safe)

@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { placeBid } from '@/lib/auctionService';
 import { PlaceBidRequest } from '@/types/auction.types';
-import { logger } from '@/lib/logger';
+
 import { 
   withRequestLogging, 
   createRouteLogger,

@@ -87,8 +87,7 @@ export default function FlagTrackerPanel({
   onTrack,
   onAttack,
   attackOnCooldown = false,
-  cooldownRemaining = 0,
-  compact = false
+  cooldownRemaining = 0
 }: FlagTrackerPanelProps) {
   const router = useRouter();
   const [trackerData, setTrackerData] = useState<FlagTrackerData | null>(null);

@@ -116,7 +116,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Count tradeable items (any cave items except diggers can be sacrificed)
-    const tradeableItems = player.inventory.items.filter((item: any) => item.type === ItemType.TradeableItem
+    const tradeableItems = player.inventory.items.filter((item) => item.type === ItemType.TradeableItem
     );
 
     if (tradeableItems.length < boostConfig.itemCost) {
@@ -136,7 +136,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Check if this tier boost is already active
-    const existingBoostIndex = player.shrineBoosts.findIndex((b: any) => b.tier === validated.tier);
+    const existingBoostIndex = player.shrineBoosts.findIndex((b) => b.tier === validated.tier);
     if (existingBoostIndex !== -1) {
       log.debug('Boost already active', { username, tier: validated.tier });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
@@ -145,7 +145,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Remove the required number of items (consume them)
-    const remainingItems = player.inventory.items.filter((item: any) => item.type !== ItemType.TradeableItem
+    const remainingItems = player.inventory.items.filter((item) => item.type !== ItemType.TradeableItem
     );
     const itemsToKeep = tradeableItems.slice(boostConfig.itemCost);
     const newInventory = [...remainingItems, ...itemsToKeep];

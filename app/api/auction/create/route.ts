@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { createAuctionListing } from '@/lib/auctionService';
 import { CreateAuctionRequest } from '@/types/auction.types';
-import { logger } from '@/lib/logger';
+
 import { 
   withRequestLogging, 
   createRouteLogger,

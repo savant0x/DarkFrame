@@ -14,10 +14,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import clientPromise, { type DocumentValue } from '@/lib/mongodb';
 import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { UNIT_BLUEPRINTS, UnitBlueprint, UnitCategory } from '@/types/units.types';
+import { UNIT_BLUEPRINTS } from '@/types/units.types';
 import { UNIT_CONFIGS, UnitType } from '@/types/game.types';
 import type { Player, Factory } from '@/types/game.types';
 import { 
@@ -39,7 +39,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.buildUnit);
  * GET /api/player/build-unit
  * Fetches available units and player's unlock status
  */
-export const GET = withRequestLogging(async (request: NextRequest) => {
+export const GET = withRequestLogging(async (_request: NextRequest) => {
   const log = createRouteLogger('PlayerBuildUnitAPI');
   const endTimer = log.time('fetchUnitData');
   
@@ -96,7 +96,7 @@ export const GET = withRequestLogging(async (request: NextRequest) => {
       .find({ owner: username })
       .toArray();
     
-    const factoryBuildSlots = factories.reduce((total: number, factory: any) => {
+    const factoryBuildSlots = factories.reduce((total: number, factory: { slots?: number; usedSlots?: number }) => {
       const availableInFactory = Math.max(0, (factory.slots || 20) - (factory.usedSlots || 0));
       return total + availableInFactory;
     }, 0);
@@ -229,7 +229,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Calculate total available factory build slots
-    const totalFactoryBuildSlots = factories.reduce((total: number, factory: any) => {
+    const totalFactoryBuildSlots = factories.reduce((total: number, factory: { slots?: number; usedSlots?: number }) => {
       const availableInFactory = Math.max(0, (factory.slots || 20) - (factory.usedSlots || 0));
       return total + availableInFactory;
     }, 0);
@@ -339,7 +339,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const updateResult = await playersCollection.updateOne(
       { username: username },
       {
-        $push: { units: { $each: newUnits } } as any,
+        $push: { units: { $each: newUnits } } as unknown as Record<string, DocumentValue>,
         $inc: {
           'resources.metal': -totalMetalCost,
           'resources.energy': -totalEnergyCost

@@ -36,7 +36,7 @@ vi.mock('./BalanceIndicator', () => ({
 }));
 
 vi.mock('./XPProgressBar', () => ({
-  default: ({ level, currentLevelXP, xpForNextLevel, totalXP }: any) => (
+  default: ({ level, currentLevelXP, xpForNextLevel, _totalXP }: any) => (
     <div data-testid="xp-progress-bar">
       Level {level}: {currentLevelXP}/{xpForNextLevel}
     </div>

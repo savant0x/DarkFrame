@@ -55,7 +55,7 @@ interface PassiveIncomeDisplayProps {
   onIncomeCollected?: (metal: number, energy: number) => void;
 }
 
-export function PassiveIncomeDisplay({ clanId, playerId, role, onIncomeCollected }: PassiveIncomeDisplayProps) {
+export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: PassiveIncomeDisplayProps) {
   const [projection, setProjection] = useState<IncomeProjection | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCollecting, setIsCollecting] = useState(false);

@@ -26,8 +26,8 @@
  */
 
 import { getDatabase } from './mongodb';
-import type { Player } from '@/types/game.types';
-import type { Clan } from '@/types/clan.types';
+
+
 
 /** Minimal clanTerritories row shape consumed by cache warming. */
 interface ClanTerritoryDoc {

@@ -23,7 +23,7 @@
 
 import { db } from '@/lib/db';
 import { playerActivity } from '@/lib/db/schema';
-import { eq, and, or, gte, lte, desc, inArray, sql, lt } from 'drizzle-orm';
+import { eq, and,  gte, lte, desc, inArray, sql, lt } from 'drizzle-orm';
 import { generateId } from '@/lib/utils';
 import {
   ActivityLog,
@@ -32,7 +32,7 @@ import {
   ActionType,
   ActionCategory,
   LogRetentionPolicy,
-  getActionCategory
+
 } from '@/types/activityLog.types';
 
 // ============================================================================
@@ -322,7 +322,7 @@ export async function cleanupOldLogs(policy: LogRetentionPolicy = DEFAULT_RETENT
   }
 }
 
-export async function archiveOldLogs(policy: LogRetentionPolicy = DEFAULT_RETENTION_POLICY): Promise<number> {
+export async function archiveOldLogs(_policy: LogRetentionPolicy = DEFAULT_RETENTION_POLICY): Promise<number> {
   console.log('[ActivityLog] Archive functionality not yet implemented');
   return 0;
 }

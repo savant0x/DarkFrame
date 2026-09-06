@@ -25,7 +25,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase } from '@/lib/mongodb';
+
 import { requireClanMembership } from '@/lib/authMiddleware';
 import { claimTerritory } from '@/lib/territoryService';
 
@@ -55,7 +55,6 @@ import { claimTerritory } from '@/lib/territoryService';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { db } = await getClientAndDatabase();
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
@@ -95,34 +94,34 @@ export async function POST(request: NextRequest) {
       message: `Successfully claimed territory at (${tileX}, ${tileY})`,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error claiming territory:', error);
 
     // Permission errors
-    if (error.message.includes('permission') || error.message.includes('Officer')) {
+    if ((error instanceof Error ? error.message : String(error)).includes('permission') || (error instanceof Error ? error.message : String(error)).includes('Officer')) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : String(error) },
         { status: 403 }
       );
     }
 
     // Business rule violations
     if (
-      error.message.includes('already claimed') ||
-      error.message.includes('adjacent') ||
-      error.message.includes('limit') ||
-      error.message.includes('Insufficient')
+      (error instanceof Error ? error.message : String(error)).includes('already claimed') ||
+      (error instanceof Error ? error.message : String(error)).includes('adjacent') ||
+      (error instanceof Error ? error.message : String(error)).includes('limit') ||
+      (error instanceof Error ? error.message : String(error)).includes('Insufficient')
     ) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }
 
     // Not found errors
-    if (error.message.includes('not found')) {
+    if ((error instanceof Error ? error.message : String(error)).includes('not found')) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : String(error) },
         { status: 404 }
       );
     }

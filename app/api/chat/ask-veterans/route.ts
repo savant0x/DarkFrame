@@ -20,8 +20,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { createRateLimiter } from '@/lib/redis';
-import { sendVeteranNotification, isVeteran } from '@/lib/chatService';
-import type { PlayerContext } from '@/lib/channelService';
+import { sendVeteranNotification } from '@/lib/chatService';
+
 
 // ============================================================================
 // TYPES

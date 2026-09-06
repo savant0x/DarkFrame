@@ -1,13 +1,13 @@
 import { db } from '@/lib/db';
 import {
-  players,
-  clans,
-  tiles,
-  factories,
-  battleLogs,
-  auctions,
+
+
+
+
+
+
 } from '@/lib/db/schema';
-import { eq, inArray, count, asc, desc } from 'drizzle-orm';
+import {  inArray, count } from 'drizzle-orm';
 
 export const projections = {
   playerBasic: {
@@ -157,7 +157,7 @@ export async function paginatedFind<T>(
 export async function countDocuments(
   table: any,
   whereClause?: any,
-  useEstimate = false
+  _useEstimate = false
 ): Promise<number> {
   const startTime = Date.now();
 

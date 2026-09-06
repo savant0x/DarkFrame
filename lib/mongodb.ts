@@ -86,7 +86,7 @@ export interface MongoUpdate {
 /** A set operation translated to drizzle: either a literal value or a raw SQL fragment. */
 type SetOp = DocumentValue | SQL;
 /** Mongo aggregation pipeline stage (acknowledged shape; see aggregate()). */
-type AggregateStage = Record<string, DocumentValue>;
+export type AggregateStage = Record<string, DocumentValue>;
 /** Index specification: named index or field-direction map. */
 type IndexSpec = string | Record<string, 1 | -1>;
 /** findOneAndUpdate option controlling which document version is returned. */

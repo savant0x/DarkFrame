@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { generateId } from '@/lib/utils';
 import { friends, friendRequests, players } from '@/lib/db/schema';
-import { eq, or, and, inArray, desc, like, count, sql, lt, gt, ne } from 'drizzle-orm';
+import { eq, or, and, inArray, desc, like, count,    ne } from 'drizzle-orm';
 import {
   Friend,
   FriendRequest,

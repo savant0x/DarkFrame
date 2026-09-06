@@ -105,7 +105,7 @@ export default function BotMagnetPanel() {
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to deploy beacon' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Network error' });
     } finally {
       setLoading(false);
@@ -131,7 +131,7 @@ export default function BotMagnetPanel() {
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to deactivate beacon' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Network error' });
     } finally {
       setLoading(false);

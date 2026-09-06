@@ -26,7 +26,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ShrineBoost, ShrineBoostTier, InventoryItem, ItemRarity } from '@/types';
+import { ShrineBoost, ShrineBoostTier, InventoryItem } from '@/types';
 import { estimateDuration, formatDuration, MAX_BUFF_DURATION_HOURS } from '@/utils/shrineHelpers';
 
 interface ShrinePanelProps {
@@ -254,7 +254,7 @@ export default function ShrinePanel({
       } else {
         setMessage(`❌ ${data.message || 'Activation failed'}`);
       }
-    } catch (error) {
+    } catch {
       setMessage('❌ Network error');
     } finally {
       setLoading(false);
@@ -293,7 +293,7 @@ export default function ShrinePanel({
       } else {
         setMessage(`❌ ${data.message || 'Activation failed'}`);
       }
-    } catch (error) {
+    } catch {
       setMessage('❌ Network error');
     } finally {
       setLoading(false);

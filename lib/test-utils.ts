@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { players, clans, tiles, factories, battleLogs, mutes, bans, warnings, modLog, wordBlacklist } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+
 
 export async function getTestDb() {
   return db;

@@ -33,7 +33,6 @@ import {
   saveWarfareConfig,
   validateWarfareConfig,
   getConfigHistory,
-  type WarfareConfig,
 } from '@/lib/warfareConfigService';
 import {
   withRequestLogging,

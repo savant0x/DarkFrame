@@ -28,7 +28,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import {  requireClanMembership } from '@/lib';
 import {
   distributeEqualSplit,
   distributeByPercentage,
@@ -144,10 +144,10 @@ export async function POST(request: NextRequest) {
         notes: distributionResult.notes,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Distribution error:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to distribute funds' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to distribute funds' },
       { status: 500 }
     );
   }

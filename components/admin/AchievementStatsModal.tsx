@@ -29,7 +29,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { formatDate } from '@/utils/formatting';
+
 
 /**
  * Achievement stats data structure

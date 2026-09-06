@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase, requireClanMembership, withRequestLogging, createRouteLogger } from '@/lib';
+import { requireClanMembership, withRequestLogging, createRouteLogger } from '@/lib';
 import { leaveClan } from '@/lib/clanService';
 
 /**
@@ -46,7 +46,6 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
   const endTimer = log.time('clanLeave');
   
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) {
@@ -73,17 +72,17 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       message: `You have left ${clan.name}`,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     log.error('Clan leave error', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('leader')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('leader')) {
       return NextResponse.json(
         { success: false, error: 'Leaders must transfer leadership before leaving' },
         { status: 400 }
       );
     }
 
-    if (error.message?.includes('not in clan')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('not in clan')) {
       return NextResponse.json(
         { success: false, error: 'You are not in a clan' },
         { status: 400 }

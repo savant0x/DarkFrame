@@ -21,14 +21,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
-import { StatCard, Panel, Button, Badge, Divider } from '@/components/ui';
-import { StaggerChildren, StaggerItem } from '@/components/transitions';
+import {  Panel, Button } from '@/components/ui';
+
 import { useCountUp, useIsMobile } from '@/hooks';
-import BalanceIndicator from './BalanceIndicator';
+
 import XPProgressBar from './XPProgressBar';
 import { 
-  User, MapPin, Factory, Swords, Shield as ShieldIcon, 
-  Users, Trophy, LogOut, Zap, Wrench,
+  User, MapPin,  Swords, Shield as ShieldIcon, 
+  Users, Trophy,  Zap, Wrench,
   Clock, TrendingUp, Star, Sparkles, Package, Mountain
 } from 'lucide-react';
 
@@ -47,11 +47,11 @@ interface StatsPanelProps {
 }
 
 export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryManagementClick, flagBearer }: StatsPanelProps = {}) {
-  const { player, logout, refreshPlayer } = useGameContext();
+  const { player } = useGameContext();
   const router = useRouter();
   const [boostTimers, setBoostTimers] = useState<Record<string, string>>({});
   const [clanTag, setClanTag] = useState<string | null>(null);
-  const isMobile = useIsMobile();
+  const _isMobile = useIsMobile();
   
   // Check if current player is flag bearer
   const isPlayerFlagBearer = flagBearer && player && flagBearer.username === player.username;

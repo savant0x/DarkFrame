@@ -27,9 +27,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button, Badge, Divider } from '@/components/ui';
-import { Sparkles, Lock, TrendingUp, Shield, Coins, Users, Target } from 'lucide-react';
-import { toast } from 'sonner';
+import { Button, Badge } from '@/components/ui';
+import {  Lock,  Shield, Coins, Users, Target } from 'lucide-react';
+
 
 interface Perk {
   id: string;
@@ -85,7 +85,7 @@ interface PerkCardProps {
   isLoading?: boolean;
 }
 
-function PerkCard({ perk, isActive = false, isLocked = false, onActivate, onDeactivate, isLoading = false }: PerkCardProps) {
+function PerkCard({ perk, isActive = false, onActivate, onDeactivate, isLoading = false }: PerkCardProps) {
   const tierColors = {
     BRONZE: 'border-orange-700/50 bg-orange-900/10',
     SILVER: 'border-gray-400/50 bg-gray-700/10',
@@ -268,7 +268,7 @@ export default function ClanPerkPanel({
   };
 
   // Get tier color
-  const getTierColor = (tier: string): string => {
+  const _getTierColor = (tier: string): string => {
     switch (tier) {
       case 'BRONZE': return 'text-orange-400 border-orange-700';
       case 'SILVER': return 'text-blue-400 border-blue-700';
@@ -290,7 +290,7 @@ export default function ClanPerkPanel({
   };
 
   // Format bonus display
-  const formatBonus = (type: string, value: number): string => {
+  const _formatBonus = (type: string, value: number): string => {
     switch (type) {
       case 'attack': return `+${value}% Attack`;
       case 'defense': return `+${value}% Defense`;
@@ -486,7 +486,7 @@ export default function ClanPerkPanel({
             AI Recommendations
           </h3>
           <div className="space-y-2">
-            {recommendations.slice(0, 3).map((rec, index) => (
+            {recommendations.slice(0, 3).map((rec, _index) => (
               <div
                 key={rec.perk.id}
                 className="bg-gray-900/50 border border-gray-700 rounded p-3"

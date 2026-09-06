@@ -8,7 +8,7 @@
  */
 
 const { spawn } = require('child_process');
-const path = require('path');
+const _path = require('path');
 
 // Add System32 to PATH if on Windows and not already present
 if (process.platform === 'win32') {

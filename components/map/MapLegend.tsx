@@ -18,7 +18,7 @@
 'use client';
 
 import React from 'react';
-import { TILE_COLORS, TerrainType } from '@/types';
+import { TILE_COLORS } from '@/types';
 
 /**
  * Legend item configuration

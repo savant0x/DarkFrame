@@ -32,8 +32,8 @@
 
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
-import { eq, sql, gte, desc } from 'drizzle-orm';
-import type { Clan, ClanMember, ClanRole } from '@/types/clan.types';
+import { eq, sql } from 'drizzle-orm';
+
 
 export enum DistributionMethod {
   EQUAL_SPLIT = 'EQUAL_SPLIT',

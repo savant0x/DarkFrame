@@ -19,6 +19,7 @@ import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, typ
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
 import { logger } from '@/lib/logger';
+import { getConsistentTileMessage } from '@/lib/tileMessages';
 import { SafeHtmlRenderer } from '@/components/SafeHtmlRenderer';
 
 interface TileRendererProps {
@@ -81,13 +82,12 @@ function getTerrainDescription(
   }
   
   // Use coordinate-based consistent message system
-  const { getConsistentTileMessage } = require('@/lib/tileMessages');
   return getConsistentTileMessage(terrain, x, y, bankType);
 }
 
-export default function TileRenderer({ tile, harvestResult, factoryData, attackResult, flagBearer, onDiscovery, onHarvestClick, isHarvesting, onAttackClick, isAttacking, onFlagAttack, onBankClick, onShrineClick }: TileRendererProps) {
-  const { player, refreshGameState } = useGameContext();
-  const router = useRouter();
+export default function TileRenderer({ tile, harvestResult, factoryData, attackResult, flagBearer, onHarvestClick, isHarvesting, onAttackClick, isAttacking, onFlagAttack, onBankClick, onShrineClick }: TileRendererProps) {
+  const { player } = useGameContext();
+  const _router = useRouter();
   
   // Dynamic image state
   const [imagePath, setImagePath] = React.useState<string | null>(null);
@@ -95,7 +95,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const [baseImagePath, setBaseImagePath] = React.useState<string | null>(null);
   const [baseImageError, setBaseImageError] = React.useState(false);
   const [factoryImageError, setFactoryImageError] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [_isLoading, setIsLoading] = React.useState(true);
   
   // Check if current player is the flag bearer
   const isCurrentPlayerBearer = flagBearer && player && (
@@ -314,6 +314,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             src={imagePath}
             alt={`${tile.terrain} tile`}
             fill
+            sizes="(min-width: 0px) 42rem"
             className="object-cover"
             onError={() => {
               logger.warn('Failed to load tile image', { path: imagePath });
@@ -353,6 +354,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             src={baseImagePath}
             alt={`Rank ${playerRank} base`}
             fill
+            sizes="(min-width: 0px) 42rem"
             className="object-cover z-10"
             onError={() => setBaseImageError(true)}
             priority
@@ -365,6 +367,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             src={factoryImagePath}
             alt={`Level ${factoryData.level} factory`}
             fill
+            sizes="(min-width: 0px) 42rem"
             className="object-cover z-10"
             onError={() => setFactoryImageError(true)}
             priority
@@ -785,8 +788,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 const distance = 40;
                 const startX = 50;
                 const startY = 50;
-                const endX = 50 + Math.cos(angle) * distance;
-                const endY = 50 + Math.sin(angle) * distance;
+                const _endX = 50 + Math.cos(angle) * distance;
+                const _endY = 50 + Math.sin(angle) * distance;
                 
                 return (
                   <div

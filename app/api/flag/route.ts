@@ -25,9 +25,9 @@ import {
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
-  createErrorFromException,
-  ErrorCode,
+
+
+
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.FLAG_DATA);
@@ -49,7 +49,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.FLAG_DATA);
  * }
  * ```
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagBearer | null>>> => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagBearer | null>>> => {
   const log = createRouteLogger('flag-get');
   const endTimer = log.time('flag-get');
   
@@ -120,7 +120,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
     
     // Get trail data (filter out expired tiles)
     const now = new Date();
-    const trail = (retryDoc.trail || []).filter((t: any) => new Date(t.expiresAt) > now);
+    const trail = (retryDoc.trail || []).filter((t) => new Date(t.expiresAt) > now);
     
     // Build FlagBearer response
     const bearer: FlagBearer = {
@@ -132,10 +132,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
       holdDuration,
       currentHP: holderDoc.currentHP || 1000,
       maxHP: holderDoc.maxHP || 1000,
-      trail: trail.map((t: any) => ({
+      trail: trail.map((t: { x: number; y: number; timestamp?: Date; expiresAt: Date }) => ({
         x: t.x,
         y: t.y,
-        timestamp: t.timestamp,
+        // trail_timestamp column is absent for legacy rows; the trail TTL is 8 min (schema doc).
+        timestamp: t.timestamp ?? new Date(t.expiresAt.getTime() - 8 * 60 * 1000),
         expiresAt: t.expiresAt
       }))
     };
@@ -151,7 +152,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest): 
     log.error('Failed to fetch flag bearer', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch Flag Bearer data',
+      error: error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Failed to fetch Flag Bearer data',
       timestamp: new Date()
     }, { status: 500 });
   } finally {
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<FlagAPIRe
     
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to process attack',
+      error: error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Failed to process attack',
       timestamp: new Date()
     }, { status: 500 });
   }

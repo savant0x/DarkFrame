@@ -152,7 +152,7 @@ const pricingTiers: PricingTier[] = [
  */
 export default function VIPUpgradePage() {
   const { player } = useGameContext();
-  const router = useRouter();
+  const _router = useRouter();
   
   const [selectedTier, setSelectedTier] = useState<VIPTier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);

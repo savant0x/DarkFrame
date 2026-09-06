@@ -37,6 +37,8 @@ import {
   hasLaunchAuthorization,
   vetoClanVote,
 } from '@/lib/wmd/clanVotingService';
+import { WarheadType } from '@/types/wmd/missile.types';
+import { VoteType } from '@/lib/wmd/clanVotingService';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
 import { getDatabase } from '@/lib/mongodb';
@@ -92,7 +94,7 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
         );
       }
       
-      const authorized = await hasLaunchAuthorization(auth.playerId, warheadType as any);
+      const authorized = await hasLaunchAuthorization(auth.playerId, warheadType as WarheadType);
       
       return NextResponse.json({
         success: true,
@@ -161,11 +163,11 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
         auth.player.clanId,
         auth.playerId,
         auth.username,
-        voteType as any,
+        voteType as VoteType,
         {
           targetId,
           targetUsername,
-          warheadType: warheadType as any,
+          warheadType: warheadType as WarheadType,
           resourceAmount,
         }
       );

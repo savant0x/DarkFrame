@@ -38,7 +38,7 @@ function loadManifest() {
   if (!fs.existsSync(manifestPath)) return { archives: [] };
   try {
     return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  } catch (e) {
+  } catch {
     return { archives: [] };
   }
 }
@@ -67,7 +67,7 @@ function parseTopLevelEntries(raw) {
 
 function inferCategoryFromFID(entry) {
   // Find the FID and try to infer a phase or year-month
-  const match = entry.match(/^## \[FID-(\d{6})(?:\d{3,})?/m);
+  const _match = entry.match(/^## \[FID-(\d{6})(?:\d{3,})?/m);
   // FID date pattern: FID-YYYYMMDD-XXX
   const matchFull = entry.match(/^## \[FID-(\d{8})/m);
   if (matchFull) {

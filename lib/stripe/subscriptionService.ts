@@ -39,7 +39,7 @@
 
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { eq, gt, desc, sql } from 'drizzle-orm';
+import { eq,   sql } from 'drizzle-orm';
 import { 
   VIPTier, 
   getVIPDurationDays,

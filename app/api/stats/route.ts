@@ -10,13 +10,13 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import clientPromise, { type SortSpec } from '@/lib/mongodb';
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -72,7 +72,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // Fetch top 10 players
     const topPlayersRaw = await playersCollection
       .find({})
-      .sort(sortField as any)
+      .sort([sortField, 1] as unknown as SortSpec)
       .limit(10)
       .project({
         username: 1,
@@ -87,15 +87,15 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       .toArray();
 
     // Flatten resources for easier frontend consumption
-    const topPlayers = topPlayersRaw.map((player: any) => ({
+    const topPlayers = topPlayersRaw.map((player) => ({
       _id: player._id,
       username: player.username,
       level: player.level,
       totalPower: player.totalPower,
       totalStrength: player.totalStrength,
       totalDefense: player.totalDefense,
-      metal: player.resources?.metal || 0,
-      energy: player.resources?.energy || 0,
+      metal: (player as unknown as { resources?: { metal?: number; energy?: number } }).resources?.metal || 0,
+      energy: (player as unknown as { resources?: { metal?: number; energy?: number } }).resources?.energy || 0,
       rank: player.rank,
     }));
 

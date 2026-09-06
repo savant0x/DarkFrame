@@ -31,7 +31,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  * Get list of all players for admin panel
  * Requires level 10+
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/players');
   const endTimer = log.time('get-players');
 

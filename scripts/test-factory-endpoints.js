@@ -48,7 +48,7 @@ async function testEndpoints() {
   console.log('📊 TEST 2: Slot Regeneration Logic');
   console.log('-'.repeat(70));
   
-  const { getFactoryCapacity, getAvailableSlots } = require('../lib/slotRegenService');
+  const { _getFactoryCapacity, _getAvailableSlots } = require('../lib/slotRegenService');
   const { getMaxSlots, getRegenRate } = require('../lib/factoryUpgradeService');
   
   for (let level = 1; level <= 10; level++) {

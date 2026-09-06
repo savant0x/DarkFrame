@@ -217,7 +217,7 @@ export default function LevelUpModal({
  */
 
 // CSS for twinkle animation (add to global styles)
-const styles = `
+const _styles = `
 @keyframes twinkle {
   0%, 100% { opacity: 0.3; transform: scale(1); }
   50% { opacity: 1; transform: scale(1.5); }

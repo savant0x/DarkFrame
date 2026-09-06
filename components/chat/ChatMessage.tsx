@@ -228,7 +228,7 @@ export default function ChatMessage({
   /**
    * Validate item exists (lazy loading)
    */
-  const validateItem = useCallback(async (itemName: string) => {
+  const _validateItem = useCallback(async (itemName: string) => {
     // Check cache first
     if (validatedItems.has(itemName) || invalidItems.has(itemName)) {
       return validatedItems.has(itemName);

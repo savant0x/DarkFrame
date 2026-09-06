@@ -28,13 +28,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getClientAndDatabase,
+
   requireClanMembership,
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -74,7 +74,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('chat-get');
   
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -109,7 +108,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       messages,
       count: messages.length,
     });
-  } catch (error: any) {
+  } catch (error) {
     log.error('Failed to retrieve chat messages', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -139,7 +138,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
  */
 export async function POST(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -163,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (messageType === MessageType.ANNOUNCEMENT) {
-      const member = clan.members.find((m: any) => m.playerId === auth.playerId);
+      const member = clan.members.find((m: { playerId: string; role?: string }) => m.playerId === auth.playerId);
       if (!member || member.role !== 'LEADER') {
         return NextResponse.json(
           { error: 'Only leaders can send announcements' },
@@ -178,23 +176,23 @@ export async function POST(request: NextRequest) {
       success: true,
       message: chatMessage,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error sending chat message:', error);
     
-    if (error.message.includes('Recruits must wait')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof Error ? error.message : String(error).includes('Recruits must wait')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 403 });
     }
     
-    if (error.message.includes('Rate limit exceeded')) {
-      return NextResponse.json({ error: error.message }, { status: 429 });
+    if (error instanceof Error ? error.message : String(error).includes('Rate limit exceeded')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 429 });
     }
     
-    if (error.message.includes('too long')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error ? error.message : String(error).includes('too long')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to send message' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to send message' },
       { status: 500 }
     );
   }
@@ -221,7 +219,6 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -245,23 +242,23 @@ export async function PUT(request: NextRequest) {
       success: true,
       message: updatedMessage,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error editing chat message:', error);
     
-    if (error.message.includes('Can only edit your own')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof Error ? error.message : String(error).includes('Can only edit your own')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 403 });
     }
     
-    if (error.message.includes('within')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof Error ? error.message : String(error).includes('within')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 403 });
     }
     
-    if (error.message.includes('too long')) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof Error ? error.message : String(error).includes('too long')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to edit message' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to edit message' },
       { status: 500 }
     );
   }
@@ -285,7 +282,6 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -309,15 +305,15 @@ export async function DELETE(request: NextRequest) {
       success: true,
       message: 'Message deleted successfully',
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting chat message:', error);
     
-    if (error.message.includes('Can only delete your own')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+    if (error instanceof Error ? error.message : String(error).includes('Can only delete your own')) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 403 });
     }
 
     return NextResponse.json(
-      { error: error.message || 'Failed to delete message' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to delete message' },
       { status: 500 }
     );
   }

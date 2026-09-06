@@ -40,14 +40,14 @@ import {
 } from '@/lib/mapService';
 import {
   createGridRenderer,
-  updateGridRenderer,
-  updateTile,
-  highlightTile,
-  clearHighlights
+
+
+
+
 } from './GridRenderer';
 import {
   createPlayerMarker,
-  updatePlayerMarkerPosition,
+
   animatePlayerMarker,
   removePlayerMarker
 } from './PlayerMarker';
@@ -477,7 +477,7 @@ export default function MapContainer({
     if (!appRef.current || !markerContainerRef.current) return;
     
     // Remove old markers - CRITICAL: Remove ticker listeners first!
-    markerGraphicsRef.current.forEach((graphics, playerId) => {
+    markerGraphicsRef.current.forEach((graphics, _playerId) => {
       // Remove ticker animation if it exists
       const animationFn = (graphics as any).animationFn;
       if (animationFn && appRef.current) {

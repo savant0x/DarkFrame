@@ -23,7 +23,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  getClientAndDatabase, 
+
   requireAuth, 
   withRequestLogging, 
   createRouteLogger,
@@ -64,7 +64,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clanJoin');
   
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) {
@@ -96,7 +95,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       message: `Welcome to ${result.clan.name}!`,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof ZodError) {
       log.warn('Clan join validation failed', { issues: error.issues });
       return createValidationErrorResponse(error);
@@ -104,19 +103,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     log.error('Clan join error', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('not found')) {
       return createErrorResponse(ErrorCode.CLAN_INVITATION_INVALID, {
         message: 'Invitation not found or expired'
       });
     }
 
-    if (error.message?.includes('already in a clan')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('already in a clan')) {
       return createErrorResponse(ErrorCode.CLAN_ALREADY_MEMBER, {
         message: 'You are already in a clan'
       });
     }
 
-    if (error.message?.includes('full')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('full')) {
       return createErrorResponse(ErrorCode.CLAN_FULL, {
         message: 'Clan is full'
       });

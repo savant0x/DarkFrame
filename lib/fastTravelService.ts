@@ -31,7 +31,6 @@
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq, isNotNull, sql } from 'drizzle-orm';
-import { type Player } from '@/types/game.types';
 
 /**
  * Waypoint definition

@@ -27,8 +27,7 @@
 
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { eq, isNotNull, isNull, sql } from 'drizzle-orm';
-import { type Player } from '@/types/game.types';
+import { eq, isNotNull } from 'drizzle-orm';
 
 /**
  * Concentration zone definition

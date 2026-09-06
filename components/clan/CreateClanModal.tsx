@@ -24,15 +24,15 @@
 
 import React, { useState } from 'react';
 import { useGameContext } from '@/context/GameContext';
-import { Button, Input, Badge } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import { 
   X, 
   Crown, 
-  Users, 
-  Shield, 
+
+
   Coins,
-  Zap,
-  Beaker,
+
+
   AlertCircle,
   Check
 } from 'lucide-react';

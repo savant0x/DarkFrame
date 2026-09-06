@@ -48,7 +48,7 @@ import { db, players } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { createCheckoutSession } from '@/lib/stripe';
 import { VIPTier, isValidVIPTier } from '@/types/stripe.types';
-import { ErrorCode } from '@/lib/errors/codes';
+
 import { logger } from '@/lib/logger/productionLogger';
 
 /**
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     let body;
     try {
       body = await request.json();
-    } catch (error) {
+    } catch {
       return NextResponse.json({
         success: false,
         message: 'Invalid request body',

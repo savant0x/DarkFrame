@@ -21,7 +21,7 @@ import { GET as searchUsers } from '@/app/api/friends/search/route';
 
 // Mock dependencies
 vi.mock('@/lib/authMiddleware', () => ({
-  requireAuth: vi.fn(async (req: Request) => ({
+  requireAuth: vi.fn(async (_req: Request) => ({
     userId: 'test-user-123',
     username: 'testuser'
   }))

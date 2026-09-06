@@ -112,7 +112,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
  * GET /api/tier/unlock
  * Get player's tier unlock status
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Verify authentication
     const authResult = await verifyAuth();

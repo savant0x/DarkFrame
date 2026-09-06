@@ -173,7 +173,7 @@ async function indexExists(collection, indexName) {
   try {
     const indexes = await collection.indexes();
     return indexes.some(idx => idx.name === indexName);
-  } catch (error) {
+  } catch {
     // Collection might not exist yet
     return false;
   }
@@ -298,6 +298,10 @@ async function setupMessagingIndexes() {
 
     const totalCreated = results.conversations.created + results.messages.created;
     const totalFailed = results.conversations.failed + results.messages.failed;
+
+    if (allVerified) {
+      console.log('✅ All existing indexes verified successfully.');
+    }
 
     if (totalFailed > 0) {
       console.log('\n⚠️  Some indexes failed to create. Check errors above.');

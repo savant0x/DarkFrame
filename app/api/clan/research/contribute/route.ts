@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import { requireClanMembership } from '@/lib';
 import { contributeRP } from '@/lib/clanResearchService';
 
 /**
@@ -44,7 +44,6 @@ import { contributeRP } from '@/lib/clanResearchService';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -71,14 +70,14 @@ export async function POST(request: NextRequest) {
         contributed: contributionResult.contributed,
         message: `Successfully contributed ${amount} RP to clan research fund`,
       });
-    } catch (err: any) {
-      if (err.message.includes('not a member')) {
+    } catch (err) {
+      if (err instanceof Error ? err.message : String(err).includes('not a member')) {
         return NextResponse.json(
           { error: 'You are not a member of this clan' },
           { status: 400 }
         );
       }
-      if (err.message.includes('Insufficient research points')) {
+      if (err instanceof Error ? err.message : String(err).includes('Insufficient research points')) {
         return NextResponse.json(
           { error: `Insufficient RP (you have ${auth.player.researchPoints || 0})` },
           { status: 400 }
@@ -86,10 +85,10 @@ export async function POST(request: NextRequest) {
       }
       throw err;
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error contributing RP:', error);
     return NextResponse.json(
-      { error: error.message || 'Failed to contribute RP' },
+      { error: error instanceof Error ? error.message : String(error) || 'Failed to contribute RP' },
       { status: 500 }
     );
   }

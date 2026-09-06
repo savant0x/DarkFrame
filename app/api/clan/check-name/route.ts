@@ -20,7 +20,7 @@ import {
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -66,7 +66,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       name
     });
 
-  } catch (error: any) {
+  } catch (error) {
     log.error('Failed to check clan name', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {

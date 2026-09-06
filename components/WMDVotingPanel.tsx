@@ -113,7 +113,7 @@ export default function WMDVotingPanel() {
     }
   };
 
-  const vetoVote = async (voteId: string, reason?: string) => {
+  const _vetoVote = async (voteId: string, reason?: string) => {
     setLoading(true);
     try {
       const res = await fetch('/api/wmd/voting', {

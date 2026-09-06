@@ -53,7 +53,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  * Admin-only endpoint that returns comprehensive battle log data for inspection.
  * Sorted by timestamp (newest first).
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('AdminBattleLogsAPI');
   const endTimer = log.time('battle-logs');
 

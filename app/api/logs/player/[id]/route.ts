@@ -126,11 +126,11 @@ export async function GET(
     // Initialize response data structure
     const responseData: {
       playerId: string;
-      activityLogs?: any[];
+      activityLogs?: unknown[];
       activityCount?: number;
-      battleLogs?: any[];
+      battleLogs?: unknown[];
       battleCount?: number;
-      combatStats?: any;
+      combatStats?: unknown;
       period: {
         startDate?: string;
         endDate?: string;
@@ -189,7 +189,7 @@ export async function GET(
     return NextResponse.json(
       { 
         error: 'Failed to fetch player logs',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Unknown error'
       },
       { status: 500 }
     );

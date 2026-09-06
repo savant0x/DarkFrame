@@ -7,7 +7,7 @@
  * gathering bonuses, diminishing returns, and harvest tracking.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   getCurrentResetPeriod,
   getTimeUntilReset,

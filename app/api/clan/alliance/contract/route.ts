@@ -102,9 +102,9 @@ export async function POST(request: NextRequest) {
         contracts: alliance.contracts,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Add contract error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to add contract' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) || 'Failed to add contract' }, { status: 500 });
   }
 }
 
@@ -162,8 +162,8 @@ export async function DELETE(request: NextRequest) {
         contracts: alliance.contracts,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Remove contract error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to remove contract' }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) || 'Failed to remove contract' }, { status: 500 });
   }
 }

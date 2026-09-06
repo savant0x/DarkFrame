@@ -137,7 +137,7 @@ export default function BotSummoningPanel() {
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to summon bots' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ type: 'error', text: 'Network error' });
     } finally {
       setLoading(false);

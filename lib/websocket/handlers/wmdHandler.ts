@@ -21,8 +21,8 @@
  * - /types/websocket for event types
  */
 
-import type { Server, Socket } from 'socket.io';
-import { WebSocketRooms } from '@/types/websocket';
+import type { Server } from 'socket.io';
+
 
 // ============================================================================
 // WMD EVENT BROADCASTERS

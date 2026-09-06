@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTileAt } from '@/lib/movementService';
-import { ApiResponse, ApiError } from '@/types';
+import { ApiResponse } from '@/types';
 import type { Player } from '@/types/game.types';
 import {
   withRequestLogging,
@@ -83,8 +83,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         );
         
         if (baseOwner) {
-          (tile as any).baseOwner = baseOwner.username;
-          (tile as any).baseGreeting = baseOwner.baseGreeting || '';
+          (tile as unknown as { baseOwner: string; baseGreeting?: string }).baseOwner = baseOwner.username;
+          (tile as unknown as { baseOwner: string; baseGreeting?: string }).baseGreeting = baseOwner.baseGreeting || '';
         }
       } catch (error) {
         log.error('Error fetching base owner', error instanceof Error ? error : new Error(String(error)));
@@ -111,7 +111,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         
         // Check if this tile has a trail entry (not expired)
         const now = new Date();
-        const trailEntry = (flagDoc.trail || []).find((t: any) => 
+        const trailEntry = (flagDoc.trail || []).find((t) => 
           t.x === x && t.y === y && new Date(t.expiresAt) > now
         );
         

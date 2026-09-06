@@ -41,7 +41,7 @@ import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getFriends, sendFriendRequest } from '@/lib/friendService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
-import type { FriendWithPlayer, FriendRequest } from '@/types/friend';
+
 
 // ============================================================================
 // GET /api/friends - Get Friends List
@@ -66,14 +66,15 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
+    const _db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
 
     // 2. Authenticate user
   const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     
   // Support both shapes in tests/prod (playerId vs userId)
-  const userId = (auth as any).playerId ?? (auth as any).userId;
+  const authRec = auth as unknown as Record<string, unknown>;
+    const userId = (authRec.playerId ?? authRec.userId) as string;
 
     // 3. Fetch friends via service layer
     const friends = await getFriends(userId);
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
     // Handle specific error types
     if (error instanceof ValidationError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }
@@ -134,20 +135,21 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
+    const _db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
 
     // 2. Authenticate user
   const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     
   // Support both shapes in tests/prod (playerId vs userId)
-  const userId = (auth as any).playerId ?? (auth as any).userId;
+  const authRec = auth as unknown as Record<string, unknown>;
+    const userId = (authRec.playerId ?? authRec.userId) as string;
 
     // 3. Parse and validate request body
     let body: unknown;
     try {
       body = await request.json();
-    } catch (parseError) {
+    } catch {
       return NextResponse.json(
         { success: false, error: 'Invalid JSON in request body' },
         { status: 400 }
@@ -214,21 +216,21 @@ export async function POST(request: NextRequest) {
     // Handle specific error types
     if (error instanceof ValidationError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }
 
     if (error instanceof PermissionError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 403 }
       );
     }
 
     if (error instanceof NotFoundError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 404 }
       );
     }

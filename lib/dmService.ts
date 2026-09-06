@@ -35,7 +35,7 @@
 
 import { db } from '@/lib/db';
 import { conversations, messages, players } from '@/lib/db/schema';
-import { eq, and, or, like, desc, asc, gt, lt, inArray, sql } from 'drizzle-orm';
+import { eq, and,  like, desc,  gt, lt, inArray, sql } from 'drizzle-orm';
 import {
   DirectMessage,
   DMConversation,
@@ -126,7 +126,7 @@ export async function createConversation(
     const participants: [string, string] = [userId, recipientId].sort() as [string, string];
     
     const existing = await db.select().from(conversations).where(
-      sql`JSON_CONTAINS(${conversations.participants}, JSON_ARRAY(${participants[0]}))`
+      sql`${conversations.participants} @> ${JSON.stringify([participants[0]])}::jsonb`
     );
     
     const matchingConv = existing.find(
@@ -205,7 +205,7 @@ export async function getConversations(
   
   try {
     const userConversations = await db.select().from(conversations).where(
-      sql`JSON_CONTAINS(${conversations.participants}, JSON_ARRAY(${userId}))`
+      sql`${conversations.participants} @> ${JSON.stringify([userId])}::jsonb`
     ).orderBy(desc(conversations.updatedAt));
     
     const previews: ConversationPreview[] = [];
@@ -417,7 +417,7 @@ export async function sendDirectMessage(
     const participants: [string, string] = [userId, request.recipientId].sort() as [string, string];
     
     const existing = await db.select().from(conversations).where(
-      sql`JSON_CONTAINS(${conversations.participants}, JSON_ARRAY(${participants[0]}))`
+      sql`${conversations.participants} @> ${JSON.stringify([participants[0]])}::jsonb`
     );
     
     let conversation = existing.find(
@@ -748,7 +748,7 @@ export async function searchConversations(
   
   try {
     const userConversations = await db.select().from(conversations).where(
-      sql`JSON_CONTAINS(${conversations.participants}, JSON_ARRAY(${userId}))`
+      sql`${conversations.participants} @> ${JSON.stringify([userId])}::jsonb`
     );
     
     if (userConversations.length === 0) {

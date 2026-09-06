@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import clientPromise from '@/lib/mongodb';
 import {
   withRequestLogging,
@@ -37,12 +37,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
   try {
     // Admin authentication
-    const adminUser = await getAuthenticatedUser();
-    if (!adminUser || !adminUser.rank || adminUser.rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const adminUser = adminAuth;
 
     const body = await request.json();
     const validated = ClearFlagsSchema.parse(body);

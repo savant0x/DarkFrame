@@ -23,7 +23,7 @@
 
 import { db } from '@/lib/db';
 import { players, clans } from '@/lib/db/schema';
-import { eq, and, inArray, desc, gt, lt, gte, lte, sql, asc, type SQL } from 'drizzle-orm';
+import { eq,        sql,  type SQL } from 'drizzle-orm';
 import {
   ClanActivity,
   ClanActivityType,

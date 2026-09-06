@@ -37,7 +37,7 @@ import { markMessageRead } from '@/lib/dmService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
 import type {
   MarkReadRequest,
-  MarkReadResponse,
+
 } from '@/types/directMessage';
 
 // ============================================================================
@@ -81,7 +81,7 @@ export async function PATCH(
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
+    const _db = mongoClient.db('darkframe');
 
     // 2. Authenticate user
     const auth = await requireAuth(request);
@@ -100,7 +100,7 @@ export async function PATCH(
       if (text) {
         body = JSON.parse(text);
       }
-    } catch (parseError) {
+    } catch {
       return NextResponse.json(
         { success: false, error: 'Invalid JSON in request body' },
         { status: 400 }

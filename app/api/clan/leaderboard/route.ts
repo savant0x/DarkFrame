@@ -37,13 +37,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { type AggregateStage } from '@/lib/mongodb';
 import { 
   connectToDatabase, 
   withRequestLogging,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
-  ErrorCode,
+
+
 } from '@/lib';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.leaderboard);
@@ -78,16 +79,16 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     
     // Build aggregation pipeline based on category
     const clansCollection = db.collection('clans');
-    const playersCollection = db.collection('players');
+    const _playersCollection = db.collection('players');
     
     // Base match stage (filter by search if provided)
-    const matchStage: any = {};
+    const matchStage: Record<string, unknown> = {};
     if (searchQuery) {
       matchStage.name = { $regex: searchQuery, $options: 'i' };
     }
     
     // Build aggregation based on category
-    const pipeline: any[] = [
+    const pipeline: unknown[] = [
       { $match: matchStage }
     ];
     
@@ -168,7 +169,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     
     // Get total count before pagination
     const countPipeline = [...pipeline, { $count: 'total' }];
-    const countResult = await clansCollection.aggregate(countPipeline).toArray();
+    const countResult = await clansCollection.aggregate(countPipeline as unknown as AggregateStage[]).toArray();
     const total = countResult.length > 0 ? countResult[0].total : 0;
     
     // Add pagination
@@ -179,10 +180,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     );
     
     // Execute aggregation
-    const clans = await clansCollection.aggregate(pipeline).toArray();
+    const clans = await clansCollection.aggregate(pipeline as unknown as AggregateStage[]).toArray();
     
     // Format leaderboard entries with ranks
-    const leaderboard = clans.map((clan: any, index: any) => ({
+    const leaderboard = clans.map((clan, index) => ({
       clan: {
         _id: clan._id,
         name: clan.name,

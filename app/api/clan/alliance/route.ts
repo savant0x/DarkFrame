@@ -39,7 +39,7 @@ import {
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   createValidationErrorResponse,
   ErrorCode,
@@ -114,7 +114,7 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
         proposedBy: alliance.proposedBy,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof ZodError) {
       return createValidationErrorResponse(error);
     }
@@ -182,7 +182,7 @@ export const PUT = withRequestLogging(putRateLimiter(async (request: NextRequest
         contracts: alliance.contracts,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof ZodError) {
       return createValidationErrorResponse(error);
     }
@@ -240,7 +240,7 @@ export const DELETE = withRequestLogging(deleteRateLimiter(async (request: NextR
       cooldownHours: 72,
       cooldownUntil: alliance.cooldownUntil,
     });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof ZodError) {
       return createValidationErrorResponse(error);
     }
@@ -316,7 +316,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       })),
       count: alliances.length,
     });
-  } catch (error: any) {
+  } catch (error) {
     log.error('Get alliances failed', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {

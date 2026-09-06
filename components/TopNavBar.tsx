@@ -48,7 +48,7 @@ export default function TopNavBar({
   dmUnreadCount = 0,
   friendRequestCount = 0
 }: TopNavBarProps = {}) {
-  const { player, logout } = useGameContext();
+  const { player } = useGameContext();
   const router = useRouter();
   const [currentTime, setCurrentTime] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -93,7 +93,7 @@ export default function TopNavBar({
             setHasNewActivity(lastActivity > fiveMinutesAgo);
           }
         }
-      } catch (error) {
+      } catch {
         // Silently fail - not critical
       }
     };

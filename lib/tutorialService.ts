@@ -35,11 +35,11 @@ import type {
   TutorialProgress,
   TutorialStep,
   TutorialStepCompletionResult,
-  TutorialQuestCompletionResult,
+
   TutorialValidationRequest,
   TutorialReward,
-  TutorialAnalytics,
-  TutorialConfig,
+
+
   PlayerGameStateValidation,
 } from '@/types/tutorial.types';
 import { DEFAULT_TUTORIAL_CONFIG } from '@/types/tutorial.types';

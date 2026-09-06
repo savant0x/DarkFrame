@@ -26,7 +26,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { useWebSocketContext } from '@/context/WebSocketContext';
-import { showSuccess, showError, showInfo, showWarning } from '@/lib/toastService';
+import { showSuccess, showError, showInfo } from '@/lib/toastService';
 
 interface Spy {
   spyId: string;

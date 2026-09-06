@@ -93,7 +93,7 @@ const REPUTATION_TIERS = {
 /**
  * Calculate reputation tier from defeat count
  */
-function getReputationTier(defeats: number): BotReputation {
+function _getReputationTier(defeats: number): BotReputation {
   if (defeats >= REPUTATION_TIERS.legendary.min) return 'legendary';
   if (defeats >= REPUTATION_TIERS.infamous.min) return 'infamous';
   if (defeats >= REPUTATION_TIERS.notorious.min) return 'notorious';

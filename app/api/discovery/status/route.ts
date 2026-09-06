@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDiscoveryProgress } from '@/lib/discoveryService';
-import { logger } from '@/lib/logger';
+
 import {
   withRequestLogging,
   createRouteLogger,

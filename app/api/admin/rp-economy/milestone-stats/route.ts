@@ -24,7 +24,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  * GET /api/admin/rp-economy/milestone-stats
  * Returns daily harvest milestone completion statistics
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/rp-economy/milestone-stats');
   const endTimer = log.time('get-milestone-stats');
 
@@ -44,7 +44,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
             AND JSON_EXTRACT(metadata, '$.threshold') = ${threshold}
         `);
 
-        const completions = (result as any)[0]?.count || 0;
+        const completions = (result as unknown as Array<{ count?: number }>)[0]?.count || 0;
 
         const milestoneAmounts: Record<number, number> = {
           1000: 500,

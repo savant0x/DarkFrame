@@ -36,7 +36,7 @@ import {
 } from '@/lib/chatService';
 import {
   ChannelType,
-  canWriteChannel,
+
   canReadChannel,
   getChannelRoom,
   getPlayerChannels,

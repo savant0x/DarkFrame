@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { mutes, bans, modLog, warnings, wordBlacklist, players } from '@/lib/db/schema';
-import { eq, gt, lte, desc, and, isNull, isNotNull } from 'drizzle-orm';
+import { eq,  lte, desc, and,  isNotNull } from 'drizzle-orm';
 import { Filter } from 'bad-words';
 import { generateId } from '@/lib/utils';
 
@@ -278,7 +278,7 @@ export async function recordWarning(
 ): Promise<void> {
   try {
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + WARNING_EXPIRY_MS);
+    const _expiresAt = new Date(now.getTime() + WARNING_EXPIRY_MS);
 
     const playerResult = await db.select().from(players).where(eq(players.username, userId)).limit(1);
     const username = playerResult[0]?.username || userId;

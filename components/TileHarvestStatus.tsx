@@ -11,7 +11,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Clock, CheckCircle, XCircle } from 'lucide-react';
+import { Clock, CheckCircle } from 'lucide-react';
 import { TerrainType } from '@/types/game.types';
 
 interface TileHarvestStatusProps {
