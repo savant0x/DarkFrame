@@ -1,3 +1,4 @@
+
 /**
  * @file components/clan/ClanManagementView.tsx
  * @created 2025-10-19
@@ -18,6 +19,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { 
   Button, 
   Badge, 
@@ -53,6 +55,7 @@ import {
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
 import { ClanRole } from '@/types/clan.types';
+import type { Player } from '@/types/game.types';
 import ClanMembersPanel from './ClanMembersPanel';
 import ClanBankPanel from './ClanBankPanel';
 import ClanTerritoryPanel from './ClanTerritoryPanel';
@@ -96,7 +99,7 @@ export default function ClanManagementView() {
   }, [player?.clanId, fetchClanData]);
 
   const handleLeaveClan = async () => {
-    if (!confirm('Are you sure you want to leave this clan?')) return;
+    if (!(await confirmDialog('Are you sure you want to leave this clan?'))) return;
 
     try {
       const response = await fetch('/api/clan/leave', {
@@ -114,9 +117,9 @@ export default function ClanManagementView() {
       toast.success('Left clan successfully');
       await refreshPlayer();
       setClanData(null);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error leaving clan:', error);
-      toast.error(error.message || 'Failed to leave clan');
+      toast.error(error instanceof Error ? error.message : 'Failed to leave clan');
     }
   };
 
@@ -274,7 +277,7 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
  * Create Clan View - Inline form
  */
 interface CreateClanViewProps {
-  player: any;
+  player: Player;
   onBack: () => void;
   onSuccess: () => void;
 }
@@ -321,14 +324,14 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
 
   // No formatting helpers needed - RichTextEditor handles it all
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = (field: keyof typeof formData, value: string | number | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       const newErrors = { ...errors };
       delete newErrors[field];
       setErrors(newErrors);
     }
-    if (field === 'name' && value) {
+    if (field === 'name' && typeof value === 'string' && value) {
       checkNameAvailability(value);
     }
   };
@@ -369,9 +372,10 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
 
       toast.success('Clan created successfully!');
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create clan');
-      setErrors({ submit: error.message });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create clan';
+      toast.error(message);
+      setErrors({ submit: message });
     } finally {
       setIsSubmitting(false);
     }
@@ -446,7 +450,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
               <input
                 type="text"
                 value={formData.name}
-                onChange={(e: any) => handleChange('name', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('name', e.target.value)}
                 placeholder="Enter clan name (3-30 characters)"
                 maxLength={30}
                 className="w-full px-4 py-3 pr-12 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
@@ -528,7 +532,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
                 <input
                   type="number"
                   value={formData.minLevel}
-                  onChange={(e: any) => handleChange('minLevel', parseInt(e.target.value) || 1)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('minLevel', parseInt(e.target.value) || 1)}
                   min={1}
                   max={50}
                   className="w-full px-4 py-3 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
@@ -575,14 +579,14 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
  * Join Clan View - Browse and join clans
  */
 interface JoinClanViewProps {
-  player: any;
+  player: Player;
   onBack: () => void;
   onSuccess: () => void;
 }
 
 function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [clans, setClans] = useState<any[]>([]);
+  const [clans, setClans] = useState<Clan[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
@@ -619,8 +623,8 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
 
       toast.success('Successfully joined clan!');
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to join clan');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to join clan');
     } finally {
       setIsJoining(false);
     }
@@ -652,7 +656,7 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
           <Input
             type="text"
             value={searchTerm}
-            onChange={(e: any) => setSearchTerm(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
             placeholder="Search clans by name..."
             className="text-lg"
           />
@@ -698,15 +702,15 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
                         <TrendingUp className="w-4 h-4" />
                         <span>Level {clan.level.currentLevel}</span>
                       </div>
-                      {clan.stats?.territories > 0 && (
+                      {clan.stats?.totalTerritories && clan.stats.totalTerritories > 0 && (
                         <div className="flex items-center gap-2">
                           <Map className="w-4 h-4" />
-                          <span>{clan.stats.territories} territories</span>
+                          <span>{clan.stats.totalTerritories} territories</span>
                         </div>
                       )}
                     </div>
                     <Button
-                      onClick={() => handleJoin(clan._id)}
+                      onClick={() => clan._id && handleJoin(clan._id)}
                       variant="primary"
                       disabled={isJoining}
                     >
@@ -727,7 +731,7 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
  * Clan Management Interface - Full management when player has clan
  */
 interface ClanManagementInterfaceProps {
-  player: any;
+  player: Player;
   clanData: Clan | null;
   onLeaveClan: () => void;
   onRefresh: () => void;
@@ -815,7 +819,11 @@ function ClanManagementInterface({
           <ClanBankPanel 
             clan={clanData} 
             currentUserRole={playerRole}
-            playerResources={player.resources}
+            playerResources={{
+              metal: player.resources.metal,
+              energy: player.resources.energy,
+              researchPoints: player.researchPoints
+            }}
             onRefresh={onRefresh} 
           />
         )}

@@ -1,3 +1,4 @@
+
 /**
  * Clan Chat Panel Component
  * 
@@ -30,6 +31,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageType } from '@/lib/clanChatService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface ChatMessage {
   _id: string;
@@ -82,8 +84,8 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       
       setMessages(data.messages.reverse());
       setHasMore(data.messages.length === 50);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load messages');
     } finally {
       setIsLoading(false);
     }
@@ -150,8 +152,8 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       
       setMessages([...data.messages.reverse(), ...messages]);
       setHasMore(data.messages.length === 50);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load more messages');
     } finally {
       setIsLoading(false);
     }
@@ -184,8 +186,8 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       setMessages([...messages, data.message]);
       setMessageText('');
       setIsAnnouncement(false);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setIsLoading(false);
     }
@@ -226,13 +228,13 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       setMessages(messages.map(m => m._id === messageId ? data.message : m));
       setEditingId(null);
       setEditText('');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to edit message');
     }
   };
 
   const deleteMsg = async (messageId: string) => {
-    if (!confirm('Are you sure you want to delete this message?')) return;
+    if (!(await confirmDialog('Are you sure you want to delete this message?'))) return;
     
     try {
       setError(null);
@@ -249,8 +251,8 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       
       // Remove message from list
       setMessages(messages.filter(m => m._id !== messageId));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete message');
     }
   };
 

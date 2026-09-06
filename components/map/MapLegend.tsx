@@ -35,14 +35,18 @@ interface LegendItem {
  * 
  * Displays a visual legend explaining map symbols and colors.
  * 
+ * @param compact - 2-column layout for narrow sidebars (FID-20260906-005 R5:
+ *   the desktop sidebar is w-64; the old 7-col grid rendered its labels as a
+ *   run-on "MetalEnergyCaveForestFactoryWastelandYou").
  * @returns Rendered legend component
  * 
  * @example
  * ```tsx
- * <MapLegend />
+ * <MapLegend compact />   // sidebar mount
+ * <MapLegend />           // wide mounts (mobile bottom sheet)
  * ```
  */
-export function MapLegend(): React.JSX.Element {
+export function MapLegend({ compact = false }: { compact?: boolean }): React.JSX.Element {
   // Convert TILE_COLORS hex numbers to CSS hex strings
   const getLegendItems = (): LegendItem[] => {
     return [
@@ -104,8 +108,8 @@ export function MapLegend(): React.JSX.Element {
         <span>Map Legend</span>
       </h3>
 
-      {/* Desktop: Horizontal grid */}
-      <div className="hidden md:grid md:grid-cols-4 lg:grid-cols-7 gap-3">
+      {/* Desktop: Horizontal grid (2-col in compact/sidebar mode) */}
+      <div className={compact ? 'grid grid-cols-2 gap-3' : 'hidden md:grid md:grid-cols-4 lg:grid-cols-7 gap-3'}>
         {legendItems.map((item) => (
           <LegendItem key={item.label} item={item} />
         ))}

@@ -170,6 +170,43 @@ export interface AuctionNotification {
 }
 
 /**
+ * One entry of the GET /api/auction/my-bids response: the listing, the
+ * caller's own highest bid on it, and whether that bid is currently winning.
+ * Mirrors the route's documented success payload (see app/api/auction/my-bids/route.ts).
+ */
+export interface MyBidEntry {
+  auction: AuctionListing;
+  myBid: AuctionBid;
+  isWinning: boolean;
+}
+
+/**
+ * A listing flattened with the viewer's own bid status for the "My Bids" view.
+ * Produced by AuctionHousePanel.fetchMyBids from MyBidEntry[]; consumed by
+ * AuctionListingCard (narrowed via isMyBidAuctionView — never cast to `any`).
+ */
+export interface MyBidAuctionView extends AuctionListing {
+  myBidAmount: number;
+  isWinning: boolean;
+}
+
+/**
+ * Type guard: is this listing a MyBidAuctionView (flattened with the viewer's
+ * own bid status) rather than a bare AuctionListing? Runtime check on the two
+ * fields that distinguish the view model; `both` guards the theoretically
+ * impossible case of a listing whose own fields shadow the extras.
+ */
+export function isMyBidAuctionView(
+  auction: AuctionListing | MyBidAuctionView
+): auction is MyBidAuctionView {
+  const both = auction as MyBidAuctionView;
+  return (
+    typeof both.myBidAmount === 'number' &&
+    typeof both.isWinning === 'boolean'
+  );
+}
+
+/**
  * Auction search filters
  */
 export interface AuctionSearchFilters {

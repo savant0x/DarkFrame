@@ -126,7 +126,7 @@ export interface WMDNotification {
     techTier?: number;
     damageDealt?: number;
     unitsDestroyed?: number;
-    [key: string]: any;            // Flexible for event-specific data
+    [key: string]: unknown;         // Flexible for event-specific data
   };
   
   // Message content
@@ -183,7 +183,7 @@ export interface NotificationRequest {
   sourceName: string;
   targetId?: string;
   targetName?: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   customMessage?: string;          // Override default message
 }
 
@@ -219,9 +219,20 @@ export interface WMDWebSocketEvent {
   sourceName: string;
   targetId?: string;
   targetName?: string;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   
   timestamp: Date;
+}
+
+/**
+ * Interception success broadcast payload (wmd:interception_success).
+ * Emitted by lib/websocket/handlers/wmdHandler.ts to the intercepting
+ * player's room when one of their defense batteries intercepts a missile.
+ */
+export interface InterceptionSuccessBroadcast {
+  missileId: string;
+  launcherName: string;
+  message: string;
 }
 
 /**
@@ -541,7 +552,7 @@ export function getNotificationTemplate(eventType: WMDEventType) {
  */
 export function generateNotificationMessage(
   eventType: WMDEventType,
-  data: any
+  data: WmdNotificationTemplateData
 ): { title: string; message: string; icon: string; color: string } {
   const template = NOTIFICATION_TEMPLATES[eventType];
   return {

@@ -18,6 +18,8 @@
 
 import { useState, useEffect } from 'react';
 import { formatDateTime } from '@/utils/formatting';
+import { showSuccess, showError } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface PlayerDetailModalProps {
   username: string;
@@ -153,7 +155,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
   // Admin actions
   const handleBanPlayer = async () => {
-    if (!confirm(`Ban player ${username}? This will prevent them from logging in.`)) return;
+    if (!(await confirmDialog(`Ban player ${username}? This will prevent them from logging in.`))) return;
 
     const reason = prompt('Ban reason:');
     if (!reason) return;
@@ -168,20 +170,20 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
       const data = await res.json();
       if (data.success) {
-        alert('Player banned successfully');
+        showSuccess('Player banned successfully');
         window.location.reload();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch {
-      alert('Failed to ban player');
+      showError('Failed to ban player');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleUnbanPlayer = async () => {
-    if (!confirm(`Unban player ${username}?`)) return;
+    if (!(await confirmDialog(`Unban player ${username}?`))) return;
 
     setActionLoading(true);
     try {
@@ -193,13 +195,13 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
       const data = await res.json();
       if (data.success) {
-        alert('Player unbanned successfully');
+        showSuccess('Player unbanned successfully');
         window.location.reload();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch {
-      alert('Failed to unban player');
+      showError('Failed to unban player');
     } finally {
       setActionLoading(false);
     }
@@ -214,7 +216,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
     const metal = parseInt(metalStr || '0');
     const energy = parseInt(energyStr || '0');
 
-    if (!confirm(`Give ${metal} metal and ${energy} energy to ${username}?`)) return;
+    if (!(await confirmDialog(`Give ${metal} metal and ${energy} energy to ${username}?`))) return;
 
     setActionLoading(true);
     try {
@@ -226,20 +228,20 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
       const data = await res.json();
       if (data.success) {
-        alert('Resources given successfully');
+        showSuccess('Resources given successfully');
         window.location.reload();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch {
-      alert('Failed to give resources');
+      showError('Failed to give resources');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleClearFlags = async () => {
-    if (!confirm(`Clear all flags for ${username}?`)) return;
+    if (!(await confirmDialog(`Clear all flags for ${username}?`))) return;
 
     setActionLoading(true);
     try {
@@ -251,13 +253,13 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
       const data = await res.json();
       if (data.success) {
-        alert('Flags cleared successfully');
+        showSuccess('Flags cleared successfully');
         window.location.reload();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch {
-      alert('Failed to clear flags');
+      showError('Failed to clear flags');
     } finally {
       setActionLoading(false);
     }

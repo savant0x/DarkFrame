@@ -1,3 +1,4 @@
+
 /**
  * Clan Perk Panel Component
  * 
@@ -29,6 +30,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Badge } from '@/components/ui';
 import {  Lock,  Shield, Coins, Users, Target } from 'lucide-react';
+import { showError } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 
 interface Perk {
@@ -204,8 +207,8 @@ export default function ClanPerkPanel({
       setMaxActive(data.perks.maxActive || 4);
       setClanLevel(data.clanLevel || 1);
       setError(null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch perks');
     } finally {
       setLoading(false);
     }
@@ -232,8 +235,8 @@ export default function ClanPerkPanel({
 
       await fetchPerks(); // Refresh
       onPerkActivated?.();
-    } catch (err: any) {
-      alert(`Activation failed: ${err.message}`);
+    } catch (err) {
+      showError(`Activation failed: ${err instanceof Error ? err.message : 'unknown error'}`);
     } finally {
       setActionLoading(null);
     }
@@ -241,7 +244,7 @@ export default function ClanPerkPanel({
 
   // Deactivate perk
   const handleDeactivate = async (perkId: string, perkName: string) => {
-    if (!confirm(`Deactivate ${perkName}? You will NOT receive a refund.`)) {
+    if (!(await confirmDialog(`Deactivate ${perkName}? You will NOT receive a refund.`))) {
       return;
     }
 
@@ -260,8 +263,8 @@ export default function ClanPerkPanel({
 
       await fetchPerks(); // Refresh
       onPerkDeactivated?.();
-    } catch (err: any) {
-      alert(`Deactivation failed: ${err.message}`);
+    } catch (err) {
+      showError(`Deactivation failed: ${err instanceof Error ? err.message : 'unknown error'}`);
     } finally {
       setActionLoading(null);
     }

@@ -30,7 +30,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AuctionListing } from '@/types/auction.types';
+import { AuctionListing, MyBidAuctionView, MyBidEntry } from '@/types/auction.types';
 
 import { AuctionListingCard } from './AuctionListingCard';
 import { CreateListingModal } from './CreateListingModal';
@@ -77,7 +77,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   // ============================================================
   // STATE
   // ============================================================
-  const [auctions, setAuctions] = useState<AuctionListing[]>([]);
+  const [auctions, setAuctions] = useState<AuctionListing[] | MyBidAuctionView[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
@@ -175,10 +175,10 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
 
     try {
       const response = await fetch(`/api/auction/my-bids?page=${currentPage}&limit=12`);
-      const data = await response.json();
+      const data: { success: boolean; bids?: MyBidEntry[]; message?: string; totalCount?: number; totalPages?: number } = await response.json();
 
       if (data.success) {
-        const auctionsWithStatus = (data.bids || []).map((bid: any) => ({
+        const auctionsWithStatus: MyBidAuctionView[] = (data.bids || []).map((bid) => ({
           ...bid.auction,
           myBidAmount: bid.myBid.bidAmount,
           isWinning: bid.isWinning

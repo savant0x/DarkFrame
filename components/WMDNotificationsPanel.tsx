@@ -1,3 +1,4 @@
+
 /**
  * @file components/WMDNotificationsPanel.tsx
  * @created 2025-10-22
@@ -23,6 +24,8 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { showSuccess } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface Notification {
   notificationId: string;
@@ -72,14 +75,14 @@ export default function WMDNotificationsPanel() {
   };
 
   const clearOld = async () => {
-    if (!confirm('Clear all read notifications older than 30 days?')) return;
+    if (!(await confirmDialog('Clear all read notifications older than 30 days?'))) return;
 
     const res = await fetch('/api/wmd/notifications?olderThan=30', {
       method: 'DELETE',
     });
     const data = await res.json();
     if (data.success) {
-      alert(`Cleared ${data.deletedCount} notifications`);
+      showSuccess(`Cleared ${data.deletedCount} notifications`);
       await fetchNotifications();
     }
   };

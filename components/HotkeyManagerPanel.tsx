@@ -1,3 +1,4 @@
+
 // ============================================================
 // FILE: components/HotkeyManagerPanel.tsx
 // CREATED: 2025-01-23
@@ -14,6 +15,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Keyboard, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';
 import { HotkeyConfig, HotkeyCategory } from '@/types/hotkey.types';
 import { findHotkeyConflicts } from '@/lib/hotkeyRegistry';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface HotkeyManagerPanelProps {
   isOpen: boolean;
@@ -95,7 +97,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
   };
 
   const handleReset = async () => {
-    if (!confirm('Reset all hotkeys to default configuration? This cannot be undone.')) {
+    if (!(await confirmDialog('Reset all hotkeys to default configuration? This cannot be undone.'))) {
       return;
     }
 

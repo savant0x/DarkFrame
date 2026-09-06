@@ -371,7 +371,9 @@ export default function MapPage() {
             {/* Map Legend */}
             <div>
               <h2 className="text-lg font-semibold mb-3">🎨 Legend</h2>
-              <MapLegend />
+              {/* FID-20260906-005 R5: compact 2-col grid — the w-64 sidebar
+                  previously forced the 7-col desktop grid into a run-on line */}
+              <MapLegend compact />
             </div>
             
             {/* Map Info */}

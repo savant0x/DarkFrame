@@ -27,6 +27,9 @@ import AchievementStatsModal from '@/components/admin/AchievementStatsModal';
 import SystemResetModal from '@/components/admin/SystemResetModal';
 import WebSocketConsoleModal from '@/components/admin/WebSocketConsoleModal';
 import HotkeyManagerPanel from '@/components/HotkeyManagerPanel';
+import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { Users, Crown, CalendarClock, Coins } from 'lucide-react';
 
 interface AdminStats {
   totalPlayers: number;
@@ -492,17 +495,17 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert(`Successfully spawned ${data.spawned} bots!`);
+        showSuccess(`Successfully spawned ${data.spawned} bots!`);
         // Refresh bot stats
         const botStatsRes = await fetch('/api/admin/bot-stats');
         const botStatsData = await botStatsRes.json();
         if (botStatsData.success) setBotStats(botStatsData.data);
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Bot spawn error:', err);
-      alert('Failed to spawn bots');
+      showError('Failed to spawn bots');
     } finally {
       setBotActionLoading(false);
     }
@@ -518,17 +521,17 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert(`Regeneration complete! Updated ${data.updated} bots, spawned ${data.spawned} new bots.`);
+        showSuccess(`Regeneration complete! Updated ${data.updated} bots, spawned ${data.spawned} new bots.`);
         // Refresh bot stats
         const botStatsRes = await fetch('/api/admin/bot-stats');
         const botStatsData = await botStatsRes.json();
         if (botStatsData.success) setBotStats(botStatsData.data);
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Bot regen error:', err);
-      alert('Failed to run regeneration');
+      showError('Failed to run regeneration');
     } finally {
       setBotActionLoading(false);
     }
@@ -544,7 +547,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert(`Beer bases respawned! ${data.count} bases created using smart spawning.`);
+        showSuccess(`Beer bases respawned! ${data.count} bases created using smart spawning.`);
         // Refresh bot stats
         const botStatsRes = await fetch('/api/admin/bot-stats');
         const botStatsData = await botStatsRes.json();
@@ -552,11 +555,11 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
           setBotStats(botStatsData.data);
         }
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Beer base respawn error:', err);
-      alert('Failed to respawn beer bases');
+      showError('Failed to respawn beer bases');
     } finally {
       setBeerBaseLoading(false);
     }
@@ -595,13 +598,13 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert('Beer Base configuration saved successfully!');
+        showSuccess('Beer Base configuration saved successfully!');
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Beer Base config save error:', err);
-      alert('Failed to save Beer Base configuration');
+      showError('Failed to save Beer Base configuration');
     } finally {
       setBeerBaseLoading(false);
     }
@@ -639,7 +642,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert(editingSchedule ? 'Schedule updated!' : 'Schedule created!');
+        showSuccess(editingSchedule ? 'Schedule updated!' : 'Schedule created!');
         setShowScheduleModal(false);
         setEditingSchedule(null);
         setScheduleForm({
@@ -652,18 +655,18 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         });
         await loadSchedules();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Schedule save error:', err);
-      alert('Failed to save schedule');
+      showError('Failed to save schedule');
     } finally {
       setSchedulesLoading(false);
     }
   };
   
   const handleDeleteSchedule = async (id: string) => {
-    if (!confirm('Delete this schedule?')) return;
+    if (!(await confirmDialog('Delete this schedule?'))) return;
     
     setSchedulesLoading(true);
     try {
@@ -673,14 +676,14 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert('Schedule deleted!');
+        showSuccess('Schedule deleted!');
         await loadSchedules();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Schedule delete error:', err);
-      alert('Failed to delete schedule');
+      showError('Failed to delete schedule');
     } finally {
       setSchedulesLoading(false);
     }
@@ -702,11 +705,11 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       if (data.success) {
         await loadSchedules();
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Schedule toggle error:', err);
-      alert('Failed to toggle schedule');
+      showError('Failed to toggle schedule');
     } finally {
       setSchedulesLoading(false);
     }
@@ -813,13 +816,13 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        alert('Bot configuration saved successfully!');
+        showSuccess('Bot configuration saved successfully!');
       } else {
-        alert(`Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (err) {
       console.error('Config save error:', err);
-      alert('Failed to save configuration');
+      showError('Failed to save configuration');
     } finally {
       setBotActionLoading(false);
     }
@@ -827,7 +830,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
   
   const handleBotAnalytics = () => {
     if (!botStats) {
-      alert('Bot stats not loaded yet');
+      showError('Bot stats not loaded yet');
       return;
     }
     
@@ -848,7 +851,7 @@ By Specialization:
 - Balanced: ${botStats.bySpecialization.Balanced || 0}
     `.trim();
     
-    alert(analyticsText);
+    showInfo(analyticsText);
   };
   
   // Load analytics data
@@ -924,7 +927,7 @@ By Specialization:
 
   // Grant VIP
   const handleGrantVip = async (username: string, days: number) => {
-    if (!confirm(`Grant VIP to ${username} for ${days} days?`)) return;
+    if (!(await confirmDialog(`Grant VIP to ${username} for ${days} days?`))) return;
     
     try {
       const response = await fetch('/api/admin/vip/grant', {
@@ -935,20 +938,20 @@ By Specialization:
       
       const data = await response.json();
       if (data.success) {
-        alert(`✅ VIP granted to ${username} for ${days} days`);
+        showSuccess(`✅ VIP granted to ${username} for ${days} days`);
         loadVipUsers(); // Refresh list
       } else {
-        alert(`❌ Error: ${data.error}`);
+        showError(`❌ Error: ${data.error}`);
       }
     } catch (error) {
       console.error('Error granting VIP:', error);
-      alert('Failed to grant VIP');
+      showError('Failed to grant VIP');
     }
   };
 
   // Revoke VIP
   const handleRevokeVip = async (username: string) => {
-    if (!confirm(`Revoke VIP from ${username}?`)) return;
+    if (!(await confirmDialog(`Revoke VIP from ${username}?`))) return;
     
     try {
       const response = await fetch('/api/admin/vip/revoke', {
@@ -959,14 +962,14 @@ By Specialization:
       
       const data = await response.json();
       if (data.success) {
-        alert(`✅ VIP revoked from ${username}`);
+        showSuccess(`✅ VIP revoked from ${username}`);
         loadVipUsers(); // Refresh list
       } else {
-        alert(`❌ Error: ${data.error}`);
+        showError(`❌ Error: ${data.error}`);
       }
     } catch (error) {
       console.error('Error revoking VIP:', error);
-      alert('Failed to revoke VIP');
+      showError('Failed to revoke VIP');
     }
   };
 
@@ -1266,8 +1269,10 @@ By Specialization:
                 </table>
 
                 {filteredPlayers.length === 0 && (
-                  <div className="text-center py-8 text-gray-400">
-                    No players found
+                  <div className="text-center py-10">
+                    <Users className="w-10 h-10 mx-auto mb-2 text-text-tertiary" />
+                    <p className="text-text-secondary">No players found</p>
+                    <p className="text-sm text-text-tertiary mt-1">Try a different search or filter.</p>
                   </div>
                 )}
               </div>
@@ -1425,8 +1430,10 @@ By Specialization:
 
                     {filteredVipUsers.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
-                          No users found
+                        <td colSpan={5} className="px-4 py-10 text-center">
+                          <Crown className="w-10 h-10 mx-auto mb-2 text-text-tertiary" />
+                          <p className="text-text-secondary">No users found</p>
+                          <p className="text-sm text-text-tertiary mt-1">VIP grants will appear here.</p>
                         </td>
                       </tr>
                     )}
@@ -1546,14 +1553,14 @@ By Specialization:
               <div className="grid grid-cols-3 gap-4">
                 <button 
                   onClick={async () => {
-                    if (!confirm('Fix all player base tiles? This will convert base coordinates to Wasteland.')) return;
+                    if (!(await confirmDialog('Fix all player base tiles? This will convert base coordinates to Wasteland.'))) return;
                     try {
                       const res = await fetch('/api/admin/fix-base', { method: 'POST' });
                       const data = await res.json();
-                      alert(data.message || 'Base tiles fixed!');
+                      showInfo(data.message || 'Base tiles fixed!');
                       window.location.reload();
                     } catch {
-                      alert('Failed to fix base tiles');
+                      showError('Failed to fix base tiles');
                     }
                   }}
                   className="bg-orange-600 hover:bg-orange-500 text-white px-6 py-4 rounded-lg font-semibold transition-colors"
@@ -2019,8 +2026,10 @@ By Specialization:
                         {schedulesLoading ? (
                           <div className="text-center py-4 text-gray-400">Loading schedules...</div>
                         ) : schedules.length === 0 ? (
-                          <div className="bg-gray-800 rounded p-3 text-center text-gray-400 text-sm">
-                            No schedules configured. Click &quot;Add Schedule&quot; to create one.
+                          <div className="rounded p-4 text-center bg-glass-light">
+                            <CalendarClock className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
+                            <p className="text-text-secondary text-sm">No schedules configured</p>
+                            <p className="text-text-tertiary text-xs mt-1">Click &quot;Add Schedule&quot; to create one.</p>
                           </div>
                         ) : (
                           <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -2506,13 +2515,13 @@ By Specialization:
                               });
                               const data = await res.json();
                               if (data.success) {
-                                alert(`✅ Predictions recalculated!\n\nProjected ${data.playerCount} players over ${data.weeksAhead} weeks.\nNew distribution: ${JSON.stringify(data.distribution, null, 2)}`);
+                                showSuccess(`✅ Predictions recalculated!\n\nProjected ${data.playerCount} players over ${data.weeksAhead} weeks.\nNew distribution: ${JSON.stringify(data.distribution, null, 2)}`);
                               } else {
-                                alert(`❌ Error: ${data.error}`);
+                                showError(`❌ Error: ${data.error}`);
                               }
                             } catch (err) {
                               console.error('Recalculation error:', err);
-                              alert('Failed to recalculate predictions');
+                              showError('Failed to recalculate predictions');
                             } finally {
                               setBeerBaseLoading(false);
                             }
@@ -2524,7 +2533,7 @@ By Specialization:
                         </button>
                         <button
                           onClick={() => {
-                            alert('🔮 Predictive Spawning Details:\n\n' +
+                            showInfo('🔮 Predictive Spawning Details:\n\n' +
                               '1. ALGORITHM: Linear regression on 365 days of player snapshots\n' +
                               '2. PROJECTION: Forecasts player levels N weeks ahead\n' +
                               '3. TIER MAPPING: Projected levels → Power tier distribution\n' +
@@ -2875,10 +2884,10 @@ By Specialization:
                             const missileId = (document.getElementById('disarm-missile-id') as HTMLInputElement)?.value;
                             const reason = (document.getElementById('disarm-reason') as HTMLInputElement)?.value;
                             if (!missileId || !reason) {
-                              alert('Please provide missile ID and reason');
+                              showInfo('Please provide missile ID and reason');
                               return;
                             }
-                            if (!confirm(`Emergency disarm missile ${missileId}? This will refund 50% of costs.`)) return;
+                            if (!(await confirmDialog(`Emergency disarm missile ${missileId}? This will refund 50% of costs.`))) return;
                             
                             try {
                               const res = await fetch('/api/admin/wmd', {
@@ -2888,17 +2897,17 @@ By Specialization:
                               });
                               const data = await res.json();
                               if (data.success) {
-                                alert('Missile disarmed successfully! Clan refunded 50% of costs.');
+                                showSuccess('Missile disarmed successfully! Clan refunded 50% of costs.');
                                 // Reload WMD status
                                 const statusRes = await fetch('/api/admin/wmd?action=status');
                                 const statusData = await statusRes.json();
                                 if (statusData.success) setWmdStatus(statusData.data);
                               } else {
-                                alert(`Error: ${data.error}`);
+                                showError(`Error: ${data.error}`);
                               }
                             } catch (err) {
                               console.error('Disarm error:', err);
-                              alert('Failed to disarm missile');
+                              showError('Failed to disarm missile');
                             }
                           }}
                           className="w-full bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
@@ -2928,10 +2937,10 @@ By Specialization:
                             const voteId = (document.getElementById('expire-vote-id') as HTMLInputElement)?.value;
                             const reason = (document.getElementById('expire-reason') as HTMLInputElement)?.value;
                             if (!voteId || !reason) {
-                              alert('Please provide vote ID and reason');
+                              showInfo('Please provide vote ID and reason');
                               return;
                             }
-                            if (!confirm(`Force expire vote ${voteId}?`)) return;
+                            if (!(await confirmDialog(`Force expire vote ${voteId}?`))) return;
                             
                             try {
                               const res = await fetch('/api/admin/wmd', {
@@ -2941,17 +2950,17 @@ By Specialization:
                               });
                               const data = await res.json();
                               if (data.success) {
-                                alert('Vote expired successfully!');
+                                showSuccess('Vote expired successfully!');
                                 // Reload WMD status
                                 const statusRes = await fetch('/api/admin/wmd?action=status');
                                 const statusData = await statusRes.json();
                                 if (statusData.success) setWmdStatus(statusData.data);
                               } else {
-                                alert(`Error: ${data.error}`);
+                                showError(`Error: ${data.error}`);
                               }
                             } catch (err) {
                               console.error('Expire error:', err);
-                              alert('Failed to expire vote');
+                              showError('Failed to expire vote');
                             }
                           }}
                           className="w-full bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
@@ -2988,10 +2997,10 @@ By Specialization:
                             const hours = parseInt((document.getElementById('cooldown-hours') as HTMLInputElement)?.value || '0');
                             const reason = (document.getElementById('cooldown-reason') as HTMLInputElement)?.value;
                             if (!clanId || hours === 0 || !reason) {
-                              alert('Please provide clan ID, hours adjustment, and reason');
+                              showInfo('Please provide clan ID, hours adjustment, and reason');
                               return;
                             }
-                            if (!confirm(`Adjust clan ${clanId} cooldown by ${hours} hours?`)) return;
+                            if (!(await confirmDialog(`Adjust clan ${clanId} cooldown by ${hours} hours?`))) return;
                             
                             try {
                               const res = await fetch('/api/admin/wmd', {
@@ -3001,13 +3010,13 @@ By Specialization:
                               });
                               const data = await res.json();
                               if (data.success) {
-                                alert(`Cooldown adjusted! New cooldown expires: ${new Date(data.newCooldownExpiry).toLocaleString()}`);
+                                showInfo(`Cooldown adjusted! New cooldown expires: ${new Date(data.newCooldownExpiry).toLocaleString()}`);
                               } else {
-                                alert(`Error: ${data.error}`);
+                                showError(`Error: ${data.error}`);
                               }
                             } catch (err) {
                               console.error('Cooldown adjustment error:', err);
-                              alert('Failed to adjust cooldown');
+                              showError('Failed to adjust cooldown');
                             }
                           }}
                           className="w-full bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
@@ -3057,11 +3066,11 @@ By Specialization:
                             const details = (document.getElementById('flag-details') as HTMLTextAreaElement)?.value;
                             
                             if (!activityType || !details) {
-                              alert('Please select activity type and provide details');
+                              showInfo('Please select activity type and provide details');
                               return;
                             }
                             if (!playerId && !clanId) {
-                              alert('Please provide either player ID or clan ID');
+                              showInfo('Please provide either player ID or clan ID');
                               return;
                             }
                             
@@ -3079,17 +3088,17 @@ By Specialization:
                               });
                               const data = await res.json();
                               if (data.success) {
-                                alert('Activity flagged successfully! Alert created for admin review.');
+                                showSuccess('Activity flagged successfully! Alert created for admin review.');
                                 // Reload WMD status to show new alert
                                 const statusRes = await fetch('/api/admin/wmd?action=status');
                                 const statusData = await statusRes.json();
                                 if (statusData.success) setWmdStatus(statusData.data);
                               } else {
-                                alert(`Error: ${data.error}`);
+                                showError(`Error: ${data.error}`);
                               }
                             } catch (err) {
                               console.error('Flag error:', err);
-                              alert('Failed to flag activity');
+                              showError('Failed to flag activity');
                             }
                           }}
                           className="w-full bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded font-semibold text-sm transition-colors"
@@ -3366,7 +3375,11 @@ By Specialization:
                             </tbody>
                           </table>
                           {rpTransactions.length === 0 && (
-                            <div className="text-center py-8 text-gray-400">No transactions found</div>
+                            <div className="text-center py-10">
+                              <Coins className="w-10 h-10 mx-auto mb-2 text-text-tertiary" />
+                              <p className="text-text-secondary">No transactions found</p>
+                              <p className="text-sm text-text-tertiary mt-1">RP activity will appear here.</p>
+                            </div>
                           )}
                         </div>
                       </div>

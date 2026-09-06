@@ -1,3 +1,4 @@
+
 /**
  * @file components/WMDDefensePanel.tsx
  * @created 2025-10-22
@@ -25,6 +26,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import type { InterceptionSuccessBroadcast } from '@/types/wmd';
 
 interface DefenseBattery {
   batteryId: string;
@@ -58,8 +61,10 @@ export default function WMDDefensePanel() {
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    const handleInterceptionSuccess = (payload: any) => {
-      showSuccess(`Battery ${payload.batteryId} intercepted incoming missile!`);
+    const handleInterceptionSuccess = (payload: InterceptionSuccessBroadcast) => {
+      // The server payload identifies the launcher, not the battery — say so,
+      // instead of rendering "Battery undefined intercepted …".
+      showSuccess(`Intercepted incoming missile from ${payload.launcherName}!`);
       fetchBatteries();
     };
 
@@ -131,7 +136,7 @@ export default function WMDDefensePanel() {
   };
 
   const dismantleBattery = async (batteryId: string) => {
-    if (!confirm('Dismantle this battery? This cannot be undone.')) return;
+    if (!(await confirmDialog('Dismantle this battery? This cannot be undone.'))) return;
 
     const res = await fetch(`/api/wmd/defense?batteryId=${batteryId}`, {
       method: 'DELETE',
@@ -140,7 +145,7 @@ export default function WMDDefensePanel() {
     if (data.success) {
       await fetchBatteries();
     } else {
-      alert(data.error || 'Failed to dismantle battery');
+      showError(data.error || 'Failed to dismantle battery');
     }
   };
 

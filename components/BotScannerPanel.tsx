@@ -18,6 +18,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { showInfo } from '@/lib/toastService';
 import { useGameContext } from '@/context/GameContext';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 
@@ -154,11 +155,11 @@ export default function BotScannerPanel() {
         setScanResult(data);
         await fetchStatus(); // Update cooldown
       } else {
-        alert(data.message);
+        showInfo(data.message);
       }
     } catch (error) {
       console.error('Scan failed:', error);
-      alert('Scanner malfunction');
+      showInfo('Scanner malfunction');
     } finally {
       setScanning(false);
     }

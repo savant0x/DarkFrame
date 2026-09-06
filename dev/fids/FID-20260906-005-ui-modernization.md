@@ -223,3 +223,53 @@ remains gated.**
 
 Implementation order above = dependency order (C and A1 are foundations; A2/B consume
 their tokens; D/T2/T3 sit on the migrated pages).
+
+### Law 6 enforcement — `as any` zero-tolerance sweep (2026-09-06)
+
+**Operator directive:** "pre-existing or not, `as any` is a clear echo violation and we
+never 'save it for later'." Standing rule: every `any`/`@ts-ignore` introduced by this
+FID's edits is fixed in the same session, never deferred.
+
+**Evidence (grep census over the FID-005 batch, 2026-09-06):**
+
+- `components/AuctionListingCard.tsx` — `auction as any` (L216) papering over a missing
+  view-model type. **FIXED (Law 13, one seam):** added `MyBidEntry` + `MyBidAuctionView`
+  + type guard `isMyBidAuctionView` to `types/auction.types.ts` (mirroring the documented
+  `GET /api/auction/my-bids` payload); `AuctionHousePanel.fetchMyBids` now maps the
+  `(bid: any)` through `MyBidEntry` with a typed response; card prop widened to
+  `AuctionListing | MyBidAuctionView`, consumption narrowed via the guard. Cast count in
+  the seam: **0**. Gates: `tsc --noEmit` 0 errors; eslint clean on all three files;
+  /stats (imports the card via barrel) serves 200; **341/341 tests pass**.
+- Residual census over the rest of the batch (flagged per the no-silent-skip rule, fixed
+  in this same pass): `FriendRequestsPanel.test.tsx` 15, `ClanManagementView.tsx` 10,
+  `AlliancePanel.tsx` 6, `ClanChatPanel.tsx` 5, `ClanPerkPanel.tsx` 3,
+  `WMDDefensePanel.tsx` 1 — **40 total**.
+
+**Loop status:** correction applied → re-verified (GREEN/AUDIT over the residual files).
+
+**SELF-CORRECT round 1 (same pass):** tightening the types surfaced 5 latent defects that
+the `any` masks had hidden, all fixed: (1) `clan.stats.territories` phantom field — the
+stats type has `totalTerritories`, so the territories badge in the join view never
+rendered; (2) join button fired `handleJoin(undefined)` on rows with no `_id`; (3)
+ClanManagementView's bank mount omitted `researchPoints` from `playerResources` (the
+panel validates RP deposits against it); (4) `handleChange('name', …)` fed
+`string|number|boolean` into `checkNameAvailability(string)`; (5) unguarded numeric
+text coercion. The tightening also pulled the wmd/clan type files into lint scope,
+exposing 6 more escape-hatch `any`s (WMDWebSocketEvent index signature, 2×
+`Record<string, any>` details, `generateNotificationMessage(data: any)`,
+`WMDAction.payload: any`, `ClanActivity.details` any) — all retyped to real shapes or
+`unknown`.
+
+**AUDIT (double audit, evidence from tool output):**
+- Method 1 (static): `tsc --noEmit` → **0 errors**; `eslint` over all 11 touched files
+  + `types/` → **clean**; grep census `as any|: any|@ts-ignore` over the entire FID-005
+  batch → **0 matches** (was 41).
+- Method 2 (runtime): full test suite → **341 passed / 1 skipped (342)**; `/stats`
+  (imports the re-typed auction card via `components/index.ts`) serves **200** on the
+  live dev server.
+- Out-of-batch discoveries recorded, not absorbed (Law 2 Additional Rule): SCOPE #26
+  (7 residual `any` in types/ files outside this batch), #27 (root ClanChatPanel dead
+  code), #28 (ClanPanel `player.research?.researchPoints` phantom-field join gate).
+
+**Convergence declared** — the Law 6 criterion (grep returns 0 over the batch) is met;
+loop record closed for this sweep.

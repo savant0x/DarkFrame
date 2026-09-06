@@ -11,6 +11,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { showSuccess, showInfo } from '@/lib/toastService';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import BackButton from '@/components/BackButton';
@@ -153,12 +154,12 @@ export default function VIPSubscriptionPage() {
 
   const handleStripeConnect = async () => {
     if (!stripePublicKey || !stripeSecretKey) {
-      alert('Please provide both Stripe public and secret keys');
+      showInfo('Please provide both Stripe public and secret keys');
       return;
     }
     
     // TODO: Implement Stripe connection
-    alert('Stripe integration coming soon! Keys would be saved securely.');
+    showSuccess('Stripe integration coming soon! Keys would be saved securely.');
     setStripeConnected(true);
   };
 
@@ -424,7 +425,7 @@ export default function VIPSubscriptionPage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText('https://yourdomain.com/api/webhooks/stripe');
-                        alert('Webhook URL copied to clipboard!');
+                        showInfo('Webhook URL copied to clipboard!');
                       }}
                       className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
                     >

@@ -1,3 +1,4 @@
+
 /**
  * @file components/BotSummoningPanel.tsx
  * @created 2025-01-18
@@ -24,6 +25,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { BotSpecialization } from '@/types/game.types';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface SummoningStatus {
   canSummon: boolean;
@@ -113,7 +115,7 @@ export default function BotSummoningPanel() {
       setMessage({ type: 'error', text: 'Bosses are elite world spawns and cannot be summoned.' });
       return;
     }
-    if (!confirm(`Summon 5 ${SPECIALIZATION_INFO[selectedSpec].name} bots at your location?`)) {
+    if (!(await confirmDialog(`Summon 5 ${SPECIALIZATION_INFO[selectedSpec].name} bots at your location?`))) {
       return;
     }
 
