@@ -45,6 +45,10 @@ const PUBLIC_FIELDS = [
   'clanRole',
   'clanLevel',
   // position
+  // NOTE: 'base' itself is NOT allowlisted as a passthrough — it is COMPOSED below
+  // from baseX/baseY (FID-20260906-009). Consumers (StatsPanel, TileRenderer, profile
+  // pages) are written against the documented Player contract's nested `base: Position`;
+  // shipping only the flat columns is what made every client render Base (0,0).
   'baseX',
   'baseY',
   'currentPosition',
@@ -92,6 +96,18 @@ export function sanitizePlayer<T extends object>(raw: T | null | undefined): Pub
   const out: Record<string, unknown> = {};
   for (const field of PUBLIC_FIELDS) {
     if (rec[field] !== undefined) out[field] = rec[field];
+  }
+
+  // Compose the nested `base: Position` the client contract promises (FID-20260906-009).
+  // Prefer the already-nested shape (mapped Player), else build it from the flat columns.
+  // Guards reject NaN/non-finite so a corrupt row can never leak `base: {x: NaN, y: NaN}`.
+  const isFiniteNum = (v: unknown): v is number =>
+    typeof v === 'number' && Number.isFinite(v);
+  if (rec.base && typeof rec.base === 'object') {
+    const b = rec.base as { x?: unknown; y?: unknown };
+    if (isFiniteNum(b.x) && isFiniteNum(b.y)) out.base = { x: b.x, y: b.y };
+  } else if (isFiniteNum(rec.baseX) && isFiniteNum(rec.baseY)) {
+    out.base = { x: rec.baseX, y: rec.baseY };
   }
 
   if (process.env.NODE_ENV !== 'production') {
