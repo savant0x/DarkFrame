@@ -253,8 +253,11 @@ export default function MapPage() {
       try {
         const res = await fetch('/api/flag');
         const data = await res.json();
-        if (data?.success && data.data) {
-          const bearer = data.data;
+        // FID-20260905-001 §7.2: the payload nests the bearer at data.data.bearer
+        // (this page still read the old envelope → flagState{position:undefined}
+        // → CanvasMapRenderer crashed on position.x, blanking the whole map).
+        const bearer = data?.data?.bearer;
+        if (data?.success && bearer && bearer.position) {
           if (bearer.username === player.username) {
             currentPlayerMarker.isFlagBearer = true;
           }
