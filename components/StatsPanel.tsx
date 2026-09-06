@@ -1,35 +1,37 @@
 /**
  * @file components/StatsPanel.tsx
  * @created 2025-10-16
- * @updated 2025-10-18 - Refactored with new design system
- * @overview Left panel displaying player statistics with modern UI
- * 
+ * @updated 2026-09-06 - NEON NOIR reskin (FID-20260906-012 Phase 1)
+ * @overview Left panel displaying player statistics as a command instrument
+ *
  * OVERVIEW:
  * Player statistics dashboard with real-time shrine boost timers,
- * military power calculations, and resource tracking. Uses new design
- * system with StatCard components, animated progress bars, and
- * micro-interactions for enhanced UX.
- * 
+ * military power calculations, and resource tracking.
+ *
  * UPDATES:
  * - 2025-10-17: Added shrine boost display with real-time timers
- * - 2025-10-17: Removed incorrect upgrade system, added "Build Units" button
- * - 2025-10-18: Refactored with StatCard grid, useCountUp animations, modern design system
+ * - 2025-10-18: Refactored with StatCard grid, useCountUp animations
+ * - 2026-09-06: NEON NOIR reskin — glass-over-void HUD panels with
+ *   corner-bracket framing, per-panel semantic accents (glow = meaning),
+ *   Orbitron tabular numerals, segmented STR/DEF power meter, and scanline
+ *   module headers. Logic/handlers unchanged. `xpProgress` cast removed via
+ *   the type now declared on Player.
  */
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
-import {  Panel, Button } from '@/components/ui';
 
 import { useCountUp, useIsMobile } from '@/hooks';
 
 import XPProgressBar from './XPProgressBar';
-import { 
-  User, MapPin,  Swords, Shield as ShieldIcon, 
-  Users, Trophy,  Zap, Wrench,
-  Clock, TrendingUp, Star, Sparkles, Package, Mountain
+import {
+  User, MapPin, Swords, Shield as ShieldIcon,
+  Users, Trophy, Zap, Wrench,
+  Clock, TrendingUp, Star, Sparkles, Package, Mountain,
+  Gift, Crown, Flag
 } from 'lucide-react';
 
 interface StatsPanelProps {
@@ -46,13 +48,42 @@ interface StatsPanelProps {
   } | null;
 }
 
+/** NEON NOIR HUD module: glass panel with corner brackets + scanline header.
+ *  `accent` assigns the panel's semantic signal color (§3.3: glow = meaning). */
+function HudPanel({ accent, icon, title, children }: {
+  accent: string;
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="nn-panel" style={{ '--nn-accent': accent } as CSSProperties}>
+      <div className="nn-panel__header">
+        <span className="nn-panel__icon">{icon}</span>
+        <h3 className="nn-panel__title">{title}</h3>
+      </div>
+      <div className="nn-panel__body">{children}</div>
+    </section>
+  );
+}
+
+/** Labeled data row with an Orbitron tabular value. */
+function Row({ icon, label, value }: { icon?: ReactNode; label: string; value: ReactNode }) {
+  return (
+    <div className="nn-row">
+      <span className="nn-row__label">{icon}{label}</span>
+      <span className="nn-row__value nn-num">{value}</span>
+    </div>
+  );
+}
+
 export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryManagementClick, flagBearer }: StatsPanelProps = {}) {
   const { player } = useGameContext();
   const router = useRouter();
   const [boostTimers, setBoostTimers] = useState<Record<string, string>>({});
   const [clanTag, setClanTag] = useState<string | null>(null);
   const _isMobile = useIsMobile();
-  
+
   // Check if current player is flag bearer
   const isPlayerFlagBearer = flagBearer && player && flagBearer.username === player.username;
 
@@ -115,712 +146,488 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
 
   if (!player) {
     return (
-      <div className="p-6">
-        <Panel title="Loading">
-          <p className="text-text-secondary">Loading player data...</p>
-        </Panel>
+      <div className="p-3">
+        <HudPanel accent="var(--nn-cyan)" icon={<User />} title="Loading">
+          <p className="nn-text-dim">Loading player data...</p>
+        </HudPanel>
       </div>
     );
   }
 
   // Calculate total shrine boost
-  const activeBoosts = player.shrineBoosts?.filter(boost => 
+  const activeBoosts = player.shrineBoosts?.filter(boost =>
     new Date(boost.expiresAt) > new Date()
   ) || [];
   const totalShrineBonus = activeBoosts.reduce((sum, boost) => sum + boost.yieldBonus, 0);
+  const hasVIP = !!(player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date());
 
-  // Get boost icon
+  // Military balance: percentage splits + safety for the zero-army case
+  const totalPower = (player.totalStrength ?? 0) + (player.totalDefense ?? 0);
+  const strPct = totalPower > 0 ? ((player.totalStrength / totalPower) * 100).toFixed(0) : null;
+  const defPct = totalPower > 0 ? ((player.totalDefense / totalPower) * 100).toFixed(0) : null;
+  const meterStrWidth = strPct ? `${strPct}%` : '50%';
+  const meterDefWidth = defPct ? `${defPct}%` : '50%';
+
+  // Get boost icon (shrine tiers keep their card-suit identity)
   const getBoostIcon = (tier: string): string => {
     switch (tier) {
-      case 'speed': return '♠️';
-      case 'heart': return '♥️';
-      case 'diamond': return '♦️';
-      case 'club': return '♣️';
-      default: return '✨';
+      case 'speed': return '♠';
+      case 'heart': return '♥';
+      case 'diamond': return '♦';
+      case 'club': return '♣';
+      default: return '✦';
     }
   };
 
   return (
     <div className="space-y-3 p-3">
       {/* Player Info */}
-      <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-        {/* Banner Title */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-          <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-            <User className="w-4 h-4" />
-            PLAYER INFO
-          </h3>
-        </div>
-        {/* Content - Alphabetical Order */}
-        <div className="p-3 space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-white/70">Commander</span>
-            <span className="font-semibold text-white font-display">{player.username}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/70">Factories</span>
-            <button
-              onClick={onFactoryManagementClick}
-              className="text-white font-bold font-display hover:text-accent-primary transition-colors cursor-pointer"
-              title="Click to manage factories"
-            >
-              {player.factoryCount || 0}
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/70">Level</span>
-            <span className="text-white font-bold font-display">{player.level || 1}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/70">Rank</span>
-            <span className="text-white font-bold font-display">{player.rank || 1}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/70 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" />
-              Position
-            </span>
-            <span className="text-white font-semibold font-display">
-              ({player.currentPosition?.x ?? 0}, {player.currentPosition?.y ?? 0})
-            </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/70 flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5" />
-              Base
-            </span>
-            <span className="text-white font-semibold font-display">
-              ({player.base?.x ?? 0}, {player.base?.y ?? 0})
-            </span>
-          </div>
-          
-          {/* VIP Status */}
-          {player.vip && player.vipExpiration ? (
-            <div className="flex items-center justify-between group">
-              <span className="text-white/70 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                VIP Status
-              </span>
+      <HudPanel accent="var(--nn-cyan)" icon={<User />} title="Player Info">
+        <div className="space-y-1.5">
+          <Row label="Commander" value={player.username} />
+          <Row
+            label="Factories"
+            value={
               <button
-                onClick={() => router.push('/game/vip-upgrade')}
-                className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300 font-semibold transition-colors text-xs group-hover:underline"
-                title="Manage your VIP subscription"
+                onClick={onFactoryManagementClick}
+                className="nn-link"
+                title="Click to manage factories"
               >
-                <span className="inline-block bg-yellow-500/20 border border-yellow-500/50 px-2 py-0.5 rounded">
-                  👑 ACTIVE
-                </span>
+                {player.factoryCount ?? 0}
               </button>
+            }
+          />
+          <Row label="Level" value={player.level ?? 1} />
+          <Row label="Rank" value={player.rank ?? 1} />
+          <Row
+            icon={<MapPin />}
+            label="Position"
+            value={`(${player.currentPosition?.x ?? 0}, ${player.currentPosition?.y ?? 0})`}
+          />
+          <Row
+            icon={<MapPin />}
+            label="Base"
+            value={`(${player.base?.x ?? 0}, ${player.base?.y ?? 0})`}
+          />
+
+          {/* VIP Status */}
+          <Row
+            icon={<Zap className={hasVIP ? 'text-[color:var(--nn-violet)]' : ''} />}
+            label="VIP"
+            value={
+              hasVIP ? (
+                <button
+                  onClick={() => router.push('/game/vip-upgrade')}
+                  className="nn-chip nn-chip--violet"
+                  title="Manage your VIP subscription"
+                >
+                  <Crown className="!h-3 !w-3" /> Active
+                </button>
+              ) : (
+                <button
+                  onClick={() => router.push('/game/vip-upgrade')}
+                  className="nn-link"
+                  title="Upgrade to VIP for 2x speed and exclusive benefits"
+                >
+                  Get VIP
+                </button>
+              )
+            }
+          />
+
+          {/* Clan Row */}
+          <Row
+            icon={<Users />}
+            label="Clan"
+            value={
+              player.clanId ? (
+                <button
+                  onClick={onClanClick || (() => router.push('/clan'))}
+                  className="nn-link inline-flex items-center gap-1"
+                  title="Click to view Clan page"
+                >
+                  {clanTag && <span className="nn-text-violet">[{clanTag}]</span>}
+                  <span>
+                    {player.clanName
+                      ? (player.clanName.length > 15 ? player.clanName.slice(0, 15) + '…' : player.clanName)
+                      : 'View Clan'}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  onClick={onClanClick || (() => router.push('/clan'))}
+                  className="nn-link"
+                  title="Create or join a clan"
+                >
+                  Join / Create
+                </button>
+              )
+            }
+          />
+
+          {/* Referrals Row */}
+          <Row
+            icon={<Gift />}
+            label="Referrals"
+            value={
+              <button
+                onClick={onReferralsClick || (() => router.push('/referrals'))}
+                className="nn-link"
+                title="Invite friends and earn rewards"
+              >
+                Invite Friends
+              </button>
+            }
+          />
+        </div>
+      </HudPanel>
+
+      {/* XP Progress */}
+      {player.xpProgress && (
+        <HudPanel accent="var(--nn-violet)" icon={<Star />} title="Experience">
+          <XPProgressBar
+            level={player.level || 1}
+            currentLevelXP={player.xpProgress.currentLevelXP}
+            xpForNextLevel={player.xpProgress.xpForNextLevel}
+            totalXP={player.xp || 0}
+          />
+          {player.researchPoints !== undefined && player.researchPoints > 0 && (
+            <div className="mt-3">
+              <div className="nn-divider" />
+              <Row
+                icon={<TrendingUp />}
+                label="Research"
+                value={<span className="nn-text-violet">{player.researchPoints.toLocaleString()} RP</span>}
+              />
+            </div>
+          )}
+        </HudPanel>
+      )}
+
+      {/* Resources */}
+      <HudPanel accent="var(--nn-amber)" icon={<Wrench />} title="Resources">
+        <div className="space-y-3">
+          <div>
+            <Row
+              icon={<Wrench />}
+              label="Metal"
+              value={Math.round(metalCount).toLocaleString()}
+            />
+            <div className="nn-well mt-1.5">
+              <span className="nn-row__label">Banked</span>
+              <span className="nn-num text-xs nn-text-dim">
+                {(player.bank?.metal ?? 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <Row
+              icon={<Zap />}
+              label="Energy"
+              value={Math.round(energyCount).toLocaleString()}
+            />
+            <div className="nn-well mt-1.5">
+              <span className="nn-row__label">Banked</span>
+              <span className="nn-num text-xs nn-text-dim">
+                {(player.bank?.energy ?? 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      </HudPanel>
+
+      {/* Military Power */}
+      <HudPanel accent="var(--nn-cyan)" icon={<Swords />} title="Military Power">
+        <div className="space-y-2">
+          {/* Segmented STR/DEF meter — cyan = offense, magenta = defense */}
+          <div className="nn-meter" role="img" aria-label={`Strength ${strPct ?? 0} percent, defense ${defPct ?? 0} percent`}>
+            <div className="nn-meter__seg nn-meter__seg--str" style={{ width: meterStrWidth }} />
+            <div className="nn-meter__seg nn-meter__seg--def" style={{ width: meterDefWidth }} />
+            <div className="nn-meter__ticks" />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="nn-row__label">
+              <Swords /> STR {strPct ? `${strPct}%` : ''}
+            </span>
+            <span className="nn-num nn-text-cyan text-sm font-semibold">
+              {Math.round(strengthCount).toLocaleString()}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="nn-row__label">
+              <ShieldIcon /> DEF {defPct ? `${defPct}%` : ''}
+            </span>
+            <span className="nn-num nn-text-magenta text-sm font-semibold">
+              {Math.round(defenseCount).toLocaleString()}
+            </span>
+          </div>
+
+          <hr className="nn-divider" />
+
+          <Row label="Total Power" value={Math.round(effectivePower).toLocaleString()} />
+
+          {player.balanceEffects && player.balanceEffects.status !== 'BALANCED' && player.balanceEffects.status !== 'OPTIMAL' && (
+            <div className="nn-note">
+              <span aria-hidden>⚠</span>
+              <span>{player.balanceEffects.recommendation || 'Imbalanced army'}</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => router.push('/game/unit-factory')}
+            className="nn-btn nn-btn--primary"
+          >
+            <Users />
+            Build Units
+          </button>
+        </div>
+      </HudPanel>
+
+      {/* Harvest Calculator */}
+      <HudPanel accent="var(--nn-green)" icon={<TrendingUp />} title="Harvest Calculator">
+        <div className="space-y-3">
+          {/* VIP Status Indicator */}
+          {hasVIP ? (
+            <div className="nn-well" style={{ '--nn-accent': 'var(--nn-violet)' } as CSSProperties}>
+              <span className="nn-row__label"><Zap /> VIP ×2</span>
+              <span className="nn-text-violet text-[10px]">All harvests doubled</span>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <span className="text-white/70 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5" />
-                VIP Status
-              </span>
+            <div className="nn-well">
+              <span className="nn-row__label">VIP Not Active</span>
               <button
                 onClick={() => router.push('/game/vip-upgrade')}
-                className="text-purple-400 hover:text-purple-300 font-semibold transition-colors text-xs"
-                title="Upgrade to VIP for 2x speed and exclusive benefits"
+                className="nn-link"
               >
                 Get VIP
               </button>
             </div>
           )}
-          
-          {/* Clan Row - Always show */}
-          {player.clanId ? (
-            <div className="flex items-center justify-between group">
-              <span className="text-white/70 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5" />
-                Clan
-              </span>
-              <button
-                onClick={onClanClick || (() => router.push('/clan'))}
-                className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 font-semibold transition-colors"
-                title="Click to view Clan page"
-              >
-                {clanTag && (
-                  <span className="text-purple-500 font-bold">
-                    [{clanTag}]
-                  </span>
-                )}
-                <span className="group-hover:underline">
-                  {player.clanName ? (
-                    player.clanName.length > 15 ? player.clanName.substring(0, 15) + '...' : player.clanName
-                  ) : (
-                    'View Clan'
-                  )}
-                </span>
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <span className="text-white/70 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5" />
-                Clan
-              </span>
-              <button
-                onClick={onClanClick || (() => router.push('/clan'))}
-                className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors text-xs"
-                title="Create or join a clan"
-              >
-                Join/Create
-              </button>
-            </div>
-          )}
 
-          {/* Referrals Row */}
-          <div className="flex items-center justify-between">
-            <span className="text-white/70 flex items-center gap-1.5">
-              🎁 Referrals
-            </span>
-            <button
-              onClick={onReferralsClick || (() => router.push('/referrals'))}
-              className="text-pink-400 hover:text-pink-300 font-semibold transition-colors text-xs"
-              title="Invite friends and earn rewards"
-            >
-              Invite Friends
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* XP Progress */}
-      {(player as any).xpProgress && (
-        <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-          {/* Banner Title */}
-          <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-            <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-              <Star className="w-4 h-4" />
-              EXPERIENCE
-            </h3>
-          </div>
-          {/* Content */}
-          <div className="p-3">
-            <XPProgressBar
-              level={player.level || 1}
-              currentLevelXP={(player as any).xpProgress.currentLevelXP}
-              xpForNextLevel={(player as any).xpProgress.xpForNextLevel}
-              totalXP={player.xp || 0}
-            />
-            {player.researchPoints !== undefined && player.researchPoints > 0 && (
-              <div className="mt-3 flex items-center justify-between text-xs">
-                <span className="text-white/70 flex items-center gap-1">
-                  <TrendingUp className="w-3 h-3" />
-                  Research Points
-                </span>
-                <span className="font-bold text-white font-display text-sm">
-                  {player.researchPoints}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Resources */}
-      <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-        {/* Banner Title */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-          <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-            <Wrench className="w-4 h-4" />
-            RESOURCES
-          </h3>
-        </div>
-        {/* Content */}
-        <div className="p-3 space-y-3 text-xs">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-white/70 flex items-center gap-1.5">
-                <span className="text-base">⚙️</span>
-                Metal
-              </span>
-              <span className="font-bold text-white font-mono text-sm">
-                {Math.round(metalCount).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-white/50">Banked</span>
-              <span className="text-white/70 font-mono">
-                {(player.bank?.metal || 0).toLocaleString()}
-              </span>
-            </div>
-          </div>
-          
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-white/70 flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5" />
-                Energy
-              </span>
-              <span className="font-bold text-white font-mono text-sm">
-                {Math.round(energyCount).toLocaleString()}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-white/50">Banked</span>
-              <span className="text-white/70 font-mono">
-                {(player.bank?.energy || 0).toLocaleString()}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Military Power */}
-      <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-        {/* Banner Title */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-          <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-            <Swords className="w-4 h-4" />
-            MILITARY POWER
-          </h3>
-        </div>
-        {/* Content */}
-        <div className="p-3 space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-white/70 flex items-center gap-1.5">
-              <Swords className="w-3.5 h-3.5" />
-              Strength
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-white font-mono text-sm">
-                {Math.round(strengthCount).toLocaleString()}
-              </span>
-              {player.balanceEffects && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  player.balanceEffects.ratio > 1.2 ? 'bg-yellow-500/20 text-yellow-300' :
-                  player.balanceEffects.ratio < 0.8 ? 'bg-red-500/20 text-red-300' :
-                  'bg-green-500/20 text-green-300'
-                }`}>
-                  {player.totalStrength + player.totalDefense > 0
-                    ? `${((player.totalStrength / (player.totalStrength + player.totalDefense)) * 100).toFixed(0)}%`
-                    : '—%'}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-white/70 flex items-center gap-1.5">
-              <ShieldIcon className="w-3.5 h-3.5" />
-              Defense
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-white font-mono text-sm">
-                {Math.round(defenseCount).toLocaleString()}
-              </span>
-              {player.balanceEffects && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                  player.balanceEffects.ratio < 0.8 ? 'bg-yellow-500/20 text-yellow-300' :
-                  player.balanceEffects.ratio > 1.2 ? 'bg-red-500/20 text-red-300' :
-                  'bg-green-500/20 text-green-300'
-                }`}>
-                  {player.totalStrength + player.totalDefense > 0
-                    ? `${((player.totalDefense / (player.totalStrength + player.totalDefense)) * 100).toFixed(0)}%`
-                    : '—%'}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent my-2" />
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-white/70 font-semibold">Total Power</span>
-            <span className="font-bold text-white font-display text-sm">
-              {Math.round(effectivePower).toLocaleString()}
-            </span>
-          </div>
-          {player.balanceEffects && player.balanceEffects.status !== 'BALANCED' && player.balanceEffects.status !== 'OPTIMAL' && (
-            <div className="text-[10px] text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded p-2 mb-2">
-              ⚠️ {player.balanceEffects.recommendation || 'Imbalanced army'}
-            </div>
-          )}
-          <Button 
-            onClick={() => router.push('/game/unit-factory')} 
-            variant="primary"
-            size="sm"
-            fullWidth
-            className="text-xs py-2"
-          >
-            <Users className="w-3.5 h-3.5" />
-            Build Units
-          </Button>
-        </div>
-      </div>
-
-      {/* Harvest Calculator - NEW */}
-      <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-green-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(34,197,94,0.2)]">
-        {/* Banner Title */}
-        <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 border-b border-green-500/30 px-3 py-2">
-          <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-            <TrendingUp className="w-4 h-4" />
-            HARVEST CALCULATOR
-          </h3>
-        </div>
-        {/* Content */}
-        <div className="p-3 space-y-3 text-xs">
-          {/* VIP Status Indicator */}
-          {player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date() ? (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-2">
-              <div className="flex items-center gap-2">
-                <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                <div>
-                  <p className="text-yellow-300 font-bold text-[11px]">⚡ VIP ACTIVE - 2x Multiplier</p>
-                  <p className="text-yellow-200/70 text-[10px]">All harvests receive double rewards</p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-gray-800/50 border border-gray-600/30 rounded-lg p-2">
-              <div className="flex items-center justify-between">
-                <p className="text-gray-400 text-[11px]">VIP Not Active</p>
-                <button
-                  onClick={() => router.push('/game/vip-upgrade')}
-                  className="text-purple-400 hover:text-purple-300 text-[10px] font-semibold transition-colors"
-                >
-                  Get VIP
-                </button>
-              </div>
-            </div>
-          )}
-          
           {/* Metal Breakdown */}
           <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Wrench className="w-3.5 h-3.5 text-gray-400" />
-              <span className="text-white/70 font-semibold text-[11px]">METAL NODE</span>
-            </div>
-            <div className="space-y-1.5 ml-5">
-              <div className="flex items-center justify-between">
-                <span className="text-white/60">Base Amount</span>
-                <span className="text-white font-mono">1,000</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-white/60">Gathering Bonus</span>
-                <span className="text-green-400 font-mono">
-                  +{(player.gatheringBonus?.metalBonus || 0)}%
-                </span>
-              </div>
+            <span className="nn-row__label mb-1.5"><Wrench /> Metal Node</span>
+            <div className="ml-4 space-y-1">
+              <Row label="Base" value="1,000" />
+              <Row
+                label="Gathering"
+                value={<span className="nn-text-green">+{player.gatheringBonus?.metalBonus ?? 0}%</span>}
+              />
               {activeBoosts.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-cyan-400" />
-                    Shrine Buffs
-                  </span>
-                  <span className="text-cyan-400 font-mono">
-                    +{(totalShrineBonus * 100).toFixed(0)}%
-                  </span>
-                </div>
+                <Row
+                  icon={<Sparkles />}
+                  label="Shrine"
+                  value={<span className="nn-text-cyan">+{(totalShrineBonus * 100).toFixed(0)}%</span>}
+                />
               )}
-              {player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date() && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-yellow-400" />
-                    VIP Multiplier
-                  </span>
-                  <span className="text-yellow-400 font-mono font-bold">
-                    ×2
-                  </span>
-                </div>
+              {hasVIP && (
+                <Row
+                  icon={<Zap />}
+                  label="VIP"
+                  value={<span className="nn-text-violet font-bold">×2</span>}
+                />
               )}
               {isPlayerFlagBearer && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    🚩 Flag Bearer
-                  </span>
-                  <span className="text-yellow-400 font-mono font-bold">
-                    +100%
-                  </span>
-                </div>
+                <Row
+                  icon={<Flag />}
+                  label="Bearer"
+                  value={<span className="nn-text-amber font-bold">+100%</span>}
+                />
               )}
-              <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent my-1" />
-              <div className="flex items-center justify-between">
-                <span className="text-white font-semibold">Expected Amount</span>
-                <span className="text-green-400 font-bold font-mono">
-                  {(() => {
-                    const hasVIP = player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date();
-                    let amount = 1000 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
-                    if (hasVIP) amount *= 2;
-                    if (isPlayerFlagBearer) amount *= 2; // Flag bearer +100% = 2x multiplier
-                    return Math.round(amount).toLocaleString();
-                  })()}
-                </span>
-              </div>
+              <hr className="nn-divider" />
+              <Row
+                label="Expected"
+                value={<span className="nn-text-green font-bold">{(() => {
+                  let amount = 1000 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
+                  if (hasVIP) amount *= 2;
+                  if (isPlayerFlagBearer) amount *= 2; // Flag bearer +100% = 2x multiplier
+                  return Math.round(amount).toLocaleString();
+                })()}</span>}
+              />
             </div>
           </div>
 
-          <div className="h-px bg-gradient-to-r from-transparent via-green-500/20 to-transparent" />
+          <hr className="nn-divider" />
 
           {/* Energy Breakdown */}
           <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Zap className="w-3.5 h-3.5 text-yellow-400" />
-              <span className="text-white/70 font-semibold text-[11px]">ENERGY NODE</span>
-            </div>
-            <div className="space-y-1.5 ml-5">
-              <div className="flex items-center justify-between">
-                <span className="text-white/60">Base Amount</span>
-                <span className="text-white font-mono">1,000</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-white/60">Gathering Bonus</span>
-                <span className="text-green-400 font-mono">
-                  +{(player.gatheringBonus?.energyBonus || 0)}%
-                </span>
-              </div>
+            <span className="nn-row__label mb-1.5"><Zap /> Energy Node</span>
+            <div className="ml-4 space-y-1">
+              <Row label="Base" value="1,000" />
+              <Row
+                label="Gathering"
+                value={<span className="nn-text-green">+{player.gatheringBonus?.energyBonus ?? 0}%</span>}
+              />
               {activeBoosts.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-cyan-400" />
-                    Shrine Buffs
-                  </span>
-                  <span className="text-cyan-400 font-mono">
-                    +{(totalShrineBonus * 100).toFixed(0)}%
-                  </span>
-                </div>
+                <Row
+                  icon={<Sparkles />}
+                  label="Shrine"
+                  value={<span className="nn-text-cyan">+{(totalShrineBonus * 100).toFixed(0)}%</span>}
+                />
               )}
-              {player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date() && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-yellow-400" />
-                    VIP Multiplier
-                  </span>
-                  <span className="text-yellow-400 font-mono font-bold">
-                    ×2
-                  </span>
-                </div>
+              {hasVIP && (
+                <Row
+                  icon={<Zap />}
+                  label="VIP"
+                  value={<span className="nn-text-violet font-bold">×2</span>}
+                />
               )}
               {isPlayerFlagBearer && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    🚩 Flag Bearer
-                  </span>
-                  <span className="text-yellow-400 font-mono font-bold">
-                    +100%
-                  </span>
-                </div>
+                <Row
+                  icon={<Flag />}
+                  label="Bearer"
+                  value={<span className="nn-text-amber font-bold">+100%</span>}
+                />
               )}
-              <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent my-1" />
-              <div className="flex items-center justify-between">
-                <span className="text-white font-semibold">Expected Amount</span>
-                <span className="text-green-400 font-bold font-mono">
-                  {(() => {
-                    const hasVIP = player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date();
-                    let amount = 1000 * (1 + ((player.gatheringBonus?.energyBonus || 0) / 100)) * (1 + totalShrineBonus);
-                    if (hasVIP) amount *= 2;
-                    if (isPlayerFlagBearer) amount *= 2; // Flag bearer +100% = 2x multiplier
-                    return Math.round(amount).toLocaleString();
-                  })()}
-                </span>
-              </div>
+              <hr className="nn-divider" />
+              <Row
+                label="Expected"
+                value={<span className="nn-text-green font-bold">{(() => {
+                  let amount = 1000 * (1 + ((player.gatheringBonus?.energyBonus || 0) / 100)) * (1 + totalShrineBonus);
+                  if (hasVIP) amount *= 2;
+                  if (isPlayerFlagBearer) amount *= 2; // Flag bearer +100% = 2x multiplier
+                  return Math.round(amount).toLocaleString();
+                })()}</span>}
+              />
             </div>
           </div>
 
-          <div className="h-px bg-gradient-to-r from-transparent via-green-500/20 to-transparent" />
+          <hr className="nn-divider" />
 
           {/* Cave/Forest Breakdown */}
           <div>
-            <div className="flex items-center gap-1.5 mb-2">
-              <Mountain className="w-3.5 h-3.5 text-amber-600" />
-              <span className="text-white/70 font-semibold text-[11px]">CAVE/FOREST</span>
-            </div>
-            <div className="space-y-1.5 ml-5">
-              <div className="flex items-center justify-between">
-                <span className="text-white/60">Base Amount</span>
-                <span className="text-white font-mono">500-1,500</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-white/60">Gathering Bonus</span>
-                <span className="text-green-400 font-mono">
-                  +{(player.gatheringBonus?.metalBonus || 0)}% / +{(player.gatheringBonus?.energyBonus || 0)}%
-                </span>
-              </div>
+            <span className="nn-row__label mb-1.5"><Mountain /> Cave / Forest</span>
+            <div className="ml-4 space-y-1">
+              <Row label="Base" value="500–1,500" />
+              <Row
+                label="Gathering"
+                value={<span className="nn-text-green">+{player.gatheringBonus?.metalBonus ?? 0}% / +{player.gatheringBonus?.energyBonus ?? 0}%</span>}
+              />
               {activeBoosts.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-cyan-400" />
-                    Shrine Buffs
-                  </span>
-                  <span className="text-cyan-400 font-mono">
-                    +{(totalShrineBonus * 100).toFixed(0)}%
-                  </span>
-                </div>
+                <Row
+                  icon={<Sparkles />}
+                  label="Shrine"
+                  value={<span className="nn-text-cyan">+{(totalShrineBonus * 100).toFixed(0)}%</span>}
+                />
               )}
-              {player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date() && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    <Zap className="w-3 h-3 text-yellow-400" />
-                    VIP Multiplier
-                  </span>
-                  <span className="text-yellow-400 font-mono font-bold">
-                    ×2
-                  </span>
-                </div>
+              {hasVIP && (
+                <Row
+                  icon={<Zap />}
+                  label="VIP"
+                  value={<span className="nn-text-violet font-bold">×2</span>}
+                />
               )}
               {isPlayerFlagBearer && (
-                <div className="flex items-center justify-between">
-                  <span className="text-white/60 flex items-center gap-1">
-                    🚩 Flag Bearer
-                  </span>
-                  <span className="text-yellow-400 font-mono font-bold">
-                    +100%
-                  </span>
-                </div>
+                <Row
+                  icon={<Flag />}
+                  label="Bearer"
+                  value={<span className="nn-text-amber font-bold">+100%</span>}
+                />
               )}
-              <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent my-1" />
-              <div className="flex items-center justify-between">
-                <span className="text-white font-semibold">Expected Range</span>
-                <span className="text-green-400 font-bold font-mono text-[10px]">
-                  {(() => {
-                    const hasVIP = player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date();
-                    let minAmount = 500 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
-                    let maxAmount = 1500 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
-                    if (hasVIP) {
-                      minAmount *= 2;
-                      maxAmount *= 2;
-                    }
-                    if (isPlayerFlagBearer) {
-                      minAmount *= 2; // Flag bearer +100% = 2x multiplier
-                      maxAmount *= 2;
-                    }
-                    return `${Math.round(minAmount).toLocaleString()}-${Math.round(maxAmount).toLocaleString()}`;
-                  })()}
-                </span>
-              </div>
+              <hr className="nn-divider" />
+              <Row
+                label="Expected"
+                value={<span className="nn-text-green font-bold">{(() => {
+                  let minAmount = 500 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
+                  let maxAmount = 1500 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
+                  if (hasVIP) {
+                    minAmount *= 2;
+                    maxAmount *= 2;
+                  }
+                  if (isPlayerFlagBearer) {
+                    minAmount *= 2; // Flag bearer +100% = 2x multiplier
+                    maxAmount *= 2;
+                  }
+                  return `${Math.round(minAmount).toLocaleString()}–${Math.round(maxAmount).toLocaleString()}`;
+                })()}</span>}
+              />
             </div>
           </div>
 
           {/* Harvest Cooldown Info */}
-          <div className="mt-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded">
-            <div className="flex items-center gap-2 text-[10px] text-amber-300">
-              <Clock className="w-3 h-3" />
-              <span>5-minute cooldown per tile after harvesting</span>
-            </div>
+          <div className="nn-note">
+            <Clock />
+            <span>5-minute cooldown per tile after harvesting</span>
           </div>
         </div>
-      </div>
+      </HudPanel>
 
-      {/* Clan Info - NEW */}
+      {/* Clan Info */}
       {player.clanId && (
-        <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-purple-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(147,51,234,0.2)]">
-          {/* Banner Title */}
-          <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border-b border-purple-500/30 px-3 py-2">
-            <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              CLAN
-            </h3>
-          </div>
-          {/* Content */}
-          <div className="p-3 space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <span className="text-white/70">Name</span>
-              <span className="font-semibold text-purple-400 font-display truncate max-w-[150px]">
-                {player.clanName || 'Unknown'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-white/70">Level</span>
-              <span className="text-white font-bold">{player.clanLevel || 1}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-white/70">Role</span>
-              <span className="text-cyan-400 text-[10px] font-semibold uppercase">
-                {player.clanRole || 'MEMBER'}
-              </span>
-            </div>
-            <Button 
+        <HudPanel accent="var(--nn-violet)" icon={<Users />} title="Clan">
+          <div className="space-y-1.5">
+            <Row label="Name" value={<span className="nn-text-violet max-w-[150px] truncate">{player.clanName || 'Unknown'}</span>} />
+            <Row label="Level" value={player.clanLevel ?? 1} />
+            <Row
+              label="Role"
+              value={<span className="nn-text-cyan text-[10px] uppercase tracking-wider">{player.clanRole || 'MEMBER'}</span>}
+            />
+            <button
               onClick={() => {
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' }));
-              }} 
-              variant="secondary"
-              size="sm"
-              fullWidth
-              className="text-xs py-2 mt-2"
+              }}
+              className="nn-btn nn-btn--ghost mt-2"
             >
-              <Users className="w-3.5 h-3.5" />
+              <Users />
               View Clan (C)
-            </Button>
+            </button>
           </div>
-        </div>
+        </HudPanel>
       )}
 
       {/* Shrine Boosts */}
       {player.shrineBoosts && player.shrineBoosts.length > 0 && (
-        <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-          {/* Banner Title */}
-          <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-            <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-              <Sparkles className="w-4 h-4" />
-              SHRINE BUFFS
-            </h3>
-          </div>
-          {/* Content */}
-          <div className="p-3">
-            {activeBoosts.length > 0 ? (
-              <div className="space-y-2 text-xs">
-                {activeBoosts.map(boost => (
-                  <div key={boost.tier} className="flex justify-between items-center p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
-                    <span className="text-white text-xs font-medium">
-                      {getBoostIcon(boost.tier)} {boost.tier.charAt(0).toUpperCase() + boost.tier.slice(1)}
-                    </span>
-                    <span className="text-white/70 text-[10px] flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {boostTimers[boost.tier] || '...'}
-                    </span>
-                  </div>
-                ))}
-                <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/30 to-transparent my-1" />
-                <div className="flex justify-between items-center text-[10px]">
-                  <span className="text-white/70">Total Bonus</span>
-                  <span className="text-white font-bold">+{(totalShrineBonus * 100).toFixed(0)}%</span>
+        <HudPanel accent="var(--nn-violet)" icon={<Sparkles />} title="Shrine Buffs">
+          {activeBoosts.length > 0 ? (
+            <div className="space-y-1.5">
+              {activeBoosts.map(boost => (
+                <div key={boost.tier} className="nn-well" style={{ '--nn-accent': 'var(--nn-violet)' } as CSSProperties}>
+                  <span className="nn-row__value text-xs">
+                    <span aria-hidden className="mr-1.5">{getBoostIcon(boost.tier)}</span>
+                    {boost.tier.charAt(0).toUpperCase() + boost.tier.slice(1)}
+                  </span>
+                  <span className="nn-row__label">
+                    <Clock />
+                    <span className="nn-num">{boostTimers[boost.tier] || '…'}</span>
+                  </span>
                 </div>
-              </div>
-            ) : (
-              <p className="text-white/70 text-xs">No active buffs</p>
-            )}
-          </div>
-        </div>
+              ))}
+              <hr className="nn-divider" />
+              <Row
+                label="Total Bonus"
+                value={<span className="nn-text-violet">+{(totalShrineBonus * 100).toFixed(0)}%</span>}
+              />
+            </div>
+          ) : (
+            <p className="nn-text-dim text-xs">No active buffs</p>
+          )}
+        </HudPanel>
       )}
 
       {/* Action Menu */}
-      <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-        {/* Banner Title */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-          <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-            <Trophy className="w-4 h-4" />
-            ACTIONS
-          </h3>
-        </div>
-        {/* Content */}
-        <div className="p-3 space-y-2">
-          <Button 
+      <HudPanel accent="var(--nn-cyan)" icon={<Trophy />} title="Actions">
+        <div className="space-y-2">
+          <button
             onClick={() => {
               window.dispatchEvent(new KeyboardEvent('keydown', { key: 'i' }));
-            }} 
-            variant="secondary"
-            size="sm"
-            fullWidth
-            className="text-xs py-2"
+            }}
+            className="nn-btn nn-btn--ghost"
           >
-            <Package className="w-3.5 h-3.5" />
+            <Package />
             Inventory
-          </Button>
+          </button>
           {player.level >= 15 && (
-            <Button 
-              onClick={() => router.push('/game/specialization')} 
-              variant="secondary"
-              size="sm"
-              fullWidth
-              className="text-xs py-2"
+            <button
+              onClick={() => router.push('/game/specialization')}
+              className="nn-btn nn-btn--ghost"
             >
-              <Star className="w-3.5 h-3.5" />
+              <Star />
               Specialization
-            </Button>
+            </button>
           )}
         </div>
-      </div>
+      </HudPanel>
     </div>
   );
 }
-
-// ============================================================
-

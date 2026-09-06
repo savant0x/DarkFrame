@@ -1,0 +1,371 @@
+/*
+ * NEON NOIR — design-token layer (FID-20260906-012 Phase 1).
+ *
+ * DarkFrame art direction: a surveillance-grade strategic command interface
+ * from a decaying neon city. Glass over void; every glow is information.
+ *
+ * This file is ADDITIVE: it defines the nn-* token namespace and component
+ * classes consumed (in Phase 1) only by the reskinned StatsPanel. The legacy
+ * tailwind.config.ts theme stays authoritative for everything else until its
+ * phase migrates. Tokens are OKLCH (perceptual) per FID §3.2.
+ */
+
+:root {
+  /* ---- Surfaces: void -> glass ladder (§3.2) ------------------------ */
+  --nn-void: oklch(0.13 0.03 265);
+  --nn-deep: oklch(0.17 0.035 265);
+  --nn-panel: oklch(0.21 0.04 265 / 0.72);
+  --nn-raised: oklch(0.26 0.045 265 / 0.8);
+  --nn-overlay: oklch(0.31 0.05 265 / 0.9);
+
+  /* ---- Signals: glow = meaning (§3.2, §3.3) ------------------------- */
+  --nn-cyan: oklch(0.82 0.15 195); /* interactive / brand / focus */
+  --nn-magenta: oklch(0.70 0.24 340); /* danger / combat / WMD */
+  --nn-amber: oklch(0.82 0.15 85); /* resources / economy / warning */
+  --nn-green: oklch(0.80 0.17 155); /* success / harvest */
+  --nn-violet: oklch(0.68 0.2 300); /* research / RP / VIP */
+
+  /* ---- Text ---------------------------------------------------------- */
+  --nn-text-primary: oklch(0.95 0.01 250);
+  --nn-text-secondary: oklch(0.72 0.02 255);
+  --nn-text-tertiary: oklch(0.55 0.02 255);
+
+  /* ---- Glow architecture (function-driven; zero decorative glows) ---- */
+  --nn-glow-ambient: 0 0 0 1px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 22%, transparent),
+    0 0 18px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 7%, transparent);
+  --nn-glow-focus: 0 0 0 2px color-mix(in oklab, var(--nn-cyan) 60%, transparent);
+
+  /* ---- Motion: machine-precise (§3.6) -------------------------------- */
+  --nn-dur-state: 120ms;
+  --nn-dur-panel: 220ms;
+  --nn-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ---- Typography (fonts come from next/font at the layout root) ----- */
+  --nn-font-display: var(--font-orbitron), var(--font-inter), system-ui, sans-serif;
+  --nn-font-body: var(--font-inter), system-ui, sans-serif;
+  --nn-text-hud: clamp(0.6875rem, 0.65rem + 0.15vw, 0.8125rem);
+}
+
+/* ====================================================================== */
+/* HUD panel — glass over void with corner-bracket framing (§3.5)         */
+/* Accent is parametrized per-instance via --nn-accent.                   */
+/* ====================================================================== */
+
+.nn-panel {
+  position: relative;
+  background: var(--nn-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 18%, transparent);
+  border-radius: 2px; /* HUD is squared; radius reads as instrument, not card */
+  box-shadow: var(--nn-glow-ambient);
+  overflow: hidden;
+  transition:
+    border-color var(--nn-dur-state) var(--nn-ease),
+    box-shadow var(--nn-dur-panel) var(--nn-ease);
+}
+
+.nn-panel:hover {
+  border-color: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 34%, transparent);
+}
+
+/* Corner brackets — the HUD signature (top-left + bottom-right L-shapes). */
+.nn-panel::before,
+.nn-panel::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  border-color: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 75%, transparent);
+  border-style: solid;
+  border-width: 0;
+  z-index: 1;
+}
+
+.nn-panel::before {
+  top: 0;
+  left: 0;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.nn-panel::after {
+  bottom: 0;
+  right: 0;
+  border-bottom-width: 1px;
+  border-right-width: 1px;
+}
+
+/* Header: scanline texture on the strip only — never over body text (§3.5). */
+.nn-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 16%, transparent);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 4%, transparent) 0 1px,
+      transparent 1px 3px
+    ),
+    color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 8%, transparent);
+}
+
+.nn-panel__icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--nn-accent, var(--nn-cyan));
+  flex: none;
+}
+
+.nn-panel__title {
+  font-family: var(--nn-font-display);
+  font-size: var(--nn-text-hud);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nn-text-secondary);
+}
+
+.nn-panel__body {
+  padding: 0.75rem;
+  font-family: var(--nn-font-body);
+  font-size: var(--nn-text-hud);
+  color: var(--nn-text-secondary);
+}
+
+/* ====================================================================== */
+/* Data rows — Orbitron numerals, tabular so readouts never jitter        */
+/* ====================================================================== */
+
+.nn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.375rem;
+}
+
+.nn-row__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-family: var(--nn-font-display);
+  font-weight: 600;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--nn-text-tertiary);
+}
+
+.nn-row__label svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--nn-text-tertiary);
+}
+
+.nn-row__value {
+  font-family: var(--nn-font-display);
+  font-weight: 600;
+  color: var(--nn-text-primary);
+}
+
+.nn-num {
+  font-family: var(--nn-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.nn-divider {
+  height: 1px;
+  border: 0;
+  margin: 0.5rem 0;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 32%, transparent),
+    transparent
+  );
+}
+
+/* Signal text helpers */
+.nn-text-cyan { color: var(--nn-cyan); }
+.nn-text-magenta { color: var(--nn-magenta); }
+.nn-text-amber { color: var(--nn-amber); }
+.nn-text-green { color: var(--nn-green); }
+.nn-text-violet { color: var(--nn-violet); }
+.nn-text-dim { color: var(--nn-text-tertiary); }
+
+/* ====================================================================== */
+/* Segmented STR/DEF power meter — the instrument that replaced free text  */
+/* ====================================================================== */
+
+.nn-meter {
+  position: relative;
+  display: flex;
+  height: 5px;
+  border-radius: 1px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--nn-text-tertiary) 20%, transparent);
+}
+
+.nn-meter__seg {
+  height: 100%;
+  transition: width var(--nn-dur-panel) var(--nn-ease);
+}
+
+.nn-meter__seg--str { background: var(--nn-cyan); }
+.nn-meter__seg--def { background: var(--nn-magenta); }
+
+.nn-meter__ticks {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(25% - 1px),
+    var(--nn-void) calc(25% - 1px) 25%
+  );
+  pointer-events: none;
+}
+
+/* ====================================================================== */
+/* Chips — status readouts colored strictly by meaning                    */
+/* ====================================================================== */
+
+.nn-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 1px;
+  font-family: var(--nn-font-display);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid;
+}
+
+.nn-chip--cyan { color: var(--nn-cyan); border-color: color-mix(in oklab, var(--nn-cyan) 45%, transparent); background: color-mix(in oklab, var(--nn-cyan) 12%, transparent); }
+.nn-chip--magenta { color: var(--nn-magenta); border-color: color-mix(in oklab, var(--nn-magenta) 45%, transparent); background: color-mix(in oklab, var(--nn-magenta) 12%, transparent); }
+.nn-chip--amber { color: var(--nn-amber); border-color: color-mix(in oklab, var(--nn-amber) 45%, transparent); background: color-mix(in oklab, var(--nn-amber) 12%, transparent); }
+.nn-chip--green { color: var(--nn-green); border-color: color-mix(in oklab, var(--nn-green) 45%, transparent); background: color-mix(in oklab, var(--nn-green) 12%, transparent); }
+.nn-chip--violet { color: var(--nn-violet); border-color: color-mix(in oklab, var(--nn-violet) 45%, transparent); background: color-mix(in oklab, var(--nn-violet) 12%, transparent); }
+
+/* Inset well rows (shrine buffs, banked readouts) */
+.nn-well {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.375rem 0.5rem;
+  border-radius: 1px;
+  background: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 7%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 16%, transparent);
+}
+
+/* Advisory strip (cooldowns, imbalance warnings) — amber = caution */
+.nn-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-radius: 1px;
+  font-size: 0.625rem;
+  border: 1px solid color-mix(in oklab, var(--nn-amber) 30%, transparent);
+  background: color-mix(in oklab, var(--nn-amber) 8%, transparent);
+  color: color-mix(in oklab, var(--nn-amber) 80%, white);
+}
+
+/* ====================================================================== */
+/* Buttons — semantic actions; primary = cyan, ghost = outline            */
+/* ====================================================================== */
+
+.nn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 1px;
+  font-family: var(--nn-font-display);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    box-shadow var(--nn-dur-state) var(--nn-ease),
+    background var(--nn-dur-state) var(--nn-ease),
+    border-color var(--nn-dur-state) var(--nn-ease),
+    color var(--nn-dur-state) var(--nn-ease);
+}
+
+.nn-btn svg {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.nn-btn--primary {
+  color: var(--nn-void);
+  background: linear-gradient(
+    to right,
+    color-mix(in oklab, var(--nn-cyan) 85%, white),
+    var(--nn-cyan)
+  );
+  border: 1px solid var(--nn-cyan);
+}
+
+.nn-btn--primary:hover {
+  box-shadow: 0 0 16px color-mix(in oklab, var(--nn-cyan) 35%, transparent);
+}
+
+.nn-btn--ghost {
+  color: var(--nn-text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 32%, transparent);
+}
+
+.nn-btn--ghost:hover {
+  color: var(--nn-text-primary);
+  border-color: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 60%, transparent);
+  background: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 8%, transparent);
+}
+
+.nn-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--nn-glow-focus);
+}
+
+/* ====================================================================== */
+/* Interactive rows (links: clan, VIP, referrals)                          */
+/* ====================================================================== */
+
+.nn-link {
+  font-family: var(--nn-font-display);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--nn-cyan);
+  cursor: pointer;
+  transition: color var(--nn-dur-state) var(--nn-ease);
+}
+
+.nn-link:hover {
+  color: color-mix(in oklab, var(--nn-cyan) 70%, white);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Reduced motion: kill transitions entirely (§3.6) */
+@media (prefers-reduced-motion: reduce) {
+  .nn-panel,
+  .nn-panel:hover,
+  .nn-meter__seg,
+  .nn-btn,
+  .nn-link {
+    transition: none;
+  }
+}
