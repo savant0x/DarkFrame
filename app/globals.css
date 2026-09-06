@@ -16,6 +16,12 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
+/*
+ * NEON NOIR token layer (FID-20260906-012 Phase 1) — additive; consumed only
+ * by migrated components until each phase lands.
+ */
+@import "./neon-noir.css";
+
 :root {
   /* Sci-Fi Glassmorphism Theme */
   /* Deep Space Background Colors */

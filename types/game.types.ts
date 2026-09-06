@@ -378,6 +378,7 @@ export interface Player {
   totalStrength: number; // Total STR from all units
   totalDefense: number; // Total DEF from all units
   balanceEffects?: BalanceEffects; // Army balance status and multipliers (calculated)
+  xpProgress?: { currentLevelXP: number; progressPercent: number; xpForNextLevel: number }; // XP progress within current level (calculated by /api/player via getXPProgress)
   xp: number; // Total experience points earned
   level: number; // Current level (calculated from XP)
   researchPoints: number; // Research points for unlocking features

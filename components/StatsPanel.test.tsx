@@ -141,8 +141,8 @@ describe('StatsPanel', () => {
 
       render(<StatsPanel />);
       
-      // Research points shown when xpProgress exists
-      expect(screen.getByText('250')).toBeInTheDocument();
+      // Research points shown when xpProgress exists (rendered as "250 RP")
+      expect(screen.getByText(/250/)).toBeInTheDocument();
     });
   });
 
@@ -223,7 +223,7 @@ describe('StatsPanel', () => {
   });
 
   describe('Clan Integration', () => {
-    it('should show "Join/Create" button when player has no clan', () => {
+    it('should show "Join / Create" button when player has no clan', () => {
       (useGameContext as any).mockReturnValue({
         player: mockPlayer,
         logout: vi.fn(),
@@ -232,10 +232,10 @@ describe('StatsPanel', () => {
 
       render(<StatsPanel />);
       
-      expect(screen.getByText('Join/Create')).toBeInTheDocument();
+      expect(screen.getByText('Join / Create')).toBeInTheDocument();
     });
 
-    it('should navigate to clan page when "Join/Create" is clicked', () => {
+    it('should navigate to clan page when "Join / Create" is clicked', () => {
       (useGameContext as any).mockReturnValue({
         player: mockPlayer,
         logout: vi.fn(),
@@ -244,7 +244,7 @@ describe('StatsPanel', () => {
 
       render(<StatsPanel />);
       
-      const joinButton = screen.getByText('Join/Create');
+      const joinButton = screen.getByText('Join / Create');
       fireEvent.click(joinButton);
       
       expect(mockRouter.push).toHaveBeenCalledWith('/clan');
@@ -316,7 +316,7 @@ describe('StatsPanel', () => {
 
       render(<StatsPanel onClanClick={onClanClick} />);
       
-      const joinButton = screen.getByText('Join/Create');
+      const joinButton = screen.getByText('Join / Create');
       fireEvent.click(joinButton);
       
       expect(onClanClick).toHaveBeenCalled();
