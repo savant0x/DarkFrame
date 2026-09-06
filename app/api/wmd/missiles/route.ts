@@ -24,6 +24,11 @@ import {
   getPlayerMissiles,
   dismantleMissile,
 } from '@/lib/wmd/missileService';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { missiles } from '@/lib/db/schema/wmd';
+import { eq } from 'drizzle-orm';
+import { ensureWmdJobsTicked } from '@/lib/wmd/jobs/missileTracker';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
 import {
@@ -39,8 +44,6 @@ import {
 import { MissileOperationSchema } from '@/lib/validation/schemas';
 import { WarheadType, MissileComponent } from '@/types/wmd/missile.types';
 import { ZodError } from 'zod';
-import { getDatabase } from '@/lib/mongodb';
-import type { Player } from '@/types/game.types';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
@@ -53,6 +56,9 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
  */
 export async function GET(req: NextRequest) {
   try {
+    // G6: lazy self-tick so missile impacts fire even without the server.ts scheduler.
+    void ensureWmdJobsTicked();
+
     const auth = await getAuthenticatedPlayer(req);
     
     if (!auth) {
@@ -64,10 +70,15 @@ export async function GET(req: NextRequest) {
     
     // Get specific missile details
     if (missileId) {
-      const db = await getDatabase();
-      const missile = await db.collection('wmd_missiles').findOne({ missileId });
+      // FID-20260906-002 G3: drizzle seam replaces the Mongo-shim read.
+      const missileRows = await db
+        .select()
+        .from(missiles)
+        .where(eq(missiles.missileId, missileId))
+        .limit(1);
+      const missileDetail = missileRows[0];
       
-      if (!missile) {
+      if (!missileDetail) {
         return NextResponse.json(
           { error: 'Missile not found' },
           { status: 404 }
@@ -75,7 +86,7 @@ export async function GET(req: NextRequest) {
       }
       
       // Verify ownership
-      if (missile.ownerId !== auth.playerId) {
+      if (missileDetail.ownerId !== auth.playerId) {
         return NextResponse.json(
           { error: 'Unauthorized - not your missile' },
           { status: 403 }
@@ -84,16 +95,16 @@ export async function GET(req: NextRequest) {
       
       return NextResponse.json({
         success: true,
-        missile,
+        missile: missileDetail,
       });
     }
     
-    // Get all player missiles
-    const missiles = await getPlayerMissiles(auth.playerId);
+    // Get all player missiles (renamed to avoid shadowing the drizzle `missiles` table)
+    const playerMissiles = await getPlayerMissiles(auth.playerId);
     
     return NextResponse.json({
       success: true,
-      missiles,
+      missiles: playerMissiles,
     });
   } catch (error) {
     console.error('Error fetching missiles:', error);
@@ -218,8 +229,15 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     });
     
     // Get target player name for broadcast
-    const db = await getDatabase();
-    const targetPlayer = await db.collection<Player>('players').findOne({ playerId: validated.targetId });
+    // FID-20260906-002 G3: drizzle seam; players are username-keyed, so the
+    // targetId is matched against players.username (the old shim lookup by a
+    // `playerId` field never matched and silently degraded the broadcast).
+    const targetRows = await db
+      .select({ username: players.username, clanId: players.clanId })
+      .from(players)
+      .where(eq(players.username, validated.targetId))
+      .limit(1);
+    const targetPlayer = targetRows[0] ?? null;
     
     const result = await launchMissile(validated.missileId, validated.targetId, auth.username);
     
@@ -238,17 +256,23 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     
     // Broadcast missile launch to launcher and target
     try {
-      const missile = await db.collection<{ warheadType?: string; impactAt?: Date }>('wmd_missiles').findOne({ missileId: validated.missileId });
+      // FID-20260906-002 G3: drizzle seam replaces the Mongo-shim read.
+      const launchedRows = await db
+        .select({ warheadType: missiles.warheadType, impactAt: missiles.impactAt })
+        .from(missiles)
+        .where(eq(missiles.missileId, validated.missileId))
+        .limit(1);
+      const launched = launchedRows[0];
       const io = getIO();
-      if (missile && io) {
+      if (launched && io) {
         await wmdHandlers.broadcastMissileLaunch(io, {
           missileId: validated.missileId,
           launcherId: auth.playerId,
           launcherName: auth.username,
           targetId: validated.targetId,
           targetName: targetPlayer?.username || 'Unknown',
-          warheadType: missile.warheadType ?? WarheadType.TACTICAL,
-          impactAt: missile.impactAt ?? new Date(),
+          warheadType: launched.warheadType ?? WarheadType.TACTICAL,
+          impactAt: launched.impactAt ?? new Date(),
         });
         
         log.info('Missile launch broadcasted', {

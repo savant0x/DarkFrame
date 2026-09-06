@@ -26,7 +26,10 @@ export async function createWMDNotification(
   targetName?: string
 ): Promise<{ success: boolean; notificationId?: string }> {
   try {
-    const notificationId = `wmd_notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // id/notification_id columns are varchar(24): keep the identifier within
+    // that bound (the old `wmd_notif_<ts>_<rand>` form was 33+ chars and every
+    // insert failed with "value too long" — silently, inside this catch).
+    const notificationId = `wn${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.slice(0, 24);
     
     const notification = {
       id: notificationId,
