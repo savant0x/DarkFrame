@@ -223,27 +223,60 @@ export default function MapPage() {
    * Loads current player and nearby players
    */
   useEffect(() => {
-    if (!context?.player) return;
-    
-    // Create current player marker
-    const currentPlayerMarker: PlayerMarker = {
-      playerId: context.player.username, // Use username as unique ID
-      username: context.player.username,
-      position: playerPosition,
-      color: '#2196F3', // Blue
-      isCurrentPlayer: true,
-      isFlagBearer: false, // TODO: Get from player stats
-      size: 8
+    const player = context?.player;
+    if (!player) return;
+
+    // Fetch the flag bearer and build markers (FID-20260905-001 §7.2).
+    // The bearer gets an animated marker; if the viewer IS the bearer their own
+    // marker animates instead. Trail tiles are intentionally not drawn here —
+    // the in-game tile view renders them with expiry fading.
+    let cancelled = false;
+    const buildMarkers = async () => {
+      const currentPlayerMarker: PlayerMarker = {
+        playerId: player.username, // Use username as unique ID
+        username: player.username,
+        position: playerPosition,
+        color: '#2196F3', // Blue
+        isCurrentPlayer: true,
+        isFlagBearer: false,
+        size: 8
+      };
+
+      const markers: PlayerMarker[] = [currentPlayerMarker];
+
+      try {
+        const res = await fetch('/api/flag');
+        const data = await res.json();
+        if (data?.success && data.data) {
+          const bearer = data.data;
+          if (bearer.username === player.username) {
+            currentPlayerMarker.isFlagBearer = true;
+          } else {
+            markers.push({
+              playerId: bearer.playerId || bearer.username,
+              username: bearer.username,
+              position: bearer.position,
+              color: '#FFD700', // Gold — the flag
+              isCurrentPlayer: false,
+              isFlagBearer: true,
+              size: 10
+            });
+          }
+        }
+      } catch {
+        // Flag data is optional overlay — render without it
+      }
+
+      if (!cancelled) setPlayerMarkers(markers);
     };
-    
-    // TODO: Add other player markers from API
-    setPlayerMarkers([currentPlayerMarker]);
-    
-    console.log('[MapPage] Player markers initialized', {
-      currentPlayer: currentPlayerMarker.username,
-      position: playerPosition,
-      isFlagBearer: currentPlayerMarker.isFlagBearer
-    });
+
+    buildMarkers();
+    const flagPoll = setInterval(buildMarkers, 20000); // FLAG_CONFIG.POSITION_UPDATE_INTERVAL
+
+    return () => {
+      cancelled = true;
+      clearInterval(flagPoll);
+    };
   }, [context?.player, playerPosition]);
   
   /**

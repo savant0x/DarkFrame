@@ -238,6 +238,25 @@ All findings cataloged before any fix is designed. Every claim reproducible at `
   owner `DELETE` → 200; subsequent GET confirms the message is gone. tsc 0.
 - **Census re-check:** `grep -rln "username: 'TestUser'" app/api/` → zero matches.
 
+### 7.2 Follow-up discovery: flag feature dead end-to-end (tracker panel, map glimmer, trail, attacks)
+
+- **Operator report:** right-sidebar flag tracker missing; map "glimmer" never seen; flag should always be visible under the WMD widget.
+- **RED evidence (file:line):**
+  - `app/api/flag/route.ts:56-70` — GET reads `flags.currentHolder` as a nested Mongo doc (`{playerId, username, level, position, claimedAt}`) + `trail` array; the Postgres `flags` row (`lib/db/schema/config.ts:29-36`) only carries flat `current_holder`(varchar)/`last_captured_at` → `currentHolder` is the flat id string, `holder.position` undefined → route returns `data:null` → `app/game/page.tsx:1121` never mounts FlagTrackerPanel. Verified live: `GET /api/flag` → `{"success":true,"data":null}` while DB row holds `Flag-Bearer-4914`.
+  - `app/api/tile/route.ts:97-124` — same nested-doc read → `hasFlagBearer`/`hasTrail` never set → TileRenderer glimmer/trail rendering (TileRenderer.tsx:106-113, 422) is dead code.
+  - `app/api/move/route.ts:427-469` — the ONLY trail writer, via shim `$push`/dot-paths (`'currentHolder.position'`, `trail` array) against columns that don't exist, and gated on `currentHolder.username === player.username` which never matches a flat id — trail has never been written. No `flag_trail` table exists (schema + migrations searched).
+  - `app/api/flag/attack/route.ts:78-137` — reads flat row, casts to nested `FlagHolder`; `verifyPresence(user.username, holder.position, …)` receives `undefined` → flag attacks impossible.
+  - `app/map/page.tsx:235` — `isFlagBearer: false` hardcoded (TODO comment) → no animated bearer marker on the world map.
+- **GREEN design:** the holder is always a `players` row (`flags.current_holder` = username, bot rows included) — derive position/level/HP from `players` at read time (single source of truth, no sync drift). Writers (createFlagBot/moveFlagBot/handleFlagBotDefeat/resetFlagBot) already maintain `current_holder`/`current_holder_username`/`lastCapturedAt` and need no changes. Add the genuinely missing persistence: `flag_trail` table (0015) with 8-min TTL + 200-row cap, written by the move route for the current bearer. New service seam `lib/flagState.ts` (`getFlagBearerData`, `recordTrailStep`) as the single mapping path; flag GET, tile GET, move, flag attack, and `/map` page all consume it. `/map` page polls `/api/flag` (20s) and renders the bearer marker with `isFlagBearer: true` (skipped when the viewer IS the bearer — their own marker already animates).
+- **Verification plan:** local live: `GET /api/flag` returns bearer with real position/level/HP; tile at bearer coords → `hasFlagBearer:true`; holder-swap test (set owner as holder → `POST /api/move` → `flag_trail` row + tile `hasTrail:true` → restore bot holder); map page preview shows bearer marker; tsc 0; then push + prod `/api/flag` non-null.
+- **Verification record (all executed live):**
+  - `GET /api/flag` → bearer `Flag-Bearer-4914` with real position (30,27), level 45, HP 1000/1000 (was `data:null` since the Mongo pivot).
+  - Tile (30,27) → `hasFlagBearer:true`; distant tile → absent. After holder moves: old tile → `hasTrail:true` (glimmer), new tile → `hasFlagBearer:true`.
+  - Holder-swap cycle: flags row swapped to `fame` → `POST /api/move` (200) → `flag_trail` row written (`holder_username=fame`, live expiry) → `GET /api/flag` returns owner as bearer with trail → state restored to bot holder, trail cleaned.
+  - Attack route: from 107 tiles away → rejected `Too far away: 107 tiles (max 5)` (real DB distance — previously crashed on undefined position); adjacent → `Hit for 100 damage! Bearer HP: 900/1000`, `current_hp=900` **persisted in DB**; probe HP restored to 1000 after.
+  - Migration 0015 applied; local and production point at the same Supabase Postgres (proven live earlier: prod-posted chat message appeared in local panel), so one apply covers both.
+  - Gates: tsc 0 · 341 tests green · eslint clean on all touched files.
+
 ## 8. Closure
 
 - **Gates:** [ ] typecheck 0 errors · [ ] lint census at defined zero-state · [ ] tests pass ·

@@ -24,14 +24,7 @@ import {
 import { ZodError } from 'zod';
 import { verifyPresence } from '@/lib/presenceCheck';
 
-/** Shape of the currentHolder blob stored in the flags row. */
-interface FlagHolder {
-  playerId?: string;
-  botId?: string;
-  username: string;
-  hp?: number;
-  position: { x: number; y: number };
-}
+/** The flags row stores the holder as a flat username string (players.username). */
 
 /**
  * Calculate distance between two points
@@ -89,10 +82,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       });
     }
     
-    const holder = flagDoc.currentHolder as unknown as FlagHolder;
+    // The flags row stores the holder as a flat username (a players row).
+    const holderUsername = flagDoc.currentHolder;
     
     // Verify target is current bearer (handle bot attacks)
-    const holderId = holder.playerId || holder.botId || '';
+    const holderId = holderUsername;
     const targetIdNormalized = validated.targetPlayerId === 'BOT' || validated.targetPlayerId === '' 
       ? holderId 
       : validated.targetPlayerId;
@@ -122,7 +116,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
     
     // Validate attack range against the DATABASE position — the client-supplied
     // attackerPosition is never trusted (it was trivially spoofable).
-    const presence = await verifyPresence(user.username, holder.position, FLAG_CONFIG.ATTACK_RANGE);
+    // Bearer position/HP derive from their players row (single source of truth).
+    const [bearerRow] = await db.select().from(players).where(eq(players.username, holderUsername));
+    if (!bearerRow) {
+      return NextResponse.json({
+        success: false,
+        error: 'Flag Bearer not found',
+        timestamp: new Date()
+      }, { status: 404 });
+    }
+    const bearerPos = { x: bearerRow.currentPositionX, y: bearerRow.currentPositionY };
+
+    const presence = await verifyPresence(user.username, bearerPos, FLAG_CONFIG.ATTACK_RANGE);
     if (!presence.ok) {
       return NextResponse.json({
         success: true,
@@ -134,7 +139,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
         timestamp: new Date()
       });
     }
-    const distance = calculateDistance(presence.attackerPosition!, holder.position);
+    const distance = calculateDistance(presence.attackerPosition!, bearerPos);
     
     if (distance > FLAG_CONFIG.ATTACK_RANGE) {
       return NextResponse.json({
@@ -150,40 +155,25 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       });
     }
     
-    // Get target (bearer)
-    let target: typeof players.$inferSelect | null = null;
-    if (holder.playerId || holder.botId) {
-      [target] = await db.select().from(players).where(eq(players.username, holder.username));
-    }
-    
-    if (!target) {
-      return NextResponse.json({
-        success: false,
-        error: 'Flag Bearer not found',
-        timestamp: new Date()
-      }, { status: 404 });
-    }
-    
     // Calculate damage based on attacker's army strength
     const attackerPower = attacker.totalStrength || 0;
     const baseDamage = FLAG_CONFIG.BASE_ATTACK_DAMAGE;
     const powerMultiplier = 1 + (attackerPower / 100000); // +1% per 1K power
     const damage = Math.round(baseDamage * powerMultiplier);
     
-    // Get current bearer HP (from flag doc or default to 1000)
-    const initialHP = 1000;
-    let bearerHP = holder.hp || initialHP;
+    // Get current bearer HP (from their players row — real persistence).
+    const maxHP = bearerRow.maxHP || 1000;
+    let bearerHP = bearerRow.currentHP ?? maxHP;
     
     // Apply damage
     bearerHP -= damage;
     
     // Check if bearer was defeated
     if (bearerHP <= 0) {
-      // Flag dropped! Attacker claims it
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 8 * 60 * 1000); // 8 minutes from now
-      
-      void expiresAt; // trail persistence lands with the trail table (see SCOPE)
+      // Flag dropped! Attacker claims it. Restore the defeated bearer's HP so
+      // they respawn healthy (holder swap invalidates the old trail via the
+      // holder-scoped trail reads).
+      await db.update(players).set({ currentHP: bearerRow.maxHP || 1000 }).where(eq(players.username, bearerRow.username));
       await db.update(flags).set({
         currentHolder: attacker.username,
         currentHolderUsername: attacker.username,
@@ -205,15 +195,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest):
       });
     }
     
-    // Bearer survived - report remaining HP. HP persistence lands with the
-    // trail/HP storage work; per-hit state resets via the capture path.
-    void initialHP;
+    // Bearer survived — persist the new HP on their players row.
+    await db.update(players).set({ currentHP: bearerHP }).where(eq(players.username, bearerRow.username));
     
     return NextResponse.json({
       success: true,
       data: {
-        success: true,
-        message: `Hit for ${damage} damage! Bearer HP: ${bearerHP}/${initialHP}`,
+        success: true,          message: `Hit for ${damage} damage! Bearer HP: ${bearerHP}/${maxHP}`,
         damage,
         bearerDefeated: false,
         remainingHP: bearerHP

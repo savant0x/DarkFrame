@@ -44,6 +44,7 @@ export {
   botConfig,
   flags,
   shrineBlessings,
+  flagTrail,
   achievements,
   auctions,
   tradeHistory,
