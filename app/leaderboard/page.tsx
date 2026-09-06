@@ -307,12 +307,9 @@ export default function LeaderboardPage() {
                         `}
                       >
                         <td className="px-6 py-4 whitespace-nowrap">
+                          {/* getRankDisplay already yields `#N` for ranks > 3 —
+                              the extra span rendered the rank twice (FID-005 audit). */}
                           <span className="text-2xl">{getRankDisplay(player.rank)}</span>
-                          {player.rank > 3 && (
-                            <span className="ml-2 text-lg font-semibold text-gray-400">
-                              #{player.rank}
-                            </span>
-                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
