@@ -131,16 +131,95 @@ const BOT_NAME_SUFFIXES = [
 ];
 
 /**
- * Generate unique bot name from prefixes and suffixes
- * 1000+ combinations possible
- * 
- * @returns Unique bot username (e.g., "Alpha-Command", "Quantum-Prime", "Shadow-Hunter")
+ * Hard budget for bot usernames: players.username is varchar(20) PRIMARY KEY
+ * (lib/db/schema/players.ts), so any name over 20 chars crashes the insert
+ * (same overflow class as the flags.id bug, SCOPE #20).
+ */
+const MAX_USERNAME_LENGTH = 20;
+
+/**
+ * Generate unique bot name from prefixes and suffixes.
+ * Thousands of combinations, all length-guarded: the raw word lists can compose
+ * up to 26 chars ("Legionnaire-Nightmares-999"), which would overflow the
+ * username column — overflowing compositions are re-rolled, and a bounded
+ * fallback guarantees a valid name after 8 attempts.
+ *
+ * @returns Themed bot username within the 20-char column budget
+ *          (e.g., "Alpha-Command", "Quantum-Prime", "Shadow-Hunter-42")
  */
 export function generateBotName(): string {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const prefix = BOT_NAME_PREFIXES[Math.floor(Math.random() * BOT_NAME_PREFIXES.length)];
+    const suffix = BOT_NAME_SUFFIXES[Math.floor(Math.random() * BOT_NAME_SUFFIXES.length)];
+    const variant = Math.random() < 0.3 ? `-${Math.floor(Math.random() * 999) + 1}` : '';
+    const name = `${prefix}-${suffix}${variant}`;
+    if (name.length <= MAX_USERNAME_LENGTH) return name;
+  }
+  // Deterministic fallback: longest prefix is 11 chars, so prefix + number
+  // always fits the budget (≤ 15 chars).
   const prefix = BOT_NAME_PREFIXES[Math.floor(Math.random() * BOT_NAME_PREFIXES.length)];
-  const suffix = BOT_NAME_SUFFIXES[Math.floor(Math.random() * BOT_NAME_SUFFIXES.length)];
-  const variant = Math.random() < 0.3 ? `-${Math.floor(Math.random() * 999) + 1}` : '';
-  return `${prefix}-${suffix}${variant}`;
+  return `${prefix}-${Math.floor(Math.random() * 999) + 1}`;
+}
+
+/**
+ * Beer Bases are fortified places, so they get place-style names
+ * ("<Descriptor> <Noun>", e.g. "Crimson Bastion") from the game's own lexicon,
+ * instead of the generic player-name format. Curated semantic sets rather than
+ * blind pairing of the player lists, so the result reads as a location.
+ */
+const BEER_BASE_NOUNS = [
+  'Bastion', 'Citadel', 'Fortress', 'Stronghold', 'Rampart', 'Bulwark', 'Redoubt',
+  'Keep', 'Tower', 'Spire', 'Outpost', 'Garrison', 'Bunker', 'Den', 'Vault',
+  'Depot', 'Foundry', 'Reactor', 'Relay', 'Warrens',
+];
+
+const BEER_BASE_DESCRIPTORS = [
+  'Crimson', 'Rusted', 'Obsidian', 'Iron', 'Ember', 'Ashen', 'Hollow', 'Broken',
+  'Silent', 'Blackened', 'Gilded', 'Sable', 'Thundering', 'Wailing', 'Grim',
+  'Frostbound', 'Molten', 'Shattered', 'Vulture', 'Forsaken',
+];
+
+/**
+ * Generate a themed Beer Base name within the 20-char username budget.
+ * Compositions that overflow ("Thundering Stronghold" = 21) fall back to a
+ * short-noun pairing; `variant` appends a number for collision resolution
+ * ("Crimson Bastion 2").
+ *
+ * @param variant Collision-resolve index (0 = no suffix, n = " name+1")
+ */
+export function generateBeerBaseName(variant = 0): string {
+  const descriptor = BEER_BASE_DESCRIPTORS[Math.floor(Math.random() * BEER_BASE_DESCRIPTORS.length)];
+  const noun = BEER_BASE_NOUNS[Math.floor(Math.random() * BEER_BASE_NOUNS.length)];
+  const suffix = variant > 0 ? ` ${variant + 1}` : '';
+  let name = `${descriptor} ${noun}`;
+  if (name.length + suffix.length > MAX_USERNAME_LENGTH) {
+    // Short-noun fallback keeps every composition ≤ 16 chars, leaving room
+    // for the collision variant (measured, not assumed — a 3-digit variant
+    // needs 4 chars including the space).
+    name = `${descriptor} Keep`;
+  }
+  return `${name}${suffix}`;
+}
+
+/**
+ * Prefixes short enough for the "BOSS-" prefix budget (see generateBossName).
+ * Computed once at module load.
+ */
+const BOSS_BUDGET_PREFIXES = BOT_NAME_PREFIXES.filter((w) => w.length <= 9);
+
+/**
+ * Generate a themed Boss bot name. The "BOSS-" prefix (5 chars, kept for
+ * at-a-glance distinction) leaves a 15-char core budget; overflowing cores are
+ * re-rolled, with a bounded fallback ("BOSS-Atlas-42" style) that always fits.
+ */
+export function generateBossName(): string {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const core = generateBotName();
+    const name = `BOSS-${core}`;
+    if (name.length <= MAX_USERNAME_LENGTH) return name;
+  }
+  const prefix = BOSS_BUDGET_PREFIXES[Math.floor(Math.random() * BOSS_BUDGET_PREFIXES.length)];
+  return `BOSS-${prefix}-${Math.floor(Math.random() * 999) + 1}`;
 }
 
 // ============================================================
@@ -613,7 +692,7 @@ export async function createBossBot(
   const totalDefense = Math.floor(baseDefense * defenseMultiplier); // 192,000 defense
 
   const bossPlayer: Partial<Player> = {
-    username: `BOSS-${generateBotName()}`, // Prefix with BOSS for visibility
+    username: generateBossName(), // BOSS- prefixed, themed, 20-char budget enforced
     email: `boss-${Date.now()}@darkframe.bot`,
       password: 'BOSS_ACCOUNT', // Bosses cannot log in
     isBot: true,

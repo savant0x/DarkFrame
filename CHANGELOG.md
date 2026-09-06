@@ -5,6 +5,24 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-05/06 session
 
+### Fixed — FID-20260906-007 (bot name generation)
+- **Beer Bases no longer spawn as machine slugs:** `spawnBeerBase` overwrote the themed
+  name with `b<tier><timestamp><rand>` (e.g. `bS299792251945`) to dodge a historic
+  varchar(20) crash. Beer Bases now get place-style themed names ("Thundering Depot",
+  "Crimson Bastion") from a curated descriptor/noun lexicon; the dropped tier-letter
+  encoding was grep-proven to have zero parsers. Username PK collisions retry with a
+  numeric variant ("Crimson Bastion 2").
+- **Latent insert-crash class removed (same class as SCOPE #20 flags.id overflow):**
+  measured word census showed `generateBotName()` could compose 26 chars
+  (`Legionnaire-Nightmares-999`) and boss names 31 — all against a varchar(20)
+  **primary key**. All three generators now enforce the 20-char budget
+  (re-roll + bounded fallback); contract-tested with 500-sample sweeps.
+- **Live data repaired:** the two slug rows renamed to "Rusted Redoubt" and
+  "Forsaken Outpost" after a schema-driven reference sweep (28 username-bearing
+  columns) confirmed zero rows referencing the slugs; slug census = 0.
+- Verified live: `spawnBeerBase` persisted "Thundering Depot" through the full
+  service path; suite at 348 passed / 1 skipped (349).
+
 ### Added — FID-20260906-006/006a (game-wide balance audit + PvE loop repair)
 - **Balance audit:** evidence-first measurement of the implemented economy (census of 61
   cited constants → `dev/audit/`; week-one archetype simulation → `dev/scripts/balance-sim.cjs`),
