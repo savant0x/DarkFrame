@@ -63,3 +63,4 @@ next-env.d.ts
 /push-cred-helper.sh
 
 .env*
+.savant/
