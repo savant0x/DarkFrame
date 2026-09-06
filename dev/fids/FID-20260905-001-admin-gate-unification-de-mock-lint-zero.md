@@ -219,7 +219,24 @@ All findings cataloged before any fix is designed. Every claim reproducible at `
 
 ## 7. Implementation Record (only after status reaches `converged`)
 
-- **Status:** not-started
+- **Status:** in-progress
+
+### 7.1 Follow-up discovery: chat delete/edit mock identity (found during prod verification)
+
+- **Discovery context:** while verifying the chat fixes on prod, `DELETE /api/chat/delete`
+  returned 405 to a POST probe; reading the route surfaced an `AUTHENTICATION (PLACEHOLDER)`
+  block returning hardcoded `TestUser` — i.e. **any unauthenticated caller could soft-delete
+  messages** (the ownership check compared against the mock identity). `POST /api/chat/edit`
+  carried the identical hole.
+- **Classification:** same client-trusted-identity class as FID-20260904-005 §5.1 / this
+  FID batch 1 — missed by the Phase-2 census because both routes' only auth reference was
+  the mock helper itself.
+- **Fix:** both routes now resolve identity via `authenticateRequest(request)` (session
+  cookie → JWT → DB player), mirroring the canonical `getChatPlayerContext` pattern in
+  `app/api/chat/route.ts`; unused `_now` dead code removed.
+- **Verification (local, live server):** unauthenticated `DELETE` → **401** (was 200-as-TestUser);
+  owner `DELETE` → 200; subsequent GET confirms the message is gone. tsc 0.
+- **Census re-check:** `grep -rln "username: 'TestUser'" app/api/` → zero matches.
 
 ## 8. Closure
 

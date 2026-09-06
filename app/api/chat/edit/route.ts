@@ -24,6 +24,7 @@
  * - lib/moderationService.ts - Profanity filter, spam detection
  */
 
+import { authenticateRequest } from '@/lib/authMiddleware';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
@@ -62,17 +63,27 @@ const EDIT_TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
  * @param request - Next.js request object
  * @returns Player context or null if not authenticated
  */
+/**
+ * Get the chat PlayerContext from the SESSION (FID-20260905-001 follow-up).
+ * The prior implementation was a placeholder returning a hardcoded TestUser,
+ * letting any unauthenticated caller edit messages. Identity now resolves
+ * from the session cookie via authenticateRequest.
+ *
+ * @param request - Next.js request object
+ * @returns Player context or null if not authenticated
+ */
 async function getAuthenticatedUser(
-  _request: NextRequest
+  request: NextRequest
 ): Promise<PlayerContext | null> {
-  // PLACEHOLDER: Mock user for development
-  // Replace this entire function when authentication is ready
+  const auth = await authenticateRequest(request);
+  if (!auth) return null;
+
   return {
-    username: 'TestUser',
-    level: 10,
-    isVIP: false,
-    clanId: undefined,
-    isMuted: false,
+    username: auth.username,
+    level: auth.player.level ?? 1,
+    isVIP: !!auth.player.vip,
+    clanId: auth.player.clanId ?? undefined,
+    isMuted: false, // editing is not mute-gated
     channelBans: [],
   };
 }
