@@ -64,3 +64,6 @@ next-env.d.ts
 
 .env*
 .savant/
+
+# Freebuff thread runtime (server logs, parity baselines — never ship operator secrets)
+.freebuff/

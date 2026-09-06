@@ -24,7 +24,8 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import Joyride, { Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'react-joyride';
+import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
+import type { Step, EventData } from 'react-joyride';
 import type { TutorialQuest, TutorialStep, TutorialProgress, TutorialUIState } from '@/types/tutorial.types';
 
 interface TutorialOverlayProps {
@@ -176,24 +177,11 @@ export default function TutorialOverlay({
           </div>
         </div>
       ),
-      disableBeacon: true,
+      // FID-20260906-012 P0: joyride 3.x — disableBeacon → skipBeacon, styles are
+      // flat Options (no `options` subgroup), styling moved to Joyride-level `options`.
+      skipBeacon: true,
       placement: 'auto',
       spotlightPadding: 10,
-      styles: {
-        options: {
-          arrowColor: '#1f2937',
-          backgroundColor: '#1f2937',
-          overlayColor: 'rgba(0, 0, 0, 0.7)',
-          primaryColor: '#8b5cf6',
-          textColor: '#f3f4f6',
-          width: 400,
-          zIndex: 10000,
-        },
-        tooltip: {
-          borderRadius: 8,
-          padding: 20,
-        },
-      },
     };
   };
 
@@ -258,7 +246,9 @@ export default function TutorialOverlay({
   /**
    * Handle joyride callback events
    */
-  const handleJoyrideCallback = useCallback(async (data: CallBackProps) => {
+  // FID-20260906-012 P0: joyride 3.x renamed the callback payload CallBackProps → EventData
+  // and the prop callback → onEvent.
+  const handleJoyrideCallback = useCallback(async (data: EventData) => {
     const { status, action, type } = data;
 
     // Handle tutorial completion
@@ -318,14 +308,22 @@ export default function TutorialOverlay({
         </div>
       )}
 
-      {/* Joyride Component */}
+      {/* Joyride Component (v3: per-step styles → component-level options) */}
       <Joyride
         steps={joyrideSteps}
         run={runJoyride}
         continuous
-        showProgress
-        showSkipButton
-        callback={handleJoyrideCallback}
+        onEvent={handleJoyrideCallback}
+        options={{
+          arrowColor: '#1f2937',
+          backgroundColor: '#1f2937',
+          overlayColor: 'rgba(0, 0, 0, 0.7)',
+          primaryColor: '#8b5cf6',
+          textColor: '#f3f4f6',
+          zIndex: 10000,
+          showProgress: true,
+          buttons: ['back', 'skip', 'primary'],
+        }}
         locale={{
           back: 'Back',
           close: 'Close',
