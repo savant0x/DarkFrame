@@ -143,6 +143,34 @@ export interface TileProcessResult {
   error?: string;
 }
 
+/** Attempt to trigger a harvest via keypress simulation and verify resources rose. */
+export interface HarvestAttemptResult {
+  success: boolean;
+  method?: 'keypress_simulation';
+  terrain?: string;
+  metalGained?: number;
+  energyGained?: number;
+  reason?: string;
+  error?: Error | unknown;
+}
+
+/** Attempt to attack an occupied base via the infantry combat API. */
+export interface CombatAttemptResult {
+  success: boolean;
+  won?: boolean;
+  battleLog?: unknown[];
+  reason?: string;
+  skipped?: boolean;
+  error?: Error | unknown;
+}
+
+/** Minimal projection of an army unit used for combat unit selection. */
+export interface CombatUnit {
+  id: string;
+  strength: number;
+  defense: number;
+}
+
 /**
  * Default configuration values
  */

@@ -12,9 +12,9 @@ import { getCollection } from './mongodb';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getPlayer } from './playerService';
+import { getPlayer, type SanitizedPlayer } from './playerService';
 import { calculateNewPosition } from '@/utils/coordinates';
-import { Player, Tile, MovementDirection } from '@/types';
+import { Tile, MovementDirection, HarvestRecord } from '@/types';
 
 /**
  * Get tile at specific coordinates
@@ -36,7 +36,7 @@ export async function getTileAt(x: number, y: number): Promise<Tile | null> {
       occupiedByBase: number | null;
       baseOwner: string | null;
       baseGreeting: string | null;
-      lastHarvestedBy: unknown[] | null;
+      lastHarvestedBy: HarvestRecord[] | null;
       bankType: string | null;
       hasFlagBearer: number | null;
       hasTrail: number | null;
@@ -97,7 +97,7 @@ export async function getTileAt(x: number, y: number): Promise<Tile | null> {
 export async function movePlayer(
   username: string,
   direction: MovementDirection
-): Promise<{ player: Player; tile: Tile }> {
+): Promise<{ player: SanitizedPlayer; tile: Tile }> {
   try {
     // Get current player data
     const player = await getPlayer(username);

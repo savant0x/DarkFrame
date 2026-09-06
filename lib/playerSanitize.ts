@@ -13,6 +13,10 @@
  *   aggregates), never the identity of who referred whom.
  */
 
+import type { Player, SanitizedPlayer } from '@/types/game.types';
+
+export type { SanitizedPlayer };
+
 /** Fields that must NEVER appear in any public projection (defense-in-depth assertion). */
 const FORBIDDEN = new Set([
   'password',
@@ -81,15 +85,24 @@ const PUBLIC_FIELDS = [
   'referralBadges',
 ] as const;
 
-export type PublicPlayer = Pick<Record<string, unknown>, (typeof PUBLIC_FIELDS)[number]> &
-  Record<string, unknown>;
+// The honest client-facing shape lives in types/game.types.ts (single type home);
+// re-exported here for the sanitize seam's consumers.
 
 /**
  * Project a raw player row (DB row or mapped Player) onto the public allowlist.
  * Accepts both camelCase row objects and the mapped Player shape (nested
  * resources/bank/currentPosition objects are passed through when present).
+ *
+ * Return type is the honest domain shape: a `Player` with every FORBIDDEN field
+ * removed — consumers get full type-checking instead of a `Record<string, unknown>`
+ * that forces `as unknown as Player` casts at every call site. The single
+ * structural assertion below is the deliberate dynamic→static boundary: the
+ * allowlist loop constructs the object dynamically (that IS the security
+ * mechanism), and `base` is composed from flat columns the domain type does not
+ * declare, so the compiler cannot see the construction. Everything downstream
+ * of this one assertion is statically verified.
  */
-export function sanitizePlayer<T extends object>(raw: T | null | undefined): PublicPlayer | null {
+export function sanitizePlayer<T extends object>(raw: T | null | undefined): SanitizedPlayer | null {
   if (!raw || typeof raw !== 'object') return null;
 
   const rec = raw as Record<string, unknown>;
@@ -120,10 +133,11 @@ export function sanitizePlayer<T extends object>(raw: T | null | undefined): Pub
     }
   }
 
-  return out as PublicPlayer;
+  // The single dynamic→static boundary (see docblock above).
+  return out as SanitizedPlayer;
 }
 
 /** Array helper. */
-export function sanitizePlayerRows<T extends object>(rows: T[]): PublicPlayer[] {
-  return (rows ?? []).map((r) => sanitizePlayer(r)).filter(Boolean) as PublicPlayer[];
+export function sanitizePlayerRows<T extends object>(rows: T[]): SanitizedPlayer[] {
+  return (rows ?? []).map((r) => sanitizePlayer(r)).filter(Boolean) as SanitizedPlayer[];
 }

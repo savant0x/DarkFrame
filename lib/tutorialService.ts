@@ -43,7 +43,7 @@ import type {
   PlayerGameStateValidation,
 } from '@/types/tutorial.types';
 import { DEFAULT_TUTORIAL_CONFIG } from '@/types/tutorial.types';
-import type { TutorialInventoryItem } from '@/types/game.types';
+import type { TutorialInventoryItem, AchievementMarker, AchievementRecord } from '@/types/game.types';
 import { awardTutorialDiggerToPlayer } from './caveItemService';
 
 /**
@@ -1473,14 +1473,16 @@ async function awardTutorialReward(playerId: string, reward: TutorialReward): Pr
         const playerRows = await db.select({ achievements: players.achievements }).from(players).where(eq(players.username, playerId)).limit(1);
         if (playerRows.length > 0) {
           const achievements = playerRows[0].achievements || [];
-          const alreadyExists = achievements.some((a: any) => a.achievementId === reward.achievementId);
+          const alreadyExists = achievements.some(
+            (a: AchievementRecord) => 'achievementId' in a && a.achievementId === reward.achievementId
+          );
           if (!alreadyExists) {
-            const achievement = {
+            const marker: AchievementMarker = {
               achievementId: reward.achievementId,
               unlockedAt: new Date(),
               source: 'tutorial',
             };
-            achievements.push(achievement);
+            achievements.push(marker);
             await db.update(players).set({
               achievements,
             }).where(eq(players.username, playerId));
@@ -1533,19 +1535,16 @@ async function awardTutorialCompletionPackage(playerId: string): Promise<void> {
   }
   
   const achievements = player.achievements || [];
-  const alreadyExists = achievements.some((a: any) => a.achievementId === 'tutorial_completed');
+  const alreadyExists = achievements.some(
+    (a: AchievementRecord) => 'achievementId' in a && a.achievementId === 'tutorial_completed'
+  );
   if (!alreadyExists) {
-    const achievement = {
-      id: `tutorial_complete_${Date.now()}`,
+    const marker: AchievementMarker = {
       achievementId: 'tutorial_completed',
-      name: 'Welcome Aboard!',
-      description: 'Completed the welcome tutorial',
       unlockedAt: new Date(),
       source: 'tutorial_completion',
-      category: 'tutorial',
-      rarity: 'common'
     };
-    achievements.push(achievement);
+    achievements.push(marker);
   }
   
   await db.update(players).set({

@@ -171,8 +171,8 @@ export async function createFlagBot(position?: Position): Promise<Player> {
     }
     
     // Re-read through the single mapping path — verifies the insert landed and the
-    // returned Player reflects the actual row
-    const createdBot = await getPlayerByUsername(flagBot.username);
+    // returned Player reflects the actual row (private read: internal trusted caller)
+    const createdBot = await getPlayerByUsername(flagBot.username, { includePrivate: true });
     if (!createdBot) throw new Error('Flag bot insert did not persist');
     
     console.log(`✅ Flag bot created: ${createdBot.username} at (${createdBot.currentPosition.x}, ${createdBot.currentPosition.y})`);

@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { getCollection } from '@/lib/mongodb';
 import { Player, Tile, TerrainType,  ItemType, ItemRarity } from '@/types';
+import { tradeableItems } from '@/lib/inventoryUtils';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -133,26 +134,26 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       );
     }
 
-    // Count tradeable items
-    const tradeableItems = player.inventory.items.filter((item) => item.type === ItemType.TradeableItem
-    );
+    // Count tradeable items (typed narrowing of the honest union)
+    const tradeable = tradeableItems(player.inventory.items);
 
-    if (tradeableItems.length < itemCount) {
+    if (tradeable.length < itemCount) {
       return NextResponse.json(
         {
           success: false,
-          message: `Insufficient items. Need ${itemCount}, have ${tradeableItems.length}`
+          message: `Insufficient items. Need ${itemCount}, have ${tradeable.length}`
         },
         { status: 400 }
       );
     }
 
     // Calculate time extension based on item rarities
-    const itemsToSacrifice = tradeableItems.slice(0, itemCount);
+    const itemsToSacrifice = tradeable.slice(0, itemCount);
     let totalTimeAdded = 0;
 
     itemsToSacrifice.forEach((item) => {
-      const timeValue = (ITEM_VALUES as unknown as Record<string, number>)[item.rarity] || ITEM_VALUES[ItemRarity.Common];
+      // ITEM_VALUES is keyed by ItemRarity — direct typed access, no casts.
+      const timeValue = ITEM_VALUES[item.rarity];
       totalTimeAdded += timeValue;
     });
 
@@ -182,7 +183,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     // Remove sacrificed items
     const remainingItems = player.inventory.items.filter((item) => item.type !== ItemType.TradeableItem
     );
-    const itemsToKeep = tradeableItems.slice(itemCount);
+    const itemsToKeep = tradeable.slice(itemCount);
     const newInventory = [...remainingItems, ...itemsToKeep];
 
     // Update boost expiry

@@ -11,18 +11,20 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { Player, Tile, MovementDirection } from '@/types';
+import { SanitizedPlayer, Tile, MovementDirection } from '@/types';
 import { logger } from '@/lib/logger';
 
 /**
  * Game context state interface
  */
 interface GameContextState {
-  player: Player | null;
+  /** The client NEVER holds private fields (password/email/etc.) — the context
+   *  carries the honest sanitized shape served by the APIs. */
+  player: SanitizedPlayer | null;
   currentTile: Tile | null;
   isLoading: boolean;
   error: string | null;
-  setPlayer: (player: Player | null) => void;
+  setPlayer: (player: SanitizedPlayer | null) => void;
   setCurrentTile: (tile: Tile | null) => void;
   updateTileOnly: (x: number, y: number) => Promise<void>;
   movePlayer: (direction: MovementDirection) => Promise<void>;
@@ -72,7 +74,7 @@ interface GameProviderProps {
  * ```
  */
 export function GameProvider({ children }: GameProviderProps) {
-  const [player, setPlayer] = useState<Player | null>(null);
+  const [player, setPlayer] = useState<SanitizedPlayer | null>(null);
   const [currentTile, setCurrentTile] = useState<Tile | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Start as true to check auth
   const [error, setError] = useState<string | null>(null);

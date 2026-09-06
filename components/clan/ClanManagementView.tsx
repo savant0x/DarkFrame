@@ -55,7 +55,7 @@ import {
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
 import { ClanRole } from '@/types/clan.types';
-import type { Player } from '@/types/game.types';
+import type { SanitizedPlayer } from '@/types/game.types';
 import ClanMembersPanel from './ClanMembersPanel';
 import ClanBankPanel from './ClanBankPanel';
 import ClanTerritoryPanel from './ClanTerritoryPanel';
@@ -277,7 +277,7 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
  * Create Clan View - Inline form
  */
 interface CreateClanViewProps {
-  player: Player;
+  player: SanitizedPlayer;
   onBack: () => void;
   onSuccess: () => void;
 }
@@ -579,7 +579,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
  * Join Clan View - Browse and join clans
  */
 interface JoinClanViewProps {
-  player: Player;
+  player: SanitizedPlayer;
   onBack: () => void;
   onSuccess: () => void;
 }
@@ -731,7 +731,7 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
  * Clan Management Interface - Full management when player has clan
  */
 interface ClanManagementInterfaceProps {
-  player: Player;
+  player: SanitizedPlayer;
   clanData: Clan | null;
   onLeaveClan: () => void;
   onRefresh: () => void;

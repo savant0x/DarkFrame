@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { tradeableItems } from '@/lib/inventoryUtils';
 import { getCollection } from '@/lib/mongodb';
 import type { Player, InventoryItem, ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
@@ -80,15 +81,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       });
     }
 
-    // Get tradeable items from inventory
-    const tradeableItems = (player.inventory?.items || []).filter(
-      (i: InventoryItem) => i.type === 'TRADEABLE_ITEM'
-    );
+    // Get tradeable items from inventory (typed narrowing of the honest union)
+    const tradeable = tradeableItems(player.inventory?.items || []);
 
     // Check if player has enough items
-    if (tradeableItems.length < totalItemsNeeded) {
+    if (tradeable.length < totalItemsNeeded) {
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: `Not enough items. You have ${tradeableItems.length}, need ${totalItemsNeeded}.`
+        message: `Not enough items. You have ${tradeable.length}, need ${totalItemsNeeded}.`
       });
     }
 
@@ -100,7 +99,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
 
     for (const tier of ALL_TIERS) {
       // Get next batch of items for this tier
-      const itemsForThisTier = tradeableItems.slice(itemsConsumedTotal, itemsConsumedTotal + itemCount);
+      const itemsForThisTier = tradeable.slice(itemsConsumedTotal, itemsConsumedTotal + itemCount);
       
       // Calculate duration based on item rarities
       const durationMinutes = calculateDuration(itemsForThisTier);
@@ -151,9 +150,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Remove all consumed items from inventory
-    const itemsToConsume = tradeableItems.slice(0, totalItemsNeeded);
+    const itemsToConsume = tradeable.slice(0, totalItemsNeeded);
     const remainingItems = (player.inventory?.items || []).filter(
-      (item: InventoryItem) => !itemsToConsume.some((consumed: InventoryItem) => consumed.id === item.id)
+      (item) => !itemsToConsume.some((consumed) => consumed.id === item.id)
     );
 
     // Update player in database

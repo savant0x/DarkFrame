@@ -1,4 +1,5 @@
 import { pgTable, varchar, smallint, timestamp, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import type { HarvestRecord } from '@/types/game.types';
 
 export const tiles = pgTable('tiles', {
 	x: smallint('x').notNull(),
@@ -7,7 +8,7 @@ export const tiles = pgTable('tiles', {
 	occupiedByBase: smallint('occupied_by_base'),
 	baseOwner: varchar('base_owner', { length: 20 }),
 	baseGreeting: varchar('base_greeting', { length: 500 }),
-	lastHarvestedBy: jsonb('last_harvested_by').$type<any[]>(),
+	lastHarvestedBy: jsonb('last_harvested_by').$type<HarvestRecord[]>(),
 	bankType: varchar('bank_type', { length: 20 }),
 	hasFlagBearer: smallint('has_flag_bearer'),
 	hasTrail: smallint('has_trail'),

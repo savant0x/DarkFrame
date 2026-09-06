@@ -11,8 +11,9 @@
 
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { tradeableItems } from '@/lib/inventoryUtils';
 import { getCollection } from '@/lib/mongodb';
-import type { Player, InventoryItem, ShrineBoost, ShrineBoostTier } from '@/types';
+import type { Player, ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
 import {
   withRequestLogging,
@@ -81,20 +82,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       });
     }
 
-    // Get tradeable items from inventory
-    const tradeableItems = (player.inventory?.items || []).filter(
-      (i: InventoryItem) => i.type === 'TRADEABLE_ITEM'
-    );
+    // Get tradeable items from inventory (typed narrowing of the honest union)
+    const tradeable = tradeableItems(player.inventory?.items || []);
 
     // Check if player has enough items
-    if (tradeableItems.length < itemCount) {
+    if (tradeable.length < itemCount) {
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: `Not enough items. You have ${tradeableItems.length}, need ${itemCount}.`
+        message: `Not enough items. You have ${tradeable.length}, need ${itemCount}.`
       });
     }
 
     // Calculate duration based on item rarities
-    const itemsToConsume = tradeableItems.slice(0, itemCount);
+    const itemsToConsume = tradeable.slice(0, itemCount);
     const durationMinutes = calculateDuration(itemsToConsume);
     const durationMs = durationMinutes * 60 * 1000;
     
@@ -137,7 +136,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
 
     // Remove consumed items from inventory
     const remainingItems = (player.inventory?.items || []).filter(
-      (item: InventoryItem) => !itemsToConsume.some((consumed: InventoryItem) => consumed.id === item.id)
+      (item) => !itemsToConsume.some((consumed) => consumed.id === item.id)
     );
 
     // Update player in database

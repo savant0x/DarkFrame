@@ -84,7 +84,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChannelType } from '@/lib/channelService';
-import type {  DirectMessage, ConversationPreview } from '@/types/directMessage';
+import { DirectMessage, ConversationPreview, DMMessageStatus } from '@/types/directMessage';
+
+/** Extract a user-facing message from an unknown thrown value (bare catches;
+ *  no `catch (e: any)` — the shape is narrowed here, once). */
+function getErrorMessage(error: Error | unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 // ============================================================================
 // TYPES
@@ -111,6 +117,62 @@ interface ChatPanelProps {
   onTabChange?: (tab: 'CHAT' | 'DM') => void;
   /** Callback when DM unread count changes */
   onDMUnreadCountChange?: (count: number) => void;
+}
+
+/** Wire shape of a chat message as served by /api/chat and socket pushes.
+ *  Dates arrive as ISO strings over the wire; the UI shape (ChatMessageData)
+ *  holds Date objects. One documented boundary for the mapping below. */
+interface ChatMessageWire {
+  id: string;
+  channelId: string;
+  senderId: string;
+  senderUsername: string;
+  senderLevel: number;
+  /** The server computes VIP on whichever alias its version emits; consumers
+   *  accept both (FID-20260905-001 mapping note). */
+  isVIP?: boolean;
+  senderIsVIP?: boolean;
+  message: string; // server field name for the text content (FID-20260905-001)
+  timestamp: string;
+  edited?: boolean;
+  editedAt?: string;
+}
+
+/** Socket payload for a channel's typing indicators. */
+interface TypingWire {
+  userId: string;
+  username: string;
+  timestamp: string;
+}
+
+/** Socket payload element for the DM conversation list. */
+interface ConversationWire {
+  id: string;
+  otherUserId: string;
+  otherUsername: string;
+  otherUserAvatar?: string;
+  lastMessage?: {
+    content: string;
+    senderId: string;
+    timestamp: string;
+    status?: DMMessageStatus;
+  } | null;
+  unreadCount?: number;
+  updatedAt: string;
+}
+
+/** Wire shape of a direct message as served by /api/dm endpoints. */
+interface DirectMessageWire {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  recipientId: string;
+  senderUsername: string;
+  content: string;
+  status: DMMessageStatus;
+  timestamp: string;
+  editedAt?: string;
+  deletedAt?: string;
 }
 
 interface ChatMessageData {
@@ -268,7 +330,7 @@ export default function ChatPanel({
   /**
    * Poll for new messages every 2 seconds
    */
-  const { data: _polledMessages, isPolling: isPollingMessages } = usePolling<any>({
+  const { data: _polledMessages, isPolling: isPollingMessages } = usePolling<{ messages?: ChatMessageWire[] }>({
     fetchFn: async () => {
       const since = lastMessageTimestampRef.current
         ? `&since=${lastMessageTimestampRef.current.toISOString()}`
@@ -288,13 +350,13 @@ export default function ChatPanel({
           const existingMessages = prev.get(activeChannel) || [];
           // FID-20260905-001: server ChatMessage carries the text in `message` —
           // content was undefined → TypeError: undefined.split in renderMessageContent.
-          const newMessages: ChatMessageData[] = data.messages.map((m: any) => ({
+          const newMessages: ChatMessageData[] = (data.messages as ChatMessageWire[]).map((m) => ({
             id: m.id,
-            channelId: m.channelId,
+            channelId: m.channelId as ChannelType,
             senderId: m.senderId,
             senderUsername: m.senderUsername,
             senderLevel: m.senderLevel,
-            senderIsVIP: m.isVIP ?? m.senderIsVIP,
+            senderIsVIP: m.isVIP ?? m.senderIsVIP ?? false,
             content: m.message,
             timestamp: new Date(m.timestamp),
             edited: m.edited,
@@ -324,7 +386,7 @@ export default function ChatPanel({
   /**
    * Poll for typing indicators every 2 seconds
    */
-  const { data: _typersData } = usePolling<{ typers: TypingUser[] }>({
+  const { data: _typersData } = usePolling<{ typers: TypingWire[] }>({
     fetchFn: async () => {
       const res = await fetch(`/api/chat/typing?channelId=${activeChannel}`);
       if (!res.ok) throw new Error('Failed to load typers');
@@ -338,8 +400,8 @@ export default function ChatPanel({
         setTypingUsers((prev) => {
           const updated = new Map(prev);
           const typers = data.typers
-            .filter((t: any) => t.userId !== userId) // Don't show self typing
-            .map((t: any) => ({
+            .filter((t) => t.userId !== userId) // Don't show self typing
+            .map((t) => ({
               username: t.username,
               timestamp: new Date(t.timestamp).getTime(),
             }));
@@ -410,7 +472,7 @@ export default function ChatPanel({
   /**
    * Poll for DM conversations every 2 seconds (when DM tab active)
    */
-  const { data: _polledConversations } = usePolling<any>({
+  const { data: _polledConversations } = usePolling<{ conversations?: ConversationWire[] }>({
     fetchFn: async () => {
       const res = await fetch('/api/dm');
       if (!res.ok) throw new Error('Failed to load conversations');
@@ -421,7 +483,7 @@ export default function ChatPanel({
     pauseWhenInactive: true,
     onData: (data) => {
       if (data?.conversations && Array.isArray(data.conversations)) {
-        const convos: ConversationPreview[] = data.conversations.map((c: any) => ({
+        const convos: ConversationPreview[] = (data.conversations as ConversationWire[]).map((c) => ({
           id: c.id,
           otherUserId: c.otherUserId,
           otherUsername: c.otherUsername,
@@ -430,7 +492,7 @@ export default function ChatPanel({
             content: c.lastMessage.content,
             senderId: c.lastMessage.senderId,
             timestamp: new Date(c.lastMessage.timestamp),
-            status: c.lastMessage.status,
+            status: c.lastMessage.status ?? DMMessageStatus.SENT,
           } : null,
           unreadCount: c.unreadCount || 0,
           updatedAt: new Date(c.updatedAt),
@@ -443,7 +505,7 @@ export default function ChatPanel({
   /**
    * Poll for DM messages every 2 seconds (when conversation selected)
    */
-  const { data: _polledDMMessages } = usePolling<any>({
+  const { data: _polledDMMessages } = usePolling<{ messages?: DirectMessageWire[] }>({
     fetchFn: async () => {
       if (!selectedConversationId) return null;
       const res = await fetch(`/api/dm/${selectedConversationId}`);
@@ -455,7 +517,7 @@ export default function ChatPanel({
     pauseWhenInactive: true,
     onData: (data) => {
       if (data?.messages && Array.isArray(data.messages)) {
-        const msgs: DirectMessage[] = data.messages.map((m: any) => ({
+        const msgs: DirectMessage[] = (data.messages as DirectMessageWire[]).map((m) => ({
           id: m.id,
           conversationId: m.conversationId,
           senderId: m.senderId,
@@ -632,13 +694,13 @@ export default function ChatPanel({
 
       const data = await response.json();
       // FID-20260905-001: server field is `message` (see mapping note above).
-      const loadedMessages: ChatMessageData[] = data.messages.map((m: any) => ({
+      const loadedMessages: ChatMessageData[] = (data.messages as ChatMessageWire[]).map((m) => ({
         id: m.id,
-        channelId: m.channelId,
+        channelId: m.channelId as ChannelType,
         senderId: m.senderId,
         senderUsername: m.senderUsername,
         senderLevel: m.senderLevel,
-        senderIsVIP: m.isVIP ?? m.senderIsVIP,
+        senderIsVIP: m.isVIP ?? m.senderIsVIP ?? false,
         content: m.message,
         timestamp: new Date(m.timestamp),
         edited: m.edited,
@@ -871,9 +933,9 @@ export default function ChatPanel({
 
       toast.success('Message edited');
       cancelEdit();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Edit failed:', error);
-      toast.error(error.message || 'Failed to edit message');
+      toast.error(getErrorMessage(error, 'Failed to edit message'));
     }
   };
 
@@ -905,9 +967,9 @@ export default function ChatPanel({
 
       toast.success('Message deleted');
       setDeleteConfirmId(null);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Delete failed:', error);
-      toast.error(error.message || 'Failed to delete message');
+      toast.error(getErrorMessage(error, 'Failed to delete message'));
     }
   };
 
@@ -948,9 +1010,9 @@ export default function ChatPanel({
 
       setDmInput('');
       // Messages will be updated via polling
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to send DM:', error);
-      toast.error(error.message || 'Failed to send message');
+      toast.error(getErrorMessage(error, 'Failed to send message'));
     } finally {
       setIsSendingDM(false);
     }
@@ -981,9 +1043,9 @@ export default function ChatPanel({
 
       toast.success('Conversation deleted');
       setDeleteConversationConfirmId(null);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to delete conversation:', error);
-      toast.error(error.message || 'Failed to delete conversation');
+      toast.error(getErrorMessage(error, 'Failed to delete conversation'));
     }
   };
 
@@ -1056,9 +1118,9 @@ export default function ChatPanel({
       setPlayerSearchQuery('');
       setPlayerSearchResults([]);
       toast.success(`Started conversation with ${otherUsername}`);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to start conversation:', error);
-      toast.error(error.message || 'Failed to start conversation');
+      toast.error(getErrorMessage(error, 'Failed to start conversation'));
     }
   };
 
