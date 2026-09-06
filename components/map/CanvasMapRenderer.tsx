@@ -131,7 +131,9 @@ export function CanvasMapRenderer({
     }
 
     // Draw flag-bearer marker (gold, larger than player)
-    if (flagMarker) {
+    // FID-20260906-005 R-map: guard position — a truthy marker without a
+    // resolved position must never crash the whole canvas.
+    if (flagMarker?.position) {
       const bx = (flagMarker.position.x - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
       const by = (flagMarker.position.y - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
 
