@@ -95,6 +95,9 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const [baseImagePath, setBaseImagePath] = React.useState<string | null>(null);
   const [baseImageError, setBaseImageError] = React.useState(false);
   const [factoryImageError, setFactoryImageError] = React.useState(false);
+  // FID extension-negotiation cache: remembers which factory image extensions
+  // 404'd this session so the loader skips straight to an existing format.
+  const [factoryImagesChecked, setFactoryImagesChecked] = React.useState<Record<string, boolean>>({});
   const [_isLoading, setIsLoading] = React.useState(true);
   
   // Check if current player is the flag bearer
@@ -293,16 +296,31 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   // Get player rank for display (or rank 1 if not your base)
   const playerRank = player?.rank || 1;
 
-  // Factory level-based image path (keep existing factory system for now)
+  // Factory level-based image path (keep existing factory system for now).
+  // Accepts BOTH .webp/.jpg and .png sources: prefers the optimized .webp
+  // when present, else the first extension that exists, else falls back to
+  // .png so operator-supplied assets in either format always resolve.
+  const FACTORY_IMAGE_EXTS = ['.webp', '.jpg', '.png'] as const;
   const getFactoryImagePath = (): string => {
     if (tile.terrain === TerrainType.Factory && factoryData) {
       const factoryLevel = factoryData.level || 1;
-      return `/assets/factories/level${factoryLevel}/factory.jpg`;
+      const basePath = `/assets/factories/level${factoryLevel}/factory`;
+      if (typeof window !== 'undefined') {
+        const available = FACTORY_IMAGE_EXTS
+          .find(ext => factoryImagesChecked[`${basePath}${ext}`] !== false);
+        return available ? `${basePath}${available}` : `${basePath}.png`;
+      }
+      return `${basePath}.png`;
     }
     return '';
   };
-  
-  const factoryImagePath = getFactoryImagePath();
+
+  const [factoryImagePath, setFactoryImagePath] = React.useState<string | null>(null);
+  // Keep the negotiated path in sync with factory level / extension availability.
+  React.useEffect(() => {
+    setFactoryImagePath(getFactoryImagePath());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tile.terrain, factoryData?.level, factoryImagesChecked]);
 
   return (
     <div className="w-full max-w-2xl">
@@ -369,7 +387,19 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             fill
             sizes="(min-width: 0px) 42rem"
             className="object-cover z-10"
-            onError={() => setFactoryImageError(true)}
+            onError={() => {
+              // Mark this exact path missing, then try the next extension
+              // (webp → jpg → png). All exhausted = real render fallback.
+              setFactoryImagesChecked(prev => ({ ...prev, [factoryImagePath]: false }));
+              const basePath = factoryImagePath.replace(/\.(webp|jpg|png)$/, '');
+              const tried = factoryImagesChecked;
+              const next = FACTORY_IMAGE_EXTS.find(ext => tried[`${basePath}${ext}`] !== false && `${basePath}${ext}` !== factoryImagePath);
+              if (next) {
+                setFactoryImagePath(`${basePath}${next}`);
+              } else {
+                setFactoryImageError(true);
+              }
+            }}
             priority
           />
         )}
