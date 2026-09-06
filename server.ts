@@ -39,7 +39,9 @@ import { connectToDatabase } from './lib/mongodb';
 // Environment configuration
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
-const port = parseInt(process.env.PORT || '3000', 10);
+// SCOPE #23: PORT=0 (seen polluting some shell environments) parses as a valid
+// port and makes Next bind an OS-random one — treat 0/NaN as unset.
+const port = parseInt(process.env.PORT || '3000', 10) || 3000;
 
 // Initialize Next.js with typed configuration
 const app = next({ dev, hostname, port });

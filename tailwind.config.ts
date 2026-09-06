@@ -68,9 +68,11 @@ const config: Config = {
         'info': '#0080ff',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['Fira Code', 'Monaco', 'Courier New', 'monospace'],
-        display: ['Orbitron', 'Inter', 'sans-serif'], // Sci-fi display font
+        // FID-20260906-005 Phase C: self-hosted Orbitron variable font via next/font
+        // (app/layout.tsx); CDN fallback removed from globals.css.
+        display: ['var(--font-orbitron)', 'Orbitron', 'Inter', 'sans-serif'],
       },
       boxShadow: {
         'glow-cyan': '0 0 20px rgba(0, 240, 255, 0.5), 0 0 40px rgba(0, 240, 255, 0.2)',
@@ -88,20 +90,20 @@ const config: Config = {
         lg: '16px',
         xl: '24px',
       },
+      /*
+       * FID-20260906-005 (Phase A1): `fade-in`, `scale-in`, `float` and
+       * `shimmer` tokens were removed — their emitted utility classes collided
+       * with same-named definitions in globals.css, and the globals versions
+       * won the cascade (rendered behavior today). globals.css remains the
+       * single source for those four; `slide-up`, `slide-down` and
+       * `pulse-glow` are owned HERE (globals duplicates deleted).
+       */
       animation: {
-        'fade-in': 'fadeIn 400ms ease-out',
         'slide-up': 'slideUp 400ms ease-out',
         'slide-down': 'slideDown 400ms ease-out',
-        'scale-in': 'scaleIn 300ms ease-out',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
-        'float': 'float 6s ease-in-out infinite',
-        'shimmer': 'shimmer 2s linear infinite',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
-        },
         slideUp: {
           '0%': { opacity: '0', transform: 'translateY(20px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
@@ -110,21 +112,9 @@ const config: Config = {
           '0%': { opacity: '0', transform: 'translateY(-20px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        scaleIn: {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
-        },
         pulseGlow: {
           '0%, 100%': { boxShadow: '0 0 20px rgba(0, 240, 255, 0.5)' },
           '50%': { boxShadow: '0 0 30px rgba(0, 240, 255, 0.8), 0 0 60px rgba(0, 240, 255, 0.4)' },
-        },
-        float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-10px)' },
-        },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' },
         },
       },
       transitionTimingFunction: {
