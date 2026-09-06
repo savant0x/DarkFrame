@@ -1,49 +1,42 @@
 /**
  * @file app/api/cron/flag-bot-movement/route.ts
  * @created 2025-10-23
- * @overview Cron job for flag bot movement and reset
- * 
+ * @overview Cron job for flag bot movement and reset (Postgres rewrite, FID-20260905-001 §7.3)
+ *
  * OVERVIEW:
  * Scheduled job that runs every 30 minutes to manage flag bot lifecycle.
- * Handles bot teleportation to random map locations and flag reset logic.
- * Secured with CRON_SECRET environment variable.
- * 
- * Features:
- * - Move flag bot to random location every 30 minutes
- * - Reset flag if unclaimed for > 1 hour
- * - Only runs when flag is held by bot (not player)
- * - Vercel Cron compatible with security verification
- * 
+ * Postgres-native via drizzle: holder identity is the flat `flags.current_holder`
+ * username (a players row). The previous implementation read a Mongo-era nested
+ * `currentHolder` doc that Postgres rows never carried, so bot detection never
+ * matched and bot teleportation was dead code.
+ *
+ * Actions:
+ * 1. If the flag has been held > 1 hour by the BOT → respawn a fresh bot.
+ *    A HUMAN holder is never reset (the legacy path deleted the holder's player
+ *    row — a data-destroying bug; players now keep the flag until defeated).
+ * 2. If held by the bot → teleport the bot to a random location.
+ * 3. If held by a human → no action.
+ *
+ * Security: Requires CRON_SECRET in Authorization header (fail-closed 500 when
+ * unset so misconfiguration is loud, 401 on bad token).
+ *
  * Cron Schedule: Every 30 minutes
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { moveFlagBot, shouldResetFlag, resetFlagBot } from '@/lib/flagBotService';
-import { getDatabase } from '@/lib/mongodb';
-
-/** Shape of the `flags` singleton document as consumed by the flag-bot movement cron. */
-interface FlagDoc {
-  currentHolder?: {
-    playerId?: string;
-    botId?: string;
-    username?: string;
-    position?: { x: number; y: number };
-  };
-}
+import { db } from '@/lib/db';
+import { flags, players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * GET /api/cron/flag-bot-movement
- * 
+ *
  * Cron endpoint for flag bot management
  * Called by Vercel Cron every 30 minutes
- * 
- * Actions:
- * 1. Check if flag needs reset (unclaimed > 1 hour) → Reset
- * 2. If flag held by bot → Teleport to random location
- * 3. If flag held by player → No action needed
- * 
+ *
  * Security: Requires CRON_SECRET in Authorization header
- * 
+ *
  * @returns JSON response with action taken
  */
 export async function GET(request: NextRequest) {
@@ -51,7 +44,7 @@ export async function GET(request: NextRequest) {
     // Verify cron secret for security
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-    
+
     if (!cronSecret) {
       console.error('⚠️ CRON_SECRET not configured in environment variables');
       return NextResponse.json(
@@ -59,7 +52,7 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
-    
+
     if (authHeader !== `Bearer ${cronSecret}`) {
       console.warn('⚠️ Unauthorized cron job attempt');
       return NextResponse.json(
@@ -67,18 +60,21 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
-    
-    const db = await getDatabase();
-    const flagDoc = await db.collection<FlagDoc>('flags').findOne({});
-    
-    // Check if flag needs reset (unclaimed or held too long)
-    const needsReset = await shouldResetFlag();
-    
-    if (needsReset) {
+
+    const [flagRow] = await db.select().from(flags).limit(1);
+    const holder = flagRow?.currentHolder ?? null;
+
+    // Reset check only applies while the BOT holds the flag. `shouldResetFlag`
+    // is true whenever the claim is older than 1 hour (bot or human) — the
+    // legacy cron then DELETED the holder row, destroying human accounts.
+    const heldTooLong = await shouldResetFlag();
+    const isBotHolder = !!holder && /^Flag-Bearer-/.test(holder);
+
+    if (heldTooLong && isBotHolder) {
       const newBot = await resetFlagBot();
-      
+
       console.log(`🔄 Flag reset: New bot spawned at (${newBot.currentPosition.x}, ${newBot.currentPosition.y})`);
-      
+
       return NextResponse.json({
         success: true,
         action: 'reset',
@@ -90,114 +86,66 @@ export async function GET(request: NextRequest) {
         timestamp: new Date(),
       });
     }
-    
-    // Only move bot if flag is held by bot (not player)
-    if (flagDoc?.currentHolder?.botId) {
-      const newPosition = await moveFlagBot(flagDoc.currentHolder.botId);
-      
-      // Update flag position in database
-      await db.collection('flags').updateOne(
-        {},
-        { $set: { currentHolder: { ...(flagDoc?.currentHolder ?? {}), position: newPosition } } }
-      );
-      
-      console.log(`🚁 Flag bot teleported to (${newPosition.x}, ${newPosition.y})`);
-      
+
+    if (heldTooLong && holder && !isBotHolder) {
+      // Human holder past the 1-hour mark: the flag stays with them until they
+      // are defeated in combat. Log for observability.
+      console.log(`ℹ️ Flag held by player ${holder} for >1h — no reset (player retention rule)`);
+
       return NextResponse.json({
         success: true,
-        action: 'moved',
-        message: 'Flag bot teleported to new random location',
-        oldPosition: flagDoc.currentHolder.position,
-        newPosition,
+        action: 'none',
+        message: 'Flag held by player - no reset applied',
+        holder: { username: holder },
         timestamp: new Date(),
       });
     }
-    
-    // Flag held by player - no action needed
-    if (flagDoc?.currentHolder?.playerId) {
-      console.log(`ℹ️ Flag held by player: ${flagDoc.currentHolder.username} - no action needed`);
-      
+
+    // Only move bot if flag is held by the bot
+    if (holder && isBotHolder) {
+      const [botRow] = await db.select().from(players).where(eq(players.username, holder)).limit(1);
+      if (botRow) {
+        const newPosition = await moveFlagBot(holder);
+        const oldPosition = { x: botRow.currentPositionX, y: botRow.currentPositionY };
+
+        console.log(`🚁 Flag bot teleported to (${newPosition.x}, ${newPosition.y})`);
+
+        return NextResponse.json({
+          success: true,
+          action: 'moved',
+          message: 'Flag bot teleported to new random location',
+          oldPosition,
+          newPosition,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    if (holder) {
+      // Human holder inside the 1-hour window — no action needed.
       return NextResponse.json({
         success: true,
         action: 'none',
         message: 'Flag held by player - no bot movement needed',
-        holder: {
-          username: flagDoc.currentHolder.username,
-          position: flagDoc.currentHolder.position,
-        },
+        holder: { username: holder },
         timestamp: new Date(),
       });
     }
-    
+
     // No flag holder found - unusual state
     console.warn('⚠️ No flag holder found in database');
-    
+
     return NextResponse.json({
       success: true,
       action: 'none',
       message: 'No flag holder found',
       timestamp: new Date(),
     });
-    
   } catch (error) {
-    console.error('❌ Flag cron job error:', error);
-    
+    console.error('❌ Flag bot movement error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
-        timestamp: new Date(),
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
-
-/**
- * IMPLEMENTATION NOTES:
- * 
- * Vercel Cron Configuration:
- * Add to vercel.json in project root:
- * 
- * {
- *   "crons": [{
- *     "path": "/api/cron/flag-bot-movement",
- *     "schedule": "0,30 * * * *"
- *   }]
- * }
- * 
- * Schedule Format (cron syntax):
- * - "0,30 * * * *" = Every hour at 0 and 30 minutes (twice per hour)
- * - Runs at: 12:00, 12:30, 1:00, 1:30, etc.
- * 
- * Environment Variables Required:
- * - CRON_SECRET: Secret token for cron authentication
- *   Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
- *   Add to .env.local: CRON_SECRET=your-generated-secret
- * 
- * Security:
- * - Vercel automatically adds Authorization header with Bearer token
- * - We verify the token matches CRON_SECRET
- * - Prevents unauthorized execution of cron endpoints
- * 
- * Logging:
- * - All actions logged to console for monitoring
- * - Check Vercel deployment logs to verify cron execution
- * - Look for: "🚁 Flag bot teleported" or "🔄 Flag reset"
- * 
- * Error Handling:
- * - Returns 500 if CRON_SECRET not configured
- * - Returns 401 if authorization fails
- * - Returns 500 if database error occurs
- * - Logs all errors for debugging
- * 
- * Testing Locally:
- * - Set CRON_SECRET in .env.local
- * - Call endpoint: curl -H "Authorization: Bearer YOUR_SECRET" http://localhost:3000/api/cron/flag-bot-movement
- * - Check console for action logs
- * 
- * Related Files:
- * - /lib/flagBotService.ts - Flag bot lifecycle functions
- * - /app/api/flag/route.ts - Flag API endpoints
- * - /vercel.json - Cron configuration
- */

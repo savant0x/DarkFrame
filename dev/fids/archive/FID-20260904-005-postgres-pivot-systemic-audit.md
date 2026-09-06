@@ -525,4 +525,21 @@ wmd/missiles
 
 ---
 
-**Final status:** analyzed
+**Final status:** converged · implemented (phases 1–4) · closed 2026-09-06
+
+## 9. Closure (2026-09-06)
+
+- **Phases implemented:** 1 (persistence + shim hardening, migrations 0009–0009b),
+  2 (auth sweep — 29 routes to session identity, requireAdmin on all admin writes),
+  3 (analytics SQL, DM/warfare jsonb rewrites, activityLog id overflow, cron fail-closed),
+  4 (34 dead client-wired endpoints rebuilt, chat de-mocked, clan/friends persistence).
+- **Phase 5** (ts-nocheck removal + lint convergence) executed under successor
+  FID-20260905-001 (same loop, continuing record). **Phase 6** closure performed jointly:
+  final censuses zero, prod route sweep clean, findings folded into the CHANGELOG.
+- **Post-closure discoveries verified live:** chat TestUser identity hole (§2-class),
+  flag feature dead end-to-end (revived), flag cron deleting human holders (data-loss
+  class) — see FID-20260905-001 §7.1–§7.3 for full records.
+- **Residual debt (tracked, not silent):** repo lint 592 (tests/tooling/lib/components;
+  app/api at zero), `AuthResult.player: any` typing in authMiddleware, orchestrator branch
+  retained locally only.
+- **Archived:** `dev/fids/archive/FID-20260904-005-postgres-pivot-systemic-audit.md`.
