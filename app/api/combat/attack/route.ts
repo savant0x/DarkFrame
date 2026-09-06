@@ -7,7 +7,7 @@
  *
  * Flow: session-authenticated, presence-enforced (must stand ON the base's
  * tile), then delegates to the shared battle resolver (`/api/battle/attack`
- * semantics: resolveBattle + recordBattle + Beer Base analytics) with the
+ * semantics: resolveBattle + persistBattleLog + Beer Base analytics) with the
  * attacker's full army vs the base's full garrison.
  */
 
@@ -23,8 +23,7 @@ import {
 } from '@/lib';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { verifyPresence } from '@/lib/presenceCheck';
-import { resolveBattle } from '@/lib/battleService';
-import { recordBattle } from '@/lib/battleTrackingService';
+import { resolveBattle, persistBattleLog } from '@/lib/battleService';
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
@@ -118,17 +117,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       { x: Number(base.currentPositionX), y: Number(base.currentPositionY) }
     );
 
-    await recordBattle({
-      attacker: battleLog.attacker.username,
-      defender: battleLog.defender.username,
-      winner: battleLog.outcome === 'ATTACKER_WIN' ? battleLog.attacker.username : (battleLog.outcome === 'DEFENDER_WIN' ? battleLog.defender.username : ''),
-      factoryLocation: battleLog.location ?? { x: Number(base.currentPositionX), y: Number(base.currentPositionY) },
-      attackerPower: battleLog.attacker.totalSTR,
-      defenderPower: battleLog.defender.totalDEF,
-      factoryCaptured: battleLog.outcome === 'ATTACKER_WIN',
-      timestamp: battleLog.timestamp,
-      details: battleLog,
-    });
+    // FID-20260906-004 D1: persist the FULL battle log (was: zero-filled
+    // shadow row via recordBattle) + defender notification.
+    await persistBattleLog(battleLog);
 
     // Beer Base defeat analytics + rewards (mirrors /api/battle/attack handling).
     if (battleLog.outcome === 'ATTACKER_WIN') {

@@ -400,6 +400,27 @@ export async function resolveBattle(
 }
 
 /**
+ * FID-20260906-004 D1: the single persistence seam for battle logs.
+ * Every resolved battle goes through here: full-fidelity row insert + a
+ * battle-result notification to the defender (D2, non-fatal). Persistence
+ * failures are logged and swallowed — a battle must never 500 because its
+ * history write failed.
+ */
+export async function persistBattleLog(battleLog: BattleLog): Promise<void> {
+  try {
+    await db.insert(battleLogs).values(battleLogToDbInsert(battleLog));
+  } catch (error) {
+    console.error('❌ Failed to persist battle log (non-fatal):', error);
+  }
+  try {
+    const { notifyBattleResult } = await import('@/lib/battleNotification');
+    await notifyBattleResult(battleLog);
+  } catch (error) {
+    console.error('⚠️ Battle notification dispatch failed (non-fatal):', error);
+  }
+}
+
+/**
  * Helper: Convert BattleLog to DB insert format for battleLogs table
  */
 function battleLogToDbInsert(battleLog: BattleLog) {
@@ -575,8 +596,8 @@ export async function executeInfantryAttack(
     // Battle still succeeds even if RP award fails
   }
 
-  // Save battle log to database
-  await db.insert(battleLogs).values(battleLogToDbInsert(battleLog));
+  // Save battle log to database (FID-20260906-004 D1 seam)
+  await persistBattleLog(battleLog);
 
   return {
     success: true,
@@ -750,8 +771,8 @@ export async function executeBaseAttack(
     // Battle still succeeds even if RP award fails
   }
 
-  // Save battle log to database
-  await db.insert(battleLogs).values(battleLogToDbInsert(battleLog));
+  // Save battle log to database (FID-20260906-004 D1 seam)
+  await persistBattleLog(battleLog);
 
   return {
     success: true,

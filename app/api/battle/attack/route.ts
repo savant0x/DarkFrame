@@ -2,7 +2,7 @@
 // Records a battle and returns the result
 // Modified: 2025-10-24 - Phase 3.1: Added Zod validation and structured error handling
 import { NextRequest, NextResponse } from 'next/server';
-import { recordBattle, resolveBattle } from '@/lib';
+import { persistBattleLog, resolveBattle } from '@/lib';
 import { BattleType } from '@/types';
 import { 
   withRequestLogging, 
@@ -76,17 +76,9 @@ const handler = rateLimiter(async (req: NextRequest) => {
       factoryLocation
     );
     
-    await recordBattle({
-      attacker: battleLog.attacker.username,
-      defender: battleLog.defender.username,
-      winner: battleLog.outcome === 'ATTACKER_WIN' ? battleLog.attacker.username : (battleLog.outcome === 'DEFENDER_WIN' ? battleLog.defender.username : ''),
-      factoryLocation: battleLog.location ?? factoryLocation,
-      attackerPower: battleLog.attacker.totalSTR,
-      defenderPower: battleLog.defender.totalDEF,
-      factoryCaptured: battleLog.outcome === 'ATTACKER_WIN',
-      timestamp: battleLog.timestamp,
-      details: battleLog,
-    });
+    // FID-20260906-004 D1: persist the FULL battle log (was: zero-filled
+    // shadow row via recordBattle) + defender notification.
+    await persistBattleLog(battleLog);
     
     // Beer Base usernames: legacy '🍺BeerBase-<TIER>-…' or compact 'b<TIER><ts8><rand4>'
     const isBeerBase = defender.startsWith('🍺BeerBase-') || /^b[WMSEUL]\d{12}$/.test(defender);
