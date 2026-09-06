@@ -23,6 +23,7 @@
  */
 
 import { db } from '@/lib/db';
+import { getGlobalBotConfig } from '@/lib/botConfigService';
 import { players } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
@@ -48,6 +49,8 @@ interface Position {
 }
 
 const MIGRATION_CONFIG = {
+  // FID-20260906-003 S1: the live percentage comes from bot_config 'global'
+  // (admin panel); this default only documents the historical value.
   MIGRATION_PERCENTAGE: 0.3,
   MAP_SIZE: 5000,
   SAFE_DISTANCE: 50,
@@ -172,7 +175,10 @@ export async function executeMigration(
 ): Promise<MigrationEvent> {
   const allBots = await db.select().from(players).where(eq(players.isBot, 1));
 
-  const migrateCount = Math.floor(allBots.length * MIGRATION_CONFIG.MIGRATION_PERCENTAGE);
+  // FID-20260906-003 S1: the admin panel's migrationPercent setting is now the
+  // source of truth (was the hardcoded MIGRATION_CONFIG.MIGRATION_PERCENTAGE).
+  const globalConfig = await getGlobalBotConfig();
+  const migrateCount = Math.floor(allBots.length * globalConfig.migrationPercent);
 
   const shuffled = [...allBots].sort(() => 0.5 - Math.random());
   const botsToMigrate = shuffled.slice(0, migrateCount);

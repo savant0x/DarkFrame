@@ -12,14 +12,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, modLog } from '@/lib/db/schema';
+import { eq, sql } from 'drizzle-orm';
+import { getGlobalBotConfig } from '@/lib/botConfigService';
+import { generateId } from '@/lib/utils';
 import type { PlayerUnit, BotConfig } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-
+  createErrorResponse,
   createValidationErrorResponse,
   createErrorFromException,
   ErrorCode,
@@ -64,6 +67,20 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const body = await request.json();
     const validated = BotSpawnSchema.parse(body);
     const { specialization, tier, position, isSpecialBase, count = 1 } = validated;
+
+    // FID-20260906-003 S1: enforce the admin-configured population cap. Pre-FID
+    // the panel's totalBotCap setting was never read by anything.
+    const globalConfig = await getGlobalBotConfig();
+    const [currentBots] = await db
+      .select({ botCount: sql<number>`count(*)::int` })
+      .from(players)
+      .where(eq(players.isBot, 1));
+    const currentCount = currentBots?.botCount ?? 0;
+    if (currentCount + count > globalConfig.totalBotCap) {
+      return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, {
+        message: `Spawn refused: ${currentCount} bots exist and spawning ${count} would exceed the configured cap of ${globalConfig.totalBotCap}.`,
+      });
+    }
 
     // Generate bots
     const spawnedBots: string[] = [];
@@ -130,6 +147,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       // Insert bot
       await db.insert(players).values(botDoc);
       spawnedBots.push(username);
+    }
+
+    // FID-20260906-003 S6: bot-population mutation → mod_log audit row.
+    if (spawnedBots.length > 0) {
+      await db.insert(modLog).values({
+        id: generateId().slice(0, 24),
+        moderatorId: tokenPayload.username.slice(0, 20),
+        action: 'ADMIN_BOT_SPAWN',
+        targetId: spawnedBots[0].slice(0, 24),
+        details: JSON.stringify({ count: spawnedBots.length, specialization, tier, bots: spawnedBots }),
+        createdAt: new Date(),
+      });
     }
 
     log.info('Bots spawned successfully', {

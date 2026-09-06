@@ -76,11 +76,19 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     // FID-20260904-005 §5.2a: Postgres folds the unquoted identifiers to lower-case,
     // so SELECT * returns lower-case keys — project them back to the API's camelCase.
+    // FID-20260906-003 S3: rows are projected to the admin UI's RpTransaction
+    // contract (_id/username/vipBonusApplied) — the previous keys (playerUsername/
+    // vipBonus) rendered empty columns in the transactions table.
     const txRows = (result as unknown as { rows?: Array<Record<string, unknown>> }).rows ?? [];
     const transactions = txRows.map((r) => ({
       ...r,
+      _id: r.id,
+      id: r.id,
+      username: r.playerusername ?? r.playerUsername,
       playerUsername: r.playerusername ?? r.playerUsername,
+      amount: Number(r.amount ?? 0),
       vipBonus: Boolean(r.vipbonus ?? r.vipBonus),
+      vipBonusApplied: Boolean(r.vipbonus ?? r.vipBonus),
       balanceAfter: r.balanceafter ?? r.balanceAfter,
     }));
 

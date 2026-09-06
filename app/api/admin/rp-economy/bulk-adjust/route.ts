@@ -7,6 +7,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authService';
 import { awardRP, spendRP } from '@/lib/researchPointService';
+import { db } from '@/lib/db';
+import { modLog } from '@/lib/db/schema';
+import { generateId } from '@/lib/utils';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -70,6 +73,17 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
       amount,
       newBalance: result.newBalance,
       adminUser: adminUsername || adminUser.username,
+    });
+
+    // FID-20260906-003 S6: economy-mutating admin action → mod_log audit row.
+    await db.insert(modLog).values({
+      id: generateId().slice(0, 24),
+      moderatorId: (adminUsername || adminUser.username).slice(0, 20),
+      action: 'ADMIN_RP_BULK_ADJUST',
+      targetId: username.slice(0, 24),
+      reason: reason || null,
+      details: JSON.stringify({ amount, newBalance: result.newBalance }),
+      createdAt: new Date(),
     });
 
     return NextResponse.json({
