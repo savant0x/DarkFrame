@@ -31,7 +31,7 @@ export default function ClanPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cyan-500 mx-auto mb-4"></div>
           <p className="text-xl text-white/70">Loading clan data...</p>
@@ -51,7 +51,7 @@ export default function ClanPage() {
   // Level requirement check
   if (player.level < 10) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white">
+      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           {/* Back Button */}
           <div className="mb-6">
@@ -66,13 +66,13 @@ export default function ClanPage() {
           </div>
 
           {/* Level Requirement Message */}
-          <div className="bg-gray-900/80 backdrop-blur-sm border-2 border-yellow-500/50 rounded-lg p-8 text-center">
+          <div className="bg-glass-dark backdrop-blur-sm border-2 border-yellow-500/50 rounded-lg p-8 text-center">
             <Crown className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
             <h1 className="text-3xl font-bold text-white mb-3">Level Requirement</h1>
-            <p className="text-gray-300 text-lg mb-4">
+            <p className="text-text-primary text-lg mb-4">
               You must reach <span className="text-yellow-400 font-bold">Level 10</span> to access clan features.
             </p>
-            <p className="text-gray-400 mb-6">
+            <p className="text-text-secondary mb-6">
               Current Level: <span className="text-cyan-400 font-bold">{player.level}</span>
             </p>
             <Button onClick={() => router.push('/game')} className="bg-cyan-600 hover:bg-cyan-700">
@@ -87,7 +87,7 @@ export default function ClanPage() {
   // Player has a clan - show ClanPanel
   if (player.clanId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white">
+      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white">
         <div className="container mx-auto px-4 py-6 max-w-7xl">
           {/* Back Button */}
           <div className="mb-6">
@@ -110,7 +110,7 @@ export default function ClanPage() {
 
   // Player has no clan - show create/join options
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white">
+    <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Back Button */}
         <div className="mb-6">
@@ -125,11 +125,11 @@ export default function ClanPage() {
         </div>
 
         {/* No Clan State */}
-        <div className="bg-gray-900/80 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg p-8">
+        <div className="bg-glass-dark backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg p-8">
           <div className="text-center mb-8">
             <Users className="w-20 h-20 text-cyan-400 mx-auto mb-4" />
             <h1 className="text-4xl font-bold text-white mb-3">You{"'"}re Not in a Clan</h1>
-            <p className="text-gray-300 text-lg">
+            <p className="text-text-primary text-lg">
               Join forces with other players or create your own clan to unlock exclusive benefits, 
               territory control, and cooperative gameplay features.
             </p>
@@ -155,9 +155,9 @@ export default function ClanPage() {
           </div>
 
           {/* Clan Benefits */}
-          <div className="mt-8 pt-8 border-t border-gray-700">
+          <div className="mt-8 pt-8 border-t border-glass-border">
             <h3 className="text-lg font-bold text-cyan-400 mb-4">Clan Benefits:</h3>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-gray-300">
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-text-primary">
               <li className="flex items-start gap-2">
                 <span className="text-green-400">✓</span>
                 <span>Shared resources and clan bank</span>

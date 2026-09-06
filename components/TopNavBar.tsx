@@ -143,7 +143,7 @@ export default function TopNavBar({
   if (!player) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 bg-gray-900/80 backdrop-blur-md border-b border-cyan-500/30 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
+    <div className="fixed top-0 left-0 right-0 z-50 bg-glass-dark backdrop-blur-md border-b border-cyan-500/30 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
       <div className="flex items-center justify-between px-4 py-2">
         {/* Left: Game Title */}
         <div className="flex items-center gap-4">
@@ -271,7 +271,7 @@ export default function TopNavBar({
         {/* Right: Player Info, Time, Logout */}
         <div className="flex items-center gap-3">
           {/* Time Display */}
-          <div className="flex items-center gap-1.5 text-xs text-white/70 px-2 py-1 bg-gray-800/60 rounded border border-cyan-500/20">
+          <div className="flex items-center gap-1.5 text-xs text-white/70 px-2 py-1 bg-glass-light rounded border border-cyan-500/20">
             <Clock className="w-3.5 h-3.5" />
             <span className="font-mono">{currentTime}</span>
           </div>
@@ -316,7 +316,7 @@ export default function TopNavBar({
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-gray-700 text-white text-xs font-bold rounded border-2 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)] hover:shadow-[0_0_20px_rgba(239,68,68,0.5)] transition-all flex items-center gap-1.5"
+            className="px-3 py-1.5 bg-red-600/80 hover:bg-red-600 disabled:bg-glass-light text-white text-xs font-bold rounded border-2 border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.3)] hover:shadow-[0_0_20px_rgba(239,68,68,0.5)] transition-all flex items-center gap-1.5"
           >
             <LogOut className="w-3.5 h-3.5" />
             {isLoggingOut ? 'Logging out...' : 'LOGOUT'}

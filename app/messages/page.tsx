@@ -352,10 +352,10 @@ export default function MessagesPage() {
 
   if (playerLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-bg-space via-bg-nebula to-bg-space flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading player data...</p>
+          <p className="text-text-secondary">Loading player data...</p>
         </div>
       </div>
     );
@@ -370,15 +370,15 @@ export default function MessagesPage() {
   // ============================================================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900">
+    <div className="min-h-screen bg-gradient-to-b from-bg-space via-bg-nebula to-bg-space">
       {/* Header */}
-      <div className="bg-gray-800/50 border-b border-gray-700 backdrop-blur-sm sticky top-0 z-10">
+      <div className="bg-glass-light border-b border-glass-border backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {/* Title */}
             <div>
               <h1 className="text-2xl font-bold text-white">Messages</h1>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="text-sm text-text-secondary mt-1">
                 Private conversations and real-time chat
               </p>
             </div>
@@ -393,7 +393,7 @@ export default function MessagesPage() {
               )}
               
               {/* Connection Status */}
-              <div className="flex items-center gap-2 bg-gray-700/50 px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-2 bg-glass-light px-3 py-1.5 rounded-full">
                 <div
                   className={`w-2 h-2 rounded-full ${
                     state.connectionStatus === 'connected'
@@ -406,7 +406,7 @@ export default function MessagesPage() {
                   }`}
                   title={`Connection: ${state.connectionStatus}`}
                 />
-                <span className="text-xs text-gray-300 capitalize">
+                <span className="text-xs text-text-primary capitalize">
                   {state.connectionStatus}
                 </span>
                 
@@ -427,12 +427,12 @@ export default function MessagesPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="bg-gray-800/30 border border-gray-700 rounded-lg overflow-hidden backdrop-blur-sm">
+        <div className="bg-glass-light border border-glass-border rounded-lg overflow-hidden backdrop-blur-sm">
           {/* Desktop: Split Pane Layout */}
           {!state.isMobileView && (
             <div className="flex h-[calc(100vh-200px)]">
               {/* Inbox Pane */}
-              <div className="w-1/3 border-r border-gray-700 overflow-hidden">
+              <div className="w-1/3 border-r border-glass-border overflow-hidden">
                 <MessageInbox
                   playerId={currentPlayerId}
                   onConversationSelect={handleConversationSelect}
@@ -455,10 +455,10 @@ export default function MessagesPage() {
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
                       <div className="text-6xl mb-4">💬</div>
-                      <h3 className="text-xl font-semibold text-gray-300 mb-2">
+                      <h3 className="text-xl font-semibold text-text-primary mb-2">
                         Select a Conversation
                       </h3>
-                      <p className="text-gray-500">
+                      <p className="text-text-secondary">
                         Choose a conversation from the left to start messaging
                       </p>
                     </div>
@@ -481,10 +481,10 @@ export default function MessagesPage() {
               ) : (
                 <div className="h-full flex flex-col">
                   {/* Back Button */}
-                  <div className="bg-gray-700/50 p-3 border-b border-gray-600 flex-shrink-0">
+                  <div className="bg-glass-light p-3 border-b border-glass-border flex-shrink-0">
                     <button
                       onClick={handleBackToInbox}
-                      className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors"
+                      className="flex items-center gap-2 text-text-primary hover:text-white transition-colors"
                     >
                       <span className="text-lg">←</span>
                       <span className="font-medium">Back to Conversations</span>
@@ -521,7 +521,7 @@ export default function MessagesPage() {
             </div>
             <button
               onClick={reconnect}
-              className="ml-4 px-3 py-1 bg-white text-red-500 rounded font-medium hover:bg-gray-100 transition-colors"
+              className="ml-4 px-3 py-1 bg-white text-red-500 rounded font-medium hover:bg-bg-nebula transition-colors"
             >
               Retry Now
             </button>

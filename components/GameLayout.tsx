@@ -74,7 +74,7 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
   battleLogs, 
   backgroundImage,
   chatUser,
-  tutorialQuestPanel: _tutorialQuestPanel,
+  tutorialQuestPanel,
   initialChatTab,
   onChatTabChange,
   onDMUnreadCountChange,
@@ -182,6 +182,10 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
           <ErrorBoundary>
             {controlsPanel}
           </ErrorBoundary>
+          {/* FID-20260906-005 T3.1 (R4): the tutorial quest panel docks here on lg+
+              instead of floating over the tile action card. Below lg the rail hides
+              and the panel hides with it (mobile drawer is a documented follow-up). */}
+          {tutorialQuestPanel}
         </aside>
       </div>
 
@@ -265,14 +269,11 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
 
 export default memo(function GameLayout(props: GameLayoutProps) {
   return (
-    <>
-      <ChatPanelProvider>
-        <GameLayoutInternal {...props} />
-      </ChatPanelProvider>
-      
-      {/* Tutorial Quest Panel - Independent fixed overlay (no longer needs ChatPanelProvider) */}
-      {props.tutorialQuestPanel}
-    </>
+    <ChatPanelProvider>
+      {/* FID-20260906-005 T3.1: tutorialQuestPanel renders inside the right controls
+          rail (see aside above) — no longer a viewport-fixed overlay. */}
+      <GameLayoutInternal {...props} />
+    </ChatPanelProvider>
   );
 });
 

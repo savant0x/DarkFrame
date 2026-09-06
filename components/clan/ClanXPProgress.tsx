@@ -102,13 +102,13 @@ export default function ClanXPProgress({
       {/* Progress Bar */}
       <div className="space-y-1">
         <div className="flex justify-between text-sm">
-          <span className="text-gray-400">
+          <span className="text-text-secondary">
             {formatNumberAbbreviated(currentXP)} / {formatNumberAbbreviated(totalXP)} XP
           </span>
           <span className="text-cyan-400 font-bold">{progress.toFixed(1)}%</span>
         </div>
 
-        <div className="relative h-8 bg-gray-700 rounded-full overflow-hidden shadow-inner">
+        <div className="relative h-8 bg-glass-light rounded-full overflow-hidden shadow-inner">
           {/* Animated progress fill */}
           <div
             className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 transition-all duration-500 ease-out"
@@ -153,14 +153,14 @@ export default function ClanXPProgress({
       {/* Milestone Achievement */}
       {showMilestone && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-gradient-to-b from-purple-900 to-gray-900 border-4 border-purple-500 rounded-lg p-8 max-w-md shadow-2xl animate-scale-in">
+          <div className="bg-gradient-to-b from-purple-900 to-bg-space border-4 border-purple-500 rounded-lg p-8 max-w-md shadow-2xl animate-scale-in">
             <div className="text-center space-y-4">
               <div className="text-6xl">🏆</div>
               <div className="text-3xl font-bold text-yellow-400">
                 MILESTONE REACHED!
               </div>
               <div className="text-2xl text-white">Level {level}</div>
-              <div className="text-gray-300">
+              <div className="text-text-primary">
                 Your clan has reached a major milestone!
               </div>
               <button

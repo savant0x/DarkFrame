@@ -105,10 +105,10 @@ export default function PerkCard({
         };
       default:
         return {
-          border: 'border-gray-700',
-          text: 'text-gray-400',
-          bg: 'bg-gray-900/20',
-          badge: 'bg-gray-900/50',
+          border: 'border-glass-border',
+          text: 'text-text-secondary',
+          bg: 'bg-glass-dark',
+          badge: 'bg-glass-dark',
         };
     }
   };
@@ -145,8 +145,8 @@ export default function PerkCard({
         isActive
           ? `${colors.border} ${colors.bg} shadow-lg`
           : isLocked
-          ? 'border-gray-700 bg-gray-900/30 opacity-60'
-          : `${colors.border} bg-gray-900/50 hover:shadow-md`
+          ? 'border-glass-border bg-glass-dark opacity-60'
+          : `${colors.border} bg-glass-dark hover:shadow-md`
       }`}
     >
       {/* Header */}
@@ -163,17 +163,17 @@ export default function PerkCard({
           </div>
         )}
         {isLocked && (
-          <div className="text-gray-500 text-lg">🔒</div>
+          <div className="text-text-secondary text-lg">🔒</div>
         )}
       </div>
 
       {/* Perk Name */}
-      <h4 className={`font-bold mb-1 ${isLocked ? 'text-gray-500' : 'text-white'}`}>
+      <h4 className={`font-bold mb-1 ${isLocked ? 'text-text-secondary' : 'text-white'}`}>
         {perk.name}
       </h4>
 
       {/* Description */}
-      <p className={`text-xs mb-3 ${isLocked ? 'text-gray-600' : 'text-gray-400'}`}>
+      <p className={`text-xs mb-3 ${isLocked ? 'text-text-tertiary' : 'text-text-secondary'}`}>
         {perk.description}
       </p>
 
@@ -186,19 +186,19 @@ export default function PerkCard({
 
       {/* Cost */}
       <div className="space-y-1 mb-3">
-        <div className="text-xs text-gray-400">Cost:</div>
+        <div className="text-xs text-text-secondary">Cost:</div>
         <div className="grid grid-cols-3 gap-1 text-xs">
           <div className="text-center">
             <div className="text-orange-400">{formatNumberAbbreviated(perk.cost.metal)}</div>
-            <div className="text-gray-500">Metal</div>
+            <div className="text-text-secondary">Metal</div>
           </div>
           <div className="text-center">
             <div className="text-blue-400">{formatNumberAbbreviated(perk.cost.energy)}</div>
-            <div className="text-gray-500">Energy</div>
+            <div className="text-text-secondary">Energy</div>
           </div>
           <div className="text-center">
             <div className="text-purple-400">{formatNumberAbbreviated(perk.cost.researchPoints)}</div>
-            <div className="text-gray-500">RP</div>
+            <div className="text-text-secondary">RP</div>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function PerkCard({
           <div className="text-red-400 text-xs">
             🔒 Level {perk.requiredLevel} required
           </div>
-          <div className="text-gray-500 text-xs">
+          <div className="text-text-secondary text-xs">
             ({levelsToUnlock} level{levelsToUnlock !== 1 ? 's' : ''} to unlock)
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function PerkCard({
               disabled={isLoading}
               className={`w-full px-4 py-2 rounded font-semibold transition ${
                 isLoading
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  ? 'bg-glass-light text-text-secondary cursor-not-allowed'
                   : 'bg-red-700 hover:bg-red-600 text-white'
               }`}
             >
@@ -236,7 +236,7 @@ export default function PerkCard({
               disabled={isLoading || !canActivate}
               className={`w-full px-4 py-2 rounded font-semibold transition ${
                 isLoading || !canActivate
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  ? 'bg-glass-light text-text-secondary cursor-not-allowed'
                   : `${colors.bg} ${colors.text} border ${colors.border} hover:opacity-80`
               }`}
             >
@@ -252,7 +252,7 @@ export default function PerkCard({
 
       {/* Activated Info (for active perks) */}
       {isActive && perk.activatedBy && perk.activatedAt && (
-        <div className="mt-2 text-xs text-gray-500 text-center">
+        <div className="mt-2 text-xs text-text-secondary text-center">
           Activated by {perk.activatedBy}
           <br />
           {new Date(perk.activatedAt).toLocaleDateString()}

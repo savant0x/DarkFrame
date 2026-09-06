@@ -95,7 +95,7 @@ export function MapLegend(): React.JSX.Element {
 
   return (
     <div 
-      className="bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-700"
+      className="bg-glass-light rounded-lg p-4 shadow-lg border border-glass-border"
       role="region"
       aria-label="Map legend"
     >
@@ -119,7 +119,7 @@ export function MapLegend(): React.JSX.Element {
       </div>
 
       {/* Additional info */}
-      <div className="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-400">
+      <div className="mt-4 pt-4 border-t border-glass-border text-xs text-text-secondary">
         <p>💡 Tip: Click any tile to view its coordinates and terrain type</p>
       </div>
     </div>
@@ -143,7 +143,7 @@ function LegendItem({
     <div
       className={`
         flex items-center gap-2
-        ${mobile ? 'p-2 bg-gray-750 rounded' : 'flex-col text-center'}
+        ${mobile ? 'p-2 bg-glass-light rounded' : 'flex-col text-center'}
       `}
       title={item.description}
     >
@@ -165,13 +165,13 @@ function LegendItem({
       )}
 
       {/* Label */}
-      <span className={`${mobile ? 'text-sm flex-1' : 'text-xs'} text-gray-300`}>
+      <span className={`${mobile ? 'text-sm flex-1' : 'text-xs'} text-text-primary`}>
         {item.label}
       </span>
 
       {/* Description (mobile only) */}
       {mobile && (
-        <span className="text-xs text-gray-500 hidden sm:block">
+        <span className="text-xs text-text-secondary hidden sm:block">
           {item.description}
         </span>
       )}

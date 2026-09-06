@@ -201,9 +201,9 @@ export default function MessageInbox({
   // ========================================================================
 
   return (
-    <div className={`flex flex-col h-full bg-gray-900 border-r border-gray-700 ${className}`}>
+    <div className={`flex flex-col h-full bg-glass-dark border-r border-glass-border ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-700">
+      <div className="p-4 border-b border-glass-border">
         <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
           <MessageCircle className="w-6 h-6 text-blue-400" />
           Messages
@@ -211,13 +211,13 @@ export default function MessageInbox({
 
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
           <input
             type="text"
             placeholder="Search conversations..."
             value={state.searchQuery}
             onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-blue-500"
           />
         </div>
 
@@ -228,7 +228,7 @@ export default function MessageInbox({
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               state.filter === 'all'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
             All
@@ -238,7 +238,7 @@ export default function MessageInbox({
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               state.filter === 'unread'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
             Unread
@@ -248,7 +248,7 @@ export default function MessageInbox({
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
               state.filter === 'pinned'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
             <Pin className="w-3 h-3" />
@@ -259,7 +259,7 @@ export default function MessageInbox({
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
               state.filter === 'archived'
                 ? 'bg-blue-600 text-white'
-                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
             <Archive className="w-3 h-3" />
@@ -286,9 +286,9 @@ export default function MessageInbox({
           </div>
         ) : state.conversations.length === 0 ? (
           <div className="p-8 text-center">
-            <MessageCircle className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-            <p className="text-gray-400">No conversations yet</p>
-            <p className="text-sm text-gray-500 mt-1">
+            <MessageCircle className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
+            <p className="text-text-secondary">No conversations yet</p>
+            <p className="text-sm text-text-secondary mt-1">
               Start chatting with other players!
             </p>
           </div>
@@ -304,10 +304,10 @@ export default function MessageInbox({
                 <div
                   key={String(conversation._id)}
                   onClick={() => handleSelectConversation(String(conversation._id))}
-                  className={`p-4 border-b border-gray-800 cursor-pointer transition-colors ${
+                  className={`p-4 border-b border-glass-border cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-gray-800 border-l-4 border-l-blue-500'
-                      : 'hover:bg-gray-800/50'
+                      ? 'bg-glass-light border-l-4 border-l-blue-500'
+                      : 'hover:bg-glass-light'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -328,7 +328,7 @@ export default function MessageInbox({
                           )}
                         </div>
                         {conversation.lastMessage && (
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <span className="text-xs text-text-secondary flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {formatTimestamp(conversation.lastMessage.createdAt)}
                           </span>
@@ -338,10 +338,10 @@ export default function MessageInbox({
                       {conversation.lastMessage && (
                         <div className="flex items-center justify-between">
                           <p className={`text-sm truncate ${
-                            unreadCount > 0 ? 'text-white font-medium' : 'text-gray-400'
+                            unreadCount > 0 ? 'text-white font-medium' : 'text-text-secondary'
                           }`}>
                             {conversation.lastMessage.senderId === playerId && (
-                              <span className="text-gray-500">You: </span>
+                              <span className="text-text-secondary">You: </span>
                             )}
                             {truncateMessage(conversation.lastMessage.content)}
                           </p>
