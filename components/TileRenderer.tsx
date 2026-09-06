@@ -297,7 +297,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const getFactoryImagePath = (): string => {
     if (tile.terrain === TerrainType.Factory && factoryData) {
       const factoryLevel = factoryData.level || 1;
-      return `/assets/factories/level${factoryLevel}/factory.png`;
+      return `/assets/factories/level${factoryLevel}/factory.jpg`;
     }
     return '';
   };
