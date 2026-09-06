@@ -130,7 +130,7 @@ export default function LeaderboardPage() {
       case 'CRITICAL':
         return 'text-red-400';
       default:
-        return 'text-gray-400';
+        return 'text-text-secondary';
     }
   };
   
@@ -139,7 +139,7 @@ export default function LeaderboardPage() {
    */
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-glass-dark text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <p className="text-xl">Loading leaderboard...</p>
@@ -153,11 +153,11 @@ export default function LeaderboardPage() {
    */
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-glass-dark text-white flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h1 className="text-2xl font-bold mb-2">Error Loading Leaderboard</h1>
-          <p className="text-gray-400 mb-6">{error}</p>
+          <p className="text-text-secondary mb-6">{error}</p>
           <div className="flex gap-4 justify-center">
             <button
               onClick={fetchLeaderboard}
@@ -167,7 +167,7 @@ export default function LeaderboardPage() {
             </button>
             <button
               onClick={() => router.push('/game')}
-              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+              className="px-6 py-2 bg-glass-light hover:bg-glass-light rounded transition-colors"
             >
               Back to Game
             </button>
@@ -181,13 +181,13 @@ export default function LeaderboardPage() {
    * Main leaderboard view
    */
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-4">
+    <div className="min-h-screen bg-glass-dark text-white p-4">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-4xl font-bold mb-2">🏆 Player Rankings</h1>
-            <p className="text-gray-400">
+            <p className="text-text-secondary">
               {leaderboardData?.totalPlayers.toLocaleString()} players | 
               Last updated: {leaderboardData ? new Date(leaderboardData.lastUpdated).toLocaleTimeString() : ''}
             </p>
@@ -196,14 +196,14 @@ export default function LeaderboardPage() {
             <button
               onClick={fetchLeaderboard}
               disabled={refreshing}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 rounded transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-glass-light rounded transition-colors flex items-center gap-2"
             >
               <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
               Refresh
             </button>
             <button
               onClick={() => router.push('/game')}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
+              className="px-4 py-2 bg-glass-light hover:bg-glass-light rounded transition-colors"
             >
               ← Back to Game
             </button>
@@ -217,10 +217,10 @@ export default function LeaderboardPage() {
             placeholder="Search players..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded focus:outline-none focus:border-blue-500 transition-colors"
           />
           {searchQuery && (
-            <p className="text-sm text-gray-400 mt-2">
+            <p className="text-sm text-text-secondary mt-2">
               Found {filteredLeaderboard.length} player(s) matching &quot;{searchQuery}&quot;
             </p>
           )}
@@ -231,7 +231,7 @@ export default function LeaderboardPage() {
           <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400 mb-1">Your Rank</p>
+                <p className="text-sm text-text-secondary mb-1">Your Rank</p>
                 <p className="text-3xl font-bold">
                   {getRankDisplay(leaderboardData.currentPlayerRank || 0)} 
                   {leaderboardData.currentPlayerRank && leaderboardData.currentPlayerRank > 3 && 
@@ -241,7 +241,7 @@ export default function LeaderboardPage() {
                 <p className="text-xl mt-1">{leaderboardData.currentPlayerData.username}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-400 mb-1">Effective Power</p>
+                <p className="text-sm text-text-secondary mb-1">Effective Power</p>
                 <p className="text-2xl font-bold text-yellow-400">
                   {formatNumber(leaderboardData.currentPlayerData.effectivePower)}
                 </p>
@@ -250,7 +250,7 @@ export default function LeaderboardPage() {
                     <span className="text-purple-400">⭐ Level {leaderboardData.currentPlayerData.level || 1}</span>
                   </div>
                   <div>
-                    <span className="text-gray-400">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
+                    <span className="text-text-secondary">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
                   </div>
                 </div>
                 <p className={`text-sm mt-1 ${getBalanceColor(leaderboardData.currentPlayerData.balanceStatus)}`}>
@@ -265,32 +265,32 @@ export default function LeaderboardPage() {
       
       {/* Leaderboard Table */}
       <div className="max-w-7xl mx-auto">
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
+        <div className="bg-glass-light rounded-lg overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-700">
+              <thead className="bg-glass-light">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-primary uppercase tracking-wider">
                     Rank
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-text-primary uppercase tracking-wider">
                     Player
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-text-primary uppercase tracking-wider">
                     Effective Power
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-text-primary uppercase tracking-wider">
                     Level
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-center text-xs font-medium text-text-primary uppercase tracking-wider">
                     Balance
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-700">
+              <tbody className="divide-y divide-glass-border">
                 {filteredLeaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                    <td colSpan={5} className="px-6 py-8 text-center text-text-secondary">
                       {searchQuery ? 'No players found matching your search' : 'No players yet'}
                     </td>
                   </tr>
@@ -302,7 +302,7 @@ export default function LeaderboardPage() {
                       <tr 
                         key={`${player.rank}-${player.username}`}
                         className={`
-                          ${isCurrentPlayer ? 'bg-blue-900/30' : 'hover:bg-gray-750'}
+                          ${isCurrentPlayer ? 'bg-blue-900/30' : 'hover:bg-glass-light'}
                           transition-colors
                         `}
                       >
@@ -335,7 +335,7 @@ export default function LeaderboardPage() {
                           <div className={`text-sm ${getBalanceColor(player.balanceStatus)}`}>
                             {player.balanceStatus}
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-text-secondary">
                             {(player.balanceMultiplier * 100).toFixed(0)}%
                           </div>
                         </td>
@@ -349,7 +349,7 @@ export default function LeaderboardPage() {
         </div>
         
         {/* Footer Info */}
-        <div className="mt-6 text-center text-gray-500 text-sm">
+        <div className="mt-6 text-center text-text-secondary text-sm">
           <p>Rankings based on Effective Power: (Strength + Defense) × Balance Multiplier</p>
           <p className="mt-1">Maintain balanced armies for optimal ranking position</p>
         </div>

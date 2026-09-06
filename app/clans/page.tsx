@@ -135,7 +135,7 @@ export default function ClansLeaderboard() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white overflow-y-auto">
+    <div className="h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white overflow-y-auto">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}
         <div className="mb-6">
@@ -157,7 +157,7 @@ export default function ClansLeaderboard() {
               Clan Leaderboards
             </h1>
           </div>
-          <p className="text-gray-400 text-lg">
+          <p className="text-text-secondary text-lg">
             Compete for supremacy across {totalClans} clans
           </p>
         </div>
@@ -213,7 +213,7 @@ export default function ClansLeaderboard() {
         {/* Search Bar */}
         <div className="mb-6">
           <div className="relative max-w-md mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
             <Input
               placeholder="Search clan by name..."
               value={searchQuery}
@@ -229,15 +229,15 @@ export default function ClansLeaderboard() {
         {isLoading ? (
           <div className="text-center py-20">
             <Loader2 className="w-16 h-16 mx-auto mb-4 text-cyan-400 animate-spin" />
-            <p className="text-gray-400 text-lg">Loading leaderboard...</p>
+            <p className="text-text-secondary text-lg">Loading leaderboard...</p>
           </div>
         ) : leaderboard.length === 0 ? (
           <div className="text-center py-20">
-            <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-            <p className="text-gray-400 text-lg mb-2">
+            <Trophy className="w-16 h-16 mx-auto mb-4 text-text-tertiary" />
+            <p className="text-text-secondary text-lg mb-2">
               {searchQuery ? 'No clans found matching your search' : 'No clans in this category yet'}
             </p>
-            <p className="text-gray-500 text-sm">
+            <p className="text-text-secondary text-sm">
               {searchQuery ? 'Try a different search term' : 'Be the first to create a clan!'}
             </p>
           </div>
@@ -308,7 +308,7 @@ export default function ClansLeaderboard() {
         )}
 
         {/* Footer Info */}
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="mt-8 text-center text-sm text-text-secondary">
           <p>Showing {((currentPage - 1) * clansPerPage) + 1} - {Math.min(currentPage * clansPerPage, totalClans)} of {totalClans} clans</p>
           <p className="mt-2">Rankings update every 5 minutes</p>
         </div>
@@ -335,7 +335,7 @@ function CategoryButton({ icon, label, active, onClick }: CategoryButtonProps) {
         flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all
         ${active 
           ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/20' 
-          : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:border-cyan-500/30 hover:text-cyan-400'
+          : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light hover:border-cyan-500/30 hover:text-cyan-400'
         }
       `}
     >
@@ -371,7 +371,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     }
     if (rank === 2) {
       return (
-        <div className="flex items-center gap-2 text-gray-300">
+        <div className="flex items-center gap-2 text-text-primary">
           <Medal className="w-6 h-6" />
           <span className="text-2xl font-bold">2</span>
         </div>
@@ -386,7 +386,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
       );
     }
     return (
-      <span className="text-2xl font-bold text-gray-500">#{rank}</span>
+      <span className="text-2xl font-bold text-text-secondary">#{rank}</span>
     );
   };
 
@@ -440,18 +440,18 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
   const borderColor = rank === 1 
     ? 'border-yellow-500/50' 
     : rank === 2 
-    ? 'border-gray-400/50' 
+    ? 'border-glass-border' 
     : rank === 3 
     ? 'border-orange-500/50'
-    : 'border-gray-700/50';
+    : 'border-glass-border';
 
   const bgColor = rank === 1
     ? 'bg-yellow-500/10'
     : rank === 2
-    ? 'bg-gray-500/10'
+    ? 'bg-glass-light/40'
     : rank === 3
     ? 'bg-orange-500/10'
-    : 'bg-gray-800/50';
+    : 'bg-glass-light';
 
   return (
     <div className={`${bgColor} border ${borderColor} rounded-lg p-4 hover:border-cyan-500/30 transition-all`}>
@@ -477,21 +477,21 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
             <div>
-              <span className="text-gray-500">Level:</span>
+              <span className="text-text-secondary">Level:</span>
               <span className="text-cyan-400 ml-2 font-semibold">{clan.level.currentLevel}</span>
             </div>
             <div>
-              <span className="text-gray-500">Members:</span>
+              <span className="text-text-secondary">Members:</span>
               <span className="text-purple-400 ml-2 font-semibold">
                 {clan.members.length}/{clan.maxMembers}
               </span>
             </div>
             <div>
-              <span className="text-gray-500">Territories:</span>
+              <span className="text-text-secondary">Territories:</span>
               <span className="text-green-400 ml-2 font-semibold">{clan.territories?.length || 0}</span>
             </div>
             <div>
-              <span className="text-gray-500">Leader:</span>
+              <span className="text-text-secondary">Leader:</span>
               <span className="text-yellow-400 ml-2 font-semibold truncate">
                 {clan.members.find(m => m.role === 'LEADER')?.username || 'Unknown'}
               </span>

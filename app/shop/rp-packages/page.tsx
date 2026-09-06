@@ -146,14 +146,14 @@ export default function RPPackagesPage() {
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula flex items-center justify-center">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white p-6">
+    <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula text-white p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <BackButton destination="/game" />
@@ -162,16 +162,16 @@ export default function RPPackagesPage() {
           <h1 className="text-5xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent mb-4">
             💎 Research Point Shop
           </h1>
-          <p className="text-xl text-slate-300 mb-2">
+          <p className="text-xl text-text-primary mb-2">
             Optional packages to accelerate your progression
           </p>
-          <p className="text-sm text-slate-400 mb-6">
+          <p className="text-sm text-text-secondary mb-6">
             🌟 <strong>Free-to-play is fully viable!</strong> Active players earn 6,000-12,000 RP/day through normal play.
           </p>
           
           {/* Current RP Balance */}
-          <div className="inline-block bg-slate-800 border-2 border-yellow-500 rounded-lg px-8 py-4 mb-8">
-            <div className="text-sm text-slate-400 mb-1">Your Current Balance</div>
+          <div className="inline-block bg-glass-light border-2 border-yellow-500 rounded-lg px-8 py-4 mb-8">
+            <div className="text-sm text-text-secondary mb-1">Your Current Balance</div>
             <div className="text-4xl font-bold text-yellow-400">
               {player.researchPoints?.toLocaleString() || 0} RP
             </div>
@@ -242,10 +242,10 @@ export default function RPPackagesPage() {
               return (
                 <div
                   key={pkg.id}
-                  className={`relative bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 ${
+                  className={`relative bg-glass-light rounded-xl overflow-hidden transition-all duration-300 ${
                     pkg.popular 
                       ? 'border-4 border-yellow-500 shadow-lg shadow-yellow-500/50 scale-105' 
-                      : 'border-2 border-slate-700 hover:border-slate-500'
+                      : 'border-2 border-glass-border hover:border-glass-border'
                   }`}
                 >
                   {pkg.popular && (
@@ -274,7 +274,7 @@ export default function RPPackagesPage() {
                       </div>
                     </div>
 
-                    <div className="text-center text-sm text-slate-400 mb-4">
+                    <div className="text-center text-sm text-text-secondary mb-4">
                       <div className="mb-1">⏱️ Time Saved</div>
                       <div className="text-green-400 font-semibold">
                         {pkg.daysEquivalent < 1 
@@ -316,7 +316,7 @@ export default function RPPackagesPage() {
         )}
 
         {/* FAQ / Transparency Section */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mt-8">
+        <div className="bg-glass-light border border-glass-border rounded-lg p-6 mt-8">
           <h3 className="text-2xl font-bold mb-4">❓ Frequently Asked Questions</h3>
           <div className="space-y-4">
             <FAQItem
@@ -347,17 +347,17 @@ export default function RPPackagesPage() {
           <h3 className="text-3xl font-bold mb-4">
             👑 Want Better Long-Term Value?
           </h3>
-          <p className="text-xl text-slate-300 mb-6">
+          <p className="text-xl text-text-primary mb-6">
             VIP subscription gives you <strong>+50% RP on everything</strong> you earn, plus 2x auto-farm speed!
           </p>
           <div className="flex justify-center gap-4">
-            <div className="bg-slate-800 rounded-lg p-4">
-              <div className="text-sm text-slate-400">VIP Monthly</div>
+            <div className="bg-glass-light rounded-lg p-4">
+              <div className="text-sm text-text-secondary">VIP Monthly</div>
               <div className="text-2xl font-bold text-purple-400">$9.99/mo</div>
               <div className="text-xs text-green-400 mt-1">+50% all RP sources</div>
             </div>
-            <div className="bg-slate-800 rounded-lg p-4">
-              <div className="text-sm text-slate-400">VIP Yearly</div>
+            <div className="bg-glass-light rounded-lg p-4">
+              <div className="text-sm text-text-secondary">VIP Yearly</div>
               <div className="text-2xl font-bold text-purple-400">$99.99/yr</div>
               <div className="text-xs text-green-400 mt-1">2 months free!</div>
             </div>
@@ -387,11 +387,11 @@ interface FreeSourceCardProps {
 
 function FreeSourceCard({ icon, title, amount, description }: FreeSourceCardProps) {
   return (
-    <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+    <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
       <div className="text-3xl mb-2">{icon}</div>
       <div className="font-bold text-lg mb-1">{title}</div>
       <div className="text-2xl text-yellow-400 font-bold mb-2">{amount}</div>
-      <div className="text-sm text-slate-400">{description}</div>
+      <div className="text-sm text-text-secondary">{description}</div>
     </div>
   );
 }
@@ -405,7 +405,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
   return (
     <div className="border-l-4 border-blue-500 pl-4">
       <div className="font-bold text-lg mb-2">{question}</div>
-      <div className="text-slate-300">{answer}</div>
+      <div className="text-text-primary">{answer}</div>
     </div>
   );
 }

@@ -187,7 +187,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-6xl h-[85vh] bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border-2 border-purple-500/30 shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full max-w-6xl h-[85vh] bg-gradient-to-br from-bg-space to-bg-nebula rounded-lg border-2 border-purple-500/30 shadow-2xl overflow-hidden flex flex-col"
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/30 px-6 py-4 flex items-center justify-between flex-shrink-0">
@@ -197,18 +197,18 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-text-secondary hover:text-white transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
 
           {/* Search & Filters Bar */}
-          <div className="border-b border-slate-700 px-6 py-4 space-y-3 flex-shrink-0">
+          <div className="border-b border-glass-border px-6 py-4 space-y-3 flex-shrink-0">
             {/* Search Row */}
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
                 <Input
                   type="text"
                   value={filters.name}
@@ -240,12 +240,12 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="bg-slate-800/50 rounded-lg p-4 space-y-3"
+                className="bg-glass-light rounded-lg p-4 space-y-3"
               >
                 <div className="grid grid-cols-3 gap-4">
                   {/* Public Only Toggle */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    <label className="block text-xs font-semibold text-text-secondary mb-2">
                       Privacy
                     </label>
                     <button
@@ -253,7 +253,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       className={`w-full px-3 py-2 rounded border transition-colors ${
                         filters.publicOnly
                           ? 'bg-green-500/20 border-green-500 text-green-400'
-                          : 'bg-slate-700 border-slate-600 text-gray-400'
+                          : 'bg-glass-light border-glass-border text-text-secondary'
                       }`}
                     >
                       {filters.publicOnly ? (
@@ -272,7 +272,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
                   {/* Level Range */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    <label className="block text-xs font-semibold text-text-secondary mb-2">
                       Level Range
                     </label>
                     <div className="flex gap-2 items-center">
@@ -284,7 +284,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                         max={50}
                         className="w-full"
                       />
-                      <span className="text-gray-400">-</span>
+                      <span className="text-text-secondary">-</span>
                       <Input
                         type="number"
                         value={filters.maxLevel}
@@ -298,7 +298,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
                   {/* Members Range */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-400 mb-2">
+                    <label className="block text-xs font-semibold text-text-secondary mb-2">
                       Member Count
                     </label>
                     <div className="flex gap-2 items-center">
@@ -310,7 +310,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                         max={100}
                         className="w-full"
                       />
-                      <span className="text-gray-400">-</span>
+                      <span className="text-text-secondary">-</span>
                       <Input
                         type="number"
                         value={filters.maxMembers}
@@ -338,15 +338,15 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-3">
                   <div className="w-12 h-12 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-gray-400">Loading clans...</p>
+                  <p className="text-text-secondary">Loading clans...</p>
                 </div>
               </div>
             ) : clans.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-3">
-                  <Users className="w-16 h-16 text-gray-600 mx-auto" />
-                  <p className="text-gray-400 text-lg">No clans found</p>
-                  <p className="text-gray-500 text-sm">Try adjusting your search filters</p>
+                  <Users className="w-16 h-16 text-text-tertiary mx-auto" />
+                  <p className="text-text-secondary text-lg">No clans found</p>
+                  <p className="text-text-secondary text-sm">Try adjusting your search filters</p>
                 </div>
               </div>
             ) : (
@@ -361,7 +361,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       key={clanIdStr}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-slate-800/50 rounded-lg border border-slate-700 hover:border-purple-500/50 transition-all p-4 space-y-3"
+                      className="bg-glass-light rounded-lg border border-glass-border hover:border-purple-500/50 transition-all p-4 space-y-3"
                     >
                       {/* Clan Header */}
                       <div className="flex items-start justify-between">
@@ -376,7 +376,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                               <Unlock className="w-4 h-4 text-green-400 flex-shrink-0" />
                             )}
                           </div>
-                          <p className="text-xs text-gray-400 line-clamp-2">
+                          <p className="text-xs text-text-secondary line-clamp-2">
                             {clan.description || 'No description'}
                           </p>
                         </div>
@@ -385,19 +385,19 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       {/* Stats Grid */}
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
-                          <div className="text-xs text-gray-400">Level</div>
+                          <div className="text-xs text-text-secondary">Level</div>
                           <div className="text-sm font-bold text-cyan-400">
                             {clan.level.currentLevel}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400">Members</div>
+                          <div className="text-xs text-text-secondary">Members</div>
                           <div className="text-sm font-bold text-purple-400">
                             {clan.members.length}/{clan.maxMembers}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400">Power</div>
+                          <div className="text-xs text-text-secondary">Power</div>
                           <div className="text-sm font-bold text-yellow-400">
                             {clan.stats.totalPower.toLocaleString()}
                           </div>
@@ -406,12 +406,12 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
                       {/* Leader & Requirements */}
                       <div className="text-xs space-y-1">
-                        <div className="flex items-center gap-2 text-gray-400">
+                        <div className="flex items-center gap-2 text-text-secondary">
                           <Crown className="w-3 h-3 text-yellow-400" />
                           <span>Leader: {clan.members.find(m => m.role === 'LEADER')?.username || 'Unknown'}</span>
                         </div>
                         {clan.settings.minLevelToJoin > 1 && (
-                          <div className="flex items-center gap-2 text-gray-400">
+                          <div className="flex items-center gap-2 text-text-secondary">
                             <TrendingUp className="w-3 h-3" />
                             <span>Requires Level {clan.settings.minLevelToJoin}</span>
                           </div>
@@ -451,8 +451,8 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
           {/* Pagination */}
           {!isLoading && clans.length > 0 && (
-            <div className="border-t border-slate-700 px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <div className="text-sm text-gray-400">
+            <div className="border-t border-glass-border px-6 py-4 flex items-center justify-between flex-shrink-0">
+              <div className="text-sm text-text-secondary">
                 Page {currentPage} of {totalPages}
               </div>
               <div className="flex gap-2">

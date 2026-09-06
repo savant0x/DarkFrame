@@ -230,10 +230,10 @@ export default function ClanBankPanel({
         
         <div className="grid grid-cols-3 gap-3">
           {/* Metal */}
-          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
             <div className="flex items-center gap-2 mb-2">
-              <Coins className="w-4 h-4 text-gray-400" />
-              <span className="text-xs text-gray-400">Metal</span>
+              <Coins className="w-4 h-4 text-text-secondary" />
+              <span className="text-xs text-text-secondary">Metal</span>
             </div>
             <div className="text-2xl font-bold text-white">
               {clan.bank.treasury.metal.toLocaleString()}
@@ -241,10 +241,10 @@ export default function ClanBankPanel({
           </div>
 
           {/* Energy */}
-          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
             <div className="flex items-center gap-2 mb-2">
               <Zap className="w-4 h-4 text-cyan-400" />
-              <span className="text-xs text-gray-400">Energy</span>
+              <span className="text-xs text-text-secondary">Energy</span>
             </div>
             <div className="text-2xl font-bold text-white">
               {clan.bank.treasury.energy.toLocaleString()}
@@ -252,10 +252,10 @@ export default function ClanBankPanel({
           </div>
 
           {/* Research Points */}
-          <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
             <div className="flex items-center gap-2 mb-2">
               <Beaker className="w-4 h-4 text-purple-400" />
-              <span className="text-xs text-gray-400">RP</span>
+              <span className="text-xs text-text-secondary">RP</span>
             </div>
             <div className="text-2xl font-bold text-white">
               {clan.research.researchPoints.toLocaleString()}
@@ -264,7 +264,7 @@ export default function ClanBankPanel({
         </div>
 
         {/* Bank Info */}
-        <div className="mt-3 text-xs text-gray-400">
+        <div className="mt-3 text-xs text-text-secondary">
           Bank Level: {clan.bank.upgradeLevel} | Capacity: {clan.bank.capacity.toLocaleString()}
         </div>
       </div>
@@ -279,7 +279,7 @@ export default function ClanBankPanel({
         <div className="space-y-3">
           {/* Metal Deposit */}
           <div className="flex items-center gap-2">
-            <Coins className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Coins className="w-4 h-4 text-text-secondary flex-shrink-0" />
             <Input
               type="number"
               value={depositMetal || ''}
@@ -352,7 +352,7 @@ export default function ClanBankPanel({
           </Button>
         </div>
 
-        <div className="mt-2 text-xs text-gray-400">
+        <div className="mt-2 text-xs text-text-secondary">
           Your Balance: {playerResources.metal.toLocaleString()} Metal | {playerResources.energy.toLocaleString()} Energy | {playerResources.researchPoints} RP
         </div>
       </div>
@@ -364,15 +364,15 @@ export default function ClanBankPanel({
           Withdraw Resources
           {!permissions.canWithdrawFromBank && (
             <span title="Requires permission">
-              <Lock className="w-3 h-3 text-gray-500" />
+              <Lock className="w-3 h-3 text-text-secondary" />
             </span>
           )}
         </h4>
 
         {!permissions.canWithdrawFromBank ? (
-          <div className="bg-slate-800/30 rounded p-3 flex items-start gap-2">
+          <div className="bg-glass-light rounded p-3 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-text-secondary">
               You do not have permission to withdraw from the clan bank. Only Leaders and Officers can withdraw resources.
             </p>
           </div>
@@ -380,7 +380,7 @@ export default function ClanBankPanel({
           <div className="space-y-3">
             {/* Metal Withdraw */}
             <div className="flex items-center gap-2">
-              <Coins className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <Coins className="w-4 h-4 text-text-secondary flex-shrink-0" />
               <Input
                 type="number"
                 value={withdrawMetal || ''}

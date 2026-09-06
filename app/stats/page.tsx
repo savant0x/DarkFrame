@@ -149,9 +149,9 @@ export default function StatsPage() {
     }
 
     return (
-      <div className="h-full w-full overflow-auto bg-gradient-to-b from-gray-900 to-black">
+      <div className="h-full w-full overflow-auto bg-gradient-to-b from-bg-space to-black">
       {/* Header */}
-      <div className="bg-gray-900/80 backdrop-blur-md border-b-2 border-purple-500/30 p-6">
+      <div className="bg-glass-dark backdrop-blur-md border-b-2 border-purple-500/30 p-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -174,7 +174,7 @@ export default function StatsPage() {
         {/* Global Stats Overview */}
         {gameStats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
+            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Users className="w-6 h-6 text-purple-400" />
                 <h3 className="text-lg font-bold text-white">Total Players</h3>
@@ -182,7 +182,7 @@ export default function StatsPage() {
               <p className="text-3xl font-bold text-purple-400">{gameStats.totalPlayers.toLocaleString()}</p>
             </div>
 
-            <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
+            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Coins className="w-6 h-6 text-orange-400" />
                 <h3 className="text-lg font-bold text-white">Total Metal</h3>
@@ -190,7 +190,7 @@ export default function StatsPage() {
               <p className="text-3xl font-bold text-orange-400">{gameStats.totalMetal.toLocaleString()}</p>
             </div>
 
-            <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
+            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Coins className="w-6 h-6 text-cyan-400" />
                 <h3 className="text-lg font-bold text-white">Total Energy</h3>
@@ -198,7 +198,7 @@ export default function StatsPage() {
               <p className="text-3xl font-bold text-cyan-400">{gameStats.totalEnergy.toLocaleString()}</p>
             </div>
 
-            <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
+            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
               <div className="flex items-center gap-3 mb-2">
                 <Target className="w-6 h-6 text-purple-400" />
                 <h3 className="text-lg font-bold text-white">Avg Level</h3>
@@ -209,7 +209,7 @@ export default function StatsPage() {
         )}
 
         {/* Top Players Section */}
-        <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-purple-500/30 rounded-lg overflow-hidden">
+        <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg overflow-hidden">
           {/* Header with Sort Options */}
           <div className="bg-gradient-to-r from-purple-500/20 to-purple-600/20 border-b border-purple-500/30 p-4">
             <div className="flex items-center justify-between">
@@ -223,7 +223,7 @@ export default function StatsPage() {
                   className={`px-3 py-1 rounded ${
                     sortBy === 'power'
                       ? 'bg-purple-500/30 text-purple-400 border border-purple-500/50'
-                      : 'bg-gray-800/50 text-white/70 hover:bg-gray-700/50'
+                      : 'bg-glass-light text-white/70 hover:bg-glass-light'
                   }`}
                 >
                   <Swords className="w-4 h-4 inline mr-1" />
@@ -234,7 +234,7 @@ export default function StatsPage() {
                   className={`px-3 py-1 rounded ${
                     sortBy === 'level'
                       ? 'bg-purple-500/30 text-purple-400 border border-purple-500/50'
-                      : 'bg-gray-800/50 text-white/70 hover:bg-gray-700/50'
+                      : 'bg-glass-light text-white/70 hover:bg-glass-light'
                   }`}
                 >
                   <Award className="w-4 h-4 inline mr-1" />
@@ -245,7 +245,7 @@ export default function StatsPage() {
                   className={`px-3 py-1 rounded ${
                     sortBy === 'metal'
                       ? 'bg-purple-500/30 text-purple-400 border border-purple-500/50'
-                      : 'bg-gray-800/50 text-white/70 hover:bg-gray-700/50'
+                      : 'bg-glass-light text-white/70 hover:bg-glass-light'
                   }`}
                 >
                   <Coins className="w-4 h-4 inline mr-1" />
@@ -268,10 +268,10 @@ export default function StatsPage() {
                       index === 0
                         ? 'bg-yellow-500/10 border-yellow-500/50'
                         : index === 1
-                        ? 'bg-gray-400/10 border-gray-400/50'
+                        ? 'bg-glass-light border-glass-border'
                         : index === 2
                         ? 'bg-orange-500/10 border-orange-500/50'
-                        : 'bg-gray-800/30 border-gray-700/50 hover:bg-gray-800/50'
+                        : 'bg-glass-light border-glass-border hover:bg-glass-light'
                     }`}
                   >
                     <div className="flex items-center gap-4">

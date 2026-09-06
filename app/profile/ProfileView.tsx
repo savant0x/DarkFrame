@@ -122,16 +122,16 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
 
   if (!player) {
     return (
-      <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex items-center justify-center p-8">
+      <div className="bg-glass-light rounded-lg shadow-2xl h-full overflow-hidden flex items-center justify-center p-8">
         <p className="text-white">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="bg-glass-light rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-700 p-6 flex-shrink-0">
+      <div className="bg-glass-dark border-b border-glass-border p-6 flex-shrink-0">
         <h1 className="text-4xl font-bold text-cyan-400">👤 Your Profile</h1>
       </div>
 
@@ -152,23 +152,23 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
         {profileData && (
           <div className="space-y-6 max-w-5xl mx-auto">
             {/* Basic Info */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-cyan-500/30">
+            <div className="bg-glass-light rounded-lg p-6 border-2 border-cyan-500/30">
               <h2 className="text-2xl font-bold text-cyan-400 mb-4">Commander Info</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-gray-400">Username</p>
+                  <p className="text-text-secondary">Username</p>
                   <p className="text-xl font-bold text-white">{profileData.username}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Level</p>
+                  <p className="text-text-secondary">Level</p>
                   <p className="text-xl font-bold text-yellow-400">{profileData.level}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Base Location</p>
+                  <p className="text-text-secondary">Base Location</p>
                   <p className="text-xl font-bold text-green-400">({profileData.base.x}, {profileData.base.y})</p>
                 </div>
                 <div>
-                  <p className="text-gray-400">Rank</p>
+                  <p className="text-text-secondary">Rank</p>
                   <p className="text-xl font-bold text-purple-400">{profileData.rank}</p>
                 </div>
               </div>
@@ -188,20 +188,20 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="bg-gray-900/50 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Total Referrals</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Total Referrals</p>
                     <p className="text-2xl font-bold text-cyan-400">{profileData.referralStats.totalReferrals}</p>
                   </div>
-                  <div className="bg-gray-900/50 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Validated</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Validated</p>
                     <p className="text-2xl font-bold text-green-400">{profileData.referralStats.validatedReferrals}</p>
                   </div>
-                  <div className="bg-gray-900/50 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Badges</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Badges</p>
                     <p className="text-2xl font-bold text-yellow-400">{profileData.referralStats.badges.length}</p>
                   </div>
-                  <div className="bg-gray-900/50 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Next Milestone</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Next Milestone</p>
                     <p className="text-2xl font-bold text-purple-400">
                       {profileData.referralStats.nextMilestone ?? '—'}
                     </p>
@@ -210,10 +210,10 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
 
                 {/* Badges & Titles */}
                 {(profileData.referralStats.badges.length > 0 || profileData.referralStats.titles.length > 0) && (
-                  <div className="bg-gray-900/50 p-4 rounded-lg">
+                  <div className="bg-glass-dark p-4 rounded-lg">
                     {profileData.referralStats.titles.length > 0 && (
                       <div className="mb-3">
-                        <p className="text-sm text-gray-400 mb-2">Titles:</p>
+                        <p className="text-sm text-text-secondary mb-2">Titles:</p>
                         <div className="flex flex-wrap gap-2">
                           {profileData.referralStats.titles.map((title, index) => (
                             <span
@@ -229,7 +229,7 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
 
                     {profileData.referralStats.badges.length > 0 && (
                       <div>
-                        <p className="text-sm text-gray-400 mb-2">Badges:</p>
+                        <p className="text-sm text-text-secondary mb-2">Badges:</p>
                         <div className="flex flex-wrap gap-2">
                           {profileData.referralStats.badges.map((badge, index) => (
                             <span
@@ -263,22 +263,22 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
             )}
 
             {/* Resources */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-cyan-500/30">
+            <div className="bg-glass-light rounded-lg p-6 border-2 border-cyan-500/30">
               <h2 className="text-2xl font-bold text-cyan-400 mb-4">Resources</h2>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-gray-900 p-4 rounded-lg">
-                  <p className="text-gray-400">⚙️ Metal</p>
+                <div className="bg-glass-dark p-4 rounded-lg">
+                  <p className="text-text-secondary">⚙️ Metal</p>
                   <p className="text-2xl font-bold text-blue-400">{profileData.resources.metal.toLocaleString()}</p>
                 </div>
-                <div className="bg-gray-900 p-4 rounded-lg">
-                  <p className="text-gray-400">⚡ Energy</p>
+                <div className="bg-glass-dark p-4 rounded-lg">
+                  <p className="text-text-secondary">⚡ Energy</p>
                   <p className="text-2xl font-bold text-yellow-400">{profileData.resources.energy.toLocaleString()}</p>
                 </div>
               </div>
             </div>
 
             {/* Base Greeting Editor */}
-            <div className="bg-gray-800 rounded-lg p-6 border-2 border-cyan-500/30">
+            <div className="bg-glass-light rounded-lg p-6 border-2 border-cyan-500/30">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-cyan-400">🏠 Base Greeting</h2>
                 {!isEditing && (
@@ -291,7 +291,7 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                 )}
               </div>
 
-              <p className="text-sm text-gray-400 mb-4">
+              <p className="text-sm text-text-secondary mb-4">
                 This message will be shown to other players when they visit your base.
               </p>
 
@@ -307,8 +307,8 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                   />
 
                   {/* Preview */}
-                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                    <p className="text-sm text-gray-400 mb-2">Preview:</p>
+                  <div className="bg-glass-dark border border-glass-border rounded-lg p-4">
+                    <p className="text-sm text-text-secondary mb-2">Preview:</p>
                     <SafeHtmlRenderer 
                       html={baseGreeting}
                       fallback="Your greeting will appear here..."
@@ -320,7 +320,7 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                     <button
                       onClick={handleSaveGreeting}
                       disabled={isSaving}
-                      className="bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                      className="bg-green-600 hover:bg-green-500 disabled:bg-glass-light text-white px-6 py-2 rounded-lg font-semibold transition-colors"
                     >
                       {isSaving ? 'Saving...' : '💾 Save'}
                     </button>
@@ -330,14 +330,14 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                         setBaseGreeting(profileData.base.greeting || '');
                       }}
                       disabled={isSaving}
-                      className="bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+                      className="bg-glass-light hover:bg-bg-nebula disabled:bg-glass-light text-white px-6 py-2 rounded-lg font-semibold transition-colors"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+                <div className="bg-glass-dark border border-glass-border rounded-lg p-4">
                   <SafeHtmlRenderer 
                     html={profileData.base.greeting || ''}
                     fallback="No base greeting set. Click Edit to add one!"
@@ -349,11 +349,11 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
 
             {/* Battle Stats */}
             {profileData.battleStats && (
-              <div className="bg-gray-800 rounded-lg p-6 border-2 border-cyan-500/30">
+              <div className="bg-glass-light rounded-lg p-6 border-2 border-cyan-500/30">
                 <h2 className="text-2xl font-bold text-cyan-400 mb-4">⚔️ Battle Statistics</h2>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Infantry Battles</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Infantry Battles</p>
                     <p className="text-lg font-bold text-white">
                       {profileData.battleStats.infantryAttacks.initiated} initiated
                     </p>
@@ -364,8 +364,8 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                       {profileData.battleStats.infantryAttacks.lost} lost
                     </p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Base Attacks</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Base Attacks</p>
                     <p className="text-lg font-bold text-white">
                       {profileData.battleStats.baseAttacks.initiated} initiated
                     </p>
@@ -376,8 +376,8 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                       {profileData.battleStats.baseAttacks.lost} lost
                     </p>
                   </div>
-                  <div className="bg-gray-900 p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Base Defenses</p>
+                  <div className="bg-glass-dark p-4 rounded-lg">
+                    <p className="text-text-secondary text-sm">Base Defenses</p>
                     <p className="text-lg font-bold text-white">
                       {profileData.battleStats.baseDefenses.total} total
                     </p>

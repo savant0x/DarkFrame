@@ -293,7 +293,7 @@ export default function TutorialOverlay({
     <>
       {/* Tutorial Progress Bar (top of screen) */}
       {uiState.showOverlay && (
-        <div className="tutorial-progress-bar fixed top-14 left-80 right-80 z-[9999] bg-gray-900/95 backdrop-blur-sm border-b border-purple-500/30 rounded-b-lg">
+        <div className="tutorial-progress-bar fixed top-14 left-0 right-0 sm:left-20 sm:right-20 lg:left-[19rem] lg:right-[19rem] xl:left-[21rem] xl:right-[21rem] z-[9999] bg-gray-900/95 backdrop-blur-sm border-b border-purple-500/30 rounded-b-lg">
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">

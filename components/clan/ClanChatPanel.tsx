@@ -318,10 +318,10 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
   const getActivityIcon = (type: ActivityEventType) => {
     const iconMap: Record<ActivityEventType, React.ReactNode> = {
       MEMBER_JOIN: <UserPlus className="w-4 h-4 text-green-400" />,
-      MEMBER_LEAVE: <UserMinus className="w-4 h-4 text-gray-400" />,
+      MEMBER_LEAVE: <UserMinus className="w-4 h-4 text-text-secondary" />,
       MEMBER_KICKED: <UserMinus className="w-4 h-4 text-red-400" />,
       PROMOTION: <ArrowUp className="w-4 h-4 text-yellow-400" />,
-      DEMOTION: <ArrowDown className="w-4 h-4 text-gray-400" />,
+      DEMOTION: <ArrowDown className="w-4 h-4 text-text-secondary" />,
       BANK_DEPOSIT: <Coins className="w-4 h-4 text-green-400" />,
       BANK_WITHDRAW: <Coins className="w-4 h-4 text-yellow-400" />,
       WAR_DECLARED: <Swords className="w-4 h-4 text-red-400" />,
@@ -330,12 +330,12 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       TERRITORY_CLAIMED: <Map className="w-4 h-4 text-cyan-400" />,
       TERRITORY_LOST: <Map className="w-4 h-4 text-red-400" />,
       ALLIANCE_FORMED: <Handshake className="w-4 h-4 text-purple-400" />,
-      ALLIANCE_BROKEN: <Handshake className="w-4 h-4 text-gray-400" />,
+      ALLIANCE_BROKEN: <Handshake className="w-4 h-4 text-text-secondary" />,
       PERK_ACTIVATED: <Sparkles className="w-4 h-4 text-yellow-400" />,
       RESEARCH_COMPLETED: <Beaker className="w-4 h-4 text-purple-400" />
     };
 
-    return iconMap[type] || <Activity className="w-4 h-4 text-gray-400" />;
+    return iconMap[type] || <Activity className="w-4 h-4 text-text-secondary" />;
   };
 
   /**
@@ -372,20 +372,20 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
         </div>
 
         {/* Message List */}
-        <div className="bg-gray-900/50 border border-gray-700/50 rounded-lg h-[500px] flex flex-col">
+        <div className="bg-glass-dark border border-glass-border rounded-lg h-[500px] flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {isLoadingMessages && messages.length === 0 ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="text-center py-20 text-gray-400">
+              <div className="text-center py-20 text-text-secondary">
                 <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No messages yet. Start the conversation!</p>
               </div>
             ) : (
               messages.map(message => (
-                <div key={message.id} className="bg-gray-800/50 border border-gray-700/30 rounded-lg p-3">
+                <div key={message.id} className="bg-glass-light border border-glass-border rounded-lg p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-cyan-400 font-semibold text-sm">{message.senderUsername}</span>
@@ -394,7 +394,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-500 text-xs">{formatTimeAgo(message.timestamp)}</span>
+                      <span className="text-text-secondary text-xs">{formatTimeAgo(message.timestamp)}</span>
                       {canDeleteMessages && message.senderId !== currentUserId && (
                         <button
                           onClick={() => handleDeleteMessage(message.id)}
@@ -405,7 +405,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
                       )}
                     </div>
                   </div>
-                  <p className="text-gray-300 text-sm">{message.content}</p>
+                  <p className="text-text-primary text-sm">{message.content}</p>
                 </div>
               ))
             )}
@@ -413,7 +413,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
           </div>
 
           {/* Message Input */}
-          <div className="border-t border-gray-700/50 p-3">
+          <div className="border-t border-glass-border p-3">
             <div className="flex gap-2">
               <Input
                 placeholder="Type your message..."
@@ -428,7 +428,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
                 Send
               </Button>
             </div>
-            <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <div className="flex items-center justify-between mt-2 text-xs text-text-secondary">
               <span>{messageInput.length} / {maxMessageLength}</span>
               {messageInput.length > maxMessageLength * 0.9 && (
                 <span className="text-yellow-400">Character limit approaching</span>
@@ -485,19 +485,19 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
         </div>
 
         {/* Activity List */}
-        <div className="bg-gray-900/50 border border-gray-700/50 rounded-lg h-[500px] overflow-y-auto p-4 space-y-2">
+        <div className="bg-glass-dark border border-glass-border rounded-lg h-[500px] overflow-y-auto p-4 space-y-2">
           {isLoadingActivities && activities.length === 0 ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
             </div>
           ) : filteredActivities.length === 0 ? (
-            <div className="text-center py-20 text-gray-400">
+            <div className="text-center py-20 text-text-secondary">
               <Filter className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No activities in this category</p>
             </div>
           ) : (
             filteredActivities.map(activity => (
-              <div key={activity.id} className="bg-gray-800/50 border border-gray-700/30 rounded-lg p-3">
+              <div key={activity.id} className="bg-glass-light border border-glass-border rounded-lg p-3">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">{getActivityIcon(activity.type)}</div>
                   <div className="flex-1">
@@ -507,7 +507,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
                         {activity.type.replace(/_/g, ' ')}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 text-xs text-text-secondary">
                       <span className="text-cyan-400">{activity.actorUsername}</span>
                       <span>•</span>
                       <Clock className="w-3 h-3" />
@@ -523,24 +523,24 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
 
         {/* Activity Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-2 text-center">
-            <div className="text-gray-400 mb-1">Total Events</div>
+          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+            <div className="text-text-secondary mb-1">Total Events</div>
             <div className="text-white font-bold">{activities.length}</div>
           </div>
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-2 text-center">
-            <div className="text-gray-400 mb-1">Last 24h</div>
+          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+            <div className="text-text-secondary mb-1">Last 24h</div>
             <div className="text-cyan-400 font-bold">
               {activities.filter(a => new Date().getTime() - a.timestamp.getTime() < 86400000).length}
             </div>
           </div>
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-2 text-center">
-            <div className="text-gray-400 mb-1">Member Actions</div>
+          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+            <div className="text-text-secondary mb-1">Member Actions</div>
             <div className="text-green-400 font-bold">
               {activities.filter(a => ['MEMBER_JOIN', 'MEMBER_LEAVE', 'PROMOTION', 'DEMOTION'].includes(a.type)).length}
             </div>
           </div>
-          <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-2 text-center">
-            <div className="text-gray-400 mb-1">Warfare</div>
+          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+            <div className="text-text-secondary mb-1">Warfare</div>
             <div className="text-red-400 font-bold">
               {activities.filter(a => ['WAR_DECLARED', 'WAR_VICTORY', 'WAR_DEFEAT'].includes(a.type)).length}
             </div>
@@ -568,7 +568,7 @@ function FilterButton({ label, active, onClick, count }: FilterButtonProps) {
       className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
         active
           ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
-          : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50'
+          : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light'
       }`}
     >
       {label} {count > 0 && <span className="ml-1 opacity-70">({count})</span>}

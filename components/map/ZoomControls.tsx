@@ -142,10 +142,10 @@ export function ZoomControls({
     >
       {/* Label */}
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-gray-300">
+        <label className="text-sm font-semibold text-text-primary">
           Zoom Level
         </label>
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-text-secondary">
           {ZOOM_SCALES[currentZoom]}x
         </span>
       </div>
@@ -163,7 +163,7 @@ export function ZoomControls({
               ${
                 currentZoom === zoom.level
                   ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+                  : 'bg-glass-light text-text-primary hover:bg-glass-light hover:text-white'
               }
               active:scale-95
               focus:outline-none focus:ring-1 focus:ring-blue-500
@@ -179,9 +179,9 @@ export function ZoomControls({
       </div>
 
       {/* Keyboard shortcuts hint */}
-      <div className="text-xs text-gray-500 text-center md:text-left mt-1">
+      <div className="text-xs text-text-secondary text-center md:text-left mt-1">
         <span className="hidden md:inline text-xs">
-          <kbd className="px-1 py-0.5 bg-gray-700 rounded text-xs">+/-</kbd> zoom
+          <kbd className="px-1 py-0.5 bg-glass-light rounded text-xs">+/-</kbd> zoom
         </span>
       </div>
     </div>

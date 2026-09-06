@@ -88,7 +88,7 @@ interface PerkCardProps {
 function PerkCard({ perk, isActive = false, onActivate, onDeactivate, isLoading = false }: PerkCardProps) {
   const tierColors = {
     BRONZE: 'border-orange-700/50 bg-orange-900/10',
-    SILVER: 'border-gray-400/50 bg-gray-700/10',
+    SILVER: 'border-glass-border bg-glass-light',
     GOLD: 'border-yellow-400/50 bg-yellow-900/10',
     LEGENDARY: 'border-purple-500/50 bg-purple-900/10',
   };
@@ -112,15 +112,15 @@ function PerkCard({ perk, isActive = false, onActivate, onDeactivate, isLoading 
         </Badge>
       </div>
 
-      <p className="text-gray-400 text-xs leading-relaxed">{perk.description}</p>
+      <p className="text-text-secondary text-xs leading-relaxed">{perk.description}</p>
 
       <div className="space-y-1 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-gray-500">Bonus:</span>
+          <span className="text-text-secondary">Bonus:</span>
           <span className="text-cyan-400 font-semibold">+{perk.bonus.value}% {perk.bonus.type.replace('_', ' ')}</span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-gray-500">Cost:</span>
+          <span className="text-text-secondary">Cost:</span>
           <span className="text-yellow-400">{perk.cost.metal}M + {perk.cost.energy}E + {perk.cost.researchPoints}RP</span>
         </div>
         {perk.levelsToUnlock && (
@@ -274,7 +274,7 @@ export default function ClanPerkPanel({
       case 'SILVER': return 'text-blue-400 border-blue-700';
       case 'GOLD': return 'text-yellow-400 border-yellow-700';
       case 'LEGENDARY': return 'text-purple-400 border-purple-700';
-      default: return 'text-gray-400 border-gray-700';
+      default: return 'text-text-secondary border-glass-border';
     }
   };
 
@@ -304,12 +304,12 @@ export default function ClanPerkPanel({
 
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+      <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-700 rounded w-1/3"></div>
+          <div className="h-8 bg-glass-light rounded w-1/3"></div>
           <div className="grid grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 bg-gray-700 rounded"></div>
+              <div key={i} className="h-40 bg-glass-light rounded"></div>
             ))}
           </div>
         </div>
@@ -332,51 +332,51 @@ export default function ClanPerkPanel({
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-6">
+    <div className="bg-glass-light rounded-lg p-6 border border-glass-border space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-white">Clan Perks</h2>
-        <div className="text-sm text-gray-400">
+        <div className="text-sm text-text-secondary">
           Clan Level: <span className="text-cyan-400 font-bold">{clanLevel}</span>
         </div>
       </div>
 
       {/* Total Bonuses Summary */}
-      <div className="bg-gray-900/50 border border-cyan-700/50 rounded-lg p-4">
+      <div className="bg-glass-dark border border-cyan-700/50 rounded-lg p-4">
         <h3 className="text-cyan-400 font-bold mb-3">Total Active Bonuses</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {totalBonuses.attack > 0 && (
             <div className="text-center">
               <div className="text-red-400 text-2xl font-bold">+{totalBonuses.attack}%</div>
-              <div className="text-gray-400 text-xs">Attack</div>
+              <div className="text-text-secondary text-xs">Attack</div>
             </div>
           )}
           {totalBonuses.defense > 0 && (
             <div className="text-center">
               <div className="text-blue-400 text-2xl font-bold">+{totalBonuses.defense}%</div>
-              <div className="text-gray-400 text-xs">Defense</div>
+              <div className="text-text-secondary text-xs">Defense</div>
             </div>
           )}
           {totalBonuses.resourceYield > 0 && (
             <div className="text-center">
               <div className="text-green-400 text-2xl font-bold">+{totalBonuses.resourceYield}%</div>
-              <div className="text-gray-400 text-xs">Resources</div>
+              <div className="text-text-secondary text-xs">Resources</div>
             </div>
           )}
           {totalBonuses.xpGain > 0 && (
             <div className="text-center">
               <div className="text-purple-400 text-2xl font-bold">+{totalBonuses.xpGain}%</div>
-              <div className="text-gray-400 text-xs">XP Gain</div>
+              <div className="text-text-secondary text-xs">XP Gain</div>
             </div>
           )}
           {totalBonuses.territoryCostReduction > 0 && (
             <div className="text-center">
               <div className="text-yellow-400 text-2xl font-bold">-{totalBonuses.territoryCostReduction}%</div>
-              <div className="text-gray-400 text-xs">Territory Cost</div>
+              <div className="text-text-secondary text-xs">Territory Cost</div>
             </div>
           )}
           {Object.values(totalBonuses).every(v => v === 0) && (
-            <div className="col-span-full text-center text-gray-400">
+            <div className="col-span-full text-center text-text-secondary">
               No active bonuses
             </div>
           )}
@@ -406,9 +406,9 @@ export default function ClanPerkPanel({
               return (
                 <div
                   key={`empty-${index}`}
-                  className="bg-gray-900/50 border-2 border-dashed border-gray-700 rounded-lg p-4 flex items-center justify-center h-40"
+                  className="bg-glass-dark border-2 border-dashed border-glass-border rounded-lg p-4 flex items-center justify-center h-40"
                 >
-                  <span className="text-gray-600 text-sm">Empty Slot</span>
+                  <span className="text-text-tertiary text-sm">Empty Slot</span>
                 </div>
               );
             }
@@ -426,7 +426,7 @@ export default function ClanPerkPanel({
               className={`px-4 py-2 rounded transition ${
                 selectedCategory === null
                   ? 'bg-cyan-700 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-glass-light text-text-primary hover:bg-glass-light'
               }`}
             >
               All
@@ -438,7 +438,7 @@ export default function ClanPerkPanel({
                 className={`px-4 py-2 rounded transition flex items-center gap-2 ${
                   selectedCategory === cat
                     ? 'bg-cyan-700 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-glass-light text-text-primary hover:bg-glass-light'
                 }`}
               >
                 <span>{getCategoryIcon(cat)}</span>
@@ -456,7 +456,7 @@ export default function ClanPerkPanel({
               className={`px-4 py-2 rounded transition ${
                 selectedTier === null
                   ? 'bg-cyan-700 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-glass-light text-text-primary hover:bg-glass-light'
               }`}
             >
               All Tiers
@@ -468,7 +468,7 @@ export default function ClanPerkPanel({
                 className={`px-4 py-2 rounded transition ${
                   selectedTier === tier
                     ? `bg-cyan-700 text-white`
-                    : `bg-gray-700 text-gray-300 hover:bg-gray-600`
+                    : `bg-glass-light text-text-primary hover:bg-glass-light`
                 }`}
               >
                 {tier}
@@ -489,17 +489,17 @@ export default function ClanPerkPanel({
             {recommendations.slice(0, 3).map((rec, _index) => (
               <div
                 key={rec.perk.id}
-                className="bg-gray-900/50 border border-gray-700 rounded p-3"
+                className="bg-glass-dark border border-glass-border rounded p-3"
               >
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-white font-semibold">{rec.perk.name}</div>
-                    <div className="text-gray-400 text-sm">{rec.reason}</div>
+                    <div className="text-text-secondary text-sm">{rec.reason}</div>
                   </div>
                   <div className={`px-2 py-1 rounded text-xs font-bold ${
                     rec.priority === 'high' ? 'bg-red-900/50 text-red-400' :
                     rec.priority === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
-                    'bg-gray-700 text-gray-400'
+                    'bg-glass-light text-text-secondary'
                   }`}>
                     {rec.priority.toUpperCase()}
                   </div>

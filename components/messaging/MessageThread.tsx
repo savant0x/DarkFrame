@@ -283,10 +283,10 @@ export default function MessageThread({
 
     switch (message.status) {
       case 'sending':
-        return <Clock className="w-3 h-3 text-gray-400" />;
+        return <Clock className="w-3 h-3 text-text-secondary" />;
       case 'sent':
       case 'delivered':
-        return <Check className="w-3 h-3 text-gray-400" />;
+        return <Check className="w-3 h-3 text-text-secondary" />;
       case 'read':
         return <CheckCheck className="w-3 h-3 text-blue-400" />;
       case 'failed':
@@ -301,9 +301,9 @@ export default function MessageThread({
   // ========================================================================
 
   return (
-    <div className={`flex flex-col h-full bg-gray-900 ${className}`}>
+    <div className={`flex flex-col h-full bg-glass-dark ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-gray-700 bg-gray-800">
+      <div className="p-4 border-b border-glass-border bg-glass-light">
         <div className="flex items-center gap-3">
           {/* Recipient Avatar */}
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
@@ -371,14 +371,14 @@ export default function MessageThread({
                     className={`max-w-[70%] rounded-lg px-4 py-2 ${
                       isOwn
                         ? 'bg-blue-600 text-white'
-                        : 'bg-gray-800 text-gray-100'
+                        : 'bg-glass-light text-text-primary'
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap break-words">
                       {message.content}
                     </p>
                     <div className={`flex items-center gap-2 mt-1 text-xs ${
-                      isOwn ? 'text-blue-200' : 'text-gray-400'
+                      isOwn ? 'text-blue-200' : 'text-text-secondary'
                     }`}>
                       <span>{formatTimestamp(message.createdAt)}</span>
                       {getStatusIcon(message)}
@@ -395,7 +395,7 @@ export default function MessageThread({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-gray-700 bg-gray-800">
+      <div className="p-4 border-t border-glass-border bg-glass-light">
         {/* Emoji Picker */}
         {showEmojiPicker && (
           <div className="absolute bottom-20 right-4 z-50">
@@ -413,7 +413,7 @@ export default function MessageThread({
           {/* Emoji Button */}
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 text-gray-400 hover:text-gray-300 transition-colors"
+            className="p-2 text-text-secondary hover:text-text-primary transition-colors"
             title="Add emoji"
           >
             <Smile className="w-5 h-5" />
@@ -427,7 +427,7 @@ export default function MessageThread({
             onKeyPress={handleKeyPress}
             placeholder={`Message ${recipientUsername}...`}
             rows={1}
-            className="flex-1 px-4 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 resize-none max-h-32"
+            className="flex-1 px-4 py-2 bg-glass-dark border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-blue-500 resize-none max-h-32"
           />
 
           {/* Send Button */}
@@ -450,7 +450,7 @@ export default function MessageThread({
           <span className={`text-xs ${
             state.draftMessage.length > 900
               ? 'text-red-400'
-              : 'text-gray-500'
+              : 'text-text-secondary'
           }`}>
             {state.draftMessage.length} / 1000
           </span>

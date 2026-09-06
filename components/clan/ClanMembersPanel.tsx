@@ -88,16 +88,16 @@ const ROLE_CONFIG: Record<ClanRole, {
   [ClanRole.MEMBER]: {
     icon: User,
     label: 'Member',
-    color: 'text-gray-400',
-    bgColor: 'bg-gray-500/20',
-    borderColor: 'border-gray-500/30'
+    color: 'text-text-secondary',
+    bgColor: 'bg-glass-light',
+    borderColor: 'border-glass-border'
   },
   [ClanRole.RECRUIT]: {
     icon: User,
     label: 'Recruit',
-    color: 'text-gray-500',
-    bgColor: 'bg-gray-600/20',
-    borderColor: 'border-gray-600/30'
+    color: 'text-text-secondary',
+    bgColor: 'bg-glass-light',
+    borderColor: 'border-glass-border'
   }
 };
 
@@ -305,7 +305,7 @@ export default function ClanMembersPanel({
             <Users className="w-5 h-5 text-purple-400" />
             Clan Members
           </h3>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-text-secondary">
             {clan.members.length} / {clan.maxMembers} members
           </p>
         </div>
@@ -313,7 +313,7 @@ export default function ClanMembersPanel({
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
         <Input
           type="text"
           value={searchTerm}
@@ -326,7 +326,7 @@ export default function ClanMembersPanel({
       {/* Member List */}
       <div className="space-y-2 max-h-[500px] overflow-y-auto">
         {sortedMembers.length === 0 ? (
-          <div className="text-center py-8 text-gray-400">
+          <div className="text-center py-8 text-text-secondary">
             No members found
           </div>
         ) : (
@@ -339,7 +339,7 @@ export default function ClanMembersPanel({
             return (
               <div
                 key={member.playerId}
-                className={`bg-slate-800/50 rounded-lg p-3 border ${roleConfig.borderColor} hover:bg-slate-800/70 transition-colors`}
+                className={`bg-glass-light rounded-lg p-3 border ${roleConfig.borderColor} hover:bg-glass-light transition-colors`}
               >
                 <div className="flex items-center justify-between gap-3">
                   {/* Member Info */}
@@ -349,7 +349,7 @@ export default function ClanMembersPanel({
                       <RoleIcon className={`w-5 h-5 ${roleConfig.color}`} />
                       <Circle
                         className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${
-                          online ? 'fill-green-400 text-green-400' : 'fill-gray-600 text-gray-600'
+                          online ? 'fill-green-400 text-green-400' : 'fill-text-secondary text-text-tertiary'
                         }`}
                       />
                     </div>
@@ -364,7 +364,7 @@ export default function ClanMembersPanel({
                           )}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                      <div className="flex items-center gap-2 text-xs text-text-secondary">
                         <Badge variant="default" className={`${roleConfig.bgColor} ${roleConfig.color} text-xs`}>
                           {roleConfig.label}
                         </Badge>

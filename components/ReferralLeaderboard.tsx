@@ -126,24 +126,24 @@ export default function ReferralLeaderboard() {
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg p-6">
         <h2 className="text-2xl font-bold text-purple-400 mb-2">Top Recruiters</h2>
-        <p className="text-gray-300">
+        <p className="text-text-primary">
           Hall of fame for the most successful recruiters in DarkFrame
         </p>
         {data.currentPlayerRank && (
           <div className="mt-4 bg-purple-800/30 rounded-lg p-3 inline-block">
             <span className="text-purple-300">Your Rank: </span>
             <span className="text-2xl font-bold text-purple-400">#{data.currentPlayerRank}</span>
-            <span className="text-gray-400 ml-2">of {data.totalPlayers}</span>
+            <span className="text-text-secondary ml-2">of {data.totalPlayers}</span>
           </div>
         )}
       </div>
 
       {/* Leaderboard Table */}
-      <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg overflow-hidden">
+      <div className="bg-glass-light border border-cyan-500/30 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gray-900/50 border-b border-cyan-500/30">
+              <tr className="bg-glass-dark border-b border-cyan-500/30">
                 <th className="px-4 py-3 text-left text-sm font-semibold text-cyan-400">Rank</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-cyan-400">Player</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-cyan-400">Referrals</th>
@@ -154,7 +154,7 @@ export default function ReferralLeaderboard() {
             <tbody>
               {!data?.leaderboard || data.leaderboard.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-text-secondary">
                     No recruiters yet. Be the first!
                   </td>
                 </tr>
@@ -162,10 +162,10 @@ export default function ReferralLeaderboard() {
                 data.leaderboard.map((entry) => (
                   <tr
                     key={entry.username}
-                    className={`border-b border-gray-700/50 transition-colors ${
+                    className={`border-b border-glass-border transition-colors ${
                       entry.isCurrentPlayer
                         ? 'bg-purple-900/30 hover:bg-purple-900/40'
-                        : 'hover:bg-gray-700/30'
+                        : 'hover:bg-glass-light'
                     }`}
                   >
                     {/* Rank */}
@@ -176,7 +176,7 @@ export default function ReferralLeaderboard() {
                         )}
                         <span
                           className={`text-lg font-bold ${
-                            entry.rank <= 3 ? 'text-yellow-400' : 'text-gray-400'
+                            entry.rank <= 3 ? 'text-yellow-400' : 'text-text-secondary'
                           }`}
                         >
                           #{entry.rank}
@@ -208,7 +208,7 @@ export default function ReferralLeaderboard() {
                       <div className="text-lg font-bold text-cyan-400">
                         {entry.totalReferrals}
                       </div>
-                      <div className="text-xs text-gray-400">total</div>
+                      <div className="text-xs text-text-secondary">total</div>
                     </td>
 
                     {/* Validated */}
@@ -216,14 +216,14 @@ export default function ReferralLeaderboard() {
                       <div className="text-lg font-bold text-green-400">
                         {entry.validatedReferrals}
                       </div>
-                      <div className="text-xs text-gray-400">validated</div>
+                      <div className="text-xs text-text-secondary">validated</div>
                     </td>
 
                     {/* Badges */}
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-2">
                         {entry.badges.length === 0 ? (
-                          <span className="text-sm text-gray-500">No badges yet</span>
+                          <span className="text-sm text-text-secondary">No badges yet</span>
                         ) : (
                           entry.badges.map((badge, index) => (
                             <span
@@ -259,31 +259,31 @@ export default function ReferralLeaderboard() {
       )}
 
       {/* Milestone Reference */}
-      <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-6">
+      <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-6">
         <h3 className="text-lg font-bold text-cyan-400 mb-4">Milestone Achievements</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-gray-900/50 rounded-lg p-3">
-            <div className="text-sm text-gray-400">1 Referral</div>
+          <div className="bg-glass-dark rounded-lg p-3">
+            <div className="text-sm text-text-secondary">1 Referral</div>
             <div className="text-white font-semibold">🎖️ Recruiter</div>
           </div>
-          <div className="bg-gray-900/50 rounded-lg p-3">
-            <div className="text-sm text-gray-400">5 Referrals</div>
+          <div className="bg-glass-dark rounded-lg p-3">
+            <div className="text-sm text-text-secondary">5 Referrals</div>
             <div className="text-white font-semibold">🥉 Talent Scout</div>
           </div>
-          <div className="bg-gray-900/50 rounded-lg p-3">
-            <div className="text-sm text-gray-400">15 Referrals</div>
+          <div className="bg-glass-dark rounded-lg p-3">
+            <div className="text-sm text-text-secondary">15 Referrals</div>
             <div className="text-white font-semibold">🥈 Elite Recruiter</div>
           </div>
-          <div className="bg-gray-900/50 rounded-lg p-3">
-            <div className="text-sm text-gray-400">25 Referrals</div>
+          <div className="bg-glass-dark rounded-lg p-3">
+            <div className="text-sm text-text-secondary">25 Referrals</div>
             <div className="text-white font-semibold">👑 Ambassador</div>
           </div>
-          <div className="bg-gray-900/50 rounded-lg p-3">
-            <div className="text-sm text-gray-400">50 Referrals</div>
+          <div className="bg-glass-dark rounded-lg p-3">
+            <div className="text-sm text-text-secondary">50 Referrals</div>
             <div className="text-white font-semibold">🥇 Legendary Recruiter</div>
           </div>
-          <div className="bg-gray-900/50 rounded-lg p-3">
-            <div className="text-sm text-gray-400">100 Referrals</div>
+          <div className="bg-glass-dark rounded-lg p-3">
+            <div className="text-sm text-text-secondary">100 Referrals</div>
             <div className="text-white font-semibold">💎 Empire Builder</div>
           </div>
         </div>

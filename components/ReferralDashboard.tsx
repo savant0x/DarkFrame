@@ -152,21 +152,21 @@ export default function ReferralDashboard() {
       {/* Header */}
       <div className="bg-gradient-to-r from-cyan-900/30 to-blue-900/30 border border-cyan-500/30 rounded-lg p-6">
         <h2 className="text-2xl font-bold text-cyan-400 mb-2">Referral Program</h2>
-        <p className="text-gray-300">
+        <p className="text-text-primary">
           Invite friends to DarkFrame and earn exclusive rewards, resources, and VIP time!
         </p>
       </div>
 
       {/* Referral Code & Link */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-4">
-          <label className="text-sm text-gray-400 mb-2 block">Your Referral Code</label>
+        <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
+          <label className="text-sm text-text-secondary mb-2 block">Your Referral Code</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={stats.code}
               readOnly
-              className="flex-1 bg-gray-900/50 border border-cyan-500/30 rounded px-3 py-2 text-cyan-400 font-mono text-lg"
+              className="flex-1 bg-glass-dark border border-cyan-500/30 rounded px-3 py-2 text-cyan-400 font-mono text-lg"
             />
             <button
               onClick={() => copyToClipboard(stats.code, 'Referral code')}
@@ -177,14 +177,14 @@ export default function ReferralDashboard() {
           </div>
         </div>
 
-        <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-4">
-          <label className="text-sm text-gray-400 mb-2 block">Referral Link</label>
+        <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
+          <label className="text-sm text-text-secondary mb-2 block">Referral Link</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={stats.link}
               readOnly
-              className="flex-1 bg-gray-900/50 border border-cyan-500/30 rounded px-3 py-2 text-cyan-400 font-mono text-sm truncate"
+              className="flex-1 bg-glass-dark border border-cyan-500/30 rounded px-3 py-2 text-cyan-400 font-mono text-sm truncate"
             />
             <button
               onClick={() => copyToClipboard(stats.link, 'Referral link')}
@@ -200,7 +200,7 @@ export default function ReferralDashboard() {
       <div className="flex gap-3 justify-center">
         <button
           onClick={shareToX}
-          className="px-6 py-2 bg-black hover:bg-gray-800 text-white rounded transition-colors flex items-center gap-2"
+          className="px-6 py-2 bg-black hover:bg-glass-light text-white rounded transition-colors flex items-center gap-2"
         >
           <span>𝕏</span> Share on X
         </button>
@@ -216,15 +216,15 @@ export default function ReferralDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 text-center">
           <div className="text-3xl font-bold text-green-400">{stats.validatedReferrals}</div>
-          <div className="text-sm text-gray-400 mt-1">Validated Referrals</div>
+          <div className="text-sm text-text-secondary mt-1">Validated Referrals</div>
         </div>
         <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4 text-center">
           <div className="text-3xl font-bold text-yellow-400">{stats.pendingReferrals}</div>
-          <div className="text-sm text-gray-400 mt-1">Pending Validation</div>
+          <div className="text-sm text-text-secondary mt-1">Pending Validation</div>
         </div>
         <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-lg p-4 text-center">
           <div className="text-3xl font-bold text-cyan-400">{stats.totalReferrals}</div>
-          <div className="text-sm text-gray-400 mt-1">Total Referrals</div>
+          <div className="text-sm text-text-secondary mt-1">Total Referrals</div>
         </div>
       </div>
 
@@ -234,11 +234,11 @@ export default function ReferralDashboard() {
           <h3 className="text-xl font-bold text-purple-400 mb-3">Next Milestone: {stats.nextMilestone.name}</h3>
           
           <div className="mb-4">
-            <div className="flex justify-between text-sm text-gray-300 mb-2">
+            <div className="flex justify-between text-sm text-text-primary mb-2">
               <span>{stats.totalReferrals} / {stats.nextMilestone.count} Referrals</span>
               <span>{stats.nextMilestone.remaining} remaining</span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+            <div className="w-full bg-glass-light rounded-full h-4 overflow-hidden">
               <div
                 className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-500"
                 style={{ width: `${stats.nextMilestone.progress}%` }}
@@ -247,35 +247,35 @@ export default function ReferralDashboard() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-gray-800/50 rounded p-2 text-center">
+            <div className="bg-glass-light rounded p-2 text-center">
               <div className="text-lg font-bold text-cyan-400">
                 {stats.nextMilestone.rewards.metal.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400">Metal</div>
+              <div className="text-xs text-text-secondary">Metal</div>
             </div>
-            <div className="bg-gray-800/50 rounded p-2 text-center">
+            <div className="bg-glass-light rounded p-2 text-center">
               <div className="text-lg font-bold text-yellow-400">
                 {stats.nextMilestone.rewards.energy.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400">Energy</div>
+              <div className="text-xs text-text-secondary">Energy</div>
             </div>
-            <div className="bg-gray-800/50 rounded p-2 text-center">
+            <div className="bg-glass-light rounded p-2 text-center">
               <div className="text-lg font-bold text-purple-400">
                 {stats.nextMilestone.rewards.rp.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400">RP</div>
+              <div className="text-xs text-text-secondary">RP</div>
             </div>
-            <div className="bg-gray-800/50 rounded p-2 text-center">
+            <div className="bg-glass-light rounded p-2 text-center">
               <div className="text-lg font-bold text-green-400">
                 {stats.nextMilestone.rewards.xp.toLocaleString()}
               </div>
-              <div className="text-xs text-gray-400">XP</div>
+              <div className="text-xs text-text-secondary">XP</div>
             </div>
-            <div className="bg-gray-800/50 rounded p-2 text-center">
+            <div className="bg-glass-light rounded p-2 text-center">
               <div className="text-lg font-bold text-pink-400">
                 {stats.nextMilestone.rewards.vipDays}
               </div>
-              <div className="text-xs text-gray-400">VIP Days</div>
+              <div className="text-xs text-text-secondary">VIP Days</div>
             </div>
           </div>
         </div>
@@ -289,31 +289,31 @@ export default function ReferralDashboard() {
             <div className="text-2xl font-bold text-cyan-400">
               {stats.totalRewardsEarned.metal.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-400">Metal</div>
+            <div className="text-sm text-text-secondary">Metal</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-yellow-400">
               {stats.totalRewardsEarned.energy.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-400">Energy</div>
+            <div className="text-sm text-text-secondary">Energy</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-purple-400">
               {stats.totalRewardsEarned.rp.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-400">RP</div>
+            <div className="text-sm text-text-secondary">RP</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-400">
               {stats.totalRewardsEarned.xp.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-400">XP</div>
+            <div className="text-sm text-text-secondary">XP</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-pink-400">
               {stats.totalRewardsEarned.vipDays}
             </div>
-            <div className="text-sm text-gray-400">VIP Days</div>
+            <div className="text-sm text-text-secondary">VIP Days</div>
           </div>
         </div>
       </div>
@@ -322,7 +322,7 @@ export default function ReferralDashboard() {
       {(stats.badges.length > 0 || stats.titles.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {stats.badges.length > 0 && (
-            <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-4">
+            <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
               <h3 className="text-lg font-bold text-cyan-400 mb-3">Badges Earned</h3>
               <div className="flex flex-wrap gap-2">
                 {stats.badges.map((badge, index) => (
@@ -338,7 +338,7 @@ export default function ReferralDashboard() {
           )}
           
           {stats.titles.length > 0 && (
-            <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-4">
+            <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
               <h3 className="text-lg font-bold text-cyan-400 mb-3">Titles Earned</h3>
               <div className="flex flex-wrap gap-2">
                 {stats.titles.map((title, index) => (
@@ -356,10 +356,10 @@ export default function ReferralDashboard() {
       )}
 
       {/* Recent Referrals */}
-      <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-6">
+      <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-6">
         <h3 className="text-xl font-bold text-cyan-400 mb-4">Recent Referrals</h3>
         {stats.recentReferrals.length === 0 ? (
-          <p className="text-gray-400 text-center py-8">
+          <p className="text-text-secondary text-center py-8">
             No referrals yet. Share your code to get started!
           </p>
         ) : (
@@ -367,14 +367,14 @@ export default function ReferralDashboard() {
             {stats.recentReferrals.map((referral, index) => (
               <div
                 key={index}
-                className="bg-gray-900/50 border border-gray-700 rounded-lg p-4 flex justify-between items-center"
+                className="bg-glass-dark border border-glass-border rounded-lg p-4 flex justify-between items-center"
               >
                 <div>
                   <div className="font-semibold text-white">{referral.username}</div>
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-text-secondary">
                     Signed up: {new Date(referral.signupDate).toLocaleDateString()}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-text-secondary mt-1">
                     {referral.loginCount} logins • {referral.daysActive} days active
                   </div>
                 </div>
@@ -398,7 +398,7 @@ export default function ReferralDashboard() {
       {/* How It Works */}
       <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
         <h3 className="text-xl font-bold text-blue-400 mb-4">How It Works</h3>
-        <ol className="space-y-3 text-gray-300">
+        <ol className="space-y-3 text-text-primary">
           <li className="flex gap-3">
             <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
               1

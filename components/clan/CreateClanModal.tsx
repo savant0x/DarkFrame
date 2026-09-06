@@ -229,7 +229,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-2xl bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border-2 border-purple-500/30 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-2xl bg-gradient-to-br from-bg-space to-bg-nebula rounded-lg border-2 border-purple-500/30 shadow-2xl overflow-hidden"
         >
           {/* Header */}
           <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/30 px-6 py-4 flex items-center justify-between">
@@ -239,7 +239,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-text-secondary hover:text-white transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -248,41 +248,41 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
           {/* Content */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
             {/* Cost Display */}
-            <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+            <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
               <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
                 <Coins className="w-4 h-4 text-yellow-400" />
                 Creation Cost
               </h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center">
-                  <div className="text-xs text-gray-400 mb-1">Metal</div>
+                  <div className="text-xs text-text-secondary mb-1">Metal</div>
                   <div className={`text-lg font-bold ${player && player.resources.metal >= CREATION_COSTS.metal ? 'text-green-400' : 'text-red-400'}`}>
                     {CREATION_COSTS.metal.toLocaleString()}
                   </div>
                   {player && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-text-secondary">
                       Have: {player.resources.metal.toLocaleString()}
                     </div>
                   )}
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-gray-400 mb-1">Energy</div>
+                  <div className="text-xs text-text-secondary mb-1">Energy</div>
                   <div className={`text-lg font-bold ${player && player.resources.energy >= CREATION_COSTS.energy ? 'text-green-400' : 'text-red-400'}`}>
                     {CREATION_COSTS.energy.toLocaleString()}
                   </div>
                   {player && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-text-secondary">
                       Have: {player.resources.energy.toLocaleString()}
                     </div>
                   )}
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-gray-400 mb-1">RP</div>
+                  <div className="text-xs text-text-secondary mb-1">RP</div>
                   <div className={`text-lg font-bold ${player && player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-green-400' : 'text-red-400'}`}>
                     {CREATION_COSTS.researchPoints}
                   </div>
                   {player && (
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-text-secondary">
                       Have: {player.researchPoints}
                     </div>
                   )}
@@ -322,7 +322,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                   {errors.name}
                 </p>
               )}
-              <p className="text-gray-400 text-xs mt-1">
+              <p className="text-text-secondary text-xs mt-1">
                 {formData.name.length}/30 characters
               </p>
             </div>
@@ -336,14 +336,14 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 placeholder="Describe your clan's purpose and goals..."
-                className="w-full px-4 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500 transition-colors resize-none"
+                className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors resize-none"
                 rows={4}
                 maxLength={500}
               />
               {errors.description && (
                 <p className="text-red-400 text-xs mt-1">{errors.description}</p>
               )}
-              <p className="text-gray-400 text-xs mt-1">
+              <p className="text-text-secondary text-xs mt-1">
                 {formData.description.length}/500 characters
               </p>
             </div>
@@ -362,7 +362,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                     className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
                       formData.isPublic
                         ? 'bg-green-500/20 border-green-500 text-green-400'
-                        : 'bg-slate-800 border-slate-600 text-gray-400'
+                        : 'bg-glass-light border-glass-border text-text-secondary'
                     }`}
                   >
                     Public
@@ -373,13 +373,13 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                     className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
                       !formData.isPublic
                         ? 'bg-purple-500/20 border-purple-500 text-purple-400'
-                        : 'bg-slate-800 border-slate-600 text-gray-400'
+                        : 'bg-glass-light border-glass-border text-text-secondary'
                     }`}
                   >
                     Private
                   </button>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-text-secondary mt-1">
                   {formData.isPublic ? 'Anyone can join' : 'Requires approval'}
                 </p>
               </div>

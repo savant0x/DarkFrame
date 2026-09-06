@@ -47,7 +47,7 @@ export const SafeHtmlRenderer: React.FC<SafeHtmlRendererProps> = ({
 
   if (!sanitizedHtml) {
     return (
-      <div className={`text-gray-400 italic ${className}`}>
+      <div className={`text-text-secondary italic ${className}`}>
         {fallback}
       </div>
     );

@@ -363,7 +363,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-blue-900/20 to-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-bg-space via-blue-900/20 to-bg-space flex items-center justify-center">
         <div className="text-center">
           <p className="text-white/70 mb-4">Loading player data...</p>
           {!embedded && (
@@ -380,9 +380,9 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   }
 
   const renderTechTreeContent = () => (
-    <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="bg-glass-light rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-700 p-6 flex-shrink-0">
+      <div className="bg-glass-dark border-b border-glass-border p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Zap className="w-8 h-8 text-cyan-400" />
@@ -390,7 +390,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
           </div>
           <div className="text-right">
             <p className="text-white/50 text-sm">Available Metal</p>
-            <p className="text-2xl font-bold text-gray-400">⚙️ {player.resources.metal.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-text-secondary">⚙️ {player.resources.metal.toLocaleString()}</p>
           </div>
         </div>
 
@@ -414,14 +414,14 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
             return (
               <div
                 key={tech.id}
-                className={`bg-gray-900/60 backdrop-blur-sm border-2 rounded-lg overflow-hidden transition-all ${
+                className={`bg-glass-dark backdrop-blur-sm border-2 rounded-lg overflow-hidden transition-all ${
                   tech.unlocked
                     ? 'border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
                     : tech.researching
                     ? 'border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
                     : canStartResearch
                     ? `border-${color}-500/30 hover:border-${color}-500/50`
-                    : 'border-gray-700/30'
+                    : 'border-glass-border'
                 }`}
               >
                 {/* Header */}
@@ -437,8 +437,8 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                         <Clock className="w-5 h-5 text-blue-400 animate-spin" />
                       </div>
                     ) : isLocked ? (
-                      <div className="bg-gray-700/50 rounded-full p-2">
-                        <Lock className="w-5 h-5 text-gray-500" />
+                      <div className="bg-glass-light rounded-full p-2">
+                        <Lock className="w-5 h-5 text-text-secondary" />
                       </div>
                     ) : null}
                   </div>
@@ -503,7 +503,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                         className={`font-bold px-4 py-2 rounded transition-all ${
                           canStartResearch
                             ? `bg-${color}-600 hover:bg-${color}-700 text-white border border-${color}-500/50`
-                            : 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                            : 'bg-glass-light text-text-secondary cursor-not-allowed'
                         }`}
                       >
                         Research

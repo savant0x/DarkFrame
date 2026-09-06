@@ -47,10 +47,23 @@ export default function TutorialQuestPanel({
   onSkip,
 }: TutorialQuestPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  
-  // Fixed position in bottom-right, offset to avoid right sidebar
-  // Sidebar is lg:w-72 xl:w-80, so we offset by that amount + margin
-  const rightOffset = 'right-2 sm:right-4 lg:right-[19rem] xl:right-[21rem]';
+
+  // FID-20260906-005 T3.1 (R4): the panel is mounted INSIDE the right controls
+  // rail (GameLayout). On lg+ it docks in-flow below the rail's panels — the old
+  // viewport-fixed bottom-right overlay collided with the tile action card.
+  // Below lg the rail is hidden, so the panel hides with it (mobile drawers are
+  // the documented T3.1 follow-up); the top tutorial progress bar remains.
+  const [docked, setDocked] = useState(true);
+  useEffect(() => {
+    const m = window.matchMedia('(min-width: 1024px)');
+    const sync = () => setDocked(m.matches);
+    sync();
+    m.addEventListener('change', sync);
+    return () => m.removeEventListener('change', sync);
+  }, []);
+  const wrapperClasses = docked
+    ? 'w-full space-y-2' // docked: normal flow inside the controls rail
+    : 'fixed bottom-2 sm:bottom-4 right-2 sm:right-4 z-[9998] w-72 sm:w-80 space-y-2 transition-all duration-300 max-w-[calc(100vw-1rem)] sm:max-w-none';
   const [currentQuest, setCurrentQuest] = useState<TutorialQuest | null>(null);
   const [currentStep, setCurrentStep] = useState<TutorialStep | null>(null);
   const [progress, setProgress] = useState<TutorialProgress | null>(null);
@@ -525,8 +538,8 @@ export default function TutorialQuestPanel({
 
   return (
     <>
-      {/* Main Quest Panel - Positioned between right sidebar and chat panel */}
-      <div className={`tutorial-quest-panel fixed bottom-2 sm:bottom-4 ${rightOffset} z-[9998] w-72 sm:w-80 space-y-2 transition-all duration-300 max-w-[calc(100vw-1rem)] sm:max-w-none`}>
+      {/* Main Quest Panel - docked inside the controls rail on lg+, floating below lg */}
+      <div className={`tutorial-quest-panel ${wrapperClasses}`}>
       <div className={`bg-gradient-to-br from-gray-900 to-gray-800 border rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ${
         stepJustCompleted ? 'border-green-500 shadow-green-500/50 scale-105' : 
         questJustCompleted ? 'border-purple-500 shadow-purple-500/50 scale-105' :

@@ -140,7 +140,7 @@ export default function ClanTerritoryPanel({
       {/* Search and Actions */}
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
           <Input
             placeholder="Search by coordinates or claimer..."
             value={searchQuery}
@@ -165,7 +165,7 @@ export default function ClanTerritoryPanel({
           <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm">
             <p className="text-yellow-400 font-medium">Limited Access</p>
-            <p className="text-gray-400 mt-1">
+            <p className="text-text-secondary mt-1">
               Only Officers and above can claim or manage territories.
             </p>
           </div>
@@ -174,18 +174,18 @@ export default function ClanTerritoryPanel({
 
       {/* Territories List */}
       {isLoading ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-text-secondary">
           <Map className="w-12 h-12 mx-auto mb-3 animate-pulse" />
           <p>Loading territories...</p>
         </div>
       ) : filteredTerritories.length === 0 ? (
         <div className="text-center py-12">
-          <MapPin className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-          <p className="text-gray-400 mb-2">
+          <MapPin className="w-12 h-12 mx-auto mb-3 text-text-tertiary" />
+          <p className="text-text-secondary mb-2">
             {searchQuery ? 'No matching territories found' : 'No territories claimed yet'}
           </p>
           {!searchQuery && canManage && (
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-text-secondary">
               Click &quot;Claim Territory&quot; to expand your clan{"'"}s domain
             </p>
           )}
@@ -267,13 +267,13 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, subtext }: StatCardProps) {
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4">
+    <div className="bg-glass-light border border-glass-border rounded-lg p-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-sm text-gray-400">{label}</span>
+        <span className="text-sm text-text-secondary">{label}</span>
       </div>
       <div className="text-2xl font-bold text-white mb-1">{value}</div>
-      <div className="text-xs text-gray-500">{subtext}</div>
+      <div className="text-xs text-text-secondary">{subtext}</div>
     </div>
   );
 }
@@ -292,7 +292,7 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
   const daysSinceClaim = Math.floor(timeSinceClaim / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4 hover:border-cyan-500/30 transition-all">
+    <div className="bg-glass-light border border-glass-border rounded-lg p-4 hover:border-cyan-500/30 transition-all">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           {/* Coordinates */}
@@ -309,21 +309,21 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <span className="text-gray-500">Claimed by:</span>
-              <span className="text-gray-300 ml-2">{territory.claimedBy}</span>
+              <span className="text-text-secondary">Claimed by:</span>
+              <span className="text-text-primary ml-2">{territory.claimedBy}</span>
             </div>
             <div>
-              <span className="text-gray-500">Held for:</span>
-              <span className="text-gray-300 ml-2">
+              <span className="text-text-secondary">Held for:</span>
+              <span className="text-text-primary ml-2">
                 {daysSinceClaim === 0 ? 'Today' : `${daysSinceClaim}d`}
               </span>
             </div>
             <div>
-              <span className="text-gray-500">Income:</span>
+              <span className="text-text-secondary">Income:</span>
               <span className="text-yellow-400 ml-2">100M + 100E/h</span>
             </div>
             <div>
-              <span className="text-gray-500">Status:</span>
+              <span className="text-text-secondary">Status:</span>
               <span className="text-green-400 ml-2 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" />
                 Secured
@@ -407,7 +407,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-cyan-500/30 rounded-lg p-6 w-full max-w-md">
+      <div className="bg-glass-dark border border-cyan-500/30 rounded-lg p-6 w-full max-w-md">
         <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <MapPin className="w-5 h-5 text-cyan-400" />
           Claim Territory
@@ -416,7 +416,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
         <form onSubmit={handleClaim} className="space-y-4">
           {/* Coordinates Input */}
           <div>
-            <label className="block text-sm text-gray-400 mb-2">
+            <label className="block text-sm text-text-secondary mb-2">
               Territory Coordinates
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -435,7 +435,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
                 required
               />
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-text-secondary mt-2">
               Enter the map coordinates of the tile you want to claim
             </p>
           </div>
@@ -443,7 +443,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
           {/* Info Box */}
           <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
             <p className="text-sm text-cyan-400 mb-2 font-medium">Territory Benefits:</p>
-            <ul className="text-xs text-gray-400 space-y-1">
+            <ul className="text-xs text-text-secondary space-y-1">
               <li>• +100 Metal and Energy per hour</li>
               <li>• +10% defense bonus per adjacent clan territory</li>
               <li>• Strategic positioning for warfare</li>
