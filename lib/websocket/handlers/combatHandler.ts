@@ -7,20 +7,20 @@
  * battle results, and defense alerts.
  */
 
-import type { Server, Socket } from 'socket.io';
+import type { Server } from 'socket.io';
 import { db } from '@/lib/db';
 import { players, battleLogs } from '@/lib/db/schema';
-import type { AuthenticatedUser } from '../auth';
+
 import {
   broadcastAttackStarted,
   broadcastBattleResult,
-  notifyDefenseAlert,
+
 } from '../broadcast';
-import { joinBattleRoom } from '../rooms';
+
 import type {
   CombatAttackStartedPayload,
   CombatBattleResultPayload,
-  CombatDefenseAlertPayload,
+
 } from '@/types/websocket';
 import { eq } from 'drizzle-orm';
 

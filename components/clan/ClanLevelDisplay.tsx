@@ -66,7 +66,6 @@ interface ClanLevelDisplayProps {
 }
 
 export default function ClanLevelDisplay({
-  clanId,
   autoRefresh = true,
   refreshInterval = 30000, // 30 seconds
 }: ClanLevelDisplayProps) {

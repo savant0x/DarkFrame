@@ -1,4 +1,4 @@
-import { pgTable, varchar, smallint, timestamp, jsonb, text, integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar,  timestamp, jsonb,  integer, index } from 'drizzle-orm/pg-core';
 
 export const conversations = pgTable('conversations', {
 	id: varchar('id', { length: 24 }).primaryKey(),

@@ -20,7 +20,7 @@
 
 import { db } from '@/lib/db';
 import { players, battleLogs } from '@/lib/db/schema';
-import { eq, or, desc, sql, and } from 'drizzle-orm';
+import { eq, or, desc } from 'drizzle-orm';
 import {
   Player,
   Unit,
@@ -30,7 +30,7 @@ import {
   BattleOutcome,
   BattleLog,
   BattleResult,
-  BattleParticipant,
+
   CombatRound
 } from '@/types';
 import { awardXP, XPAction } from './xpService';

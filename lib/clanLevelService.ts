@@ -42,13 +42,13 @@
 
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema';
-import { eq, sql, gte } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   Clan,
   ClanLevel,
   ClanMilestone,
   ClanXPSource,
-  ClanActivityType,
+
   CLAN_LEVEL_CONSTANTS,
   CLAN_XP_RATES,
   CLAN_MILESTONES,

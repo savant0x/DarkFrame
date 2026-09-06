@@ -11,7 +11,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, Target, Clock, Gift, CheckCircle, Circle } from 'lucide-react';
+import { Trophy, Target, Clock, Gift, CheckCircle } from 'lucide-react';
 
 // ============================================================================
 // TYPES

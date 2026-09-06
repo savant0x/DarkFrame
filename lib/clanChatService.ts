@@ -27,7 +27,7 @@
 
 import { db } from '@/lib/db';
 import { players, clans } from '@/lib/db/schema';
-import { eq, and, gt, lt, desc, sql } from 'drizzle-orm';
+import { eq,     sql } from 'drizzle-orm';
 
 // ============================================================================
 // TYPES & INTERFACES

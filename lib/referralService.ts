@@ -17,7 +17,7 @@
 
 import { db } from '@/lib/db';
 import { players, referrals } from '@/lib/db/schema';
-import { eq, and, gte, sql, gt, lt } from 'drizzle-orm';
+import { eq, and, gte, sql, gt } from 'drizzle-orm';
 import type {
   ReferralReward,
   WelcomePackage,

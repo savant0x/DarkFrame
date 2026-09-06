@@ -18,11 +18,11 @@ import TopNavBar from '@/components/TopNavBar';
 import { 
   Trophy, 
   Swords, 
-  Shield, 
+
   Coins, 
   Users, 
   Target,
-  TrendingUp,
+
   Award,
   Crown,
   ArrowLeft

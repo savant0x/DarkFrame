@@ -133,7 +133,7 @@ export default function XPProgressBar({
  */
 
 // CSS for shine animation (add to global styles or use inline)
-const styles = `
+const _styles = `
 @keyframes shine {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }

@@ -20,7 +20,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { Divider } from '@/components/ui/Divider';
+
 import { StaggerChildren, StaggerItem } from '@/components/transitions/StaggerChildren';
 import { LoadingSpinner } from '@/components/transitions/LoadingSpinner';
 

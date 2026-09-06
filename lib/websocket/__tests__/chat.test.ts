@@ -18,7 +18,7 @@
  * - Error handling and validation
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Server as SocketIOServer } from 'socket.io';
 import { io as ioClient, Socket as ClientSocket } from 'socket.io-client';
 import type { Server as HTTPServer } from 'node:http';

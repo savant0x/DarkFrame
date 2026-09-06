@@ -43,7 +43,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
  * 
  * @returns Mastery level, XP, milestones, and next requirements
  */
-export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_req: NextRequest) => {
   const log = createRouteLogger('SpecializationMasteryAPI');
   const endTimer = log.time('mastery-status');
   

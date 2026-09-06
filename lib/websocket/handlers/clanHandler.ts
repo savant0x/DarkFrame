@@ -11,17 +11,17 @@ import type { Server, Socket } from 'socket.io';
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import type { AuthenticatedUser, isClanMember, validateClanAction } from '../auth';
+import type { AuthenticatedUser } from '../auth';
 import {
-  broadcastClanMemberJoined,
-  broadcastClanMemberLeft,
-  broadcastClanTerritoryUpdate,
+
+
+
   broadcastWarDeclaration,
-  broadcastWarEnded,
-  broadcastClanTreasuryUpdate,
-  broadcastClanActivity,
+
+
+
 } from '../broadcast';
-import { autoJoinRooms, autoLeaveClanRooms } from '../rooms';
+import { autoJoinRooms } from '../rooms';
 import type {
   ClanWarDeclaredPayload,
 } from '@/types/websocket';
@@ -104,6 +104,6 @@ export async function handleClanTreasuryDeposit(io: Server, user: AuthenticatedU
   console.log(`[Clan Handler] ${user.username} deposited ${amount} ${resourceType} to clan treasury`);
 }
 
-export async function handleClanMemberPromote(io: Server, user: AuthenticatedUser, targetUserId: string, newRole: string): Promise<void> {
+export async function handleClanMemberPromote(io: Server, user: AuthenticatedUser, _targetUserId: string, _newRole: string): Promise<void> {
   console.log(`[Clan Handler] Member promoted by ${user.username}`);
 }

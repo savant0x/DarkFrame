@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { bans, players, modLog } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getAuthenticatedUser } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { generateId } from '@/lib/utils';
 import {
   withRequestLogging,
@@ -33,12 +33,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('anti-cheat-unban');
 
   try {
-    const adminUser = await getAuthenticatedUser();
-    if (!adminUser || !adminUser.rank || adminUser.rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const adminUser = adminAuth;
 
     const body = await request.json().catch(() => null);
     const username = typeof body?.username === 'string' ? body.username.trim() : '';

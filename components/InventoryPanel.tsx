@@ -160,7 +160,7 @@ export function InventoryPanel() {
   // ============================================================
   // HOOKS
   // ============================================================
-  const isMobile = useIsMobile();
+  const _isMobile = useIsMobile();
   
   // Animated counts for statistics
   const capacityCount = useCountUp(inventory?.items.length || 0, { duration: 1000 });

@@ -115,7 +115,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const ___dirname = dirname(__filename);
 
 // Check if this file is being run directly
 const isMainModule = process.argv[1] === __filename || process.argv[1]?.endsWith('create-tutorial-indexes.ts');

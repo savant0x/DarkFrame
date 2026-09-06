@@ -28,7 +28,7 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
-export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
+export const POST = withRequestLogging(rateLimiter(async (_req: NextRequest) => {
   const log = createRouteLogger('AdminBeerBaseRespawnAPI');
   const endTimer = log.time('beer-base-respawn');
 

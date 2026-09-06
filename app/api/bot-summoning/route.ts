@@ -38,7 +38,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 /**
  * GET - Get summoning status
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('bot-summoning-get');
   const endTimer = log.time('bot-summoning-get');
 

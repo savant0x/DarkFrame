@@ -24,7 +24,7 @@ import {
 import type { ReferralDashboardData, ReferralRecord } from '@/types/referral.types';
 import type { Player } from '@/types/game.types';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Verify authentication
     const tokenPayload = await getAuthenticatedUser();

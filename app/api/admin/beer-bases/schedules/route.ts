@@ -23,13 +23,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authService';
 import { addSchedule, updateSchedule, deleteSchedule, getSchedules } from '@/lib/beerBaseService';
-import type { RespawnSchedule } from '@/lib/beerBaseService';
+
 
 /**
  * GET /api/admin/beer-bases/schedules
  * List all respawn schedules
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Verify admin session
     const user = await getAuthenticatedUser();

@@ -20,7 +20,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Filter, Pin, Archive, MessageCircle, Clock } from 'lucide-react';
+import { Search,  Pin, Archive, MessageCircle, Clock } from 'lucide-react';
 import type { Conversation, MessageInboxState } from '@/types/messaging.types';
 
 interface MessageInboxProps {

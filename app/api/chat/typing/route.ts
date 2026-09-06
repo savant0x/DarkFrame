@@ -238,11 +238,13 @@ export async function GET(request: NextRequest) {
       .toArray();
 
     // Format response
+    // FID-20260905-001: typing_indicators carries (userId, expiresAt) only — no
+    // username/timestamp columns (userId IS the username on the Postgres pivot).
     const response: GetTypingResponse = {
-      typers: typers.map((t: TypingIndicator) => ({
+      typers: typers.map((t: { userId: string; expiresAt: Date | string }) => ({
         userId: t.userId,
-        username: t.username,
-        timestamp: t.timestamp.toISOString(),
+        username: t.userId,
+        timestamp: new Date(t.expiresAt).toISOString(),
       })),
     };
 

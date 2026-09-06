@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
@@ -35,13 +35,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('giveResources');
 
   try {
-    const adminUser = await getAuthenticatedUser();
-    if (!adminUser || !adminUser.rank || adminUser.rank < 5) {
-      log.warn('Unauthorized admin access attempt', { username: adminUser?.username });
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
-        message: 'Admin access required (rank 5+)'
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const adminUser = adminAuth;
 
     const body = await request.json();
     const validated = GiveResourcesSchema.parse(body);

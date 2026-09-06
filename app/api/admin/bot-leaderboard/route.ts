@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @fileoverview Admin Bot Leaderboard API - Separate bot rankings
  * @module app/api/admin/bot-leaderboard/route
@@ -14,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { requireAdmin } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -46,25 +45,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('bot-leaderboard');
 
   try {
-    // Authenticate user
-    const tokenPayload = await getAuthenticatedUser();
-    if (!tokenPayload) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
-        message: 'Authentication required',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
-
-    // Check admin privileges
-    const adminPlayer = await db.select()
-      .from(players)
-      .where(eq(players.username, tokenPayload.username))
-      .limit(1);
-
-    if (!adminPlayer.length || !adminPlayer[0].rank || adminPlayer[0].rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin privileges required (rank 5+)',
-      });
-    }
+    const tokenPayload = adminAuth;
 
     // Parse query params
     const { searchParams } = new URL(request.url);
@@ -90,7 +76,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // Get all bots
     const bots = await db.select()
       .from(players)
-      .where(eq(players.isBot, true));
+      .where(eq(players.isBot, 1)); // smallint (nocheck hid the boolean mismatch)
 
     // Rank bots based on metric
     let rankedBots: Array<{
@@ -107,8 +93,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         // Rank by total attack + defense
         const scored = bots.map(bot => ({
           username: bot.username,
-          specialization: (bot.botConfig as any)?.specialization || 'Unknown',
-          tier: (bot.botConfig as any)?.tier || 1,
+          specialization: bot.botConfig?.specialization || 'Unknown',
+          tier: bot.botConfig?.tier || 1,
           score: (bot.totalStrength || 0) + (bot.totalDefense || 0),
           details: {
             totalAttack: bot.totalStrength || 0,
@@ -128,16 +114,18 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       case 'resources': {
         // Rank by total resources (metal + energy)
         const scored = bots.map(bot => {
-          const resources = bot.resources as any;
+          // FID-20260905-001 M2: real columns (bot.resources was Mongo-era).
+          const metal = bot.resourcesMetal;
+          const energy = bot.resourcesEnergy;
           return ({
             username: bot.username,
-            specialization: (bot.botConfig as any)?.specialization || 'Unknown',
-            tier: (bot.botConfig as any)?.tier || 1,
-            score: (resources?.metal || 0) + (resources?.energy || 0),
+            specialization: bot.botConfig?.specialization || 'Unknown',
+            tier: bot.botConfig?.tier || 1,
+            score: metal + energy,
             details: {
-              metal: resources?.metal || 0,
-              energy: resources?.energy || 0,
-              totalResources: (resources?.metal || 0) + (resources?.energy || 0),
+              metal,
+              energy,
+              totalResources: metal + energy,
             },
           });
         });
@@ -155,12 +143,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         // Note: botTracking table not in schema, skipping aggregation
         const scored = bots.map(bot => ({
           username: bot.username,
-          specialization: (bot.botConfig as any)?.specialization || 'Unknown',
-          tier: (bot.botConfig as any)?.tier || 1,
+          specialization: bot.botConfig?.specialization || 'Unknown',
+          tier: bot.botConfig?.tier || 1,
           score: 0,
           details: {
             timesDefeated: 0,
-            isSpecialBase: (bot.botConfig as any)?.isSpecialBase || false,
+            isSpecialBase: bot.botConfig?.isSpecialBase || false,
           },
         }));
 
@@ -177,11 +165,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         const reputationOrder = { legendary: 4, infamous: 3, notorious: 2, unknown: 1 };
 
         const scored = bots.map(bot => {
-          const reputation = (bot.botConfig as any)?.reputation || 'unknown';
+          const reputation = bot.botConfig?.reputation || 'unknown';
           return {
             username: bot.username,
-            specialization: (bot.botConfig as any)?.specialization || 'Unknown',
-            tier: (bot.botConfig as any)?.tier || 1,
+            specialization: bot.botConfig?.specialization || 'Unknown',
+            tier: bot.botConfig?.tier || 1,
             score: reputationOrder[reputation as keyof typeof reputationOrder] || 0,
             details: {
               reputation,

@@ -15,7 +15,7 @@
  * - Response format validation
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect,   vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/chat/channels/route';
 

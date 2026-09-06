@@ -1,7 +1,7 @@
 /* Temporary audit tool: GET every dynamic [param] route with a dummy id; report 5xx. */
 const { execSync } = require('child_process');
 const fs = require('fs');
-const path = require('path');
+const _path = require('path');
 
 const BASE = process.env.PROD_BASE || 'https://darkframe-savantai.vercel.app';
 const COOKIE_FILE = process.env.COOKIE_FILE || '/tmp/sweep.jar';

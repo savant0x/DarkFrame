@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { getCollection } from '@/lib/mongodb';
-import { Player, Tile, TerrainType, ShrineBoostTier, ItemType, ItemRarity } from '@/types';
+import { Player, Tile, TerrainType,  ItemType, ItemRarity } from '@/types';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -32,7 +32,7 @@ const ITEM_VALUES = {
   [ItemRarity.Legendary]: 2 * 60 * 60 * 1000 // 2 hours
 };
 
-const logger = createRouteLogger('shrine/extend');
+const _logger = createRouteLogger('shrine/extend');
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.SHRINE_SACRIFICE);
 
 /**
@@ -122,7 +122,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       );
     }
 
-    const boostIndex = player.shrineBoosts.findIndex((b: any) => b.tier === tier);
+    const boostIndex = player.shrineBoosts.findIndex((b) => b.tier === tier);
     if (boostIndex === -1) {
       return NextResponse.json(
         {
@@ -134,7 +134,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Count tradeable items
-    const tradeableItems = player.inventory.items.filter((item: any) => item.type === ItemType.TradeableItem
+    const tradeableItems = player.inventory.items.filter((item) => item.type === ItemType.TradeableItem
     );
 
     if (tradeableItems.length < itemCount) {
@@ -151,8 +151,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     const itemsToSacrifice = tradeableItems.slice(0, itemCount);
     let totalTimeAdded = 0;
 
-    itemsToSacrifice.forEach((item: any) => {
-      const timeValue = (ITEM_VALUES as any)[item.rarity] || ITEM_VALUES[ItemRarity.Common];
+    itemsToSacrifice.forEach((item) => {
+      const timeValue = (ITEM_VALUES as unknown as Record<string, number>)[item.rarity] || ITEM_VALUES[ItemRarity.Common];
       totalTimeAdded += timeValue;
     });
 
@@ -162,7 +162,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     const now = Date.now();
 
     // Calculate remaining time
-    const remainingTime = Math.max(0, currentExpiry - now);
+    const _remainingTime = Math.max(0, currentExpiry - now);
 
     // Calculate new duration (capped at 8 hours from current time)
     const maxAllowedExpiry = now + MAX_BOOST_DURATION;
@@ -180,7 +180,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Remove sacrificed items
-    const remainingItems = player.inventory.items.filter((item: any) => item.type !== ItemType.TradeableItem
+    const remainingItems = player.inventory.items.filter((item) => item.type !== ItemType.TradeableItem
     );
     const itemsToKeep = tradeableItems.slice(itemCount);
     const newInventory = [...remainingItems, ...itemsToKeep];

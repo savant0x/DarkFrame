@@ -21,7 +21,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Resources, UnitType, UNIT_CONFIGS } from '@/types';
 
 interface UnitBuildPanelProps {
@@ -89,7 +89,7 @@ export default function UnitBuildPanel({
       } else {
         setMessage(`❌ ${data.message || 'Build failed'}`);
       }
-    } catch (error) {
+    } catch {
       setMessage('❌ Network error');
     } finally {
       setLoading(false);

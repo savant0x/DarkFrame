@@ -39,7 +39,7 @@ import { calculateCombatPower } from '@/lib/combatPowerService';
  *   level: 4
  * }
  */
-export const GET = withRequestLogging(async (request: NextRequest) => {
+export const GET = withRequestLogging(async (_request: NextRequest) => {
   const log = createRouteLogger('PlayerStats');
   const endTimer = log.time('fetchPlayerStats');
   

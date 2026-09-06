@@ -26,9 +26,9 @@ import type { Server } from 'socket.io';
 import { WebSocketRooms } from '@/types/websocket';
 import type {
   ServerToClientEvents,
-  GamePositionUpdatePayload,
-  GameResourceChangePayload,
-  GameLevelUpPayload,
+
+
+
   GameTileUpdatePayload,
   ClanMemberJoinedPayload,
   ClanMemberLeftPayload,

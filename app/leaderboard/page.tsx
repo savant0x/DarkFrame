@@ -295,7 +295,7 @@ export default function LeaderboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredLeaderboard.map((player, index) => {
+                  filteredLeaderboard.map((player, _index) => {
                     const isCurrentPlayer = player.username === leaderboardData?.currentPlayerData?.username;
                     
                     return (

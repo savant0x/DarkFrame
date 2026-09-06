@@ -7,7 +7,7 @@
  */
 import { db } from '@/lib/db';
 import { battleLogs } from '@/lib/db/schema';
-import { eq, or, ne, desc, isNull, sql } from 'drizzle-orm';
+import { eq, or,  desc,  sql } from 'drizzle-orm';
 
 export interface BattleRecord {
   attacker: string;
@@ -81,7 +81,7 @@ export async function getPlayerBattleStats(username: string): Promise<PlayerBatt
     .from(battleLogs)
     .where(eq(battleLogs.outcome, 'attacker_win'));
 
-  const wins = winsResult[0]?.count || 0;
+  const _wins = winsResult[0]?.count || 0;
   
   const allBattles = await db
     .select()

@@ -37,7 +37,7 @@ import {
   Plus, 
   Trash2, 
   Search,
-  TrendingUp,
+
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';

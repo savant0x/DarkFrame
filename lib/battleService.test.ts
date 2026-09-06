@@ -7,9 +7,9 @@
  * unit casualties, resource theft, and battle log creation.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getTestDb, createMockUser, clearTestData } from '@/lib/test-utils';
-import type { Player, PlayerUnit, UnitType, BattleResult } from '@/types';
+import { describe, it, expect,  vi } from 'vitest';
+
+import type {   UnitType } from '@/types';
 
 // Mock the database connection
 vi.mock('@/lib/mongodb', () => ({
@@ -188,7 +188,7 @@ describe('battleService - HP-Based Combat', () => {
 
   describe('Battle Victory Conditions', () => {
     it('should determine winner when defender HP reaches 0', () => {
-      const attackerHP = 50;
+      const _attackerHP = 50;
       const defenderHP = 0;
       
       const winner = defenderHP <= 0 ? 'attacker' : 'defender';
@@ -198,7 +198,7 @@ describe('battleService - HP-Based Combat', () => {
 
     it('should determine winner when attacker HP reaches 0', () => {
       const attackerHP = 0;
-      const defenderHP = 30;
+      const _defenderHP = 30;
       
       const winner = attackerHP <= 0 ? 'defender' : 'attacker';
       
@@ -207,7 +207,7 @@ describe('battleService - HP-Based Combat', () => {
 
     it('should handle mutual destruction (both reach 0)', () => {
       const attackerHP = 0;
-      const defenderHP = 0;
+      const _defenderHP = 0;
       
       // In simultaneous 0 HP, defender wins (home advantage)
       const winner = attackerHP <= 0 ? 'defender' : 'attacker';
@@ -318,7 +318,7 @@ describe('battleService - HP-Based Combat', () => {
   describe('Edge Cases', () => {
     it('should handle attacks with no units', () => {
       const attackerUnits = 0;
-      const defenderUnits = 10;
+      const _defenderUnits = 10;
       
       // No units = auto-loss
       const winner = attackerUnits === 0 ? 'defender' : 'attacker';

@@ -483,8 +483,8 @@ export async function runBotAttackCycle(): Promise<{
 /**
  * Get bot attack history for a player (for UI display)
  */
-export async function getBotAttackHistory(username: string, limit: number = 10): Promise<any[]> {
-  const db = await connectToDatabase();
+export async function getBotAttackHistory(username: string, _limit: number = 10): Promise<any[]> {
+  const _db = await connectToDatabase();
   
   try {
     // This would require a combat_log collection in production

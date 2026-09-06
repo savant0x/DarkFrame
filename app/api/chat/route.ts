@@ -42,7 +42,6 @@ import {
   getGlobalChatMessages,
   type SendMessageRequest,
   type GetMessagesRequest,
-  type ChatMessage,
 } from '@/lib/chatService';
 import {
   canReadChannel,
@@ -64,13 +63,6 @@ import {
 /**
  * GET request query params
  */
-interface GetChatParams {
-  channelId: string;
-  clanId?: string;
-  limit?: string;
-  before?: string; // ISO date string
-  since?: string; // ISO date string
-}
 
 /**
  * POST request body
@@ -464,7 +456,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { channelId, clanId, lastReadMessageId } = body;
+    const { channelId, lastReadMessageId } = body;
 
     // Validate required fields
     if (!channelId || !lastReadMessageId) {

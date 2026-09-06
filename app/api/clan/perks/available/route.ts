@@ -25,10 +25,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase } from '@/lib/mongodb';
+
 import { requireClanMembership } from '@/lib/authMiddleware';
 import {
-  initializeClanPerkService,
+
   getAvailablePerks,
   getActivePerks,
   calculateTierCost,
@@ -70,7 +70,6 @@ import { ClanPerkCategory, ClanPerkTier } from '@/types/clan.types';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
@@ -119,7 +118,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build response
-    const response: any = {
+    const response = {
       success: true,
       clanId,
       clanName: clan.name,
@@ -139,12 +138,12 @@ export async function GET(request: NextRequest) {
     // Add recommendations if requested
     if (includeRecommendations) {
       const recommendations = await getRecommendedPerks(clanId);
-      response.recommendations = recommendations;
+      (response as Record<string, unknown>).recommendations = recommendations;
     }
 
     // Add tier costs if requested
     if (includeCosts) {
-      response.tierCosts = {
+      (response as Record<string, unknown>).tierCosts = {
         BRONZE: calculateTierCost(ClanPerkTier.BRONZE),
         SILVER: calculateTierCost(ClanPerkTier.SILVER),
         GOLD: calculateTierCost(ClanPerkTier.GOLD),
@@ -153,10 +152,10 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(response, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching available perks:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch available perks', details: error.message },
+      { error: 'Failed to fetch available perks', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

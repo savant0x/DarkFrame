@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { playerFlags, players } from '@/lib/db/schema';
@@ -22,7 +22,7 @@ import {
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -34,12 +34,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('flagged-players');
 
   try {
-    const user = await getAuthenticatedUser();
-    if (!user || !user.rank || user.rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const user = adminAuth;
 
     const { searchParams } = new URL(request.url);
     const flagTypeFilter = searchParams.get('flagType');

@@ -20,9 +20,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   createRateLimiter,
-  getRedisClient,
-  checkRedisHealth,
-  isRedisAvailable,
+
+
+
 } from '../redis';
 
 // Mock ioredis module

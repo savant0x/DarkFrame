@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import BackButton from '@/components/BackButton';
 
 export default function HelpPage() {
-  const router = useRouter();
+  const _router = useRouter();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white p-8">

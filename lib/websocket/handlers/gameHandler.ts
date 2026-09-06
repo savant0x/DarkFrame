@@ -33,7 +33,7 @@ import {
 } from '../broadcast';
 import {
   joinLocationRoom,
-  leaveLocationRoom,
+
   updateLocationRoom,
 } from '../rooms';
 import type {

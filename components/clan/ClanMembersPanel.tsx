@@ -37,7 +37,7 @@ import {
   Circle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Clan, ClanMember } from '@/types/clan.types';
+import type { Clan } from '@/types/clan.types';
 import { ClanRole, ROLE_PERMISSIONS } from '@/types/clan.types';
 
 interface ClanMembersPanelProps {

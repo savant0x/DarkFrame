@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
 
     // Single channel mode
     if (channelId) {
-      const filteredUsers = onlineUsers.filter((user: any) =>
+      const filteredUsers = onlineUsers.filter((user) =>
         canAccessChannel(channelId, user)
       );
 
@@ -238,7 +238,7 @@ export async function GET(request: NextRequest) {
 
     // Count users per channel
     for (const channel of channelList) {
-      const filteredUsers = onlineUsers.filter((user: any) =>
+      const filteredUsers = onlineUsers.filter((user) =>
         canAccessChannel(channel, user)
       );
 
@@ -267,7 +267,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error:
-          error instanceof Error ? error.message : 'Failed to fetch online count',
+          error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Failed to fetch online count',
       },
       { status: 500 }
     );

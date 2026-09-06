@@ -23,12 +23,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
-import { Button, Input, Badge } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import { 
   X, 
   Search, 
   Users, 
-  Shield, 
+
   Crown,
   ChevronLeft,
   ChevronRight,

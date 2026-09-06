@@ -25,7 +25,7 @@ import { getAuthenticatedUser } from '@/lib/authMiddleware';
  * GET /api/beer-bases
  * Get Beer Base statistics and configuration
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Verify admin access
     const user = await getAuthenticatedUser();
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
  * POST /api/beer-bases
  * Trigger manual Beer Base respawn
  */
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Verify admin access
     const user = await getAuthenticatedUser();

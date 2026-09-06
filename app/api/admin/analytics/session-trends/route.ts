@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 📅 Created: 2025-01-18
  * 📅 Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
@@ -19,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { playerSessions } from '@/lib/db/schema';
-import { eq, desc, isNull, gt } from 'drizzle-orm';
+import {  desc, isNull, gt } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authService';
 import {
   withRequestLogging,
@@ -79,7 +78,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       .from(playerSessions)
       .where(gt(playerSessions.startTime, startTime));
 
-    const sessionsWithDuration = allSessions.map((session: any) => {
+    const sessionsWithDuration = allSessions.map((session) => {
       const start = new Date(session.createdAt).getTime();
       const end = session.expiresAt 
         ? new Date(session.expiresAt).getTime()
@@ -114,7 +113,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     });
 
     const totalSessions = sessionsWithDuration.length;
-    const activeSessions = allSessions.filter((s: any) => !s.endTime).length;
+    const activeSessions = allSessions.filter((s) => !s.endTime).length;
     const completedSessions = totalSessions - activeSessions;
     
     const avgDuration = totalSessions > 0
@@ -126,7 +125,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       0
     );
 
-    const uniquePlayers = new Set(allSessions.map((s: any) => s.userId));
+    const uniquePlayers = new Set(allSessions.map((s) => s.userId));
 
     const activePlayersList = await db.select()
       .from(playerSessions)
@@ -146,11 +145,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       success: true,
       period,
       buckets: bucketData,
-      activePlayers: activePlayersList.map((s: any) => ({
+      activePlayers: activePlayersList.map((s) => ({
         username: s.userId,
         startTime: s.startTime,
-        duration: now.getTime() - new Date(s.startTime).getTime(),
-        actionsPerformed: s.actionsPerformed || 0
+        duration: now.getTime() - new Date(s.startTime as Date | string).getTime(),
+        actionsPerformed: 0
       })),
       stats: {
         totalSessions,

@@ -74,7 +74,6 @@ export default function UnitBuildPanelEnhanced({
   playerResources,
   availableSlots,
   maxSlots,
-  usedSlots,
   onBuildComplete
 }: UnitBuildPanelEnhancedProps) {
   const { player } = useGameContext();

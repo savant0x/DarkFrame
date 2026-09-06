@@ -24,7 +24,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { 
-  getClientAndDatabase, 
+
   requireAuth,
   withRequestLogging,
   createRouteLogger,
@@ -37,7 +37,7 @@ import {
   ErrorCode
 } from '@/lib';
 import { createClan } from '@/lib/clanService';
-import { CLAN_NAMING_RULES } from '@/types/clan.types';
+
 import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.clanCreate);
@@ -67,7 +67,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clanCreate');
   
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) {
@@ -106,7 +105,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       message: `Clan ${clan.tag} created successfully!`,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof ZodError) {
       log.warn('Clan creation validation failed', { issues: error.issues });
       return createValidationErrorResponse(error);
@@ -115,21 +114,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     log.error('Clan creation error', error instanceof Error ? error : new Error(String(error)));
 
     // Handle specific errors
-    if (error.message?.includes('already exists')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('already exists')) {
       return createErrorResponse(ErrorCode.CLAN_NAME_TAKEN, { 
-        message: error.message 
+        message: error instanceof Error ? error.message : String(error) 
       });
     }
 
-    if (error.message?.includes('already in a clan')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('already in a clan')) {
       return createErrorResponse(ErrorCode.CLAN_ALREADY_MEMBER, {
         message: 'You are already in a clan'
       });
     }
 
-    if (error.message?.includes('Insufficient')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('Insufficient')) {
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, { 
-        message: error.message 
+        message: error instanceof Error ? error.message : String(error) 
       });
     }
 

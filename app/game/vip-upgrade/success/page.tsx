@@ -46,8 +46,8 @@ function SuccessPageContent() {
   const sessionId = searchParams.get('session_id');
   
   const [countdown, setCountdown] = useState(10);
-  const [vipActivated, setVipActivated] = useState(false);
-  const [activationError, setActivationError] = useState<string | null>(null);
+  const [_vipActivated, setVipActivated] = useState(false);
+  const [_activationError, setActivationError] = useState<string | null>(null);
   
   useEffect(() => {
     if (!sessionId) {

@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { playerFlags, modLog } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -37,13 +37,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('clear-flag');
 
   try {
-    // Admin authentication check
-    const user = await getAuthenticatedUser();
-    if (!user || !user.rank || user.rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const user = adminAuth;
 
     const body = await request.json();
     const validated = ClearFlagSchema.parse(body);
@@ -76,8 +75,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       .where(eq(playerFlags.id, flagId));
 
     // Log admin action
+    // FID-20260905-001 B6: id omitted — schema $defaultFn supplies a 24-char id
+    // (the explicit `modlog_<ts>_<rand>` literal was 28 chars → varchar(24) overflow).
     await db.insert(modLog).values({
-      id: `modlog_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
       moderatorId: user.username,
       action: 'CLEAR_FLAG',
       targetId: flag.playerId ?? '',

@@ -36,7 +36,7 @@ import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { searchUsers } from '@/lib/friendService';
 import { ValidationError } from '@/lib/common/errors';
-import type { PlayerSearchResult } from '@/types/friend';
+
 
 // ============================================================================
 // GET /api/friends/search - Search Users
@@ -82,14 +82,15 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
+    const _db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
 
     // 2. Authenticate user
   const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     
   // Support both shapes in tests/prod (playerId vs userId)
-  const userId = (auth as any).playerId ?? (auth as any).userId;
+  const authRec = auth as unknown as Record<string, unknown>;
+    const userId = (authRec.playerId ?? authRec.userId) as string;
 
     // 3. Parse URL search params
     const { searchParams } = new URL(request.url);
@@ -138,7 +139,7 @@ export async function GET(request: NextRequest) {
     // Handle specific error types
     if (error instanceof ValidationError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }

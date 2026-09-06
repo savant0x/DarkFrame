@@ -122,10 +122,10 @@ export async function GET(req: NextRequest) {
         offset
       }
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] Error querying battle logs:', error);
     return NextResponse.json(
-      { error: 'Failed to query battle logs', details: error.message },
+      { error: 'Failed to query battle logs', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

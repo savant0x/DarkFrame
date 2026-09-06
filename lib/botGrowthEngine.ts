@@ -49,7 +49,7 @@
 
 import { connectToDatabase } from './mongodb';
 import { getNestById } from './botNestService';
-import type { Player, PlayerUnit, BotSpecialization, UnitType } from '@/types/game.types';
+import type { Player, PlayerUnit,  UnitType } from '@/types/game.types';
 
 /**
  * Resource regeneration rates by bot specialization (percentage per hour)
@@ -270,7 +270,7 @@ function regenerateBotResources(bot: Player): { metal: number; energy: number; f
  * @param specialization - Bot specialization type
  * @returns Modified resource amount
  */
-function applyGrowthPattern(current: number, specialization: string): number {
+function applyGrowthPattern(current: number, _specialization: string): number {
   const roll = Math.random();
   
   if (roll < 0.70) {

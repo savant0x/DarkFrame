@@ -48,17 +48,17 @@ import { Badge } from '@/components/ui/Badge';
 import { ChannelType } from '@/lib/channelService';
 import {
   Shield,
-  UserX,
-  MessageSquareOff,
-  Filter,
+
+
+
   Search,
   Trash2,
-  CheckCircle,
-  XCircle,
+
+
   Clock,
-  Eye,
+
   Plus,
-  AlertTriangle,
+
   RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -136,7 +136,7 @@ export default function ModerationPanel() {
   const [moderationLogs, setModerationLogs] = useState<ModerationLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [_currentUserId, setCurrentUserId] = useState<string>('');
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -259,7 +259,7 @@ export default function ModerationPanel() {
   /**
    * Unmute a user
    */
-  const handleUnmute = useCallback(async (userId: string, channelId: ChannelType) => {
+  const handleUnmute = useCallback(async (userId: string, _channelId: ChannelType) => {
     try {
       // DELETE /api/admin/moderation { action: 'unmute' } (channelId not needed — mutes are global)
       const response = await fetch('/api/admin/moderation', {

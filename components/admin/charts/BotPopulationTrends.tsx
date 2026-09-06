@@ -16,7 +16,7 @@
 
 'use client';
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+
 
 interface BotStats {
   total: number;
@@ -46,7 +46,7 @@ const SPEC_COLORS = {
 export default function BotPopulationTrends({ currentStats, loading, error }: BotPopulationTrendsProps) {
   // For now, display current snapshot
   // TODO: Enhance with historical tracking from database
-  const snapshotData = [
+  const _snapshotData = [
     {
       timestamp: Date.now(),
       date: new Date().toISOString(),
@@ -60,7 +60,7 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
   ];
 
   // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
+  const _CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0].payload;

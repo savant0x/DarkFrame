@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Admin Achievement Stats Endpoint
  * Created: 2025-01-18
@@ -50,7 +49,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  * Admin-only endpoint that aggregates achievement unlock data.
  * Returns stats for all achievements with unlock counts and percentages.
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('AdminAchievementStatsAPI');
   const endTimer = log.time('fetch-achievement-stats');
 
@@ -110,11 +109,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
           }
         }
       ])
-      .toArray();
+      .toArray() as unknown as Array<{ _id: string; unlockCount: number; firstUnlock?: Date; lastUnlock?: Date }>;
 
     // Create stats object from aggregation results
     const unlockMap = new Map(
-      unlockStats.map((stat: any) => [
+      unlockStats.map((stat) => [
         stat._id,
         {
           count: stat.unlockCount,

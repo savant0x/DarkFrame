@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authService';
+import { requireAdmin } from '@/lib/authMiddleware';
 import clientPromise from '@/lib/mongodb';
 import type { Player } from '@/types/game.types';
 import {
@@ -37,13 +37,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('ban-player');
 
   try {
-    // Admin authentication check
-    const user = await getAuthenticatedUser();
-    if (!user || !user.rank || user.rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const user = adminAuth;
 
     const body = await request.json();
     const validated = BanPlayerSchema.parse(body);
@@ -180,13 +179,12 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
   const endTimer = log.time('unban-player');
 
   try {
-    // Admin authentication check
-    const user = await getAuthenticatedUser();
-    if (!user || !user.rank || user.rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const user = adminAuth;
 
     const { searchParams } = new URL(request.url);
     const username = searchParams.get('username');

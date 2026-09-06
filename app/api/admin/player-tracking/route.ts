@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @file app/api/admin/player-tracking/route.ts
  * @created 2025-10-18
@@ -14,9 +13,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { players, playerActivity, playerSessions } from '@/lib/db/schema';
-import { eq, desc, gt, and } from 'drizzle-orm';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { players, playerActivity } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
+import { requireAdmin } from '@/lib/authMiddleware';
 import {
   getActivityCount,
   getTotalResourcesGained,
@@ -30,7 +29,7 @@ import {
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -66,10 +65,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-player-tracking');
 
   try {
-    const user = await getAuthenticatedUser();
-
-    if (!user || (user.rank ?? 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, 'Admin access required (rank 5+)');
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -103,11 +102,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         const totalSessionTime = await getTotalSessionTime(username, hoursAgo);
         const resourcesGained = await getTotalResourcesGained(username, hoursAgo);
 
-        const cutoffTime = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
         const lastActivityResult = await db.select({
           timestamp: playerActivity.timestamp,
         }).from(playerActivity)
-          .where(eq(playerActivity.userId, username))
+          .where(eq(playerActivity.playerId, username))
           .orderBy(desc(playerActivity.timestamp))
           .limit(1);
 

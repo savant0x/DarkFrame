@@ -30,13 +30,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
-  getClientAndDatabase,
+
   requireClanMembership,
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -75,7 +75,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('get-level');
   
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -89,7 +88,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     const levelInfo = await getClanLevelInfo(clanId);
 
-    const response: any = {
+    const response: Record<string, unknown> = {
       success: true,
       clanId,
       clanName: clan.name,
@@ -112,7 +111,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     log.info('Clan level retrieved', { clanId, level: levelInfo.currentLevel, xp: levelInfo.totalXP });
     return NextResponse.json(response, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     log.error('Failed to fetch clan level info', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -189,13 +188,12 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
       );
     }
 
-    const { client, db } = await getClientAndDatabase();
 
     
 
     const result = await awardClanXP(clanId, source, amount, authUser.username);
 
-    const response: any = {
+    const response: Record<string, unknown> = {
       success: result.success,
       xpAwarded: result.xpAwarded,
       newLevel: result.newLevel,
@@ -206,13 +204,13 @@ export const POST = withRequestLogging(postRateLimiter(async (request: NextReque
     };
 
     if (result.leveledUp && result.milestoneRewards) {
-      response.milestoneRewards = result.milestoneRewards;
+      response.milestoneRewards = result.milestoneRewards as { rewards: { metal: number; energy: number; researchPoints: number } };
       response.message += ` | Milestone reached! Rewards: ${result.milestoneRewards.rewards.metal} Metal, ${result.milestoneRewards.rewards.energy} Energy, ${result.milestoneRewards.rewards.researchPoints} RP`;
     }
 
     log.info('Clan XP awarded', { clanId, source, amount, leveledUp: result.leveledUp });
     return NextResponse.json(response, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     log.error('Failed to award clan XP', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {

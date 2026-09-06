@@ -33,7 +33,7 @@
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
-import type { Clan } from '@/types/clan.types';
+
 
 export enum AllianceType {
   NAP = 'NAP',

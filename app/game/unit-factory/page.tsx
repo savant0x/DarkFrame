@@ -86,7 +86,7 @@ import { useGameContext } from '@/context/GameContext';
 import { BackButton, StatsPanel, ControlsPanel } from '@/components';
 import GameLayout from '@/components/GameLayout';
 import TopNavBar from '@/components/TopNavBar';
-import { UNIT_BLUEPRINTS, UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
+import {  UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
 
 interface UnitWithStatus extends UnitBlueprint {
   isUnlocked: boolean;

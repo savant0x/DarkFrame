@@ -15,14 +15,14 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Factory } from '@/types/game.types';
-import { formatFactoryLevel, formatUpgradeCost } from '@/lib/factoryUpgradeService';
-import { Panel } from './ui/Panel';
+import { formatFactoryLevel } from '@/lib/factoryUpgradeService';
+
 import { StatCard } from './ui/StatCard';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Card } from './ui/Card';
 import { Divider } from './ui/Divider';
-import { ProgressBar } from './ui/ProgressBar';
+
 import { StaggerChildren, StaggerItem } from './transitions/StaggerChildren';
 import { LoadingSpinner } from './transitions/LoadingSpinner';
 import { toast } from '@/lib/toast';
@@ -84,7 +84,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
       } else {
         setError('Failed to load factories');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to load factories');
     } finally {
       setLoading(false);

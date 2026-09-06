@@ -28,7 +28,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { filterMessage, detectSpam } from '@/lib/moderationService';
+import { filterMessage } from '@/lib/moderationService';
 import type { PlayerContext } from '@/lib/channelService';
 
 // ============================================================================
@@ -63,7 +63,7 @@ const EDIT_TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
  * @returns Player context or null if not authenticated
  */
 async function getAuthenticatedUser(
-  request: NextRequest
+  _request: NextRequest
 ): Promise<PlayerContext | null> {
   // PLACEHOLDER: Mock user for development
   // Replace this entire function when authentication is ready
@@ -229,7 +229,8 @@ export async function POST(request: NextRequest) {
       })
       .where(eq(chatMessages.id, messageId));
 
-    if ((result as any).affectedRows === 0) {
+    const affected = Array.isArray(result) ? result.length : (result as unknown as { rowCount?: number }).rowCount ?? 0;
+    if (affected === 0) {
       return NextResponse.json(
         { success: false, error: 'Failed to update message' },
         { status: 500 }

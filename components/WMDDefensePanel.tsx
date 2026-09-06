@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useWebSocketContext } from '@/context/WebSocketContext';
-import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { showSuccess, showError } from '@/lib/toastService';
 
 interface DefenseBattery {
   batteryId: string;

@@ -37,7 +37,7 @@ export default function WMDHub() {
   // Subscribe to real-time WMD WebSocket events
   useWMDNotifications({
     showToasts: true,
-    onIncomingMissile: (data) => {
+    onIncomingMissile: (_data) => {
       // Auto-switch to missiles tab on incoming missile alert
       setActiveTab('missiles');
     },

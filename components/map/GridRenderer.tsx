@@ -26,7 +26,7 @@ import {
   MAP_CONFIG, 
   TILE_COLORS,
   tileToWorld,
-  worldToTile
+
 } from '@/types';
 import { getVisibleTiles } from '@/lib/mapService';
 

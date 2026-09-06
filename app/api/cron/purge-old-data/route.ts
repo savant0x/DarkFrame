@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST endpoint for manual trigger (admin only)
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   try {
     // Manual trigger endpoint can use regular auth
     const { getAuthenticatedUser } = await import('@/lib/authService');

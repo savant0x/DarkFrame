@@ -358,7 +358,7 @@ export async function unlockResearch(
   });
 
   const updatedClanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
-  const updatedClan = updatedClanResult[0];
+  const _updatedClan = updatedClanResult[0];
 
   const totalBonuses = await getClanBonuses(clanId);
 

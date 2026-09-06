@@ -73,7 +73,7 @@ interface RevokeModerationBody {
 /**
  * GET request query params
  */
-interface ModerationQuery {
+interface _ModerationQuery {
   type?: 'mutes' | 'bans' | 'blacklist' | 'history';
   targetUserId?: string;
   moderatorId?: string;

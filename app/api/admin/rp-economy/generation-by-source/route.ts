@@ -66,10 +66,11 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       ORDER BY totalRP DESC
     `);
 
-    const rows = (result as any).length > 0 ? (result as any) : [];
-    const totalGeneration = rows.reduce((sum: number, item: any) => sum + Number(item.totalRP), 0);
+    const resultRows = result as unknown as { rows?: Array<{ source: string; totalRP: number; players: number }> };
+    const rows: Array<{ source: string; totalRP: number; players: number; transactionCount: number; averageAmount: number }> = (resultRows.rows ?? []) as Array<{ source: string; totalRP: number; players: number; transactionCount: number; averageAmount: number }>;
+    const totalGeneration = rows.reduce((sum, item) => sum + Number(item.totalRP), 0);
 
-    const sources = rows.map((item: any) => ({
+    const sources = rows.map((item) => ({
       source: item.source,
       totalRP: Number(item.totalRP),
       transactionCount: Number(item.transactionCount),

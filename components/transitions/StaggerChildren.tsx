@@ -58,7 +58,6 @@ const itemVariants = {
 export function StaggerChildren({
   children,
   staggerDelay = 0.1,
-  variant = 'fade',
   className,
 }: StaggerChildrenProps) {
   return (

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @file app/api/admin/stats/route.ts
  * @created 2025-10-18
@@ -26,12 +25,12 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
-async function countTableWhere(table: any, condition: any): Promise<number> {
+async function countTableWhere(table: Parameters<ReturnType<typeof db.select>["from"]>[0], condition: Parameters<ReturnType<ReturnType<typeof db.select>["from"]>["where"]>[0]): Promise<number> {
   const result = await db.select({ count: sql`count(*)` }).from(table).where(condition);
   return Number(result[0]?.count) || 0;
 }
 
-async function countTable(table: any): Promise<number> {
+async function countTable(table: Parameters<ReturnType<typeof db.select>["from"]>[0]): Promise<number> {
   const result = await db.select({ count: sql`count(*)` }).from(table);
   return Number(result[0]?.count) || 0;
 }
@@ -42,7 +41,7 @@ async function countTable(table: any): Promise<number> {
  * Get game statistics for admin panel
  * Requires level 10+
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/stats');
   const endTimer = log.time('get-admin-stats');
 

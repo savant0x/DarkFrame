@@ -25,7 +25,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase } from '@/lib/mongodb';
+
 import { requireClanMembership } from '@/lib/authMiddleware';
 import { declareWar } from '@/lib/clanWarfareService';
 
@@ -54,7 +54,6 @@ import { declareWar } from '@/lib/clanWarfareService';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { db } = await getClientAndDatabase();
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
@@ -85,35 +84,35 @@ export async function POST(request: NextRequest) {
       message: warResult.message,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error declaring war:', error);
 
     // Permission errors
-    if (error.message.includes('permission') || error.message.includes('Officer')) {
+    if ((error instanceof Error ? error.message : String(error)).includes('permission') || (error instanceof Error ? error.message : String(error)).includes('Officer')) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : String(error) },
         { status: 403 }
       );
     }
 
     // Business rule violations
     if (
-      error.message.includes('level') ||
-      error.message.includes('war already exists') ||
-      error.message.includes('cooldown') ||
-      error.message.includes('Insufficient') ||
-      error.message.includes('own clan')
+      (error instanceof Error ? error.message : String(error)).includes('level') ||
+      (error instanceof Error ? error.message : String(error)).includes('war already exists') ||
+      (error instanceof Error ? error.message : String(error)).includes('cooldown') ||
+      (error instanceof Error ? error.message : String(error)).includes('Insufficient') ||
+      (error instanceof Error ? error.message : String(error)).includes('own clan')
     ) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }
 
     // Not found errors
-    if (error.message.includes('not found')) {
+    if ((error instanceof Error ? error.message : String(error)).includes('not found')) {
       return NextResponse.json(
-        { success: false, message: error.message },
+        { success: false, message: error instanceof Error ? error.message : String(error) },
         { status: 404 }
       );
     }

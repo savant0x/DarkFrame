@@ -50,10 +50,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in POST /api/messages/read:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
+      { success: false, error: error instanceof Error ? error.message : String(error) || 'Internal server error' },
       { status: 500 }
     );
   }

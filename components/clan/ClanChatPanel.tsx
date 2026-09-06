@@ -49,7 +49,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, Input, Badge, Divider } from '@/components/ui';
+import { Button, Input, Badge } from '@/components/ui';
 import { 
   MessageCircle, 
   Activity, 

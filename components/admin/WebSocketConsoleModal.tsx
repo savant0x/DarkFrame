@@ -63,7 +63,7 @@ export default function WebSocketConsoleModal({ onClose }: WebSocketConsoleModal
     }
 
     const startTime = Date.now();
-    emit('system:ping', (serverTime) => {
+    emit('system:ping', (_serverTime) => {
       const roundTripTime = Date.now() - startTime;
       setLatency(roundTripTime);
       addLog('success', `Ping successful: ${roundTripTime}ms`, 'system:ping');

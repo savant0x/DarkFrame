@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   try {
     // Initialize tutorial service
     const client = await clientPromise;
-    const db = client.db('darkframe');
+    const _db = client.db('darkframe');
     
 
     // Parse and validate request body

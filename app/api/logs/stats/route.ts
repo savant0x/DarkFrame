@@ -169,10 +169,10 @@ export async function GET(req: NextRequest) {
         );
       }
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('[API] Error retrieving log statistics:', error);
     return NextResponse.json(
-      { error: 'Failed to retrieve statistics', details: error.message },
+      { error: 'Failed to retrieve statistics', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

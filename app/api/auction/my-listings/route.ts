@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { getAuctions } from '@/lib/auctionService';
-import { logger } from '@/lib/logger';
+
 import {
   withRequestLogging,
   createRouteLogger,

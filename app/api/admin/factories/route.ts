@@ -50,7 +50,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  * Admin-only endpoint that returns comprehensive factory data for inspection.
  * Joins with players collection to get owner details.
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('AdminFactoriesAPI');
   const endTimer = log.time('factories');
 
@@ -72,7 +72,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     const factoriesList = await db.select().from(factories).limit(10000);
 
-    const factoriesData = factoriesList.map((factory: any) => {
+    const factoriesData = factoriesList.map((factory) => {
       const lastProduction = factory.lastResourceGeneration
         ? new Date(factory.lastResourceGeneration).toISOString()
         : new Date().toISOString();

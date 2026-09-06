@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @fileoverview Admin Bot Statistics API - Bot population analytics
  * @module app/api/admin/bot-stats/route
@@ -37,7 +36,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  * Returns comprehensive bot population analytics
  * Requires admin privileges (rank >= 5)
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('AdminBotStatsAPI');
   const endTimer = log.time('bot-stats');
 
@@ -94,14 +93,16 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     // Process each bot
     for (const bot of bots) {
-      const spec = (bot.botConfig as any)?.specialization;
-      const tier = (bot.botConfig as any)?.tier;
-      const resources = bot.resources;
-      const position = bot.currentPosition;
+      const spec = bot.botConfig?.specialization;
+      const tier = bot.botConfig?.tier;
+      const metal = bot.resourcesMetal;      // FID-20260905-001 M2: real columns
+      const energy = bot.resourcesEnergy;
+      const position = { x: bot.currentPositionX, y: bot.currentPositionY };
 
       // Specialization count
       if (spec && spec in stats.bySpecialization) {
-        stats.bySpecialization[spec as keyof typeof stats.bySpecialization]++;
+        const specKey = spec as unknown as keyof typeof stats.bySpecialization;
+        stats.bySpecialization[specKey]++;
       }
 
       // Tier count
@@ -111,20 +112,18 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       }
 
       // Special bases
-      if ((bot.botConfig as any)?.isSpecialBase) {
+      if (bot.botConfig?.isSpecialBase) {
         stats.specialBases++;
       }
 
       // Total resources
-      if (resources) {
-        stats.totalResources.metal += (resources as any).metal || 0;
-        stats.totalResources.energy += (resources as any).energy || 0;
-      }
+      stats.totalResources.metal += metal;
+      stats.totalResources.energy += energy;
 
       // Zone distribution (500x500 zones)
       if (position) {
-        const zoneX = Math.floor(((position as any).x || 0) / 500);
-        const zoneY = Math.floor(((position as any).y || 0) / 500);
+        const zoneX = Math.floor(((position).x || 0) / 500);
+        const zoneY = Math.floor(((position).y || 0) / 500);
         const zoneKey = `${zoneX},${zoneY}`;
         stats.zoneDistribution[zoneKey] = (stats.zoneDistribution[zoneKey] || 0) + 1;
       }

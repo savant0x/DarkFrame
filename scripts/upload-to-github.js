@@ -7,10 +7,10 @@ const fs = require('fs').promises;
 const path = require('path');
 
 // Configuration
-const OWNER = 'savant0x';
-const REPO = 'DarkFrame';
-const BRANCH = 'main';
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // Must be set
+const _OWNER = 'savant0x';
+const _REPO = 'DarkFrame';
+const _BRANCH = 'main';
+const _GITHUB_TOKEN = process.env.GITHUB_TOKEN; // Must be set
 
 // Directories to exclude
 const EXCLUDE_DIRS = ['node_modules', '.next', '.git', 'docs'];

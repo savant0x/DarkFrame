@@ -56,7 +56,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Panel } from '@/components/ui/Panel';
+
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -73,7 +73,7 @@ import {
   AlertCircle,
   ArrowDown,
   Loader2,
-  WifiOff,
+
   Wifi,
   Zap,
   X,
@@ -84,7 +84,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChannelType } from '@/lib/channelService';
-import type { DMConversation, DirectMessage, ConversationPreview } from '@/types/directMessage';
+import type {  DirectMessage, ConversationPreview } from '@/types/directMessage';
 
 // ============================================================================
 // TYPES
@@ -206,7 +206,6 @@ export default function ChatPanel({
   clanId,
   clanName,
   isVIP,
-  defaultCollapsed = true,
   initialTab = 'CHAT',
   onTabChange,
   onDMUnreadCountChange,
@@ -226,7 +225,7 @@ export default function ChatPanel({
   const [typingUsers, setTypingUsers] = useState<Map<ChannelType, TypingUser[]>>(new Map());
   const [onlineCount, setOnlineCount] = useState<Map<ChannelType, number>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Map<ChannelType, number>>(new Map());
-  const [muteStatus, setMuteStatus] = useState<MuteStatus>({ isMuted: false });
+  const [muteStatus, _setMuteStatus] = useState<MuteStatus>({ isMuted: false });
   const [askVeteransModal, setAskVeteransModal] = useState<AskVeteransModalData>({
     isOpen: false,
     question: '',
@@ -242,8 +241,8 @@ export default function ChatPanel({
   const [dmMessages, setDmMessages] = useState<DirectMessage[]>([]);
   const [dmInput, setDmInput] = useState('');
   const [isSendingDM, setIsSendingDM] = useState(false);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(false);
-  const [isLoadingDMMessages, setIsLoadingDMMessages] = useState(false);
+  const [isLoadingConversations, _setIsLoadingConversations] = useState(false);
+  const [isLoadingDMMessages, _setIsLoadingDMMessages] = useState(false);
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [playerSearchQuery, setPlayerSearchQuery] = useState('');
   const [playerSearchResults, setPlayerSearchResults] = useState<PlayerSearchResult[]>([]);
@@ -269,7 +268,7 @@ export default function ChatPanel({
   /**
    * Poll for new messages every 2 seconds
    */
-  const { data: polledMessages, isPolling: isPollingMessages } = usePolling<any>({
+  const { data: _polledMessages, isPolling: isPollingMessages } = usePolling<any>({
     fetchFn: async () => {
       const since = lastMessageTimestampRef.current
         ? `&since=${lastMessageTimestampRef.current.toISOString()}`
@@ -287,14 +286,16 @@ export default function ChatPanel({
         setMessages((prev) => {
           const updated = new Map(prev);
           const existingMessages = prev.get(activeChannel) || [];
+          // FID-20260905-001: server ChatMessage carries the text in `message` —
+          // content was undefined → TypeError: undefined.split in renderMessageContent.
           const newMessages: ChatMessageData[] = data.messages.map((m: any) => ({
             id: m.id,
             channelId: m.channelId,
             senderId: m.senderId,
             senderUsername: m.senderUsername,
             senderLevel: m.senderLevel,
-            senderIsVIP: m.senderIsVIP,
-            content: m.content,
+            senderIsVIP: m.isVIP ?? m.senderIsVIP,
+            content: m.message,
             timestamp: new Date(m.timestamp),
             edited: m.edited,
             editedAt: m.editedAt ? new Date(m.editedAt) : undefined,
@@ -323,7 +324,7 @@ export default function ChatPanel({
   /**
    * Poll for typing indicators every 2 seconds
    */
-  const { data: typersData } = usePolling<{ typers: TypingUser[] }>({
+  const { data: _typersData } = usePolling<{ typers: TypingUser[] }>({
     fetchFn: async () => {
       const res = await fetch(`/api/chat/typing?channelId=${activeChannel}`);
       if (!res.ok) throw new Error('Failed to load typers');
@@ -352,7 +353,7 @@ export default function ChatPanel({
   /**
    * Poll for online count and user list every 30 seconds
    */
-  const { data: onlineData } = usePolling<{ channelId: string; count: number; users?: Array<{ userId: string; username: string }> }>({
+  const { data: _onlineData } = usePolling<{ channelId: string; count: number; users?: Array<{ userId: string; username: string }> }>({
     fetchFn: async () => {
       const res = await fetch(`/api/chat/online?channelId=${activeChannel}`);
       if (!res.ok) throw new Error('Failed to load online count');
@@ -409,7 +410,7 @@ export default function ChatPanel({
   /**
    * Poll for DM conversations every 2 seconds (when DM tab active)
    */
-  const { data: polledConversations } = usePolling<any>({
+  const { data: _polledConversations } = usePolling<any>({
     fetchFn: async () => {
       const res = await fetch('/api/dm');
       if (!res.ok) throw new Error('Failed to load conversations');
@@ -442,7 +443,7 @@ export default function ChatPanel({
   /**
    * Poll for DM messages every 2 seconds (when conversation selected)
    */
-  const { data: polledDMMessages } = usePolling<any>({
+  const { data: _polledDMMessages } = usePolling<any>({
     fetchFn: async () => {
       if (!selectedConversationId) return null;
       const res = await fetch(`/api/dm/${selectedConversationId}`);
@@ -630,14 +631,15 @@ export default function ChatPanel({
       if (!response.ok) throw new Error('Failed to load messages');
 
       const data = await response.json();
+      // FID-20260905-001: server field is `message` (see mapping note above).
       const loadedMessages: ChatMessageData[] = data.messages.map((m: any) => ({
         id: m.id,
         channelId: m.channelId,
         senderId: m.senderId,
         senderUsername: m.senderUsername,
         senderLevel: m.senderLevel,
-        senderIsVIP: m.senderIsVIP,
-        content: m.content,
+        senderIsVIP: m.isVIP ?? m.senderIsVIP,
+        content: m.message,
         timestamp: new Date(m.timestamp),
         edited: m.edited,
         editedAt: m.editedAt ? new Date(m.editedAt) : undefined,
@@ -729,7 +731,7 @@ export default function ChatPanel({
   /**
    * Handle message input change
    */
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const _handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.slice(0, MAX_MESSAGE_LENGTH);
     setMessageInput(value);
 
@@ -1069,7 +1071,7 @@ export default function ChatPanel({
 
   // Connection state based on polling
   const isConnected = isPollingMessages;
-  const connectionState = isPollingMessages ? 'connected' : 'connecting';
+  const _connectionState = isPollingMessages ? 'connected' : 'connecting';
 
   const connectionIcon =
     isPollingMessages ? (

@@ -14,15 +14,15 @@
 'use client';
 
 import React from 'react';
-import { MapPin, Map, Flag } from 'lucide-react';
+import { MapPin,  Flag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import MovementControls from './MovementControls';
-import { Panel } from '@/components/ui/Panel';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Divider } from '@/components/ui/Divider';
-import { Card } from '@/components/ui/Card';
+
+
+
+
+
 import type { FlagBearer } from '@/types';
 
 // ============================================================
@@ -50,8 +50,8 @@ interface ControlsPanelProps {
  * - Design system integration for consistent styling
  */
 export default function ControlsPanel({ flagBearer }: ControlsPanelProps) {
-  const { player, currentTile, isLoading, error } = useGameContext();
-  const router = useRouter();
+  const { player, currentTile } = useGameContext();
+  const _router = useRouter();
 
   // Check if current player is the flag bearer
   const isCurrentPlayerBearer = flagBearer && player && flagBearer.username === player.username;

@@ -59,7 +59,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 
-async function verifyAdminAccess(request: NextRequest): Promise<{
+async function verifyAdminAccess(_request: NextRequest): Promise<{
   isAdmin: boolean;
   userId?: string;
   username?: string;

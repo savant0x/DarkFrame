@@ -26,9 +26,9 @@ import { verifyAuth } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { players, tiles } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
-import { Player, Tile, TerrainType, Resources } from '@/types';
+import {   TerrainType } from '@/types';
 
-const EXCHANGE_FEE_RATE = 0.20; // 20% fee
+const _EXCHANGE_FEE_RATE = 0.20; // 20% fee
 const EXCHANGE_RATE = 0.80; // Player receives 80% of what they give
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.BANK);

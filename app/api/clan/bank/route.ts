@@ -10,13 +10,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getClientAndDatabase,
+
   requireClanMembership,
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -51,13 +51,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   
   try {
     // Get database connection
-    const { client, db } = await getClientAndDatabase();
 
     // Authenticate and get clan (returns error response if fails)
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     
-    const { auth, clanId } = result;
+    const { clanId } = result;
 
     // Initialize services
 
@@ -78,7 +77,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       transactions,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     log.error('Failed to get bank info', error instanceof Error ? error : new Error(String(error)));
     return createErrorFromException(error, ErrorCode.INTERNAL_ERROR);
   } finally {
@@ -125,7 +124,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 export async function POST(request: NextRequest) {
   try {
     // Get database connection
-    const { client, db } = await getClientAndDatabase();
 
     // Authenticate and get clan (returns error response if fails)
     const result = await requireClanMembership(request);
@@ -203,32 +201,32 @@ export async function POST(request: NextRequest) {
       message,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Bank operation error:', error);
 
     // Handle specific errors
-    if (error.message?.includes('permission')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('permission')) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 403 }
       );
     }
 
-    if (error.message?.includes('Insufficient')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('Insufficient')) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }
 
-    if (error.message?.includes('capacity')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('capacity')) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: error instanceof Error ? error.message : String(error) },
         { status: 400 }
       );
     }
 
-    if (error.message?.includes('maximum level')) {
+    if (error instanceof Error ? error.message : String(error)?.includes('maximum level')) {
       return NextResponse.json(
         { success: false, error: 'Bank is already at maximum level' },
         { status: 400 }

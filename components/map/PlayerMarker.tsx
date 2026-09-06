@@ -161,7 +161,7 @@ export function updatePlayerMarkerPosition(
  * });
  * ```
  */
-export function animatePlayerMarker(graphics: Graphics, delta: number): void {
+export function animatePlayerMarker(graphics: Graphics, _delta: number): void {
   // Safety check: ensure graphics object is valid
   if (!graphics || graphics.destroyed || !graphics.scale) {
     return;

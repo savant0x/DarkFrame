@@ -34,21 +34,21 @@ import {
   Coins, 
   Map, 
   Swords, 
-  Beaker, 
+
   Sparkles,
   UserPlus,
   LogOut,
   Info,
   TrendingUp,
-  Calendar,
-  MapPin,
+
+
   Loader2,
-  UserCog,
+  
   Wallet,
   Check,
   X,
   AlertCircle,
-  Zap
+  
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
@@ -269,7 +269,6 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
 
 // Import the CreateClanView and JoinClanView from ClanPanel
 // (These are the same components we just created)
-import { useState as useReactState } from 'react';
 
 /**
  * Create Clan View - Inline form
@@ -313,7 +312,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
       const response = await fetch(`/api/clan/check-name?name=${encodeURIComponent(name)}`);
       const data = await response.json();
       setNameAvailable(data.available);
-    } catch (error) {
+    } catch {
       setNameAvailable(null);
     } finally {
       setIsCheckingName(false);

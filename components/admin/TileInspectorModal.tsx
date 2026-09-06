@@ -55,6 +55,11 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
   const [currentPage, setCurrentPage] = useState(1);
   const tilesPerPage = 50;
 
+  // Edit (FID-20260905-001 B2: real POST, replaces the "Coming soon!" alert)
+  const [editing, setEditing] = useState<TileData | null>(null);
+  const [editTerrain, setEditTerrain] = useState('Wasteland');
+  const [saving, setSaving] = useState(false);
+
   // Load tiles
   useEffect(() => {
     const loadTiles = async () => {
@@ -254,7 +259,7 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
                 {currentTiles.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No tiles match your filters</p>
                 ) : (
-                  currentTiles.map((tile, idx) => (
+                  currentTiles.map((tile, _idx) => (
                     <div
                       key={`${tile.x}-${tile.y}`}
                       className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
@@ -305,7 +310,7 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
 
                         <button
                           className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors"
-                          onClick={() => alert(`Edit tile (${tile.x}, ${tile.y}) - Coming soon!`)}
+                          onClick={() => { setEditing(tile); setEditTerrain(tile.type); }}
                         >
                           Edit
                         </button>
@@ -317,6 +322,59 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
             </>
           )}
         </div>
+
+        {/* Edit drawer (FID-20260905-001 B2) */}
+        {editing && (
+          <div className="bg-gray-800 p-4 border-t border-gray-700">
+            <div className="flex items-center gap-4">
+              <p className="text-white font-semibold">
+                Edit tile ({editing.x}, {editing.y}) — current: {editing.type}
+              </p>
+              <select
+                value={editTerrain}
+                onChange={(e) => setEditTerrain(e.target.value)}
+                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+              >
+                {['Metal', 'Energy', 'Cave', 'Forest', 'Factory', 'Wasteland', 'Bank', 'Shrine', 'AuctionHouse'].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <button
+                disabled={saving}
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const res = await fetch('/api/admin/tiles', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ x: editing.x, y: editing.y, terrain: editTerrain }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      setTiles((prev) => prev.map((t) => (t.x === editing.x && t.y === editing.y ? { ...t, type: data.tile.type } : t)));
+                      setEditing(null);
+                    } else {
+                      setError(data.error || 'Failed to save tile');
+                    }
+                  } catch {
+                    setError('Failed to save tile');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded transition-colors"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={() => setEditing(null)}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -329,7 +387,7 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
  * - Pagination for large tile sets (50 per page)
  * - Color-coded tile types
  * - Special indicators for bases, factories, caves
- * - Edit button placeholder for future functionality
+ * - Edit tile terrain via POST /api/admin/tiles (FID-20260905-001 B2)
  * 
  * 🎨 STYLING:
  * - Blue theme for map/tile focus

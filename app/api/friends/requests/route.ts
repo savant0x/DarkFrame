@@ -33,7 +33,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getPendingRequests, getSentRequests } from '@/lib/friendService';
 import { ValidationError } from '@/lib/common/errors';
-import type { FriendRequestWithPlayer } from '@/types/friend';
+
 
 // ============================================================================
 // GET /api/friends/requests - Get Pending Friend Requests

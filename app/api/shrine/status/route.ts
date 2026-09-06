@@ -53,7 +53,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     // Filter active buffs (expiresAt > now)
     const now = new Date();
-    const activeBuffs = (player.shrineBoosts || []).filter((buff: any) => {
+    const activeBuffs = (player.shrineBoosts || []).filter((buff) => {
       if (!buff.expiresAt) return false;
       const expiresAt = new Date(buff.expiresAt);
       return expiresAt > now;
@@ -62,11 +62,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // Get available items from inventory that can be sacrificed
     // Items with categories like 'consumable', 'offering', or specific shrine-sacrificeable items
     const inventoryItems = player.inventory?.items || [];
-    const availableItems = inventoryItems.filter((item: any) => {
+    const availableItems = inventoryItems.filter((item) => {
       // Allow consumables and items that can be sacrificed
       // You can adjust this logic based on your game's item categories
       const sacrificeableCategories = ['consumable', 'offering', 'treasure', 'relic'];
-      return item.category && sacrificeableCategories.includes(item.category.toLowerCase());
+      const category = (item as unknown as { category?: string }).category;
+      return category !== undefined && sacrificeableCategories.includes(category.toLowerCase());
     });
 
     // If no specific categories exist, allow all inventory items

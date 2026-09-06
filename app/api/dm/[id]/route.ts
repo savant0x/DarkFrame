@@ -41,7 +41,7 @@ import { requireAuth } from '@/lib/authMiddleware';
 import { getConversationMessages, deleteConversation } from '@/lib/dmService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
 import type {
-  GetMessagesResponse,
+
   GetMessagesQuery,
 } from '@/types/directMessage';
 
@@ -72,7 +72,7 @@ export async function GET(
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
+    const _db = mongoClient.db('darkframe');
 
     // 2. Authenticate user
     const auth = await requireAuth(request);
@@ -171,7 +171,7 @@ export async function DELETE(
   try {
     // 1. Get MongoDB connection
     const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
+    const _db = mongoClient.db('darkframe');
 
     // 2. Authenticate user
     const auth = await requireAuth(request);

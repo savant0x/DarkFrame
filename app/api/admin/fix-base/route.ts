@@ -22,7 +22,7 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
-export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const POST = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('AdminFixBaseAPI');
   const endTimer = log.time('fix-base');
 

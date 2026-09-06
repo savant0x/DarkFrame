@@ -140,7 +140,7 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
  * 
  * @returns Eligibility info with costs and cooldown
  */
-export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_req: NextRequest) => {
   const log = createRouteLogger('SpecializationSwitchAPI');
   const endTimer = log.time('specialization-respec-eligibility');
   

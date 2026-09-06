@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { getCollection } from '@/lib/mongodb';
 import { AuctionListing } from '@/types/auction.types';
-import { logger } from '@/lib/logger';
+
 import {
   withRequestLogging,
   createRouteLogger,
@@ -100,10 +100,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       .toArray();
 
     // Transform results to include user's bid and winning status
-    const bids = auctions.map((auction: any) => {
+    const bids = auctions.map((auction) => {
       // Find user's highest bid on this auction
-      const userBids = auction.bids.filter((bid: any) => bid.bidderUsername === username);
-      const myBid = userBids.reduce((highest: any, current: any) => 
+      const userBids = auction.bids.filter((bid) => bid.bidderUsername === username);
+      const myBid = userBids.reduce((highest, current) => 
         current.bidAmount > highest.bidAmount ? current : highest
       , userBids[0]);
 

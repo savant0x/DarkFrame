@@ -14,7 +14,7 @@ import type { AuthenticatedUser } from '../auth';
 import {
   broadcastChatMessage,
   broadcastTypingIndicator,
-  broadcastMemberOnlineStatus,
+
 } from '../broadcast';
 import type { ChatMessagePayload, ChatTypingPayload } from '@/types/websocket';
 import { randomUUID } from 'node:crypto';

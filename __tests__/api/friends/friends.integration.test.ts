@@ -58,7 +58,7 @@ const RUN_LIVE_DB_TESTS = process.env.RUN_LIVE_DB_TESTS === '1';
 describe.skipIf(!RUN_LIVE_DB_TESTS)('Friend API - Live Integration', () => {
   let dbName: string;
   let token: string;
-  let testUserId: string; // assigned in beforeAll; kept for future assertion use
+  let _testUserId: string; // assigned in beforeAll; kept for future assertion use
   let friend1Id: string;
 
   beforeAll(async () => {
@@ -92,7 +92,7 @@ describe.skipIf(!RUN_LIVE_DB_TESTS)('Friend API - Live Integration', () => {
 
     await db.collection('players').insertMany([testUser, friend1]);
 
-    testUserId = testUser._id.toString();
+    _testUserId = testUser._id.toString();
     friend1Id = friend1._id.toString();
 
     // Ensure JWT secret matches authMiddleware default so verification succeeds

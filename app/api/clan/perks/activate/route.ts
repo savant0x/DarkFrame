@@ -22,9 +22,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import { requireClanMembership } from '@/lib';
 import {
-  initializeClanPerkService,
+
   activatePerk,
   deactivatePerk,
 } from '@/lib/clanPerkService';
@@ -58,7 +58,6 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
-    const { client, db } = await getClientAndDatabase();
 
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
@@ -105,24 +104,24 @@ export async function POST(request: NextRequest) {
           },
           { status: 200 }
         );
-      } catch (error: any) {
-        if (error.message.includes('not a member')) {
-          return NextResponse.json({ error: error.message }, { status: 404 });
+      } catch (error) {
+        if ((error instanceof Error ? error.message : String(error)).includes('not a member')) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 404 });
         }
-        if (error.message.includes('Insufficient permissions')) {
-          return NextResponse.json({ error: error.message }, { status: 403 });
+        if ((error instanceof Error ? error.message : String(error)).includes('Insufficient permissions')) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 403 });
         }
         if (
-          error.message.includes('already active') ||
-          error.message.includes('must be level') ||
-          error.message.includes('not unlocked') ||
-          error.message.includes('Maximum active perks') ||
-          error.message.includes('Insufficient')
+          (error instanceof Error ? error.message : String(error)).includes('already active') ||
+          (error instanceof Error ? error.message : String(error)).includes('must be level') ||
+          (error instanceof Error ? error.message : String(error)).includes('not unlocked') ||
+          (error instanceof Error ? error.message : String(error)).includes('Maximum active perks') ||
+          (error instanceof Error ? error.message : String(error)).includes('Insufficient')
         ) {
-          return NextResponse.json({ error: error.message }, { status: 400 });
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
         }
-        if (error.message.includes('not found')) {
-          return NextResponse.json({ error: error.message }, { status: 404 });
+        if ((error instanceof Error ? error.message : String(error)).includes('not found')) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 404 });
         }
         throw error;
       }
@@ -140,23 +139,23 @@ export async function POST(request: NextRequest) {
           },
           { status: 200 }
         );
-      } catch (error: any) {
-        if (error.message.includes('not a member')) {
-          return NextResponse.json({ error: error.message }, { status: 404 });
+      } catch (error) {
+        if ((error instanceof Error ? error.message : String(error)).includes('not a member')) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 404 });
         }
-        if (error.message.includes('Insufficient permissions')) {
-          return NextResponse.json({ error: error.message }, { status: 403 });
+        if ((error instanceof Error ? error.message : String(error)).includes('Insufficient permissions')) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 403 });
         }
-        if (error.message.includes('not currently active')) {
-          return NextResponse.json({ error: error.message }, { status: 400 });
+        if ((error instanceof Error ? error.message : String(error)).includes('not currently active')) {
+          return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });
         }
         throw error;
       }
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error managing clan perk:', error);
     return NextResponse.json(
-      { error: 'Failed to manage clan perk', details: error.message },
+      { error: 'Failed to manage clan perk', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

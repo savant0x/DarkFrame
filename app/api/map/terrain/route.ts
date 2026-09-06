@@ -16,7 +16,7 @@ import { GAME_CONSTANTS } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET(_request: NextRequest): Promise<NextResponse> {
   try {
     const rows = await db
       .select({ x: tiles.x, y: tiles.y, terrain: tiles.terrain })

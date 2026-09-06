@@ -1,6 +1,6 @@
 /* Temporary audit tool: sweep all API routes on prod with GET; report 500s + error bodies. */
 const fs = require('fs');
-const path = require('path');
+const _path = require('path');
 
 const BASE = process.env.PROD_BASE || 'https://darkframe-savantai.vercel.app';
 const routes = [];

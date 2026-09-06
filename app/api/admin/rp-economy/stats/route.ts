@@ -14,7 +14,7 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/rp-economy/stats');
   const endTimer = log.time('get-rp-economy-stats');
 
@@ -53,7 +53,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const activeEarners24h = allPlayers.filter((p) => {
       if (!p.rpHistory || !Array.isArray(p.rpHistory)) return false;
-      return p.rpHistory.some((entry: any) => 
+      return p.rpHistory.some((entry) => 
         entry.amount > 0 && 
         entry.timestamp && 
         new Date(entry.timestamp) > oneDayAgo

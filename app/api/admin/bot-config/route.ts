@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @fileoverview Admin Bot Configuration API - View and update bot configs
  * @module app/api/admin/bot-config/route
@@ -73,7 +72,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // Fetch bot
     const bot = await db.select()
       .from(players)
-      .where(and(eq(players.username, botUsername), eq(players.isBot, true)))
+      .where(and(eq(players.username, botUsername), eq(players.isBot, 1)))
       .limit(1);
 
     if (!bot.length) {
@@ -88,8 +87,8 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // Return bot configuration
     log.info('Bot configuration retrieved', {
       botUsername,
-      tier: (botData.botConfig as any)?.tier,
-      specialization: (botData.botConfig as any)?.specialization,
+      tier: botData.botConfig?.tier,
+      specialization: botData.botConfig?.specialization,
       adminUser: tokenPayload.username,
     });
 
@@ -97,8 +96,9 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       success: true,
       data: {
         username: botData.username,
-        currentPosition: botData.currentPosition,
-        resources: botData.resources,
+        // FID-20260905-001 M2: real columns (currentPosition/resources were Mongo-era).
+        currentPosition: { x: botData.currentPositionX, y: botData.currentPositionY },
+        resources: { metal: botData.resourcesMetal, energy: botData.resourcesEnergy },
         botConfig: botData.botConfig,
         units: botData.units,
         totalAttack: botData.totalStrength,
@@ -169,7 +169,7 @@ export const PATCH = withRequestLogging(patchRateLimiter(async (request: NextReq
     // Verify bot exists
     const bot = await db.select()
       .from(players)
-      .where(and(eq(players.username, username), eq(players.isBot, true)))
+      .where(and(eq(players.username, username), eq(players.isBot, 1)))
       .limit(1);
 
     if (!bot.length) {
@@ -179,55 +179,57 @@ export const PATCH = withRequestLogging(patchRateLimiter(async (request: NextReq
       });
     }
 
-    // Build update document
+    // Build a typed update set (FID-20260905-001 M2: real columns, no doc-shaped update).
     const botData = bot[0];
-    const updateDoc: Record<string, unknown> = {};
+    const mergedBotConfig = {
+      ...((botData.botConfig as Record<string, unknown> | null) ?? {}),
+    } as Record<string, unknown>;
+    const setClause: Partial<typeof players.$inferInsert> = {};
 
     if (updates.specialization) {
-      const botConfig = { ...(botData.botConfig as any) || {}, specialization: updates.specialization };
-      updateDoc.botConfig = botConfig;
+      mergedBotConfig.specialization = updates.specialization;
+      setClause.botConfig = mergedBotConfig as unknown as typeof players.$inferInsert.botConfig;
     }
 
     if (updates.tier !== undefined) {
-      const botConfig = { ...(updateDoc.botConfig || botData.botConfig) as any, tier: updates.tier };
-      updateDoc.botConfig = botConfig;
+      mergedBotConfig.tier = updates.tier;
+      setClause.botConfig = mergedBotConfig as unknown as typeof players.$inferInsert.botConfig;
     }
 
     if (updates.position) {
-      updateDoc.currentPosition = updates.position;
+      setClause.currentPositionX = Math.round(updates.position.x);
+      setClause.currentPositionY = Math.round(updates.position.y);
     }
 
     if (updates.resources) {
-      const currentResources = botData.resources as any || {};
-      const newResources = {
-        metal: updates.resourcesMetal !== undefined ? Math.max(0, updates.resourcesMetal) : currentResources.metal,
-        energy: updates.resourcesEnergy !== undefined ? Math.max(0, updates.resourcesEnergy) : currentResources.energy,
-      };
-      updateDoc.resources = newResources;
+      // Pre-existing bug the nocheck hid: the schema field is updates.resources.metal,
+      // never `updates.resourcesMetal`. Preserving live-resource floors at 0.
+      setClause.resourcesMetal = Math.max(0, Math.round(updates.resources.metal ?? botData.resourcesMetal));
+      setClause.resourcesEnergy = Math.max(0, Math.round(updates.resources.energy ?? botData.resourcesEnergy));
     }
 
     if (updates.isSpecialBase !== undefined) {
-      const botConfig = { ...(updateDoc.botConfig || botData.botConfig) as any, isSpecialBase: Boolean(updates.isSpecialBase) };
-      updateDoc.botConfig = botConfig;
+      mergedBotConfig.isSpecialBase = Boolean(updates.isSpecialBase);
+      setClause.botConfig = mergedBotConfig as unknown as typeof players.$inferInsert.botConfig;
     }
 
     // Apply updates
-    if (Object.keys(updateDoc).length > 0) {
+    if (Object.keys(setClause).length > 0) {
       await db.update(players)
-        .set(updateDoc)
-        .where(and(eq(players.username, username), eq(players.isBot, true)));
+        .set(setClause)
+        .where(and(eq(players.username, username), eq(players.isBot, 1)));
     }
 
     log.info('Bot configuration updated successfully', {
       username,
-      updatesApplied: Object.keys(updateDoc),
+      updatesApplied: Object.keys(setClause),
       adminUser: tokenPayload.username,
     });
 
     return NextResponse.json({
       success: true,
       message: 'Bot configuration updated successfully',
-      updates: updateDoc,
+      updates: setClause,
     });
   } catch (error) {
     if (error instanceof ZodError) {

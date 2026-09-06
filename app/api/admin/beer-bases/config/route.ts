@@ -43,7 +43,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
  *   }
  * }
  */
-export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_req: NextRequest) => {
   const log = createRouteLogger('AdminBeerBaseConfigGetAPI');
   const endTimer = log.time('get-beer-base-config');
 

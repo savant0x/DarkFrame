@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * @file app/api/admin/active-sessions/route.ts
  * @created 2025-10-18
@@ -17,14 +16,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb';
 import { PlayerSession } from '@/types';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { detectSessionAbuse } from '@/lib/antiCheatDetector';
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
+
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -53,13 +52,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const endTimer = log.time('fetch-active-sessions');
 
   try {
-    const user = await getAuthenticatedUser();
-
-    if (!user || (user.rank ?? 0) < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin access required (rank 5+)',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
+    const user = adminAuth;
 
     const sessionCollection = await getCollection<PlayerSession>('playerSessions');
 
@@ -71,7 +69,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     // Calculate current durations and metrics
     const now = Date.now();
-    const sessionsWithDuration = sessions.map((session: any) => {
+    const sessionsWithDuration = sessions.map((session) => {
       const currentDuration = Math.floor((now - session.startTime.getTime()) / 1000);
       return {
         ...session,
@@ -81,7 +79,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 
     const totalActive = sessions.length;
     const longestSession = sessionsWithDuration.length > 0
-      ? Math.max(...sessionsWithDuration.map((s: any) => s.currentDuration))
+      ? Math.max(...sessionsWithDuration.map((s) => s.currentDuration))
       : 0;
     const totalActions = sessions.reduce((sum, s) => sum + s.actionsCount, 0);
     const averageDuration = sessionsWithDuration.length > 0
@@ -89,7 +87,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       : 0;
 
     // Identify potential session abuse (>14 hours continuous)
-    const abusiveSessions = sessionsWithDuration.filter((s: any) => s.currentDuration > 14 * 60 * 60);
+    const abusiveSessions = sessionsWithDuration.filter((s) => s.currentDuration > 14 * 60 * 60);
     
     // Anti-cheat: Flag excessive sessions
     for (const session of abusiveSessions) {
@@ -117,7 +115,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       longestSession,
       totalActions,
       averageDuration,
-      abusiveSessions: abusiveSessions.map((s: any) => ({
+      abusiveSessions: abusiveSessions.map((s) => ({
         userId: s.userId,
         duration: s.currentDuration,
         hours: Math.floor(s.currentDuration / 3600),

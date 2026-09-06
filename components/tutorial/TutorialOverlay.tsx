@@ -23,7 +23,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Joyride, { Step, CallBackProps, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import type { TutorialQuest, TutorialStep, TutorialProgress, TutorialUIState } from '@/types/tutorial.types';
 
@@ -259,7 +259,7 @@ export default function TutorialOverlay({
    * Handle joyride callback events
    */
   const handleJoyrideCallback = useCallback(async (data: CallBackProps) => {
-    const { status, action, type, index } = data;
+    const { status, action, type } = data;
 
     // Handle tutorial completion
     if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {

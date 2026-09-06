@@ -73,7 +73,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Parse and validate request body
     const body = await request.json();
-    const validated = HarvestSchema.parse(body);
+    const _validated = HarvestSchema.parse(body);
     const username = authUser.username;
     
     log.debug('Processing harvest request', { username });

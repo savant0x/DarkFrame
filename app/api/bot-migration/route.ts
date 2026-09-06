@@ -13,21 +13,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { requireAdmin } from '@/lib/authMiddleware';
 import {
   executeMigration,
   getMigrationHistory,
   getNextMigrationTime,
 } from '@/lib/botMigrationService';
-import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+
+
+
 
 // ============================================================================
 // GET - Migration History and Status
 // ============================================================================
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const history = await getMigrationHistory(10);
     const nextMigration = getNextMigrationTime();
@@ -57,30 +57,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const tokenPayload = await getAuthenticatedUser();
-    if (!tokenPayload) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
-
-    const playerResult = await db.select().from(players).where(eq(players.username, tokenPayload.username)).limit(1);
-    const player = playerResult[0];
-
-    if (!player) {
-      return NextResponse.json(
-        { error: 'Player not found' },
-        { status: 404 }
-      );
-    }
-
-    if (!player.rank || player.rank < 5) {
-      return NextResponse.json(
-        { error: 'Admin privileges required (rank 5+)' },
-        { status: 403 }
-      );
-    }
+    const tokenPayload = adminAuth;
 
     const result = await executeMigration('manual', tokenPayload.username);
 

@@ -27,7 +27,6 @@ import {
   getDefaultChannel,
   getAllChannels,
   type PlayerContext,
-  type ChannelMetadata,
 } from '@/lib/channelService';
 
 // ============================================================================

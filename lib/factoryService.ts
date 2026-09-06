@@ -15,8 +15,8 @@
 
 import { db } from '@/lib/db';
 import { factories, players } from '@/lib/db/schema';
-import { eq, and, sql, count, desc } from 'drizzle-orm';
-import { Factory, AttackResult, Unit, Position, UnitType } from '@/types';
+import { eq, and, sql } from 'drizzle-orm';
+import { Factory, AttackResult, Unit,  UnitType } from '@/types';
 import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
 import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';

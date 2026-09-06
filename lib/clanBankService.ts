@@ -27,7 +27,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { eq, and, gt, lt, gte, lte, desc, asc, sql } from 'drizzle-orm';
+import { eq,        sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import {

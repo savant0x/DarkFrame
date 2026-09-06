@@ -154,7 +154,6 @@ export function createLogger(config: LoggerConfig = {}): Logger {
     context,
     minLevel = getLogLevel(),
     enableConsole = true,
-    enableFile = false,
     prettyPrint = process.env.NODE_ENV === 'development',
   } = config;
 

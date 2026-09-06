@@ -39,7 +39,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 /**
  * GET - Get beacon status
  */
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('bot-magnet-get');
   const endTimer = log.time('bot-magnet-get');
 
@@ -153,7 +153,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 /**
  * DELETE - Deactivate beacon
  */
-export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const DELETE = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('bot-magnet-delete');
   const endTimer = log.time('bot-magnet-delete');
 

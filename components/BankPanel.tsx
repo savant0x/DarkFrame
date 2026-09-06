@@ -32,7 +32,7 @@
 import { useState } from 'react';
 import { BankStorage, Resources } from '@/types';
 import { Panel } from './ui/Panel';
-import { StatCard } from './ui/StatCard';
+
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Card } from './ui/Card';

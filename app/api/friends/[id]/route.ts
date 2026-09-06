@@ -40,7 +40,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { acceptRequest, declineRequest, removeFriend } from '@/lib/friendService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
-import type { Friend, FriendRequest } from '@/types/friend';
+
 
 // ============================================================================
 // PATCH /api/friends/[id] - Accept or Decline Friend Request
@@ -91,7 +91,7 @@ export async function PATCH(
     let body: unknown;
     try {
       body = await request.json();
-    } catch (parseError) {
+    } catch {
       return NextResponse.json(
         { success: false, error: 'Invalid JSON in request body' },
         { status: 400 }

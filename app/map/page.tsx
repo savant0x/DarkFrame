@@ -59,7 +59,7 @@ export default function MapPage() {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('Zone');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [mapData, setMapData] = useState<MapTile[][] | null>(null);
-  const [playerMarkers, setPlayerMarkers] = useState<PlayerMarker[]>([]);
+  const [_playerMarkers, setPlayerMarkers] = useState<PlayerMarker[]>([]);
   // Viewport state - FULL MAP VIEW (shows entire 150×150 grid)
   const [viewport, setViewport] = useState<MapViewport>({
     x: 0,
@@ -172,7 +172,7 @@ export default function MapPage() {
       }
     };
     
-    const handleResize = () => {
+    const _handleResize = () => {
       // Update viewport dimensions on window resize
       const mapElement = document.querySelector('.map-canvas-container');
       if (mapElement) {

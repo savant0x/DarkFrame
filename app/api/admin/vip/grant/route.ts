@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, modLog } from '@/lib/db/schema';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -62,8 +62,16 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       })
       .where(eq(players.username, validated.username));
 
-    // TODO: Log VIP grant in analytics
-    // await logVIPGrant({ username, days, grantedBy: adminUsername, grantedAt: new Date() });
+    // FID-20260905-001 B3: real audit row (was a TODO — money-adjacent action with no trail).
+    // mod_log.id's $defaultFn supplies the 24-char PK; action ≤ varchar(50).
+    await db.insert(modLog).values({
+      moderatorId: adminAuth.username.slice(0, 20),
+      action: 'VIP_GRANT',
+      targetId: validated.username.slice(0, 24),
+      reason: `VIP granted for ${validated.days} day(s)`,
+      details: JSON.stringify({ days: validated.days, expiresAt: expirationTime.toISOString() }),
+      createdAt: new Date(),
+    });
 
     log.info('VIP granted successfully', { 
       username: validated.username, 

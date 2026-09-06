@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import type { BotConfig } from '@/types/game.types';
@@ -50,25 +50,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
   const endTimer = log.time('bot-regen');
 
   try {
-    // Authenticate user
-    const tokenPayload = await getAuthenticatedUser();
-    if (!tokenPayload) {
-      return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, {
-        message: 'Authentication required',
-      });
+    // FID-20260905-001: requireAdmin (isAdmin JWT flag) replaces the rank<5 gate.
+    const adminAuth = await requireAdmin(request);
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth;
     }
-
-    // Check admin privileges
-    const player = await db.select()
-      .from(players)
-      .where(eq(players.username, tokenPayload.username))
-      .limit(1);
-
-    if (!player.length || !player[0].rank || player[0].rank < 5) {
-      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
-        message: 'Admin privileges required (rank 5+)',
-      });
-    }
+    const tokenPayload = adminAuth;
 
     // Parse request body
     const body = await request.json().catch(() => ({}));

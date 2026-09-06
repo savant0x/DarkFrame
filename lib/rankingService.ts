@@ -321,7 +321,7 @@ export async function getPlayerRankData(username: string): Promise<{
   const currentPlayer = rankedPlayers[playerIndex];
   
   // Get factory count
-  const factoryCount = await factoriesCollection.countDocuments({ owner: username });
+  const _factoryCount = await factoriesCollection.countDocuments({ owner: username });
   
   return {
     rank,

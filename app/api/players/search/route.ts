@@ -40,7 +40,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, players } from '@/lib/db';
 import { requireAuth } from '@/lib/authMiddleware';
-import { like, ne, desc, and, sql } from 'drizzle-orm';
+import { like, ne, desc, and } from 'drizzle-orm';
 
 // ============================================================================
 // CONSTANTS
@@ -62,7 +62,7 @@ interface PlayerSearchResult {
   clanTag?: string;
 }
 
-interface ErrorResponse {
+interface _ErrorResponse {
   error: string;
   details?: string;
 }

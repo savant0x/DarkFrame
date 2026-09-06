@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     .toArray();
     
     // Build leaderboard entries with ranks
-    const leaderboard: ReferralLeaderboardEntry[] = topRecruiters.map((player: any, index: any) => ({
+    const leaderboard: ReferralLeaderboardEntry[] = topRecruiters.map((player, index) => ({
       rank: index + 1,
       username: player.username,
       totalReferrals: player.totalReferrals || 0,
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
     let currentPlayerData: ReferralLeaderboardEntry | null = null;
     
     if (username) {
-      const playerEntry = leaderboard.find((entry: any) => entry.username === username);
+      const playerEntry = leaderboard.find((entry) => entry.username === username);
       
       if (playerEntry) {
         currentPlayerRank = playerEntry.rank;
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error'
+        error: error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Internal server error'
       },
       { status: 500 }
     );

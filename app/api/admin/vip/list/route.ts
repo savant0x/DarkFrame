@@ -21,7 +21,7 @@ import {
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
-export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) => {
   const log = createRouteLogger('admin/vip/list');
   const endTimer = log.time('list-vip-users');
 

@@ -53,7 +53,7 @@ import {
   Map, 
   Coins, 
   Swords, 
-  Users, 
+
   Handshake,
   Search,
   ChevronLeft,
@@ -63,7 +63,7 @@ import {
   Medal,
   Loader2,
   Eye,
-  UserPlus,
+  
   X
 } from 'lucide-react';
 import { toast } from 'sonner';

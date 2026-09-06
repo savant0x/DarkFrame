@@ -144,7 +144,7 @@ export async function incrementAttractedCount(beaconId: string): Promise<void> {
 
 export async function cleanupExpiredBeacons(): Promise<number> {
   const now = new Date();
-  const result = await db.update(botMagnetBeacons)
+  const _result = await db.update(botMagnetBeacons)
     .set({ active: 0 })
     .where(and(eq(botMagnetBeacons.active, 1), lt(botMagnetBeacons.expiresAt, now)));
   return 0;
