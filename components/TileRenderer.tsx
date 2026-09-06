@@ -106,7 +106,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   );
   
   // Check if flag bearer is at this tile (from tile data or flagBearer prop)
-  const isFlagBearerHere = tile.hasFlagBearer || (flagBearer && 
+  const isFlagBearerHere = tile.hasFlagBearer || (flagBearer?.position &&
     tile.x === flagBearer.position.x && 
     tile.y === flagBearer.position.y);
   
@@ -165,7 +165,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   };
   
   // Calculate distance to flag bearer for proximity effects
-  const distanceToFlagBearer = flagBearer ? 
+  const distanceToFlagBearer = flagBearer?.position ? 
     Math.sqrt(
       Math.pow(tile.x - flagBearer.position.x, 2) + 
       Math.pow(tile.y - flagBearer.position.y, 2)
@@ -287,7 +287,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   }, [player]);
   
   // Determine if this tile is the player's base (YOUR base)
-  const isPlayerBase = tile.occupiedByBase && player && 
+  // base is guarded: the GameContext player can hydrate before its base map loads.
+  const isPlayerBase = tile.occupiedByBase && player?.base && 
     tile.x === player.base.x && tile.y === player.base.y;
   
   // Any base should show as a base (visible to all players)
@@ -603,8 +604,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
             {/* Bearer Info */}
             <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg text-sm z-40 border border-yellow-400">
-              <div className="font-bold text-yellow-300">{flagBearer.username}</div>
-              <div className="text-xs">Level: {flagBearer.level}</div>
+              <div className="font-bold text-yellow-300">{flagBearer.username ?? 'Unknown'}</div>
+              <div className="text-xs">Level: {flagBearer.level ?? '?'}</div>
               {flagBearer.currentHP && flagBearer.maxHP && (
                 <div className="text-xs">HP: {flagBearer.currentHP}/{flagBearer.maxHP}</div>
               )}
@@ -644,8 +645,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
               {[...Array(Math.max(2, Math.floor(8 - distanceToFlagBearer)))].map((_, i) => {
                 // Calculate angle toward flag bearer
-                const dx = flagBearer.position.x - tile.x;
-                const dy = flagBearer.position.y - tile.y;
+                const dx = (flagBearer.position?.x ?? tile.x) - tile.x;
+                const dy = (flagBearer.position?.y ?? tile.y) - tile.y;
                 const angle = Math.atan2(dy, dx);
                 
                 // Position particles along the direction
