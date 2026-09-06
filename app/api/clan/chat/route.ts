@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) || 'Failed to send message' },
+      { error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }
@@ -258,7 +258,7 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) || 'Failed to edit message' },
+      { error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }
@@ -313,7 +313,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) || 'Failed to delete message' },
+      { error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }

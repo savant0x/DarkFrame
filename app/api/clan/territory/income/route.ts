@@ -86,7 +86,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error('Error getting territory income projection:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) || 'Failed to get income projection' },
+      { error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (error) {
     console.error('Error collecting territory income:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) || 'Failed to collect income' },
+      { error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }

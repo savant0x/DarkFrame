@@ -43,9 +43,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
+    // FID-20260906-005 R9: never echo raw driver error text (drizzle wraps the
+    // full SQL + pg cause in err.message — the client rendered it verbatim).
     console.error('Error in GET /api/messages/conversations:', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : String(error) || 'Internal server error' },
+      { success: false, error: 'Unable to load conversations. Please try again.' },
       { status: 500 }
     );
   }
