@@ -112,7 +112,7 @@ export function isValidPassword(password: string): { valid: boolean; message?: s
 }
 
 /**
- * Validate username format
+ * Validate username format (registration rule: no spaces).
  */
 export function isValidUsername(username: string): { valid: boolean; message?: string } {
   if (username.length < 3 || username.length > 20) {
@@ -124,6 +124,21 @@ export function isValidUsername(username: string): { valid: boolean; message?: s
   }
   
   return { valid: true };
+}
+
+/**
+ * Lookup-side username validation (FID-20260906-008): a SUPERSET of the
+ * registration rule that also accepts bot identities. Bots never register,
+ * so their names bypass isValidUsername — themed bot names use internal
+ * spaces ("Thundering Depot", FID-20260906-007). Use this for any route
+ * resolving a username from a URL/query BEFORE a DB lookup.
+ *
+ * Injection hygiene (defense-in-depth — all DB access is parameterized):
+ * quotes, semicolons, equals, percent and comment-style sequences are outside
+ * this charset, so hostile URL segments are rejected before touching storage.
+ */
+export function isLookupableUsername(username: string): boolean {
+  return /^[A-Za-z0-9_][A-Za-z0-9_ -]{1,19}$/.test(username);
 }
 
 // ============================================================
