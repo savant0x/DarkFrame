@@ -1,24 +1,34 @@
 /**
  * @file app/api/flag/route.ts
  * @created 2025-10-20
- * @overview Flag Bearer API endpoint (rewritten per FID-20260905-001 §7.2)
+ * @overview Flag API — GET returns the extended bearer/challenge/bonus payload
+ *           (FID-20260906-001 §5.3, Option A: design-doc faithful).
  *
  * OVERVIEW:
- * GET /api/flag — current Flag Bearer data (position, level, HP, hold duration,
- * trail). Postgres-native via lib/flagState: holder identity comes from the
- * flags row; position/level/HP are derived from the holder's `players` row at
- * read time (single source of truth). The previous implementation read a
- * Mongo-era nested `currentHolder` doc that the Postgres schema never carried,
- * so it always returned data:null and the client's FlagTrackerPanel never
- * mounted.
+ * GET /api/flag — current Flag Bearer data plus the viewer's action surface:
+ *  - `bearer`: identity/position/level/hold duration/trail (derived from the
+ *    holder's `players` row at read time — single source of truth).
+ *  - `challenge`: the active steal channel (challenger, seconds remaining,
+ *    bearer-only flee eligibility/cost) — null when no channel is running.
+ *  - `bonuses`: the while-holding bonus stack (doc multipliers) + the holder's
+ *    permanent harvest milestone.
+ *  - `actions`: viewer-specific flags (isBearer / isChallenger / canChallenge /
+ *    canFlee) so the client renders exactly one actionable surface.
  *
- * The legacy POST handler here was a dead duplicate of POST /api/flag/attack
- * (no client caller; shim-based writes; no presence check) and has been removed.
+ * Identity is session-derived (never trusted from the query string); an
+ * unauthenticated caller gets bearer + bonuses but no viewer-specific actions.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import type { FlagBearer, FlagAPIResponse } from '@/types/flag.types';
-import { getFlagState } from '@/lib/flagState';
+import type { FlagBearer, FlagAPIResponse, FlagDetailPayload } from '@/types/flag.types';
+import { getFlagState } from '@/lib/flagState';import {
+  getFlagHolderState,
+  getBonusStack,
+  evaluateFleeEligibility,
+  getFleeCostShare,
+  MAX_FLEES,
+} from '@/lib/flagBonusService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -31,21 +41,9 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.FLAG_DATA);
 /**
  * GET /api/flag
  *
- * Retrieve current Flag Bearer information
- *
- * @returns FlagAPIResponse<FlagBearer | null>
- *
- * @example
- * ```ts
- * const response = await fetch('/api/flag');
- * const data: FlagAPIResponse<FlagBearer> = await response.json();
- *
- * if (data.success && data.data) {
- *   console.log('Flag Bearer:', data.data.username);
- * }
- * ```
+ * Retrieve current Flag Bearer information + challenge/bonus state.
  */
-export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagBearer | null>>> => {
+export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest): Promise<NextResponse<FlagAPIResponse<FlagDetailPayload | null>>> => {
   const log = createRouteLogger('flag-get');
   const endTimer = log.time('flag-get');
 
@@ -63,6 +61,8 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest):
       });
     }
 
+    const holderState = await getFlagHolderState();
+    const bonusStack = await getBonusStack(state.holderUsername);
     const holdDuration = Math.floor((Date.now() - state.claimedAt.getTime()) / 1000);
 
     const bearer: FlagBearer = {
@@ -72,15 +72,78 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest):
       position: state.position,
       claimedAt: state.claimedAt,
       holdDuration,
-      currentHP: state.currentHP,
-      maxHP: state.maxHP,
       trail: state.trail,
     };
 
-    log.info('Flag bearer retrieved', { holderId: state.holderUsername, holdDuration });
+    // Viewer-specific action surface (session identity only).
+    const user = await getAuthenticatedUser();
+    const viewer = user?.username ?? null;
+    const isBearer = viewer !== null && holderState.currentHolder === viewer;
+    const challenge = holderState.challenge;
+
+    let canChallenge = false;
+    let challengeBlockReason: string | undefined;
+    if (!viewer) {
+      challengeBlockReason = 'Log in to challenge the Flag Bearer';
+    } else if (isBearer) {
+      challengeBlockReason = 'You already hold the Flag';
+    } else if (challenge) {
+      challengeBlockReason = 'A steal challenge is already in progress';
+    } else if (holderState.graceUntil && holderState.graceUntil > new Date()) {
+      challengeBlockReason = 'Flag is under challenge grace';
+    } else {
+      canChallenge = true;
+    }
+
+    const fleeEval = isBearer ? evaluateFleeEligibility(holderState) : { canFlee: false, reason: 'Not the bearer' };
+    const fleeShare = getFleeCostShare(holderState.fleeCount);
+
+    const payload: FlagDetailPayload = {
+      bearer,
+      challenge: challenge
+        ? {
+            challenger: challenge.challenger,
+            startedAt: challenge.startedAt,
+            endsAt: challenge.endsAt,
+            secondsRemaining: Math.max(0, Math.ceil((challenge.endsAt.getTime() - Date.now()) / 1000)),
+            canFlee: fleeEval.canFlee,
+            fleeBlockReason: fleeEval.canFlee ? undefined : fleeEval.reason,
+            fleeCostMetal: Math.floor(holderState.sessionEarningsMetal * fleeShare),
+            fleeCostEnergy: Math.floor(holderState.sessionEarningsEnergy * fleeShare),
+            fleeCount: holderState.fleeCount,
+            maxFlees: MAX_FLEES,
+          }
+        : null,
+      bonuses: {
+        harvestMultiplier: bonusStack.harvestMultiplier,
+        xpMultiplier: bonusStack.xpMultiplier,
+        rpMultiplier: bonusStack.rpMultiplier,
+        unitStrengthMultiplier: bonusStack.unitStrengthMultiplier,
+        unitDefenseMultiplier: bonusStack.unitDefenseMultiplier,
+        bankCapacityMultiplier: bonusStack.bankCapacityMultiplier,
+        bankFeeMultiplier: bonusStack.bankFeeMultiplier,
+        autoFarmSpeedMultiplier: bonusStack.autoFarmSpeedMultiplier,
+        clanXpMultiplier: bonusStack.clanXpMultiplier,
+        referralMultiplier: bonusStack.referralMultiplier,
+        permanentHarvestBonusPct: bonusStack.permanentHarvestBonusPct,
+        sessionEarningsMetal: holderState.sessionEarningsMetal,
+        sessionEarningsEnergy: holderState.sessionEarningsEnergy,
+      },
+      actions: {
+        isBearer,
+        isChallenger: viewer !== null && challenge?.challenger === viewer,
+        canChallenge,
+        challengeBlockReason,
+        canFlee: fleeEval.canFlee,
+        fleeBlockReason: fleeEval.canFlee ? undefined : fleeEval.reason,
+        graceUntil: holderState.graceUntil ?? undefined,
+      },
+    };
+
+    log.info('Flag detail retrieved', { holder: state.holderUsername, holdDuration, viewer: viewer ?? 'anon' });
     return NextResponse.json({
       success: true,
-      data: bearer,
+      data: payload,
       timestamp: new Date()
     });
   } catch (error) {

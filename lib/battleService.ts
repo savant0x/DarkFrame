@@ -248,6 +248,28 @@ export async function resolveBattle(
   const attackerStats = calculateCombatStats(attackerUnits);
   const defenderStats = calculateCombatStats(defenderUnits);
 
+  // FID-20260906-001 §5.4: Flag bearer fights at +25% unit STR/DEF (doc bonus
+  // stack). Applied here — the single combat-resolution seam — so every battle
+  // type (infantry, base, factory) respects the bearer advantage without
+  // persisting inflated stats to players.totalStrength/totalDefense.
+  try {
+    const { getBonusStack } = await import('@/lib/flagBonusService');
+    const [attackerFlag, defenderFlag] = await Promise.all([
+      getBonusStack(attackerName),
+      getBonusStack(defenderName),
+    ]);
+    if (attackerFlag.isBearer) {
+      attackerStats.totalSTR = Math.floor(attackerStats.totalSTR * attackerFlag.unitStrengthMultiplier);
+      attackerStats.totalDEF = Math.floor(attackerStats.totalDEF * attackerFlag.unitDefenseMultiplier);
+    }
+    if (defenderFlag.isBearer) {
+      defenderStats.totalSTR = Math.floor(defenderStats.totalSTR * defenderFlag.unitStrengthMultiplier);
+      defenderStats.totalDEF = Math.floor(defenderStats.totalDEF * defenderFlag.unitDefenseMultiplier);
+    }
+  } catch {
+    // Never fail battle resolution because of the flag check.
+  }
+
   let attackerHP = calculateTotalHP(attackerUnits);
   let defenderHP = calculateTotalHP(defenderUnits);
 

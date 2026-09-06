@@ -70,6 +70,66 @@ export interface FlagBearer {
   }>;
 }
 
+/** FID-20260906-001 §5.3: challenge/steal channel state exposed to clients. */
+export interface FlagChallengeState {
+  challenger: string;
+  startedAt: Date;
+  endsAt: Date;
+  /** Seconds left in the channel (server-computed). */
+  secondsRemaining: number;
+  /** Bearer-only: whether fleeing is currently possible (lock/count/cooldown). */
+  canFlee: boolean;
+  /** Bearer-only: why fleeing is blocked right now. */
+  fleeBlockReason?: string;
+  /** Bearer-only: what the next flee costs right now (share of gross session earnings). */
+  fleeCostMetal: number;
+  fleeCostEnergy: number;
+  fleeCount: number;
+  maxFlees: number;
+}
+
+/** FID-20260906-001 §5.4: while-holding bonus stack (doc-accurate multipliers). */
+export interface FlagBonusSummary {
+  harvestMultiplier: number;
+  xpMultiplier: number;
+  rpMultiplier: number;
+  unitStrengthMultiplier: number;
+  unitDefenseMultiplier: number;
+  bankCapacityMultiplier: number;
+  bankFeeMultiplier: number;
+  autoFarmSpeedMultiplier: number;
+  clanXpMultiplier: number;
+  referralMultiplier: number;
+  permanentHarvestBonusPct: number;
+  sessionEarningsMetal: number;
+  sessionEarningsEnergy: number;
+}
+
+/** FID-20260906-001 §5.3: viewer-specific action flags for the game UI. */
+export interface FlagViewerActions {
+  /** Viewer is the current bearer. */
+  isBearer: boolean;
+  /** Viewer is the challenger in the active channel. */
+  isChallenger: boolean;
+  /** Viewer may start a challenge (not bearer, no channel, no grace, no cooldown). */
+  canChallenge: boolean;
+  /** Why the viewer cannot start a challenge right now. */
+  challengeBlockReason?: string;
+  /** Viewer (as bearer) may flee the active channel now. */
+  canFlee: boolean;
+  fleeBlockReason?: string;
+  /** Bearer's active challenge-grace window. */
+  graceUntil?: Date;
+}
+
+/** Extended GET /api/flag payload (Option A). */
+export interface FlagDetailPayload {
+  bearer: FlagBearer;
+  challenge: FlagChallengeState | null;
+  bonuses: FlagBonusSummary;
+  actions: FlagViewerActions;
+}
+
 /**
  * Tracker data - calculated relationship between viewer and Flag Bearer
  */

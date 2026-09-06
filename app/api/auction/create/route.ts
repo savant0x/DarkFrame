@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { createAuctionListing } from '@/lib/auctionService';
 import { CreateAuctionRequest } from '@/types/auction.types';
 
@@ -60,6 +61,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     const username = authResult.username;
 
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot do this while holding.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'auction-create');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
     // Parse and validate request body
     const body: CreateAuctionRequest = await request.json();
     const validated = CreateAuctionSchema.parse(body);

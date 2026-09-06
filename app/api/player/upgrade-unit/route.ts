@@ -18,6 +18,7 @@ import { db } from '@/lib/db';
 import { players } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 
 /**
  * Calculate upgrade cost based on current stat value
@@ -54,6 +55,13 @@ export async function POST(request: NextRequest) {
     }
     const username = authUser.username;
 
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot do this while holding.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'upgrade-unit');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
     const body = await request.json();
     const { type } = body;
 

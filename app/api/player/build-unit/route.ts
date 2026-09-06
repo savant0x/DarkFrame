@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import clientPromise, { type DocumentValue } from '@/lib/mongodb';
 import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { UNIT_BLUEPRINTS } from '@/types/units.types';
 import { UNIT_CONFIGS, UnitType } from '@/types/game.types';
 import type { Player, Factory } from '@/types/game.types';
@@ -54,6 +55,13 @@ export const GET = withRequestLogging(async (_request: NextRequest) => {
       );
     }
     const username = authUser.username;
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot do this while holding.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'build-unit');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
 
     log.debug('Fetching unit data', { username });
 
@@ -153,6 +161,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const body = await request.json();
     const validated = BuildUnitSchema.parse(body);
     const username = authUser.username;
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot build
+    // units while holding (doc anti-exploit rule).
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'build-unit');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
 
     log.debug('Unit build request', { 
       username,

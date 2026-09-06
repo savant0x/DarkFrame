@@ -23,6 +23,7 @@ import {
 import { AuctionBuyoutSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { buyoutAuction } from '@/lib/auctionService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.auctionBid);
@@ -68,6 +69,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     const username = authResult.username;
 
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot do this while holding.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'auction-buyout');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
     // Validate request
     const validated = AuctionBuyoutSchema.parse(await request.json());
 

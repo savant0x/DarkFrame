@@ -25,9 +25,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { moveFlagBot, shouldResetFlag, resetFlagBot } from '@/lib/flagBotService';
+import { checkHoldMilestone } from '@/lib/flagBonusService';
 import { db } from '@/lib/db';
 import { flags, players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+
+/** Doc §354-362: 12-hour maximum hold — the flag auto-drops at the limit. */
+const MAX_HOLD_MS = 12 * 60 * 60_000;
 
 /**
  * GET /api/cron/flag-bot-movement
@@ -88,8 +92,52 @@ export async function GET(request: NextRequest) {
     }
 
     if (heldTooLong && holder && !isBotHolder) {
-      // Human holder past the 1-hour mark: the flag stays with them until they
-      // are defeated in combat. Log for observability.
+      const heldMs = Date.now() - new Date(flagRow?.lastCapturedAt ?? 0).getTime();
+
+      // Doc §354-362: at 12h the milestone is granted (once) and the flag
+      // auto-drops back to the bot. Before 12h the human keeps it until
+      // defeated via the steal channel (player-retention rule preserved).
+      if (heldMs >= MAX_HOLD_MS) {
+        const milestone = await checkHoldMilestone();
+        // Doc §361-362 + §149: the flag auto-drops UNCLAIMED at the holder's
+        // position; players claim it within 15 tiles (first-claim flow).
+        const [holderRow] = await db
+          .select({ x: players.currentPositionX, y: players.currentPositionY })
+          .from(players)
+          .where(eq(players.username, holder))
+          .limit(1);
+        await db
+          .update(flags)
+          .set({
+            currentHolder: null,
+            currentHolderUsername: null,
+            spawnX: holderRow ? Number(holderRow.x ?? 75) : 75,
+            spawnY: holderRow ? Number(holderRow.y ?? 75) : 75,
+            lastCapturedAt: null,
+            challengeChallenger: null,
+            challengeStartedAt: null,
+            challengeEndsAt: null,
+            sessionEarningsMetal: 0,
+            sessionEarningsEnergy: 0,
+            fleeCount: 0,
+            graceUntil: null,
+            lastFleeAt: null,
+            fleeDestinationX: null,
+            fleeDestinationY: null,
+            milestone12hAwarded: 0,
+          })
+          .where(eq(flags.id, flagRow!.id));
+        console.log(`⏱️ 12h limit reached for ${holder} — milestone granted: ${milestone.granted}, flag dropped unclaimed`);
+        return NextResponse.json({
+          success: true,
+          action: 'hold-limit-drop',
+          message: `Flag dropped from ${holder} at the 12-hour hold limit — it is now unclaimed`,
+          milestoneGranted: milestone.granted,
+          spawn: holderRow ? { x: Number(holderRow.x ?? 75), y: Number(holderRow.y ?? 75) } : { x: 75, y: 75 },
+          timestamp: new Date(),
+        });
+      }
+
       console.log(`ℹ️ Flag held by player ${holder} for >1h — no reset (player retention rule)`);
 
       return NextResponse.json({
@@ -132,7 +180,8 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // No flag holder found - unusual state
+    // No flag holder found - unusual state, but the doc §149 says an unclaimed
+    // flag should be findable; leave it unclaimed for the first-claim flow.
     console.warn('⚠️ No flag holder found in database');
 
     return NextResponse.json({

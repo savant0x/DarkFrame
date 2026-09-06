@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { db } from '@/lib/db';
 import { players, tiles } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -44,6 +45,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     const validated = BankWithdrawSchema.parse(body);
     const { resourceType, amount } = validated;
     const username = authResult.username;
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot do this while holding.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'bank-withdraw');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
     
     log.debug('Processing withdrawal', { username, resourceType, amount });
 

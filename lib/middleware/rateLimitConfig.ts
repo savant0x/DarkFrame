@@ -151,6 +151,17 @@ export const ENDPOINT_RATE_LIMITS: Record<string, RateLimitConfig> = {
     windowMs: 60 * 1000,
     message: 'Flag data retrieval limit reached. Please slow down your requests to reduce server load.',
   },
+
+  /**
+   * Flag steal challenge / flee / claim actions (FID-20260906-001 §5.3).
+   * 30 per minute: generous for UI polling errors, strict against spam.
+   */
+  FLAG_STEAL: {
+    maxRequests: 30,
+    windowMs: 60 * 1000,
+    trackByUser: true,
+    message: 'Flag steal action limit reached. Please wait before trying again.',
+  },
   
   /**
    * Flag system initialization

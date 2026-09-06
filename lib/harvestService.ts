@@ -336,6 +336,22 @@ export async function harvestResourceTile(
       const newEnergy = BigInt(currentEnergy + finalAmount);
       await db.update(players).set({ resourcesEnergy: Number(newEnergy) }).where(eq(players.username, playerId));
     }
+
+    // FID-20260906-001 §5.4: GROSS session-earnings accrual while holding the
+    // Flag (powers the escalating flee-cost economy). Doc: tracks ALL income
+    // gained while holding; never decremented; resets on holder change.
+    try {
+      if (isPlayerFlagBearer) {
+        const { addSessionEarnings } = await import('@/lib/flagBonusService');
+        await addSessionEarnings(
+          playerId,
+          tile.terrain === TerrainType.Metal ? finalAmount : 0,
+          tile.terrain === TerrainType.Metal ? 0 : finalAmount,
+        );
+      }
+    } catch (earnErr) {
+      console.error('⚠️ Session earnings accrual failed:', earnErr);
+    }
     
     // Mark tile as harvested and track daily milestone progress
     const currentPeriod = getCurrentResetPeriod(tile.x);

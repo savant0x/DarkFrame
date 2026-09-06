@@ -93,92 +93,160 @@ steals use the doc's channel/flee model; add D2/D4 once the bonus engine exists.
 
 **Status:** created — BLOCKED on operator decision (A / B / C).
 
-## 2. Findings (RED evidence — file:line, all verified live where noted)
+## 5. GREEN Design — FINAL (Option A: design-doc faithful, operator-approved 2026-09-06)
 
-### A1 — Zero reward for capture or defense
-- `app/api/flag/attack/route.ts` (post-§7.2 state): the defeat branch updates `flags`, restores
-  the bearer's HP, and returns a message. **No RP, XP, metal, or energy is granted** to the
-  victor; the defeated bearer loses nothing.
-- Verified live: the 10-hit defeat test (§7.2 record) produced no resource/RP delta on the
-  attacker beyond the pre-existing per-hit XP in `battleLog`-adjacent paths (none written here).
+The HP-battle model is **removed**. `app/api/flag/attack/route.ts` is replaced by the
+FLAG_FEATURE_PLAN steal model. The §2–§4 findings/numbers of the earlier revision are
+superseded; the design doc (`dev/archives/2025-10-22-cleanup/feature-completions/`
+`FLAG_FEATURE_PLAN.md`) is the sole numeric source of truth.
 
-### A2 — No hold-duration incentive
-- `FLAG_CONFIG.MAX_HOLD_DURATION = 3600` (`types/flag.types.ts:175`) is a **ceiling**, not a
-  reward: nothing reads `holdDuration` for payout. `buildTrackerData`/`formatHoldDuration`
-  (`lib/flagService.ts:251`) only format it for display.
-- Design intent per README/UI copy: "hold the flag" — currently holding is pure risk, zero upside.
+### 5.1 Data model (migration 0016 + schema mirror)
+- `flags` gains: `session_earnings_metal`/`session_earnings_energy` (bigint, GROSS, never
+  decremented by flee payments), `flee_count` (int), `grace_until` (timestamp),
+  `challenge_challenger` (varchar 24), `challenge_started_at`, `challenge_ends_at`.
+- `players` gains: `permanent_harvest_bonus` (smallint, % — the 12-hour milestone payout).
+- Holder state resets to zero on every holder change (capture/steal/auto-loss).
 
-### A3 — Bot difficulty is flat and trivial
-- `FLAG_BOT_CONFIG` (`lib/flagBotService.ts:38`): tier 2, Balanced, 1000 HP fixed.
-- Verified live: every hit dealt exactly **100 damage** (base `BASE_ATTACK_DAMAGE` with ~0
-  power multiplier at low strength) → **10 attacks kills the bot**; at 60s client cooldown that
-  is ~9 minutes of waiting, zero counterplay by the bot (it never attacks back, never flees).
-- `moveFlagBot` teleports every 30 min — a moving target for defense, but irrelevant while it
-  never fights.
+### 5.2 Engine: `lib/flagBonusService.ts` (single seam)
+- `isFlagBearer(username)` — flat-string holder check (matches harvestService pattern).
+- `getSessionEarnings(username)` / `addSessionEarnings(username, metal, energy)` — GROSS;
+  called from harvest, auto-farm tick, and any future income seam. Zeros on holder change.
+- `getBonusStack(username)` — returns all multipliers/restrictions for a holder (single
+  call site per consumer; no consumer re-derives its own flag check).
+- `getFleeCost(fleeCount)` — doc-escalating share of GROSS earnings: 10/15/20/25/30%.
+- `startChallenge / pollChallenge / fleeChallenge / claimFlag` — channel state machine.
 
-### A4 — Attack damage scaling is unbounded and off-economy
-- `app/api/flag/attack/route.ts`: `powerMultiplier = 1 + attackerPower / 100000` — at late-game
-  strength (millions) a single hit deals 10–30× base damage: one-shot kills, capture speedrun,
-  no interaction for the defender.
+### 5.3 Route surface (replaces HP battle)
+- `POST /api/flag/challenge` — 30s channel start; presence required; grace + bot-holder
+  immediate-win rules applied; 5s bearer lock before flee unlocks.
+- `POST /api/flag/flee` — bearer-only; 5s lock respected; cost = share × GROSS earnings;
+  insufficient funds → 400 (can't pay = can't flee); teleports to random valid tile (1–150
+  map bounds, not the challenger's tile); 60s flee cooldown between attempts.
+- `POST /api/flag/claim` — challenger-only; only after `challenge_ends_at` with channel
+  unbroken; transfers flag, resets state, records capture.
+- `GET /api/flag` — extended with `challenge` block (who/remaining seconds), `fleeCost`,
+  `fleeCount`, `canFlee`, `graceUntil`, and the full bonus stack for the bearer.
+- The old `POST /api/flag/attack` is deleted (client rewired); no graceful shim.
 
-### A5 — Server-side cooldown absent
-- Verified live: 10 attacks in ~2 seconds all landed (no 429). The client's 60s countdown is the
-  only cooldown (`app/game/page.tsx:637-650`). `FLAG_CONFIG.ATTACK_COOLDOWN` is enforced
-  nowhere server-side. (Presence + identity are server-side; cooldown is not.)
+### 5.4 Bonus stack wiring (single seam each)
+- Harvest +100% — **already implemented** (harvestService 2x) — kept, no change.
+- Session earnings accrual — harvest + auto-farm generation write gross amounts while holding.
+- XP/RP/mastery +100% — `awardXP`/`awardRP` seams apply bearer 2x.
+- Unit STR/DEF +25% — `calculateBalanceEffects`/combat power resolution applies bearer mult.
+- Bank capacity +50% / no fees — bank routes consult bonus stack.
+- Auto-farm +50% speed — auto-farm settings tick interval halved for bearer.
+- Clan +25% XP contribution + hourly prestige — clan contribute path.
+- Referral +50% — referral credit path.
+- 12h hold → `permanent_harvest_bonus += 2` (once per hold, tracked via flag `lastCapturedAt`
+  milestone set) — permanent forever, survives losing the flag.
 
-## 3. Five Questions (RED)
+### 5.5 Restrictions while holding (doc-enforced; route-gated)
+- Unit building / upgrade blocked (`/api/player/build-unit`, `/api/player/upgrade-unit`),
+- Factory produce/capture blocked,
+- Auction create/bid/buyout blocked,
+- Banking deposit/withdraw blocked.
+- Each returns a 403 with the doc's reason string. Combat (attacking others) stays allowed.
 
-1. **What breaks if we do nothing?** The flag is decorative: capture is a 10-click chore with no
-   payoff; no one will contest it; the "flag" PvP loop stays dead on arrival.
-2. **Why now?** The flag feature was just revived (§7.2); shipping it without a reward loop
-   re-buries it.
-3. **Who is affected?** All players (attacker/defender economy), bot difficulty, admin config
-   surface (`wmd_config`-style tuning is not available for flags — constants are code).
-4. **What is the smallest correct change?** Add payout + cooldown in the attack route, read
-   hold-duration in one new cron/helper, scale bot HP by tier — no new tables (reuse `players`
-   resource columns and existing RP service).
-5. **What must NOT change?** Presence enforcement, HP persistence, defeat/transfer flow, trail —
-   all just verified live; this FID touches only numbers + payouts.
+### 5.6 Bot behavior under Option A
+- Bot bearer cannot gain session earnings (no economy) and does not flee; any challenge
+  vs the bot **auto-succeeds at channel end** (claim path identical).
+- `resetFlagBot` (cron) reclaims the flag to the bot when held >1h — humans only reset via
+  defeat (channel), never by deletion (human-protection fix preserved).
 
-## 4. GREEN Design — proposed numbers (OPERATOR DECISION REQUIRED)
+### 5.8 Client UI surface (GREEN — added from operator flag: "when the player has
+    the flag, the flagbearer panel updates and shows the details of the flag")
+- `FlagTrackerPanel` gains a **bearer self-view**: when the viewer IS the bearer, the
+  panel renders holder details instead of the track/attack surface — bonus stack
+  (harvest/XP/RP ×2, STR/DEF +25%, bank +50%/no fees, auto-farm +50%, clan +25%,
+  referral +50%), GROSS session earnings (metal/energy), flee count (n/5), grace
+  window, and the permanent-harvest milestone progress toward 12h.
+- Non-bearer view: `Attack` button becomes **`Steal`** (starts the channel). While a
+  channel runs, the panel shows the countdown, flee count, and — bearer-side — the
+  **Flee** button with its current cost (or the blocked reason + auto-lose warning).
+- `game/page.tsx` stores the full extended payload (`FlagDetailPayload`); the bearer
+  object handed to `TileRenderer`/`FlagTrackerPanel` is `payload.bearer`, so existing
+  consumers stay shape-compatible. `TileRenderer`'s "Attack Bearer" button is
+  replaced by the same challenge flow (no HP-battle UI remains).
+- All flag action calls go through session auth (no identity fields in bodies).
+- On steal success/flee, the client refetches `/api/flag` and refreshes game state.
 
-| Knob | Current | Proposed | Rationale |
-| ---- | ------- | -------- | --------- |
-| Capture reward (victor) | 0 | **2,500 RP + 1,000 metal/energy** | Meaningful vs early income (harvest ≈ 1,000/tile) without being grindable |
-| Hold bonus | none | **150 RP + 50 metal/energy per 10 min held** (paid on capture-interval cron, cap 1h) | Makes holding active income; total max hold ≈ 900 RP + 300/300 |
-| Defeat penalty (loser) | none | **lose 10% of carried unbanked resources** (banked safe) | Real stakes, doesn't touch banked/bank |
-| Bot HP | 1000 flat | **tiered: 1,000 / 2,500 / 6,000** rotating by week-of-month (W1–2 weak, W3 mid, W4+ strong) | Weekly variety; strong weeks need groups |
-| Bot damage reflect | none | bot deals **50 dmg/hit back** (weak) / 150 (mid) / 400 (strong) | Attacker needs army size to matter |
-| Attack damage | `1 + power/100k` × 100 | **`80 + 40 × log10(1+power/1000)`** (soft-capped ≈ 340 at 1M power) | Log scaling: early game viable, late game can't one-shot |
-| Server cooldown | none | **60s per attacker** via `players.lastFlagAttack` (column exists in domain; add smallint epoch column if absent) | Server-authoritative; closes A5 |
-| Capture global lockout | none | **15 min channel-wide cooldown after any capture** (flag uncontestable, held in `flags.lastCapturedAt`) | Prevents capture ping-pong between two alt accounts |
+### 5.9 Hold-limit + first-claim (doc §146-154, §354-362 — added in loop pass 6)
+- **12-hour max hold:** when `now - lastCapturedAt >= 12h`, the flag auto-drops to the
+  bot (server-side in the same cron that checks the milestone), and the milestone
+  (+2% permanent harvest) is granted exactly once at the 12h mark — the doc grants it
+  at the limit, not before. Progressive warnings are client-side from holdDuration.
+- **First-claim (unclaimed flag):** when no holder exists, a player within 15 tiles of
+  the flag's spawn coordinates claims it instantly (no channel). Implemented as
+  `POST /api/flag/claim` with `mode=spawn` — proximity verified server-side via
+  verifyPresence(15), and the spawn position is persisted on the flags row
+  (`spawn_x`/`spawn_y`, migration 0016).
 
-### Implementation surfaces (GREEN)
-- Payouts: `app/api/flag/attack/route.ts` defeat branch + new `lib/flagRewardService.ts`
-  (single seam; uses existing RP transaction service — same one the RP economy routes use).
-- Hold bonus: extend `lib/jobs/flagBotManager.ts` tick (it already reads `flags` hourly).
-- Damage curve + cooldown: attack route; add `lastFlagAttack` column via migration 0016
-  (verify column absence first — `players` domain type has it, schema may not).
-- Bot tier: `FLAG_BOT_CONFIG` gains per-tier HP/damage; `resetFlagBot` picks by week-of-month.
-
-## 5. Verification plan (GREEN)
-
-1. Unit-drive `flagRewardService` headless: capture → exact RP/resource delta; defeat → exact
-   10% unbanked transfer; assert banked untouched.
-2. Live: defeat bot on weak week → payout observed in DB; second capture inside 15 min →
-   rejected with lockout message; second attack within 60s → 429 server-side.
-3. Hold bonus: set `last_captured_at` back 20 min → run cron tick → exactly one 300 RP grant
-   (idempotent on re-run).
-4. Damage curve: simulate power 0 / 10k / 1M → expect 80 / ~132 / ~280 (± rounding).
-5. Full gates: tsc 0, tests green, lint-delta 0 on touched files, then push + prod spot-check.
+### 5.7 Verification plan (GREEN)
+1. Headless state-machine drive: challenge → 30s → claim → holder swap + earnings reset;
+   flee path: cost computed from gross, insufficient → 400, teleport inside 1–150 bounds.
+2. Escalation: 5 flees at 10/15/20/25/30%, 6th challenge → no flee option (auto-lose).
+3. Bonus wiring: harvest delta 2x (regression — already live), XP/RP delta 2x, bank
+   capacity/fee delta, auto-farm interval delta, build-unit 403 while holding.
+4. Milestone: backdate hold start 12h+ → milestone grants +2 permanent (once).
+5. Bot path: challenge bot → claim wins immediately at channel end; reset-on-1h still bot-only.
+6. Full gates: tsc 0, tests green, lint-delta 0, live UI cycle, push + prod spot-check.
 
 ## 6. Loop record
 
-- **Pass 1 (SELF-AUDIT of this document):** verified every cited line against current tree;
-  A5 verified live (no 429 in hammer test); the proposal table is explicitly out of the
-  implementation path until operator sign-off — Status remains `created`, NOT `converged`.
-- **Pass 2:** re-read §4 vs §2 — every finding maps to exactly one knob; no knob without a
-  finding. Lockout design uses `flags.lastCapturedAt` (already maintained by capture paths —
-  no new write seam). Delta pass1→2 < 2%.
+- **Pass 1 (RED audit of implemented reality):** A1–A5 findings verified against live tree
+  (10-hit hammer, no 429, flat bot, unbounded damage) — see earlier revision; preserved in
+  git history `7a219ee^`.
+- **Pass 2 (doc reconciliation):** FLAG_FEATURE_PLAN.md absorbed; proposal numbers found
+  fundamentally divergent from the design; operator chose Option A — full doc mechanics.
+- **Pass 3 (GREEN convergence):** §5 rewritten as the Option-A design; every §1–§4 doc
+  mechanic maps to exactly one §5.2–§5.6 surface; no surface without a doc mechanic.
+  Harvest bonus + restrictions + bot rules cross-checked against §5.4/§5.5/§5.6 and the
+  implemented reality (harvest 2x already present — verified at `lib/harvestService.ts:296-303`).
+  Migration 0016 written to §5.1 exactly. **Status: converged.**
+- **Pass 4 (operator flag → §5.8 added):** bearer self-view requirement folded into the
+  design. §5.8 audited against §5.2–§5.6: every UI element maps to a server value already
+  exposed by the extended GET payload (bonuses, session earnings, flee state, grace);
+  no UI-only state invented; attack UI removal verified consistent with §5.3 route
+  replacement (no remaining `/api/flag/attack` caller after rewire — verified by grep
+  during implementation). Channel UI maps 1:1 to `FlagChallengeState`.
+- **Pass 5 (convergence re-check):** re-read §5.3+§5.8 against the doc's UI walkthroughs
+  (channel progress bar, bearer lock countdown, flee cost display, "Payment goes directly
+  to challenger" notification, grace indicator). One gap found and fixed in §5.8: the
+  claimer-side flow must also refetch game state on steal success (bonus stack changes
+  mid-session). Delta pass4→5 < 2%.
+- **Pass 6 (contradiction resolution):** implementation-time audit caught that the 12h
+  milestone was unreachable if the flag dropped hourly (my §5.6 bot reclaim read the doc's
+  reset timer as a hold limit). Doc §354-362 resolves it: 12-hour MAX hold, milestone at
+  the 12h mark, flag auto-drops after. §5.9 written; §5.6's `maxHoldMs` re-scoped to the
+  milestone cron, not a 1h reclaim. Also folded in the doc's first-claim flow (§146-154),
+  which §5.3 had omitted. Delta pass5→6 ~4% (two real design corrections), then re-audit
+  of §5.9 vs §5.2/§5.3 found no new gaps. **Status: converged.**
+- **Pass 7 (IMPLEMENT + live verification, §5.7 executed):**
+  - Migration 0016 applied to the shared Postgres (idempotent re-runs verified); drizzle
+    schema mirrored (`flags` +9 cols, `players.permanent_harvest_bonus`).
+  - Live cycle A (bot holder): probe challenge → 30s channel → early claim 409 → claim at
+    channel end → probe became bearer, 1h grace stamped. ✅
+  - Live cycle B (flee economics, seeded 1M gross): GET exposes fleeCost 100k; flee inside
+    5s lock → 409 "Stunned"; flee after lock → cost floor(1M×10%)=100k paid to challenger
+    (DB delta verified), 5-tile dash inside 1–150 bounds, flee_count=1, GROSS earnings
+    unchanged (1M), channel cleared. 60s flee cooldown also observed live (doc §258).
+  - Escalation ladder 10/15/20/25/30% + 6th-challenge auto-lose verified against shipped
+    constants (headless); live run confirmed cooldown path.
+  - Bonus wiring live: bearer harvest XP delta 40 (2×20) not 20; session earnings accrued
+    (gross 2,524 metal from one harvest); bank deposit 403; build-unit 403; auction
+    create/bid 403 (gate verified post-CRLF fix). STR/DEF ×1.25 wired in resolveBattle;
+    RP ×2 in awardRP (admin source excluded); clan XP ×1.25 in awardClanXP; referral ×1.5
+    in validation credit path. Bank capacity/fee multipliers exist in the stack but are
+    surfaced only as data (banking itself is blocked while holding — doc anti-exploit rule
+    wins; fee waiver applies to any future pre-ban fee seam).
+  - Milestone + drop via REAL cron: backdated 12h1m hold → cron `hold-limit-drop`, +2
+    permanent harvest granted once, flag unclaimed with spawn coords set; first-claim
+    (`mode=spawn`) succeeded within 15 tiles. ✅
+  - All probe data cleaned; flags row restored to bot holder.
+  - Gates: tsc 0 · 341/341 tests green · lint 0 on all new/flag-touched files (17
+    remaining lint errors in 5 legacy lib files pre-date this FID — logged, not absorbed).
+  - Lint note: the 9 §5.5 gate insertions initially missed 5 files due to CRLF anchors —
+    caught by live verification (auction create returned 200 while bearer), re-inserted,
+    re-verified to 403. Exactly why §5.7 demands live probes over grep confidence.
 
-**Status:** created — awaiting operator decision on §4 numbers before convergence/implementation.
+**Status:** converged — operator approved Option A implementation 2026-09-06.

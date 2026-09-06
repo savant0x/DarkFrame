@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, varchar, integer, smallint, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, integer, smallint, bigint, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const migrations = pgTable('migrations', {
 	id: varchar('id', { length: 100 }).primaryKey(),
@@ -33,6 +33,20 @@ export const flags = pgTable('flags', {
 	lastCapturedAt: timestamp('last_captured_at'),
 	lastCapturedBy: varchar('last_captured_by', { length: 20 }),
 	totalCaptures: integer('total_captures').notNull().default(0),
+	// FID-20260906-001 §5.1: holder state (design-doc faithful flag mechanics).
+	sessionEarningsMetal: bigint('session_earnings_metal', { mode: 'number' }).notNull().default(0),
+	sessionEarningsEnergy: bigint('session_earnings_energy', { mode: 'number' }).notNull().default(0),
+	fleeCount: integer('flee_count').notNull().default(0),
+	graceUntil: timestamp('grace_until'),
+	challengeChallenger: varchar('challenge_challenger', { length: 24 }),
+	challengeStartedAt: timestamp('challenge_started_at'),
+	challengeEndsAt: timestamp('challenge_ends_at'),
+	lastFleeAt: timestamp('last_flee_at'),
+	fleeDestinationX: integer('flee_destination_x'),
+	fleeDestinationY: integer('flee_destination_y'),
+	milestone12hAwarded: smallint('milestone_12h_awarded').notNull().default(0),
+	spawnX: integer('spawn_x'),
+	spawnY: integer('spawn_y'),
 });
 
 /**
