@@ -175,5 +175,51 @@ Only after T1–T3: Orbitron via `next/font`, glass unification, motion language
   smallest change that repairs the existing kit (one palette definition, no layout churn);
   T5 explicitly gated on operator art direction per protocol. No open findings.
   **CONVERGED — presented for approval; no visual rework performed.**
+- **Pass 4 (implementation, 2026-09-06):** operator approved Phases A–D + T2/T3/T4.
+  **Foundation batch implemented and live-verified (dev server probes, 8/8 assertions):**
+  Phase C (Orbitron via `next/font`, CDN `@import` deleted, body carries the orbitron
+  variable class); Phase A1 (the 8 ghost `:root` tokens defined in the glass language —
+  scrollbar styling and `.text-gradient` were silently dead before); theme single-sourcing
+  recorded: tailwind owns `slide-up/slide-down/pulse-glow`, globals owns `fade-in/
+  scale-in/float-particle/shimmer/starfield-drift/fade-in-slow` (shadowed tailwind tokens
+  removed). **New RED defects found and fixed during implementation:** (1) the starfield
+  `body::before` ran the `float` particle keyframes (opacity 0→1→0), silently fading the
+  entire starfield invisible every cycle — now `starfield-drift` (background-position
+  only); (2) `@keyframes float` collided with tailwind's hover-bob of the same name —
+  renamed `float-particle`; (3) the VIP success page redefined `@keyframes fadeIn` + a
+  second `.animate-fade-in`, hijacking all 6 site-wide fade-in consumers via CSS
+  last-wins — now `.animate-fade-in-slow`; (4) duplicate zero-consumer `.animate-slide-up`
+  and `.animate-pulse-glow` deleted. T4.1 (`prefers-reduced-motion` global suppressor)
+  and T4.2 (`:focus-visible` neon ring) live. **Out-of-scope but blocking:** the shell
+  environment exports `PORT=0`, which `server.ts` parsed into an OS-random bind — the
+  SCOPE #23 guard (`|| 3000`) landed and the dev server now binds the canonical port;
+  a stale zombie `next dev` (webpack-era CSS) was masking the R1 palette emission until
+  killed. Gates: tsc 0. Next: Phase A2/B page migrations.
 
-**Status:** CONVERGED — awaiting operator scope decision (T1 alone? T1–T4? include T5 direction?).
+**Status:** IN IMPLEMENTATION — **operator approved 2026-09-06 the full scope: Phases A–D
+(theme-token rollout + UI-kit adoption + font fix + empty states) plus T2 (toast/confirm
+replacement), T3 (HUD overlay repair), and T4 (a11y/motion pass). T5 deep art direction
+remains gated.**
+
+### Approved implementation plan (2026-09-06)
+
+- **Phase C** — Orbitron to `next/font` self-hosted; delete the render-blocking CDN
+  `@import` (R8.1). Smallest risk; do first.
+- **Phase A1** — single-source the 53 `:root` vars in globals.css onto the tailwind theme
+  (T1.2); keep the var names stable so downstream CSS never notices.
+- **T3.2** — /map legend run-on fix (R5).
+- **T4.1/4.2** — global `prefers-reduced-motion` rule + `focus-visible` ring tokens (R7).
+- **Phase A2/B** — migrate the default-gray secondary pages to the glass token language
+  (T3.3/R2) and adopt `components/ui/*` where components are hand-rolled; page-by-page,
+  each page verified live before the next.
+- **Phase D** — unified empty states on messages/clans/admin tables (T2.3), generalized
+  from the leaderboard pattern.
+- **Phase T2** — toast + ConfirmDialog pair built on ui/Panel (R3.1); replace the 127
+  native blocking dialogs, admin first; leave the four one-off notification components
+  alone unless they collide.
+- **Phase T3.1** — HUD overlay repair: chat/tutorial must not cover the Factory Status
+  card at 1331×1248 nor the map's lower-left (R4); collapsible on small viewports.
+- **Phase T4.3/4.4** — hint-text contrast fixes (R7.3) + framer-motion bundle cut (R8.2).
+
+Implementation order above = dependency order (C and A1 are foundations; A2/B consume
+their tokens; D/T2/T3 sit on the migrated pages).

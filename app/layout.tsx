@@ -5,7 +5,7 @@
  */
 
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Orbitron } from 'next/font/google';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 import './globals.css';
 import { GameProvider } from '@/context/GameContext';
@@ -16,6 +16,15 @@ import { Toaster } from 'sonner';
 const inter = Inter({ 
   subsets: ['latin'],
   variable: '--font-inter',
+  display: 'swap',
+});
+
+// FID-20260906-005 R8.1 (Phase C): self-hosted via next/font — replaces the
+// render-blocking Google Fonts CDN @import in globals.css (kills FOUT + a
+// network round-trip before first paint). Orbitron is a variable font (400–900).
+const orbitron = Orbitron({
+  subsets: ['latin'],
+  variable: '--font-orbitron',
   display: 'swap',
 });
 
@@ -34,7 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} ${orbitron.variable}`}>
         <WebSocketProvider>
           <GameProvider>{children}</GameProvider>
         </WebSocketProvider>
