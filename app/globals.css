@@ -6,9 +6,15 @@
  * shadowed these names were removed — see FID §4 Phase A1).
  */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * FID-20260906-012 P0: Tailwind v4 migration.
+ * v4 uses the CSS-first entry: `@import "tailwindcss"` replaces the three @tailwind
+ * directives. `@config` keeps the existing tailwind.config.ts (theme extensions:
+ * neon palette, glass tokens, glow shadows, animations) authoritative so this
+ * phase ships with ZERO visual change; Phase 1 replaces it with native @theme tokens.
+ */
+@import "tailwindcss";
+@config "../tailwind.config.ts";
 
 :root {
   /* Sci-Fi Glassmorphism Theme */

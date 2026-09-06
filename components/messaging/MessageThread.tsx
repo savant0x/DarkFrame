@@ -13,7 +13,7 @@
  * - Real-time message delivery via Socket.io
  * - Typing indicators
  * - Read receipts
- * - Emoji picker using @emoji-mart/react
+ * - Emoji quick-insert row (FID-20260906-012 P0: @emoji-mart removed — React-19-incompatible)
  * - Message timestamps
  * - Auto-scroll to newest messages
  */
@@ -22,8 +22,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Smile, Loader, Check, CheckCheck, Clock } from 'lucide-react';
-import data from '@emoji-mart/data';
-import Picker from '@emoji-mart/react';
 import type { Message, MessageThreadState } from '@/types/messaging.types';
 
 interface MessageThreadProps {
@@ -51,6 +49,14 @@ export default function MessageThread({
   });
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // FID-20260906-012 P0: @emoji-mart packages removed (React-19-incompatible peers,
+  // dead weight — the DM picker was the only real consumer). Quick-insert row keeps
+  // the feature alive; a themed picker returns with the HeroUI Popover in Phase 3.
+  const QUICK_EMOJIS = ['🔥', '⚡', '🛡️', '⚔️', '🎯', '👍', '😂', '🤖'];
+  const insertEmoji = (emoji: string) => {
+    setState(prev => ({ ...prev, draftMessage: prev.draftMessage + emoji }));
+    inputRef.current?.focus();
+  };
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -104,11 +110,11 @@ export default function MessageThread({
           isLoading: false,
         }));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading messages:', error);
       setState(prev => ({
         ...prev,
-        error: error.message || 'Failed to load messages',
+        error: error instanceof Error ? error.message : 'Failed to load messages',
         isLoading: false,
       }));
     }
@@ -179,11 +185,11 @@ export default function MessageThread({
           error: data.error || 'Failed to send message',
         }));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error sending message:', error);
       setState(prev => ({
         ...prev,
-        error: error.message || 'Failed to send message',
+        error: error instanceof Error ? error.message : 'Failed to send message',
       }));
     } finally {
       setIsSending(false);
@@ -222,18 +228,6 @@ export default function MessageThread({
       e.preventDefault();
       sendMessage();
     }
-  };
-
-  /**
-   * Handle emoji selection
-   */
-  const handleEmojiSelect = (emoji: any) => {
-    setState(prev => ({
-      ...prev,
-      draftMessage: prev.draftMessage + emoji.native,
-    }));
-    setShowEmojiPicker(false);
-    inputRef.current?.focus();
   };
 
   // ========================================================================
@@ -396,15 +390,12 @@ export default function MessageThread({
 
       {/* Input Area */}
       <div className="p-4 border-t border-glass-border bg-glass-light">
-        {/* Emoji Picker */}
+        {/* Emoji quick-insert (FID-20260906-012 P0 — replaces removed @emoji-mart picker) */}
         {showEmojiPicker && (
-          <div className="absolute bottom-20 right-4 z-50">
-            <Picker
-              data={data}
-              onEmojiSelect={handleEmojiSelect}
-              theme="dark"
-              onClickOutside={() => setShowEmojiPicker(false)}
-            />
+          <div className="absolute bottom-20 right-4 z-50 flex flex-wrap gap-1 p-3 max-w-64 bg-glass-darker border border-glass-border rounded-lg shadow-2xl">
+            {QUICK_EMOJIS.map(e => (
+              <button key={e} onClick={() => insertEmoji(e)} className="p-1.5 text-lg hover:bg-white/10 rounded transition-colors">{e}</button>
+            ))}
           </div>
         )}
 

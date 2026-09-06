@@ -6,21 +6,15 @@ const nextConfig = {
   // - webpack's resolver hits phantom EISDIR errors unless symlink resolution is off.
   // If the repo moves to an NTFS drive, Turbopack (Next 16 default) can be used again.
 
-  // react-joyride 2.9.3's ESM build (dist/index.mjs) imports
-  // `unmountComponentAtNode` from react-dom, which webpack's ESM interop
-  // fails to resolve against React 18's CJS build. Force the CJS entry.
+  // FID-20260906-012 P0: the react-joyride 2.9.3 alias hack was REMOVED —
+  // joyride 3.2.0 ships proper dual CJS/ESM exports (dist/index.cjs|index.mjs),
+  // so webpack resolves it natively and the workaround is obsolete.
   webpack: (config) => {
     // webpack filesystem cache cannot snapshot on exFAT.
     config.cache = false;
 
     // Skip resolver readlink calls that fail with EISDIR on exFAT.
     config.resolve.symlinks = false;
-
-    const path = require('path');
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'react-joyride': path.join(process.cwd(), 'node_modules/react-joyride/dist/index.js'),
-    };
 
     return config;
   },
