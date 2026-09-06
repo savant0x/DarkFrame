@@ -36,7 +36,10 @@ import {
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
-import { getDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { wmdDefenseBatteries } from '@/lib/db/schema/wmd';
+import { ensureWmdJobsTicked } from '@/lib/wmd/jobs/missileTracker';
+import { eq } from 'drizzle-orm';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
@@ -52,6 +55,9 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
   const endTimer = log.time('defense-get');
   
   try {
+    // G6: lazy self-tick so missile impacts fire even without the server.ts scheduler.
+    void ensureWmdJobsTicked();
+
     const auth = await getAuthenticatedPlayer(req);
     
     if (!auth) {
@@ -63,8 +69,15 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     
     // Get specific battery details
     if (batteryId) {
-      const db = await getDatabase();
-      const battery = await db.collection('wmd_defense_batteries').findOne({ batteryId });
+      // FID-20260906-002 G2: drizzle seam replaces the Mongo-shim read.
+      // Batteries are CLAN-scoped (wmd_defense_batteries.clanId) — there is no
+      // ownerId column, so ownership = the requesting player's clan matches.
+      const batteryRows = await db
+        .select()
+        .from(wmdDefenseBatteries)
+        .where(eq(wmdDefenseBatteries.batteryId, batteryId))
+        .limit(1);
+      const battery = batteryRows[0];
       
       if (!battery) {
         return NextResponse.json(
@@ -73,10 +86,10 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
         );
       }
       
-      // Verify ownership
-      if (battery.ownerId !== auth.playerId) {
+      // Verify clan-scoped ownership
+      if (!auth.player.clanId || battery.clanId !== auth.player.clanId) {
         return NextResponse.json(
-          { error: 'Unauthorized - not your battery' },
+          { error: 'Unauthorized - battery belongs to another clan' },
           { status: 403 }
         );
       }

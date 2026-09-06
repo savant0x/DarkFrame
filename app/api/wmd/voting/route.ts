@@ -41,7 +41,9 @@ import { WarheadType } from '@/types/wmd/missile.types';
 import { VoteType } from '@/lib/wmd/clanVotingService';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
-import { getDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { wmdClanVotes } from '@/lib/db/schema/wmd';
+import { eq } from 'drizzle-orm';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
@@ -201,28 +203,24 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       
       // Broadcast vote update to clan
       try {
-        const db = await getDatabase();
-        const voteData = await db.collection<{
-          voteId: string;
-          voteType: string;
-          proposer: string;
-          targetUsername?: string;
-          status: string;
-          votesFor: string[];
-          votesAgainst: string[];
-          requiredVotes: number;
-        }>('wmd_clan_votes').findOne({ voteId });
+        // FID-20260906-002 G3: drizzle seam replaces the Mongo-shim read.
+        const voteRows = await db
+          .select()
+          .from(wmdClanVotes)
+          .where(eq(wmdClanVotes.voteId, voteId))
+          .limit(1);
+        const voteData = voteRows[0];
         const io = getIO();
         if (voteData && io) {
           await wmdHandlers.broadcastClanVoteUpdate(io, {
             clanId: auth.player.clanId,
             voteId,
             voteType: voteData.voteType,
-            proposer: voteData.proposer,
-            targetName: voteData.targetUsername,
+            proposer: voteData.proposerUsername,
+            targetName: voteData.targetUsername ?? undefined,
             status: result.voteStatus || voteData.status,
-            votesFor: voteData.votesFor.length,
-            votesAgainst: voteData.votesAgainst.length,
+            votesFor: (voteData.votesFor ?? []).length,
+            votesAgainst: (voteData.votesAgainst ?? []).length,
             requiredVotes: voteData.requiredVotes,
           });
         }
@@ -253,28 +251,24 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       
       // Broadcast veto to clan
       try {
-        const db = await getDatabase();
-        const voteData = await db.collection<{
-          voteId: string;
-          voteType: string;
-          proposer: string;
-          targetUsername?: string;
-          status: string;
-          votesFor: string[];
-          votesAgainst: string[];
-          requiredVotes: number;
-        }>('wmd_clan_votes').findOne({ voteId });
+        // FID-20260906-002 G3: drizzle seam replaces the Mongo-shim read.
+        const voteRows = await db
+          .select()
+          .from(wmdClanVotes)
+          .where(eq(wmdClanVotes.voteId, voteId))
+          .limit(1);
+        const voteData = voteRows[0];
         const io = getIO();
         if (voteData && io) {
           await wmdHandlers.broadcastClanVoteUpdate(io, {
             clanId: auth.player.clanId,
             voteId,
             voteType: voteData.voteType,
-            proposer: voteData.proposer,
-            targetName: voteData.targetUsername,
+            proposer: voteData.proposerUsername,
+            targetName: voteData.targetUsername ?? undefined,
             status: 'VETOED',
-            votesFor: voteData.votesFor.length,
-            votesAgainst: voteData.votesAgainst.length,
+            votesFor: (voteData.votesFor ?? []).length,
+            votesAgainst: (voteData.votesAgainst ?? []).length,
             requiredVotes: voteData.requiredVotes,
           });
         }
