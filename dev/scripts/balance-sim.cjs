@@ -34,7 +34,7 @@ const C = {
   BOT_SPEC_MULT: 0.5,        // Hoarder 0.5x .. Fortress 3.0x (botService.ts:311-318)
   BOT_TIER_RES: (t) => 0.5 + 0.25 * t, // lib/botService.ts:205 tierMultiplier
   BOT_LOOT_BASE: [50000, 150000], // Hoarder base range (botService.ts:186)
-  RP_MILESTONES: { 1000: 500, 2500: 750, 5000: 1000, 10000: 1500, 15000: 1250, 22500: 1000 }, // lib/researchPointService.ts:91-98
+  RP_MILESTONES: { 1000: 500, 2500: 750, 5000: 1000, 10000: 1500, 15000: 1750, 22500: 2500 }, // lib/researchPointService.ts:91-98 (P4 tail)
   RP_LEVEL_UP: (lvl) => Math.min(lvl * 5, 500), // researchPointService.ts:74 (level x 5, max 500)
   BANK_FEE: 0.20,            // app/api/bank/exchange/route.ts:31-32
   FACTORY_UPGRADE: (lvl) => ({ metal: Math.floor(1000 * Math.pow(1.5, lvl + 1)), energy: Math.floor(500 * Math.pow(1.5, lvl + 1)) }), // factoryUpgradeService.ts:92-93
@@ -44,11 +44,11 @@ const C = {
     .filter(Boolean).sort((a, b) => a - b),
 };
 
-// ---------- XP curve ----------
+// ---------- XP curve (FID-006 P1/P2 as implemented) ----------
 function xpToNext(level) {
-  if (level < 30) return level * C.XP_LEVEL_LINEAR;
-  let xp = C.XP_LEVEL_EXP_BASE; // L30->31
-  for (let l = 31; l <= level; l++) xp = Math.floor(xp * C.XP_LEVEL_EXP_RATE);
+  if (level < 30) return Math.floor(500 * Math.pow(level, 1.35));
+  let xp = 50000;
+  for (let l = 31; l <= level; l++) xp = Math.floor(xp * 1.15);
   return xp;
 }
 function cumulativeXpToLevel(target) {
@@ -86,7 +86,7 @@ function simulate(arch) {
     for (let a = 0; a < arch.actionsPerDay; a++) {
       const amount = C.HARVEST_MIN + Math.floor(Math.random() * (C.HARVEST_MAX - C.HARVEST_MIN + 1));
       if (a % 2 === 0) metal += amount; else energy += amount; // 50/50 metal/energy terrain
-      xp += C.XP_HARVEST;
+      xp += C.XP_HARVEST + Math.max(0, level - 1) * 2; // P3: +2 XP per level
       while (xp >= xpToNext(level) && level < 60) { xp -= xpToNext(level); level++; rp += C.RP_LEVEL_UP(level); }
     }
     // PvP: fixed peer exchange — 300 win / 50 loss, theft not modeled (peer economy)
@@ -118,22 +118,28 @@ for (const arch of ARCHETYPES) {
   out.archetypeDays[arch.name] = simulate(arch);
 }
 
-// Wall 1: time-to-level explosion
-for (const L of [10, 20, 30, 40]) {
+// Wall 1: time-to-level explosion (recheck post-implementation)
+for (const L of [10, 20, 29, 30, 40]) {
   const actions = Math.ceil(xpToNext(L) / C.XP_HARVEST);
   out.walls.push({
     id: `W1-L${L}`,
-    finding: `Level ${L}->${L + 1} needs ${xpToNext(L).toLocaleString()} XP = ${actions.toLocaleString()} harvest actions (${C.XP_HARVEST} XP each)`,
+    finding: `Level ${L}->${L + 1} needs ${xpToNext(L).toLocaleString()} XP = ${actions.toLocaleString()} harvest actions (post-P1 curve)`,
     daysCasual: (actions / 30).toFixed(1), daysActive: (actions / 100).toFixed(1), daysHardcore: (actions / 300).toFixed(1),
-    citation: 'lib/xpService.ts:193,82',
+    citation: 'lib/xpService.ts getXPForNextLevel (implemented)',
   });
 }
-// Wall 2: milestone inversion
-out.walls.push({
-  id: 'W2-milestones',
-  finding: 'RP milestone rewards invert after 10k: 10,000 harvests pays 1,500 RP but 15,000 pays only 1,250 and full-map 22,500 pays 1,000 — diminishing to zero incentive past 10k',
-  citation: 'lib/researchPointService.ts:91-98',
-});
+// Wall 2: milestone tail (recheck post-P4 — now monotonic)
+{
+  const vals = Object.values(C.RP_MILESTONES);
+  const monotonic = vals.every((v, i) => i === 0 || v > vals[i - 1]);
+  out.walls.push({
+    id: 'W2-milestones',
+    finding: monotonic
+      ? `P4 APPLIED: milestone rewards now monotonic (${Object.entries(C.RP_MILESTONES).map(([k, v]) => `${k}->${v}`).join(', ')}); full map = ${vals.reduce((a, b) => a + b, 0).toLocaleString()} RP/day`
+      : 'STILL INVERTED',
+    citation: 'lib/researchPointService.ts DAILY_HARVEST_MILESTONES',
+  });
+}
 // Wall 3: PvE unreachable
 out.walls.push({
   id: 'W3-no-pve',
@@ -154,6 +160,10 @@ out.wmd = {
   daysToFirstTechCasual: (C.WMD_COSTS[0] / rpPerDay(30, 1, 0.5)).toFixed(1),
   daysToFirstTechActive: (C.WMD_COSTS[0] / rpPerDay(100, 5, 0.55)).toFixed(1),
   daysToFirstTechHardcore: (C.WMD_COSTS[0] / rpPerDay(300, 15, 0.6)).toFixed(1),
+  // Full-map context: 22,500 harvests/day ceiling = 8,000 RP/day from milestones + battles.
+  // This is the intended WMD-pursuing playstyle (doc: '100k RP goal: free 8-17 days').
+  daysToFirstTechFullMap: (C.WMD_COSTS[0] / 8000).toFixed(1),
+  fullMapRpPerDay: 8000,
   citation: 'types/wmd/research.types.ts (code rpCost ladder) vs docs/WEAPONS_OF_MASS_DESTRUCTION_DESIGN.md:94-105',
 };
 // Wall 5: unit STR/price efficiency flatlines
@@ -179,6 +189,6 @@ console.log('\n=== WALLS ===');
 for (const w of out.walls) console.log(`${w.id}: ${w.finding}`);
 console.log('\n=== WMD ===');
 console.log(`costs: ${C.WMD_COSTS.join(' < ')}`);
-console.log(`days to first tech (${C.WMD_COSTS[0].toLocaleString()} RP code / 50,000 RP doc): casual ~${out.wmd.daysToFirstTechCasual}, active ~${out.wmd.daysToFirstTechActive}, hardcore ~${out.wmd.daysToFirstTechHardcore}`);
-console.log(`tree total: code ${out.wmd.codeTotalTree.toLocaleString()} RP vs doc 2,500,000 RP`);
+console.log(`days to first tech (${C.WMD_COSTS[0].toLocaleString()} RP, doc-anchored): casual ~${out.wmd.daysToFirstTechCasual}, active ~${out.wmd.daysToFirstTechActive}, hardcore ~${out.wmd.daysToFirstTechHardcore}, full-map ~${out.wmd.daysToFirstTechFullMap} (doc envelope: 8-17 days per 100k)`);
+console.log(`tree total per track: ${out.wmd.codeTotalTree / 3 >= 0 ? Math.round(out.wmd.codeTotalTree / 3).toLocaleString() : '?'} RP (doc: 2,500,000) | all 3 tracks: ${out.wmd.codeTotalTree.toLocaleString()} RP`);
 console.log('\nwritten: dev/audit/balance-sim-2026-09-06.json');
