@@ -5,6 +5,21 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-05/06 session
 
+### Fixed — FID-20260906-008 (Track flow dead-end)
+- **Track now works end-to-end:** the Flag Tracker's Track button pushed
+  `/profile/<username>`, but the destination had never been built — every click 404'd
+  (design doc: "Track button → Click to view Flag Bearer's profile"). Added
+  `GET /api/profile/[username]` (public, sanitized §5.0 projection, explicit
+  `PublicProfile` shape, 404 for unknown / 400 for hostile segments, no existence
+  oracle) and `app/profile/[username]/page.tsx` (glass-language profile with bot
+  identity banner: "Autonomous rogue unit — not a player").
+- **Shared lookup validator** `isLookupableUsername()` (lib/authService): documented
+  superset of the registration charset accepting themed bot names with spaces
+  ("Thundering Depot") while rejecting hostile URL segments before any DB access.
+- Verified live: Track click → `/profile/Flag-Bearer-4523` rendered with matching
+  position (74,150) and rogue-unit banner; bot/unknown/malformed probes 200/404/400;
+  zero PII keys in responses; suite 348 passed / 1 skipped.
+
 ### Fixed — FID-20260906-007 (bot name generation)
 - **Beer Bases no longer spawn as machine slugs:** `spawnBeerBase` overwrote the themed
   name with `b<tier><timestamp><rand>` (e.g. `bS299792251945`) to dodge a historic
