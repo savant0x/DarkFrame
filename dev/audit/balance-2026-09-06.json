@@ -1,0 +1,1628 @@
+{
+  "generatedAt": "2026-09-06T08:05:56.170Z",
+  "totals": {
+    "findings": 61,
+    "withValues": 61
+  },
+  "byArea": {
+    "harvest": 3,
+    "combat": 3,
+    "units": 2,
+    "bots": 5,
+    "rp": 15,
+    "vip": 1,
+    "wmd": 30,
+    "bank": 2
+  },
+  "findings": [
+    {
+      "area": "harvest",
+      "label": "base-amount",
+      "file": "types/game.types.ts",
+      "line": 740,
+      "value": null,
+      "text": "MIN_AMOUNT: 800,"
+    },
+    {
+      "area": "harvest",
+      "label": "base-amount",
+      "file": "types/game.types.ts",
+      "line": 741,
+      "value": null,
+      "text": "MAX_AMOUNT: 1500,"
+    },
+    {
+      "area": "harvest",
+      "label": "base-amount",
+      "file": "types/game.types.ts",
+      "line": 744,
+      "value": null,
+      "text": "CAVE_DROP_RATE: 0.30, // 30% chance"
+    },
+    {
+      "area": "combat",
+      "label": "capture-theft-rate",
+      "file": "lib/battleService.ts",
+      "line": 126,
+      "value": null,
+      "text": "const MIN_CAPTURE_RATE = 0.10; // Minimum 10% of defeated units"
+    },
+    {
+      "area": "combat",
+      "label": "capture-theft-rate",
+      "file": "lib/battleService.ts",
+      "line": 127,
+      "value": null,
+      "text": "const MAX_CAPTURE_RATE = 0.15; // Maximum 15% of defeated units"
+    },
+    {
+      "area": "combat",
+      "label": "capture-theft-rate",
+      "file": "lib/battleService.ts",
+      "line": 132,
+      "value": null,
+      "text": "const RESOURCE_THEFT_RATE = 0.20; // 20% of defender's resources (capped)"
+    },
+    {
+      "area": "units",
+      "label": "unit-cost",
+      "file": "lib/factoryService.ts",
+      "line": 25,
+      "value": null,
+      "text": "const UNIT_COST_METAL = 100;"
+    },
+    {
+      "area": "units",
+      "label": "unit-cost",
+      "file": "lib/factoryService.ts",
+      "line": 26,
+      "value": null,
+      "text": "const UNIT_COST_ENERGY = 50;"
+    },
+    {
+      "area": "bots",
+      "label": "bot-tier",
+      "file": "lib/botService.ts",
+      "line": 203,
+      "value": null,
+      "text": "const tierMultiplier = 0.5 + (tier * 0.25); // Progressive scaling up to T7 = 3.0x"
+    },
+    {
+      "area": "bots",
+      "label": "bot-tier",
+      "file": "lib/botService.ts",
+      "line": 231,
+      "value": null,
+      "text": "const maxBracket = Math.min(bracket, 6);"
+    },
+    {
+      "area": "bots",
+      "label": "bot-tier",
+      "file": "lib/botService.ts",
+      "line": 232,
+      "value": null,
+      "text": "const bonusMultiplier = 1.0 + (maxBracket * 0.25);"
+    },
+    {
+      "area": "bots",
+      "label": "bot-tier",
+      "file": "lib/botService.ts",
+      "line": 467,
+      "value": null,
+      "text": "const defenseMultiplier = getDefenseMultiplier(botSpec);"
+    },
+    {
+      "area": "bots",
+      "label": "bot-tier",
+      "file": "lib/botService.ts",
+      "line": 612,
+      "value": null,
+      "text": "const defenseMultiplier = getDefenseMultiplier(BotSpecialization.Boss); // 20x multiplier"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 61,
+      "value": null,
+      "text": "vipBonus: boolean; // Was VIP +50% bonus applied?"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 61,
+      "value": null,
+      "text": "vipBonus: boolean; // Was VIP +50% bonus applied?"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 74,
+      "value": null,
+      "text": "| 'level_up' // Level-up RP scaling (level × 5, max 500)"
+    },
+    {
+      "area": "vip",
+      "label": "vip-multiplier",
+      "file": "lib/researchPointService.ts",
+      "line": 104,
+      "value": null,
+      "text": "export const VIP_RP_MULTIPLIER = 1.5;"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 140,
+      "value": null,
+      "text": "vipBonusApplied: boolean;"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 148,
+      "value": null,
+      "text": "vipBonusApplied: false,"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 169,
+      "value": null,
+      "text": "vipBonusApplied: false,"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 219,
+      "value": null,
+      "text": "vipBonusApplied: isVIP,"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 231,
+      "value": null,
+      "text": "id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter, metadata"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 242,
+      "value": null,
+      "text": "vipBonusApplied: isVIP,"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 251,
+      "value": null,
+      "text": "vipBonusApplied: false,"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 579,
+      "value": null,
+      "text": "vipBonus: Boolean(row.vipbonus ?? row.vipBonus),"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 579,
+      "value": null,
+      "text": "vipBonus: Boolean(row.vipbonus ?? row.vipBonus),"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 749,
+      "value": null,
+      "text": "id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 842,
+      "value": null,
+      "text": "vipBonus: Boolean(row.vipbonus ?? row.vipBonus),"
+    },
+    {
+      "area": "rp",
+      "label": "rp-award",
+      "file": "lib/researchPointService.ts",
+      "line": 842,
+      "value": null,
+      "text": "vipBonus: Boolean(row.vipbonus ?? row.vipBonus),"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 224,
+      "value": null,
+      "text": "rpCost: 10000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 237,
+      "value": null,
+      "text": "rpCost: 15000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 248,
+      "value": null,
+      "text": "rpCost: 20000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 259,
+      "value": null,
+      "text": "rpCost: 30000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 270,
+      "value": null,
+      "text": "rpCost: 50000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 283,
+      "value": null,
+      "text": "rpCost: 75000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 294,
+      "value": null,
+      "text": "rpCost: 100000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 307,
+      "value": null,
+      "text": "rpCost: 150000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 320,
+      "value": null,
+      "text": "rpCost: 200000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 332,
+      "value": null,
+      "text": "rpCost: 300000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 353,
+      "value": null,
+      "text": "rpCost: 10000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 366,
+      "value": null,
+      "text": "rpCost: 15000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 379,
+      "value": null,
+      "text": "rpCost: 20000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 392,
+      "value": null,
+      "text": "rpCost: 30000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 403,
+      "value": null,
+      "text": "rpCost: 50000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 417,
+      "value": null,
+      "text": "rpCost: 75000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 428,
+      "value": null,
+      "text": "rpCost: 100000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 441,
+      "value": null,
+      "text": "rpCost: 150000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 454,
+      "value": null,
+      "text": "rpCost: 200000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 466,
+      "value": null,
+      "text": "rpCost: 300000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 487,
+      "value": null,
+      "text": "rpCost: 10000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 500,
+      "value": null,
+      "text": "rpCost: 15000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 513,
+      "value": null,
+      "text": "rpCost: 20000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 527,
+      "value": null,
+      "text": "rpCost: 30000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 540,
+      "value": null,
+      "text": "rpCost: 50000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 554,
+      "value": null,
+      "text": "rpCost: 75000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 567,
+      "value": null,
+      "text": "rpCost: 100000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 580,
+      "value": null,
+      "text": "rpCost: 150000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 594,
+      "value": null,
+      "text": "rpCost: 200000,"
+    },
+    {
+      "area": "wmd",
+      "label": "wmd-cost",
+      "file": "types/wmd/research.types.ts",
+      "line": 608,
+      "value": null,
+      "text": "rpCost: 300000,"
+    },
+    {
+      "area": "bank",
+      "label": "bank-rate",
+      "file": "app/api/bank/exchange/route.ts",
+      "line": 31,
+      "value": null,
+      "text": "const _EXCHANGE_FEE_RATE = 0.20; // 20% fee"
+    },
+    {
+      "area": "bank",
+      "label": "bank-rate",
+      "file": "app/api/bank/exchange/route.ts",
+      "line": 32,
+      "value": null,
+      "text": "const EXCHANGE_RATE = 0.80; // Player receives 80% of what they give"
+    }
+  ],
+  "blocks": {
+    "gameConstants": [
+      {
+        "file": "types/game.types.ts",
+        "line": 714,
+        "text": "/** Map dimensions */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 715,
+        "text": "MAP_WIDTH: 150,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 716,
+        "text": "MAP_HEIGHT: 150,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 717,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 718,
+        "text": "/** Total tiles on the map */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 719,
+        "text": "TOTAL_TILES: 22500,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 720,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 721,
+        "text": "/** Terrain distribution counts */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 722,
+        "text": "TERRAIN_COUNTS: {"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 723,
+        "text": "[TerrainType.Metal]: 4500,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 724,
+        "text": "[TerrainType.Energy]: 4500,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 725,
+        "text": "[TerrainType.Cave]: 1800,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 726,
+        "text": "[TerrainType.Forest]: 450,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 727,
+        "text": "[TerrainType.Factory]: 2250,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 728,
+        "text": "[TerrainType.Wasteland]: 9000"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 729,
+        "text": "},"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 730,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 731,
+        "text": "/** Starting resources for new players */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 732,
+        "text": "STARTING_RESOURCES: {"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 733,
+        "text": "metal: 0,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 734,
+        "text": "energy: 0"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 735,
+        "text": "},"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 736,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 737,
+        "text": "/** Harvest system constants */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 738,
+        "text": "HARVEST: {"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 739,
+        "text": "/** Base harvest range for metal/energy tiles */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 740,
+        "text": "MIN_AMOUNT: 800,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 741,
+        "text": "MAX_AMOUNT: 1500,"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 742,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 743,
+        "text": "/** Cave item drop rate */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 744,
+        "text": "CAVE_DROP_RATE: 0.30, // 30% chance"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 745,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 746,
+        "text": "/** Cave item distribution */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 747,
+        "text": "TRADEABLE_ITEM_RATE: 0.80, // 80% of drops are tradeable"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 748,
+        "text": "DIGGER_ITEM_RATE: 0.20, // 20% of drops are diggers"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 749,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 750,
+        "text": "/** Reset times (server time) */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 751,
+        "text": "RESET_TIMES: {"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 752,
+        "text": "TILES_1_75: '00:00', // Midnight"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 753,
+        "text": "TILES_76_150: '12:00' // Noon"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 754,
+        "text": "},"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 755,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 756,
+        "text": "/** Inventory limits */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 757,
+        "text": "DEFAULT_INVENTORY_CAPACITY: 2000"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 758,
+        "text": "},"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 759,
+        "text": ""
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 760,
+        "text": "/** Digger diminishing returns tiers */"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 761,
+        "text": "DIGGER_TIERS: ["
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 762,
+        "text": "{ min: 1, max: 10, bonusPercent: 2.0 },    // First 10: +2% each"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 763,
+        "text": "{ min: 11, max: 30, bonusPercent: 1.0 },   // Next 20: +1% each"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 764,
+        "text": "{ min: 31, max: 70, bonusPercent: 0.5 },   // Next 40: +0.5% each"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 765,
+        "text": "{ min: 71, max: 150, bonusPercent: 0.25 }, // Next 80: +0.25% each"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 766,
+        "text": "{ min: 151, max: Infinity, bonusPercent: 0.1 } // After 150: +0.1% each"
+      },
+      {
+        "file": "types/game.types.ts",
+        "line": 767,
+        "text": "]"
+      }
+    ],
+    "xpRewards": [
+      {
+        "file": "lib/xpService.ts",
+        "line": 82,
+        "text": "[XPAction.HARVEST_RESOURCE]: 20,              // Doubled from 10 (harvest metal/energy tile)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 83,
+        "text": "[XPAction.CAVE_EXPLORATION]: 30,              // Doubled from 15 (explore cave)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 84,
+        "text": "[XPAction.CAVE_ITEM_RARE]: 50,                // Doubled from 25 (find rare cave item)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 85,
+        "text": "[XPAction.CAVE_ITEM_LEGENDARY]: 100,          // Doubled from 50 (find legendary cave item)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 86,
+        "text": ""
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 87,
+        "text": "[XPAction.FACTORY_CAPTURE]: 200,              // Doubled from 100 (capture neutral factory)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 88,
+        "text": "[XPAction.FACTORY_UPGRADE]: 100,              // Doubled from 50 (upgrade factory level)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 89,
+        "text": "[XPAction.FACTORY_ABANDON]: 0,                // No reward for abandoning"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 90,
+        "text": ""
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 91,
+        "text": "[XPAction.UNIT_BUILD]: 10,                    // Doubled from 5 (per unit built)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 92,
+        "text": ""
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 93,
+        "text": "[XPAction.SHRINE_SACRIFICE]: 40,              // Doubled from 20 (shrine trade)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 94,
+        "text": ""
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 95,
+        "text": "[XPAction.INFANTRY_ATTACK_WIN]: 300,          // Doubled from 150 (win player vs player combat)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 96,
+        "text": "[XPAction.INFANTRY_ATTACK_LOSS]: 50,          // Doubled from 25 (lose player vs player combat)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 97,
+        "text": "[XPAction.BASE_ATTACK_WIN]: 400,              // Doubled from 200 (successful base raid)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 98,
+        "text": "[XPAction.BASE_ATTACK_LOSS]: 60,              // Doubled from 30 (failed base raid)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 99,
+        "text": "[XPAction.DEFENSE_SUCCESS]: 150,              // Doubled from 75 (successfully defend against attack)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 100,
+        "text": "[XPAction.FACTORY_DEFENSE]: 100,              // Doubled from 50 (defend factory)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 101,
+        "text": ""
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 102,
+        "text": "[XPAction.FIRST_LOGIN]: 200,                  // Doubled from 100 (first time login bonus)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 103,
+        "text": "[XPAction.DAILY_LOGIN]: 20,                   // Doubled from 10 (daily login bonus)"
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 104,
+        "text": ""
+      },
+      {
+        "file": "lib/xpService.ts",
+        "line": 105,
+        "text": "[XPAction.ADMIN]: 0                           // Direct admin grant — bypasses flag multiplier"
+      }
+    ],
+    "rpMilestones": [
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 92,
+        "text": "1000: 500, // 4% of map = 500 RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 93,
+        "text": "2500: 750, // 11% of map = 750 RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 94,
+        "text": "5000: 1000, // 22% of map = 1,000 RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 95,
+        "text": "10000: 1500, // 44% of map = 1,500 RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 96,
+        "text": "15000: 1250, // 67% of map = 1,250 RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 97,
+        "text": "22500: 1000 // 100% completion bonus = 1,000 RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 321,
+        "text": ".map(Number)"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 322,
+        "text": ".sort((a, b) => a - b);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 323,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 324,
+        "text": "let milestoneReached = false;"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 325,
+        "text": "let milestoneThreshold: number | undefined;"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 326,
+        "text": "let rpAwarded: number | undefined;"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 327,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 328,
+        "text": "for (const threshold of milestoneThresholds) {"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 329,
+        "text": "if ("
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 330,
+        "text": "currentHarvestCount >= threshold &&"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 331,
+        "text": "!completedMilestones.includes(threshold)"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 332,
+        "text": ") {"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 333,
+        "text": "// New milestone reached!"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 334,
+        "text": "milestoneReached = true;"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 335,
+        "text": "milestoneThreshold = threshold;"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 336,
+        "text": "rpAwarded = DAILY_HARVEST_MILESTONES[threshold];"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 337,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 338,
+        "text": "// Award RP"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 339,
+        "text": "const awardResult = await awardRP("
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 340,
+        "text": "playerUsername,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 341,
+        "text": "rpAwarded,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 342,
+        "text": "'harvest_milestone',"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 343,
+        "text": "`Daily harvest milestone: ${threshold.toLocaleString()} harvests`,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 344,
+        "text": "{ milestone: threshold, resetPeriod }"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 345,
+        "text": ");"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 346,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 347,
+        "text": "if (!awardResult.success) {"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 348,
+        "text": "console.error('[researchPointService] Failed to award milestone RP:', awardResult.message);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 349,
+        "text": "}"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 350,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 351,
+        "text": "// Update completed milestones"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 352,
+        "text": "completedMilestones.push(threshold);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 353,
+        "text": "break; // Only award one milestone per harvest"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 354,
+        "text": "}"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 355,
+        "text": "}"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 356,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 357,
+        "text": "// Find next milestone"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 358,
+        "text": "const nextMilestone = milestoneThresholds.find("
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 359,
+        "text": "(threshold) => threshold > currentHarvestCount"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 360,
+        "text": ");"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 361,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 362,
+        "text": "// Upsert daily progress record using raw SQL"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 363,
+        "text": "const now = new Date().toISOString();"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 364,
+        "text": "const milestonesJson = JSON.stringify(completedMilestones);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 365,
+        "text": "const totalRPEarned = (existingProgress?.totalRPEarned || 0) + (rpAwarded || 0);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 366,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 367,
+        "text": "await db.execute(sql`"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 368,
+        "text": "INSERT INTO dailyHarvestProgress ("
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 369,
+        "text": "playerUsername, date, resetPeriod, harvestCount, milestonesCompleted,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 370,
+        "text": "totalRPEarned, lastHarvestAt, updatedAt, createdAt"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 371,
+        "text": ") VALUES ("
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 372,
+        "text": "${playerUsername}, ${date}, ${period}, ${currentHarvestCount}, ${milestonesJson},"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 373,
+        "text": "${totalRPEarned}, ${now}, ${now}, ${now}"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 374,
+        "text": ")"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 375,
+        "text": "ON DUPLICATE KEY UPDATE"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 376,
+        "text": "harvestCount = VALUES(harvestCount),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 377,
+        "text": "milestonesCompleted = VALUES(milestonesCompleted),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 378,
+        "text": "totalRPEarned = VALUES(totalRPEarned),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 379,
+        "text": "lastHarvestAt = VALUES(lastHarvestAt),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 380,
+        "text": "updatedAt = VALUES(updatedAt)"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 381,
+        "text": "`);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 382,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 383,
+        "text": "return {"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 384,
+        "text": "success: true,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 385,
+        "text": "message: milestoneReached"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 386,
+        "text": "? `Milestone reached: ${milestoneThreshold?.toLocaleString()} harvests! +${rpAwarded} RP`"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 387,
+        "text": ": 'Harvest counted',"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 388,
+        "text": "harvestCount: currentHarvestCount,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 389,
+        "text": "milestoneReached,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 390,
+        "text": "milestoneThreshold,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 391,
+        "text": "rpAwarded,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 392,
+        "text": "nextMilestone"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 558,
+        "text": ".map(Number)"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 559,
+        "text": ".sort((a, b) => a - b);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 560,
+        "text": "const nextMilestone = milestoneThresholds.find("
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 561,
+        "text": "(threshold) => threshold > harvestCount"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 562,
+        "text": ");"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 563,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 564,
+        "text": "// Get recent transactions (last 20) using raw SQL"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 565,
+        "text": "const recentTxRows = await db.execute(sql`"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 566,
+        "text": "SELECT * FROM rpTransactions"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 567,
+        "text": "WHERE playerUsername = ${playerUsername}"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 568,
+        "text": "ORDER BY timestamp DESC"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 569,
+        "text": "LIMIT 20"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 570,
+        "text": "`);"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 571,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 572,
+        "text": "const recentTransactions: RPTransaction[] = ((recentTxRows.rows as any[]) || []).map((row: any) => ({"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 573,
+        "text": "// FID-20260904-005 §5.2a: lower-case folded keys (see note above)."
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 574,
+        "text": "playerUsername: row.playerusername ?? row.playerUsername,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 575,
+        "text": "amount: Number(row.amount),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 576,
+        "text": "source: row.source as RPSource,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 577,
+        "text": "description: row.description,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 578,
+        "text": "timestamp: new Date(row.timestamp),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 579,
+        "text": "vipBonus: Boolean(row.vipbonus ?? row.vipBonus),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 580,
+        "text": "balanceAfter: row.balanceafter === null || row.balanceafter === undefined ? Number(row.balanceAfter ?? 0) : Number(row.balanceafter),"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 581,
+        "text": "metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 582,
+        "text": "}));"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 583,
+        "text": ""
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 584,
+        "text": "return {"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 585,
+        "text": "success: true,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 586,
+        "text": "message: 'RP stats retrieved successfully',"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 587,
+        "text": "currentBalance,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 588,
+        "text": "lifetimeEarned,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 589,
+        "text": "lifetimeSpent,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 590,
+        "text": "dailyEarnings,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 591,
+        "text": "harvestCount,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 592,
+        "text": "milestonesCompleted,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 593,
+        "text": "nextMilestone,"
+      },
+      {
+        "file": "lib/researchPointService.ts",
+        "line": 594,
+        "text": "recentTransactions"
+      }
+    ],
+    "wmdTechCosts": [
+      {
+        "line": 70,
+        "text": "rpCost: number;                  // Research Points required"
+      },
+      {
+        "line": 224,
+        "text": "rpCost: 10000,"
+      },
+      {
+        "line": 237,
+        "text": "rpCost: 15000,"
+      },
+      {
+        "line": 248,
+        "text": "rpCost: 20000,"
+      },
+      {
+        "line": 259,
+        "text": "rpCost: 30000,"
+      },
+      {
+        "line": 270,
+        "text": "rpCost: 50000,"
+      },
+      {
+        "line": 283,
+        "text": "rpCost: 75000,"
+      },
+      {
+        "line": 294,
+        "text": "rpCost: 100000,"
+      },
+      {
+        "line": 307,
+        "text": "rpCost: 150000,"
+      },
+      {
+        "line": 320,
+        "text": "rpCost: 200000,"
+      },
+      {
+        "line": 332,
+        "text": "rpCost: 300000,"
+      },
+      {
+        "line": 353,
+        "text": "rpCost: 10000,"
+      },
+      {
+        "line": 366,
+        "text": "rpCost: 15000,"
+      },
+      {
+        "line": 379,
+        "text": "rpCost: 20000,"
+      },
+      {
+        "line": 392,
+        "text": "rpCost: 30000,"
+      },
+      {
+        "line": 403,
+        "text": "rpCost: 50000,"
+      },
+      {
+        "line": 417,
+        "text": "rpCost: 75000,"
+      },
+      {
+        "line": 428,
+        "text": "rpCost: 100000,"
+      },
+      {
+        "line": 441,
+        "text": "rpCost: 150000,"
+      },
+      {
+        "line": 454,
+        "text": "rpCost: 200000,"
+      },
+      {
+        "line": 466,
+        "text": "rpCost: 300000,"
+      },
+      {
+        "line": 487,
+        "text": "rpCost: 10000,"
+      },
+      {
+        "line": 500,
+        "text": "rpCost: 15000,"
+      },
+      {
+        "line": 513,
+        "text": "rpCost: 20000,"
+      },
+      {
+        "line": 527,
+        "text": "rpCost: 30000,"
+      },
+      {
+        "line": 540,
+        "text": "rpCost: 50000,"
+      },
+      {
+        "line": 554,
+        "text": "rpCost: 75000,"
+      },
+      {
+        "line": 567,
+        "text": "rpCost: 100000,"
+      },
+      {
+        "line": 580,
+        "text": "rpCost: 150000,"
+      },
+      {
+        "line": 594,
+        "text": "rpCost: 200000,"
+      },
+      {
+        "line": 608,
+        "text": "rpCost: 300000,"
+      }
+    ],
+    "battleRates": [
+      {
+        "file": "lib/battleService.ts",
+        "line": 128,
+        "text": ""
+      },
+      {
+        "file": "lib/battleService.ts",
+        "line": 129,
+        "text": "/**"
+      },
+      {
+        "file": "lib/battleService.ts",
+        "line": 130,
+        "text": "* Resource theft constants"
+      },
+      {
+        "file": "lib/battleService.ts",
+        "line": 131,
+        "text": "*/"
+      }
+    ]
+  }
+}
