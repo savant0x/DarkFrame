@@ -20,6 +20,24 @@ layer still queries Mongo-era phantom collections**, the **config/seed data was 
 (every config table is empty), and therefore every WMD surface returns empty/null. This FID
 covers a full mechanics review and staged revival.
 
+## 1a. Design-doc grounding (source of truth)
+
+The operator located the original specs — the mechanics come from these, not invention:
+- **`docs/WEAPONS_OF_MASS_DESTRUCTION_DESIGN.md`** (1,294 lines): damage formula
+  (`Tech Level × 50,000 + Warhead bonus`, distribution 70% units / 20% factories / 10%
+  resources, 5% crit ×2), full 10-tier missile research tree (T1 50,000 RP → T10 500,000 RP),
+  5-component sequential missile assembly (1.85M metal / 1.9M energy / 50h total), defense
+  tree (T1–T8, 2.36M RP), interceptor batteries (2 max, 10 interceptors, 1/24h regen),
+  spy missions + counter-intel, sabotage, Clan Buster rules (80% clan vote, 7-day cooldown,
+  distribution 50/30/20, global broadcast + "Nuclear Aggressor" status).
+- **`docs/WMD_IMPLEMENTATION_PLAN.md`** (1,612 lines) + **`WMD_PLANNING_COMPLETE.md`** +
+  **`WMD_CODE_REVIEW.md`**: the code review asserts services "✅ fully functional" — written
+  pre-Postgres-pivot against the Mongo shapes; this FID treats those claims as unproven until
+  each is re-verified against the real Postgres tables.
+
+All GREEN design in §4 must be re-derived to serve THESE formulas/trees (e.g. `wmd_config`
+seeding = the doc's research costs, component costs, warhead bonuses — not invented numbers).
+
 ## 2. Findings (RED — file:line, verified live)
 
 ### W1 — Status route reads phantom collections (root cause of "broken")
@@ -69,8 +87,9 @@ covers a full mechanics review and staged revival.
 - **S1 Seam:** `lib/wmd/stateService.ts` — single read path (`getWmdState(username)`) mapping
   real tables; every `app/api/wmd/*` GET consumes it. Kill all phantom-collection references
   (census to zero).
-- **S2 Seed-as-migration:** port `wmd.seed.ts` content into `lib/db/migrations/0017_wmd_seed.sql`
-  (idempotent `ON CONFLICT DO NOTHING`), applied to the shared DB once.
+- **S2 Seed-as-migration:** port `wmd.seed.ts` into `lib/db/migrations/0017_wmd_seed.sql`
+  (idempotent), with values **reconciled against the design doc's tables** (research costs,
+  component costs, warhead bonuses, interceptor specs) — doc wins on any mismatch.
 - **S3 Research:** `researchService` writes `player_research`; costs read `wmd_config`.
 - **S4 Lifecycle target:** research → build missile → target validation (`targetingValidator`)
   → launch auth (clan vote where applicable) → flight → damage/interception → notification.

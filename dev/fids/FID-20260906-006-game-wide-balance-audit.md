@@ -20,6 +20,18 @@ has ever validated its economy curves against actual play. This FID builds the e
 FID-20260906-004 (battle logs must record real fights first) and alongside -001 (flag numbers
 belong to the same economy).
 
+## 1a. Design-doc grounding
+
+Balance constants have authoritative docs where they exist — the audit extracts implemented
+values AND doc values, and flags divergences as findings:
+- `docs/RP_ECONOMY_GUIDE.md` — RP sources + spend tiers (flag tracking 500→15,000 RP,
+  tech/bot unlocks, unit tiers) — reconcile against `lib/researchPointService.ts`.
+- `FLAG_FEATURE_PLAN.md` bonus stack — the intended income multipliers (see FID-20260906-001).
+- `docs/ENHANCED_WARFARE_DESIGN.md` — territory/war economy philosophy (expensive, risky,
+  rewarding; territory passive income scaling with clan level).
+- `docs/WEAPONS_OF_MASS_DESTRUCTION_DESIGN.md` — WMD costs/damage (feeds -002 seeding AND
+  this audit once revived).
+
 ## 2. Scope — the economy surfaces to be measured
 
 | Surface | Current constants (to extract) | Where they live |

@@ -19,6 +19,16 @@ log messages when attacked showing the result of the battle." RED evidence shows
 readers, and UI for battle logs all exist — but the pipeline has never been proven
 end-to-end, and there is **no push notification to a defender** when they are attacked.
 
+## 1a. Design-doc grounding
+
+Docs swept for battle-log/notification specs: **no dedicated battle-log design doc exists**
+(only passing references in `docs/ARCHITECTURE.md`, `DEVELOPMENT.md`, flag-tracker docs).
+The messaging spec (`docs/MESSAGING_SYSTEM.md`, 1,228 lines, FID-20251025-102) covers
+socket.io chat/DM only — it is the pattern source for the notification emit, not a battle spec.
+Battle-log behavior therefore follows the implemented service contracts (`lib/battleLogService`,
+`lib/battleService`) as the de-facto spec, and the notification UX follows the flag plan's
+site-wide toast patterns where applicable ("[Username] has claimed the Flag"-style broadcasts).
+
 ## 2. Findings (RED — file:line, live-verified where noted)
 
 ### B1 — `battle_logs` is EMPTY (0 rows, live-checked)

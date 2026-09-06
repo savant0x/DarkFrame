@@ -1,4 +1,4 @@
-# FID-20260906-001: Flag Capture Reward Loop & Difficulty Balance
+# FID-20260906-001: Flag Feature — Design-Doc Reconciliation (Mechanics Source of Truth)
 
 <!--
   ECHO Protocol v0.1.2 (single-agent) — FID.
@@ -7,19 +7,91 @@
 
 **Filename:** `FID-20260906-001-flag-reward-loop-balance.md`
 **ID:** FID-20260906-001
-**Severity:** MEDIUM (economy/design; no data-loss exposure)
-**Status:** created
-**Created:** 2026-09-06
+**Severity:** HIGH (the implemented flag system deviates from its approved design spec)
+**Status:** created (REWRITTEN after locating the original design doc)
 
 ---
 
 ## 1. Summary
 
-The flag feature is mechanically functional (revived per FID-20260905-001 §7.2) but has **no
-reward loop at all**: captures pay nothing, holding pays nothing, losing the flag costs nothing,
-and the bot is trivially beatable by any player who walks to it. This FID inventories the
-current economy and proposes tuned numbers — **proposals only; nothing changes until the
-operator approves them.**
+The operator located the original design spec: `dev/archives/2025-10-22-cleanup/feature-completions/FLAG_FEATURE_PLAN.md`
+(2,966 lines, plus `docs/FLAG_TRACKER_*.md` and the flag-tracking tiers in `docs/RP_ECONOMY_GUIDE.md`).
+Reconciliation shows the implemented system **diverges from the approved design on the core mechanic**.
+This FID now documents the divergence and presents the operator decision; the earlier
+balance-proposal table is retained as **Plan B only**.
+
+## 2. What the design doc specifies (source of truth)
+
+Cited from `FLAG_FEATURE_PLAN.md`:
+
+- **D1 — NO battle for the flag** (line ~330): "⛔ There is NO defend/battle option… ⛔ Combat
+  strength doesn't matter (Rank 1 or Rank 100 — same mechanics)". Stealing = 30-second channel;
+  bearer's only defense is **FLEE**.
+- **D2 — While-holding bonus stack** (lines 27–80): +100% metal/energy harvest, +100% XP,
+  +100% RP, +100% mastery, +25% unit strength, +25% unit defense, +50% battle rewards,
+  +50% bank capacity, +50% inventory, no bank fees, +50% auto-farm speed, +25% movement
+  cooldown reduction, +100% clan contribution, clan prestige tick, bearer title/aura/trail/map
+  icon, homepage feature.
+- **D3 — 12-hour hold milestone** (line 73): **+2% permanent harvest bonus** forever.
+- **D4 — Restrictions while holding** (lines 262–290): unit building, factory capture/upgrade,
+  auction, banking all DISABLED immediately on claim (prevents spending/hiding session earnings);
+  harvesting/movement/shrine enabled.
+- **D5 — Session earnings + flee economy** (lines 221–256): bearer's gross earnings tracked
+  from claim; flee costs 10%→15%→20%→25%→30% (per consecutive challenge); max 5 flees then
+  auto-loss; flee direction is random (8-way); can't pay = can't flee; challenger gets paid.
+- **D6 — Grace period**: 1-hour challenge immunity after a successful steal.
+- **D7 — Tracking is an RP research ladder** (`RP_ECONOMY_GUIDE.md:94-103`): T1 500 RP
+  (1-tile radius) → T4 15,000 RP (full map, VIP).
+- **D8 — Unclaimed claim**: walk within 15 tiles → claim button, no battle for the first claim.
+
+## 3. What was actually built (implementation reality — verified live)
+
+- **I1:** HP battle: 100-dmg hits (± power multiplier), bearer HP persists, transfer at 0
+  (verified live in FID-20260905-001 §7.2). Contradicts D1.
+- **I2:** Zero bonuses of the D2 stack exist anywhere in the codebase (grep for harvest/xp
+  bonus hooks tied to flag holder: none). The only holder "effect" is being attackable.
+- **I3:** No restrictions (D4): bearer can build/bank/auction freely — the exploit D4 exists
+  to prevent is wide open.
+- **I4:** No session-earnings tracking, no flee, no challenge channel, no grace period (D5/D6).
+- **I5:** Tracking research tiers (D7) not implemented; the tracker panel shows the bearer to
+  everyone for free.
+- **I6:** Bot initial holder exists (claimable only via battle — D8 says claim, no battle).
+
+## 4. The operator decision (REQUIRED before GREEN)
+
+**Option A — Design-doc faithful (recommended per operator's "the .md files are the mechanics"):**
+implement D2 bonus engine + D4 restrictions + D5 flee/session-earnings + D6 grace + D7 tracking
+RP ladder; **remove the HP battle** (channel + flee instead). Effort: large (bonus engine touches
+harvest/XP/RP/combat/bank paths — one `flagBonusService` seam reading holder state; restrictions
+are gate checks in ~6 routes; channel/flee is new state on `flags`).
+
+**Option B — Keep the implemented battle model, balance it (Plan B, prior proposal):**
+capture rewards, hold income, tiered bot, log damage curve, cooldowns. Effort: small.
+Rejects the approved design's core philosophy (skill/coordination over raw power).
+
+**Option C — Hybrid:** keep battle for BOT defeat only (current system), but player-to-player
+steals use the doc's channel/flee model; add D2/D4 once the bonus engine exists.
+
+## 5. Five Questions (RED)
+
+1. **Do nothing?** The flag stays a decorative HP pinata contradicting its own design doc.
+2. **Why decide now?** Every flag balance number depends on which model is canonical.
+3. **Who is affected?** All players; harvest/XP/RP/bank services (Option A bonus hooks).
+4. **Smallest correct change?** The decision itself; then staged phases per option.
+5. **What must NOT change?** Presence enforcement, trail persistence, /map rendering — all
+   verified live and model-independent.
+
+## 6. Loop record
+
+- **Pass 1 (post-doc rewrite):** every D-item cites the spec line range; every I-item is
+  live-verified or grep-verified. The prior proposal table is preserved below as Plan B
+  (Option B's numbers) so no work is lost.
+- **Plan B table (kept for reference):** capture 2,500 RP + 1,000/1,000 · hold 150 RP +
+  50/50 per 10 min · defeat 10% unbanked penalty · bot HP 1,000/2,500/6,000 by week ·
+  bot reflects 50/150/400 dmg · damage `80 + 40·log10(1+power/1000)` · server 60s cooldown ·
+  15-min capture lockout.
+
+**Status:** created — BLOCKED on operator decision (A / B / C).
 
 ## 2. Findings (RED evidence — file:line, all verified live where noted)
 

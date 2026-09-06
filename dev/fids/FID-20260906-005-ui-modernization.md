@@ -20,6 +20,15 @@ inconsistent states, accessibility, mobile), then a **modernization plan with pr
 approved before any visual rework. Aesthetics are the operator's call; this document supplies
 the evidence and the menu.
 
+## 1a. Design-doc grounding
+
+There IS a prior design system: `docs/DESIGN-SYSTEM-GUIDE.md` (archived copy:
+`dev/archive/DESIGN-SYSTEM-GUIDE.md`) — the audit must extract its tokens/rules first and
+treat modernization as (a) re-establishing that system where it was good, (b) modernizing
+where it is dated. Additional UI specs to reconcile against: `docs/TUTORIAL_SYSTEM.md`,
+`docs/CHAT_WINDOW_FIX.md`, and the flag plan's extensive UI mockups (golden borders,
+animation specs, notification modals) which set the visual bar the game was designed for.
+
 ## 2. Known evidence so far (RED — accumulating during this session's live work)
 
 - **Viewport-hostile fixed overlays:** ChatPanel and FriendsPanel are `fixed` overlays pinned

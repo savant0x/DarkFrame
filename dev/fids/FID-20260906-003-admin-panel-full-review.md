@@ -19,6 +19,15 @@ layer is materially healthier (34 endpoints rebuilt, gates unified to `requireAd
 panel has never been reviewed **as a whole** — dead tabs, mock remnants, broken workflows, and
 the missing `CRON_SECRET` class of silent config failures.
 
+## 1a. Design-doc grounding
+
+No dedicated admin-panel design doc exists (checked `docs/` — admin references are scattered
+across `DISCORD_ROLES.md`, VIP system docs, and WMD admin-alert sections). The panel's spec
+is effectively its route surface + the `rank`/`isAdmin` gate model; this FID documents reality
+rather than reconcile with a doc. VIP admin integration notes exist in
+`dev/archives/2025-10-22-cleanup/vip-system/vip-admin-integration.md` and will be consulted
+for the VIP tab review.
+
 ## 2. Findings (RED — verified)
 
 ### A1 — Identity chain verified sound (false-alarm checked and closed)
