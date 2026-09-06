@@ -1,260 +1,268 @@
 {
-  "generatedAt": "2026-09-06T08:17:31.747Z",
+  "generatedAt": "2026-09-06T08:45:15.553Z",
   "xpCurve": {
     "5": {
-      "toNext": 5000,
-      "cumulative": 10000,
-      "harvestActionsToNext": 250
+      "toNext": 4391,
+      "cumulative": 7226,
+      "harvestActionsToNext": 220
     },
     "10": {
-      "toNext": 10000,
-      "cumulative": 45000,
-      "harvestActionsToNext": 500
+      "toNext": 11193,
+      "cumulative": 42139,
+      "harvestActionsToNext": 560
     },
     "15": {
-      "toNext": 15000,
-      "cumulative": 105000,
-      "harvestActionsToNext": 750
+      "toNext": 19350,
+      "cumulative": 113959,
+      "harvestActionsToNext": 968
     },
     "20": {
-      "toNext": 20000,
-      "cumulative": 190000,
-      "harvestActionsToNext": 1000
+      "toNext": 28533,
+      "cumulative": 228707,
+      "harvestActionsToNext": 1427
     },
     "25": {
-      "toNext": 25000,
-      "cumulative": 300000,
-      "harvestActionsToNext": 1250
+      "toNext": 38564,
+      "cumulative": 391121,
+      "harvestActionsToNext": 1929
     },
     "30": {
-      "toNext": 3300,
-      "cumulative": 435000,
-      "harvestActionsToNext": 165
+      "toNext": 50000,
+      "cumulative": 605192,
+      "harvestActionsToNext": 2500
     },
     "35": {
-      "toNext": 5314,
-      "cumulative": 455146,
-      "harvestActionsToNext": 266
+      "toNext": 100564,
+      "cumulative": 942302,
+      "harvestActionsToNext": 5029
     },
     "40": {
-      "toNext": 8555,
-      "cumulative": 487583,
-      "harvestActionsToNext": 428
+      "toNext": 202267,
+      "cumulative": 1620338,
+      "harvestActionsToNext": 10114
     }
   },
   "archetypeDays": {
     "casual": [
       {
         "day": 1,
-        "level": 1,
+        "level": 2,
         "armyStr": 3000,
-        "rp": 50,
-        "metal": 9422,
-        "energy": 11671
+        "rp": 60,
+        "metal": 10455,
+        "energy": 10971
       },
       {
         "day": 2,
-        "level": 2,
+        "level": 3,
         "armyStr": 8000,
-        "rp": 110,
-        "metal": 16837,
-        "energy": 21182
+        "rp": 125,
+        "metal": 16794,
+        "energy": 21241
       },
       {
         "day": 3,
-        "level": 2,
+        "level": 3,
         "armyStr": 13000,
-        "rp": 160,
-        "metal": 23779,
-        "energy": 31713
+        "rp": 175,
+        "metal": 25458,
+        "energy": 29876
       },
       {
         "day": 4,
-        "level": 3,
+        "level": 4,
         "armyStr": 23000,
-        "rp": 225,
-        "metal": 21283,
-        "energy": 33642
+        "rp": 245,
+        "metal": 22840,
+        "energy": 32264
       },
       {
         "day": 5,
-        "level": 3,
-        "armyStr": 28000,
-        "rp": 275,
-        "metal": 28323,
-        "energy": 43730
+        "level": 4,
+        "armyStr": 33000,
+        "rp": 295,
+        "metal": 21008,
+        "energy": 31642
       },
       {
         "day": 6,
-        "level": 3,
+        "level": 4,
         "armyStr": 38000,
-        "rp": 325,
-        "metal": 25242,
-        "energy": 44775
+        "rp": 345,
+        "metal": 28907,
+        "energy": 41317
       },
       {
         "day": 7,
         "level": 4,
         "armyStr": 48000,
         "rp": 395,
-        "metal": 21821,
-        "energy": 45524
+        "metal": 25498,
+        "energy": 42840
       }
     ],
     "active": [
       {
         "day": 1,
-        "level": 2,
+        "level": 3,
         "armyStr": 10000,
-        "rp": 285,
-        "metal": 36732,
-        "energy": 42730
+        "rp": 300,
+        "metal": 36811,
+        "energy": 38783
       },
       {
         "day": 2,
         "level": 4,
         "armyStr": 30000,
         "rp": 595,
-        "metal": 53236,
-        "energy": 67733
+        "metal": 54580,
+        "energy": 62650
       },
       {
         "day": 3,
-        "level": 4,
+        "level": 5,
         "armyStr": 55000,
-        "rp": 870,
-        "metal": 59012,
-        "energy": 86312
+        "rp": 895,
+        "metal": 62384,
+        "energy": 82517
       },
       {
         "day": 4,
-        "level": 5,
+        "level": 6,
         "armyStr": 80000,
-        "rp": 1170,
-        "metal": 67189,
-        "energy": 103060
+        "rp": 1200,
+        "metal": 69246,
+        "energy": 99469
       },
       {
         "day": 5,
-        "level": 6,
+        "level": 7,
         "armyStr": 110000,
-        "rp": 1475,
-        "metal": 63960,
-        "energy": 111070
+        "rp": 1510,
+        "metal": 65479,
+        "energy": 107995
       },
       {
         "day": 6,
-        "level": 6,
+        "level": 7,
         "armyStr": 140000,
-        "rp": 1750,
-        "metal": 60915,
-        "energy": 119693
+        "rp": 1785,
+        "metal": 63426,
+        "energy": 117536
       },
       {
         "day": 7,
-        "level": 7,
+        "level": 8,
         "armyStr": 170000,
-        "rp": 2060,
-        "metal": 60202,
-        "energy": 130584
+        "rp": 2100,
+        "metal": 61348,
+        "energy": 127083
       }
     ],
     "hardcore": [
       {
         "day": 1,
-        "level": 4,
+        "level": 5,
         "armyStr": 40000,
-        "rp": 945,
-        "metal": 89309,
-        "energy": 112448
+        "rp": 970,
+        "metal": 89978,
+        "energy": 108988
       },
       {
         "day": 2,
-        "level": 6,
+        "level": 7,
         "armyStr": 105000,
-        "rp": 1900,
-        "metal": 134649,
-        "energy": 178533
+        "rp": 1935,
+        "metal": 133056,
+        "energy": 174249
       },
       {
         "day": 3,
-        "level": 7,
+        "level": 9,
         "armyStr": 180000,
-        "rp": 2835,
-        "metal": 157031,
-        "energy": 230994
+        "rp": 2920,
+        "metal": 154832,
+        "energy": 228125
       },
       {
         "day": 4,
-        "level": 8,
+        "level": 10,
         "armyStr": 260000,
-        "rp": 3775,
-        "metal": 166662,
-        "energy": 278722
+        "rp": 3870,
+        "metal": 168802,
+        "energy": 271854
       },
       {
         "day": 5,
-        "level": 9,
+        "level": 12,
         "armyStr": 340000,
-        "rp": 4720,
-        "metal": 179473,
-        "energy": 328038
+        "rp": 4885,
+        "metal": 176201,
+        "energy": 316824
       },
       {
         "day": 6,
-        "level": 10,
+        "level": 13,
         "armyStr": 425000,
-        "rp": 5670,
-        "metal": 184669,
-        "energy": 366453
+        "rp": 5850,
+        "metal": 178228,
+        "energy": 357819
       },
       {
         "day": 7,
-        "level": 11,
+        "level": 14,
         "armyStr": 510000,
-        "rp": 6625,
-        "metal": 185338,
-        "energy": 400314
+        "rp": 6820,
+        "metal": 182177,
+        "energy": 399564
       }
     ]
   },
   "walls": [
     {
       "id": "W1-L10",
-      "finding": "Level 10->11 needs 10,000 XP = 500 harvest actions (20 XP each)",
-      "daysCasual": "16.7",
-      "daysActive": "5.0",
-      "daysHardcore": "1.7",
-      "citation": "lib/xpService.ts:193,82"
+      "finding": "Level 10->11 needs 11,193 XP = 560 harvest actions (post-P1 curve)",
+      "daysCasual": "18.7",
+      "daysActive": "5.6",
+      "daysHardcore": "1.9",
+      "citation": "lib/xpService.ts getXPForNextLevel (implemented)"
     },
     {
       "id": "W1-L20",
-      "finding": "Level 20->21 needs 20,000 XP = 1,000 harvest actions (20 XP each)",
-      "daysCasual": "33.3",
-      "daysActive": "10.0",
-      "daysHardcore": "3.3",
-      "citation": "lib/xpService.ts:193,82"
+      "finding": "Level 20->21 needs 28,533 XP = 1,427 harvest actions (post-P1 curve)",
+      "daysCasual": "47.6",
+      "daysActive": "14.3",
+      "daysHardcore": "4.8",
+      "citation": "lib/xpService.ts getXPForNextLevel (implemented)"
+    },
+    {
+      "id": "W1-L29",
+      "finding": "Level 29->30 needs 47,120 XP = 2,356 harvest actions (post-P1 curve)",
+      "daysCasual": "78.5",
+      "daysActive": "23.6",
+      "daysHardcore": "7.9",
+      "citation": "lib/xpService.ts getXPForNextLevel (implemented)"
     },
     {
       "id": "W1-L30",
-      "finding": "Level 30->31 needs 3,300 XP = 165 harvest actions (20 XP each)",
-      "daysCasual": "5.5",
-      "daysActive": "1.6",
-      "daysHardcore": "0.6",
-      "citation": "lib/xpService.ts:193,82"
+      "finding": "Level 30->31 needs 50,000 XP = 2,500 harvest actions (post-P1 curve)",
+      "daysCasual": "83.3",
+      "daysActive": "25.0",
+      "daysHardcore": "8.3",
+      "citation": "lib/xpService.ts getXPForNextLevel (implemented)"
     },
     {
       "id": "W1-L40",
-      "finding": "Level 40->41 needs 8,555 XP = 428 harvest actions (20 XP each)",
-      "daysCasual": "14.3",
-      "daysActive": "4.3",
-      "daysHardcore": "1.4",
-      "citation": "lib/xpService.ts:193,82"
+      "finding": "Level 40->41 needs 202,267 XP = 10,114 harvest actions (post-P1 curve)",
+      "daysCasual": "337.1",
+      "daysActive": "101.1",
+      "daysHardcore": "33.7",
+      "citation": "lib/xpService.ts getXPForNextLevel (implemented)"
     },
     {
       "id": "W2-milestones",
-      "finding": "RP milestone rewards invert after 10k: 10,000 harvests pays 1,500 RP but 15,000 pays only 1,250 and full-map 22,500 pays 1,000 — diminishing to zero incentive past 10k",
-      "citation": "lib/researchPointService.ts:91-98"
+      "finding": "P4 APPLIED: milestone rewards now monotonic (1000->500, 2500->750, 5000->1000, 10000->1500, 15000->1750, 22500->2500); full map = 8,000 RP/day",
+      "citation": "lib/researchPointService.ts DAILY_HARVEST_MILESTONES"
     },
     {
       "id": "W3-no-pve",
@@ -294,46 +302,48 @@
     }
   ],
   "wmd": {
-    "firstTechCost": 10000,
-    "topTechCost": 300000,
+    "firstTechCost": 50000,
+    "topTechCost": 500000,
     "costs": [
-      10000,
-      10000,
-      10000,
-      15000,
-      15000,
-      15000,
-      20000,
-      20000,
-      20000,
-      30000,
-      30000,
-      30000,
       50000,
       50000,
       50000,
-      75000,
-      75000,
-      75000,
-      100000,
-      100000,
-      100000,
+      90000,
+      90000,
+      90000,
+      135000,
+      135000,
+      135000,
       150000,
       150000,
       150000,
-      200000,
-      200000,
-      200000,
+      250000,
+      250000,
+      250000,
       300000,
       300000,
-      300000
+      300000,
+      330000,
+      330000,
+      330000,
+      345000,
+      345000,
+      345000,
+      350000,
+      350000,
+      350000,
+      500000,
+      500000,
+      500000
     ],
     "docFirstTechCost": 50000,
     "docTotalTree": 2500000,
-    "codeTotalTree": 2850000,
-    "daysToFirstTechCasual": "200.0",
-    "daysToFirstTechActive": "36.4",
-    "daysToFirstTechHardcore": "11.1",
+    "codeTotalTree": 7500000,
+    "daysToFirstTechCasual": "1000.0",
+    "daysToFirstTechActive": "181.8",
+    "daysToFirstTechHardcore": "55.6",
+    "daysToFirstTechFullMap": "6.3",
+    "fullMapRpPerDay": 8000,
     "citation": "types/wmd/research.types.ts (code rpCost ladder) vs docs/WEAPONS_OF_MASS_DESTRUCTION_DESIGN.md:94-105"
   }
 }

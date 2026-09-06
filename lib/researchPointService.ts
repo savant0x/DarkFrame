@@ -86,15 +86,15 @@ export type RPSource =
  * Key: harvest count threshold
  * Value: RP reward for reaching threshold
  * 
- * Total for full map completion (22,500 harvests): 6,000 RP
+ * Total for full map completion (22,500 harvests): 7,750 RP (FID-20260906-006 P4)
  */
 export const DAILY_HARVEST_MILESTONES: Record<number, number> = {
   1000: 500, // 4% of map = 500 RP
   2500: 750, // 11% of map = 750 RP
   5000: 1000, // 22% of map = 1,000 RP
   10000: 1500, // 44% of map = 1,500 RP
-  15000: 1250, // 67% of map = 1,250 RP
-  22500: 1000 // 100% completion bonus = 1,000 RP
+  15000: 1750, // 67% of map = 1,750 RP (was 1,250 — monotonic tail, FID-006 P4)
+  22500: 2500 // 100% completion bonus = 2,500 RP (was 1,000 — full map must dominate, FID-006 P4)
 };
 
 /**

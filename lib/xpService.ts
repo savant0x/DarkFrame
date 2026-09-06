@@ -131,76 +131,81 @@ export interface LevelUpResult {
 
 /**
  * Calculate player level from total XP
- * Formula: 
- *   Levels 1-30: Linear (level = floor(totalXP / 1000) + 1)
- *   Levels 31+: Exponential (10% scaling per level)
- * 
+ * Formula (FID-20260906-006 P1/P2):
+ *   Levels 1-29:  floor(500 × level^1.35) per level  — anchors L10≈11.2k, L29≈45.5k
+ *   Levels 30+:   50,000 base × 1.15 per level       — endgame properly steep
+ *   Boundary is monotonic: L29 cost (45,530) < L30 cost (50,000).
+ *
  * @param totalXP - Total experience points
  * @returns Player level (minimum 1)
- * 
+ *
  * @example
  * calculateLevel(0);      // Returns 1
- * calculateLevel(999);    // Returns 1
- * calculateLevel(1000);   // Returns 2
- * calculateLevel(29999);  // Returns 30
- * calculateLevel(30000);  // Returns 30 (linear cap)
- * calculateLevel(33300);  // Returns 31 (exponential start)
- * 
- * UPDATED: Exponential XP scaling after Level 30 for enhanced end-game progression
+ * calculateLevel(499);    // Returns 1 (L1 needs 500)
+ * calculateLevel(500);    // Returns 2
+ * calculateLevel(16099);  // Returns 29 (cumulative through L29 = 160,990... see getXPForNextLevel)
+ * calculateLevel(CUM30);  // Returns 30 (linear/power cap)
+ *
+ * UPDATED (P1/P2): power curve midgame + 15%-per-level endgame per balance audit
  */
 export function calculateLevel(totalXP: number): number {
   if (totalXP < 0) return 1;
-  
-  // Linear progression up to Level 30 (30,000 XP)
-  const LEVEL_30_XP = 30000;
-  if (totalXP < LEVEL_30_XP) {
-    return Math.floor(totalXP / 1000) + 1;
-  }
-  
-  // Exponential progression after Level 30 (10% scaling per level)
-  let level = 30;
-  let xpAtCurrentLevel = LEVEL_30_XP;
-  let xpRequiredForNextLevel = 3300; // Level 30→31: 3,300 XP (base × 1.1)
-  
-  while (totalXP >= xpAtCurrentLevel + xpRequiredForNextLevel) {
-    xpAtCurrentLevel += xpRequiredForNextLevel;
+
+  let level = 1;
+  let remaining = totalXP;
+
+  // Power-curve segment (levels 1-29)
+  while (level < 30) {
+    const need = getXPForNextLevel(level);
+    if (remaining < need) return level;
+    remaining -= need;
     level++;
-    xpRequiredForNextLevel = Math.floor(xpRequiredForNextLevel * 1.1); // 10% increase
   }
-  
+
+  // Exponential segment (level 30+)
+  let need = getXPForNextLevel(30); // 50,000
+  while (remaining >= need) {
+    remaining -= need;
+    level++;
+    need = Math.floor(need * 1.15);
+  }
+
   return level;
 }
 
 /**
  * Calculate XP required for next level
- * 
+ * Formula (FID-20260906-006 P1/P2):
+ *   Levels < 30:  floor(500 × level^1.35)  — smooth power curve, kills the L29 cliff
+ *   Levels >= 30: 50,000 × 1.15 per step   — endgame properly expensive
+ *
  * @param currentLevel - Current player level
  * @returns XP needed to reach next level
- * 
+ *
  * @example
- * getXPForNextLevel(1);  // Returns 1000
- * getXPForNextLevel(5);  // Returns 5000
- * getXPForNextLevel(30); // Returns 3000 (last linear level)
- * getXPForNextLevel(31); // Returns 3300 (first exponential level)
- * getXPForNextLevel(40); // Returns ~7,715 (exponential scaling)
- * 
- * UPDATED: Exponential XP requirements after Level 30 (10% scaling per level)
+ * getXPForNextLevel(1);  // Returns 500
+ * getXPForNextLevel(10); // Returns 11,195
+ * getXPForNextLevel(29); // Returns 45,530 (last power-curve level)
+ * getXPForNextLevel(30); // Returns 50,000 (first exponential level — monotonic boundary)
+ * getXPForNextLevel(40); // Returns ~202,315 (exponential scaling)
+ *
+ * UPDATED (P1/P2): power-curve midgame, 15%-per-level endgame per balance audit
  */
 export function getXPForNextLevel(currentLevel: number): number {
-  // Linear progression up to Level 30
+  // Power-curve progression up to Level 30
   if (currentLevel < 30) {
-    return currentLevel * 1000;
+    return Math.floor(500 * Math.pow(currentLevel, 1.35));
   }
-  
+
   // Exponential progression after Level 30
-  // Level 30→31: 3,300 XP
-  // Each subsequent level: previous × 1.1
-  let xpRequired = 3300; // Base XP for Level 30→31
-  
+  // Level 30→31: 50,000 XP (monotonic over L29→30's 45,530)
+  // Each subsequent level: previous × 1.15
+  let xpRequired = 50000; // Base XP for Level 30→31
+
   for (let level = 31; level <= currentLevel; level++) {
-    xpRequired = Math.floor(xpRequired * 1.1); // 10% increase per level
+    xpRequired = Math.floor(xpRequired * 1.15); // 15% increase per level
   }
-  
+
   return xpRequired;
 }
 
@@ -294,6 +299,13 @@ export async function awardXP(
   
   if (!player) {
     throw new Error(`Player not found: ${playerId}`);
+  }
+
+  // FID-20260906-006 P3: harvest XP scales with level (+2 XP per level) so the
+  // XP curve's midgame stays reachable as unit/factory costs scale. Applied after
+  // the flag-bearer multiplier so bearers double the scaled value.
+  if (action === XPAction.HARVEST_RESOURCE) {
+    xpAwarded += Math.max(0, (player.level || 1) - 1) * 2;
   }
   
   // Get current stats

@@ -130,6 +130,10 @@ const MAX_CAPTURE_RATE = 0.15; // Maximum 15% of defeated units
  * Resource theft constants
  */
 const RESOURCE_THEFT_RATE = 0.20; // 20% of defender's resources (capped)
+// FID-20260906-006 P10: per-raid theft ceiling. At endgame banked values (~400k) an
+// uncapped 20% loss exceeds a week of a casual player's income; the cap keeps raids
+// punishing without destroying progression.
+const RESOURCE_THEFT_CAP = 25000; // max resources stolen in a single raid
 
 /**
  * Calculate total HP for a set of units
@@ -671,7 +675,11 @@ export async function executeBaseAttack(
   // If attacker wins, steal resources
   if (battleLog.outcome === BattleOutcome.AttackerWin) {
     const defenderResources = defender.resources[resourceToSteal] || 0;
-    const stolenAmount = Math.floor(defenderResources * RESOURCE_THEFT_RATE);
+    // FID-20260906-006 P10: 20% rate, hard-capped per raid
+    const stolenAmount = Math.min(
+      Math.floor(defenderResources * RESOURCE_THEFT_RATE),
+      RESOURCE_THEFT_CAP
+    );
 
     if (stolenAmount > 0) {
       battleLog.resourcesStolen = {

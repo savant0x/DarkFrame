@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T08:05:56.170Z",
+  "generatedAt": "2026-09-06T08:43:07.148Z",
   "totals": {
     "findings": 61,
     "withValues": 61
@@ -253,7 +253,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 224,
       "value": null,
-      "text": "rpCost: 10000,"
+      "text": "rpCost: 50000,"
     },
     {
       "area": "wmd",
@@ -261,7 +261,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 237,
       "value": null,
-      "text": "rpCost: 15000,"
+      "text": "rpCost: 90000,"
     },
     {
       "area": "wmd",
@@ -269,7 +269,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 248,
       "value": null,
-      "text": "rpCost: 20000,"
+      "text": "rpCost: 135000,"
     },
     {
       "area": "wmd",
@@ -277,7 +277,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 259,
       "value": null,
-      "text": "rpCost: 30000,"
+      "text": "rpCost: 150000,"
     },
     {
       "area": "wmd",
@@ -285,7 +285,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 270,
       "value": null,
-      "text": "rpCost: 50000,"
+      "text": "rpCost: 250000,"
     },
     {
       "area": "wmd",
@@ -293,7 +293,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 283,
       "value": null,
-      "text": "rpCost: 75000,"
+      "text": "rpCost: 300000,"
     },
     {
       "area": "wmd",
@@ -301,7 +301,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 294,
       "value": null,
-      "text": "rpCost: 100000,"
+      "text": "rpCost: 330000,"
     },
     {
       "area": "wmd",
@@ -309,7 +309,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 307,
       "value": null,
-      "text": "rpCost: 150000,"
+      "text": "rpCost: 345000,"
     },
     {
       "area": "wmd",
@@ -317,7 +317,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 320,
       "value": null,
-      "text": "rpCost: 200000,"
+      "text": "rpCost: 350000,"
     },
     {
       "area": "wmd",
@@ -325,7 +325,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 332,
       "value": null,
-      "text": "rpCost: 300000,"
+      "text": "rpCost: 500000,"
     },
     {
       "area": "wmd",
@@ -333,7 +333,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 353,
       "value": null,
-      "text": "rpCost: 10000,"
+      "text": "rpCost: 50000,"
     },
     {
       "area": "wmd",
@@ -341,7 +341,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 366,
       "value": null,
-      "text": "rpCost: 15000,"
+      "text": "rpCost: 90000,"
     },
     {
       "area": "wmd",
@@ -349,7 +349,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 379,
       "value": null,
-      "text": "rpCost: 20000,"
+      "text": "rpCost: 135000,"
     },
     {
       "area": "wmd",
@@ -357,7 +357,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 392,
       "value": null,
-      "text": "rpCost: 30000,"
+      "text": "rpCost: 150000,"
     },
     {
       "area": "wmd",
@@ -365,7 +365,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 403,
       "value": null,
-      "text": "rpCost: 50000,"
+      "text": "rpCost: 250000,"
     },
     {
       "area": "wmd",
@@ -373,7 +373,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 417,
       "value": null,
-      "text": "rpCost: 75000,"
+      "text": "rpCost: 300000,"
     },
     {
       "area": "wmd",
@@ -381,7 +381,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 428,
       "value": null,
-      "text": "rpCost: 100000,"
+      "text": "rpCost: 330000,"
     },
     {
       "area": "wmd",
@@ -389,7 +389,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 441,
       "value": null,
-      "text": "rpCost: 150000,"
+      "text": "rpCost: 345000,"
     },
     {
       "area": "wmd",
@@ -397,7 +397,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 454,
       "value": null,
-      "text": "rpCost: 200000,"
+      "text": "rpCost: 350000,"
     },
     {
       "area": "wmd",
@@ -405,7 +405,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 466,
       "value": null,
-      "text": "rpCost: 300000,"
+      "text": "rpCost: 500000,"
     },
     {
       "area": "wmd",
@@ -413,7 +413,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 487,
       "value": null,
-      "text": "rpCost: 10000,"
+      "text": "rpCost: 50000,"
     },
     {
       "area": "wmd",
@@ -421,7 +421,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 500,
       "value": null,
-      "text": "rpCost: 15000,"
+      "text": "rpCost: 90000,"
     },
     {
       "area": "wmd",
@@ -429,7 +429,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 513,
       "value": null,
-      "text": "rpCost: 20000,"
+      "text": "rpCost: 135000,"
     },
     {
       "area": "wmd",
@@ -437,7 +437,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 527,
       "value": null,
-      "text": "rpCost: 30000,"
+      "text": "rpCost: 150000,"
     },
     {
       "area": "wmd",
@@ -445,7 +445,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 540,
       "value": null,
-      "text": "rpCost: 50000,"
+      "text": "rpCost: 250000,"
     },
     {
       "area": "wmd",
@@ -453,7 +453,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 554,
       "value": null,
-      "text": "rpCost: 75000,"
+      "text": "rpCost: 300000,"
     },
     {
       "area": "wmd",
@@ -461,7 +461,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 567,
       "value": null,
-      "text": "rpCost: 100000,"
+      "text": "rpCost: 330000,"
     },
     {
       "area": "wmd",
@@ -469,7 +469,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 580,
       "value": null,
-      "text": "rpCost: 150000,"
+      "text": "rpCost: 345000,"
     },
     {
       "area": "wmd",
@@ -477,7 +477,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 594,
       "value": null,
-      "text": "rpCost: 200000,"
+      "text": "rpCost: 350000,"
     },
     {
       "area": "wmd",
@@ -485,7 +485,7 @@
       "file": "types/wmd/research.types.ts",
       "line": 608,
       "value": null,
-      "text": "rpCost: 300000,"
+      "text": "rpCost: 500000,"
     },
     {
       "area": "bank",
@@ -923,12 +923,12 @@
       {
         "file": "lib/researchPointService.ts",
         "line": 96,
-        "text": "15000: 1250, // 67% of map = 1,250 RP"
+        "text": "15000: 1750, // 67% of map = 1,750 RP (was 1,250 — monotonic tail, FID-006 P4)"
       },
       {
         "file": "lib/researchPointService.ts",
         "line": 97,
-        "text": "22500: 1000 // 100% completion bonus = 1,000 RP"
+        "text": "22500: 2500 // 100% completion bonus = 2,500 RP (was 1,000 — full map must dominate, FID-006 P4)"
       },
       {
         "file": "lib/researchPointService.ts",
@@ -1483,123 +1483,123 @@
       },
       {
         "line": 224,
-        "text": "rpCost: 10000,"
+        "text": "rpCost: 50000,"
       },
       {
         "line": 237,
-        "text": "rpCost: 15000,"
+        "text": "rpCost: 90000,"
       },
       {
         "line": 248,
-        "text": "rpCost: 20000,"
+        "text": "rpCost: 135000,"
       },
       {
         "line": 259,
-        "text": "rpCost: 30000,"
+        "text": "rpCost: 150000,"
       },
       {
         "line": 270,
-        "text": "rpCost: 50000,"
+        "text": "rpCost: 250000,"
       },
       {
         "line": 283,
-        "text": "rpCost: 75000,"
+        "text": "rpCost: 300000,"
       },
       {
         "line": 294,
-        "text": "rpCost: 100000,"
+        "text": "rpCost: 330000,"
       },
       {
         "line": 307,
-        "text": "rpCost: 150000,"
+        "text": "rpCost: 345000,"
       },
       {
         "line": 320,
-        "text": "rpCost: 200000,"
+        "text": "rpCost: 350000,"
       },
       {
         "line": 332,
-        "text": "rpCost: 300000,"
+        "text": "rpCost: 500000,"
       },
       {
         "line": 353,
-        "text": "rpCost: 10000,"
+        "text": "rpCost: 50000,"
       },
       {
         "line": 366,
-        "text": "rpCost: 15000,"
+        "text": "rpCost: 90000,"
       },
       {
         "line": 379,
-        "text": "rpCost: 20000,"
+        "text": "rpCost: 135000,"
       },
       {
         "line": 392,
-        "text": "rpCost: 30000,"
+        "text": "rpCost: 150000,"
       },
       {
         "line": 403,
-        "text": "rpCost: 50000,"
+        "text": "rpCost: 250000,"
       },
       {
         "line": 417,
-        "text": "rpCost: 75000,"
+        "text": "rpCost: 300000,"
       },
       {
         "line": 428,
-        "text": "rpCost: 100000,"
+        "text": "rpCost: 330000,"
       },
       {
         "line": 441,
-        "text": "rpCost: 150000,"
+        "text": "rpCost: 345000,"
       },
       {
         "line": 454,
-        "text": "rpCost: 200000,"
+        "text": "rpCost: 350000,"
       },
       {
         "line": 466,
-        "text": "rpCost: 300000,"
+        "text": "rpCost: 500000,"
       },
       {
         "line": 487,
-        "text": "rpCost: 10000,"
-      },
-      {
-        "line": 500,
-        "text": "rpCost: 15000,"
-      },
-      {
-        "line": 513,
-        "text": "rpCost: 20000,"
-      },
-      {
-        "line": 527,
-        "text": "rpCost: 30000,"
-      },
-      {
-        "line": 540,
         "text": "rpCost: 50000,"
       },
       {
-        "line": 554,
-        "text": "rpCost: 75000,"
+        "line": 500,
+        "text": "rpCost: 90000,"
       },
       {
-        "line": 567,
-        "text": "rpCost: 100000,"
+        "line": 513,
+        "text": "rpCost: 135000,"
       },
       {
-        "line": 580,
+        "line": 527,
         "text": "rpCost: 150000,"
       },
       {
+        "line": 540,
+        "text": "rpCost: 250000,"
+      },
+      {
+        "line": 554,
+        "text": "rpCost: 300000,"
+      },
+      {
+        "line": 567,
+        "text": "rpCost: 330000,"
+      },
+      {
+        "line": 580,
+        "text": "rpCost: 345000,"
+      },
+      {
         "line": 594,
-        "text": "rpCost: 200000,"
+        "text": "rpCost: 350000,"
       },
       {
         "line": 608,
-        "text": "rpCost: 300000,"
+        "text": "rpCost: 500000,"
       }
     ],
     "battleRates": [
