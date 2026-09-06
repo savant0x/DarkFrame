@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Add contract error:', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) || 'Failed to add contract' }, { status: 500 });
+    return NextResponse.json({ error: 'Unable to complete the request. Please try again.' }, { status: 500 });
   }
 }
 
@@ -164,6 +164,6 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('Remove contract error:', error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) || 'Failed to remove contract' }, { status: 500 });
+    return NextResponse.json({ error: 'Unable to complete the request. Please try again.' }, { status: 500 });
   }
 }

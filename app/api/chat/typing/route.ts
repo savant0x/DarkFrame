@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to record typing',
+        error: 'Unable to complete the request. Please try again.',
       },
       { status: 500 }
     );
@@ -254,7 +254,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch typers',
+        error: 'Unable to complete the request. Please try again.',
       },
       { status: 500 }
     );

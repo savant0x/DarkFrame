@@ -171,7 +171,7 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error'
+        error: 'Unable to complete the request. Please try again.'
       },
       { status: 500 }
     );

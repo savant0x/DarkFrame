@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     logger.error('Session verification failed', error instanceof Error ? error : undefined, {
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Unable to complete the request. Please try again.'
     });
     
     return NextResponse.json(

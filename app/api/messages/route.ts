@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error in GET /api/messages:', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : String(error) || 'Internal server error' },
+      { success: false, error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in POST /api/messages:', error);
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : String(error) || 'Internal server error' },
+      { success: false, error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }

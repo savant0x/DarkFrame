@@ -184,12 +184,12 @@ export async function POST(request: NextRequest) {
       success: true,
       lastSeen: now.toISOString(),
     });
-  } catch (error) {
+  } catch {
     // Silently fail - heartbeat errors are non-critical
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to update presence',
+        error: 'Unable to complete the request. Please try again.',
       },
       { status: 500 }
     );

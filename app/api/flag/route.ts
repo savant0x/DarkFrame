@@ -150,7 +150,7 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest):
     log.error('Failed to fetch flag bearer', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json({
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch Flag Bearer data',
+      error: 'Unable to complete the request. Please try again.',
       timestamp: new Date()
     }, { status: 500 });
   } finally {

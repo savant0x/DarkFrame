@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error contributing RP:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) || 'Failed to contribute RP' },
+      { error: 'Unable to complete the request. Please try again.' },
       { status: 500 }
     );
   }

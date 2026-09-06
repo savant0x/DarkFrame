@@ -87,7 +87,7 @@ export const POST = withRequestLogging(rateLimiter(async (_request: NextRequest)
   } catch (error) {
     log.error('Flag flee error', error instanceof Error ? error : new Error(String(error)));
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Failed to flee' },
+      { success: false, error: 'Unable to complete the request. Please try again.' },
       { status: 500 },
     );
   } finally {
