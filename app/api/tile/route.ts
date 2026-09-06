@@ -93,32 +93,25 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     }
 
     // Check if Flag Bearer is on this tile or if tile has trail
+    // (Postgres-native via lib/flagState — the holder's position lives on their
+    // players row; trail entries live in flag_trail. FID-20260905-001 §7.2.)
     try {
-      const { getDatabase } = await import('@/lib/mongodb');
-      const db = await getDatabase();
-      const flagDoc = await db.collection<{
-        currentHolder?: { position?: { x: number; y: number }; username?: string };
-        trail?: Array<{ x: number; y: number; expiresAt: Date }>;
-      }>('flags').findOne({});
-      
-      if (flagDoc?.currentHolder) {
-        const holder = flagDoc.currentHolder;
-        
+      const { getFlagState, getTrailInfoAt } = await import('@/lib/flagState');
+      const flagState = await getFlagState();
+
+      if (flagState) {
         // Check if bearer is on this exact tile
-        if (holder.position && holder.position.x === x && holder.position.y === y) {
+        if (flagState.position.x === x && flagState.position.y === y) {
           (tile as { hasFlagBearer?: boolean }).hasFlagBearer = true;
         }
-        
-        // Check if this tile has a trail entry (not expired)
-        const now = new Date();
-        const trailEntry = (flagDoc.trail || []).find((t) => 
-          t.x === x && t.y === y && new Date(t.expiresAt) > now
-        );
-        
-        if (trailEntry && !tile.hasFlagBearer) {
-          (tile as { hasTrail?: boolean }).hasTrail = true;
-          (tile as { trailTimestamp?: Date }).trailTimestamp = trailEntry.expiresAt;
-          (tile as { trailExpiresAt?: Date }).trailExpiresAt = trailEntry.expiresAt;
+
+        // Check if this tile has a live trail entry (not expired)
+        if (!tile.hasFlagBearer) {
+          const trailInfo = await getTrailInfoAt(x, y);
+          if (trailInfo.hasTrail) {
+            (tile as { hasTrail?: boolean }).hasTrail = true;
+            (tile as { trailExpiresAt?: Date }).trailExpiresAt = trailInfo.trailExpiresAt;
+          }
         }
       }
     } catch (error) {

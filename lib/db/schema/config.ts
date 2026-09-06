@@ -35,6 +35,23 @@ export const flags = pgTable('flags', {
 	totalCaptures: integer('total_captures').notNull().default(0),
 });
 
+/**
+ * Flag bearer trail (FID-20260905-001 §7.2). The "glimmer" tiles: where the
+ * bearer walked. TTL is 8 minutes; readers filter expired rows, the 200-entry
+ * cap is enforced on write.
+ */
+export const flagTrail = pgTable('flag_trail', {
+	id: varchar('id', { length: 24 }).primaryKey(),
+	holderUsername: varchar('holder_username', { length: 20 }).notNull(),
+	x: integer('x').notNull(),
+	y: integer('y').notNull(),
+	createdAt: timestamp('created_at').notNull(),
+	expiresAt: timestamp('expires_at').notNull(),
+}, (table) => [
+	index('flag_trail_expires_idx').on(table.expiresAt),
+	index('flag_trail_holder_idx').on(table.holderUsername, table.expiresAt),
+]);
+
 export const shrineBlessings = pgTable('shrine_blessings', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	playerId: varchar('player_id', { length: 20 }).notNull(),

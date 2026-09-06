@@ -423,49 +423,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       log.error('❌ Tutorial tracking ERROR', error as Error);
     }
     
-    // If player holds the flag, update flag position AND add trail tile
-    const flagsCollection = await getCollection<{
-      currentHolder?: { username?: string; playerId?: string; botId?: string; position?: { x: number; y: number } };
-      trail?: unknown[];
-    }>('flags');
-    const flagDoc = await flagsCollection.findOne({});
-    
-    if (flagDoc?.currentHolder?.username === player.username) {
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 8 * 60 * 1000); // 8 minutes from now
-      
-      await flagsCollection.updateOne(
-        {},
-        {
-          $set: {
-            'currentHolder.position': player.currentPosition,
-            lastUpdate: new Date()
-          },
-          $push: {
-            trail: {
-              $each: [{
-                x: player.currentPosition.x,
-                y: player.currentPosition.y,
-                timestamp: now,
-                expiresAt: expiresAt
-              }],
-              $slice: -200 // Keep only last 200 trail tiles (performance optimization)
-            }
-          }
-        }
-      );
-      
-      // Clean up expired trail tiles (older than 8 minutes)
-      await flagsCollection.updateOne(
-        {},
-        {
-          $pull: {
-            trail: {
-              expiresAt: { $lt: now }
-            }
-          }
-        }
-      );
+    // If player holds the flag, record a trail step (the holder's map position
+    // is derived from their players row by readers — no flags-write needed).
+    // Postgres-native via lib/flagState (FID-20260905-001 §7.2); no-op when the
+    // mover is not the current bearer.
+    try {
+      const { recordTrailStep } = await import('@/lib/flagState');
+      await recordTrailStep(player.username, {
+        x: player.currentPosition.x,
+        y: player.currentPosition.y,
+      });
+    } catch (trailError) {
+      // Trail recording is non-critical — never fail the move over it
+      log.error('Trail recording failed', trailError instanceof Error ? trailError : new Error(String(trailError)));
     }
     
     // Log movement activity
