@@ -882,15 +882,16 @@ export default function ChatPanel({
    */
   const deleteMessage = async (messageId: string) => {
     try {
-      const response = await fetch('/api/chat/delete', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId }),
-      });
+      // FID-20260906-011 R1: the route's documented contract is
+      // DELETE /api/chat/delete?messageId=... (query param, no body).
+      const response = await fetch(
+        `/api/chat/delete?messageId=${encodeURIComponent(messageId)}`,
+        { method: 'DELETE' }
+      );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to delete message');
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || error.message || 'Failed to delete message');
       }
 
       // Remove message from local state

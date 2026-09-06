@@ -5,6 +5,28 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-05/06 session
 
+### Fixed — FID-20260906-011 (chat delete dead-wire)
+- Chat message delete always failed: the client sent `messageId` in a DELETE body
+  while the route reads it from query params (its own documented contract), so every
+  click 400'd and the confirm dialog never cleared (the reported "hang"). Client now
+  sends the query param and reads the `{ error }` envelope; verified live by API probe
+  (old transport 400 / new 200 / double-delete guard) and operator-confirmed in the UI.
+
+### Fixed — FID-20260906-010 (AutoFarm move-verification contract)
+- AutoFarm skipped every tile (`Position mismatch … got {}`): the engine extracted
+  the new position from four nested response shapes, none of which the move API
+  guarantees, while flat `currentPositionX/Y` on the row carry the STALE pre-move
+  position. The route now guarantees nested `currentPosition` on the way out
+  (preserve-don't-overwrite) and the engine reads `data.data.player` first with a
+  flat-column fallback. Live UI drive: 4/4 moves verified, 0 mismatches,
+  `tilesCompleted` advancing; probe account + claimed tile cleaned from dev DB.
+
+### Fixed — FID-20260906-009 (base position contract drift)
+- Sidebar PLAYER INFO showed Base (0,0) for every player: the §5.0 sanitize
+  projection kept flat `baseX/baseY` but dropped the nested `base: Position` the
+  client contract promises (same class as FID-010). `sanitizePlayer` now composes
+  nested `base` with finite-number guards; public profile API returns real base coords.
+
 ### Fixed — FID-20260906-008 (Track flow dead-end)
 - **Track now works end-to-end:** the Flag Tracker's Track button pushed
   `/profile/<username>`, but the destination had never been built — every click 404'd
