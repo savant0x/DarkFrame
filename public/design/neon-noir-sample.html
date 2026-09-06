@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON NOIR — DarkFrame Design Language</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     NEON NOIR — design-language sample sheet
+     FID-20260906-012 · standalone artifact, zero app code touched
+     ============================================================ */
+  :root {
+    /* surfaces */
+    --surface-void:    oklch(0.13 0.03 265);
+    --surface-deep:    oklch(0.17 0.035 265);
+    --surface-panel:   oklch(0.21 0.04 265 / 0.72);
+    --surface-raised:  oklch(0.26 0.045 265 / 0.85);
+    --surface-overlay: oklch(0.31 0.05 265 / 0.92);
+    /* signals */
+    --signal-cyan:    oklch(0.82 0.15 195);
+    --signal-magenta: oklch(0.70 0.24 340);
+    --signal-amber:   oklch(0.82 0.15 85);
+    --signal-green:   oklch(0.80 0.17 155);
+    --signal-violet:  oklch(0.68 0.2 300);
+    /* text */
+    --text-primary:   oklch(0.95 0.01 250);
+    --text-secondary: oklch(0.72 0.02 255);
+    --text-tertiary:  oklch(0.55 0.02 255);
+    /* glows */
+    --glow-ambient: 0 0 12px oklch(0.82 0.15 195 / 0.12), inset 0 0 0 1px oklch(0.82 0.15 195 / 0.16);
+    --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--surface-void);
+    color: var(--text-primary);
+    font-family:'Inter',system-ui,sans-serif;
+    min-height:100vh;
+    overflow-x:hidden;
+  }
+  .display { font-family:'Orbitron','Inter',sans-serif; letter-spacing:.05em; text-transform:uppercase; }
+  .num { font-family:'Orbitron',sans-serif; font-variant-numeric:tabular-nums; }
+
+  /* ---------- scene 1 : full-window bg + HUD tile viewport ---------- */
+  .scene {
+    position:relative; min-height:92vh; display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .scene-bg {
+    position:absolute; inset:-3%;
+    background:url('/assets/tiles/energy/energy.jpg') center/cover no-repeat;
+    filter:blur(3px) brightness(.55) saturate(1.15);
+    animation:drift 9s var(--ease) infinite alternate;
+  }
+  @keyframes drift { from{transform:scale(1)} to{transform:scale(1.045)} }
+  .scene-grade {
+    position:absolute; inset:0;
+    background:
+      radial-gradient(120% 90% at 50% 10%, transparent 40%, oklch(0.13 0.03 265 / .82) 100%),
+      linear-gradient(180deg, oklch(0.82 0.15 195 / .07), transparent 30%),
+      linear-gradient(0deg, oklch(0.13 0.03 265 / .9), transparent 35%);
+  }
+  @media (prefers-reduced-motion: reduce){ .scene-bg{ animation:none } }
+
+  /* corner-bracket HUD viewport */
+  .viewport {
+    position:relative; width:min(62vh, 78vw); aspect-ratio:1/1;
+    background:var(--surface-panel); backdrop-filter:blur(10px);
+    box-shadow:var(--glow-ambient), 0 24px 80px oklch(0.05 0.02 265 / .8);
+  }
+  .viewport .art { position:absolute; inset:10px; overflow:hidden; }
+  .viewport .art img { width:100%; height:100%; object-fit:cover; display:block; }
+  .viewport .art::after { /* inner grade so the tile reads as "monitored" */
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, oklch(0.82 0.15 195 / .08), transparent 25%, transparent 70%, oklch(0.13 0.03 265 / .55));
+  }
+  .brackets::before, .brackets::after,
+  .brackets .b::before, .brackets .b::after {
+    content:''; position:absolute; width:26px; height:26px; border:2px solid var(--signal-cyan);
+    filter:drop-shadow(0 0 6px oklch(0.82 0.15 195 / .6));
+  }
+  .brackets::before { top:-2px; left:-2px; border-right:0; border-bottom:0; }
+  .brackets::after  { top:-2px; right:-2px; border-left:0; border-bottom:0; }
+  .brackets .b::before { bottom:-2px; left:-2px; border-right:0; border-top:0; }
+  .brackets .b::after  { bottom:-2px; right:-2px; border-left:0; border-top:0; }
+
+  .status-strip {
+    position:absolute; left:0; right:0; bottom:0; display:flex; justify-content:space-between; align-items:center;
+    padding:10px 16px; font-size:11px; color:var(--text-secondary);
+    background:linear-gradient(0deg, oklch(0.13 0.03 265 / .85), transparent);
+    border-top:1px solid oklch(0.82 0.15 195 / .18);
+  }
+  .chip {
+    display:inline-flex; align-items:center; gap:6px; padding:3px 10px;
+    border:1px solid oklch(0.82 0.15 195 / .35); color:var(--signal-cyan);
+    font-size:10px; letter-spacing:.12em;
+  }
+  .chip .dot { width:6px; height:6px; background:var(--signal-cyan); box-shadow:0 0 8px var(--signal-cyan); }
+
+  .scene-title { position:absolute; top:34px; left:50%; transform:translateX(-50%); text-align:center; z-index:5; }
+  .scene-title h1 { font-size:clamp(22px,3.4vw,40px); font-weight:800; color:var(--text-primary);
+    text-shadow:0 0 24px oklch(0.82 0.15 195 / .45); }
+  .scene-title p { font-size:12px; color:var(--text-secondary); letter-spacing:.28em; margin-top:8px; text-transform:uppercase; }
+
+  /* ---------- generic sections ---------- */
+  .wrap { max-width:1180px; margin:0 auto; padding:72px 28px; }
+  .sec-label { display:flex; align-items:center; gap:14px; margin-bottom:34px; }
+  .sec-label .tick { width:26px; height:2px; background:var(--signal-cyan); box-shadow:0 0 8px var(--signal-cyan); }
+  .sec-label h2 { font-size:14px; font-weight:700; color:var(--signal-cyan); letter-spacing:.22em; }
+  .sec-label span { color:var(--text-tertiary); font-size:11px; letter-spacing:.08em; }
+
+  /* ---------- palette ---------- */
+  .swatches { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:14px; }
+  .swatch { border:1px solid oklch(0.82 0.15 195 / .14); background:var(--surface-panel); padding:12px; }
+  .swatch .c { height:56px; margin-bottom:10px; box-shadow:inset 0 0 0 1px oklch(1 0 0 / .06); }
+  .swatch .n { font-size:10px; letter-spacing:.1em; color:var(--text-secondary); }
+  .swatch .v { font-size:9px; color:var(--text-tertiary); margin-top:3px; }
+
+  /* ---------- components row ---------- */
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:22px; align-items:start; }
+  .panel {
+    background:var(--surface-panel); backdrop-filter:blur(8px);
+    border:1px solid oklch(0.82 0.15 195 / .16);
+    box-shadow:var(--glow-ambient);
+    padding:0 0 6px;
+  }
+  .panel-head {
+    display:flex; align-items:center; gap:10px; padding:12px 16px;
+    border-bottom:1px solid oklch(0.82 0.15 195 / .14);
+    background:repeating-linear-gradient(0deg, oklch(0.82 0.15 195 / .05) 0 1px, transparent 1px 3px);
+  }
+  .panel-head h3 { font-size:11px; font-weight:700; color:var(--text-secondary); letter-spacing:.2em; }
+  .panel-head .k { margin-left:auto; font-size:9px; color:var(--text-tertiary); letter-spacing:.15em; }
+  .row { display:flex; justify-content:space-between; align-items:center; padding:9px 16px; font-size:12.5px; color:var(--text-secondary); }
+  .row b { color:var(--text-primary); font-weight:600; }
+  .row .val { color:var(--text-primary); }
+  .row .gain { color:var(--signal-green); text-shadow:0 0 8px oklch(0.80 0.17 155 / .5); }
+
+  /* power meters */
+  .meters { padding:14px 16px 6px; }
+  .meter { margin-bottom:14px; }
+  .meter .lab { display:flex; justify-content:space-between; font-size:10px; letter-spacing:.14em; color:var(--text-tertiary); margin-bottom:6px; }
+  .meter .lab b { color:var(--text-primary); font-size:12px; letter-spacing:.05em; }
+  .track { height:10px; background:oklch(0.13 0.03 265 / .9); position:relative; overflow:hidden;
+    box-shadow:inset 0 0 0 1px oklch(0.82 0.15 195 / .18); }
+  .fill { position:absolute; inset:0 auto 0 0; }
+  .fill.str { width:68%; background:linear-gradient(90deg, oklch(0.82 0.15 195 / .35), var(--signal-cyan));
+    box-shadow:0 0 12px oklch(0.82 0.15 195 / .55); }
+  .fill.def { width:41%; background:linear-gradient(90deg, oklch(0.70 0.24 340 / .3), var(--signal-magenta));
+    box-shadow:0 0 12px oklch(0.70 0.24 340 / .5); }
+  .segs { position:absolute; inset:0; display:flex; }
+  .segs i { flex:1; border-right:2px solid var(--surface-void); }
+  .segs i:last-child { border-right:0; }
+
+  /* buttons */
+  .btnrow { display:flex; flex-wrap:wrap; gap:12px; padding:16px; }
+  .btn {
+    font-family:'Orbitron',sans-serif; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+    padding:11px 20px; border:1px solid; background:transparent; cursor:pointer; position:relative;
+    transition:all .18s var(--ease); color:var(--text-primary);
+  }
+  .btn-cyan { border-color:oklch(0.82 0.15 195 / .55); color:var(--signal-cyan);
+    box-shadow:inset 0 0 14px oklch(0.82 0.15 195 / .12); }
+  .btn-cyan:hover { background:oklch(0.82 0.15 195 / .12); box-shadow:0 0 18px oklch(0.82 0.15 195 / .4), inset 0 0 14px oklch(0.82 0.15 195 / .2); }
+  .btn-magenta { border-color:oklch(0.70 0.24 340 / .55); color:var(--signal-magenta); }
+  .btn-magenta:hover { background:oklch(0.70 0.24 340 / .12); box-shadow:0 0 18px oklch(0.70 0.24 340 / .4); }
+  .btn-green { border-color:oklch(0.80 0.17 155 / .5); color:var(--signal-green); }
+  .btn-green:hover { background:oklch(0.80 0.17 155 / .1); box-shadow:0 0 18px oklch(0.80 0.17 155 / .35); }
+  .btn-ghost { border-color:oklch(0.72 0.02 255 / .25); color:var(--text-secondary); }
+  .btn-ghost:hover { border-color:oklch(0.82 0.15 195 / .4); color:var(--signal-cyan); }
+  .btn[disabled] { opacity:.35; cursor:not-allowed; }
+
+  /* cooldown sweep */
+  .cd { width:64px; height:64px; border-radius:50%; position:relative;
+    background:conic-gradient(var(--signal-amber) 0 210deg, oklch(0.26 0.045 265 / .6) 210deg 360deg);
+    display:flex; align-items:center; justify-content:center; }
+  .cd::before { content:''; position:absolute; inset:5px; border-radius:50%; background:var(--surface-deep);
+    box-shadow:inset 0 0 0 1px oklch(0.82 0.15 85 / .3); }
+  .cd span { position:relative; font-size:13px; color:var(--signal-amber); }
+
+  /* progress */
+  .prog { padding:16px; }
+  .prog .lab { display:flex; justify-content:space-between; font-size:10px; letter-spacing:.14em; color:var(--text-tertiary); margin-bottom:7px; }
+  .prog .lab b { color:var(--text-primary); }
+  .track.vio { height:6px; }
+  .fill.vio { width:40%; background:linear-gradient(90deg, oklch(0.68 0.2 300 / .4), var(--signal-violet));
+    box-shadow:0 0 10px oklch(0.68 0.2 300 / .5); }
+
+  /* danger pulse demo */
+  .threat { margin:16px; padding:13px 16px; border:1px solid oklch(0.70 0.24 340 / .5);
+    background:oklch(0.70 0.24 340 / .08); animation:threatPulse 2s ease-in-out infinite; }
+  .threat p { font-size:11px; letter-spacing:.1em; color:var(--signal-magenta); }
+  @keyframes threatPulse { 0%,100%{ box-shadow:0 0 4px oklch(0.70 0.24 340 / .2)} 50%{ box-shadow:0 0 22px oklch(0.70 0.24 340 / .55)} }
+  @media (prefers-reduced-motion: reduce){ .threat{ animation:none } }
+
+  /* typography specimen */
+  .type-spec { display:grid; gap:16px; }
+  .type-spec .t1 { font-size:34px; font-weight:800; }
+  .type-spec .t2 { font-size:20px; font-weight:700; color:var(--text-primary); }
+  .type-spec .t3 { font-size:13px; font-weight:600; color:var(--text-secondary); letter-spacing:.14em; text-transform:uppercase; }
+  .type-spec .t4 { font-size:14px; color:var(--text-secondary); max-width:60ch; line-height:1.65; }
+  .type-spec .tn { font-family:'Orbitron'; font-size:22px; color:var(--signal-amber); font-variant-numeric:tabular-nums; }
+  .type-spec small { display:block; color:var(--text-tertiary); font-size:10px; letter-spacing:.12em; margin-top:4px; text-transform:uppercase; }
+
+  footer { text-align:center; padding:40px 0 60px; color:var(--text-tertiary); font-size:10px; letter-spacing:.2em; }
+  .divide { height:1px; background:linear-gradient(90deg, transparent, oklch(0.82 0.15 195 / .25), transparent); margin:70px 0; }
+</style>
+</head>
+<body>
+
+<!-- SCENE 1 — the game shell moment: full-window terrain bg (KEPT, upgraded) + uniform HUD tile viewport -->
+<div class="scene">
+  <div class="scene-bg"></div>
+  <div class="scene-grade"></div>
+  <div class="scene-title">
+    <h1 class="display">Neon Noir</h1>
+    <p>DarkFrame Design Language · FID-20260906-012</p>
+  </div>
+  <div class="viewport brackets"><i class="b"></i>
+    <div class="art">
+      <img src="/assets/tiles/energy/energy.jpg" alt="energy tile">
+    </div>
+    <div class="status-strip">
+      <span class="display" style="font-size:11px;color:var(--signal-cyan)">Energy Field</span>
+      <span class="num">SECTOR 066 · 149</span>
+      <span class="chip"><i class="dot"></i>HARVEST READY</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- PALETTE -->
+  <div class="sec-label"><i class="tick"></i><h2 class="display">01 · Signal System</h2><span>glow = information</span></div>
+  <div class="swatches">
+    <div class="swatch"><div class="c" style="background:var(--surface-void)"></div><div class="n">surface-void</div><div class="v">page background</div></div>
+    <div class="swatch"><div class="c" style="background:var(--surface-panel)"></div><div class="n">surface-panel</div><div class="v">glass · blur 72%</div></div>
+    <div class="swatch"><div class="c" style="background:var(--signal-cyan)"></div><div class="n">signal-cyan</div><div class="v">interactive · focus</div></div>
+    <div class="swatch"><div class="c" style="background:var(--signal-magenta)"></div><div class="n">signal-magenta</div><div class="v">danger · combat · WMD</div></div>
+    <div class="swatch"><div class="c" style="background:var(--signal-amber)"></div><div class="n">signal-amber</div><div class="v">resources · economy</div></div>
+    <div class="swatch"><div class="c" style="background:var(--signal-green)"></div><div class="n">signal-green</div><div class="v">success · harvest</div></div>
+    <div class="swatch"><div class="c" style="background:var(--signal-violet)"></div><div class="n">signal-violet</div><div class="v">research · VIP</div></div>
+  </div>
+
+  <div class="divide"></div>
+
+  <!-- COMPONENTS -->
+  <div class="sec-label"><i class="tick"></i><h2 class="display">02 · HUD Components</h2><span>corner brackets · scanlines · semantic glow</span></div>
+  <div class="grid2">
+
+    <!-- stats panel -->
+    <div class="panel brackets" style="position:relative">
+      <div class="panel-head"><h3 class="display">Player Info</h3><span class="k">ID ▸ FAME</span></div>
+      <div class="row"><span>Commander</span><b>fame</b></div>
+      <div class="row"><span>Level</span><b class="num">3</b></div>
+      <div class="row"><span>Factories</span><b class="num" style="color:var(--signal-cyan)">2</b></div>
+      <div class="meters">
+        <div class="meter">
+          <div class="lab"><span>STRENGTH</span><b class="num">1,284</b></div>
+          <div class="track"><div class="fill str"></div><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="meter">
+          <div class="lab"><span>DEFENSE</span><b class="num">776</b></div>
+          <div class="track"><div class="fill def"></div><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        </div>
+      </div>
+      <div class="row"><span>Metal</span><span class="val num">12,480 <span class="gain">+240</span></span></div>
+      <div class="row"><span>Energy</span><span class="val num">8,912 <span class="gain">+95</span></span></div>
+    </div>
+
+    <!-- controls -->
+    <div class="panel">
+      <div class="panel-head"><h3 class="display">Actions</h3><span class="k">SECTOR ▸ 066·149</span></div>
+      <div class="btnrow">
+        <button class="btn btn-cyan">Harvest</button>
+        <button class="btn btn-green">Build Unit</button>
+        <button class="btn btn-magenta">Attack</button>
+        <button class="btn btn-ghost">Scout</button>
+        <button class="btn btn-cyan" disabled>Locked</button>
+      </div>
+      <div style="display:flex;gap:26px;align-items:center;padding:6px 16px 18px;">
+        <div class="cd"><span class="num">7s</span></div>
+        <div style="flex:1">
+          <div class="prog" style="padding:0 0 12px">
+            <div class="lab"><span>XP · LEVEL 3</span><b class="num">889 / 2,203</b></div>
+            <div class="track vio"><div class="fill vio"></div></div>
+          </div>
+          <div class="prog" style="padding:0">
+            <div class="lab"><span>RESEARCH POINTS</span><b class="num">1,340</b></div>
+            <div class="track vio"><div class="fill vio" style="width:66%"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="threat"><p>⚠ WMD LAUNCH DETECTED · IMPACT 00:42 — COUNTERMEASURES AVAILABLE</p></div>
+    </div>
+
+  </div>
+
+  <div class="divide"></div>
+
+  <!-- TYPOGRAPHY -->
+  <div class="sec-label"><i class="tick"></i><h2 class="display">03 · Typography</h2><span>Orbitron HUD · Inter prose</span></div>
+  <div class="type-spec">
+    <div class="t1 display">Strategic Command Interface</div>
+    <div class="t2 num">2,794 units destroyed · 33,346 metal salvaged</div>
+    <div class="t3">Mission Briefing — Sector Clearance</div>
+    <div class="t4">Body copy stays in Inter for readability. Every numeral that a commander compares — resources, cooldowns, coordinates, power — renders in Orbitron with tabular figures so columns never jitter as values tick.</div>
+    <div><span class="tn">148,203</span><small>tabular ticker · amber resource readout</small></div>
+  </div>
+
+</div>
+
+<footer class="display">NEON NOIR · FID-20260906-012 · SAMPLE SHEET — NOT SHIPPED CODE</footer>
+
+</body>
+</html>
