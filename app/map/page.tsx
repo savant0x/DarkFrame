@@ -59,7 +59,13 @@ export default function MapPage() {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('Zone');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [mapData, setMapData] = useState<MapTile[][] | null>(null);
-  const [_playerMarkers, setPlayerMarkers] = useState<PlayerMarker[]>([]);
+  const [playerMarkers, setPlayerMarkers] = useState<PlayerMarker[]>([]);
+  /** Live flag overlay (FID-20260905-001 §7.2 extension): bearer marker + fading trail. */
+  const [flagState, setFlagState] = useState<{
+    position: { x: number; y: number };
+    username: string;
+    trail: Array<{ x: number; y: number; timestamp: string; expiresAt: string }>;
+  } | null>(null);
   // Viewport state - FULL MAP VIEW (shows entire 150×150 grid)
   const [viewport, setViewport] = useState<MapViewport>({
     x: 0,
@@ -251,17 +257,21 @@ export default function MapPage() {
           const bearer = data.data;
           if (bearer.username === player.username) {
             currentPlayerMarker.isFlagBearer = true;
-          } else {
-            markers.push({
-              playerId: bearer.playerId || bearer.username,
-              username: bearer.username,
+          }
+          if (!cancelled) {
+            setFlagState({
               position: bearer.position,
-              color: '#FFD700', // Gold — the flag
-              isCurrentPlayer: false,
-              isFlagBearer: true,
-              size: 10
+              username: bearer.username,
+              trail: (bearer.trail ?? []).map((t: { x: number; y: number; timestamp: string; expiresAt: string }) => ({
+                x: t.x,
+                y: t.y,
+                timestamp: t.timestamp,
+                expiresAt: t.expiresAt,
+              })),
             });
           }
+        } else if (!cancelled) {
+          setFlagState(null);
         }
       } catch {
         // Flag data is optional overlay — render without it
@@ -428,6 +438,12 @@ export default function MapPage() {
                     mapData={mapData}
                     viewport={viewport}
                     playerPosition={playerPosition}
+                    flagMarker={
+                      flagState && flagState.username !== context?.player?.username
+                        ? { position: flagState.position, username: flagState.username }
+                        : null
+                    }
+                    flagTrail={flagState?.trail}
                     onTileClick={handleTileClick}
                   />
                 </div>

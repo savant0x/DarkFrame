@@ -17,6 +17,13 @@ interface CanvasMapRendererProps {
   mapData: MapTile[][];
   viewport: MapViewport;
   playerPosition?: { x: number; y: number };
+  /** Gold animated flag-bearer marker (omit when the viewer IS the bearer — their own marker suffices). */
+  flagMarker?: {
+    position: { x: number; y: number };
+    username: string;
+  } | null;
+  /** Live trail tiles with expiry — rendered as fading gold glimmer. */
+  flagTrail?: Array<{ x: number; y: number; timestamp: string | Date; expiresAt: string | Date }>;
   onTileClick?: (x: number, y: number) => void;
 }
 
@@ -24,6 +31,8 @@ export function CanvasMapRenderer({
   mapData,
   viewport,
   playerPosition,
+  flagMarker,
+  flagTrail,
   onTileClick
 }: CanvasMapRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -98,6 +107,60 @@ export function CanvasMapRenderer({
       ctx.fillText(`${tileY}`, canvas.width - 20, screenY);
     }
     
+    // Draw flag-bearer trail (fading gold glimmer — mirrors in-game TileRenderer)
+    if (flagTrail?.length) {
+      const now = Date.now();
+      for (const t of flagTrail) {
+        const expiresAt = new Date(t.expiresAt).getTime();
+        const remaining = expiresAt - now;
+        if (remaining <= 0) continue; // expired — server already filters, belt and suspenders
+
+        // Fade from 0.55 (fresh) to 0.15 (about to expire) over the 8-minute TTL
+        const TTL = 8 * 60 * 1000;
+        const age = Math.max(0, Math.min(1, 1 - remaining / TTL));
+        const alpha = 0.55 - 0.4 * age;
+
+        const screenX = (t.x - 1) * MAP_CONFIG.TILE_SIZE;
+        const screenY = (t.y - 1) * MAP_CONFIG.TILE_SIZE;
+        ctx.fillStyle = `rgba(255, 215, 0, ${alpha.toFixed(3)})`;
+        ctx.fillRect(screenX + 3, screenY + 3, MAP_CONFIG.TILE_SIZE - 6, MAP_CONFIG.TILE_SIZE - 6);
+        ctx.strokeStyle = `rgba(255, 215, 0, ${(alpha + 0.15).toFixed(3)})`;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(screenX + 3, screenY + 3, MAP_CONFIG.TILE_SIZE - 6, MAP_CONFIG.TILE_SIZE - 6);
+      }
+    }
+
+    // Draw flag-bearer marker (gold, larger than player)
+    if (flagMarker) {
+      const bx = (flagMarker.position.x - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
+      const by = (flagMarker.position.y - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
+
+      // Pulsing glow
+      const pulse = 0.25 + 0.15 * Math.sin(Date.now() / 400);
+      ctx.fillStyle = `rgba(255, 215, 0, ${pulse.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(bx, by, 18, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Main marker
+      ctx.fillStyle = '#FFD700';
+      ctx.beginPath();
+      ctx.arc(bx, by, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#7a5c00';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Flag emoji label
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(bx - 26, by - 32, 52, 16);
+      ctx.fillStyle = '#FFD700';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🏴 FLAG', bx, by - 24);
+    }
+
     // Draw player marker
     if (playerPosition) {
       const playerScreenX = (playerPosition.x - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
@@ -140,7 +203,7 @@ export function CanvasMapRenderer({
       ctx.fillText(`(${playerPosition.x}, ${playerPosition.y})`, playerScreenX, playerScreenY + 19);
     }
     
-  }, [mapData, viewport, playerPosition, canvasSize]); // Add canvasSize to dependencies
+  }, [mapData, viewport, playerPosition, flagMarker, flagTrail, canvasSize]); // flag overlay re-renders
   
   // Handle resize
   useEffect(() => {
