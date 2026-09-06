@@ -215,7 +215,7 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
     action: HotkeyAction.AUTO_FARM_TOGGLE,
     key: 'f',
     displayName: 'Auto-Farm Toggle (Shift+F)',
-    description: 'Start/pause/resume auto-farming — Shift+F (F alone harvests)',
+    description: 'Start/pause/resume auto-farming — Shift+F (F alone harvests caves/forests)',
     category: HotkeyCategory.AUTO_FARM,
     requiresShift: true,
   },
@@ -238,11 +238,10 @@ export const DEFAULT_HOTKEYS: HotkeyConfig[] = [
   },
   {
     action: HotkeyAction.HARVEST_CAVE_FOREST,
-    key: 'v',
-    displayName: 'Harvest Cave/Forest (Shift+V)',
-    description: 'Explore caves or harvest forest — Shift+V (F alone is Auto-Farm, G alone is harvest)',
+    key: 'f',
+    displayName: 'Harvest Cave/Forest (F)',
+    description: 'Explore caves or harvest forest — F alone (G is Metal/Energy, Shift+F is Auto-Farm)',
     category: HotkeyCategory.RESOURCES,
-    requiresShift: true,
   },
   
   // Combat

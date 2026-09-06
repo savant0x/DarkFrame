@@ -30,6 +30,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
+import { showError } from '@/lib/toastService';
 
 // ============================================================================
 // Type Definitions
@@ -115,7 +116,7 @@ export default function FriendActionsMenu({
       const data = await response.json();
 
       if (!data.success) {
-        alert(data.error || 'Failed to remove friend');
+        showError(data.error || 'Failed to remove friend');
         return;
       }
 
@@ -124,7 +125,7 @@ export default function FriendActionsMenu({
       onClose();
     } catch (err) {
       console.error('Error removing friend:', err);
-      alert('Unable to remove friend. Please try again.');
+      showError('Unable to remove friend. Please try again.');
     } finally {
       setProcessing(false);
       setShowRemoveConfirm(false);
@@ -147,7 +148,7 @@ export default function FriendActionsMenu({
       const data = await response.json();
 
       if (!data.success) {
-        alert(data.error || 'Failed to block user');
+        showError(data.error || 'Failed to block user');
         return;
       }
 
@@ -156,7 +157,7 @@ export default function FriendActionsMenu({
       onClose();
     } catch (err) {
       console.error('Error blocking user:', err);
-      alert('Unable to block user. Please try again.');
+      showError('Unable to block user. Please try again.');
     } finally {
       setProcessing(false);
       setShowBlockConfirm(false);

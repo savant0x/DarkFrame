@@ -26,6 +26,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { showError } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { X, ChevronDown, ChevronUp, Trophy, Gift, CheckCircle2, Target } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { TutorialQuest, TutorialStep, TutorialProgress } from '@/types/tutorial.types';
@@ -354,7 +356,7 @@ export default function TutorialQuestPanel({
    * Handle skip tutorial request
    */
   const handleSkip = async () => {
-    if (confirm('Are you sure you want to skip the tutorial? You can restart it later from settings.')) {
+    if (await confirmDialog({ message: 'Are you sure you want to skip the tutorial? You can restart it later from settings.', danger: true, confirmLabel: 'Skip tutorial' })) {
       try {
         const response = await fetch('/api/tutorial', {
           method: 'POST',
@@ -416,12 +418,12 @@ export default function TutorialQuestPanel({
         }, 3000);
       } else {
         // Show error
-        alert(data.error || 'Failed to decline tutorial. Please try again.');
+        showError(data.error || 'Failed to decline tutorial. Please try again.');
         setShowDeclineModal(false);
       }
     } catch (error) {
       logger.error('Decline error', error as Error);
-      alert('Network error. Please try again.');
+      showError('Network error. Please try again.');
       setShowDeclineModal(false);
     } finally {
       setIsProcessingDecline(false);

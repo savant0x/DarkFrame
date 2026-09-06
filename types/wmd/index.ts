@@ -186,6 +186,7 @@ export {
   type NotificationRequest,
   type NotificationBroadcastResult,
   type WMDWebSocketEvent,
+  type InterceptionSuccessBroadcast,
   type MissileLaunchBroadcast,
   type IntelligenceLeakBroadcast,
   type NotificationHistory,
@@ -248,7 +249,12 @@ export interface WMDSystemState {
 export interface WMDAction {
   type: 'missile' | 'defense' | 'intelligence' | 'research' | 'notification';
   action: string;
-  payload: any;
+  /**
+   * Action-specific data. The aggregate types in this file (WMDSystemState,
+   * WMDStatistics) are the structured layer; arbitrary extra data belongs in
+   * a dedicated payload type, not an untyped escape hatch.
+   */
+  payload: Record<string, unknown>;
   timestamp: Date;
 }
 

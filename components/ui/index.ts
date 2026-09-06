@@ -22,6 +22,8 @@ export { Divider } from './Divider';
 export { IconButton } from './IconButton';
 export { Input } from './Input';
 export { Alert } from './Alert';
+export { confirmDialog, ConfirmDialogHost } from './ConfirmDialog';
+export type { ConfirmOptions } from './ConfirmDialog';
 export { RichTextEditor } from './RichTextEditor';
 
 // ============================================================

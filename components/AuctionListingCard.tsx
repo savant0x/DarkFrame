@@ -12,11 +12,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { AuctionListing, AuctionItemType, AuctionStatus, ResourceType } from '@/types/auction.types';
+import { AuctionListing, MyBidAuctionView, isMyBidAuctionView, AuctionItemType, AuctionStatus, ResourceType } from '@/types/auction.types';
 import { BidHistoryViewer } from './BidHistoryViewer';
+import { showSuccess, showInfo } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface AuctionListingCardProps {
-  auction: AuctionListing;
+  auction: AuctionListing | MyBidAuctionView;
   onUpdate: () => void;
   showMyBidStatus?: boolean;
 }
@@ -110,7 +112,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
   const handleBuyout = async () => {
     if (!auction.buyoutPrice) return;
 
-    if (!confirm(`Buy now for ${auction.buyoutPrice.toLocaleString()} Metal?`)) {
+    if (!(await confirmDialog(`Buy now for ${auction.buyoutPrice.toLocaleString()} Metal?`))) {
       return;
     }
 
@@ -129,7 +131,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
       const data = await response.json();
 
       if (data.success) {
-        alert('Purchase successful!');
+        showSuccess('Purchase successful!');
         onUpdate();
       } else {
         setError(data.message || 'Failed to buyout');
@@ -146,7 +148,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
    * Handle cancel auction
    */
   const handleCancel = async () => {
-    if (!confirm('Cancel this auction? Listing fee is non-refundable.')) {
+    if (!(await confirmDialog('Cancel this auction? Listing fee is non-refundable.'))) {
       return;
     }
 
@@ -165,7 +167,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
       const data = await response.json();
 
       if (data.success) {
-        alert('Auction cancelled');
+        showInfo('Auction cancelled');
         onUpdate();
       } else {
         setError(data.message || 'Failed to cancel');
@@ -210,8 +212,9 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
   const isExpired = new Date(auction.expiresAt) < new Date();
   const canCancel = auction.bids.length === 0 && auction.status === AuctionStatus.Active;
 
-  // Check if this is "My Bids" view and show winning status
-  const myBidInfo = showMyBidStatus ? (auction as any) : null;
+  // My Bid status is only present in the "My Bids" view, where the panel
+  // supplies MyBidAuctionView — narrowed with the domain type guard, not a cast.
+  const myBidInfo = showMyBidStatus && isMyBidAuctionView(auction) ? auction : null;
 
   return (
     <div className="bg-gray-800 border-2 border-gray-700 rounded-lg p-4 hover:border-yellow-600 transition-colors">

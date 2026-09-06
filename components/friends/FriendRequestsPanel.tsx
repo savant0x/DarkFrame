@@ -34,6 +34,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { showError } from '@/lib/toastService';
 import { FriendRequestWithPlayer } from '@/types/friend';
 
 // ============================================================================
@@ -144,7 +145,7 @@ export default function FriendRequestsPanel({
       const data = await response.json();
 
       if (!data.success) {
-        alert(data.error || 'Failed to accept request');
+        showError(data.error || 'Failed to accept request');
         return;
       }
 
@@ -161,7 +162,7 @@ export default function FriendRequestsPanel({
       fetchRequests();
     } catch (err) {
       console.error('Error accepting request:', err);
-      alert('Unable to accept request. Please try again.');
+      showError('Unable to accept request. Please try again.');
     }
   };
 
@@ -179,7 +180,7 @@ export default function FriendRequestsPanel({
       const data = await response.json();
 
       if (!data.success) {
-        alert(data.error || 'Failed to decline request');
+        showError(data.error || 'Failed to decline request');
         return;
       }
 
@@ -193,7 +194,7 @@ export default function FriendRequestsPanel({
       fetchRequests();
     } catch (err) {
       console.error('Error declining request:', err);
-      alert('Unable to decline request. Please try again.');
+      showError('Unable to decline request. Please try again.');
     }
   };
 
@@ -209,7 +210,7 @@ export default function FriendRequestsPanel({
       const data = await response.json();
 
       if (!data.success) {
-        alert(data.error || 'Failed to cancel request');
+        showError(data.error || 'Failed to cancel request');
         return;
       }
 
@@ -220,7 +221,7 @@ export default function FriendRequestsPanel({
       fetchRequests();
     } catch (err) {
       console.error('Error cancelling request:', err);
-      alert('Unable to cancel request. Please try again.');
+      showError('Unable to cancel request. Please try again.');
     }
   };
 

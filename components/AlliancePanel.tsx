@@ -1,3 +1,4 @@
+
 /**
  * Alliance Panel Component
  * 
@@ -31,6 +32,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface Alliance {
   _id: string;
@@ -125,8 +127,8 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       
       setAlliances(active);
       setPendingProposals(pending);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operation failed');
     } finally {
       setIsLoading(false);
     }
@@ -165,8 +167,8 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       setShowProposeModal(false);
       setProposeData({ targetClanName: '', allianceType: 'NAP' });
       await loadAlliances();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operation failed');
     }
   };
 
@@ -190,13 +192,13 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       }
       
       await loadAlliances();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operation failed');
     }
   };
 
   const breakAlliance = async (allianceId: string) => {
-    if (!confirm('Are you sure you want to break this alliance?')) return;
+    if (!(await confirmDialog('Are you sure you want to break this alliance?'))) return;
     
     try {
       setError(null);
@@ -212,8 +214,8 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       }
       
       await loadAlliances();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operation failed');
     }
   };
 
@@ -246,13 +248,13 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       setSelectedAlliance(null);
       setContractData({ contractType: 'RESOURCE_SHARING', percentage: 10 });
       await loadAlliances();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operation failed');
     }
   };
 
   const removeContract = async (allianceId: string, contractType: string) => {
-    if (!confirm('Are you sure you want to remove this contract?')) return;
+    if (!(await confirmDialog('Are you sure you want to remove this contract?'))) return;
     
     try {
       setError(null);
@@ -269,8 +271,8 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       }
       
       await loadAlliances();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Operation failed');
     }
   };
 

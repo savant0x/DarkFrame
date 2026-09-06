@@ -37,6 +37,8 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import BackButton from '@/components/BackButton';
 import { VIPTier } from '@/types/stripe.types';
+import { showInfo } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 /**
  * Pricing Tier Configuration
@@ -329,7 +331,7 @@ export default function VIPUpgradePage() {
                   View your transaction history and download invoices
                 </p>
                 <button
-                  onClick={() => alert('Payment history feature coming soon!')}
+                  onClick={() => showInfo('Payment history feature coming soon!')}
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                 >
                   View History
@@ -344,9 +346,11 @@ export default function VIPUpgradePage() {
                 </p>
                 <button
                   onClick={() => {
-                    if (confirm('Are you sure you want to cancel your VIP subscription? You will retain access until ' + new Date(vipExpiresAt).toLocaleDateString())) {
-                      alert('Cancellation feature coming soon! Contact support for now.');
-                    }
+                    void (async () => {
+                      if (await confirmDialog({ message: 'Are you sure you want to cancel your VIP subscription? You will retain access until ' + new Date(vipExpiresAt).toLocaleDateString(), danger: true, confirmLabel: 'Cancel subscription' })) {
+                        showInfo('Cancellation feature coming soon! Contact support for now.');
+                      }
+                    })();
                   }}
                   className="w-full bg-red-600/20 border border-red-500/50 hover:bg-red-600/30 text-red-300 font-semibold py-2 px-4 rounded-lg transition-colors"
                 >

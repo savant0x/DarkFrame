@@ -461,9 +461,12 @@ export default function GamePage() {
       handleHarvest();
     }
 
-    // 'Shift+V' key - Harvest for Cave/Forest (was bare F; F alone is AutoFarm
-    // and V was chosen per DEFAULT_HOTKEYS — single-mapping rule, no movement key)
-    if (key === 'v' && event.shiftKey) {
+    // Bare 'F' key - Harvest/Explore Cave/Forest (G is Metal/Energy, R is Factory).
+    // FID-004 regression: this branch was briefly moved to Shift+V, orphaning F
+    // even though the hotkey registry (AUTO_FARM_TOGGLE description) and the help
+    // page both document "F alone harvests". Bare F is not a movement key, so this
+    // is the single-mapping-safe assignment. Shift+F remains Auto-Farm toggle.
+    if (key === 'f') {
       if (!currentTile || (currentTile.terrain !== TerrainType.Cave && currentTile.terrain !== TerrainType.Forest)) {
         return;
       }

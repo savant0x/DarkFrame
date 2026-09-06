@@ -1,3 +1,4 @@
+
 /**
  * FactoryManagementPanel Component (Refactored)
  * 
@@ -28,6 +29,7 @@ import { LoadingSpinner } from './transitions/LoadingSpinner';
 import { toast } from '@/lib/toast';
 import { useCountUp } from '@/hooks/useCountUp';
 import { Factory as FactoryIcon, MapPin, TrendingUp, Trash2, AlertTriangle, Info, Filter } from 'lucide-react';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface FactoryData {
   factory: Factory;
@@ -142,7 +144,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
       return;
     }
 
-    if (!confirm(`Release ${matchingFactories.length} ${matchingFactories.length === 1 ? 'factory' : 'factories'} with ${slotThreshold} or fewer slots?\n\nThis cannot be undone!`)) {
+    if (!(await confirmDialog(`Release ${matchingFactories.length} ${matchingFactories.length === 1 ? 'factory' : 'factories'} with ${slotThreshold} or fewer slots?\n\nThis cannot be undone!`))) {
       return;
     }
 

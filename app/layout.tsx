@@ -11,6 +11,7 @@ import './globals.css';
 import { GameProvider } from '@/context/GameContext';
 import { WebSocketProvider } from '@/context/WebSocketContext';
 import { ToastContainer } from '@/lib/toastService';
+import { ConfirmDialogHost } from '@/components/ui/ConfirmDialog';
 import { Toaster } from 'sonner';
 
 const inter = Inter({ 
@@ -48,6 +49,8 @@ export default function RootLayout({
           <GameProvider>{children}</GameProvider>
         </WebSocketProvider>
         <ToastContainer />
+        {/* FID-20260906-005 T2.1: global promise-based confirm host (replaces window.confirm) */}
+        <ConfirmDialogHost />
         <Toaster 
           theme="dark"
           position="top-right"

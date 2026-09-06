@@ -23,6 +23,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useGameContext } from '@/context/GameContext';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface BeaconStatus {
   hasActiveBeacon: boolean;
@@ -113,7 +114,7 @@ export default function BotMagnetPanel() {
   };
 
   const handleDeactivate = async () => {
-    if (!confirm('Deactivate beacon? Cooldown will persist.')) return;
+    if (!(await confirmDialog('Deactivate beacon? Cooldown will persist.'))) return;
 
     setLoading(true);
     setMessage(null);

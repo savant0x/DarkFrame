@@ -731,7 +731,7 @@ export interface ClanActivity {
   playerId?: string;        // Player involved (if applicable)
   username?: string;        // Player username
   details: {                // Activity-specific details
-    [key: string]: any;
+    [key: string]: unknown;
   };
   timestamp: Date;          // When activity occurred
 }

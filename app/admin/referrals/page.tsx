@@ -1,3 +1,4 @@
+
 /**
  * @file app/admin/referrals/page.tsx
  * @created 2025-10-24
@@ -23,6 +24,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { useRouter } from 'next/navigation';
 import { showError, showSuccess } from '@/lib/toastService';
+import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface ReferralRecord {
   _id: string;
@@ -127,7 +129,7 @@ export default function AdminReferralsPage() {
   };
 
   const handleManualValidation = async (referralId: string) => {
-    if (!confirm('Manually validate this referral and distribute rewards?')) return;
+    if (!(await confirmDialog('Manually validate this referral and distribute rewards?'))) return;
 
     try {
       const response = await fetch('/api/admin/referrals/validate', {
@@ -151,7 +153,7 @@ export default function AdminReferralsPage() {
   };
 
   const handleInvalidate = async (referralId: string) => {
-    if (!confirm('Mark this referral as invalid? This cannot be undone.')) return;
+    if (!(await confirmDialog('Mark this referral as invalid? This cannot be undone.'))) return;
 
     try {
       const response = await fetch('/api/admin/referrals/invalidate', {

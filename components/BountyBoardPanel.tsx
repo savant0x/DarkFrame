@@ -11,6 +11,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { showInfo } from '@/lib/toastService';
 import { Trophy, Target, Clock, Gift, CheckCircle } from 'lucide-react';
 
 // ============================================================================
@@ -155,7 +156,7 @@ export default function BountyBoardPanel() {
       await fetchBounties();
 
       // Show success message
-      alert(`Reward claimed! +${result.metalGained.toLocaleString()} Metal, +${result.energyGained.toLocaleString()} Energy`);
+      showInfo(`Reward claimed! +${result.metalGained.toLocaleString()} Metal, +${result.energyGained.toLocaleString()} Energy`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to claim reward');
     } finally {

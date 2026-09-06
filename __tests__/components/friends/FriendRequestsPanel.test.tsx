@@ -8,9 +8,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FriendRequestsPanel from '@/components/friends/FriendRequestsPanel';
+import { showError } from '@/lib/toastService';
 
-global.fetch = vi.fn();
+const fetchMock = vi.fn();
+vi.stubGlobal('fetch', fetchMock);
 window.alert = vi.fn();
+
+// FID-20260906-005 T2.1: the panel now reports failures via the toast service
+// (window.confirm/alert are gone from the codebase).
+vi.mock('@/lib/toastService', () => ({
+  showSuccess: vi.fn(),
+  showError: vi.fn(),
+  showInfo: vi.fn(),
+}));
 
 describe('FriendRequestsPanel Component', () => {
   // The component polls /api/friends/requests on a 5s setInterval, so tests run under
@@ -29,7 +39,7 @@ describe('FriendRequestsPanel Component', () => {
     vi.restoreAllMocks();
   });
 
-  function createMockReceivedRequest(overrides: Record<string, any> = {}) {
+  function createMockReceivedRequest(overrides: Record<string, unknown> = {}) {
     return {
       _id: 'req-1',
       from: 'sender-id',
@@ -45,7 +55,7 @@ describe('FriendRequestsPanel Component', () => {
     };
   }
 
-  function createMockSentRequest(overrides: Record<string, any> = {}) {
+  function createMockSentRequest(overrides: Record<string, unknown> = {}) {
     return {
       _id: 'req-2',
       from: 'my-id',
@@ -61,7 +71,7 @@ describe('FriendRequestsPanel Component', () => {
     };
   }
 
-  function createMockFetchResponse(data: any) {
+  function createMockFetchResponse(data: unknown) {
     return {
       ok: true,
       json: vi.fn().mockResolvedValue(data),
@@ -89,7 +99,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -107,7 +117,7 @@ describe('FriendRequestsPanel Component', () => {
         ],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -129,7 +139,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -137,7 +147,7 @@ describe('FriendRequestsPanel Component', () => {
     });
 
     it('should render empty state for no received requests', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -145,7 +155,7 @@ describe('FriendRequestsPanel Component', () => {
     });
 
     it('should render empty state for no sent requests', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -171,7 +181,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, friendship: { status: 'accepted' } }))
         .mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
@@ -196,7 +206,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
         .mockResolvedValueOnce(createMockFetchResponse({ success: true }))
         .mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
@@ -223,7 +233,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -240,7 +250,7 @@ describe('FriendRequestsPanel Component', () => {
         ],
       };
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
         .mockResolvedValueOnce(createMockFetchResponse({ success: true }))
         .mockResolvedValue(createMockFetchResponse({ success: true, received: [], sent: [] }));
@@ -270,7 +280,7 @@ describe('FriendRequestsPanel Component', () => {
         ],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -286,7 +296,7 @@ describe('FriendRequestsPanel Component', () => {
 
   describe('Error Handling', () => {
     it('should display error when fetch fails', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: false, error: 'Failed to load requests' }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: false, error: 'Failed to load requests' }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
@@ -301,7 +311,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any)
+      fetchMock
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }))
         .mockResolvedValue(createMockFetchResponse({ success: false, error: 'Request not found' }));
 
@@ -313,7 +323,7 @@ describe('FriendRequestsPanel Component', () => {
         await vi.advanceTimersByTimeAsync(0);
       });
 
-      expect(window.alert).toHaveBeenCalledWith('Request not found');
+      expect(showError).toHaveBeenCalledWith('Request not found');
     });
   });
 
@@ -326,18 +336,18 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       const { rerender } = await renderAndWait(<FriendRequestsPanel key={1} />);
 
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
 
       await act(async () => {
         rerender(<FriendRequestsPanel key={2} />);
         await vi.advanceTimersByTimeAsync(0);
       });
 
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -353,7 +363,7 @@ describe('FriendRequestsPanel Component', () => {
         sent: [],
       };
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
+      fetchMock.mockResolvedValue(createMockFetchResponse({ success: true, received: mockRequests.received, sent: mockRequests.sent }));
 
       await renderAndWait(<FriendRequestsPanel />);
 
