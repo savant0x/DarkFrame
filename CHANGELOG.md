@@ -5,6 +5,21 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-05/06 session
 
+### Added — FID-20260906-006/006a (game-wide balance audit + PvE loop repair)
+- **Balance audit:** evidence-first measurement of the implemented economy (census of 61
+  cited constants → `dev/audit/`; week-one archetype simulation → `dev/scripts/balance-sim.cjs`),
+  then operator-approved implementation: XP curve rebuilt as a power curve (500×L^1.35) to
+  L30 then 50k×1.15^n (kills the L29→30 inversion where the hardest level was followed by
+  the cheapest); harvest XP scales +2/level; RP milestone tail made monotonic (full map
+  2,500 RP); unit rarity efficiency strictly increasing via cost-side repricing (32
+  blueprints, STR frozen); WMD research ladder re-anchored to the design doc (T1 50k,
+  2.5M/track); per-raid theft capped at 25k.
+- **PvE loop (Beer Bases) — was fiction:** the attack route announced loot it never credited
+  and fought a 0-HP garrison (bots spawn with `units: []`). Bases now synthesize a real
+  garrison from stored defense, wins credit resources × the admin-configurable multiplier,
+  defeated bases are removed (drizzle, isBot+isSpecialBase-gated), and win/loss XP uses the
+  doc-faithful 400/60 schedule. Live-verified end-to-end (11/11 probe).
+
 ### Fixed — FID-20260904-005 (Postgres-pivot systemic audit, phases 1–4)
 - **Persistence:** phantom tables created (0010–0014); mysql2-isms repaired across services
   (`affectedRows`, `JSON_ARRAY_APPEND`, `JSON_CONTAINS` → pg jsonb containment, `insertId`,
