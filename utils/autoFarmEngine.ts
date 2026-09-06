@@ -446,7 +446,7 @@ export class AutoFarmEngine {
    * Get next position in snake pattern
    */
   private getNextPosition(): { x: number; y: number } | null {
-    const { currentPosition, currentRow, direction } = this.state;
+    const { currentPosition, direction } = this.state;
     const { x, y } = currentPosition;
 
     // Check if we've completed the entire map
@@ -1058,7 +1058,7 @@ export class AutoFarmEngine {
    * Select units for combat based on resource targeting strategy
    * Targets players based on what resources WE (the attacker) need most
    */
-  private selectUnitsForCombat(units: any[], attackerResources: any, defender: any): any[] {
+  private selectUnitsForCombat(units: any[], attackerResources: any, _defender: any): any[] {
     if (!units || units.length === 0) return [];
     
     // Apply resource targeting strategy based on what the ATTACKER needs
@@ -1078,7 +1078,7 @@ export class AutoFarmEngine {
         // Determine which resource the attacker has less of
         const attackerMetal = attackerResources?.metal || 0;
         const attackerEnergy = attackerResources?.energy || 0;
-        const targetResource = attackerMetal <= attackerEnergy ? 'METAL' : 'ENERGY';
+        const _targetResource = attackerMetal <= attackerEnergy ? 'METAL' : 'ENERGY';
         
         // Attack players to gain our lowest resource
         // Use strongest units for efficiency
