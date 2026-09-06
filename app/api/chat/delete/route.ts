@@ -22,6 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { authenticateRequest } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -32,25 +33,26 @@ import type { PlayerContext } from '@/lib/channelService';
 // ============================================================================
 
 /**
- * Get authenticated user from request
- * 
- * TODO: Replace with actual authentication once next-auth is installed
- * For now, this is a placeholder that returns mock user data
- * 
+ * Get the chat PlayerContext from the SESSION (FID-20260905-001 follow-up).
+ * The prior implementation was a placeholder returning a hardcoded TestUser,
+ * letting any unauthenticated caller delete messages. Identity now resolves
+ * from the session cookie via authenticateRequest.
+ *
  * @param request - Next.js request object
  * @returns Player context or null if not authenticated
  */
 async function getAuthenticatedUser(
-  _request: NextRequest
+  request: NextRequest
 ): Promise<PlayerContext | null> {
-  // PLACEHOLDER: Mock user for development
-  // Replace this entire function when authentication is ready
+  const auth = await authenticateRequest(request);
+  if (!auth) return null;
+
   return {
-    username: 'TestUser',
-    level: 10,
-    isVIP: false,
-    clanId: undefined,
-    isMuted: false,
+    username: auth.username,
+    level: auth.player.level ?? 1,
+    isVIP: !!auth.player.vip,
+    clanId: auth.player.clanId ?? undefined,
+    isMuted: false, // deletion is not mute-gated
     channelBans: [],
   };
 }
@@ -121,7 +123,6 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Soft-delete message (preserve original content for moderation)
-    const _now = new Date();
     const result = await db.update(chatMessages)
       .set({
         deleted: 1,
