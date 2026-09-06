@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { attackFactory } from '@/lib/factoryService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { verifyPresence } from '@/lib/presenceCheck';
 
 export async function POST(request: NextRequest) {
@@ -43,6 +44,12 @@ export async function POST(request: NextRequest) {
 
     // Presence: attacker must be standing on the factory tile (DB position, not client claim)
     const presence = await verifyPresence(auth.username, { x: xNum, y: yNum });
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot capture factories while holding.
+    const flagStack = await getBonusStack(auth.username);
+    const flagGate = assertHolderMayTransact(flagStack, 'factory-capture');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
     if (!presence.ok) {
       return NextResponse.json(
         { success: false, message: presence.reason },

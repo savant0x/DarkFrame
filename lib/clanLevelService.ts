@@ -85,7 +85,7 @@ export async function awardClanXP(
     lastXPGain: undefined,
   };
 
-  const xpAwarded = calculateXPFromSource(source, amount);
+  let xpAwarded = calculateXPFromSource(source, amount);
   if (xpAwarded <= 0) {
     return {
       success: false,
@@ -95,6 +95,15 @@ export async function awardClanXP(
       previousLevel: clanLevel.currentLevel,
       newLevel: clanLevel.currentLevel,
     };
+  }
+
+  // FID-20260906-001 §5.4: while the XP earner holds the Flag, the whole clan
+  // gains +25% XP (doc bonus stack).
+  try {
+    const { isFlagBearer } = await import('@/lib/flagBonusService');
+    if (await isFlagBearer(playerId)) xpAwarded = Math.floor(xpAwarded * 1.25);
+  } catch {
+    // Never fail the clan XP award because of the flag check.
   }
 
   const previousLevel = clanLevel.currentLevel;

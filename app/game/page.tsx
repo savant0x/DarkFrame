@@ -27,7 +27,7 @@ import AdminPage from '@/app/admin/AdminView';
 import ReferralsPage from '@/app/referrals/page';
 import WMDMiniStatus from '@/components/WMDMiniStatus';
 import WMDHub from '@/components/WMDHub';
-import { TerrainType, Discovery, Achievement, type FlagBearer, type HarvestResult, type AttackResult, type Factory } from '@/types';
+import { TerrainType, Discovery, Achievement, type FlagBearer, type FlagDetailPayload, type HarvestResult, type AttackResult, type Factory } from '@/types';
 import { AutoFarmEngine } from '@/utils/autoFarmEngine';
 import { AutoFarmStatus, AutoFarmSessionStats, AutoFarmAllTimeStats, AutoFarmEvent, DEFAULT_SESSION_STATS, DEFAULT_ALL_TIME_STATS } from '@/types/autoFarm.types';
 import { loadAllTimeStats } from '@/lib/autoFarmPersistence';
@@ -130,6 +130,8 @@ export default function GamePage() {
   // FLAG TRACKER STATE
   // ============================================
   const [flagBearer, setFlagBearer] = useState<FlagBearer | null>(null);
+  // FID-20260906-001 §5.8: full extended payload (challenge/bonuses/actions).
+  const [flagDetail, setFlagDetail] = useState<FlagDetailPayload | null>(null);
   const [attackCooldown, setAttackCooldown] = useState<boolean>(false);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
@@ -280,9 +282,14 @@ export default function GamePage() {
         const response = await fetch('/api/flag');
         const data = await response.json();
         
+        // FID-20260906-001 §5.8: the API returns the extended payload
+        // (bearer + challenge + bonuses + viewer actions); consumers get the
+        // nested bearer so existing shapes stay compatible.
         if (data.success && data.data) {
-          setFlagBearer(data.data);
+          setFlagDetail(data.data);
+          setFlagBearer(data.data.bearer ?? null);
         } else {
+          setFlagDetail(null);
           setFlagBearer(null);
         }
       } catch (error) {
@@ -290,6 +297,7 @@ export default function GamePage() {
         if (process.env.NODE_ENV === 'development') {
           console.warn('[Flag Tracker] Error fetching flag data:', error instanceof Error ? error.message : String(error));
         }
+        setFlagDetail(null);
         setFlagBearer(null);
       }
     };
@@ -323,7 +331,8 @@ export default function GamePage() {
         .then(res => res.json())
         .then(data => {
           if (data.success && data.data) {
-            setFlagBearer(data.data);
+            setFlagDetail(data.data);
+            setFlagBearer(data.data.bearer ?? null);
           }
         })
         .catch(err => console.error('[Flag Tracker] Error refreshing flag data after move:', err));
@@ -618,69 +627,91 @@ export default function GamePage() {
   // ============================================
   // FLAG TRACKER HANDLERS
   // ============================================
-  const handleFlagAttack = async (bearer: FlagBearer) => {
-    if (!player || attackCooldown) return;
+  // =================================================
+  // FLAG STEAL CHANNEL HANDLERS (FID-20260906-001 §5.8)
+  // =================================================
+  const handleFlagChallenge = async () => {
+    if (!player) return;
 
     try {
-      // Get the bearer ID (player or bot)
-      // If playerId is empty/falsy, use 'BOT' placeholder for better clarity
-      const targetId = bearer.playerId && bearer.playerId.length > 0 ? bearer.playerId : 'BOT';
-
-      const response = await fetch('/api/flag/attack', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          targetPlayerId: targetId,
-          attackerPosition: player.currentPosition
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-
+      const response = await fetch('/api/flag/challenge', { method: 'POST' });
       const result = await response.json();
 
-      if (result.success && result.data?.success) {
-        setPanelMessage(`⚔️ ${result.data.message || `Attack successful! Damage: ${result.data.damage}`}`);
-        
-        // Start cooldown (60 seconds)
-        setAttackCooldown(true);
-        setCooldownRemaining(60);
-
-        const cooldownInterval = setInterval(() => {
-          setCooldownRemaining(prev => {
-            if (prev <= 1) {
-              clearInterval(cooldownInterval);
-              setAttackCooldown(false);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
-
-        // Refresh flag data to show updated bearer HP
-        const flagResponse = await fetch('/api/flag');
-        const flagData = await flagResponse.json();
-        if (flagData.success && flagData.data) {
-          setFlagBearer(flagData.data);
-        }
-
-        // If bearer was defeated, refresh game state to update flag ownership
-        if (result.data.bearerDefeated) {
-          await refreshGameState();
-        }
+      if (result.success) {
+        setPanelMessage('🏴 Steal channel started — hold position for 30 seconds!');
       } else {
-        const errorMsg = result.data?.error || result.error || 'Unknown error';
-        setPanelMessage(`❌ Attack failed: ${errorMsg}`);
+        setPanelMessage(`❌ Challenge failed: ${result.error || 'Unknown error'}`);
       }
 
+      // Always refetch so the channel countdown renders immediately.
+      const flagResponse = await fetch('/api/flag');
+      const flagData = await flagResponse.json();
+      if (flagData.success && flagData.data) {
+        setFlagDetail(flagData.data);
+        setFlagBearer(flagData.data.bearer ?? null);
+      }
       setTimeout(() => setPanelMessage(''), 5000);
     } catch (error) {
-      console.error('[Flag Tracker] Attack error:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Network error';
-      setPanelMessage(`❌ Attack failed: ${errorMsg}`);
+      console.error('[Flag Tracker] Challenge error:', error);
+      setPanelMessage(`❌ Challenge failed: ${error instanceof Error ? error.message : 'Network error'}`);
+      setTimeout(() => setPanelMessage(''), 5000);
+    }
+  };
+
+  const handleFlagFlee = async () => {
+    if (!player) return;
+
+    try {
+      const response = await fetch('/api/flag/flee', { method: 'POST' });
+      const result = await response.json();
+
+      if (result.success && result.data?.fled) {
+        setPanelMessage(`🏃 ${result.data.message}`);
+        // Player position changed server-side (5-tile dash) — refresh.
+        await refreshGameState();
+      } else {
+        setPanelMessage(`❌ Flee failed: ${result.error || 'Unknown error'}`);
+      }
+
+      const flagResponse = await fetch('/api/flag');
+      const flagData = await flagResponse.json();
+      if (flagData.success && flagData.data) {
+        setFlagDetail(flagData.data);
+        setFlagBearer(flagData.data.bearer ?? null);
+      }
+      setTimeout(() => setPanelMessage(''), 6000);
+    } catch (error) {
+      console.error('[Flag Tracker] Flee error:', error);
+      setPanelMessage(`❌ Flee failed: ${error instanceof Error ? error.message : 'Network error'}`);
+      setTimeout(() => setPanelMessage(''), 5000);
+    }
+  };
+
+  const handleFlagClaim = async () => {
+    if (!player) return;
+
+    try {
+      const response = await fetch('/api/flag/claim', { method: 'POST' });
+      const result = await response.json();
+
+      if (result.success && result.data?.claimed) {
+        setPanelMessage(`🎉 ${result.data.message}`);
+        // Bonus stack changed for this player — full refresh.
+        await refreshGameState();
+      } else {
+        setPanelMessage(`⏳ Claim failed: ${result.error || 'Unknown error'}`);
+      }
+
+      const flagResponse = await fetch('/api/flag');
+      const flagData = await flagResponse.json();
+      if (flagData.success && flagData.data) {
+        setFlagDetail(flagData.data);
+        setFlagBearer(flagData.data.bearer ?? null);
+      }
+      setTimeout(() => setPanelMessage(''), 6000);
+    } catch (error) {
+      console.error('[Flag Tracker] Claim error:', error);
+      setPanelMessage(`❌ Claim failed: ${error instanceof Error ? error.message : 'Network error'}`);
       setTimeout(() => setPanelMessage(''), 5000);
     }
   };
@@ -689,6 +720,7 @@ export default function GamePage() {
     // Navigate to bearer's profile
     router.push(`/profile/${bearer.username}`);
   };
+
 
   if (!player) {
     return (
@@ -888,7 +920,7 @@ export default function GamePage() {
                 isHarvesting={isHarvesting}
                 onAttackClick={handleAttack}
                 isAttacking={isAttacking}
-                onFlagAttack={handleFlagAttack}
+                onFlagAttack={handleFlagChallenge}
                 onBankClick={() => setCurrentView('BANK')}
                 onShrineClick={() => setCurrentView('SHRINE')}
               />
@@ -1117,16 +1149,18 @@ export default function GamePage() {
               <WMDMiniStatus onClick={() => setCurrentView('WMD')} />
             </div>
 
-            {/* Flag Tracker Panel - Only show if player is NOT the bearer */}
-            {flagBearer && flagBearer.username !== player?.username && (
+            {/* Flag Tracker Panel — renders for every viewer; bearer gets the
+                holder self-view with bonus/earnings details (FID §5.8). */}
+            {flagBearer && (
               <div className="p-3">
                 <FlagTrackerPanel
                   playerPosition={player?.currentPosition || { x: 75, y: 75 }}
                   flagBearer={flagBearer}
+                  flagDetail={flagDetail}
                   onTrack={handleFlagTrack}
-                  onAttack={handleFlagAttack}
-                  attackOnCooldown={attackCooldown}
-                  cooldownRemaining={cooldownRemaining}
+                  onChallenge={handleFlagChallenge}
+                  onFlee={handleFlagFlee}
+                  onClaim={handleFlagClaim}
                   compact={false}
                 />
               </div>

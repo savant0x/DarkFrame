@@ -68,7 +68,10 @@ export enum XPAction {
   
   // Special events
   FIRST_LOGIN = 'first_login',
-  DAILY_LOGIN = 'daily_login'
+  DAILY_LOGIN = 'daily_login',
+
+  // System (no reward value — used to bypass gameplay multipliers)
+  ADMIN = 'admin'
 }
 
 /**
@@ -97,7 +100,9 @@ export const XP_REWARDS: Record<XPAction, number> = {
   [XPAction.FACTORY_DEFENSE]: 100,              // Doubled from 50 (defend factory)
   
   [XPAction.FIRST_LOGIN]: 200,                  // Doubled from 100 (first time login bonus)
-  [XPAction.DAILY_LOGIN]: 20                    // Doubled from 10 (daily login bonus)
+  [XPAction.DAILY_LOGIN]: 20,                   // Doubled from 10 (daily login bonus)
+
+  [XPAction.ADMIN]: 0                           // Direct admin grant — bypasses flag multiplier
 };
 
 /**
@@ -270,7 +275,18 @@ export async function awardXP(
 }> {
   // Calculate XP to award
   const baseXP = XP_REWARDS[action] || 0;
-  const xpAwarded = baseXP * multiplier;
+  let xpAwarded = baseXP * multiplier;
+
+  // FID-20260906-001 §5.4: Flag bearer earns +100% XP (doc bonus stack).
+  // Admin source is excluded — operators grant exact amounts.
+  if (action !== XPAction.ADMIN && playerId) {
+    try {
+      const { isFlagBearer } = await import('@/lib/flagBonusService');
+      if (await isFlagBearer(playerId)) xpAwarded *= 2;
+    } catch {
+      // Never fail the XP award because of the flag check.
+    }
+  }
   
   // Find player using username directly
   const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);

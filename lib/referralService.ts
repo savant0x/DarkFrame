@@ -522,20 +522,34 @@ export async function validateReferral(referralId: string): Promise<boolean> {
   const rewardsRp = record.rewardsDataRp;
   const rewardsXp = record.rewardsDataXp;
   const rewardsVipDays = record.rewardsDataVipDays;
+
+  // FID-20260906-001 §5.4: while the referrer holds the Flag, referral rewards
+  // are +50% (doc bonus stack). VIP days are time-based and not multiplied.
+  let referralMult = 1;
+  try {
+    const { isFlagBearer } = await import('@/lib/flagBonusService');
+    if (await isFlagBearer(record.referrerPlayerId)) referralMult = 1.5;
+  } catch {
+    // Never fail referral validation because of the flag check.
+  }
+  const bonusMetal = Math.floor(rewardsMetal * referralMult);
+  const bonusEnergy = Math.floor(rewardsEnergy * referralMult);
+  const bonusRp = Math.floor(rewardsRp * referralMult);
+  const bonusXp = Math.floor(rewardsXp * referralMult);
   
   await db.update(players).set({
     totalReferrals: newTotalReferrals,
     pendingReferrals: newPendingReferrals,
     lastReferralValidated: now,
-    referralRewardsMetal: sql`COALESCE(${players.referralRewardsMetal}, 0) + ${rewardsMetal}`,
-    referralRewardsEnergy: sql`COALESCE(${players.referralRewardsEnergy}, 0) + ${rewardsEnergy}`,
-    referralRewardsRp: sql`COALESCE(${players.referralRewardsRp}, 0) + ${rewardsRp}`,
-    referralRewardsXp: sql`COALESCE(${players.referralRewardsXp}, 0) + ${rewardsXp}`,
+    referralRewardsMetal: sql`COALESCE(${players.referralRewardsMetal}, 0) + ${bonusMetal}`,
+    referralRewardsEnergy: sql`COALESCE(${players.referralRewardsEnergy}, 0) + ${bonusEnergy}`,
+    referralRewardsRp: sql`COALESCE(${players.referralRewardsRp}, 0) + ${bonusRp}`,
+    referralRewardsXp: sql`COALESCE(${players.referralRewardsXp}, 0) + ${bonusXp}`,
     referralRewardsVipDays: sql`COALESCE(${players.referralRewardsVipDays}, 0) + ${rewardsVipDays}`,
-    resourcesMetal: sql`COALESCE(${players.resourcesMetal}, 0) + ${rewardsMetal}`,
-    resourcesEnergy: sql`COALESCE(${players.resourcesEnergy}, 0) + ${rewardsEnergy}`,
-    researchPoints: sql`COALESCE(${players.researchPoints}, 0) + ${rewardsRp}`,
-    xp: sql`COALESCE(${players.xp}, 0) + ${rewardsXp}`
+    resourcesMetal: sql`COALESCE(${players.resourcesMetal}, 0) + ${bonusMetal}`,
+    resourcesEnergy: sql`COALESCE(${players.resourcesEnergy}, 0) + ${bonusEnergy}`,
+    researchPoints: sql`COALESCE(${players.researchPoints}, 0) + ${bonusRp}`,
+    xp: sql`COALESCE(${players.xp}, 0) + ${bonusXp}`
   }).where(eq(players.username, record.referrerPlayerId));
   
   // Add milestone achievements

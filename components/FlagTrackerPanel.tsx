@@ -1,37 +1,35 @@
 /**
  * @file components/FlagTrackerPanel.tsx
- * @created 2025-10-20
- * @overview Flag Bearer tracking panel component
- * 
- * OVERVIEW:
- * Displays real-time information about the current Flag Bearer including their
- * location, distance from viewer, compass direction, and attack options.
- * Much simpler and more focused than a full map - shows exactly what players
- * need to track and engage the Flag Bearer.
- * 
- * Features:
- * - Current Flag Bearer info (name, level, position)
- * - Distance and direction calculations
- * - Visual compass rose with direction arrow
- * - Attack range indicator (in range / out of range)
- * - Track and Attack action buttons
- * - Real-time WebSocket updates
- * - Mobile-friendly compact design
+ * @created 2025-10-22
+ * @overview Flag Tracker Panel — rewritten per FID-20260906-001 §5.8 (Option A).
+ *
+ * Two views, driven by the extended GET /api/flag payload:
+ *  - **Bearer self-view** (viewer IS the holder): the flag's details — the full
+ *    while-holding bonus stack, GROSS session earnings, flee counter, challenge
+ *    grace, and the 12-hour permanent-milestone progress. This is the "panel
+ *    updates and shows the details of the flag" surface from the original design.
+ *  - **Tracker view** (viewer is not the holder): bearer info, location/distance,
+ *    compass, and the Steal action (channel start) — the HP "Attack" battle UI is
+ *    gone by design (the doc forbids flag battles).
+ *
+ * During an active channel: both sides see the countdown; the bearer additionally
+ * sees the Flee action with its live escalating cost (or the block reason —
+ * 5s lock, 60s cooldown, flee budget exhausted = auto-lose warning); the
+ * challenger sees the Claim action once the channel ends.
  */
-
-'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  type FlagBearer, 
+import {
+  type FlagBearer,
+  type FlagDetailPayload,
   type FlagTrackerData,
   CompassDirection,
-  FLAG_CONFIG 
+  FLAG_CONFIG
 } from '@/types/flag.types';
-import { 
-  buildTrackerData, 
-  formatDistance, 
+import {
+  buildTrackerData,
+  formatDistance,
   getCompassArrow,
   formatHoldDuration,
   getTimeRemaining,
@@ -44,68 +42,65 @@ import {
 interface FlagTrackerPanelProps {
   /** Current player position for distance/direction calculations */
   playerPosition: { x: number; y: number };
-  
+
   /** Current Flag Bearer data (from API or WebSocket) */
   flagBearer: FlagBearer | null;
-  
+
+  /** Extended payload (challenge/bonuses/viewer actions) — FID-20260906-001 §5.8 */
+  flagDetail?: FlagDetailPayload | null;
+
   /** Callback when user clicks Track button */
   onTrack?: (bearer: FlagBearer) => void;
-  
-  /** Callback when user clicks Attack button */
-  onAttack?: (bearer: FlagBearer) => void;
-  
-  /** Whether attack is on cooldown */
-  attackOnCooldown?: boolean;
-  
-  /** Remaining cooldown time in seconds */
-  cooldownRemaining?: number;
-  
+
+  /** Callback when viewer (non-bearer) starts a steal challenge */
+  onChallenge?: () => void;
+
+  /** Callback when viewer (bearer) flees the active channel */
+  onFlee?: () => void;
+
+  /** Callback when viewer (challenger) claims at channel end */
+  onClaim?: () => void;
+
   /** Compact mode for mobile */
   compact?: boolean;
 }
 
 /**
- * Flag Tracker Panel Component
- * 
- * Shows current Flag Bearer location and provides tracking/attack actions.
- * Updates in real-time via WebSocket events.
- * 
- * @example
- * ```tsx
- * <FlagTrackerPanel
- *   playerPosition={{ x: 75, y: 75 }}
- *   flagBearer={currentBearer}
- *   onTrack={(bearer) => router.push(`/profile/${bearer.username}`)}
- *   onAttack={(bearer) => handleAttack(bearer.playerId)}
- *   attackOnCooldown={false}
- * />
- * ```
+ * Format a resource count compactly (12,500 -> 12.5k, 1,200,000 -> 1.2M).
  */
+function formatCompact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return n.toLocaleString();
+}
+
 export default function FlagTrackerPanel({
   playerPosition,
   flagBearer,
+  flagDetail,
   onTrack,
-  onAttack,
-  attackOnCooldown = false,
-  cooldownRemaining = 0
+  onChallenge,
+  onFlee,
+  onClaim,
+  compact = false
 }: FlagTrackerPanelProps) {
   const router = useRouter();
   const [trackerData, setTrackerData] = useState<FlagTrackerData | null>(null);
-  
+
   // Main panel collapse state
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
-  
+
   // Collapsible section state (individual sections)
   const [showBearerInfo, setShowBearerInfo] = useState(true);
   const [showLocation, setShowLocation] = useState(true);
   const [showCompass, setShowCompass] = useState(true);
-  
+
   // Calculate tracker data whenever bearer or player position changes
   useEffect(() => {
     const data = buildTrackerData(flagBearer, playerPosition);
     setTrackerData(data);
   }, [flagBearer, playerPosition]);
-  
+
   // No bearer - show empty state
   if (!flagBearer || !trackerData) {
     return (
@@ -120,26 +115,188 @@ export default function FlagTrackerPanel({
       </div>
     );
   }
-  
+
   const { bearer, distance, direction, inAttackRange } = trackerData;
-  
+
   // TypeScript safety: bearer is guaranteed non-null here due to early return above
   if (!bearer) return null;
-  
+
+  const isBearerViewer = flagDetail?.actions.isBearer ?? false;
+  const isChallengerViewer = flagDetail?.actions.isChallenger ?? false;
+  const challenge = flagDetail?.challenge ?? null;
+  const bonuses = flagDetail?.bonuses ?? null;
+  const actions = flagDetail?.actions;
+
   const compassArrow = getCompassArrow(direction);
   const timeRemaining = getTimeRemaining(bearer.holdDuration);
   const isExpiringSoon = isFlagExpiringSoon(bearer.holdDuration);
-  
+
+  // ============================================================
+  // BEARER SELF-VIEW — the holder sees the flag's details
+  // ============================================================
+  if (isBearerViewer) {
+    const fleeCount = challenge?.fleeCount ?? 0;
+    const maxFlees = challenge?.maxFlees ?? 5;
+    // 12-hour milestone progress (doc: hold 12h = permanent +2% harvest).
+    const milestonePct = Math.min(100, (bearer.holdDuration / (12 * 3600)) * 100);
+
+    return (
+      <div className="bg-gray-900 border-2 border-yellow-500 rounded-lg overflow-hidden transition-all duration-300">
+        {/* Header */}
+        <div
+          className="bg-gray-800 border-b border-yellow-700 cursor-pointer hover:bg-gray-750 transition-colors"
+          onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
+        >
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-2xl animate-pulse">👑</div>
+              <div>
+                <h3 className="text-lg font-bold text-yellow-300">You hold the Flag!</h3>
+                <p className="text-xs text-yellow-200/70">Ultimate bonuses active — you are a glowing target</p>
+              </div>
+            </div>
+            <span className="text-gray-400 text-xl">{isPanelCollapsed ? '▶' : '▼'}</span>
+          </div>
+        </div>
+
+        {!isPanelCollapsed && (
+          <div className="p-4 space-y-3">
+            {/* Active challenge warning (bearer side) */}
+            {challenge && (
+              <div className="bg-red-950/60 border-2 border-red-500 rounded-lg p-3 animate-pulse">
+                <div className="text-sm font-bold text-red-300 mb-1">
+                  🚨 FLAG CHALLENGE — {challenge.challenger} is stealing your Flag!
+                </div>
+                <div className="text-xs text-red-200/80">
+                  Channel ends in <span className="font-bold">{challenge.secondsRemaining}s</span>
+                  {!challenge.canFlee && challenge.fleeBlockReason && (
+                    <> — ⚠️ {challenge.fleeBlockReason}</>
+                  )}
+                  {challenge.fleeCount >= (challenge.maxFlees ?? 5) - 0 && challenge.fleeCount >= 5 && (
+                    <> — AUTO-LOSS: the Flag transfers when the channel ends.</>
+                  )}
+                </div>
+                <button
+                  onClick={() => onFlee && onFlee()}
+                  disabled={!challenge.canFlee}
+                  className={`mt-2 w-full font-bold py-2 px-3 rounded-lg transition-colors text-sm ${
+                    challenge.canFlee
+                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={
+                    challenge.canFlee
+                      ? `Cost: ${challenge.fleeCostMetal.toLocaleString()} Metal + ${challenge.fleeCostEnergy.toLocaleString()} Energy (paid to the challenger), then a 5-tile dash`
+                      : challenge.fleeBlockReason ?? 'Cannot flee right now'
+                  }
+                >
+                  🏃 Flee — costs {formatCompact(challenge.fleeCostMetal)}⚙️ / {formatCompact(challenge.fleeCostEnergy)}⚡
+                </button>
+              </div>
+            )}
+
+            {/* Bonus stack */}
+            {bonuses && (
+              <div className="bg-gray-800 rounded-lg overflow-hidden border border-yellow-700/50">
+                <div className="px-3 py-2 bg-yellow-900/30 border-b border-yellow-700/50">
+                  <span className="text-xs font-bold text-yellow-300">⚡ ACTIVE BONUSES (while holding)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5 px-3 py-3 text-xs">
+                  <div className="flex justify-between"><span className="text-gray-400">Harvest</span><span className="text-green-400 font-bold">+{Math.round((bonuses.harvestMultiplier - 1) * 100)}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">XP / RP</span><span className="text-green-400 font-bold">+{Math.round((bonuses.xpMultiplier - 1) * 100)}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Unit STR/DEF</span><span className="text-green-400 font-bold">+{Math.round((bonuses.unitStrengthMultiplier - 1) * 100)}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Auto-farm</span><span className="text-green-400 font-bold">+{Math.round((bonuses.autoFarmSpeedMultiplier - 1) * 100)}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Bank capacity</span><span className="text-green-400 font-bold">+{Math.round((bonuses.bankCapacityMultiplier - 1) * 100)}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Bank fees</span><span className="text-green-400 font-bold">{bonuses.bankFeeMultiplier === 0 ? 'FREE' : `${Math.round((bonuses.bankFeeMultiplier - 1) * 100)}%`}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Clan XP</span><span className="text-green-400 font-bold">+{Math.round((bonuses.clanXpMultiplier - 1) * 100)}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Referrals</span><span className="text-green-400 font-bold">+{Math.round((bonuses.referralMultiplier - 1) * 100)}%</span></div>
+                  {bonuses.permanentHarvestBonusPct > 0 && (
+                    <div className="col-span-2 flex justify-between border-t border-gray-700 pt-1.5">
+                      <span className="text-gray-400">Permanent harvest (12h milestone)</span>
+                      <span className="text-cyan-400 font-bold">+{bonuses.permanentHarvestBonusPct}% forever</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Session earnings + flee exposure */}
+            {bonuses && (
+              <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                <div className="px-3 py-2 bg-gray-750 border-b border-gray-700">
+                  <span className="text-xs font-bold text-gray-300">💰 SESSION EARNINGS (steal exposure)</span>
+                </div>
+                <div className="px-3 py-3 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-gray-900/50 rounded p-2">
+                      <div className="text-xs text-gray-400">Metal earned</div>
+                      <div className="text-sm font-bold text-orange-300">{formatCompact(bonuses.sessionEarningsMetal)}</div>
+                    </div>
+                    <div className="bg-gray-900/50 rounded p-2">
+                      <div className="text-xs text-gray-400">Energy earned</div>
+                      <div className="text-sm font-bold text-cyan-300">{formatCompact(bonuses.sessionEarningsEnergy)}</div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    A challenger who steals the Flag takes nothing — but each flee pays them
+                    10–30% of these earnings. Fled <span className="font-bold text-white">{fleeCount}/{maxFlees}</span>
+                    {fleeCount >= maxFlees && <span className="text-red-400 font-bold"> — next challenge cannot be fled!</span>}
+                  </div>
+                  {/* 12h milestone progress */}
+                  <div>
+                    <div className="text-xs text-gray-400 mb-1">
+                      12-hour milestone — permanent +2% harvest
+                    </div>
+                    <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div className="bg-yellow-500 h-full transition-all duration-300" style={{ width: `${milestonePct}%` }} />
+                    </div>
+                  </div>
+                  {/* Grace indicator */}
+                  {actions?.graceUntil && new Date(actions.graceUntil) > new Date() && (
+                    <div className="text-xs text-green-400">
+                      🛡️ Challenge grace active until {new Date(actions.graceUntil).toLocaleTimeString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Restrictions notice (doc: immediate, prevents exploits) */}
+            <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+              <div className="text-xs text-gray-400">
+                ⛔ While holding: unit building, factory actions, auction house, and banking
+                are <span className="text-red-400 font-bold">disabled</span>. Harvesting, movement, and shrine boosts stay enabled.
+              </div>
+            </div>
+
+            {/* Hold duration */}
+            <div className="bg-gray-900 rounded px-2 py-1.5 flex items-center justify-between border border-gray-700">
+              <span className="text-xs text-gray-400">Holding Flag</span>
+              <span className={`text-xs font-bold ${isExpiringSoon ? 'text-yellow-400' : 'text-green-400'}`}>
+                {formatHoldDuration(bearer.holdDuration)}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // TRACKER VIEW — non-bearer: track + steal
+  // ============================================================
+  const compassArrowRot = getRotationForDirectionPublic(direction);
+
   // Full panel view with main collapsible header
   return (
-    <div 
+    <div
       className={`
         bg-gray-900 border-2 rounded-lg overflow-hidden transition-all duration-300
-        ${inAttackRange ? 'border-green-500' : 'border-red-500'}
+        ${challenge ? 'border-yellow-500 animate-pulse' : inAttackRange ? 'border-green-500' : 'border-red-500'}
       `}
     >
       {/* Main Header - Always Visible, Clickable to Collapse Entire Panel */}
-      <div 
+      <div
         className="bg-gray-800 border-b border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors"
         onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
       >
@@ -148,16 +305,38 @@ export default function FlagTrackerPanel({
             <div className="text-2xl animate-pulse">🏴</div>
             <div>
               <h3 className="text-lg font-bold text-white">Flag Bearer</h3>
-              <p className="text-xs text-gray-400">Track and attack to claim the flag</p>
+              <p className="text-xs text-gray-400">Steal the flag with a 30-second challenge</p>
             </div>
           </div>
           <span className="text-gray-400 text-xl">{isPanelCollapsed ? '▶' : '▼'}</span>
         </div>
       </div>
-      
+
       {/* Panel Content - Collapsible */}
       {!isPanelCollapsed && (
         <div className="p-4 space-y-3">
+          {/* Active channel banner (challenger / observer side) */}
+          {challenge && (
+            <div className={`rounded-lg p-3 border-2 ${isChallengerViewer ? 'bg-yellow-950/40 border-yellow-500' : 'bg-gray-800 border-yellow-700/50'}`}>
+              <div className="text-sm font-bold text-yellow-300">
+                🏴 {challenge.challenger} is channeling a steal!
+              </div>
+              <div className="text-xs text-yellow-200/80 mt-1">
+                {challenge.secondsRemaining > 0
+                  ? <>Channel ends in <span className="font-bold">{challenge.secondsRemaining}s</span> — bearer can flee after the 5s lock.</>
+                  : <>Channel complete — the Flag transfers unless the bearer fled.</>}
+              </div>
+              {isChallengerViewer && challenge.secondsRemaining <= 0 && (
+                <button
+                  onClick={() => onClaim && onClaim()}
+                  className="mt-2 w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm"
+                >
+                  🎉 Claim the Flag
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Bearer Info Section */}
           <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
             {/* Header - Clickable to collapse */}
@@ -174,7 +353,7 @@ export default function FlagTrackerPanel({
               </span>
               <span className="text-gray-400 text-sm">{showBearerInfo ? '▼' : '▶'}</span>
             </button>
-            
+
             {/* Collapsible Content */}
             {showBearerInfo && (
               <div className="px-3 py-3 border-t border-gray-700 space-y-2">
@@ -189,23 +368,7 @@ export default function FlagTrackerPanel({
                     <div className="text-base font-bold text-cyan-400">{bearer.level}</div>
                   </div>
                 </div>
-                
-                {/* HP Bar */}
-                {bearer.currentHP !== undefined && bearer.maxHP !== undefined && (
-                  <div>
-                    <div className="text-xs text-gray-400 mb-1">Health</div>
-                    <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
-                      <div 
-                        className="bg-red-500 h-full transition-all duration-300"
-                        style={{ width: `${(bearer.currentHP / bearer.maxHP) * 100}%` }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1 text-center">
-                      {bearer.currentHP.toLocaleString()} / {bearer.maxHP.toLocaleString()}
-                    </div>
-                  </div>
-                )}
-                
+
                 {/* Hold Duration */}
                 <div className="bg-gray-900 rounded px-2 py-1.5 flex items-center justify-between">
                   <span className="text-xs text-gray-400">Holding Flag</span>
@@ -216,7 +379,7 @@ export default function FlagTrackerPanel({
               </div>
             )}
           </div>
-          
+
           {/* Location & Distance Section */}
           <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
             {/* Header - Clickable to collapse */}
@@ -233,7 +396,7 @@ export default function FlagTrackerPanel({
               </span>
               <span className="text-gray-400 text-sm">{showLocation ? '▼' : '▶'}</span>
             </button>
-            
+
             {/* Collapsible Content */}
             {showLocation && (
               <div className="grid grid-cols-2 gap-2 px-3 py-3 border-t border-gray-700">
@@ -244,7 +407,7 @@ export default function FlagTrackerPanel({
                     ({bearer.position.x}, {bearer.position.y})
                   </div>
                 </div>
-                
+
                 {/* Distance */}
                 <div className="bg-gray-900/50 rounded-lg p-2">
                   <div className="text-xs text-gray-400 mb-1">Distance</div>
@@ -255,13 +418,13 @@ export default function FlagTrackerPanel({
               </div>
             )}
           </div>
-          
-          {/* Attack Range Status - Above Compass */}
-          <div 
+
+          {/* Steal Range Status */}
+          <div
             className={`
               rounded-lg p-2 text-center font-bold text-xs border
-              ${inAttackRange 
-                ? 'bg-green-900/30 border-green-500 text-green-400' 
+              ${inAttackRange
+                ? 'bg-green-900/30 border-green-500 text-green-400'
                 : 'bg-red-900/30 border-red-500 text-red-400'
               }
             `}
@@ -269,7 +432,7 @@ export default function FlagTrackerPanel({
             {inAttackRange ? (
               <div className="flex items-center justify-center gap-2">
                 <span>✓</span>
-                <span>IN RANGE</span>
+                <span>IN STEAL RANGE</span>
                 <span className="opacity-75">(≤{FLAG_CONFIG.ATTACK_RANGE})</span>
               </div>
             ) : (
@@ -280,117 +443,94 @@ export default function FlagTrackerPanel({
               </div>
             )}
           </div>
-          
+
           {/* Compass Direction Section */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {/* Header - Clickable to collapse */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowCompass(!showCompass);
-              }}
-              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
-            >
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                <span>🧭</span>
-                <span>Direction</span>
-              </span>
-              <span className="text-gray-400 text-sm">{showCompass ? '▼' : '▶'}</span>
-            </button>
-            
-            {/* Collapsible Content */}
-            {showCompass && (
-              <div className="px-3 py-3 border-t border-gray-700">
-                <div className="flex items-center justify-center gap-4">
+          {!compact && (
+            <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+              {/* Header - Clickable to collapse */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCompass(!showCompass);
+                }}
+                className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
+              >
+                <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
+                  <span>🧭</span>
+                  <span>Direction</span>
+                </span>
+                <span className="text-gray-400 text-sm">{showCompass ? '▼' : '▶'}</span>
+              </button>
+
+              {/* Collapsible Content */}
+              {showCompass && (
+                <div className="px-3 py-3 border-t border-gray-700 flex items-center justify-center gap-4">
                   {/* Compass Rose */}
                   <div className="relative w-16 h-16">
                     {/* Background circle */}
                     <div className="absolute inset-0 border-4 border-gray-700 rounded-full"></div>
-                    
+
                     {/* Cardinal directions */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">
-                      N
-                    </div>
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 text-xs text-gray-500 font-bold">
-                      S
-                    </div>
-                    <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">
-                      W
-                    </div>
-                    <div className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">
-                      E
-                    </div>
-                    
-                    {/* Direction Arrow */}
-                    <div 
-                      className="absolute inset-0 flex items-center justify-center text-2xl text-cyan-400"
-                      style={{
-                        transform: `rotate(${getRotationForDirection(direction)}deg)`
-                      }}
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">N</div>
+                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 text-xs text-gray-500 font-bold">S</div>
+                    <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">W</div>
+                    <div className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">E</div>
+
+                    {/* Direction arrow */}
+                    <div
+                      className="absolute inset-0 flex items-center justify-center text-2xl transition-transform duration-300"
+                      style={{ transform: `rotate(${compassArrowRot}deg)` }}
                     >
-                      ↑
+                      {compassArrow}
                     </div>
                   </div>
-                  
-                  {/* Direction Label */}
-                  <div className="text-center">
-                    <div className="text-2xl mb-1">{compassArrow}</div>
-                    <div className="text-lg font-bold text-white">{direction}</div>
+
+                  <div className="text-xs text-gray-400">
+                    Bearer is to the <span className="text-white font-bold">{direction}</span>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Action Buttons - Compact */}
-          <div className="flex gap-2 justify-center pt-1">
+              )}
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
             {/* Track Button */}
             <button
-              onClick={() => {
-                if (onTrack) {
-                  onTrack(bearer);
-                } else {
-                  router.push(`/profile/${bearer.username}`);
-                }
-              }}
+              onClick={() => onTrack && onTrack(bearer)}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-colors flex items-center gap-2 text-sm"
             >
               <span>🔍</span>
               <span>Track</span>
             </button>
-            
-            {/* Attack Button */}
+
+            {/* Steal Button (channel start) */}
             <button
-              onClick={() => onAttack && onAttack(bearer)}
-              disabled={!inAttackRange || attackOnCooldown}
+              onClick={() => onChallenge && onChallenge()}
+              disabled={!inAttackRange || !!challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false)}
               className={`
                 font-bold py-2 px-3 rounded-lg transition-colors flex items-center gap-2 text-sm
-                ${!inAttackRange || attackOnCooldown
+                ${!inAttackRange || challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false)
                   ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white'
                 }
               `}
               title={
-                attackOnCooldown 
-                  ? `Cooldown: ${cooldownRemaining}s` 
-                  : !inAttackRange 
-                  ? 'Move closer to attack' 
-                  : 'Attack Flag Bearer'
+                challenge
+                  ? 'A steal channel is already running'
+                  : !inAttackRange
+                  ? 'Move closer to start the steal channel'
+                  : actions?.challengeBlockReason ?? 'Start a 30-second steal channel'
               }
             >
-              <span>⚔️</span>
-              <span>
-                {attackOnCooldown 
-                  ? `${cooldownRemaining}s` 
-                  : 'Attack'
-                }
-              </span>
+              <span>🏴</span>
+              <span>{challenge ? `${challenge.secondsRemaining}s` : 'Steal'}</span>
             </button>
           </div>
-          
+
           {/* Help Text */}
           <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-800">
-            💡 Track to view profile • Attack to defeat and claim flag
+            💡 Track to view profile • Steal via 30s channel — the bearer can flee, paying you 10–30% of their session earnings
           </div>
         </div>
       )}
@@ -399,12 +539,9 @@ export default function FlagTrackerPanel({
 }
 
 /**
- * Get CSS rotation angle for compass direction
- * 
- * @param direction - Compass direction enum
- * @returns Rotation angle in degrees (0° = North)
+ * Public wrapper for the module-private rotation helper (kept module-local).
  */
-function getRotationForDirection(direction: CompassDirection): number {
+function getRotationForDirectionPublic(direction: CompassDirection): number {
   const rotations: Record<CompassDirection, number> = {
     [CompassDirection.North]: 0,
     [CompassDirection.NorthEast]: 45,
@@ -415,44 +552,5 @@ function getRotationForDirection(direction: CompassDirection): number {
     [CompassDirection.West]: 270,
     [CompassDirection.NorthWest]: 315
   };
-  
   return rotations[direction];
 }
-
-/**
- * IMPLEMENTATION NOTES:
- * 
- * 1. **Visual Design:**
- *    - Clean card layout with clear sections
- *    - Green border when in range, red when out of range
- *    - Animated flag icon (pulsing) for visual interest
- *    - Compass rose with rotating arrow
- *    - Mobile-responsive (compact mode)
- * 
- * 2. **User Experience:**
- *    - All critical info at a glance
- *    - Clear visual feedback (colors, icons)
- *    - Disabled states with helpful tooltips
- *    - Compact mode for mobile (expandable)
- *    - Real-time updates via props
- * 
- * 3. **Interactivity:**
- *    - Track button: Navigate to player profile
- *    - Attack button: Initiate combat (only when in range)
- *    - Cooldown display prevents spam
- *    - Responsive hover states
- * 
- * 4. **Data Display:**
- *    - Bearer name, level, HP
- *    - Exact coordinates
- *    - Distance in tiles
- *    - Compass direction with visual arrow
- *    - Hold duration with expiry warning
- *    - Range status (in/out of range)
- * 
- * 5. **Performance:**
- *    - Memoized calculations in flagService
- *    - Only re-renders on prop changes
- *    - Lightweight DOM (no heavy graphics)
- *    - CSS animations for smooth transitions
- */

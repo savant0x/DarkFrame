@@ -173,7 +173,18 @@ export async function awardRP(
 
     // Calculate VIP bonus
     const isVIP = !!(player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date());
-    const finalAmount = isVIP ? Math.floor(amount * VIP_RP_MULTIPLIER) : amount;
+    let finalAmount = isVIP ? Math.floor(amount * VIP_RP_MULTIPLIER) : amount;
+
+    // FID-20260906-001 §5.4: Flag bearer earns +100% RP (doc bonus stack).
+    // Admin source is excluded — operators grant exact amounts.
+    if (source !== 'admin') {
+      try {
+        const { isFlagBearer } = await import('@/lib/flagBonusService');
+        if (await isFlagBearer(playerUsername)) finalAmount *= 2;
+      } catch {
+        // Never fail the RP award because of the flag check.
+      }
+    }
 
     // Calculate new balance
     const currentRP = player.researchPoints || 0;

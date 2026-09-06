@@ -18,6 +18,7 @@ import {
   ErrorCode
 } from '@/lib';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { ZodError } from 'zod';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.factoryBuild);
@@ -46,6 +47,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const validated = FactoryProduceSchema.parse(body);
     const username = authUser.username;
 
+
+    // FID-20260906-001 §5.5: bearer restriction — the Flag Bearer cannot do this while holding.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'factory-produce');
+    if (!flagGate.ok) {
+      return NextResponse.json({ success: false, error: flagGate.reason }, { status: 403 });
+    }
     log.debug('Factory produce request', { 
       username,
       x: validated.x, 

@@ -70,6 +70,8 @@ export const players = pgTable('players', {
 	lastStreakReward: timestamp('last_streak_reward'),
 	currentHP: integer('current_hp').default(1000),
 	maxHP: integer('max_hp').default(1000),
+	// FID-20260906-001 §5.1: 12-hour hold milestone (permanent, survives flag loss).
+	permanentHarvestBonus: smallint('permanent_harvest_bonus').notNull().default(0),
 	lastFlagAttack: timestamp('last_flag_attack'),
 	referralCode: varchar('referral_code', { length: 20 }),
 	referralLink: varchar('referral_link', { length: 255 }),
