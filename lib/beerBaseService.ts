@@ -29,6 +29,16 @@ import { recordSpawnEvent } from './beerBaseAnalytics';
 import { createBotPlayer } from './botService';
 import { generatePredictiveDistribution, PredictiveDistribution } from './playerHistoryService';
 import { BotSpecialization, UnitType, PlayerUnit } from '@/types/game.types';
+// FID-20260906-006a R4: drizzle-native config reads/writes (game_config table).
+import { db as drizzleDb } from '@/lib/db';
+import { gameConfig } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+
+/** game_config rows use varchar(24) ids — 24-char uuid-hex slice (FID-006a R4). */
+function generateConfigId(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 24);
+}
 
 // Map size constant
 const MAP_SIZE = 150;
@@ -165,11 +175,15 @@ const DEFAULT_CONFIG: BeerBaseConfig = {
 /**
  * Get Beer Base configuration from database or return defaults
  */
+/**
+ * Get Beer Base configuration — FID-20260906-006a R4: drizzle-native read of the
+ * `game_config` row (type='beerBase', jsonb config). Falls back to defaults on any
+ * failure so spawn/loot paths never break because of a config read.
+ */
 export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
   try {
-    const db = await connectToDatabase();
-    const config = await db.collection<Partial<BeerBaseConfig> & { type: string }>('gameConfig').findOne({ type: 'beerBase' });
-    
+    const rows = await drizzleDb.select().from(gameConfig).where(eq(gameConfig.type, 'beerBase')).limit(1);
+    const config = rows[0]?.config as Partial<BeerBaseConfig> | undefined;
     if (config) {
       return {
         spawnRateMin: config.spawnRateMin ?? DEFAULT_CONFIG.spawnRateMin,
@@ -178,7 +192,7 @@ export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
         respawnDay: config.respawnDay ?? DEFAULT_CONFIG.respawnDay,
         respawnHour: config.respawnHour ?? DEFAULT_CONFIG.respawnHour,
         enabled: config.enabled ?? DEFAULT_CONFIG.enabled,
-        
+
         // Variety settings (FID-20251025-001)
         varietyEnabled: config.varietyEnabled ?? DEFAULT_CONFIG.varietyEnabled,
         minWeakPercent: config.minWeakPercent ?? DEFAULT_CONFIG.minWeakPercent,
@@ -186,17 +200,17 @@ export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
         minStrongPercent: config.minStrongPercent ?? DEFAULT_CONFIG.minStrongPercent,
         minElitePercent: config.minElitePercent ?? DEFAULT_CONFIG.minElitePercent,
         maxSameTierPercent: config.maxSameTierPercent ?? DEFAULT_CONFIG.maxSameTierPercent,
-        
+
         // Dynamic Schedules (FID-20251025-003)
         schedulesEnabled: config.schedulesEnabled ?? DEFAULT_CONFIG.schedulesEnabled,
         schedules: config.schedules ?? DEFAULT_CONFIG.schedules,
-        
+
         // Predictive Spawning (FID-20251025-002)
         usePredictiveSpawning: config.usePredictiveSpawning ?? DEFAULT_CONFIG.usePredictiveSpawning,
         predictiveWeeksAhead: config.predictiveWeeksAhead ?? DEFAULT_CONFIG.predictiveWeeksAhead,
       };
     }
-    
+
     return DEFAULT_CONFIG;
   } catch (error) {
     console.error('Failed to load Beer Base config, using defaults:', error);
@@ -205,16 +219,20 @@ export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
 }
 
 /**
- * Update Beer Base configuration
+ * Update Beer Base configuration — FID-20260906-006a R4: race-safe drizzle upsert
+ * on the unique `type` index (migration 0009/0017 pattern), jsonb merge preserves
+ * fields not included in the patch.
  */
 export async function updateBeerBaseConfig(config: Partial<BeerBaseConfig>): Promise<void> {
-  const db = await connectToDatabase();
-  
-  await db.collection('gameConfig').updateOne(
-    { type: 'beerBase' },
-    { $set: { ...config, type: 'beerBase', updatedAt: new Date() } },
-    { upsert: true }
-  );
+  const current = await getBeerBaseConfig();
+  const merged = { ...current, ...config };
+  await drizzleDb
+    .insert(gameConfig)
+    .values({ id: generateConfigId(), type: 'beerBase', config: merged })
+    .onConflictDoUpdate({
+      target: gameConfig.type,
+      set: { config: merged },
+    });
 }
 
 /**
