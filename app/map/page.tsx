@@ -59,7 +59,7 @@ export default function MapPage() {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>('Zone');
   const [selectedTile, setSelectedTile] = useState<{ x: number; y: number } | null>(null);
   const [mapData, setMapData] = useState<MapTile[][] | null>(null);
-  const [playerMarkers, setPlayerMarkers] = useState<PlayerMarker[]>([]);
+  const [, setPlayerMarkers] = useState<PlayerMarker[]>([]);
   /** Live flag overlay (FID-20260905-001 §7.2 extension): bearer marker + fading trail. */
   const [flagState, setFlagState] = useState<{
     position: { x: number; y: number };
