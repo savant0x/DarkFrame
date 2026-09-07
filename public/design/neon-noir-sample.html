@@ -247,73 +247,225 @@
 
   <div class="divide"></div>
 
-  <!-- COMPONENTS -->
-  <div class="sec-label"><i class="tick"></i><h2 class="display">02 · HUD Components</h2><span>corner brackets · scanlines · semantic glow</span></div>
-  <div class="grid2">
+  <!-- ============================================================
+       SECTION 04 · GAME RAIL MODULES (Phase 2 approval extension)
+       ============================================================ -->
+  <style>
+    .rail { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:22px; align-items:start; }
+    .rail .panel.amber   { border-color:oklch(0.82 0.15 85 / .35); box-shadow:0 0 12px oklch(0.82 0.15 85 / .12), inset 0 0 0 1px oklch(0.82 0.15 85 / .1); }
+    .rail .panel.magenta { border-color:oklch(0.70 0.24 340 / .35); }
+    .rail .panel.violet  { border-color:oklch(0.68 0.2 300 / .35); }
+    .panel-head.h-amber   { border-bottom-color:oklch(0.82 0.15 85 / .35); background:repeating-linear-gradient(0deg, oklch(0.82 0.15 85 / .06) 0 1px, transparent 1px 3px); }
+    .panel-head.h-amber h3   { color:oklch(0.9 0.09 85); }
+    .panel-head.h-magenta { border-bottom-color:oklch(0.70 0.24 340 / .35); background:repeating-linear-gradient(0deg, oklch(0.70 0.24 340 / .06) 0 1px, transparent 1px 3px); }
+    .panel-head.h-magenta h3 { color:oklch(0.78 0.17 340); }
+    .panel-head.h-violet  { border-bottom-color:oklch(0.68 0.2 300 / .35); background:repeating-linear-gradient(0deg, oklch(0.68 0.2 300 / .06) 0 1px, transparent 1px 3px); }
+    .panel-head.h-violet h3  { color:oklch(0.78 0.14 300); }
+    .row .cyan2 { color:var(--signal-cyan); } .row .amber2 { color:var(--signal-amber); }
+    .row .mag2 { color:var(--signal-magenta); } .row .violet2 { color:var(--signal-violet); }
+    .sub { border:1px solid oklch(0.82 0.15 195 / .1); background:oklch(0.13 0.03 265 / .55); padding:10px 14px; margin:0 12px 8px; }
+    .sub .lab { font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--text-tertiary); margin-bottom:3px; }
+    .dpad { display:grid; grid-template-columns:repeat(3, 46px); grid-template-rows:repeat(3, 46px); gap:6px; width:fit-content; margin:14px auto 8px; }
+    .dpad button { font-family:'Orbitron',sans-serif; font-size:14px; color:var(--text-secondary); background:oklch(0.13 0.03 265 / .6); border:1px solid oklch(0.82 0.15 195 / .3); cursor:pointer; transition:all .15s var(--ease); }
+    .dpad button:hover { background:oklch(0.82 0.15 195 / .16); color:var(--signal-cyan); box-shadow:0 0 14px oklch(0.82 0.15 195 / .3); }
+    .dpad button small { display:block; font-size:8px; letter-spacing:.1em; color:var(--text-tertiary); }
+    .dpad button.refresh { border-color:oklch(0.80 0.17 155 / .4); color:var(--signal-green); }
+    .range { margin:4px 12px 8px; padding:8px; text-align:center; font-family:'Orbitron',sans-serif; font-size:9.5px; letter-spacing:.18em; }
+    .range.no { color:var(--signal-magenta); border:1px solid oklch(0.70 0.24 340 / .5); background:oklch(0.70 0.24 340 / .08); }
+    .range.ok { color:var(--signal-green); border:1px solid oklch(0.80 0.17 155 / .5); background:oklch(0.80 0.17 155 / .08); }
+    .compass { display:flex; align-items:center; gap:18px; padding:6px 16px 12px; }
+    .rose { position:relative; width:64px; height:64px; border-radius:50%; border:1px solid oklch(0.82 0.15 195 / .25); flex:none; }
+    .rose .n,.rose .s,.rose .w,.rose .e { position:absolute; font-size:8.5px; color:var(--text-tertiary); font-family:'Orbitron',sans-serif; }
+    .rose .n { top:-5px; left:50%; transform:translateX(-50%); background:var(--surface-void); padding:0 4px; }
+    .rose .s { bottom:-5px; left:50%; transform:translateX(-50%); background:var(--surface-void); padding:0 4px; }
+    .rose .w { left:-6px; top:50%; transform:translateY(-50%); background:var(--surface-void); padding:0 3px; }
+    .rose .e { right:-6px; top:50%; transform:translateY(-50%); background:var(--surface-void); padding:0 3px; }
+    .rose .arrow { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; color:var(--signal-amber); text-shadow:0 0 10px oklch(0.82 0.15 85 / .6); transform:rotate(135deg); }
+    .compass p { font-size:11.5px; color:var(--text-secondary); }
+    .compass p b { color:var(--text-primary); }
+    .actions2 { display:flex; gap:8px; padding:4px 12px 10px; }
+    .actions2 .btn { padding:9px 14px; }
+    .actions2 .btn.steal { flex:1; color:var(--signal-amber); border-color:oklch(0.82 0.15 85 / .5); }
+    .wmd-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:12px 12px 4px; }
+    .wmd-grid .sub { margin:0; }
+    .btn-amber { border-color:oklch(0.82 0.15 85 / .5) !important; color:var(--signal-amber) !important; }
+  </style>
 
-    <!-- stats panel -->
-    <div class="panel brackets" style="position:relative">
-      <div class="panel-head"><h3 class="display">Player Info</h3><span class="k">ID ▸ FAME</span></div>
-      <div class="row"><span>Commander</span><b>fame</b></div>
-      <div class="row"><span>Level</span><b class="num">3</b></div>
-      <div class="row"><span>Factories</span><b class="num" style="color:var(--signal-cyan)">2</b></div>
-      <div class="meters">
-        <div class="meter">
-          <div class="lab"><span>STRENGTH</span><b class="num">1,284</b></div>
-          <div class="track"><div class="fill str"></div><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-        </div>
-        <div class="meter">
-          <div class="lab"><span>DEFENSE</span><b class="num">776</b></div>
-          <div class="track"><div class="fill def"></div><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-        </div>
+  <div class="sec-label"><i class="tick"></i><h2 class="display">04 · Game Rail Modules</h2><span>flag · wmd · auto-farm · movement · tutorial</span></div>
+  <div class="rail">
+
+    <!-- FLAG TRACKER — amber module -->
+    <div class="panel amber">
+      <div class="panel-head h-amber"><h3 class="display">Flag Bearer</h3><span class="k">STEAL · 30S CHANNEL</span></div>
+      <div class="sub" style="display:flex;justify-content:space-between;align-items:center">
+        <div><div class="lab">Player</div><b style="font-size:14px">Flag-Bearer-4523</b></div>
+        <div style="text-align:right"><div class="lab">Level</div><b class="num cyan2" style="font-size:14px">65</b></div>
       </div>
-      <div class="row"><span>Metal</span><span class="val num">12,480 <span class="gain">+240</span></span></div>
-      <div class="row"><span>Energy</span><span class="val num">8,912 <span class="gain">+95</span></span></div>
+      <div class="sub" style="display:flex;justify-content:space-between;align-items:center">
+        <div><div class="lab">Location</div><b class="num">(131, 135)</b></div>
+        <div style="text-align:right"><div class="lab">Distance</div><b class="num cyan2">144 tiles</b></div>
+      </div>
+      <div class="sub" style="display:flex;justify-content:space-between;align-items:center">
+        <span class="lab" style="margin:0">Holding Flag</span><b class="num amber2">6h 52m</b>
+      </div>
+      <div class="range no">OUT OF RANGE (+139 TILES)</div>
+      <div class="compass">
+        <div class="rose"><span class="n">N</span><span class="s">S</span><span class="w">W</span><span class="e">E</span><span class="arrow">➤</span></div>
+        <p>Bearer is to the <b>SOUTHEAST</b></p>
+      </div>
+      <div class="actions2">
+        <button class="btn btn-ghost">Track</button>
+        <button class="btn steal">Steal</button>
+      </div>
+      <p style="font-size:10px;color:var(--text-tertiary);padding:0 16px 12px;line-height:1.5">Track to view profile · Steal via 30s channel — the bearer can flee, paying you 10–30% of their session earnings</p>
     </div>
 
-    <!-- controls -->
-    <div class="panel">
-      <div class="panel-head"><h3 class="display">Actions</h3><span class="k">SECTOR ▸ 066·149</span></div>
-      <div class="btnrow">
-        <button class="btn btn-cyan">Harvest</button>
-        <button class="btn btn-green">Build Unit</button>
-        <button class="btn btn-magenta">Attack</button>
-        <button class="btn btn-ghost">Scout</button>
-        <button class="btn btn-cyan" disabled>Locked</button>
+    <!-- WMD MINI — magenta module -->
+    <div class="panel magenta">
+      <div class="panel-head h-magenta"><h3 class="display">WMD</h3><span class="k">THREAT MONITOR</span></div>
+      <div class="wmd-grid">
+        <div class="sub"><div class="lab">RP</div><b class="num cyan2">375</b></div>
+        <div class="sub"><div class="lab">Missiles</div><b class="num mag2">0</b></div>
+        <div class="sub"><div class="lab">Batteries</div><b class="num amber2">0</b></div>
+        <div class="sub"><div class="lab">Spies</div><b class="num violet2">0</b></div>
       </div>
-      <div style="display:flex;gap:26px;align-items:center;padding:6px 16px 18px;">
-        <div class="cd"><span class="num">7s</span></div>
-        <div style="flex:1">
-          <div class="prog" style="padding:0 0 12px">
-            <div class="lab"><span>XP · LEVEL 3</span><b class="num">889 / 2,203</b></div>
-            <div class="track vio"><div class="fill vio"></div></div>
-          </div>
-          <div class="prog" style="padding:0">
-            <div class="lab"><span>RESEARCH POINTS</span><b class="num">1,340</b></div>
-            <div class="track vio"><div class="fill vio" style="width:66%"></div></div>
+      <p style="font-size:10px;color:var(--text-tertiary);text-align:center;padding:4px 0 12px;letter-spacing:.12em">CLICK TO OPEN</p>
+    </div>
+
+    <!-- AUTO-FARM — violet module -->
+    <div class="panel violet">
+      <div class="panel-head h-violet"><h3 class="display">Auto-Farm</h3><span class="k">BASIC TIER</span></div>
+      <div class="row"><span>Status</span><b><i style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--signal-green);box-shadow:0 0 8px var(--signal-green);margin-right:7px"></i><span class="num" style="color:var(--signal-green);font-size:11px;letter-spacing:.12em">STOPPED</span></b></div>
+      <div class="row"><span>Position</span><b class="num">[63, 2]</b></div>
+      <div class="prog" style="padding:4px 16px 8px">
+        <div class="lab"><span>TILES · 63 / 22,500</span><b class="num" style="color:var(--signal-violet)">0.28%</b></div>
+        <div class="track vio"><div class="fill vio" style="width:0.28%"></div></div>
+      </div>
+      <div class="row"><span>Speed Tier</span><b style="color:var(--signal-violet)">Basic · 11.6 hrs</b></div>
+      <div class="btnrow" style="padding-top:8px;padding-bottom:6px">
+        <button class="btn btn-cyan" style="flex:1">Start Auto-Farm</button>
+      </div>
+      <div class="btnrow" style="padding-top:0;padding-bottom:8px">
+        <button class="btn btn-amber" style="flex:1">Get VIP · 2x Speed</button>
+      </div>
+      <p style="font-size:10px;color:var(--text-tertiary);text-align:center;padding:0 0 10px">Complete the map in 5.6 hours instead of 11.6</p>
+    </div>
+
+    <!-- MOVEMENT — cyan module -->
+    <div class="panel">
+      <div class="panel-head"><h3 class="display">Movement Controls</h3><span class="k">QWEASDZXC · NUMPAD</span></div>
+      <div class="dpad">
+        <button>↖<small>Q</small></button><button>↑<small>W</small></button><button>↗<small>E</small></button>
+        <button>←<small>A</small></button><button class="refresh">⟳<small>S</small></button><button>→<small>D</small></button>
+        <button>↙<small>Z</small></button><button>↓<small>X</small></button><button>↘<small>C</small></button>
+      </div>
+      <p style="font-size:9.5px;color:var(--text-tertiary);text-align:center;padding:0 0 14px;letter-spacing:.1em">PRESS A KEY OR CLICK A DIRECTION</p>
+    </div>
+
+    <!-- TUTORIAL — violet module -->
+    <div class="panel violet">
+      <div class="panel-head h-violet"><h3 class="display">Tutorial Quest</h3><span class="k">STEP 3/7</span></div>
+      <div class="prog" style="padding:12px 16px 6px">
+        <div class="lab"><span>PROGRESS</span><b class="num">43%</b></div>
+        <div class="track vio"><div class="fill vio" style="width:43%"></div></div>
+      </div>
+      <div style="padding:0 16px 14px">
+        <div style="display:flex;gap:10px;margin:8px 0">
+          <i style="flex:none;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--signal-violet);border:1px solid oklch(0.68 0.2 300 / .45);background:oklch(0.68 0.2 300 / .12)">3</i>
+          <div>
+            <b style="font-size:12.5px">Visit the Metal Bank</b>
+            <p style="font-size:11px;color:var(--text-secondary);line-height:1.55;margin-top:3px">Navigate to the Metal Bank at (25, 25) to learn about resource storage.</p>
           </div>
         </div>
+        <div class="sub" style="margin:8px 0 0;border-color:oklch(0.82 0.15 195 / .22)">
+          <div class="lab" style="color:var(--signal-cyan)">WHEN TO USE</div>
+          <p style="font-size:11px;color:var(--text-secondary);line-height:1.5">Before logging off to keep resources safe from enemy raids.</p>
+        </div>
+        <button class="btn btn-cyan" style="width:100%;margin-top:10px">Next Step</button>
       </div>
-      <div class="threat"><p>⚠ WMD LAUNCH DETECTED · IMPACT 00:42 — COUNTERMEASURES AVAILABLE</p></div>
     </div>
 
   </div>
 
   <div class="divide"></div>
 
-  <!-- TYPOGRAPHY -->
-  <div class="sec-label"><i class="tick"></i><h2 class="display">03 · Typography</h2><span>Orbitron HUD · Inter prose</span></div>
-  <div class="type-spec">
-    <div class="t1 display">Strategic Command Interface</div>
-    <div class="t2 num">2,794 units destroyed · 33,346 metal salvaged</div>
-    <div class="t3">Mission Briefing — Sector Clearance</div>
-    <div class="t4">Body copy stays in Inter for readability. Every numeral that a commander compares — resources, cooldowns, coordinates, power — renders in Orbitron with tabular figures so columns never jitter as values tick.</div>
-    <div><span class="tn">148,203</span><small>tabular ticker · amber resource readout</small></div>
+  <!-- ============================================================
+       SECTION 05 · CHAT + BATTLE LOG (Phase 2 approval extension)
+       ============================================================ -->
+  <style>
+    .chatlog { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:22px; align-items:start; }
+    .chat { background:oklch(0.13 0.03 265 / .82); backdrop-filter:blur(16px); border:1px solid oklch(0.82 0.15 195 / .22); box-shadow:0 0 24px oklch(0.82 0.15 195 / .1); }
+    .chat-head { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid oklch(0.82 0.15 195 / .16); }
+    .chat-head h3 { font-size:12px; font-weight:700; color:var(--signal-cyan); letter-spacing:.18em; }
+    .chat-head .sz { display:flex; gap:4px; }
+    .chat-head .sz span { font-size:9px; letter-spacing:.1em; color:var(--text-tertiary); padding:3px 7px; cursor:pointer; }
+    .chat-head .sz span.on { color:var(--signal-cyan); background:oklch(0.82 0.15 195 / .12); }
+    .tabs { display:flex; border-bottom:1px solid oklch(0.82 0.15 195 / .12); }
+    .tabs span { flex:1; text-align:center; padding:10px 0 9px; font-family:'Orbitron',sans-serif; font-size:9.5px; letter-spacing:.16em; color:var(--text-tertiary); cursor:pointer; border-bottom:2px solid transparent; }
+    .tabs span.on { color:var(--signal-cyan); border-bottom-color:var(--signal-cyan); text-shadow:0 0 10px oklch(0.82 0.15 195 / .5); }
+    .chips { display:flex; gap:6px; padding:10px 14px; flex-wrap:wrap; }
+    .chips span { font-size:9.5px; letter-spacing:.1em; padding:4px 11px; border:1px solid oklch(0.82 0.15 195 / .25); color:var(--text-secondary); cursor:pointer; }
+    .chips span.on { color:var(--signal-cyan); border-color:oklch(0.82 0.15 195 / .55); background:oklch(0.82 0.15 195 / .1); box-shadow:inset 0 0 10px oklch(0.82 0.15 195 / .08); }
+    .msgs { padding:6px 14px 10px; display:flex; flex-direction:column; gap:8px; min-height:220px; }
+    .msg { border:1px solid oklch(0.82 0.15 195 / .1); background:oklch(0.13 0.03 265 / .5); padding:8px 12px; }
+    .msg .mh { display:flex; justify-content:space-between; font-size:10px; margin-bottom:4px; }
+    .msg .mh b { color:var(--signal-cyan); font-weight:600; }
+    .msg .mh .vip { color:var(--signal-amber); border:1px solid oklch(0.82 0.15 85 / .4); font-size:8px; padding:1px 5px; letter-spacing:.1em; }
+    .msg .mh time { color:var(--text-tertiary); }
+    .msg p { font-size:12.5px; color:var(--text-secondary); line-height:1.5; }
+    .msg.own { border-color:oklch(0.82 0.15 195 / .4); background:oklch(0.82 0.15 195 / .1); }
+    .msg.own p { color:var(--text-primary); }
+    .composer { display:flex; align-items:stretch; border-top:1px solid oklch(0.82 0.15 195 / .16); }
+    .composer input { flex:1; background:transparent; border:0; outline:0; padding:12px 16px; color:var(--text-primary); font-size:12.5px; font-family:'Inter',sans-serif; }
+    .composer input::placeholder { color:var(--text-tertiary); }
+    .composer button { flex:none; font-family:'Orbitron',sans-serif; font-size:10px; letter-spacing:.16em; padding:0 20px; color:var(--signal-cyan); background:transparent; border:0; border-left:1px solid oklch(0.82 0.15 195 / .2); cursor:pointer; }
+    .composer button:hover { background:oklch(0.82 0.15 195 / .1); }
+    .feed { padding:8px 0 10px; }
+    .feed a { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; font-size:12.5px; color:var(--text-secondary); text-decoration:none; position:relative; }
+    .feed a::before { content:''; position:absolute; left:0; top:22%; bottom:22%; width:2px; background:var(--signal-cyan); box-shadow:0 0 6px oklch(0.82 0.15 195 / .6); transition:all .15s var(--ease); }
+    .feed a.def::before { background:var(--signal-magenta); box-shadow:0 0 6px oklch(0.70 0.24 340 / .6); }
+    .feed a:hover { background:oklch(0.82 0.15 195 / .06); color:var(--text-primary); }
+    .feed a:hover::before { top:0; bottom:0; }
+    .feed a b { font-family:'Orbitron',sans-serif; font-size:11px; color:var(--signal-amber); }
+    .feed a small { font-size:8.5px; letter-spacing:.14em; color:var(--signal-green); margin-left:6px; }
+  </style>
+
+  <div class="sec-label"><i class="tick"></i><h2 class="display">05 · Chat + Battle Log</h2><span>text-rule tabs · quiet glass · semantic feed rules</span></div>
+  <div class="chatlog">
+
+    <div class="chat">
+      <div class="chat-head">
+        <h3 class="display">GLOBAL CHAT</h3>
+        <div class="sz"><span>Full</span><span class="on">Half</span><span>Min</span></div>
+      </div>
+      <div class="tabs"><span class="on">PUBLIC CHANNELS</span><span>DIRECT MESSAGES</span></div>
+      <div class="chips"><span class="on">GLOBAL</span><span>NEWBIE</span><span>TRADE</span><span>HELP</span></div>
+      <div class="msgs">
+        <div class="msg"><div class="mh"><span><b>fame</b> <span class="vip">VIP</span> · Lv 3</span><time>7:59 PM</time></div><p>hey</p></div>
+        <div class="msg own"><div class="mh"><span><b>fame</b> · Lv 3</span><time>7:58 PM</time></div><p>moving to sector 066</p></div>
+        <div class="msg"><div class="mh"><span><b>OpsCommander</b> · Lv 12</span><time>7:55 PM</time></div><p>anyone holding the flag near the shrines?</p></div>
+      </div>
+      <div class="composer">
+        <input placeholder="Message @player…">
+        <button>SEND</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head"><h3 class="display">Battle Log</h3><span class="k">AUTO-REFRESH 30S</span></div>
+      <div class="feed">
+        <a href="#"><span>Attack Logs</span><span><b>14</b><small>NEW</small></span></a>
+        <a href="#" class="def"><span>Defense Logs</span><span><b>6</b><small>NEW</small></span></a>
+        <a href="#"><span>Infantry Logs</span><span><b>2</b></span></a>
+        <a href="#" class="def"><span>Land Mine Logs</span><span><b>0</b></span></a>
+      </div>
+    </div>
+
   </div>
 
 </div>
 
-<footer class="display">NEON NOIR · FID-20260906-012 · SAMPLE SHEET — NOT SHIPPED CODE</footer>
+<footer class="display">NEON NOIR · FID-20260906-012 · SAMPLE SHEET — SECTIONS 04–05 PENDING OPERATOR APPROVAL</footer>
 
 </body>
 </html>
