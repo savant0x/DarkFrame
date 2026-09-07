@@ -774,17 +774,14 @@ span.nn-panel__icon > svg {
   height: 108%;
   object-fit: cover;
   filter: blur(3px) brightness(0.52) saturate(1.15);
-  /* fade-in on remount (terrain change re-keys the img) = crossfade scene transition */
-  animation:
-    nn-scene-fadein 500ms ease-out,
-    nn-scene-drift 9s ease-in-out infinite alternate;
-  transition: opacity var(--nn-motion-slow, 420ms) var(--nn-ease, ease-out);
+  /* fade-in gated on image decode (`.nn-scene__image--ready` from onLoad):
+     no bright-then-dark snap, no mid-load re-grade. Drift runs independently. */
+  opacity: 0;
+  transition: opacity 700ms ease-out;
+  animation: nn-scene-drift 9s ease-in-out infinite alternate;
 }
 
-@keyframes nn-scene-fadein {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+.nn-scene__image--ready { opacity: 0.35; }
 
 .nn-scene__grade { position: absolute; inset: 0; mix-blend-mode: soft-light; opacity: 0.55; }
 .nn-scene__grade--metal   { background: linear-gradient(160deg, oklab(0.55 0.06 0.05 / 0.8), oklab(0.3 0.04 0.06 / 0.5)); }

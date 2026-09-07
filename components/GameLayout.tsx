@@ -143,6 +143,12 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
     };
     return GRADES[terrain] ?? 'default';
   }, [backgroundImage]);
+  // Scene image fades in only once decoded — an un-gated fade let the backdrop
+  // paint bright and then visibly re-grade 2–3s after a tile load.
+  const [sceneReady, setSceneReady] = React.useState(false);
+  React.useEffect(() => {
+    setSceneReady(false);
+  }, [backgroundImage]);
   return (
     <div className="nn-shell relative min-h-screen text-[color:var(--nn-text-primary)]">
       {/* NEON NOIR scene layer (§5.1 F3 upgrade): full-window terrain background kept,
@@ -155,8 +161,8 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
             key={backgroundImage}
             src={backgroundImage}
             alt=""
-            className="nn-scene__image object-cover"
-            style={{ opacity: 0.35 }}
+            className={`nn-scene__image object-cover ${sceneReady ? 'nn-scene__image--ready' : ''}`}
+            onLoad={() => setSceneReady(true)}
           />
           <div className={`nn-scene__grade nn-scene__grade--${terrainClass}`} />
           <div className="nn-scene__vignette" />

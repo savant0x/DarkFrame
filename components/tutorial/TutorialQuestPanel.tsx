@@ -679,11 +679,25 @@ export default function TutorialQuestPanel({
                 </div>
               )}
 
-              {/* Step Progress */}
-              <div className="mt-2 flex items-center justify-between text-xs">
-                <span className="nn-lab">Step {questStepProgress}</span>
+              {/* Step Progress — deck footer: violet meter row + ETA chip */}
+              <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 16%, transparent)' }}>
+                <span className="nn-lab" style={{ color: 'var(--nn-violet)' }}>
+                  STEP {questStepProgress}
+                </span>
                 {currentStep.estimatedSeconds && (
-                  <span className="nn-lab">~{currentStep.estimatedSeconds}s</span>
+                  <span
+                    className="nn-num"
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: '0.12em',
+                      color: 'var(--nn-text-secondary)',
+                      border: '1px solid color-mix(in oklab, var(--nn-violet) 25%, transparent)',
+                      background: 'color-mix(in oklab, var(--nn-void) 40%, transparent)',
+                      padding: '1px 6px',
+                    }}
+                  >
+                    ETA {currentStep.estimatedSeconds}s
+                  </span>
                 )}
               </div>
             </div>
@@ -793,9 +807,9 @@ export default function TutorialQuestPanel({
                 )}
               </div>
               <div className="nn-lab flex items-center gap-2">
-                <span>Step {progress?.currentStepIndex !== undefined ? progress.currentStepIndex + 1 : 1}/{currentQuest.steps.length}</span>
+                <span>STEP {progress?.currentStepIndex !== undefined ? progress.currentStepIndex + 1 : 1}/{currentQuest.steps.length}</span>
                 {currentStep.estimatedSeconds && (
-                  <span>~{currentStep.estimatedSeconds}s</span>
+                  <span>ETA {currentStep.estimatedSeconds}s</span>
                 )}
               </div>
             </div>
