@@ -223,41 +223,41 @@ export default function ClanBankPanel({
     <div className="space-y-6">
       {/* Treasury Overview */}
       <div>
-        <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
-          <Wallet className="w-5 h-5 text-yellow-400" />
+        <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] flex items-center gap-2 mb-4">
+          <Wallet className="w-5 h-5 text-[color:var(--nn-amber)]" />
           Clan Treasury
         </h3>
         
         <div className="grid grid-cols-3 gap-3">
           {/* Metal */}
-          <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
+          <div className="bg-glass-light rounded-none p-4 border border-glass-border">
             <div className="flex items-center gap-2 mb-2">
               <Coins className="w-4 h-4 text-text-secondary" />
               <span className="text-xs text-text-secondary">Metal</span>
             </div>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
               {clan.bank.treasury.metal.toLocaleString()}
             </div>
           </div>
 
           {/* Energy */}
-          <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
+          <div className="bg-glass-light rounded-none p-4 border border-glass-border">
             <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-cyan-400" />
+              <Zap className="w-4 h-4 text-[color:var(--nn-cyan)]" />
               <span className="text-xs text-text-secondary">Energy</span>
             </div>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
               {clan.bank.treasury.energy.toLocaleString()}
             </div>
           </div>
 
           {/* Research Points */}
-          <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
+          <div className="bg-glass-light rounded-none p-4 border border-glass-border">
             <div className="flex items-center gap-2 mb-2">
-              <Beaker className="w-4 h-4 text-purple-400" />
+              <Beaker className="w-4 h-4 text-[color:var(--nn-violet)]" />
               <span className="text-xs text-text-secondary">RP</span>
             </div>
-            <div className="text-2xl font-bold text-white">
+            <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
               {clan.research.researchPoints.toLocaleString()}
             </div>
           </div>
@@ -270,9 +270,9 @@ export default function ClanBankPanel({
       </div>
 
       {/* Deposit Section */}
-      <div className="bg-green-500/5 border border-green-500/20 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-          <TrendingUp className="w-4 h-4 text-green-400" />
+      <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4">
+        <h4 className="text-sm font-semibold text-[color:var(--nn-text-primary)] flex items-center gap-2 mb-3">
+          <TrendingUp className="w-4 h-4 text-[color:var(--nn-green)]" />
           Deposit Resources
         </h4>
 
@@ -300,7 +300,7 @@ export default function ClanBankPanel({
 
           {/* Energy Deposit */}
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <Zap className="w-4 h-4 text-[color:var(--nn-cyan)] flex-shrink-0" />
             <Input
               type="number"
               value={depositEnergy || ''}
@@ -321,7 +321,7 @@ export default function ClanBankPanel({
 
           {/* RP Deposit */}
           <div className="flex items-center gap-2">
-            <Beaker className="w-4 h-4 text-purple-400 flex-shrink-0" />
+            <Beaker className="w-4 h-4 text-[color:var(--nn-violet)] flex-shrink-0" />
             <Input
               type="number"
               value={depositRP || ''}
@@ -358,9 +358,9 @@ export default function ClanBankPanel({
       </div>
 
       {/* Withdraw Section */}
-      <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-          <TrendingDown className="w-4 h-4 text-red-400" />
+      <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4">
+        <h4 className="text-sm font-semibold text-[color:var(--nn-text-primary)] flex items-center gap-2 mb-3">
+          <TrendingDown className="w-4 h-4 text-[color:var(--nn-magenta)]" />
           Withdraw Resources
           {!permissions.canWithdrawFromBank && (
             <span title="Requires permission">
@@ -370,8 +370,8 @@ export default function ClanBankPanel({
         </h4>
 
         {!permissions.canWithdrawFromBank ? (
-          <div className="bg-glass-light rounded p-3 flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div className="bg-glass-light rounded-none p-3 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
             <p className="text-xs text-text-secondary">
               You do not have permission to withdraw from the clan bank. Only Leaders and Officers can withdraw resources.
             </p>
@@ -401,7 +401,7 @@ export default function ClanBankPanel({
 
             {/* Energy Withdraw */}
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+              <Zap className="w-4 h-4 text-[color:var(--nn-cyan)] flex-shrink-0" />
               <Input
                 type="number"
                 value={withdrawEnergy || ''}
@@ -422,7 +422,7 @@ export default function ClanBankPanel({
 
             {/* RP Withdraw */}
             <div className="flex items-center gap-2">
-              <Beaker className="w-4 h-4 text-purple-400 flex-shrink-0" />
+              <Beaker className="w-4 h-4 text-[color:var(--nn-violet)] flex-shrink-0" />
               <Input
                 type="number"
                 value={withdrawRP || ''}

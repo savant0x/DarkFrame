@@ -138,11 +138,11 @@ export default function WMDVotingPanel() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return 'bg-blue-600';
-      case 'PASSED': return 'bg-green-600';
-      case 'FAILED': return 'bg-red-600';
-      case 'EXPIRED': return 'bg-gray-600';
-      default: return 'bg-gray-600';
+      case 'ACTIVE': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      case 'PASSED': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case 'FAILED': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
+      case 'EXPIRED': return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
     }
   };
 
@@ -156,8 +156,8 @@ export default function WMDVotingPanel() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg">
-        <p className="text-gray-300">Loading clan votes...</p>
+      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">Loading clan votes...</p>
       </div>
     );
   }
@@ -165,12 +165,12 @@ export default function WMDVotingPanel() {
   const activeVotes = votes.filter(v => v.status === 'ACTIVE');
 
   return (
-    <div className="p-6 bg-gray-800 rounded-lg space-y-6">
+    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-yellow-400">Clan Voting</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">Clan Voting</h2>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">
             {activeVotes.length} active vote{activeVotes.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -183,17 +183,17 @@ export default function WMDVotingPanel() {
           const totalVotes = vote.votesFor.length + vote.votesAgainst.length;
 
           return (
-            <Card key={vote.voteId} className="p-4 bg-gray-700 space-y-4">
+            <Card key={vote.voteId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] space-y-4">
               {/* Header */}
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-white text-lg">{vote.voteType}</h3>
-                  <p className="text-sm text-gray-400">Proposed by {vote.proposerUsername}</p>
+                  <h3 className="font-bold text-[color:var(--nn-text-primary)] text-lg">{vote.voteType}</h3>
+                  <p className="text-sm text-[color:var(--nn-text-secondary)]">Proposed by {vote.proposerUsername}</p>
                   {vote.targetUsername && (
-                    <p className="text-sm text-purple-400">Target: {vote.targetUsername}</p>
+                    <p className="text-sm text-[color:var(--nn-violet)]">Target: {vote.targetUsername}</p>
                   )}
                   {vote.warheadType && (
-                    <Badge className="bg-red-600 mt-1">{vote.warheadType}</Badge>
+                    <Badge className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] mt-1">{vote.warheadType}</Badge>
                   )}
                 </div>
                 <div className="text-right">
@@ -201,7 +201,7 @@ export default function WMDVotingPanel() {
                     {vote.status}
                   </Badge>
                   {vote.status === 'ACTIVE' && (
-                    <p className="text-xs text-gray-400 mt-1">
+                    <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                       {getTimeRemaining(vote.expiresAt)}
                     </p>
                   )}
@@ -211,14 +211,14 @@ export default function WMDVotingPanel() {
               {/* Progress Bar */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-300">
+                  <span className="text-[color:var(--nn-text-secondary)]">
                     {vote.votesFor.length}/{vote.requiredVotes} votes needed
                   </span>
-                  <span className="text-gray-400">{progress}%</span>
+                  <span className="text-[color:var(--nn-text-secondary)]">{progress}%</span>
                 </div>
-                <div className="w-full bg-gray-600 rounded-full h-2">
+                <div className="w-full bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-full h-2">
                   <div
-                    className="bg-green-600 h-2 rounded-full transition-all"
+                    className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] h-2 rounded-full transition-all"
                     style={{ width: `${Math.min(100, parseFloat(progress))}%` }}
                   />
                 </div>
@@ -227,14 +227,14 @@ export default function WMDVotingPanel() {
               {/* Vote Stats */}
               <div className="flex gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-green-400 text-lg">✓</span>
-                  <span className="text-gray-300">Yes: {vote.votesFor.length}</span>
+                  <span className="text-[color:var(--nn-green)] text-lg">✓</span>
+                  <span className="text-[color:var(--nn-text-secondary)]">Yes: {vote.votesFor.length}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-red-400 text-lg">✗</span>
-                  <span className="text-gray-300">No: {vote.votesAgainst.length}</span>
+                  <span className="text-[color:var(--nn-magenta)] text-lg">✗</span>
+                  <span className="text-[color:var(--nn-text-secondary)]">No: {vote.votesAgainst.length}</span>
                 </div>
-                <div className="text-gray-400">
+                <div className="text-[color:var(--nn-text-secondary)]">
                   Total: {totalVotes}
                 </div>
               </div>
@@ -244,13 +244,13 @@ export default function WMDVotingPanel() {
                 <div className="flex gap-2">
                   <Button
                     onClick={() => castVote(vote.voteId, true)}
-                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    className="flex-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"
                   >
                     Vote Yes
                   </Button>
                   <Button
                     onClick={() => castVote(vote.voteId, false)}
-                    className="flex-1 bg-red-600 hover:bg-red-700"
+                    className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
                   >
                     Vote No
                   </Button>
@@ -264,8 +264,8 @@ export default function WMDVotingPanel() {
       {/* Empty State */}
       {votes.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No clan votes</p>
-          <p className="text-gray-500 text-sm">Votes will appear here when created</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">No clan votes</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">Votes will appear here when created</p>
         </div>
       )}
     </div>

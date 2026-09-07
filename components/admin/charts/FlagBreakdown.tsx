@@ -50,18 +50,18 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
     const percent = ((data.value / totalFlagged) * 100).toFixed(1);
 
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
-        <p className="text-gray-300 text-sm font-semibold mb-2">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3 shadow-lg">
+        <p className="text-[color:var(--nn-text-secondary)] text-sm font-semibold mb-2">
           {data.name}
         </p>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">Players:</span>
-            <span className="text-white font-semibold">{data.value}</span>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Players:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{data.value}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">Percentage:</span>
-            <span className="text-white font-semibold">{percent}%</span>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Percentage:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{percent}%</span>
           </div>
         </div>
       </div>
@@ -71,10 +71,10 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
   // Loading state
   if (loading) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-3"></div>
-          <p className="text-gray-400">Loading flag data...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mx-auto mb-3"></div>
+          <p className="text-[color:var(--nn-text-secondary)]">Loading flag data...</p>
         </div>
       </div>
     );
@@ -83,10 +83,10 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
   // Error state
   if (error) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg border border-red-500">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
         <div className="text-center">
-          <p className="text-red-400 font-semibold mb-1">Failed to load flag data</p>
-          <p className="text-gray-500 text-sm">{error}</p>
+          <p className="text-[color:var(--nn-magenta)] font-semibold mb-1">Failed to load flag data</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">{error}</p>
         </div>
       </div>
     );
@@ -95,11 +95,11 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
   // No data state
   if (!data || data.length === 0 || totalFlagged === 0) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="text-green-500 text-4xl mb-2">✓</div>
-          <p className="text-gray-400">No flagged players</p>
-          <p className="text-gray-500 text-sm">Anti-cheat system active</p>
+          <div className="text-[color:var(--nn-green)] text-4xl mb-2">✓</div>
+          <p className="text-[color:var(--nn-text-secondary)]">No flagged players</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">Anti-cheat system active</p>
         </div>
       </div>
     );
@@ -113,7 +113,7 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
   }));
 
   return (
-    <div className="w-full h-[300px] bg-gray-800 rounded-lg p-4 relative">
+    <div className="w-full h-[300px] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 relative">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
@@ -141,27 +141,27 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
       
       {/* Center label */}
       <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-        <div className="text-3xl font-bold text-white">{totalFlagged}</div>
-        <div className="text-xs text-gray-400">Flagged</div>
+        <div className="text-3xl font-bold text-[color:var(--nn-text-primary)]">{totalFlagged}</div>
+        <div className="text-xs text-[color:var(--nn-text-secondary)]">Flagged</div>
       </div>
 
       {/* Severity explanation */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-red-600"></div>
-          <span className="text-gray-400">Critical: Confirmed cheating</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Critical: Confirmed cheating</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-          <span className="text-gray-400">High: Suspicious patterns</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">High: Suspicious patterns</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-          <span className="text-gray-400">Medium: Anomalies detected</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Medium: Anomalies detected</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-gray-400">Low: Minor irregularities</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Low: Minor irregularities</span>
         </div>
       </div>
     </div>

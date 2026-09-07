@@ -1,13 +1,8 @@
 /**
  * @file components/DiscoveryNotification.tsx
- * @created 2025-01-17
- * @overview Ancient technology discovery notification popup
- * 
- * OVERVIEW:
- * Displays a celebratory notification when player discovers an ancient technology.
- * Shows the technology icon, name, category, and bonus effect.
+ * @overview Ancient technology discovery notification — NEON NOIR §5.1 popup.
+ * Quiet glass panel, left signal rail per category, Orbitron title.
  * Auto-dismisses after 8 seconds or can be manually closed.
- * Appears with animation from the top of the screen.
  */
 
 'use client';
@@ -22,18 +17,18 @@ interface DiscoveryNotificationProps {
 }
 
 /**
- * Get category color for visual styling
+ * Category signal-rail token (NEON NOIR: semantic accent per discipline)
  */
-function getCategoryColor(category: DiscoveryCategory): string {
+function getCategoryAccent(category: DiscoveryCategory): string {
   switch (category) {
     case DiscoveryCategory.Industrial:
-      return 'from-blue-500 to-cyan-500';
+      return 'var(--nn-cyan)';
     case DiscoveryCategory.Combat:
-      return 'from-red-500 to-orange-500';
+      return 'var(--nn-magenta)';
     case DiscoveryCategory.Strategic:
-      return 'from-purple-500 to-pink-500';
+      return 'var(--nn-violet)';
     default:
-      return 'from-gray-500 to-gray-600';
+      return 'var(--nn-text-secondary)';
   }
 }
 
@@ -53,10 +48,10 @@ function getCategoryIcon(category: DiscoveryCategory): string {
   }
 }
 
-export default function DiscoveryNotification({ 
-  discovery, 
+export default function DiscoveryNotification({
+  discovery,
   totalDiscoveries,
-  onClose 
+  onClose
 }: DiscoveryNotificationProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
@@ -85,7 +80,7 @@ export default function DiscoveryNotification({
 
   if (!discovery) return null;
 
-  const categoryColor = getCategoryColor(discovery.category);
+  const accent = getCategoryAccent(discovery.category);
   const categoryIcon = getCategoryIcon(discovery.category);
 
   return (
@@ -96,33 +91,45 @@ export default function DiscoveryNotification({
         ${isVisible && !isExiting ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10'}
       `}
     >
-      <div className={`
-        bg-gradient-to-r ${categoryColor}
-        rounded-lg shadow-2xl border-2 border-white/30
-        p-6 min-w-[400px] max-w-[500px]
-        relative overflow-hidden
-      `}>
-        {/* Animated background effect */}
-        <div className="absolute inset-0 bg-white/10 animate-pulse"></div>
-        
+      <div
+        className="rounded-none p-5 min-w-[400px] max-w-[500px]"
+        style={{
+          background: 'color-mix(in oklab, var(--nn-void) 90%, transparent)',
+          border: '1px solid color-mix(in oklab, var(--nn-cyan) 16%, transparent)',
+          borderLeft: `3px solid ${accent}`,
+          boxShadow: `0 0 40px color-mix(in oklab, ${accent} 25%, transparent), 0 8px 32px rgba(0,0,0,0.6)`,
+          backdropFilter: 'blur(8px)',
+        }}
+      >
         {/* Content */}
         <div className="relative z-10">
           {/* Header */}
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3">
-              <span className="text-4xl">{categoryIcon}</span>
+              <span className="text-2xl">{categoryIcon}</span>
               <div>
-                <div className="text-xs font-bold text-white/80 uppercase tracking-wider mb-1">
-                  Ancient Technology Discovered!
+                <div
+                  className="mb-1 uppercase"
+                  style={{
+                    fontSize: 10,
+                    letterSpacing: '0.2em',
+                    color: accent,
+                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  }}
+                >
+                  Ancient Technology Discovered
                 </div>
-                <div className="text-xl font-bold text-white">
+                <div
+                  className="text-lg font-bold text-[color:var(--nn-text-primary)]"
+                  style={{ fontFamily: "'Orbitron', sans-serif", letterSpacing: '0.04em' }}
+                >
                   {discovery.name}
                 </div>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="text-white/70 hover:text-white transition-colors text-xl font-bold"
+              className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] transition-colors text-xl font-bold leading-none"
               aria-label="Close notification"
             >
               ×
@@ -130,53 +137,56 @@ export default function DiscoveryNotification({
           </div>
 
           {/* Category Badge */}
-          <div className="inline-block bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full mb-3">
+          <div
+            className="mb-3 inline-block px-2 py-1 text-xs font-semibold uppercase"
+            style={{
+              letterSpacing: '0.14em',
+              color: accent,
+              border: `1px solid color-mix(in oklab, ${accent} 45%, transparent)`,
+              background: `color-mix(in oklab, ${accent} 10%, transparent)`,
+              fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+            }}
+          >
             {discovery.category.toUpperCase()}
           </div>
 
           {/* Description */}
-          <p className="text-white/90 text-sm mb-3 leading-relaxed">
+          <p className="mb-3 text-sm leading-relaxed text-[color:var(--nn-text-secondary)]">
             {discovery.description}
           </p>
 
-          {/* Bonus */}
-          <div className="bg-white/20 backdrop-blur-sm rounded-lg p-3 mb-3">
-            <div className="text-xs font-semibold text-white/80 uppercase tracking-wide mb-1">
+          {/* Bonus — neutral well with rail */}
+          <div
+            className="mb-3 p-3 rounded-none"
+            style={{
+              border: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)',
+              borderLeft: `2px solid ${accent}`,
+              background: 'color-mix(in oklab, var(--nn-void) 45%, transparent)',
+            }}
+          >
+            <div
+              className="mb-1 text-xs font-semibold uppercase"
+              style={{ letterSpacing: '0.16em', color: 'var(--nn-text-secondary)', fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}
+            >
               Permanent Bonus
             </div>
-            <div className="text-lg font-bold text-white">
+            <div className="nn-num text-base text-[color:var(--nn-text-primary)]">
               {discovery.bonus}
             </div>
           </div>
 
           {/* Progress */}
           {totalDiscoveries !== undefined && (
-            <div className="flex items-center justify-between text-white/80 text-sm">
-              <span>Discoveries</span>
-              <span className="font-bold">
+            <div className="flex items-center justify-between text-xs text-[color:var(--nn-text-secondary)]">
+              <span className="uppercase" style={{ letterSpacing: '0.14em' }}>Discoveries</span>
+              <span className="nn-num text-[color:var(--nn-text-primary)]">
                 {totalDiscoveries} / 15
-                {totalDiscoveries === 15 && ' 🎉 COMPLETE!'}
+                {totalDiscoveries === 15 && <span style={{ color: 'var(--nn-green)' }}> — COMPLETE</span>}
               </span>
             </div>
           )}
         </div>
-
-        {/* Shine effect */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// IMPLEMENTATION NOTES:
-// ============================================================
-// - Auto-dismisses after 8 seconds
-// - Manual close button
-// - Category-specific color gradients
-// - Animated entrance/exit
-// - Shows progress toward 15/15 discoveries
-// - Responsive design with fixed positioning
-// ============================================================
-// END OF FILE
-// ============================================================

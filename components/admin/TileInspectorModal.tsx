@@ -131,60 +131,60 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
   // Tile type colors
   const getTileColor = (type: string) => {
     switch (type.toLowerCase()) {
-      case 'wasteland': return 'bg-gray-600';
-      case 'metal': return 'bg-blue-600';
-      case 'energy': return 'bg-yellow-600';
-      case 'cave': return 'bg-orange-600';
-      case 'forest': return 'bg-green-600';
-      case 'bank': return 'bg-purple-600';
-      case 'shrine': return 'bg-pink-600';
-      default: return 'bg-gray-500';
+      case 'wasteland': return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      case 'metal': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      case 'energy': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      case 'cave': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      case 'forest': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case 'bank': return 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]';
+      case 'shrine': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
+      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 rounded-lg border-2 border-blue-500 max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] rounded-none border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-blue-900/50 p-4 flex justify-between items-center border-b border-blue-500">
-          <h2 className="text-2xl font-bold text-white">🗺️ Tile Inspector</h2>
+        <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] p-4 flex justify-between items-center border-b border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">🗺️ Tile Inspector</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl font-bold"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl font-bold"
           >
             ×
           </button>
         </div>
 
         {/* Filters */}
-        <div className="bg-gray-800 p-4 border-b border-gray-700">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
           <div className="grid grid-cols-4 gap-4">
             <div>
-              <label className="text-sm text-gray-400 block mb-1">X Coordinate</label>
+              <label className="text-sm text-[color:var(--nn-text-secondary)] block mb-1">X Coordinate</label>
               <input
                 type="number"
                 value={searchX}
                 onChange={(e) => setSearchX(e.target.value)}
                 placeholder="Any X"
-                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)]"
               />
             </div>
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Y Coordinate</label>
+              <label className="text-sm text-[color:var(--nn-text-secondary)] block mb-1">Y Coordinate</label>
               <input
                 type="number"
                 value={searchY}
                 onChange={(e) => setSearchY(e.target.value)}
                 placeholder="Any Y"
-                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)]"
               />
             </div>
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Tile Type</label>
+              <label className="text-sm text-[color:var(--nn-text-secondary)] block mb-1">Tile Type</label>
               <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)]"
               >
                 <option value="all">All Types</option>
                 <option value="wasteland">Wasteland</option>
@@ -197,11 +197,11 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
               </select>
             </div>
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Ownership</label>
+              <label className="text-sm text-[color:var(--nn-text-secondary)] block mb-1">Ownership</label>
               <select
                 value={filterOwned}
                 onChange={(e) => setFilterOwned(e.target.value)}
-                className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)]"
               >
                 <option value="all">All Tiles</option>
                 <option value="owned">Owned Only</option>
@@ -215,19 +215,19 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-3"></div>
-              <p className="text-gray-400">Loading tiles...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-3"></div>
+              <p className="text-[color:var(--nn-text-secondary)]">Loading tiles...</p>
             </div>
           ) : error ? (
             <div className="text-center py-12">
-              <p className="text-red-400 font-semibold mb-1">Error loading tiles</p>
-              <p className="text-gray-500">{error}</p>
+              <p className="text-[color:var(--nn-magenta)] font-semibold mb-1">Error loading tiles</p>
+              <p className="text-[color:var(--nn-text-secondary)]">{error}</p>
             </div>
           ) : (
             <>
               {/* Stats */}
               <div className="mb-4 flex justify-between items-center">
-                <p className="text-gray-400">
+                <p className="text-[color:var(--nn-text-secondary)]">
                   Showing {currentTiles.length} of {filteredTiles.length} tiles
                   {filteredTiles.length !== tiles.length && ` (filtered from ${tiles.length} total)`}
                 </p>
@@ -236,17 +236,17 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
                     <button
                       onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                      className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none disabled:opacity-50"
                     >
                       ← Prev
                     </button>
-                    <span className="px-3 py-1 text-white">
+                    <span className="px-3 py-1 text-[color:var(--nn-text-primary)]">
                       Page {currentPage} of {totalPages}
                     </span>
                     <button
                       onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
+                      className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none disabled:opacity-50"
                     >
                       Next →
                     </button>
@@ -257,49 +257,49 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
               {/* Tile Grid */}
               <div className="grid grid-cols-1 gap-3">
                 {currentTiles.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No tiles match your filters</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-center py-8">No tiles match your filters</p>
                 ) : (
                   currentTiles.map((tile, _idx) => (
                     <div
                       key={`${tile.x}-${tile.y}`}
-                      className="bg-gray-800 p-4 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors"
+                      className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-colors"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-4 h-4 rounded ${getTileColor(tile.type)}`}></div>
-                            <p className="text-white font-semibold">
+                            <div className={`w-4 h-4 rounded-none ${getTileColor(tile.type)}`}></div>
+                            <p className="text-[color:var(--nn-text-primary)] font-semibold">
                               ({tile.x}, {tile.y})
                             </p>
-                            <span className="text-gray-400 text-sm">{tile.type}</span>
+                            <span className="text-[color:var(--nn-text-secondary)] text-sm">{tile.type}</span>
                             {tile.isPlayerBase && (
-                              <span className="px-2 py-1 bg-green-900 text-green-300 text-xs rounded">BASE</span>
+                              <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] text-xs rounded-none">BASE</span>
                             )}
                             {tile.isFactory && (
-                              <span className="px-2 py-1 bg-red-900 text-red-300 text-xs rounded">FACTORY</span>
+                              <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] text-xs rounded-none">FACTORY</span>
                             )}
                             {tile.isCave && (
-                              <span className="px-2 py-1 bg-orange-900 text-orange-300 text-xs rounded">CAVE</span>
+                              <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs rounded-none">CAVE</span>
                             )}
                           </div>
 
                           <div className="grid grid-cols-3 gap-4 text-sm">
                             {tile.ownedBy && (
                               <div>
-                                <p className="text-gray-500">Owner</p>
-                                <p className="text-white">{tile.ownedBy}</p>
+                                <p className="text-[color:var(--nn-text-secondary)]">Owner</p>
+                                <p className="text-[color:var(--nn-text-primary)]">{tile.ownedBy}</p>
                               </div>
                             )}
                             {tile.structure && (
                               <div>
-                                <p className="text-gray-500">Structure</p>
-                                <p className="text-white">{tile.structure}</p>
+                                <p className="text-[color:var(--nn-text-secondary)]">Structure</p>
+                                <p className="text-[color:var(--nn-text-primary)]">{tile.structure}</p>
                               </div>
                             )}
                             {tile.resources && (
                               <div>
-                                <p className="text-gray-500">Resources</p>
-                                <p className="text-white">
+                                <p className="text-[color:var(--nn-text-secondary)]">Resources</p>
+                                <p className="text-[color:var(--nn-text-primary)]">
                                   {tile.resources.metal && `${tile.resources.metal} M `}
                                   {tile.resources.energy && `${tile.resources.energy} E`}
                                 </p>
@@ -309,7 +309,7 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
                         </div>
 
                         <button
-                          className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded transition-colors"
+                          className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] text-sm rounded-none transition-colors"
                           onClick={() => { setEditing(tile); setEditTerrain(tile.type); }}
                         >
                           Edit
@@ -325,15 +325,15 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
 
         {/* Edit drawer (FID-20260905-001 B2) */}
         {editing && (
-          <div className="bg-gray-800 p-4 border-t border-gray-700">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
             <div className="flex items-center gap-4">
-              <p className="text-white font-semibold">
+              <p className="text-[color:var(--nn-text-primary)] font-semibold">
                 Edit tile ({editing.x}, {editing.y}) — current: {editing.type}
               </p>
               <select
                 value={editTerrain}
                 onChange={(e) => setEditTerrain(e.target.value)}
-                className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
+                className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)]"
               >
                 {['Metal', 'Energy', 'Cave', 'Forest', 'Factory', 'Wasteland', 'Bank', 'Shrine', 'AuctionHouse'].map((t) => (
                   <option key={t} value={t}>{t}</option>
@@ -362,13 +362,13 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
                     setSaving(false);
                   }
                 }}
-                className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded transition-colors"
+                className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] disabled:opacity-50 text-[color:var(--nn-text-primary)] rounded-none transition-colors"
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
               <button
                 onClick={() => setEditing(null)}
-                className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+                className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors"
               >
                 Cancel
               </button>

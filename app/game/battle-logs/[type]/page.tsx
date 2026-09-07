@@ -141,14 +141,14 @@ export default function BattleLogsPage() {
 
   if (loading && page === 1) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <p className="text-xl">Loading battle logs...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -156,28 +156,28 @@ export default function BattleLogsPage() {
           <h1 className="text-4xl font-bold mt-4">
             {TYPE_LABELS[logType] || 'Battle Logs'}
           </h1>
-          <p className="text-gray-400 mt-2">
+          <p className="text-[color:var(--nn-text-secondary)] mt-2">
             Showing {logs.length} of {total.toLocaleString()} logs
           </p>
         </div>
 
         {/* Pagination Controls - Top */}
         {totalPages > 1 && (
-          <div className="flex justify-between items-center mb-4 bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <div className="flex justify-between items-center mb-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
             <button
               onClick={() => goToPage(page - 1)}
               disabled={page === 1}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed rounded font-semibold transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
             >
               ← Previous
             </button>
-            <span className="text-gray-300">
+            <span className="text-[color:var(--nn-text-secondary)]">
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed rounded font-semibold transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
             >
               Next →
             </button>
@@ -197,10 +197,10 @@ export default function BattleLogsPage() {
             return (
               <div
                 key={log._id}
-                className={`p-4 rounded-lg border-2 ${
+                className={`p-4 rounded-none border-2 ${
                   isVictory
-                    ? 'bg-green-900/20 border-green-600'
-                    : 'bg-red-900/20 border-red-600'
+                    ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]'
+                    : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
                 }`}
               >
                 <div className="flex flex-wrap justify-between items-start gap-4">
@@ -208,10 +208,10 @@ export default function BattleLogsPage() {
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-3 mb-2">
                       <span
-                        className={`px-3 py-1 rounded font-bold text-sm ${
+                        className={`px-3 py-1 rounded-none font-bold text-sm ${
                           isVictory
-                            ? 'bg-green-600 text-white'
-                            : 'bg-red-600 text-white'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                         }`}
                       >
                         {isVictory ? 'VICTORY' : 'DEFEAT'}
@@ -221,7 +221,7 @@ export default function BattleLogsPage() {
                       </span>
                     </div>
 
-                    <div className="text-sm text-gray-400 space-y-1">
+                    <div className="text-sm text-[color:var(--nn-text-secondary)] space-y-1">
                       <p>
                         Location: ({log.location.x}, {log.location.y})
                       </p>
@@ -233,15 +233,15 @@ export default function BattleLogsPage() {
                   <div className="flex-1 min-w-[200px]">
                     <div className="text-sm space-y-1">
                       {log.attackerStrength !== undefined && log.defenderStrength !== undefined && (
-                        <p className="text-gray-300">
-                          <span className="text-gray-400">Forces:</span>{' '}
+                        <p className="text-[color:var(--nn-text-secondary)]">
+                          <span className="text-[color:var(--nn-text-secondary)]">Forces:</span>{' '}
                           {log.attackerStrength.toLocaleString()} vs{' '}
                           {log.defenderStrength.toLocaleString()}
                         </p>
                       )}
                       {log.attackerLosses !== undefined && log.defenderLosses !== undefined && (
-                        <p className="text-gray-300">
-                          <span className="text-gray-400">Casualties:</span>{' '}
+                        <p className="text-[color:var(--nn-text-secondary)]">
+                          <span className="text-[color:var(--nn-text-secondary)]">Casualties:</span>{' '}
                           {isAttacker ? log.attackerLosses : log.defenderLosses} units
                         </p>
                       )}
@@ -254,10 +254,10 @@ export default function BattleLogsPage() {
                       {metalChange !== 0 && (
                         <p
                           className={`font-semibold ${
-                            metalChange > 0 ? 'text-green-400' : 'text-red-400'
+                            metalChange > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
                           }`}
                         >
-                          <span className="text-orange-400">Metal:</span>{' '}
+                          <span className="text-[color:var(--nn-amber)]">Metal:</span>{' '}
                           {metalChange > 0 ? '+' : ''}
                           {metalChange.toLocaleString()}
                         </p>
@@ -265,16 +265,16 @@ export default function BattleLogsPage() {
                       {energyChange !== 0 && (
                         <p
                           className={`font-semibold ${
-                            energyChange > 0 ? 'text-green-400' : 'text-red-400'
+                            energyChange > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
                           }`}
                         >
-                          <span className="text-cyan-400">Energy:</span>{' '}
+                          <span className="text-[color:var(--nn-cyan)]">Energy:</span>{' '}
                           {energyChange > 0 ? '+' : ''}
                           {energyChange.toLocaleString()}
                         </p>
                       )}
                       {metalChange === 0 && energyChange === 0 && (
-                        <p className="text-gray-400 italic">No resources gained/lost</p>
+                        <p className="text-[color:var(--nn-text-secondary)] italic">No resources gained/lost</p>
                       )}
                     </div>
                   </div>
@@ -286,9 +286,9 @@ export default function BattleLogsPage() {
 
         {/* No Logs Message */}
         {logs.length === 0 && !loading && (
-          <div className="text-center py-12 bg-gray-800 rounded-lg border border-gray-700">
-            <p className="text-xl text-gray-400">No battle logs found</p>
-            <p className="text-sm text-gray-500 mt-2">
+          <div className="text-center py-12 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+            <p className="text-xl text-[color:var(--nn-text-secondary)]">No battle logs found</p>
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">
               {logType === 'attack' && "You haven't attacked anyone yet"}
               {logType === 'defense' && "You haven't been attacked yet"}
               {logType === 'infantry' && "No infantry battle encounters yet"}
@@ -299,11 +299,11 @@ export default function BattleLogsPage() {
 
         {/* Pagination Controls - Bottom */}
         {totalPages > 1 && logs.length > 0 && (
-          <div className="flex justify-between items-center mt-4 bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <div className="flex justify-between items-center mt-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
             <button
               onClick={() => goToPage(page - 1)}
               disabled={page === 1}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed rounded font-semibold transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
             >
               ← Previous
             </button>
@@ -324,10 +324,10 @@ export default function BattleLogsPage() {
                   <button
                     key={pageNum}
                     onClick={() => goToPage(pageNum)}
-                    className={`px-3 py-2 rounded font-semibold transition-colors ${
+                    className={`px-3 py-2 rounded-none font-semibold transition-colors ${
                       page === pageNum
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                        : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)]'
                     }`}
                   >
                     {pageNum}
@@ -338,7 +338,7 @@ export default function BattleLogsPage() {
             <button
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed rounded font-semibold transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
             >
               Next →
             </button>
@@ -348,7 +348,7 @@ export default function BattleLogsPage() {
         {/* Loading Indicator for Page Changes */}
         {loading && page > 1 && (
           <div className="text-center py-8">
-            <p className="text-gray-400">Loading...</p>
+            <p className="text-[color:var(--nn-text-secondary)]">Loading...</p>
           </div>
         )}
       </div>

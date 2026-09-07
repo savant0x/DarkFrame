@@ -181,12 +181,12 @@ export default function UnitBuildPanelEnhanced({
 
   const getTierColor = (tier: UnitTier): string => {
     switch (tier) {
-      case UnitTier.Tier1: return 'border-gray-500 bg-gray-800/50';
-      case UnitTier.Tier2: return 'border-green-500 bg-green-900/30';
-      case UnitTier.Tier3: return 'border-blue-500 bg-blue-900/30';
-      case UnitTier.Tier4: return 'border-purple-500 bg-purple-900/30';
-      case UnitTier.Tier5: return 'border-yellow-500 bg-yellow-900/30';
-      default: return 'border-gray-500 bg-gray-800/50';
+      case UnitTier.Tier1: return 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]';
+      case UnitTier.Tier2: return 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case UnitTier.Tier3: return 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      case UnitTier.Tier4: return 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]';
+      case UnitTier.Tier5: return 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      default: return 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]';
     }
   };
 
@@ -211,14 +211,14 @@ export default function UnitBuildPanelEnhanced({
   });
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border-2 border-orange-500 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none max-w-6xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-orange-600 p-4 flex justify-between items-center sticky top-0 z-10">
-          <h2 className="text-2xl font-bold text-white">🏭 Unit Production Facility</h2>
+        <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] p-4 flex justify-between items-center sticky top-0 z-10">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">🏭 Unit Production Facility</h2>
           <button
             onClick={onClose}
-            className="text-white hover:text-red-300 text-2xl font-bold"
+            className="text-[color:var(--nn-text-primary)] text-[color:var(--nn-magenta)] text-2xl font-bold"
           >
             ✕
           </button>
@@ -226,25 +226,25 @@ export default function UnitBuildPanelEnhanced({
 
         <div className="p-6">
           {/* Factory Info */}
-          <div className="bg-gray-800 rounded-lg p-4 mb-6">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
-                <p className="text-gray-400 text-sm">Location</p>
-                <p className="text-white font-bold">({factoryX}, {factoryY})</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Location</p>
+                <p className="text-[color:var(--nn-text-primary)] font-bold">({factoryX}, {factoryY})</p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Available Slots</p>
-                <p className={`font-bold text-xl ${availableSlots > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Available Slots</p>
+                <p className={`font-bold text-xl ${availableSlots > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                   {availableSlots} / {maxSlots}
                 </p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Metal</p>
-                <p className="text-yellow-400 font-bold">⚙️ {playerResources.metal.toLocaleString()}</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Metal</p>
+                <p className="text-[color:var(--nn-amber)] font-bold">⚙️ {playerResources.metal.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-gray-400 text-sm">Energy</p>
-                <p className="text-cyan-400 font-bold">⚡ {playerResources.energy.toLocaleString()}</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Energy</p>
+                <p className="text-[color:var(--nn-cyan)] font-bold">⚡ {playerResources.energy.toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -260,19 +260,19 @@ export default function UnitBuildPanelEnhanced({
                   key={tier}
                   onClick={() => unlocked && setSelectedTier(tier)}
                   disabled={!unlocked}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-none font-bold transition-all whitespace-nowrap ${
                     isSelected
                       ? getTierColor(tier).replace('bg-', 'bg-').replace('/30', '/60') + ' border-2'
                       : unlocked
-                      ? 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
-                      : 'bg-gray-800 border border-gray-700 opacity-50 cursor-not-allowed'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] opacity-50 cursor-not-allowed'
                   }`}
                 >
                   <span className="text-xl">{getTierIcon(tier)}</span>
-                  <span className={unlocked ? 'text-white' : 'text-gray-500'}>
+                  <span className={unlocked ? 'text-[color:var(--nn-text-primary)]' : 'text-[color:var(--nn-text-secondary)]'}>
                     Tier {tier}
                   </span>
-                  {!unlocked && <span className="text-red-400">🔒</span>}
+                  {!unlocked && <span className="text-[color:var(--nn-magenta)]">🔒</span>}
                 </button>
               );
             })}
@@ -280,9 +280,9 @@ export default function UnitBuildPanelEnhanced({
 
           {/* Tier Status Message */}
           {!isTierUnlocked(selectedTier) && (
-            <div className="bg-red-900/30 border border-red-500 rounded-lg p-4 mb-6">
-              <p className="text-red-400 font-bold">🔒 Tier {selectedTier} is locked!</p>
-              <p className="text-red-300 text-sm mt-2">
+            <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 mb-6">
+              <p className="text-[color:var(--nn-magenta)] font-bold">🔒 Tier {selectedTier} is locked!</p>
+              <p className="text-[color:var(--nn-magenta)] text-sm mt-2">
                 Visit the Research Panel to unlock this tier using Research Points (RP).
               </p>
             </div>
@@ -290,7 +290,7 @@ export default function UnitBuildPanelEnhanced({
 
           {/* Unit Grid - Offensive */}
           <div className="mb-6">
-            <h3 className="text-xl font-bold text-orange-400 mb-3">⚔️ Offensive Units</h3>
+            <h3 className="text-xl font-bold text-[color:var(--nn-amber)] mb-3">⚔️ Offensive Units</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {offensiveUnits.map((config) => {
                 const unitType = config.type; // Extract UnitType from UnitConfig
@@ -304,42 +304,42 @@ export default function UnitBuildPanelEnhanced({
                 const canBuild = affordable && enoughSlots && !loading && isTierUnlocked(selectedTier);
 
                 return (
-                  <div key={unitType} className={`border-2 rounded-lg p-4 ${getTierColor(selectedTier)}`}>
+                  <div key={unitType} className={`border-2 rounded-none p-4 ${getTierColor(selectedTier)}`}>
                     {/* Unit Header */}
                     <div className="text-center mb-3">
-                      <h4 className="text-lg font-bold text-white">{config.name}</h4>
-                      <p className="text-sm text-gray-400">Tier {selectedTier}</p>
+                      <h4 className="text-lg font-bold text-[color:var(--nn-text-primary)]">{config.name}</h4>
+                      <p className="text-sm text-[color:var(--nn-text-secondary)]">Tier {selectedTier}</p>
                     </div>
 
                     {/* Stats */}
-                    <div className="bg-gray-800 rounded-lg p-3 mb-3 space-y-1">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 mb-3 space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="text-red-400">⚔️ STR:</span>
-                        <span className="text-white font-bold">{config.strength}</span>
+                        <span className="text-[color:var(--nn-magenta)]">⚔️ STR:</span>
+                        <span className="text-[color:var(--nn-text-primary)] font-bold">{config.strength}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-blue-400">🛡️ DEF:</span>
-                        <span className="text-white font-bold">{config.defense}</span>
+                        <span className="text-[color:var(--nn-cyan)]">🛡️ DEF:</span>
+                        <span className="text-[color:var(--nn-text-primary)] font-bold">{config.defense}</span>
                       </div>
                     </div>
 
                     {/* Costs */}
-                    <div className="bg-gray-700 rounded-lg p-2 mb-3 space-y-1 text-xs">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none p-2 mb-3 space-y-1 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Metal:</span>
-                        <span className={`font-bold ${playerResources.metal >= totalMetal ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <span className="text-[color:var(--nn-text-secondary)]">Metal:</span>
+                        <span className={`font-bold ${playerResources.metal >= totalMetal ? 'text-[color:var(--nn-amber)]' : 'text-[color:var(--nn-magenta)]'}`}>
                           {totalMetal.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Energy:</span>
-                        <span className={`font-bold ${playerResources.energy >= totalEnergy ? 'text-cyan-400' : 'text-red-400'}`}>
+                        <span className="text-[color:var(--nn-text-secondary)]">Energy:</span>
+                        <span className={`font-bold ${playerResources.energy >= totalEnergy ? 'text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-magenta)]'}`}>
                           {totalEnergy.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Slots:</span>
-                        <span className={`font-bold ${availableSlots >= totalSlots ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className="text-[color:var(--nn-text-secondary)]">Slots:</span>
+                        <span className={`font-bold ${availableSlots >= totalSlots ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                           {totalSlots}
                         </span>
                       </div>
@@ -356,10 +356,10 @@ export default function UnitBuildPanelEnhanced({
                             key={qty}
                             onClick={() => handleBuild(unitType, qty)}
                             disabled={!canBuildQty}
-                            className={`py-1 px-2 rounded text-xs font-bold ${
+                            className={`py-1 px-2 rounded-none text-xs font-bold ${
                               canBuildQty
-                                ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                             }`}
                           >
                             {qty}
@@ -373,10 +373,10 @@ export default function UnitBuildPanelEnhanced({
                       <button
                         onClick={() => handleBuild(unitType, 25)}
                         disabled={calculateMaxBuildable(unitType) < 25 || !isTierUnlocked(selectedTier) || loading}
-                        className={`py-1 px-2 rounded text-xs font-bold ${
+                        className={`py-1 px-2 rounded-none text-xs font-bold ${
                           calculateMaxBuildable(unitType) >= 25 && isTierUnlocked(selectedTier) && !loading
-                            ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         25
@@ -393,10 +393,10 @@ export default function UnitBuildPanelEnhanced({
                           }
                         }}
                         disabled={calculateMaxBuildable(unitType) === 0 || !isTierUnlocked(selectedTier) || loading}
-                        className={`py-1 px-2 rounded text-xs font-bold ${
+                        className={`py-1 px-2 rounded-none text-xs font-bold ${
                           calculateMaxBuildable(unitType) > 0 && isTierUnlocked(selectedTier) && !loading
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         MAX ({calculateMaxBuildable(unitType)})
@@ -414,7 +414,7 @@ export default function UnitBuildPanelEnhanced({
                           const clampedValue = Math.min(Math.max(1, value), maxBuildable);
                           setQuantities({ ...quantities, [unitType]: clampedValue.toString() });
                         }}
-                        className="flex-1 bg-gray-600 text-white px-2 py-1 rounded text-xs border border-gray-500 focus:border-orange-500 focus:outline-none"
+                        className="flex-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none text-xs border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-orange-500 focus:outline-none"
                         min="1"
                         max={calculateMaxBuildable(unitType)}
                         placeholder="Custom"
@@ -423,10 +423,10 @@ export default function UnitBuildPanelEnhanced({
                       <button
                         onClick={() => handleBuild(unitType)}
                         disabled={!canBuild}
-                        className={`px-3 py-1 rounded text-xs font-bold ${
+                        className={`px-3 py-1 rounded-none text-xs font-bold ${
                           canBuild
-                            ? 'bg-orange-500 hover:bg-orange-600 text-black'
-                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         {loading ? '...' : isTierUnlocked(selectedTier) ? 'Build' : '🔒'}
@@ -440,7 +440,7 @@ export default function UnitBuildPanelEnhanced({
 
           {/* Unit Grid - Defensive */}
           <div className="mb-6">
-            <h3 className="text-xl font-bold text-blue-400 mb-3">🛡️ Defensive Units</h3>
+            <h3 className="text-xl font-bold text-[color:var(--nn-cyan)] mb-3">🛡️ Defensive Units</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {defensiveUnits.map((config) => {
                 const unitType = config.type; // Extract UnitType from UnitConfig
@@ -454,42 +454,42 @@ export default function UnitBuildPanelEnhanced({
                 const canBuild = affordable && enoughSlots && !loading && isTierUnlocked(selectedTier);
 
                 return (
-                  <div key={unitType} className={`border-2 rounded-lg p-4 ${getTierColor(selectedTier)}`}>
+                  <div key={unitType} className={`border-2 rounded-none p-4 ${getTierColor(selectedTier)}`}>
                     {/* Unit Header */}
                     <div className="text-center mb-3">
-                      <h4 className="text-lg font-bold text-white">{config.name}</h4>
-                      <p className="text-sm text-gray-400">Tier {selectedTier}</p>
+                      <h4 className="text-lg font-bold text-[color:var(--nn-text-primary)]">{config.name}</h4>
+                      <p className="text-sm text-[color:var(--nn-text-secondary)]">Tier {selectedTier}</p>
                     </div>
 
                     {/* Stats */}
-                    <div className="bg-gray-800 rounded-lg p-3 mb-3 space-y-1">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 mb-3 space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span className="text-red-400">⚔️ STR:</span>
-                        <span className="text-white font-bold">{config.strength}</span>
+                        <span className="text-[color:var(--nn-magenta)]">⚔️ STR:</span>
+                        <span className="text-[color:var(--nn-text-primary)] font-bold">{config.strength}</span>
                       </div>
                       <div className="flex justify-between text-sm">
-                        <span className="text-blue-400">🛡️ DEF:</span>
-                        <span className="text-white font-bold">{config.defense}</span>
+                        <span className="text-[color:var(--nn-cyan)]">🛡️ DEF:</span>
+                        <span className="text-[color:var(--nn-text-primary)] font-bold">{config.defense}</span>
                       </div>
                     </div>
 
                     {/* Costs */}
-                    <div className="bg-gray-700 rounded-lg p-2 mb-3 space-y-1 text-xs">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none p-2 mb-3 space-y-1 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Metal:</span>
-                        <span className={`font-bold ${playerResources.metal >= totalMetal ? 'text-yellow-400' : 'text-red-400'}`}>
+                        <span className="text-[color:var(--nn-text-secondary)]">Metal:</span>
+                        <span className={`font-bold ${playerResources.metal >= totalMetal ? 'text-[color:var(--nn-amber)]' : 'text-[color:var(--nn-magenta)]'}`}>
                           {totalMetal.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Energy:</span>
-                        <span className={`font-bold ${playerResources.energy >= totalEnergy ? 'text-cyan-400' : 'text-red-400'}`}>
+                        <span className="text-[color:var(--nn-text-secondary)]">Energy:</span>
+                        <span className={`font-bold ${playerResources.energy >= totalEnergy ? 'text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-magenta)]'}`}>
                           {totalEnergy.toLocaleString()}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Slots:</span>
-                        <span className={`font-bold ${availableSlots >= totalSlots ? 'text-green-400' : 'text-red-400'}`}>
+                        <span className="text-[color:var(--nn-text-secondary)]">Slots:</span>
+                        <span className={`font-bold ${availableSlots >= totalSlots ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                           {totalSlots}
                         </span>
                       </div>
@@ -506,10 +506,10 @@ export default function UnitBuildPanelEnhanced({
                             key={qty}
                             onClick={() => handleBuild(unitType, qty)}
                             disabled={!canBuildQty}
-                            className={`py-1 px-2 rounded text-xs font-bold ${
+                            className={`py-1 px-2 rounded-none text-xs font-bold ${
                               canBuildQty
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                             }`}
                           >
                             {qty}
@@ -523,10 +523,10 @@ export default function UnitBuildPanelEnhanced({
                       <button
                         onClick={() => handleBuild(unitType, 25)}
                         disabled={calculateMaxBuildable(unitType) < 25 || !isTierUnlocked(selectedTier) || loading}
-                        className={`py-1 px-2 rounded text-xs font-bold ${
+                        className={`py-1 px-2 rounded-none text-xs font-bold ${
                           calculateMaxBuildable(unitType) >= 25 && isTierUnlocked(selectedTier) && !loading
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         25
@@ -543,10 +543,10 @@ export default function UnitBuildPanelEnhanced({
                           }
                         }}
                         disabled={calculateMaxBuildable(unitType) === 0 || !isTierUnlocked(selectedTier) || loading}
-                        className={`py-1 px-2 rounded text-xs font-bold ${
+                        className={`py-1 px-2 rounded-none text-xs font-bold ${
                           calculateMaxBuildable(unitType) > 0 && isTierUnlocked(selectedTier) && !loading
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         MAX ({calculateMaxBuildable(unitType)})
@@ -564,7 +564,7 @@ export default function UnitBuildPanelEnhanced({
                           const clampedValue = Math.min(Math.max(1, value), maxBuildable);
                           setQuantities({ ...quantities, [unitType]: clampedValue.toString() });
                         }}
-                        className="flex-1 bg-gray-600 text-white px-2 py-1 rounded text-xs border border-gray-500 focus:border-blue-500 focus:outline-none"
+                        className="flex-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none text-xs border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-blue-500 focus:outline-none"
                         min="1"
                         max={calculateMaxBuildable(unitType)}
                         placeholder="Custom"
@@ -573,10 +573,10 @@ export default function UnitBuildPanelEnhanced({
                       <button
                         onClick={() => handleBuild(unitType)}
                         disabled={!canBuild}
-                        className={`px-3 py-1 rounded text-xs font-bold ${
+                        className={`px-3 py-1 rounded-none text-xs font-bold ${
                           canBuild
-                            ? 'bg-blue-500 hover:bg-blue-600 text-black'
-                            : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         {loading ? '...' : isTierUnlocked(selectedTier) ? 'Build' : '🔒'}
@@ -590,19 +590,19 @@ export default function UnitBuildPanelEnhanced({
 
           {/* Message */}
           {message && (
-            <div className={`p-3 rounded mb-4 ${
+            <div className={`p-3 rounded-none mb-4 ${
               message.includes('✅')
-                ? 'bg-green-900/50 text-green-300'
-                : 'bg-red-900/50 text-red-300'
+                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
             }`}>
               {message}
             </div>
           )}
 
           {/* Info Box */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <p className="font-bold text-orange-400 mb-2">💡 Production Tips:</p>
-            <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <p className="font-bold text-[color:var(--nn-amber)] mb-2">💡 Production Tips:</p>
+            <ul className="list-disc list-inside space-y-1 text-[color:var(--nn-text-secondary)] text-sm">
               <li>Unlock higher tiers using Research Points (RP) earned from leveling up</li>
               <li>Higher tier units have significantly better stats but cost more resources</li>
               <li>Factory slots regenerate at 1 slot/hour (max 10 slots)</li>

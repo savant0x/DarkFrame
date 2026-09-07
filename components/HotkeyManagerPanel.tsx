@@ -143,17 +143,17 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gray-900 border-2 border-cyan-500/50 rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] flex items-center gap-2">
             <Keyboard className="w-6 h-6" />
             Hotkey Configuration Manager
           </h2>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white text-2xl leading-none"
+            className="text-[color:var(--nn-text-primary)]/70 hover:text-[color:var(--nn-text-primary)] text-2xl leading-none"
           >
             ×
           </button>
@@ -164,8 +164,8 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
           <div
             className={`px-6 py-3 flex items-center gap-2 border-b ${
               message.type === 'success'
-                ? 'bg-green-500/20 border-green-500/30 text-green-400'
-                : 'bg-red-500/20 border-red-500/30 text-red-400'
+                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)]'
             }`}
           >
             {message.type === 'success' ? (
@@ -180,27 +180,27 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {loading ? (
-            <div className="text-center text-white/70 py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-cyan-500 border-t-transparent"></div>
+            <div className="text-center text-[color:var(--nn-text-primary)]/70 py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent"></div>
               <p className="mt-4">Loading hotkey configuration...</p>
             </div>
           ) : (
             Object.entries(groupedHotkeys).map(([category, categoryHotkeys]) => (
-              <div key={category} className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-4">
-                <h3 className="text-lg font-semibold text-cyan-400 mb-4">{category}</h3>
+              <div key={category} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
+                <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-4">{category}</h3>
                 <div className="space-y-2">
                   {categoryHotkeys.map((hk) => (
                     <div
                       key={hk.action}
-                      className={`flex items-center gap-4 p-3 rounded ${
+                      className={`flex items-center gap-4 p-3 rounded-none ${
                         conflicts.includes(hk.action)
-                          ? 'bg-red-500/20 border border-red-500/50'
-                          : 'bg-gray-900/50'
+                          ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
+                          : 'bg-[color:var(--nn-void)]'
                       }`}
                     >
                       <div className="flex-1">
-                        <div className="font-semibold text-white">{hk.displayName}</div>
-                        <div className="text-xs text-white/60">{hk.description}</div>
+                        <div className="font-semibold text-[color:var(--nn-text-primary)]">{hk.displayName}</div>
+                        <div className="text-xs text-[color:var(--nn-text-primary)]/60">{hk.description}</div>
                       </div>
                       <div className="flex items-center gap-2">
                         {editingKey === hk.action ? (
@@ -208,7 +208,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
                             type="text"
                             maxLength={1}
                             autoFocus
-                            className="w-16 px-2 py-1 bg-gray-700 border border-cyan-500/50 rounded text-center text-white font-mono uppercase"
+                            className="w-16 px-2 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none text-center text-[color:var(--nn-text-primary)] font-mono uppercase"
                             defaultValue={hk.key}
                             onBlur={(e) => updateHotkeyKey(hk.action, e.target.value || hk.key)}
                             onKeyDown={(e) => {
@@ -222,7 +222,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
                         ) : (
                           <button
                             onClick={() => setEditingKey(hk.action)}
-                            className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/50 rounded text-white font-mono uppercase hover:bg-cyan-500/30 transition-colors"
+                            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] font-mono uppercase transition-colors"
                           >
                             {hk.requiresShift && 'Shift+'}
                             {hk.requiresCtrl && 'Ctrl+'}
@@ -240,32 +240,32 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
         </div>
 
         {/* Footer */}
-        <div className="border-t border-cyan-500/30 px-6 py-4 bg-gray-800/50 flex items-center justify-between">
+        <div className="border-t border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] px-6 py-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] flex items-center justify-between">
           <button
             onClick={handleReset}
             disabled={saving || loading}
-            className="px-4 py-2 bg-red-500/20 border border-red-500/50 rounded text-white hover:bg-red-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             Reset to Defaults
           </button>
           <div className="flex items-center gap-3">
             {conflicts.length > 0 && (
-              <span className="text-red-400 text-sm flex items-center gap-1">
+              <span className="text-[color:var(--nn-magenta)] text-sm flex items-center gap-1">
                 <AlertCircle className="w-4 h-4" />
                 {conflicts.length} conflict{conflicts.length > 1 ? 's' : ''}
               </span>
             )}
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-700 border border-gray-600 rounded text-white hover:bg-gray-600 transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving || loading || conflicts.length > 0}
-              className="px-4 py-2 bg-cyan-500/20 border border-cyan-500/50 rounded text-white hover:bg-cyan-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
               {saving ? 'Saving...' : 'Save Changes'}

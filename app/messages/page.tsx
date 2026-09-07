@@ -354,7 +354,7 @@ export default function MessagesPage() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-bg-space via-bg-nebula to-bg-space flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
           <p className="text-text-secondary">Loading player data...</p>
         </div>
       </div>
@@ -377,7 +377,7 @@ export default function MessagesPage() {
           <div className="flex items-center justify-between">
             {/* Title */}
             <div>
-              <h1 className="text-2xl font-bold text-white">Messages</h1>
+              <h1 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Messages</h1>
               <p className="text-sm text-text-secondary mt-1">
                 Private conversations and real-time chat
               </p>
@@ -387,7 +387,7 @@ export default function MessagesPage() {
             <div className="flex items-center gap-3">
               {/* Unread Counter */}
               {state.totalUnreadCount > 0 && (
-                <div className="bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
                   {state.totalUnreadCount > 99 ? '99+' : state.totalUnreadCount} unread
                 </div>
               )}
@@ -397,12 +397,12 @@ export default function MessagesPage() {
                 <div
                   className={`w-2 h-2 rounded-full ${
                     state.connectionStatus === 'connected'
-                      ? 'bg-green-500'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]'
                       : state.connectionStatus === 'connecting'
-                      ? 'bg-yellow-500 animate-pulse'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] animate-pulse'
                       : state.connectionStatus === 'error'
-                      ? 'bg-red-500'
-                      : 'bg-red-500'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
                   }`}
                   title={`Connection: ${state.connectionStatus}`}
                 />
@@ -414,7 +414,7 @@ export default function MessagesPage() {
                 {state.connectionStatus === 'disconnected' && (
                   <button
                     onClick={reconnect}
-                    className="ml-2 text-xs text-blue-400 hover:text-blue-300 underline"
+                    className="ml-2 text-xs text-[color:var(--nn-cyan)] underline"
                   >
                     Reconnect
                   </button>
@@ -427,7 +427,7 @@ export default function MessagesPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="bg-glass-light border border-glass-border rounded-lg overflow-hidden backdrop-blur-sm">
+        <div className="bg-glass-light border border-glass-border rounded-none overflow-hidden backdrop-blur-sm">
           {/* Desktop: Split Pane Layout */}
           {!state.isMobileView && (
             <div className="flex h-[calc(100vh-200px)]">
@@ -484,7 +484,7 @@ export default function MessagesPage() {
                   <div className="bg-glass-light p-3 border-b border-glass-border flex-shrink-0">
                     <button
                       onClick={handleBackToInbox}
-                      className="flex items-center gap-2 text-text-primary hover:text-white transition-colors"
+                      className="flex items-center gap-2 text-text-primary hover:text-[color:var(--nn-text-primary)] transition-colors"
                     >
                       <span className="text-lg">←</span>
                       <span className="font-medium">Back to Conversations</span>
@@ -512,7 +512,7 @@ export default function MessagesPage() {
 
       {/* Connection Lost Warning (Fixed Position) */}
       {state.connectionStatus === 'disconnected' && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-2xl z-50 animate-pulse">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-3 rounded-none shadow-2xl z-50 animate-pulse">
           <div className="flex items-center gap-3">
             <span className="text-xl">⚠️</span>
             <div>
@@ -521,7 +521,7 @@ export default function MessagesPage() {
             </div>
             <button
               onClick={reconnect}
-              className="ml-4 px-3 py-1 bg-white text-red-500 rounded font-medium hover:bg-bg-nebula transition-colors"
+              className="ml-4 px-3 py-1 bg-[color:var(--nn-text-primary)] text-[color:var(--nn-magenta)] rounded-none font-medium hover:bg-bg-nebula transition-colors"
             >
               Retry Now
             </button>

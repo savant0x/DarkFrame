@@ -69,17 +69,17 @@ export default function AutoFarmStatsDisplay({
     : '0.0';
 
   return (
-    <div className="bg-gray-900 rounded-lg border-2 border-purple-500 shadow-lg">
+    <div className="bg-[color:var(--nn-void)] rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-lg">
       {/* Header */}
       <div 
-        className="bg-gradient-to-r from-purple-900 to-purple-800 p-3 flex items-center justify-between cursor-pointer hover:from-purple-800 hover:to-purple-700 transition-colors"
+        className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-violet)] p-3 flex items-center justify-between cursor-pointer hover:from-[color:var(--nn-violet)] hover:to-[color:var(--nn-violet)] transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-3">
           <span className="text-2xl">{isActive ? '⚡' : '📊'}</span>
           <div>
-            <h3 className="text-lg font-bold text-white">Auto-Farm Statistics</h3>
-            <p className="text-xs text-purple-300">
+            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)]">Auto-Farm Statistics</h3>
+            <p className="text-xs text-[color:var(--nn-violet)]">
               {showAllTime ? 'All-Time Totals' : 'Current Session'}
             </p>
           </div>
@@ -92,13 +92,13 @@ export default function AutoFarmStatsDisplay({
               e.stopPropagation();
               setShowAllTime(!showAllTime);
             }}
-            className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-lg font-bold transition-colors"
+            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs rounded-none font-bold transition-colors"
           >
             {showAllTime ? 'Session' : 'All-Time'}
           </button>
           
           {/* Collapse Arrow */}
-          <span className="text-white text-xl">
+          <span className="text-[color:var(--nn-text-primary)] text-xl">
             {isExpanded ? '▼' : '▲'}
           </span>
         </div>
@@ -108,12 +108,12 @@ export default function AutoFarmStatsDisplay({
       {isExpanded && (
         <div className="p-4">
           {/* Time Elapsed - Large Display */}
-          <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 rounded-lg p-4 mb-4 border border-purple-500">
+          <div className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-violet)] rounded-none p-4 mb-4 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
             <div className="text-center">
-              <p className="text-sm text-gray-400 mb-1">
+              <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">
                 {showAllTime ? 'Total Time' : 'Time Elapsed'}
               </p>
-              <p className="text-4xl font-mono font-bold text-purple-300">
+              <p className="text-4xl font-mono font-bold text-[color:var(--nn-violet)]">
                 {formatTime(stats.timeElapsed)}
               </p>
             </div>
@@ -122,23 +122,23 @@ export default function AutoFarmStatsDisplay({
           {/* Resources Grid */}
           <div className="grid grid-cols-2 gap-3 mb-4">
             {/* Metal Collected */}
-            <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl">🔩</span>
-                <p className="text-xs text-gray-400">Metal</p>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">Metal</p>
               </div>
-              <p className="text-2xl font-bold text-blue-400">
+              <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">
                 {stats.metalCollected.toLocaleString()}
               </p>
             </div>
 
             {/* Energy Collected */}
-            <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xl">⚡</span>
-                <p className="text-xs text-gray-400">Energy</p>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">Energy</p>
               </div>
-              <p className="text-2xl font-bold text-yellow-400">
+              <p className="text-2xl font-bold text-[color:var(--nn-amber)]">
                 {stats.energyCollected.toLocaleString()}
               </p>
             </div>
@@ -147,33 +147,33 @@ export default function AutoFarmStatsDisplay({
           {/* Exploration Stats */}
           <div className="grid grid-cols-3 gap-2 mb-4">
             {/* Tiles Visited */}
-            <div className="bg-gray-800 rounded-lg p-2 border border-gray-700">
-              <p className="text-xs text-gray-400 mb-1">Tiles</p>
-              <p className="text-lg font-bold text-purple-400">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Tiles</p>
+              <p className="text-lg font-bold text-[color:var(--nn-violet)]">
                 {stats.tilesVisited.toLocaleString()}
               </p>
             </div>
 
             {/* Cave Items */}
-            <div className="bg-gray-800 rounded-lg p-2 border border-gray-700">
-              <p className="text-xs text-gray-400 mb-1">Caves</p>
-              <p className="text-lg font-bold text-orange-400">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Caves</p>
+              <p className="text-lg font-bold text-[color:var(--nn-amber)]">
                 {stats.caveItemsFound.toLocaleString()}
               </p>
             </div>
 
             {/* Forest Items */}
-            <div className="bg-gray-800 rounded-lg p-2 border border-gray-700">
-              <p className="text-xs text-gray-400 mb-1">Forests</p>
-              <p className="text-lg font-bold text-green-400">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Forests</p>
+              <p className="text-lg font-bold text-[color:var(--nn-green)]">
                 {stats.forestItemsFound.toLocaleString()}
               </p>
             </div>
           </div>
 
           {/* Combat Stats */}
-          <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-            <h4 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+            <h4 className="text-sm font-bold text-[color:var(--nn-text-primary)] mb-2 flex items-center gap-2">
               <span>⚔️</span>
               <span>Combat Statistics</span>
             </h4>
@@ -181,24 +181,24 @@ export default function AutoFarmStatsDisplay({
             <div className="grid grid-cols-3 gap-3">
               {/* Attacks Launched */}
               <div className="text-center">
-                <p className="text-xs text-gray-400 mb-1">Attacks</p>
-                <p className="text-xl font-bold text-blue-400">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Attacks</p>
+                <p className="text-xl font-bold text-[color:var(--nn-cyan)]">
                   {stats.attacksLaunched}
                 </p>
               </div>
 
               {/* Victories */}
               <div className="text-center">
-                <p className="text-xs text-gray-400 mb-1">Won</p>
-                <p className="text-xl font-bold text-green-400">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Won</p>
+                <p className="text-xl font-bold text-[color:var(--nn-green)]">
                   {stats.attacksWon}
                 </p>
               </div>
 
               {/* Defeats */}
               <div className="text-center">
-                <p className="text-xs text-gray-400 mb-1">Lost</p>
-                <p className="text-xl font-bold text-red-400">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Lost</p>
+                <p className="text-xl font-bold text-[color:var(--nn-magenta)]">
                   {stats.attacksLost}
                 </p>
               </div>
@@ -206,10 +206,10 @@ export default function AutoFarmStatsDisplay({
 
             {/* Win Rate */}
             {stats.attacksLaunched > 0 && (
-              <div className="mt-2 pt-2 border-t border-gray-700">
+              <div className="mt-2 pt-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Win Rate:</span>
-                  <span className="text-sm font-bold text-purple-400">
+                  <span className="text-xs text-[color:var(--nn-text-secondary)]">Win Rate:</span>
+                  <span className="text-sm font-bold text-[color:var(--nn-violet)]">
                     {winRate}%
                   </span>
                 </div>
@@ -219,7 +219,7 @@ export default function AutoFarmStatsDisplay({
 
           {/* All-Time Sessions Count */}
           {showAllTime && (
-            <div className="mt-3 text-center text-xs text-gray-500">
+            <div className="mt-3 text-center text-xs text-[color:var(--nn-text-secondary)]">
               Total Sessions: {allTimeStats.totalSessionsCompleted}
             </div>
           )}

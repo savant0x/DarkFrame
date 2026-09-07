@@ -21,18 +21,23 @@ import React from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 
 /**
- * Toast configuration defaults
+ * Toast configuration defaults — NEON NOIR §5.1:
+ * square quiet-glass panel, mono meta, left signal rail carries the variant.
  */
 const TOAST_CONFIG = {
   duration: 4000, // 4 seconds
   position: 'top-center' as const,
   style: {
-    background: '#1F2937', // gray-800
-    color: '#F3F4F6', // gray-100
-    padding: '16px',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontWeight: '600',
+    background: 'color-mix(in oklab, var(--nn-void) 88%, transparent)',
+    color: 'var(--nn-text-primary)',
+    padding: '12px 16px',
+    borderRadius: '0',
+    border: '1px solid color-mix(in oklab, var(--nn-cyan) 16%, transparent)',
+    fontSize: '12.5px',
+    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+    letterSpacing: '0.02em',
+    backdropFilter: 'blur(6px)',
+    maxWidth: '420px',
   },
 };
 
@@ -51,7 +56,7 @@ export function showSuccess(message: string, duration?: number): void {
     duration: duration || TOAST_CONFIG.duration,
     style: {
       ...TOAST_CONFIG.style,
-      borderLeft: '4px solid #10B981', // green-500
+      borderLeft: '3px solid var(--nn-green)',
     },
   });
 }
@@ -71,7 +76,9 @@ export function showError(message: string, duration?: number): void {
     duration: duration || 5000, // Longer for errors
     style: {
       ...TOAST_CONFIG.style,
-      borderLeft: '4px solid #EF4444', // red-500
+      borderLeft: '3px solid var(--nn-magenta)',
+      borderColor: 'color-mix(in oklab, var(--nn-magenta) 30%, transparent)',
+      borderLeftColor: 'var(--nn-magenta)',
     },
   });
 }
@@ -89,10 +96,9 @@ export function showInfo(message: string, duration?: number): void {
   toast(message, {
     ...TOAST_CONFIG,
     duration: duration || 3000,
-    icon: 'ℹ️',
     style: {
       ...TOAST_CONFIG.style,
-      borderLeft: '4px solid #3B82F6', // blue-500
+      borderLeft: '3px solid var(--nn-cyan)',
     },
   });
 }
@@ -110,10 +116,9 @@ export function showWarning(message: string, duration?: number): void {
   toast(message, {
     ...TOAST_CONFIG,
     duration: duration || 4000,
-    icon: '⚠️',
     style: {
       ...TOAST_CONFIG.style,
-      borderLeft: '4px solid #F59E0B', // amber-500
+      borderLeft: '3px solid var(--nn-amber)',
     },
   });
 }
@@ -147,7 +152,15 @@ export function dismissAll(): void {
  * }
  */
 export function ToastContainer() {
-  return <Toaster position={TOAST_CONFIG.position} />;
+  return (
+    <Toaster
+      position={TOAST_CONFIG.position}
+      toastOptions={{
+        success: { iconTheme: { primary: 'var(--nn-green)', secondary: 'var(--nn-void)' } },
+        error: { iconTheme: { primary: 'var(--nn-magenta)', secondary: 'var(--nn-void)' } },
+      }}
+    />
+  );
 }
 
 // ============================================================

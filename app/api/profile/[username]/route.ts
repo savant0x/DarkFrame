@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlayerByUsername } from '@/lib/playerService';
 import { isLookupableUsername } from '@/lib/authService';
+import type { AchievementRecord, BattleStatistics } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -60,8 +61,8 @@ export interface PublicProfile {
   currentPosition: { x: number; y: number } | null;
   totalStrength: number;
   totalDefense: number;
-  battleStats: unknown;
-  achievements: unknown;
+  battleStats: BattleStatistics | null;
+  achievements: AchievementRecord[];
   createdAt: string | null;
 }
 

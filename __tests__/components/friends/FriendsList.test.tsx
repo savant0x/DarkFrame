@@ -73,7 +73,7 @@ describe('FriendsList Component', () => {
       const { container } = render(<FriendsList />);
 
       await waitFor(() => {
-        const onlineIndicators = container.querySelectorAll('.bg-green-500');
+        const onlineIndicators = container.querySelectorAll('.nn-online-dot');
         expect(onlineIndicators.length).toBeGreaterThan(0);
       });
     });
@@ -233,7 +233,7 @@ describe('FriendsList Component', () => {
       const { container } = render(<FriendsList />);
 
       await waitFor(() => {
-        const friendElements = container.querySelectorAll('[class*="bg-gray-800"]');
+        const friendElements = container.querySelectorAll('[class*="nn-well"], [class*="color-mix"]');
         const usernames = Array.from(friendElements).map(el => el.textContent);
         const onlineIdx = usernames.findIndex(t => t?.includes('onlineFriend'));
         const offlineIdx = usernames.findIndex(t => t?.includes('offlineFriend'));

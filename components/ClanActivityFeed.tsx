@@ -148,12 +148,12 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
   };
 
   const getActivityColor = (type: string): string => {
-    if (type.startsWith('WAR')) return 'text-red-400 border-red-500/30';
-    if (type.includes('ALLIANCE') || type.includes('CONTRACT')) return 'text-blue-400 border-blue-500/30';
-    if (type.includes('DISTRIBUTION')) return 'text-green-400 border-green-500/30';
-    if (type.includes('MEMBER')) return 'text-purple-400 border-purple-500/30';
-    if (type.includes('TERRITORY')) return 'text-yellow-400 border-yellow-500/30';
-    return 'text-gray-400 border-gray-500/30';
+    if (type.startsWith('WAR')) return 'text-[color:var(--nn-magenta)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]';
+    if (type.includes('ALLIANCE') || type.includes('CONTRACT')) return 'text-[color:var(--nn-cyan)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
+    if (type.includes('DISTRIBUTION')) return 'text-[color:var(--nn-green)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]';
+    if (type.includes('MEMBER')) return 'text-[color:var(--nn-violet)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]';
+    if (type.includes('TERRITORY')) return 'text-[color:var(--nn-amber)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]';
+    return 'text-[color:var(--nn-text-secondary)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]';
   };
 
   const formatActivityMessage = (activity: Activity): string => {
@@ -217,9 +217,9 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
   const filters: FilterType[] = ['ALL', 'WARS', 'DISTRIBUTIONS', 'ALLIANCES', 'MEMBERS', 'TERRITORY'];
 
   return (
-    <div className="flex flex-col h-full bg-black/40 rounded border border-gray-700">
+    <div className="flex flex-col h-full bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
       {/* Header */}
-      <div className="p-4 border-b border-gray-700">
+      <div className="p-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <h2 className="text-xl font-bold mb-3">Clan Activity Feed</h2>
         
         {/* Filters */}
@@ -228,10 +228,10 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded text-sm transition-colors ${
+              className={`px-3 py-1 rounded-none text-sm transition-colors ${
                 filter === f
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                  : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
               }`}
             >
               {f}
@@ -242,7 +242,7 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
 
       {/* Error Display */}
       {error && (
-        <div className="mx-4 mt-2 p-2 bg-red-900/20 border border-red-500 rounded text-sm">
+        <div className="mx-4 mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-sm">
           {error}
         </div>
       )}
@@ -250,7 +250,7 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
       {/* Activities */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {filteredActivities.length === 0 && !isLoading && (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-[color:var(--nn-text-secondary)] py-8">
             No activities found
           </div>
         )}
@@ -258,7 +258,7 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
         {filteredActivities.map((activity) => (
           <div
             key={activity._id}
-            className={`p-3 rounded border-l-4 bg-black/20 ${getActivityColor(activity.type)}`}
+            className={`p-3 rounded-none border-l-4 bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] ${getActivityColor(activity.type)}`}
           >
             <div className="flex justify-between items-start">
               <div className="flex items-start gap-2 flex-1">
@@ -267,7 +267,7 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
                   <p className={`font-medium ${getActivityColor(activity.type).split(' ')[0]}`}>
                     {formatActivityMessage(activity)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                     {formatTimestamp(activity.timestamp)}
                   </p>
                 </div>
@@ -280,7 +280,7 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
           <button
             onClick={loadMore}
             disabled={isLoading}
-            className="w-full py-2 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 text-sm"
+            className="w-full py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:opacity-50 text-sm"
           >
             {isLoading ? 'Loading...' : 'Load More'}
           </button>

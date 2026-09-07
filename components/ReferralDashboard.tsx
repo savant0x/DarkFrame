@@ -134,14 +134,14 @@ export default function ReferralDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]"></div>
       </div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="text-center p-8 text-red-400">
+      <div className="text-center p-8 text-[color:var(--nn-magenta)]">
         Failed to load referral dashboard. Please try again.
       </div>
     );
@@ -150,8 +150,8 @@ export default function ReferralDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-cyan-900/30 to-blue-900/30 border border-cyan-500/30 rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-cyan-400 mb-2">Referral Program</h2>
+      <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)] mb-2">Referral Program</h2>
         <p className="text-text-primary">
           Invite friends to DarkFrame and earn exclusive rewards, resources, and VIP time!
         </p>
@@ -159,36 +159,36 @@ export default function ReferralDashboard() {
 
       {/* Referral Code & Link */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
+        <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
           <label className="text-sm text-text-secondary mb-2 block">Your Referral Code</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={stats.code}
               readOnly
-              className="flex-1 bg-glass-dark border border-cyan-500/30 rounded px-3 py-2 text-cyan-400 font-mono text-lg"
+              className="flex-1 bg-glass-dark border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-cyan)] font-mono text-lg"
             />
             <button
               onClick={() => copyToClipboard(stats.code, 'Referral code')}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors"
             >
               {copied ? '✓' : 'Copy'}
             </button>
           </div>
         </div>
 
-        <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
+        <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
           <label className="text-sm text-text-secondary mb-2 block">Referral Link</label>
           <div className="flex gap-2">
             <input
               type="text"
               value={stats.link}
               readOnly
-              className="flex-1 bg-glass-dark border border-cyan-500/30 rounded px-3 py-2 text-cyan-400 font-mono text-sm truncate"
+              className="flex-1 bg-glass-dark border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-cyan)] font-mono text-sm truncate"
             />
             <button
               onClick={() => copyToClipboard(stats.link, 'Referral link')}
-              className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded transition-colors"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors"
             >
               {copied ? '✓' : 'Copy'}
             </button>
@@ -200,13 +200,13 @@ export default function ReferralDashboard() {
       <div className="flex gap-3 justify-center">
         <button
           onClick={shareToX}
-          className="px-6 py-2 bg-black hover:bg-glass-light text-white rounded transition-colors flex items-center gap-2"
+          className="px-6 py-2 bg-[color:var(--nn-void)] hover:bg-glass-light text-[color:var(--nn-text-primary)] rounded-none transition-colors flex items-center gap-2"
         >
           <span>𝕏</span> Share on X
         </button>
         <button
           onClick={shareToFacebook}
-          className="px-6 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded transition-colors flex items-center gap-2"
+          className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors flex items-center gap-2"
         >
           <span>📘</span> Share on Facebook
         </button>
@@ -214,24 +214,24 @@ export default function ReferralDashboard() {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-green-400">{stats.validatedReferrals}</div>
+        <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4 text-center">
+          <div className="text-3xl font-bold text-[color:var(--nn-green)]">{stats.validatedReferrals}</div>
           <div className="text-sm text-text-secondary mt-1">Validated Referrals</div>
         </div>
-        <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-yellow-400">{stats.pendingReferrals}</div>
+        <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4 text-center">
+          <div className="text-3xl font-bold text-[color:var(--nn-amber)]">{stats.pendingReferrals}</div>
           <div className="text-sm text-text-secondary mt-1">Pending Validation</div>
         </div>
-        <div className="bg-cyan-900/20 border border-cyan-500/30 rounded-lg p-4 text-center">
-          <div className="text-3xl font-bold text-cyan-400">{stats.totalReferrals}</div>
+        <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4 text-center">
+          <div className="text-3xl font-bold text-[color:var(--nn-cyan)]">{stats.totalReferrals}</div>
           <div className="text-sm text-text-secondary mt-1">Total Referrals</div>
         </div>
       </div>
 
       {/* Next Milestone */}
       {stats.nextMilestone && (
-        <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-500/30 rounded-lg p-6">
-          <h3 className="text-xl font-bold text-purple-400 mb-3">Next Milestone: {stats.nextMilestone.name}</h3>
+        <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+          <h3 className="text-xl font-bold text-[color:var(--nn-violet)] mb-3">Next Milestone: {stats.nextMilestone.name}</h3>
           
           <div className="mb-4">
             <div className="flex justify-between text-sm text-text-primary mb-2">
@@ -240,39 +240,39 @@ export default function ReferralDashboard() {
             </div>
             <div className="w-full bg-glass-light rounded-full h-4 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-500"
+                className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] h-full transition-all duration-500"
                 style={{ width: `${stats.nextMilestone.progress}%` }}
               ></div>
             </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <div className="bg-glass-light rounded p-2 text-center">
-              <div className="text-lg font-bold text-cyan-400">
+            <div className="bg-glass-light rounded-none p-2 text-center">
+              <div className="text-lg font-bold text-[color:var(--nn-cyan)]">
                 {stats.nextMilestone.rewards.metal.toLocaleString()}
               </div>
               <div className="text-xs text-text-secondary">Metal</div>
             </div>
-            <div className="bg-glass-light rounded p-2 text-center">
-              <div className="text-lg font-bold text-yellow-400">
+            <div className="bg-glass-light rounded-none p-2 text-center">
+              <div className="text-lg font-bold text-[color:var(--nn-amber)]">
                 {stats.nextMilestone.rewards.energy.toLocaleString()}
               </div>
               <div className="text-xs text-text-secondary">Energy</div>
             </div>
-            <div className="bg-glass-light rounded p-2 text-center">
-              <div className="text-lg font-bold text-purple-400">
+            <div className="bg-glass-light rounded-none p-2 text-center">
+              <div className="text-lg font-bold text-[color:var(--nn-violet)]">
                 {stats.nextMilestone.rewards.rp.toLocaleString()}
               </div>
               <div className="text-xs text-text-secondary">RP</div>
             </div>
-            <div className="bg-glass-light rounded p-2 text-center">
-              <div className="text-lg font-bold text-green-400">
+            <div className="bg-glass-light rounded-none p-2 text-center">
+              <div className="text-lg font-bold text-[color:var(--nn-green)]">
                 {stats.nextMilestone.rewards.xp.toLocaleString()}
               </div>
               <div className="text-xs text-text-secondary">XP</div>
             </div>
-            <div className="bg-glass-light rounded p-2 text-center">
-              <div className="text-lg font-bold text-pink-400">
+            <div className="bg-glass-light rounded-none p-2 text-center">
+              <div className="text-lg font-bold text-[color:var(--nn-magenta)]">
                 {stats.nextMilestone.rewards.vipDays}
               </div>
               <div className="text-xs text-text-secondary">VIP Days</div>
@@ -282,35 +282,35 @@ export default function ReferralDashboard() {
       )}
 
       {/* Total Rewards Earned */}
-      <div className="bg-gradient-to-r from-green-900/20 to-emerald-900/20 border border-green-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-green-400 mb-4">Total Rewards Earned</h3>
+      <div className="bg-gradient-to-r from-[color:var(--nn-green)] to-[color:var(--nn-green)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-6">
+        <h3 className="text-xl font-bold text-[color:var(--nn-green)] mb-4">Total Rewards Earned</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-cyan-400">
+            <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
               {stats.totalRewardsEarned.metal.toLocaleString()}
             </div>
             <div className="text-sm text-text-secondary">Metal</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-400">
+            <div className="text-2xl font-bold text-[color:var(--nn-amber)]">
               {stats.totalRewardsEarned.energy.toLocaleString()}
             </div>
             <div className="text-sm text-text-secondary">Energy</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-purple-400">
+            <div className="text-2xl font-bold text-[color:var(--nn-violet)]">
               {stats.totalRewardsEarned.rp.toLocaleString()}
             </div>
             <div className="text-sm text-text-secondary">RP</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-400">
+            <div className="text-2xl font-bold text-[color:var(--nn-green)]">
               {stats.totalRewardsEarned.xp.toLocaleString()}
             </div>
             <div className="text-sm text-text-secondary">XP</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-pink-400">
+            <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">
               {stats.totalRewardsEarned.vipDays}
             </div>
             <div className="text-sm text-text-secondary">VIP Days</div>
@@ -322,13 +322,13 @@ export default function ReferralDashboard() {
       {(stats.badges.length > 0 || stats.titles.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {stats.badges.length > 0 && (
-            <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
-              <h3 className="text-lg font-bold text-cyan-400 mb-3">Badges Earned</h3>
+            <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
+              <h3 className="text-lg font-bold text-[color:var(--nn-cyan)] mb-3">Badges Earned</h3>
               <div className="flex flex-wrap gap-2">
                 {stats.badges.map((badge, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-gradient-to-r from-yellow-600 to-orange-600 text-white rounded-full text-sm font-semibold"
+                    className="px-3 py-1 bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)] rounded-full text-sm font-semibold"
                   >
                     {badge.replace('_', ' ').toUpperCase()}
                   </span>
@@ -338,13 +338,13 @@ export default function ReferralDashboard() {
           )}
           
           {stats.titles.length > 0 && (
-            <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-4">
-              <h3 className="text-lg font-bold text-cyan-400 mb-3">Titles Earned</h3>
+            <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
+              <h3 className="text-lg font-bold text-[color:var(--nn-cyan)] mb-3">Titles Earned</h3>
               <div className="flex flex-wrap gap-2">
                 {stats.titles.map((title, index) => (
                   <span
                     key={index}
-                    className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full text-sm font-semibold"
+                    className="px-3 py-1 bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] text-[color:var(--nn-text-primary)] rounded-full text-sm font-semibold"
                   >
                     {title}
                   </span>
@@ -356,8 +356,8 @@ export default function ReferralDashboard() {
       )}
 
       {/* Recent Referrals */}
-      <div className="bg-glass-light border border-cyan-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-cyan-400 mb-4">Recent Referrals</h3>
+      <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6">
+        <h3 className="text-xl font-bold text-[color:var(--nn-cyan)] mb-4">Recent Referrals</h3>
         {stats.recentReferrals.length === 0 ? (
           <p className="text-text-secondary text-center py-8">
             No referrals yet. Share your code to get started!
@@ -367,10 +367,10 @@ export default function ReferralDashboard() {
             {stats.recentReferrals.map((referral, index) => (
               <div
                 key={index}
-                className="bg-glass-dark border border-glass-border rounded-lg p-4 flex justify-between items-center"
+                className="bg-glass-dark border border-glass-border rounded-none p-4 flex justify-between items-center"
               >
                 <div>
-                  <div className="font-semibold text-white">{referral.username}</div>
+                  <div className="font-semibold text-[color:var(--nn-text-primary)]">{referral.username}</div>
                   <div className="text-sm text-text-secondary">
                     Signed up: {new Date(referral.signupDate).toLocaleDateString()}
                   </div>
@@ -380,11 +380,11 @@ export default function ReferralDashboard() {
                 </div>
                 <div>
                   {referral.validated ? (
-                    <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-semibold">
+                    <span className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full text-sm font-semibold">
                       ✓ Validated
                     </span>
                   ) : (
-                    <span className="px-3 py-1 bg-yellow-600 text-white rounded-full text-sm font-semibold">
+                    <span className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full text-sm font-semibold">
                       ⏳ Pending
                     </span>
                   )}
@@ -396,35 +396,35 @@ export default function ReferralDashboard() {
       </div>
 
       {/* How It Works */}
-      <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-blue-400 mb-4">How It Works</h3>
+      <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6">
+        <h3 className="text-xl font-bold text-[color:var(--nn-cyan)] mb-4">How It Works</h3>
         <ol className="space-y-3 text-text-primary">
           <li className="flex gap-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+            <span className="flex-shrink-0 w-6 h-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full flex items-center justify-center text-sm font-bold">
               1
             </span>
             <span>Share your referral code or link with friends</span>
           </li>
           <li className="flex gap-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+            <span className="flex-shrink-0 w-6 h-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full flex items-center justify-center text-sm font-bold">
               2
             </span>
             <span>They sign up using your code and receive a welcome package (50k Metal + 50k Energy + Legendary Digger + 3-day VIP)</span>
           </li>
           <li className="flex gap-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+            <span className="flex-shrink-0 w-6 h-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full flex items-center justify-center text-sm font-bold">
               3
             </span>
             <span>After 7 days and 4+ logins, the referral is validated</span>
           </li>
           <li className="flex gap-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+            <span className="flex-shrink-0 w-6 h-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full flex items-center justify-center text-sm font-bold">
               4
             </span>
             <span>You receive resources, RP, XP, and VIP time! Rewards increase with each referral (up to 2x)</span>
           </li>
           <li className="flex gap-3">
-            <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
+            <span className="flex-shrink-0 w-6 h-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-full flex items-center justify-center text-sm font-bold">
               5
             </span>
             <span>Reach milestones for massive bonus rewards, badges, titles, and permanent bonuses!</span>

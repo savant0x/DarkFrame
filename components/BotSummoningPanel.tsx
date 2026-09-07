@@ -44,31 +44,31 @@ const SPECIALIZATION_INFO = {
     name: 'Hoarder',
     icon: '💰',
     description: '2x resources, weak army, stays at base',
-    color: 'text-yellow-400',
+    color: 'text-[color:var(--nn-amber)]',
   },
   [BotSpecialization.Fortress]: {
     name: 'Fortress',
     icon: '🏰',
     description: 'Strong defense, stationary, 1.5x resources',
-    color: 'text-blue-400',
+    color: 'text-[color:var(--nn-cyan)]',
   },
   [BotSpecialization.Raider]: {
     name: 'Raider',
     icon: '⚔️',
     description: 'Aggressive, high attack rate, roaming',
-    color: 'text-red-400',
+    color: 'text-[color:var(--nn-magenta)]',
   },
   [BotSpecialization.Balanced]: {
     name: 'Balanced',
     icon: '⚖️',
     description: 'Equal STR/DEF, moderate resources',
-    color: 'text-green-400',
+    color: 'text-[color:var(--nn-green)]',
   },
   [BotSpecialization.Ghost]: {
     name: 'Ghost',
     icon: '👻',
     description: 'Teleports randomly, unpredictable',
-    color: 'text-purple-400',
+    color: 'text-[color:var(--nn-violet)]',
   },
   // Boss specialization exists in game but cannot be summoned by players.
   // Included here for exhaustive typing to prevent TS index errors.
@@ -76,7 +76,7 @@ const SPECIALIZATION_INFO = {
     name: 'Boss',
     icon: '👑',
     description: 'Elite world boss. Cannot be summoned (admin/spawn only).',
-    color: 'text-amber-400',
+    color: 'text-[color:var(--nn-amber)]',
   },
 };
 
@@ -154,12 +154,12 @@ export default function BotSummoningPanel() {
 
   if (!hasTech) {
     return (
-      <div className="bg-slate-800/40 backdrop-blur-sm border border-purple-500/30 rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-purple-400 mb-4">⭕ Bot Summoning Circle</h2>
-        <p className="text-gray-400">
-          Research <span className="text-purple-400 font-semibold">Bot Summoning Circle</span> technology to unlock this feature.
+      <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">⭕ Bot Summoning Circle</h2>
+        <p className="text-[color:var(--nn-text-secondary)]">
+          Research <span className="text-[color:var(--nn-violet)] font-semibold">Bot Summoning Circle</span> technology to unlock this feature.
         </p>
-        <div className="mt-4 text-sm text-gray-500">
+        <div className="mt-4 text-sm text-[color:var(--nn-text-secondary)]">
           <p>• Summon 5 bots of chosen specialization</p>
           <p>• Bots spawn within 20-tile radius of your position</p>
           <p>• Summoned bots have 1.5x base resources</p>
@@ -170,15 +170,15 @@ export default function BotSummoningPanel() {
   }
 
   return (
-    <div className="bg-slate-800/40 backdrop-blur-sm border border-purple-500/30 rounded-lg p-6">
-      <h2 className="text-2xl font-bold text-purple-400 mb-4">⭕ Bot Summoning Circle</h2>
+    <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+      <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">⭕ Bot Summoning Circle</h2>
 
       {message && (
         <div
-          className={`mb-4 p-3 rounded ${
+          className={`mb-4 p-3 rounded-none ${
             message.type === 'success'
-              ? 'bg-green-500/20 border border-green-500/50 text-green-400'
-              : 'bg-red-500/20 border border-red-500/50 text-red-400'
+              ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
+              : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)]'
           }`}
         >
           {message.text}
@@ -187,13 +187,13 @@ export default function BotSummoningPanel() {
 
       {/* Summoned Bots Display */}
       {summonedBots.length > 0 && (
-        <div className="mb-4 p-4 bg-green-500/10 border border-green-500/30 rounded">
-          <h3 className="text-lg font-semibold text-green-300 mb-2">Successfully Summoned!</h3>
+        <div className="mb-4 p-4 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none">
+          <h3 className="text-lg font-semibold text-[color:var(--nn-green)] mb-2">Successfully Summoned!</h3>
           <div className="grid grid-cols-1 gap-2 text-sm">
             {summonedBots.map((bot, idx) => (
-              <div key={idx} className="flex justify-between text-gray-300">
+              <div key={idx} className="flex justify-between text-[color:var(--nn-text-secondary)]">
                 <span>{bot.username}</span>
-                <span className="text-cyan-400">
+                <span className="text-[color:var(--nn-cyan)]">
                   ({bot.position.x}, {bot.position.y})
                 </span>
               </div>
@@ -204,11 +204,11 @@ export default function BotSummoningPanel() {
 
       {/* Cooldown Display */}
       {status && !status.canSummon && (
-        <div className="mb-6 p-4 bg-orange-500/10 border border-orange-500/30 rounded">
-          <h3 className="text-lg font-semibold text-orange-300 mb-2">Cooldown Active</h3>
-          <p className="text-gray-400">
+        <div className="mb-6 p-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none">
+          <h3 className="text-lg font-semibold text-[color:var(--nn-amber)] mb-2">Cooldown Active</h3>
+          <p className="text-[color:var(--nn-text-secondary)]">
             Next summon available in:{' '}
-            <span className="text-orange-400 font-semibold">
+            <span className="text-[color:var(--nn-amber)] font-semibold">
               {formatTimeRemaining(status.hoursRemaining || 0)}
             </span>
           </p>
@@ -218,16 +218,16 @@ export default function BotSummoningPanel() {
       {/* Specialization Selection */}
       {status?.canSummon && (
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-purple-300 mb-3">Choose Specialization</h3>
+          <h3 className="text-lg font-semibold text-[color:var(--nn-violet)] mb-3">Choose Specialization</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {Object.entries(SPECIALIZATION_INFO).map(([spec, info]) => (
               <button
                 key={spec}
                 onClick={() => setSelectedSpec(spec as BotSpecialization)}
-                className={`p-4 rounded border-2 transition text-left ${
+                className={`p-4 rounded-none border-2 transition text-left ${
                   selectedSpec === spec
-                    ? 'bg-purple-500/30 border-purple-500'
-                    : 'bg-slate-700/30 border-slate-600/30 hover:border-purple-500/50'
+                    ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]'
+                    : 'bg-slate-700/30 border-slate-600/30 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]'
                 }`}
                 disabled={spec === BotSpecialization.Boss}
               >
@@ -235,7 +235,7 @@ export default function BotSummoningPanel() {
                   <span className="text-2xl">{info.icon}</span>
                   <span className={`font-semibold ${info.color}`}>{info.name}</span>
                 </div>
-                <p className="text-sm text-gray-400">{info.description}</p>
+                <p className="text-sm text-[color:var(--nn-text-secondary)]">{info.description}</p>
               </button>
             ))}
           </div>
@@ -243,7 +243,7 @@ export default function BotSummoningPanel() {
           <button
             onClick={handleSummon}
             disabled={loading}
-            className="mt-4 w-full px-4 py-3 bg-purple-500/20 border border-purple-500/50 text-purple-300 rounded hover:bg-purple-500/30 disabled:opacity-50 transition font-semibold"
+            className="mt-4 w-full px-4 py-3 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)] rounded-none disabled:opacity-50 transition font-semibold"
           >
             {loading ? 'Summoning...' : `⭕ Summon 5 ${SPECIALIZATION_INFO[selectedSpec].name} Bots`}
           </button>
@@ -251,9 +251,9 @@ export default function BotSummoningPanel() {
       )}
 
       {/* Info Section */}
-      <div className="mt-6 p-4 bg-slate-700/30 rounded border border-slate-600/30">
-        <h4 className="text-sm font-semibold text-purple-300 mb-2">Summoning Details</h4>
-        <ul className="text-xs text-gray-400 space-y-1">
+      <div className="mt-6 p-4 bg-slate-700/30 rounded-none border border-slate-600/30">
+        <h4 className="text-sm font-semibold text-[color:var(--nn-violet)] mb-2">Summoning Details</h4>
+        <ul className="text-xs text-[color:var(--nn-text-secondary)] space-y-1">
           <li>• Spawns 5 bots of chosen specialization</li>
           <li>• Bots appear within 20-tile radius of your position</li>
           <li>• Each bot has 1.5x base resources (Metal & Energy)</li>

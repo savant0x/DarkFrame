@@ -305,12 +305,12 @@ export default function ShrinePanel({
   const canBoostAll = boostAllTotal > 0 && boostAllTotal <= totalItems;
 
   return (
-    <div className="h-full w-full flex flex-col p-6 bg-gray-900 text-white overflow-y-auto">
+    <div className="h-full w-full flex flex-col p-6 bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] overflow-y-auto">
       {/* Back Button */}
       <div className="mb-4">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
         >
           <span className="text-lg">←</span>
           <span>Back to Game</span>
@@ -318,21 +318,21 @@ export default function ShrinePanel({
       </div>
 
       {/* Header */}
-      <div className="bg-purple-900 border-2 border-purple-400 rounded-lg p-6 mb-4">
-        <h2 className="text-3xl font-bold text-purple-300 mb-2">
+      <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6 mb-4">
+        <h2 className="text-3xl font-bold text-[color:var(--nn-violet)] mb-2">
           ⛩️ Ancient Shrine of Power
         </h2>
         
         {/* Status */}
-        <div className="bg-purple-800/50 p-4 rounded mt-4">
+        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] p-4 rounded-none mt-4">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-purple-300">Tradeable Items: <span className="text-white font-bold">{totalItems}</span></p>
-              <p className="text-purple-300">Active Boosts: <span className="text-white font-bold">{activeBoosts.filter(b => new Date(b.expiresAt) > new Date()).length} / 4</span></p>
+              <p className="text-[color:var(--nn-violet)]">Tradeable Items: <span className="text-[color:var(--nn-text-primary)] font-bold">{totalItems}</span></p>
+              <p className="text-[color:var(--nn-violet)]">Active Boosts: <span className="text-[color:var(--nn-text-primary)] font-bold">{activeBoosts.filter(b => new Date(b.expiresAt) > new Date()).length} / 4</span></p>
             </div>
             <div className="text-right">
-              <p className="text-purple-300">Total Gathering Bonus:</p>
-              <p className="text-yellow-400 text-2xl font-bold">x{(1 + getTotalYieldBonus()).toFixed(2)}</p>
+              <p className="text-[color:var(--nn-violet)]">Total Gathering Bonus:</p>
+              <p className="text-[color:var(--nn-amber)] text-2xl font-bold">x{(1 + getTotalYieldBonus()).toFixed(2)}</p>
             </div>
           </div>
         </div>
@@ -341,33 +341,33 @@ export default function ShrinePanel({
       {/* Content Section */}
       <div className="flex-1 overflow-y-auto space-y-4">
         {/* Boost All 4 Suits Button */}
-        <div className="bg-gradient-to-r from-purple-900 to-pink-900 border-2 border-yellow-400 rounded-lg p-4">
-          <h3 className="text-xl font-bold text-yellow-400 mb-3">⚡ BOOST ALL 4 SUITS</h3>
+        <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
+          <h3 className="text-xl font-bold text-[color:var(--nn-amber)] mb-3">⚡ BOOST ALL 4 SUITS</h3>
           
           {/* Quick Preset Buttons */}
           <div className="flex gap-2 mb-3">
-            <span className="text-purple-200 text-sm self-center mr-2">Quick:</span>
+            <span className="text-[color:var(--nn-violet)] text-sm self-center mr-2">Quick:</span>
             <button
               onClick={() => setPresetDurationAll(2)}
-              className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm font-semibold transition-colors"
+              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-sm font-semibold transition-colors"
             >
               2h
             </button>
             <button
               onClick={() => setPresetDurationAll(4)}
-              className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm font-semibold transition-colors"
+              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-sm font-semibold transition-colors"
             >
               4h
             </button>
             <button
               onClick={() => setPresetDurationAll(6)}
-              className="px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-sm font-semibold transition-colors"
+              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-sm font-semibold transition-colors"
             >
               6h
             </button>
             <button
               onClick={() => setPresetDurationAll(8)}
-              className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-black rounded text-sm font-bold transition-colors"
+              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-sm font-bold transition-colors"
             >
               8h MAX
             </button>
@@ -375,12 +375,12 @@ export default function ShrinePanel({
 
           <div className="flex gap-2 items-end">
             <div className="flex-1">
-              <label className="text-purple-200 text-sm block mb-1">Items per suit:</label>
+              <label className="text-[color:var(--nn-violet)] text-sm block mb-1">Items per suit:</label>
               <input
                 type="number"
                 value={boostAllAmount}
                 onChange={(e) => handleBoostAllChange(e.target.value)}
-                className="w-full bg-purple-800 text-white px-3 py-2 rounded border border-purple-600 focus:border-yellow-400 focus:outline-none"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] focus:border-yellow-400 focus:outline-none"
                 placeholder="e.g. 10"
                 min="1"
               />
@@ -388,10 +388,10 @@ export default function ShrinePanel({
             <button
               onClick={handleBoostAll}
               disabled={loading || !canBoostAll}
-              className={`px-6 py-2 rounded font-bold whitespace-nowrap ${
+              className={`px-6 py-2 rounded-none font-bold whitespace-nowrap ${
                 loading || !canBoostAll
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                  : 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
+                  : 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
               }`}
             >
               Activate All
@@ -399,13 +399,13 @@ export default function ShrinePanel({
           </div>
           {boostAllAmount && (
             <div className="mt-2 text-sm">
-              <p className="text-purple-200">
-                Total: <span className="text-white font-bold">{boostAllTotal} items</span>
+              <p className="text-[color:var(--nn-violet)]">
+                Total: <span className="text-[color:var(--nn-text-primary)] font-bold">{boostAllTotal} items</span>
                 {' | '}
-                Duration: <span className="text-yellow-400 font-bold">~{getEstimatedDuration(parseInt(boostAllAmount))}</span> each
+                Duration: <span className="text-[color:var(--nn-amber)] font-bold">~{getEstimatedDuration(parseInt(boostAllAmount))}</span> each
               </p>
               {boostAllTotal > totalItems && (
-                <p className="text-red-400 mt-1">❌ Not enough items (need {boostAllTotal}, have {totalItems})</p>
+                <p className="text-[color:var(--nn-magenta)] mt-1">❌ Not enough items (need {boostAllTotal}, have {totalItems})</p>
               )}
             </div>
           )}
@@ -422,10 +422,10 @@ export default function ShrinePanel({
             return (
               <div
                 key={config.tier}
-                className={`border-2 rounded-lg p-4 ${
+                className={`border-2 rounded-none p-4 ${
                   isActive
-                    ? 'border-green-400 bg-green-900/30'
-                    : 'border-purple-600 bg-purple-800/30'
+                    ? 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]'
+                    : 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]'
                 }`}
               >
                 {/* Card Header */}
@@ -433,12 +433,12 @@ export default function ShrinePanel({
                   <div className="flex items-center gap-2">
                     <span className="text-3xl">{config.icon}</span>
                     <div>
-                      <h3 className="text-white font-bold">{config.name}</h3>
-                      <p className="text-purple-300 text-sm">+{(config.yieldBonus * 100)}% Yield</p>
+                      <h3 className="text-[color:var(--nn-text-primary)] font-bold">{config.name}</h3>
+                      <p className="text-[color:var(--nn-violet)] text-sm">+{(config.yieldBonus * 100)}% Yield</p>
                     </div>
                   </div>
                   {isActive && (
-                    <span className="bg-green-500 text-black px-2 py-1 rounded text-xs font-bold">
+                    <span className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none text-xs font-bold">
                       ACTIVE
                     </span>
                   )}
@@ -446,10 +446,10 @@ export default function ShrinePanel({
 
                 {/* Active Boost Timer */}
                 {isActive && activeBoost && (
-                  <div className="mb-3 bg-green-800/30 p-2 rounded">
+                  <div className="mb-3 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] p-2 rounded-none">
                     <div className="flex justify-between text-sm">
-                      <span className="text-green-300">Time Remaining:</span>
-                      <span className="text-green-400 font-bold">{timers[config.tier]}</span>
+                      <span className="text-[color:var(--nn-green)]">Time Remaining:</span>
+                      <span className="text-[color:var(--nn-green)] font-bold">{timers[config.tier]}</span>
                     </div>
                   </div>
                 )}
@@ -457,32 +457,32 @@ export default function ShrinePanel({
                 {/* Purchase Input */}
                 <div className="space-y-2">
                   <div>
-                    <label className="text-purple-300 text-xs block mb-1">Items to sacrifice:</label>
+                    <label className="text-[color:var(--nn-violet)] text-xs block mb-1">Items to sacrifice:</label>
                     
                     {/* Quick Preset Buttons */}
                     <div className="flex gap-2 mb-2">
-                      <span className="text-purple-200 text-xs self-center mr-1">Quick:</span>
+                      <span className="text-[color:var(--nn-violet)] text-xs self-center mr-1">Quick:</span>
                       <button
                         onClick={() => setPresetDuration(config.tier, 2)}
-                        className="px-2 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-xs font-semibold transition-colors"
+                        className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
                       >
                         2h
                       </button>
                       <button
                         onClick={() => setPresetDuration(config.tier, 4)}
-                        className="px-2 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-xs font-semibold transition-colors"
+                        className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
                       >
                         4h
                       </button>
                       <button
                         onClick={() => setPresetDuration(config.tier, 6)}
-                        className="px-2 py-1 bg-purple-700 hover:bg-purple-600 text-white rounded text-xs font-semibold transition-colors"
+                        className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
                       >
                         6h
                       </button>
                       <button
                         onClick={() => setPresetDuration(config.tier, 8)}
-                        className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-black rounded text-xs font-bold transition-colors"
+                        className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-bold transition-colors"
                       >
                         8h MAX
                       </button>
@@ -492,7 +492,7 @@ export default function ShrinePanel({
                       type="number"
                       value={itemAmounts[config.tier]}
                       onChange={(e) => handleItemAmountChange(config.tier, e.target.value)}
-                      className="w-full bg-purple-900 text-white px-2 py-1 rounded border border-purple-700 focus:border-purple-400 focus:outline-none text-sm"
+                      className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] focus:border-purple-400 focus:outline-none text-sm"
                       placeholder="0"
                       min="1"
                     />
@@ -500,9 +500,9 @@ export default function ShrinePanel({
 
                   {/* Duration Preview */}
                   {itemCount > 0 && (
-                    <p className="text-purple-200 text-xs">
-                      Duration: <span className="text-yellow-400 font-bold">~{getEstimatedDuration(itemCount)}</span>
-                      {itemCount > totalItems && <span className="text-red-400 ml-1">(not enough!)</span>}
+                    <p className="text-[color:var(--nn-violet)] text-xs">
+                      Duration: <span className="text-[color:var(--nn-amber)] font-bold">~{getEstimatedDuration(itemCount)}</span>
+                      {itemCount > totalItems && <span className="text-[color:var(--nn-magenta)] ml-1">(not enough!)</span>}
                     </p>
                   )}
 
@@ -510,12 +510,12 @@ export default function ShrinePanel({
                   <button
                     onClick={() => handleActivateBoost(config.tier)}
                     disabled={loading || !canAfford}
-                    className={`w-full py-2 px-4 rounded font-bold text-sm ${
+                    className={`w-full py-2 px-4 rounded-none font-bold text-sm ${
                       loading || !canAfford
-                        ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         : isActive
-                        ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                        : 'bg-purple-500 hover:bg-purple-600 text-white'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                        : 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                     }`}
                   >
                     {isActive ? '🔄 Replace/Extend' : '⛩️ Activate'}
@@ -528,17 +528,17 @@ export default function ShrinePanel({
 
         {/* Message */}
         {message && (
-          <div className={`p-3 rounded ${
+          <div className={`p-3 rounded-none ${
             message.includes('✅')
-              ? 'bg-green-900/50 text-green-300'
-              : 'bg-red-900/50 text-red-300'
+              ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
+              : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
           }`}>
             {message}
           </div>
         )}
 
         {/* Help Text */}
-        <div className="bg-purple-800/30 p-3 rounded text-purple-200 text-sm space-y-1">
+        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] p-3 rounded-none text-[color:var(--nn-violet)] text-sm space-y-1">
           <p>💡 <strong>How It Works:</strong></p>
           <ul className="list-disc list-inside ml-4 space-y-1">
             <li>Sacrifice tradeable items to purchase buff duration</li>

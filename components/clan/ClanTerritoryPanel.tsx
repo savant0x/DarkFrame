@@ -116,19 +116,19 @@ export default function ClanTerritoryPanel({
       {/* Header Stats */}
       <div className="grid grid-cols-3 gap-4">
         <StatCard
-          icon={<Map className="w-5 h-5 text-cyan-400" />}
+          icon={<Map className="w-5 h-5 text-[color:var(--nn-cyan)]" />}
           label="Territories"
           value={territories.length}
           subtext="Tiles controlled"
         />
         <StatCard
-          icon={<Coins className="w-5 h-5 text-yellow-400" />}
+          icon={<Coins className="w-5 h-5 text-[color:var(--nn-amber)]" />}
           label="Income/Hour"
           value={`${totalIncome.metal}M / ${totalIncome.energy}E`}
           subtext="Passive generation"
         />
         <StatCard
-          icon={<Shield className="w-5 h-5 text-purple-400" />}
+          icon={<Shield className="w-5 h-5 text-[color:var(--nn-violet)]" />}
           label="Avg Defense"
           value={`+${Math.round((territories.reduce((sum, t) => sum + t.defenseBonus, 0) / (territories.length || 1)))}%`}
           subtext="Territory bonus"
@@ -161,10 +161,10 @@ export default function ClanTerritoryPanel({
 
       {/* Permission Notice */}
       {!canManage && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+        <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="text-yellow-400 font-medium">Limited Access</p>
+            <p className="text-[color:var(--nn-amber)] font-medium">Limited Access</p>
             <p className="text-text-secondary mt-1">
               Only Officers and above can claim or manage territories.
             </p>
@@ -267,12 +267,12 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, subtext }: StatCardProps) {
   return (
-    <div className="bg-glass-light border border-glass-border rounded-lg p-4">
+    <div className="bg-glass-light border border-glass-border rounded-none p-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
         <span className="text-sm text-text-secondary">{label}</span>
       </div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
+      <div className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-1">{value}</div>
       <div className="text-xs text-text-secondary">{subtext}</div>
     </div>
   );
@@ -292,13 +292,13 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
   const daysSinceClaim = Math.floor(timeSinceClaim / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="bg-glass-light border border-glass-border rounded-lg p-4 hover:border-cyan-500/30 transition-all">
+    <div className="bg-glass-light border border-glass-border rounded-none p-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           {/* Coordinates */}
           <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4 text-cyan-400" />
-            <span className="text-lg font-semibold text-white">
+            <MapPin className="w-4 h-4 text-[color:var(--nn-cyan)]" />
+            <span className="text-lg font-semibold text-[color:var(--nn-text-primary)]">
               ({territory.tileX}, {territory.tileY})
             </span>
             <Badge variant="info" className="text-xs">
@@ -320,11 +320,11 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
             </div>
             <div>
               <span className="text-text-secondary">Income:</span>
-              <span className="text-yellow-400 ml-2">100M + 100E/h</span>
+              <span className="text-[color:var(--nn-amber)] ml-2">100M + 100E/h</span>
             </div>
             <div>
               <span className="text-text-secondary">Status:</span>
-              <span className="text-green-400 ml-2 flex items-center gap-1">
+              <span className="text-[color:var(--nn-green)] ml-2 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" />
                 Secured
               </span>
@@ -337,7 +337,7 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
           <Button
             onClick={onUnclaim}
             variant="ghost"
-            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            className="text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -406,10 +406,10 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-glass-dark border border-cyan-500/30 rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-cyan-400" />
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-[color:var(--nn-cyan)]" />
           Claim Territory
         </h2>
 
@@ -441,8 +441,8 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
           </div>
 
           {/* Info Box */}
-          <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
-            <p className="text-sm text-cyan-400 mb-2 font-medium">Territory Benefits:</p>
+          <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
+            <p className="text-sm text-[color:var(--nn-cyan)] mb-2 font-medium">Territory Benefits:</p>
             <ul className="text-xs text-text-secondary space-y-1">
               <li>• +100 Metal and Energy per hour</li>
               <li>• +10% defense bonus per adjacent clan territory</li>

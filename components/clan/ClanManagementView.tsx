@@ -132,7 +132,7 @@ export default function ClanManagementView() {
   if (!player) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[color:var(--nn-cyan)] animate-spin" />
       </div>
     );
   }
@@ -140,7 +140,7 @@ export default function ClanManagementView() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[color:var(--nn-cyan)] animate-spin" />
       </div>
     );
   }
@@ -181,12 +181,12 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
       <StaggerChildren className="space-y-8">
         <StaggerItem>
           <div className="text-center space-y-4">
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-purple-500/10 border-2 border-purple-500/30">
-              <Users className="w-12 h-12 text-purple-400" />
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+              <Users className="w-12 h-12 text-[color:var(--nn-violet)]" />
             </div>
             
             <div>
-              <h2 className="text-3xl font-bold text-white mb-3">
+              <h2 className="text-3xl font-bold text-[color:var(--nn-text-primary)] mb-3">
                 You{"'"}re Not in a Clan
               </h2>
               <p className="text-text-secondary text-lg max-w-2xl mx-auto">
@@ -203,28 +203,28 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             <button
               onClick={onCreateClick}
-              className="bg-gradient-to-br from-purple-900/30 to-blue-900/30 border-2 border-purple-500/50 rounded-lg p-8 hover:border-purple-400 transition-all hover:scale-105 group"
+              className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 transition-all hover:scale-105 group"
             >
-              <Crown className="w-12 h-12 text-yellow-400 mx-auto mb-4 group-hover:scale-110 transition-transform" />
-              <h3 className="text-2xl font-bold text-white mb-2">Create New Clan</h3>
+              <Crown className="w-12 h-12 text-[color:var(--nn-amber)] mx-auto mb-4 group-hover:scale-110 transition-transform" />
+              <h3 className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">Create New Clan</h3>
               <p className="text-text-secondary text-sm mb-4">
                 Found your own clan and lead it to glory. Recruit members and build your empire.
               </p>
-              <div className="text-sm text-cyan-400">
+              <div className="text-sm text-[color:var(--nn-cyan)]">
                 Cost: 50K Metal + 50K Energy + 100 RP
               </div>
             </button>
             
             <button
               onClick={onJoinClick}
-              className="bg-gradient-to-br from-cyan-900/30 to-teal-900/30 border-2 border-cyan-500/50 rounded-lg p-8 hover:border-cyan-400 transition-all hover:scale-105 group"
+              className="bg-gradient-to-br from-[color:var(--nn-cyan)] to-[color:var(--nn-green)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-8 transition-all hover:scale-105 group"
             >
-              <UserPlus className="w-12 h-12 text-cyan-400 mx-auto mb-4 group-hover:scale-110 transition-transform" />
-              <h3 className="text-2xl font-bold text-white mb-2">Join Existing Clan</h3>
+              <UserPlus className="w-12 h-12 text-[color:var(--nn-cyan)] mx-auto mb-4 group-hover:scale-110 transition-transform" />
+              <h3 className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">Join Existing Clan</h3>
               <p className="text-text-secondary text-sm mb-4">
                 Browse and join established clans. Find your place among fellow commanders.
               </p>
-              <div className="text-sm text-cyan-400">
+              <div className="text-sm text-[color:var(--nn-cyan)]">
                 Free to join
               </div>
             </button>
@@ -232,34 +232,34 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
         </StaggerItem>
 
         <StaggerItem>
-          <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-yellow-400" />
+          <div className="bg-glass-light rounded-none p-6 border border-glass-border">
+            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-[color:var(--nn-amber)]" />
               Clan Benefits
             </h3>
             <div className="grid md:grid-cols-2 gap-4 text-sm">
               <div className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[color:var(--nn-green)] mt-0.5 flex-shrink-0" />
                 <span className="text-text-primary">Shared resources and clan bank</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[color:var(--nn-green)] mt-0.5 flex-shrink-0" />
                 <span className="text-text-primary">Territory control and passive income</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[color:var(--nn-green)] mt-0.5 flex-shrink-0" />
                 <span className="text-text-primary">Cooperative research and perks</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[color:var(--nn-green)] mt-0.5 flex-shrink-0" />
                 <span className="text-text-primary">Clan warfare and alliances</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[color:var(--nn-green)] mt-0.5 flex-shrink-0" />
                 <span className="text-text-primary">Exclusive clan chat and coordination</span>
               </div>
               <div className="flex items-start gap-2">
-                <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                <Check className="w-4 h-4 text-[color:var(--nn-green)] mt-0.5 flex-shrink-0" />
                 <span className="text-text-primary">Leaderboard rankings and prestige</span>
               </div>
             </div>
@@ -398,8 +398,8 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
         {/* Header */}
         <StaggerItem>
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-white mb-2 flex items-center justify-center gap-3">
-              <Crown className="w-8 h-8 text-yellow-400" />
+            <h2 className="text-3xl font-bold text-[color:var(--nn-text-primary)] mb-2 flex items-center justify-center gap-3">
+              <Crown className="w-8 h-8 text-[color:var(--nn-amber)]" />
               Create New Clan
             </h2>
             <p className="text-text-secondary">Establish your clan and recruit members</p>
@@ -408,29 +408,29 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
 
         {/* Cost Display */}
         <StaggerItem>
-          <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
-            <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-              <Coins className="w-4 h-4 text-yellow-400" />
+          <div className="bg-glass-light rounded-none p-6 border border-glass-border">
+            <h3 className="text-sm font-semibold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
+              <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />
               Creation Cost
             </h3>
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-xs text-text-secondary mb-1">Metal</div>
-                <div className={`text-xl font-bold ${player.resources.metal >= CREATION_COSTS.metal ? 'text-green-400' : 'text-red-400'}`}>
+                <div className={`text-xl font-bold ${player.resources.metal >= CREATION_COSTS.metal ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                   {CREATION_COSTS.metal.toLocaleString()}
                 </div>
                 <div className="text-xs text-text-secondary">Have: {player.resources.metal.toLocaleString()}</div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-text-secondary mb-1">Energy</div>
-                <div className={`text-xl font-bold ${player.resources.energy >= CREATION_COSTS.energy ? 'text-green-400' : 'text-red-400'}`}>
+                <div className={`text-xl font-bold ${player.resources.energy >= CREATION_COSTS.energy ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                   {CREATION_COSTS.energy.toLocaleString()}
                 </div>
                 <div className="text-xs text-text-secondary">Have: {player.resources.energy.toLocaleString()}</div>
               </div>
               <div className="text-center">
                 <div className="text-xs text-text-secondary mb-1">RP</div>
-                <div className={`text-xl font-bold ${player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-green-400' : 'text-red-400'}`}>
+                <div className={`text-xl font-bold ${player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                   {CREATION_COSTS.researchPoints}
                 </div>
                 <div className="text-xs text-text-secondary">Have: {player.researchPoints}</div>
@@ -443,8 +443,8 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Clan Name */}
           <StaggerItem>
-            <label className="block text-sm font-semibold text-white mb-2">
-              Clan Name <span className="text-red-400">*</span>
+            <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
+              Clan Name <span className="text-[color:var(--nn-magenta)]">*</span>
             </label>
             <div className="relative">
               <input
@@ -453,22 +453,22 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('name', e.target.value)}
                 placeholder="Enter clan name (3-30 characters)"
                 maxLength={30}
-                className="w-full px-4 py-3 pr-12 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
+                className="w-full px-4 py-3 pr-12 bg-glass-light border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
               />
               {formData.name.length >= 3 && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                   {isCheckingName ? (
-                    <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                    <Loader2 className="w-5 h-5 text-[color:var(--nn-cyan)] animate-spin" />
                   ) : nameAvailable === true ? (
-                    <Check className="w-5 h-5 text-green-400" />
+                    <Check className="w-5 h-5 text-[color:var(--nn-green)]" />
                   ) : nameAvailable === false ? (
-                    <X className="w-5 h-5 text-red-400" />
+                    <X className="w-5 h-5 text-[color:var(--nn-magenta)]" />
                   ) : null}
                 </div>
               )}
             </div>
             {errors.name && (
-              <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+              <p className="text-[color:var(--nn-magenta)] text-xs mt-1 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" />
                 {errors.name}
               </p>
@@ -478,7 +478,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
 
           {/* Description */}
           <StaggerItem>
-            <label className="block text-sm font-semibold text-white mb-2">Description</label>
+            <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">Description</label>
             
             {/* Rich Text Editor */}
             <RichTextEditor
@@ -490,12 +490,12 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
             />
 
             {/* Preview */}
-            <div className="mt-2 bg-glass-dark border border-glass-border rounded-lg p-3">
+            <div className="mt-2 bg-glass-dark border border-glass-border rounded-none p-3">
               <p className="text-xs text-text-secondary mb-1">Preview:</p>
               <SafeHtmlRenderer 
                 html={formData.description}
                 fallback="Your clan description will appear here..."
-                className="text-white text-sm"
+                className="text-[color:var(--nn-text-primary)] text-sm"
               />
             </div>
           </StaggerItem>
@@ -504,13 +504,13 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
           <StaggerItem>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">Privacy</label>
+                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">Privacy</label>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleChange('isPublic', true)}
-                    className={`flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.isPublic ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-glass-light border-glass-border text-text-secondary'
+                    className={`flex-1 px-4 py-3 rounded-none border text-sm font-medium transition-colors ${
+                      formData.isPublic ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]' : 'bg-glass-light border-glass-border text-text-secondary'
                     }`}
                   >
                     Public
@@ -518,8 +518,8 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
                   <button
                     type="button"
                     onClick={() => handleChange('isPublic', false)}
-                    className={`flex-1 px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
-                      !formData.isPublic ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-glass-light border-glass-border text-text-secondary'
+                    className={`flex-1 px-4 py-3 rounded-none border text-sm font-medium transition-colors ${
+                      !formData.isPublic ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]' : 'bg-glass-light border-glass-border text-text-secondary'
                     }`}
                   >
                     Private
@@ -528,14 +528,14 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
                 <p className="text-xs text-text-secondary mt-1">{formData.isPublic ? 'Anyone can join' : 'Requires approval'}</p>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">Minimum Level</label>
+                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">Minimum Level</label>
                 <input
                   type="number"
                   value={formData.minLevel}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('minLevel', parseInt(e.target.value) || 1)}
                   min={1}
                   max={50}
-                  className="w-full px-4 py-3 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
+                  className="w-full px-4 py-3 bg-glass-light border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
                 />
               </div>
             </div>
@@ -544,9 +544,9 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
           {/* Error Message */}
           {errors.submit && (
             <StaggerItem>
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <p className="text-red-400">{errors.submit}</p>
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-[color:var(--nn-magenta)] flex-shrink-0 mt-0.5" />
+                <p className="text-[color:var(--nn-magenta)]">{errors.submit}</p>
               </div>
             </StaggerItem>
           )}
@@ -643,8 +643,8 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
             ← Back
           </Button>
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-white mb-2 flex items-center justify-center gap-3">
-              <UserPlus className="w-8 h-8 text-cyan-400" />
+            <h2 className="text-3xl font-bold text-[color:var(--nn-text-primary)] mb-2 flex items-center justify-center gap-3">
+              <UserPlus className="w-8 h-8 text-[color:var(--nn-cyan)]" />
               Join a Clan
             </h2>
             <p className="text-text-secondary">Browse and join established clans</p>
@@ -666,7 +666,7 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
         <StaggerItem>
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+              <Loader2 className="w-10 h-10 text-[color:var(--nn-cyan)] animate-spin" />
             </div>
           ) : filteredClans.length === 0 ? (
             <div className="text-center py-20">
@@ -676,11 +676,11 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
           ) : (
             <div className="space-y-4">
               {filteredClans.map(clan => (
-                <div key={clan._id} className="bg-glass-light rounded-lg p-6 border border-glass-border hover:border-cyan-500/30 transition-all">
+                <div key={clan._id} className="bg-glass-light rounded-none p-6 border border-glass-border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-bold text-white">{clan.name}</h3>
+                        <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)]">{clan.name}</h3>
                         <Badge variant={clan.settings?.requiresApproval ? 'default' : 'success'}>
                           {clan.settings?.requiresApproval ? 'Private' : 'Public'}
                         </Badge>
@@ -748,7 +748,7 @@ function ClanManagementInterface({
   if (!clanData) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
+        <Loader2 className="w-10 h-10 text-[color:var(--nn-cyan)] animate-spin" />
       </div>
     );
   }
@@ -759,23 +759,23 @@ function ClanManagementInterface({
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Clan Header */}
-      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-lg p-6 border border-purple-500/30">
+      <div className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 rounded-full bg-purple-500/20 border-2 border-purple-500 flex items-center justify-center">
-              <Shield className="w-8 h-8 text-purple-400" />
+            <div className="w-16 h-16 rounded-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] flex items-center justify-center">
+              <Shield className="w-8 h-8 text-[color:var(--nn-violet)]" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white mb-1">{clanData.name}</h1>
+              <h1 className="text-3xl font-bold text-[color:var(--nn-text-primary)] mb-1">{clanData.name}</h1>
               <p className="text-text-secondary mb-3">{clanData.description || 'No description'}</p>
               <div className="flex items-center gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-cyan-400" />
-                  <span className="text-white">{clanData.members.length}/{clanData.maxMembers}</span>
+                  <Users className="w-4 h-4 text-[color:var(--nn-cyan)]" />
+                  <span className="text-[color:var(--nn-text-primary)]">{clanData.members.length}/{clanData.maxMembers}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-purple-400" />
-                  <span className="text-white">Level {clanData.level.currentLevel}</span>
+                  <TrendingUp className="w-4 h-4 text-[color:var(--nn-violet)]" />
+                  <span className="text-[color:var(--nn-text-primary)]">Level {clanData.level.currentLevel}</span>
                 </div>
                 <Badge>{playerRole}</Badge>
               </div>
@@ -864,10 +864,10 @@ function TabButton({ icon, label, active, onClick }: TabButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
+      className={`flex items-center gap-2 px-4 py-2 rounded-none transition-all ${
         active
-          ? 'bg-cyan-500/20 border border-cyan-500 text-cyan-400'
-          : 'bg-glass-light border border-glass-border text-text-secondary hover:text-cyan-400 hover:border-cyan-500/50'
+          ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]'
+          : 'bg-glass-light border border-glass-border text-text-secondary text-[color:var(--nn-cyan)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'
       }`}
     >
       {icon}
@@ -884,12 +884,12 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value }: StatCardProps) {
   return (
-    <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
+    <div className="bg-glass-light rounded-none p-4 border border-glass-border">
       <div className="flex items-center gap-3 mb-2">
-        <div className="text-cyan-400">{icon}</div>
+        <div className="text-[color:var(--nn-cyan)]">{icon}</div>
         <div className="text-sm text-text-secondary">{label}</div>
       </div>
-      <div className="text-2xl font-bold text-white">{value}</div>
+      <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">{value}</div>
     </div>
   );
 }

@@ -89,17 +89,17 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
   if (!options) return null;
 
   const btnBg = options.danger
-    ? 'bg-red-600 hover:bg-red-500'
+    ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
     : 'bg-primary-600 hover:bg-primary-500';
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm p-4"
       role="presentation"
       onClick={() => settle(false)}
     >
       <div
-        className="w-full max-w-md rounded-xl border border-glass-border bg-glass-darker shadow-glow-cyan-sm p-5 space-y-4"
+        className="w-full max-w-md rounded-none border border-glass-border bg-glass-darker shadow-glow-cyan-sm p-5 space-y-4"
         role="alertdialog"
         aria-modal="true"
         aria-label={options.title || 'Confirm'}
@@ -107,13 +107,13 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
       >
         <div className="flex items-start gap-3">
           {options.danger ? (
-            <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <AlertTriangle className="w-5 h-5 text-[color:var(--nn-magenta)] mt-0.5 flex-shrink-0" aria-hidden="true" />
           ) : (
             <Info className="w-5 h-5 text-primary-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
           )}
           <div className="min-w-0 flex-1">
             {options.title && (
-              <h2 className={`text-sm font-bold mb-1 ${options.danger ? 'text-red-300' : 'text-primary-300'}`}>
+              <h2 className={`text-sm font-bold mb-1 ${options.danger ? 'text-[color:var(--nn-magenta)]' : 'text-primary-300'}`}>
                 {options.title}
               </h2>
             )}
@@ -126,7 +126,7 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
             <button
               type="button"
               onClick={() => settle(false)}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-text-secondary hover:text-text-primary border border-glass-border hover:border-glass-border/60 transition-colors"
+              className="px-4 py-2 rounded-none text-sm font-medium text-text-secondary hover:text-text-primary border border-glass-border hover:border-glass-border/60 transition-colors"
             >
               {options.cancelLabel || 'Cancel'}
             </button>
@@ -135,7 +135,7 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
             type="button"
             autoFocus
             onClick={() => settle(true)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors ${btnBg}`}
+            className={`px-4 py-2 rounded-none text-sm font-semibold text-[color:var(--nn-text-primary)] transition-colors ${btnBg}`}
           >
             {options.confirmLabel || (options.hideCancel ? 'OK' : 'Confirm')}
           </button>

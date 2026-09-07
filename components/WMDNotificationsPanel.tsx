@@ -89,11 +89,11 @@ export default function WMDNotificationsPanel() {
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'CRITICAL': return 'bg-red-600';
-      case 'ALERT': return 'bg-orange-600';
-      case 'WARNING': return 'bg-yellow-600';
-      case 'INFO': return 'bg-blue-600';
-      default: return 'bg-gray-600';
+      case 'CRITICAL': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
+      case 'ALERT': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      case 'WARNING': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      case 'INFO': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
     }
   };
 
@@ -124,8 +124,8 @@ export default function WMDNotificationsPanel() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg">
-        <p className="text-gray-300">Loading notifications...</p>
+      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">Loading notifications...</p>
       </div>
     );
   }
@@ -133,12 +133,12 @@ export default function WMDNotificationsPanel() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="p-6 bg-gray-800 rounded-lg space-y-6">
+    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-white">WMD Notifications</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">WMD Notifications</h2>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">
             {unreadCount} unread | {notifications.length} total
           </p>
         </div>
@@ -157,7 +157,7 @@ export default function WMDNotificationsPanel() {
         {notifications.map((notif) => (
           <Card
             key={notif.notificationId}
-            className={`p-4 ${notif.read ? 'bg-gray-700' : 'bg-gray-600 border-l-4 border-blue-400'}`}
+            className={`p-4 ${notif.read ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] border-l-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'}`}
           >
             <div className="flex justify-between items-start gap-4">
               {/* Icon */}
@@ -168,13 +168,13 @@ export default function WMDNotificationsPanel() {
               {/* Content */}
               <div className="flex-1 space-y-1">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-white">{notif.title}</h3>
+                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{notif.title}</h3>
                   <Badge className={getPriorityColor(notif.priority)}>
                     {notif.priority}
                   </Badge>
                 </div>
-                <p className="text-sm text-gray-300">{notif.message}</p>
-                <div className="flex gap-4 text-xs text-gray-400 mt-2">
+                <p className="text-sm text-[color:var(--nn-text-secondary)]">{notif.message}</p>
+                <div className="flex gap-4 text-xs text-[color:var(--nn-text-secondary)] mt-2">
                   <span>From: {notif.sourceName}</span>
                   {notif.targetName && <span>To: {notif.targetName}</span>}
                   <span>{formatTime(notif.createdAt)}</span>
@@ -188,8 +188,8 @@ export default function WMDNotificationsPanel() {
       {/* Empty State */}
       {notifications.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No notifications</p>
-          <p className="text-gray-500 text-sm">WMD events will appear here</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">No notifications</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">WMD events will appear here</p>
         </div>
       )}
     </div>

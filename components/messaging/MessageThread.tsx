@@ -282,9 +282,9 @@ export default function MessageThread({
       case 'delivered':
         return <Check className="w-3 h-3 text-text-secondary" />;
       case 'read':
-        return <CheckCheck className="w-3 h-3 text-blue-400" />;
+        return <CheckCheck className="w-3 h-3 text-[color:var(--nn-cyan)]" />;
       case 'failed':
-        return <span className="text-xs text-red-400">Failed</span>;
+        return <span className="text-xs text-[color:var(--nn-magenta)]">Failed</span>;
       default:
         return null;
     }
@@ -306,9 +306,9 @@ export default function MessageThread({
 
           {/* Recipient Info */}
           <div className="flex-1">
-            <h3 className="font-semibold text-white">{recipientUsername}</h3>
+            <h3 className="font-semibold text-[color:var(--nn-text-primary)]">{recipientUsername}</h3>
             {state.recipientTyping && (
-              <p className="text-xs text-blue-400 italic">typing...</p>
+              <p className="text-xs text-[color:var(--nn-cyan)] italic">typing...</p>
             )}
           </div>
         </div>
@@ -321,14 +321,14 @@ export default function MessageThread({
       >
         {state.isLoading && state.messages.length === 0 ? (
           <div className="flex items-center justify-center h-32">
-            <Loader className="w-8 h-8 animate-spin text-blue-500" />
+            <Loader className="w-8 h-8 animate-spin text-[color:var(--nn-cyan)]" />
           </div>
         ) : state.error ? (
           <div className="text-center">
-            <p className="text-red-400">{state.error}</p>
+            <p className="text-[color:var(--nn-magenta)]">{state.error}</p>
             <button
               onClick={() => loadMessages()}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="mt-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none"
             >
               Retry
             </button>
@@ -345,7 +345,7 @@ export default function MessageThread({
                       loadMessages(new Date(oldestMessage.createdAt));
                     }
                   }}
-                  className="px-4 py-2 text-sm text-blue-400 hover:text-blue-300"
+                  className="px-4 py-2 text-sm text-[color:var(--nn-cyan)]"
                 >
                   Load older messages
                 </button>
@@ -362,9 +362,9 @@ export default function MessageThread({
                   className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                    className={`max-w-[70%] rounded-none px-4 py-2 ${
                       isOwn
-                        ? 'bg-blue-600 text-white'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                         : 'bg-glass-light text-text-primary'
                     }`}
                   >
@@ -372,7 +372,7 @@ export default function MessageThread({
                       {message.content}
                     </p>
                     <div className={`flex items-center gap-2 mt-1 text-xs ${
-                      isOwn ? 'text-blue-200' : 'text-text-secondary'
+                      isOwn ? 'text-[color:var(--nn-cyan)]' : 'text-text-secondary'
                     }`}>
                       <span>{formatTimestamp(message.createdAt)}</span>
                       {getStatusIcon(message)}
@@ -392,9 +392,9 @@ export default function MessageThread({
       <div className="p-4 border-t border-glass-border bg-glass-light">
         {/* Emoji quick-insert (FID-20260906-012 P0 — replaces removed @emoji-mart picker) */}
         {showEmojiPicker && (
-          <div className="absolute bottom-20 right-4 z-50 flex flex-wrap gap-1 p-3 max-w-64 bg-glass-darker border border-glass-border rounded-lg shadow-2xl">
+          <div className="absolute bottom-20 right-4 z-50 flex flex-wrap gap-1 p-3 max-w-64 bg-glass-darker border border-glass-border rounded-none shadow-2xl">
             {QUICK_EMOJIS.map(e => (
-              <button key={e} onClick={() => insertEmoji(e)} className="p-1.5 text-lg hover:bg-white/10 rounded transition-colors">{e}</button>
+              <button key={e} onClick={() => insertEmoji(e)} className="p-1.5 text-lg hover:bg-[color-mix(in_oklab,var(--nn-text-primary)_10%,transparent)] rounded-none transition-colors">{e}</button>
             ))}
           </div>
         )}
@@ -418,14 +418,14 @@ export default function MessageThread({
             onKeyPress={handleKeyPress}
             placeholder={`Message ${recipientUsername}...`}
             rows={1}
-            className="flex-1 px-4 py-2 bg-glass-dark border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-blue-500 resize-none max-h-32"
+            className="flex-1 px-4 py-2 bg-glass-dark border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-blue-500 resize-none max-h-32"
           />
 
           {/* Send Button */}
           <button
             onClick={sendMessage}
             disabled={!state.draftMessage.trim() || isSending}
-            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Send message"
           >
             {isSending ? (
@@ -440,7 +440,7 @@ export default function MessageThread({
         <div className="mt-1 text-right">
           <span className={`text-xs ${
             state.draftMessage.length > 900
-              ? 'text-red-400'
+              ? 'text-[color:var(--nn-magenta)]'
               : 'text-text-secondary'
           }`}>
             {state.draftMessage.length} / 1000

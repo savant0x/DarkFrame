@@ -55,11 +55,11 @@ interface UnlockConfirmationProps {
  */
 function getTierColor(tier: UnitTier): string {
   const map: Record<UnitTier, string> = {
-    [UnitTier.Tier1]: 'border-gray-500 bg-gray-800/50',
-    [UnitTier.Tier2]: 'border-green-500 bg-green-900/30',
-    [UnitTier.Tier3]: 'border-blue-500 bg-blue-900/30',
-    [UnitTier.Tier4]: 'border-purple-500 bg-purple-900/30',
-    [UnitTier.Tier5]: 'border-yellow-500 bg-yellow-900/30',
+    [UnitTier.Tier1]: 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]',
+    [UnitTier.Tier2]: 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]',
+    [UnitTier.Tier3]: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
+    [UnitTier.Tier4]: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
+    [UnitTier.Tier5]: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
   };
   return map[tier] || map[UnitTier.Tier1];
 }
@@ -90,29 +90,29 @@ function getTierIcon(tier: UnitTier): string {
  */
 function UnlockConfirmation({ tier, rpCost, onConfirm, onCancel }: UnlockConfirmationProps) {
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-      <Card className="max-w-md w-full border-2 border-purple-500">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+      <Card className="max-w-md w-full border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
         <div className="p-6">
-          <h3 className="text-2xl font-bold text-purple-400 mb-4 flex items-center gap-2">
+          <h3 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4 flex items-center gap-2">
             <span>🔓</span>
             <span>Unlock Tier {tier}?</span>
           </h3>
           
           <Panel className="mb-6">
-            <p className="text-gray-300 mb-4 leading-relaxed">
-              This will unlock <Badge variant="default" className="bg-purple-900 text-purple-300">Tier {tier}</Badge> units, 
+            <p className="text-[color:var(--nn-text-secondary)] mb-4 leading-relaxed">
+              This will unlock <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-violet)]">Tier {tier}</Badge> units, 
               granting access to 8 new powerful unit types.
             </p>
             
-            <div className="flex items-center justify-center bg-purple-900/30 rounded-lg p-4 border border-purple-500">
+            <div className="flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] rounded-none p-4 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
               <span className="text-3xl mr-3">🧪</span>
               <div>
-                <div className="text-sm text-gray-400">Cost:</div>
-                <div className="text-2xl font-bold text-purple-400">{rpCost} RP</div>
+                <div className="text-sm text-[color:var(--nn-text-secondary)]">Cost:</div>
+                <div className="text-2xl font-bold text-[color:var(--nn-violet)]">{rpCost} RP</div>
               </div>
             </div>
             
-            <p className="text-sm text-yellow-400 mt-4 text-center flex items-center justify-center gap-2">
+            <p className="text-sm text-[color:var(--nn-amber)] mt-4 text-center flex items-center justify-center gap-2">
               <span>⚠️</span>
               <span>This is a permanent unlock and cannot be undone</span>
             </p>
@@ -131,7 +131,7 @@ function UnlockConfirmation({ tier, rpCost, onConfirm, onCancel }: UnlockConfirm
               variant="primary"
               size="base"
               onClick={onConfirm}
-              className="flex-1 bg-purple-600 hover:bg-purple-700"
+              className="flex-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
             >
               Unlock Now
             </Button>
@@ -278,20 +278,20 @@ export default function TierUnlockPanel() {
         <div className="flex items-center gap-3">
           <span className="text-3xl">🧪</span>
           <div>
-            <h2 className="text-2xl font-bold text-purple-400">Research Tiers</h2>
-            <p className="text-sm text-gray-400">Unlock advanced unit types with RP</p>
+            <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">Research Tiers</h2>
+            <p className="text-sm text-[color:var(--nn-text-secondary)]">Unlock advanced unit types with RP</p>
           </div>
         </div>
-        <Card className="bg-purple-900/30 px-4 py-2 border border-purple-500">
-          <div className="text-sm text-gray-400">Available RP:</div>
-          <div className="text-xl font-bold text-purple-400">{player?.researchPoints || 0}</div>
+        <Card className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] px-4 py-2 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">Available RP:</div>
+          <div className="text-xl font-bold text-[color:var(--nn-violet)]">{player?.researchPoints || 0}</div>
         </Card>
       </div>
 
       {/* Error Display */}
       {error && (
-        <Panel className="bg-red-900/30 border border-red-500 mb-4">
-          <p className="text-red-400 text-sm flex items-center gap-2">
+        <Panel className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mb-4">
+          <p className="text-[color:var(--nn-magenta)] text-sm flex items-center gap-2">
             <span>❌</span>
             <span>{error}</span>
           </p>
@@ -316,43 +316,43 @@ export default function TierUnlockPanel() {
                   {/* Header */}
                   <div className="text-center mb-3">
                     <div className="text-4xl mb-2">{getTierIcon(tierStatus.tier)}</div>
-                    <h3 className="text-lg font-bold text-white">Tier {tierStatus.tier}</h3>
+                    <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)]">Tier {tierStatus.tier}</h3>
                   </div>
 
                   {tierStatus.unlocked ? (
                     // Unlocked State
-                    <div className="bg-green-900/30 border border-green-500 rounded-lg p-3 text-center">
-                      <Badge variant="default" className="bg-green-500 text-white mb-2">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-3 text-center">
+                      <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] mb-2">
                         ✅ Unlocked
                       </Badge>
-                      <p className="text-xs text-green-300">8 units available</p>
+                      <p className="text-xs text-[color:var(--nn-green)]">8 units available</p>
                     </div>
                   ) : (
                     // Locked State
                     <div className="space-y-3">
                       {/* Requirements */}
-                      <div className="bg-gray-800 rounded-lg p-2 space-y-2 text-xs">
+                      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 space-y-2 text-xs">
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Required Level:</span>
+                          <span className="text-[color:var(--nn-text-secondary)]">Required Level:</span>
                           <Badge
                             variant="default"
                             className={
                               (player?.level || 0) >= tierStatus.requiresLevel
-                                ? 'bg-green-900/50 text-green-400'
-                                : 'bg-red-900/50 text-red-400'
+                                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
+                                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
                             }
                           >
                             {tierStatus.requiresLevel}
                           </Badge>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-gray-400">Required RP:</span>
+                          <span className="text-[color:var(--nn-text-secondary)]">Required RP:</span>
                           <Badge
                             variant="default"
                             className={
                               (player?.researchPoints || 0) >= tierStatus.requiresRP
-                                ? 'bg-green-900/50 text-green-400'
-                                : 'bg-red-900/50 text-red-400'
+                                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
+                                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
                             }
                           >
                             {tierStatus.requiresRP}
@@ -368,8 +368,8 @@ export default function TierUnlockPanel() {
                         disabled={!tierStatus.canUnlock || unlocking}
                         className={`w-full ${
                           tierStatus.canUnlock
-                            ? 'bg-purple-600 hover:bg-purple-700'
-                            : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                         }`}
                       >
                         {unlocking ? '...' : tierStatus.canUnlock ? '🔓 Unlock' : '🔒 Locked'}
@@ -386,11 +386,11 @@ export default function TierUnlockPanel() {
       <Divider className="my-6" />
 
       {/* Information Footer */}
-      <Panel className="bg-gray-800">
-        <p className="text-sm text-gray-400 flex items-start gap-2">
-          <span className="text-purple-400 font-bold text-base">💡</span>
+      <Panel className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
+        <p className="text-sm text-[color:var(--nn-text-secondary)] flex items-start gap-2">
+          <span className="text-[color:var(--nn-violet)] font-bold text-base">💡</span>
           <span>
-            <span className="text-purple-400 font-bold">Tip:</span> Earn Research Points (RP) by leveling up. 
+            <span className="text-[color:var(--nn-violet)] font-bold">Tip:</span> Earn Research Points (RP) by leveling up. 
             Higher levels grant more RP. Unlock tiers to access more powerful units!
           </span>
         </p>

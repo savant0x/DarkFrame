@@ -111,10 +111,10 @@ export default function ClanLevelDisplay({
 
   // Get level tier color
   const getLevelTierColor = (level: number): string => {
-    if (level >= 40) return 'text-purple-400'; // Legendary
-    if (level >= 25) return 'text-yellow-400'; // Gold
-    if (level >= 15) return 'text-blue-400';   // Silver
-    if (level >= 5) return 'text-orange-400';  // Bronze
+    if (level >= 40) return 'text-[color:var(--nn-violet)]'; // Legendary
+    if (level >= 25) return 'text-[color:var(--nn-amber)]'; // Gold
+    if (level >= 15) return 'text-[color:var(--nn-cyan)]';   // Silver
+    if (level >= 5) return 'text-[color:var(--nn-amber)]';  // Bronze
     return 'text-text-secondary'; // Starting
   };
 
@@ -137,11 +137,11 @@ export default function ClanLevelDisplay({
 
   if (loading) {
     return (
-      <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
+      <div className="bg-glass-light rounded-none p-6 border border-glass-border">
         <div className="animate-pulse">
-          <div className="h-8 bg-glass-light rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-glass-light rounded w-full mb-2"></div>
-          <div className="h-20 bg-glass-light rounded w-full"></div>
+          <div className="h-8 bg-glass-light rounded-none w-1/3 mb-4"></div>
+          <div className="h-4 bg-glass-light rounded-none w-full mb-2"></div>
+          <div className="h-20 bg-glass-light rounded-none w-full"></div>
         </div>
       </div>
     );
@@ -149,11 +149,11 @@ export default function ClanLevelDisplay({
 
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-700 rounded-lg p-6">
-        <p className="text-red-400">Error loading level info: {error}</p>
+      <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6">
+        <p className="text-[color:var(--nn-magenta)]">Error loading level info: {error}</p>
         <button
           onClick={fetchLevelInfo}
-          className="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded transition"
+          className="mt-4 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] rounded-none transition"
         >
           Retry
         </button>
@@ -164,7 +164,7 @@ export default function ClanLevelDisplay({
   if (!levelInfo) return null;
 
   return (
-    <div className="bg-glass-light rounded-lg p-6 border border-glass-border space-y-6">
+    <div className="bg-glass-light rounded-none p-6 border border-glass-border space-y-6">
       {/* Header with Level Badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -172,7 +172,7 @@ export default function ClanLevelDisplay({
             {levelInfo.currentLevel}
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-white">Clan Level</h2>
+            <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Clan Level</h2>
             <p className={`text-sm ${getLevelTierColor(levelInfo.currentLevel)}`}>
               {getLevelTier(levelInfo.currentLevel)} Tier
             </p>
@@ -180,8 +180,8 @@ export default function ClanLevelDisplay({
         </div>
 
         {levelInfo.maxLevel ? (
-          <div className="px-4 py-2 bg-purple-900/50 border border-purple-500 rounded">
-            <span className="text-purple-400 font-bold">MAX LEVEL</span>
+          <div className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none">
+            <span className="text-[color:var(--nn-violet)] font-bold">MAX LEVEL</span>
           </div>
         ) : null}
       </div>
@@ -193,14 +193,14 @@ export default function ClanLevelDisplay({
             <span className="text-text-secondary">
               XP: {formatNumberAbbreviated(levelInfo.currentLevelXP)} / {formatNumberAbbreviated(levelInfo.currentLevelXP + levelInfo.xpToNextLevel)}
             </span>
-            <span className="text-cyan-400 font-bold">
+            <span className="text-[color:var(--nn-cyan)] font-bold">
               {levelInfo.progressPercentage}%
             </span>
           </div>
 
           <div className="h-6 bg-glass-light rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-1000 ease-out"
+              className="h-full bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] transition-all duration-1000 ease-out"
               style={{ width: `${levelInfo.progressPercentage}%` }}
             />
           </div>
@@ -218,10 +218,10 @@ export default function ClanLevelDisplay({
 
       {/* Next Milestone */}
       {levelInfo.nextMilestone && (
-        <div className="bg-glass-dark border border-yellow-700/50 rounded-lg p-4">
+        <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-yellow-400 text-lg">🏆</span>
-            <h3 className="text-yellow-400 font-bold">
+            <span className="text-[color:var(--nn-amber)] text-lg">🏆</span>
+            <h3 className="text-[color:var(--nn-amber)] font-bold">
               Next Milestone: Level {levelInfo.nextMilestone.level}
             </h3>
           </div>
@@ -229,28 +229,28 @@ export default function ClanLevelDisplay({
             {levelInfo.nextMilestone.description}
           </p>
           <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="bg-glass-light rounded p-2 text-center">
+            <div className="bg-glass-light rounded-none p-2 text-center">
               <div className="text-text-secondary">Metal</div>
-              <div className="text-orange-400 font-bold">
+              <div className="text-[color:var(--nn-amber)] font-bold">
                 {formatNumberAbbreviated(levelInfo.nextMilestone.rewards.metal)}
               </div>
             </div>
-            <div className="bg-glass-light rounded p-2 text-center">
+            <div className="bg-glass-light rounded-none p-2 text-center">
               <div className="text-text-secondary">Energy</div>
-              <div className="text-blue-400 font-bold">
+              <div className="text-[color:var(--nn-cyan)] font-bold">
                 {formatNumberAbbreviated(levelInfo.nextMilestone.rewards.energy)}
               </div>
             </div>
-            <div className="bg-glass-light rounded p-2 text-center">
+            <div className="bg-glass-light rounded-none p-2 text-center">
               <div className="text-text-secondary">RP</div>
-              <div className="text-purple-400 font-bold">
+              <div className="text-[color:var(--nn-violet)] font-bold">
                 {formatNumberAbbreviated(levelInfo.nextMilestone.rewards.researchPoints)}
               </div>
             </div>
           </div>
           {levelInfo.nextMilestone.unlocksFeature && (
-            <div className="mt-3 px-3 py-2 bg-green-900/30 border border-green-700 rounded text-center">
-              <span className="text-green-400 text-sm font-semibold">
+            <div className="mt-3 px-3 py-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none text-center">
+              <span className="text-[color:var(--nn-green)] text-sm font-semibold">
                 🔓 Unlocks: {formatFeatureName(levelInfo.nextMilestone.unlocksFeature)}
               </span>
             </div>
@@ -261,7 +261,7 @@ export default function ClanLevelDisplay({
       {/* Features Unlocked */}
       {levelInfo.featuresUnlocked.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-white font-bold flex items-center gap-2">
+          <h3 className="text-[color:var(--nn-text-primary)] font-bold flex items-center gap-2">
             <span>✅</span>
             Features Unlocked ({levelInfo.featuresUnlocked.length})
           </h3>
@@ -269,7 +269,7 @@ export default function ClanLevelDisplay({
             {levelInfo.featuresUnlocked.map((feature) => (
               <div
                 key={feature}
-                className="bg-green-900/20 border border-green-700/50 rounded px-3 py-2 text-sm text-green-400"
+                className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none px-3 py-2 text-sm text-[color:var(--nn-green)]"
               >
                 {formatFeatureName(feature)}
               </div>
@@ -281,7 +281,7 @@ export default function ClanLevelDisplay({
       {/* Milestones Completed */}
       {milestones && milestones.completed.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-white font-bold flex items-center gap-2">
+          <h3 className="text-[color:var(--nn-text-primary)] font-bold flex items-center gap-2">
             <span>🏆</span>
             Milestones Completed ({milestones.completed.length})
           </h3>
@@ -291,22 +291,22 @@ export default function ClanLevelDisplay({
               .map((milestone) => (
                 <div
                   key={milestone.level}
-                  className="bg-glass-dark border border-glass-border rounded p-3 flex items-center justify-between"
+                  className="bg-glass-dark border border-glass-border rounded-none p-3 flex items-center justify-between"
                 >
                   <div>
-                    <div className="text-white font-semibold">Level {milestone.level}</div>
+                    <div className="text-[color:var(--nn-text-primary)] font-semibold">Level {milestone.level}</div>
                     <div className="text-xs text-text-secondary">
                       {new Date(milestone.completedAt).toLocaleDateString()}
                     </div>
                   </div>
                   <div className="flex gap-2 text-xs">
-                    <span className="text-orange-400">
+                    <span className="text-[color:var(--nn-amber)]">
                       {formatNumberAbbreviated(milestone.rewards.metal)} M
                     </span>
-                    <span className="text-blue-400">
+                    <span className="text-[color:var(--nn-cyan)]">
                       {formatNumberAbbreviated(milestone.rewards.energy)} E
                     </span>
-                    <span className="text-purple-400">
+                    <span className="text-[color:var(--nn-violet)]">
                       {formatNumberAbbreviated(milestone.rewards.researchPoints)} RP
                     </span>
                   </div>
@@ -320,13 +320,13 @@ export default function ClanLevelDisplay({
       <div className="grid grid-cols-2 gap-4 pt-4 border-t border-glass-border">
         <div className="text-center">
           <div className="text-text-secondary text-sm">Total XP</div>
-          <div className="text-white font-bold text-lg">
+          <div className="text-[color:var(--nn-text-primary)] font-bold text-lg">
             {formatNumberAbbreviated(levelInfo.totalXP)}
           </div>
         </div>
         <div className="text-center">
           <div className="text-text-secondary text-sm">Milestones</div>
-          <div className="text-yellow-400 font-bold text-lg">
+          <div className="text-[color:var(--nn-amber)] font-bold text-lg">
             {levelInfo.milestonesCompleted} / 8
           </div>
         </div>

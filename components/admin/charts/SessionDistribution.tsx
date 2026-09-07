@@ -48,22 +48,22 @@ export default function SessionDistribution({ buckets, loading, error }: Session
     const data = payload[0].payload;
 
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
-        <p className="text-gray-300 text-sm font-semibold mb-2">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3 shadow-lg">
+        <p className="text-[color:var(--nn-text-secondary)] text-sm font-semibold mb-2">
           {data.label}
         </p>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">Sessions:</span>
-            <span className="text-white font-semibold">{data.count}</span>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Sessions:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{data.count}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">Players:</span>
-            <span className="text-white font-semibold">{data.uniquePlayers}</span>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Players:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{data.uniquePlayers}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">Avg Duration:</span>
-            <span className="text-white font-semibold">{formatDuration(data.avgDuration)}</span>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Avg Duration:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{formatDuration(data.avgDuration)}</span>
           </div>
         </div>
       </div>
@@ -73,10 +73,10 @@ export default function SessionDistribution({ buckets, loading, error }: Session
   // Loading state
   if (loading) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-3"></div>
-          <p className="text-gray-400">Loading session data...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] mx-auto mb-3"></div>
+          <p className="text-[color:var(--nn-text-secondary)]">Loading session data...</p>
         </div>
       </div>
     );
@@ -85,10 +85,10 @@ export default function SessionDistribution({ buckets, loading, error }: Session
   // Error state
   if (error) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg border border-red-500">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
         <div className="text-center">
-          <p className="text-red-400 font-semibold mb-1">Failed to load session data</p>
-          <p className="text-gray-500 text-sm">{error}</p>
+          <p className="text-[color:var(--nn-magenta)] font-semibold mb-1">Failed to load session data</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">{error}</p>
         </div>
       </div>
     );
@@ -97,14 +97,14 @@ export default function SessionDistribution({ buckets, loading, error }: Session
   // No data state
   if (!buckets || buckets.length === 0) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
-        <p className="text-gray-500">No session data for this period</p>
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">No session data for this period</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-[300px] bg-gray-800 rounded-lg p-4">
+    <div className="w-full h-[300px] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={buckets} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -138,20 +138,20 @@ export default function SessionDistribution({ buckets, loading, error }: Session
       {/* Legend explanation */}
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-sm bg-green-500"></div>
-          <span className="text-gray-400">Normal (0-2h)</span>
+          <div className="w-3 h-3 rounded-none bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Normal (0-2h)</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-sm bg-yellow-500"></div>
-          <span className="text-gray-400">High (2-4h)</span>
+          <div className="w-3 h-3 rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">High (2-4h)</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-sm bg-orange-500"></div>
-          <span className="text-gray-400">Very High (4-8h)</span>
+          <div className="w-3 h-3 rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Very High (4-8h)</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-sm bg-red-500"></div>
-          <span className="text-gray-400">Excessive (8h+)</span>
+          <div className="w-3 h-3 rounded-none bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Excessive (8h+)</span>
         </div>
       </div>
     </div>

@@ -63,24 +63,24 @@ export default function CaveItemNotification() {
   // Get rarity color
   const getRarityColor = (rarity: ItemRarity): string => {
     switch (rarity) {
-      case ItemRarity.Common: return 'border-gray-500 bg-gray-800';
-      case ItemRarity.Uncommon: return 'border-green-500 bg-green-900';
-      case ItemRarity.Rare: return 'border-blue-500 bg-blue-900';
-      case ItemRarity.Epic: return 'border-purple-500 bg-purple-900';
-      case ItemRarity.Legendary: return 'border-yellow-500 bg-yellow-900';
-      default: return 'border-gray-500 bg-gray-800';
+      case ItemRarity.Common: return 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]';
+      case ItemRarity.Uncommon: return 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case ItemRarity.Rare: return 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      case ItemRarity.Epic: return 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]';
+      case ItemRarity.Legendary: return 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      default: return 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]';
     }
   };
 
   // Get rarity text color
   const getRarityTextColor = (rarity: ItemRarity): string => {
     switch (rarity) {
-      case ItemRarity.Common: return 'text-gray-300';
-      case ItemRarity.Uncommon: return 'text-green-300';
-      case ItemRarity.Rare: return 'text-blue-300';
-      case ItemRarity.Epic: return 'text-purple-300';
-      case ItemRarity.Legendary: return 'text-yellow-300';
-      default: return 'text-white';
+      case ItemRarity.Common: return 'text-[color:var(--nn-text-secondary)]';
+      case ItemRarity.Uncommon: return 'text-[color:var(--nn-green)]';
+      case ItemRarity.Rare: return 'text-[color:var(--nn-cyan)]';
+      case ItemRarity.Epic: return 'text-[color:var(--nn-violet)]';
+      case ItemRarity.Legendary: return 'text-[color:var(--nn-amber)]';
+      default: return 'text-[color:var(--nn-text-primary)]';
     }
   };
 
@@ -105,7 +105,7 @@ export default function CaveItemNotification() {
       {notifications.map((notification) => (
         <div
           key={notification.timestamp}
-          className={`${getRarityColor(notification.item.rarity)} border-2 rounded-lg p-4 shadow-2xl animate-slide-in-right max-w-sm`}
+          className={`${getRarityColor(notification.item.rarity)} border-2 rounded-none p-4 shadow-2xl animate-slide-in-right max-w-sm`}
           style={{
             animation: 'slideInRight 0.3s ease-out'
           }}
@@ -124,24 +124,24 @@ export default function CaveItemNotification() {
                 </h3>
                 <button
                   onClick={() => dismissNotification(notification.timestamp)}
-                  className="text-gray-400 hover:text-white transition-colors ml-2"
+                  className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] transition-colors ml-2"
                 >
                   ✕
                 </button>
               </div>
               
-              <p className="text-xs text-gray-400 mb-1">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">
                 {notification.item.rarity}
               </p>
               
               {notification.item.description && (
-                <p className="text-sm text-gray-300 mb-2">
+                <p className="text-sm text-[color:var(--nn-text-secondary)] mb-2">
                   {notification.item.description}
                 </p>
               )}
               
               {notification.item.bonusValue && (
-                <p className="text-sm font-bold text-green-400">
+                <p className="text-sm font-bold text-[color:var(--nn-green)]">
                   +{notification.item.bonusValue}% gathering bonus!
                 </p>
               )}
@@ -149,9 +149,9 @@ export default function CaveItemNotification() {
           </div>
 
           {/* Progress bar for auto-dismiss */}
-          <div className="mt-2 h-1 bg-gray-700 rounded-full overflow-hidden">
+          <div className="mt-2 h-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full overflow-hidden">
             <div 
-              className="h-full bg-white rounded-full"
+              className="h-full bg-[color:var(--nn-text-primary)] rounded-full"
               style={{
                 animation: 'shrink 5s linear'
               }}

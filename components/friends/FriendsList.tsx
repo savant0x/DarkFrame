@@ -208,7 +208,7 @@ export default function FriendsList({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400">Loading friends...</div>
+        <div className="text-[color:var(--nn-text-secondary)]">Loading friends...</div>
       </div>
     );
   }
@@ -219,10 +219,10 @@ export default function FriendsList({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="text-red-400">{error}</div>
+        <div className="text-[color:var(--nn-magenta)]">{error}</div>
         <button
           onClick={fetchFriends}
-          className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-black rounded transition-colors"
+          className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors"
         >
           Retry
         </button>
@@ -236,13 +236,13 @@ export default function FriendsList({
   if (friends.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="text-gray-400 text-center">
+        <div className="text-[color:var(--nn-text-secondary)] text-center">
           <div className="text-lg mb-2">No friends yet</div>
           <div className="text-sm">Start building your network!</div>
         </div>
         <button
           onClick={onAddFriendClick}
-          className="px-6 py-2 bg-cyan-500 hover:bg-cyan-600 text-black rounded transition-colors font-semibold"
+          className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors font-semibold"
         >
           Add Friends
         </button>
@@ -258,12 +258,12 @@ export default function FriendsList({
     <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-cyan-400">
+        <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)]">
           Friends ({friends.length})
         </h3>
         <button
           onClick={onAddFriendClick}
-          className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded text-sm transition-colors"
+          className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] rounded-none text-sm transition-colors"
         >
           + Add
         </button>
@@ -302,7 +302,7 @@ function FriendCard({ friend, onMessage, onRemoved }: FriendCardProps) {
 
   return (
     <div
-      className="flex items-center justify-between p-3 bg-gray-800/50 hover:bg-gray-800/70 rounded transition-colors group"
+      className="flex items-center justify-between p-3 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none transition-colors group"
     >
       {/* Left: Avatar + Info */}
       <div className="flex items-center gap-3">
@@ -315,27 +315,27 @@ function FriendCard({ friend, onMessage, onRemoved }: FriendCardProps) {
         <div>
           <div className="flex items-center gap-2">
             {/* Username */}
-            <span className="font-semibold text-white">
+            <span className="font-semibold text-[color:var(--nn-text-primary)]">
               {friend.username}
             </span>
 
             {/* VIP Badge */}
             {friend.vip && (
-              <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+              <span className="px-1.5 py-0.5 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs rounded-none">
                 VIP
               </span>
             )}
 
             {/* Clan Tag */}
             {friend.clanTag && (
-              <span className="text-cyan-400 text-sm">
+              <span className="text-[color:var(--nn-cyan)] text-sm">
                 {friend.clanTag}
               </span>
             )}
           </div>
 
           {/* Level */}
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">
             Level {friend.level}
           </div>
         </div>
@@ -346,7 +346,7 @@ function FriendCard({ friend, onMessage, onRemoved }: FriendCardProps) {
         {/* Message Button */}
         <button
           onClick={onMessage}
-          className="px-3 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 rounded text-sm transition-colors opacity-0 group-hover:opacity-100"
+          className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] rounded-none text-sm transition-colors opacity-0 group-hover:opacity-100"
           title="Send message"
         >
           Message
@@ -356,11 +356,11 @@ function FriendCard({ friend, onMessage, onRemoved }: FriendCardProps) {
         <div className="relative">
           <button
             onClick={() => setShowActions(!showActions)}
-            className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+            className="p-1.5 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none transition-colors"
             title="More actions"
           >
             <svg
-              className="w-5 h-5 text-gray-400"
+              className="w-5 h-5 text-[color:var(--nn-text-secondary)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -376,19 +376,19 @@ function FriendCard({ friend, onMessage, onRemoved }: FriendCardProps) {
 
           {/* Actions menu will be implemented with FriendActionsMenu component */}
           {showActions && (
-            <div className="absolute right-0 mt-1 w-40 bg-gray-800 border border-gray-700 rounded shadow-lg z-10">
+            <div className="absolute right-0 mt-1 w-40 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none shadow-lg z-10">
               <button
                 onClick={() => {
                   onRemoved();
                   setShowActions(false);
                 }}
-                className="w-full px-4 py-2 text-left text-red-400 hover:bg-gray-700 transition-colors"
+                className="w-full px-4 py-2 text-left text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors"
               >
                 Remove Friend
               </button>
               <button
                 onClick={() => setShowActions(false)}
-                className="w-full px-4 py-2 text-left text-gray-400 hover:bg-gray-700 transition-colors"
+                className="w-full px-4 py-2 text-left text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors"
               >
                 Block
               </button>
@@ -413,10 +413,10 @@ interface OnlineStatusDotProps {
  */
 function OnlineStatusDot({ status }: OnlineStatusDotProps) {
   const colors: Record<OnlineStatus, string> = {
-    [OnlineStatus.ONLINE]: 'bg-green-500',
-    [OnlineStatus.OFFLINE]: 'bg-gray-500',
-    [OnlineStatus.AWAY]: 'bg-yellow-500',
-    [OnlineStatus.INVISIBLE]: 'bg-gray-500',
+    [OnlineStatus.ONLINE]: 'nn-online-dot bg-[color:var(--nn-green)]',
+    [OnlineStatus.OFFLINE]: 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_50%,transparent)]',
+    [OnlineStatus.AWAY]: 'bg-[color:var(--nn-amber)]',
+    [OnlineStatus.INVISIBLE]: 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_50%,transparent)]',
   };
 
   const color = colors[status];
@@ -481,9 +481,9 @@ function OnlineStatusDot({ status }: OnlineStatusDotProps) {
  *    - ARIA labels where needed
  * 
  * 9. Dark Theme Styling:
- *    - bg-gray-800/50 for card backgrounds
- *    - text-cyan-400 for primary accents
- *    - text-gray-400 for secondary text
+ *    - bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] for card backgrounds
+ *    - text-[color:var(--nn-cyan)] for primary accents
+ *    - text-[color:var(--nn-text-secondary)] for secondary text
  *    - Hover states with opacity/brightness changes
  * 
  * 10. Integration Points:

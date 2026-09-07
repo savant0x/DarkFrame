@@ -62,20 +62,20 @@ export default function LoginPage() {
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-2">
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] mb-2">
             DARKFRAME
           </h1>
-          <p className="text-gray-400 text-lg">
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">
             Login to Continue Your Journey
           </p>
         </div>
 
         {/* Login Form */}
-        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg p-8 shadow-2xl">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email Input */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
                 Email Address
               </label>
               <input
@@ -85,7 +85,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
                 placeholder="your.email@example.com"
                 disabled={isLoading}
               />
@@ -93,7 +93,7 @@ export default function LoginPage() {
 
             {/* Password Input */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
                 Password
               </label>
               <input
@@ -103,7 +103,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete="current-password"
-                className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
                 placeholder="••••••••"
                 disabled={isLoading}
               />
@@ -116,16 +116,16 @@ export default function LoginPage() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-blue-500 bg-gray-900/50 border-gray-600 rounded focus:ring-blue-500 focus:ring-2"
+                className="w-4 h-4 text-[color:var(--nn-cyan)] bg-[color:var(--nn-void)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:ring-2"
               />
-              <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-300">
+              <label htmlFor="rememberMe" className="ml-2 text-sm text-[color:var(--nn-text-secondary)]">
                 Remember me for 30 days
               </label>
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500 rounded-lg p-3 text-red-400 text-sm">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 text-[color:var(--nn-magenta)] text-sm">
                 {error}
               </div>
             )}
@@ -134,10 +134,10 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all ${
+              className={`w-full py-3 px-4 rounded-none font-semibold text-[color:var(--nn-text-primary)] transition-all ${
                 isLoading
-                  ? 'bg-gray-600 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-blue-500/50'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] hover:from-[color:var(--nn-cyan)] hover:to-[color:var(--nn-violet)] shadow-lg hover:shadow-[0_0_20px_color-mix(in_oklab,var(--nn-cyan)_40%,transparent)]'
               }`}
             >
               {isLoading ? (
@@ -168,11 +168,11 @@ export default function LoginPage() {
 
           {/* Register Link */}
           <div className="mt-6 text-center">
-            <p className="text-gray-400 text-sm">
+            <p className="text-[color:var(--nn-text-secondary)] text-sm">
               Don&apos;t have an account?{' '}
               <Link
                 href="/register"
-                className="text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                className="text-[color:var(--nn-cyan)] font-semibold transition-colors"
               >
                 Register here
               </Link>
@@ -182,7 +182,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-6 text-center">
-          <p className="text-gray-500 text-xs">
+          <p className="text-[color:var(--nn-text-secondary)] text-xs">
             Secure authentication with encrypted credentials
           </p>
         </div>

@@ -120,46 +120,46 @@ export default function UnitBuildPanel({
 
   const getUnitColor = (unitType: UnitType): string => {
     const config = UNIT_CONFIGS[unitType];
-    return config.strength > 0 ? 'border-red-500' : 'border-blue-500';
+    return config.strength > 0 ? 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 border-2 border-orange-500 rounded-lg p-6 w-[800px] max-h-[700px] overflow-y-auto">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-6 w-[800px] max-h-[700px] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-orange-400">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">
             🏭 Unit Production - Factory ({factoryX}, {factoryY})
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl"
           >
             ×
           </button>
         </div>
 
         {/* Factory Status */}
-        <div className="bg-gray-700 p-4 rounded mb-4">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-4 rounded-none mb-4">
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <p className="text-gray-400 text-sm">Available Slots</p>
-              <p className="text-white text-xl font-bold">{availableSlots} / {maxSlots}</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-sm">Available Slots</p>
+              <p className="text-[color:var(--nn-text-primary)] text-xl font-bold">{availableSlots} / {maxSlots}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Your Resources</p>
-              <p className="text-yellow-400">⚙️ {playerResources.metal.toLocaleString()}</p>
-              <p className="text-cyan-400">⚡ {playerResources.energy.toLocaleString()}</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-sm">Your Resources</p>
+              <p className="text-[color:var(--nn-amber)]">⚙️ {playerResources.metal.toLocaleString()}</p>
+              <p className="text-[color:var(--nn-cyan)]">⚡ {playerResources.energy.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-gray-400 text-sm">Slots Used</p>
-              <div className="w-full h-4 bg-gray-600 rounded-full overflow-hidden mt-1">
+              <p className="text-[color:var(--nn-text-secondary)] text-sm">Slots Used</p>
+              <div className="w-full h-4 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-full overflow-hidden mt-1">
                 <div
-                  className="h-full bg-orange-500"
+                  className="h-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"
                   style={{ width: `${(usedSlots / maxSlots) * 100}%` }}
                 />
               </div>
-              <p className="text-gray-300 text-sm mt-1">{usedSlots} / {maxSlots}</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-sm mt-1">{usedSlots} / {maxSlots}</p>
             </div>
           </div>
         </div>
@@ -179,21 +179,21 @@ export default function UnitBuildPanel({
             return (
               <div
                 key={unitType}
-                className={`border-2 ${getUnitColor(unitType)} rounded-lg p-4 bg-gray-700`}
+                className={`border-2 ${getUnitColor(unitType)} rounded-none p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]`}
               >
                 {/* Card Header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <span className="text-3xl">{getUnitIcon(unitType)}</span>
                     <div>
-                      <h3 className="text-white font-bold">{config.name}</h3>
-                      <p className="text-sm text-gray-400">
+                      <h3 className="text-[color:var(--nn-text-primary)] font-bold">{config.name}</h3>
+                      <p className="text-sm text-[color:var(--nn-text-secondary)]">
                         {config.strength > 0 ? `STR: ${config.strength}` : `DEF: ${config.defense}`}
                       </p>
                     </div>
                   </div>
-                  <div className={`px-2 py-1 rounded text-xs font-bold ${
-                    config.strength > 0 ? 'bg-red-900 text-red-300' : 'bg-blue-900 text-blue-300'
+                  <div className={`px-2 py-1 rounded-none text-xs font-bold ${
+                    config.strength > 0 ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]' : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]'
                   }`}>
                     {config.strength > 0 ? 'OFFENSE' : 'DEFENSE'}
                   </div>
@@ -202,20 +202,20 @@ export default function UnitBuildPanel({
                 {/* Costs */}
                 <div className="space-y-2 mb-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Metal Cost:</span>
-                    <span className={`font-bold ${playerResources.metal >= totalMetal ? 'text-yellow-400' : 'text-red-400'}`}>
+                    <span className="text-[color:var(--nn-text-secondary)]">Metal Cost:</span>
+                    <span className={`font-bold ${playerResources.metal >= totalMetal ? 'text-[color:var(--nn-amber)]' : 'text-[color:var(--nn-magenta)]'}`}>
                       {config.metalCost} × {quantity} = {totalMetal}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Energy Cost:</span>
-                    <span className={`font-bold ${playerResources.energy >= totalEnergy ? 'text-cyan-400' : 'text-red-400'}`}>
+                    <span className="text-[color:var(--nn-text-secondary)]">Energy Cost:</span>
+                    <span className={`font-bold ${playerResources.energy >= totalEnergy ? 'text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-magenta)]'}`}>
                       {config.energyCost} × {quantity} = {totalEnergy}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">Slots Required:</span>
-                    <span className={`font-bold ${availableSlots >= totalSlots ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="text-[color:var(--nn-text-secondary)]">Slots Required:</span>
+                    <span className={`font-bold ${availableSlots >= totalSlots ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                       {config.slotCost} × {quantity} = {totalSlots}
                     </span>
                   </div>
@@ -223,12 +223,12 @@ export default function UnitBuildPanel({
 
                 {/* Quantity Input */}
                 <div className="mb-3">
-                  <label className="block text-gray-400 text-sm mb-1">Quantity:</label>
+                  <label className="block text-[color:var(--nn-text-secondary)] text-sm mb-1">Quantity:</label>
                   <input
                     type="number"
                     value={quantities[unitType]}
                     onChange={(e) => setQuantities({ ...quantities, [unitType]: e.target.value })}
-                    className="w-full bg-gray-600 text-white px-3 py-2 rounded border border-gray-500 focus:border-orange-500 focus:outline-none"
+                    className="w-full bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-orange-500 focus:outline-none"
                     min="1"
                     max="100"
                   />
@@ -238,10 +238,10 @@ export default function UnitBuildPanel({
                 <button
                   onClick={() => handleBuild(unitType)}
                   disabled={!canBuild}
-                  className={`w-full py-2 px-4 rounded font-bold ${
+                  className={`w-full py-2 px-4 rounded-none font-bold ${
                     canBuild
-                      ? 'bg-orange-500 hover:bg-orange-600 text-black'
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                   }`}
                 >
                   {loading ? 'Building...' : `Build ${config.name}`}
@@ -249,10 +249,10 @@ export default function UnitBuildPanel({
 
                 {/* Status Messages */}
                 {!affordable && (
-                  <p className="text-red-400 text-xs mt-2">❌ Insufficient resources</p>
+                  <p className="text-[color:var(--nn-magenta)] text-xs mt-2">❌ Insufficient resources</p>
                 )}
                 {!enoughSlots && (
-                  <p className="text-red-400 text-xs mt-2">❌ Not enough slots</p>
+                  <p className="text-[color:var(--nn-magenta)] text-xs mt-2">❌ Not enough slots</p>
                 )}
               </div>
             );
@@ -261,18 +261,18 @@ export default function UnitBuildPanel({
 
         {/* Message */}
         {message && (
-          <div className={`p-3 rounded mb-4 ${
+          <div className={`p-3 rounded-none mb-4 ${
             message.includes('✅')
-              ? 'bg-green-900/50 text-green-300'
-              : 'bg-red-900/50 text-red-300'
+              ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
+              : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
           }`}>
             {message}
           </div>
         )}
 
         {/* Info Box */}
-        <div className="bg-gray-700 p-3 rounded text-gray-300 text-sm">
-          <p className="font-bold text-orange-400 mb-2">💡 Unit Building Tips:</p>
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 rounded-none text-[color:var(--nn-text-secondary)] text-sm">
+          <p className="font-bold text-[color:var(--nn-amber)] mb-2">💡 Unit Building Tips:</p>
           <ul className="list-disc list-inside space-y-1">
             <li>Factory capacity increases with level (Level 1: 5,000 slots)</li>
             <li>Slots regenerate over time based on factory level</li>

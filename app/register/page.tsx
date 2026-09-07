@@ -22,7 +22,7 @@ export default function RegisterPage() {
   // Password strength indicator
   const getPasswordStrength = (pwd: string) => {
     if (pwd.length === 0) return { strength: 0, label: '', color: '' };
-    if (pwd.length < 8) return { strength: 1, label: 'Weak', color: 'bg-red-500' };
+    if (pwd.length < 8) return { strength: 1, label: 'Weak', color: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' };
     
     let strength = 1;
     if (/[A-Z]/.test(pwd)) strength++;
@@ -30,10 +30,10 @@ export default function RegisterPage() {
     if (/[0-9]/.test(pwd)) strength++;
     if (/[^A-Za-z0-9]/.test(pwd)) strength++;
     
-    if (strength <= 2) return { strength: 1, label: 'Weak', color: 'bg-red-500' };
-    if (strength === 3) return { strength: 2, label: 'Fair', color: 'bg-yellow-500' };
-    if (strength === 4) return { strength: 3, label: 'Good', color: 'bg-blue-500' };
-    return { strength: 4, label: 'Strong', color: 'bg-green-500' };
+    if (strength <= 2) return { strength: 1, label: 'Weak', color: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' };
+    if (strength === 3) return { strength: 2, label: 'Fair', color: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]' };
+    if (strength === 4) return { strength: 3, label: 'Good', color: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' };
+    return { strength: 4, label: 'Strong', color: 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' };
   };
 
   const passwordStrength = getPasswordStrength(password);
@@ -104,20 +104,20 @@ export default function RegisterPage() {
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-2">
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] mb-2">
             DARKFRAME
           </h1>
-          <p className="text-gray-400 text-lg">
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">
             Create Your Commander Account
           </p>
         </div>
 
         {/* Registration Form */}
-        <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg p-8 shadow-2xl">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-8 shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Username Input */}
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="username" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
                 Username
               </label>
               <input
@@ -128,18 +128,18 @@ export default function RegisterPage() {
                 required
                 minLength={3}
                 maxLength={20}
-                className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
                 placeholder="commander_name"
                 disabled={isLoading}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 3-20 characters, letters, numbers, hyphens, underscores
               </p>
             </div>
 
             {/* Email Input */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
                 Email Address
               </label>
               <input
@@ -148,7 +148,7 @@ export default function RegisterPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
                 placeholder="your.email@example.com"
                 disabled={isLoading}
               />
@@ -156,7 +156,7 @@ export default function RegisterPage() {
 
             {/* Password Input */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
                 Password
               </label>
               <input
@@ -165,7 +165,7 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
                 placeholder="••••••••"
                 disabled={isLoading}
               />
@@ -173,15 +173,15 @@ export default function RegisterPage() {
               {password && (
                 <div className="mt-2">
                   <div className="flex items-center gap-2 mb-1">
-                    <div className="flex-1 bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2 overflow-hidden">
                       <div
                         className={`h-full ${passwordStrength.color} transition-all`}
                         style={{ width: `${(passwordStrength.strength / 4) * 100}%` }}
                       />
                     </div>
-                    <span className="text-xs text-gray-400">{passwordStrength.label}</span>
+                    <span className="text-xs text-[color:var(--nn-text-secondary)]">{passwordStrength.label}</span>
                   </div>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-[color:var(--nn-text-secondary)]">
                     Min 8 chars, 1 uppercase, 1 lowercase, 1 number
                   </p>
                 </div>
@@ -190,7 +190,7 @@ export default function RegisterPage() {
 
             {/* Confirm Password Input */}
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
                 Confirm Password
               </label>
               <input
@@ -199,14 +199,14 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-gray-900/50 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
                 placeholder="••••••••"
                 disabled={isLoading}
               />
               {/* Password Match Indicator */}
               {confirmPassword && (
                 <p className={`text-xs mt-1 ${
-                  password === confirmPassword ? 'text-green-400' : 'text-red-400'
+                  password === confirmPassword ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
                 }`}>
                   {password === confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
                 </p>
@@ -215,7 +215,7 @@ export default function RegisterPage() {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-500/10 border border-red-500 rounded-lg p-3 text-red-400 text-sm">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 text-[color:var(--nn-magenta)] text-sm">
                 {error}
               </div>
             )}
@@ -224,10 +224,10 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all ${
+              className={`w-full py-3 px-4 rounded-none font-semibold text-[color:var(--nn-text-primary)] transition-all ${
                 isLoading
-                  ? 'bg-gray-600 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-blue-500/50'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] cursor-not-allowed'
+                  : 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] hover:from-[color:var(--nn-cyan)] hover:to-[color:var(--nn-violet)] shadow-lg hover:shadow-[0_0_20px_color-mix(in_oklab,var(--nn-cyan)_40%,transparent)]'
               }`}
             >
               {isLoading ? (
@@ -258,11 +258,11 @@ export default function RegisterPage() {
 
           {/* Login Link */}
           <div className="mt-6 text-center">
-            <p className="text-gray-400 text-sm">
+            <p className="text-[color:var(--nn-text-secondary)] text-sm">
               Already have an account?{' '}
               <Link
                 href="/login"
-                className="text-blue-400 hover:text-blue-300 font-semibold transition-colors"
+                className="text-[color:var(--nn-cyan)] font-semibold transition-colors"
               >
                 Login here
               </Link>
@@ -271,9 +271,9 @@ export default function RegisterPage() {
         </div>
 
         {/* Game Info */}
-        <div className="mt-6 bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-lg p-4">
-          <h3 className="font-bold text-white mb-2 text-sm">🎮 What is DarkFrame?</h3>
-          <ul className="space-y-1 text-xs text-gray-400">
+        <div className="mt-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
+          <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2 text-sm">🎮 What is DarkFrame?</h3>
+          <ul className="space-y-1 text-xs text-[color:var(--nn-text-secondary)]">
             <li>• Navigate a persistent 150×150 tile world</li>
             <li>• Gather Metal ⚙️ and Energy ⚡ resources</li>
             <li>• Explore caves for rare items and diggers</li>
@@ -283,7 +283,7 @@ export default function RegisterPage() {
 
         {/* Footer */}
         <div className="mt-4 text-center">
-          <p className="text-gray-500 text-xs">
+          <p className="text-[color:var(--nn-text-secondary)] text-xs">
             Secure registration with encrypted credentials
           </p>
         </div>

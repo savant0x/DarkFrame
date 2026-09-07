@@ -191,22 +191,22 @@ export default function BeerBasePanel() {
 
   // Calculate distance color
   const getDistanceColor = (distance: number): string => {
-    if (distance <= 10) return 'text-green-400';
-    if (distance <= 25) return 'text-yellow-400';
-    if (distance <= 50) return 'text-orange-400';
-    return 'text-red-400';
+    if (distance <= 10) return 'text-[color:var(--nn-green)]';
+    if (distance <= 25) return 'text-[color:var(--nn-amber)]';
+    if (distance <= 50) return 'text-[color:var(--nn-amber)]';
+    return 'text-[color:var(--nn-magenta)]';
   };
 
   // Get power tier color
   const getPowerTierColor = (tier: string): string => {
     switch (tier.toUpperCase()) {
-      case 'WEAK': return 'text-gray-400';
-      case 'MID': return 'text-green-400';
-      case 'STRONG': return 'text-blue-400';
-      case 'ELITE': return 'text-purple-400';
-      case 'ULTRA': return 'text-orange-400';
-      case 'LEGENDARY': return 'text-red-500';
-      default: return 'text-white';
+      case 'WEAK': return 'text-[color:var(--nn-text-secondary)]';
+      case 'MID': return 'text-[color:var(--nn-green)]';
+      case 'STRONG': return 'text-[color:var(--nn-cyan)]';
+      case 'ELITE': return 'text-[color:var(--nn-violet)]';
+      case 'ULTRA': return 'text-[color:var(--nn-amber)]';
+      case 'LEGENDARY': return 'text-[color:var(--nn-magenta)]';
+      default: return 'text-[color:var(--nn-text-primary)]';
     }
   };
 
@@ -219,23 +219,23 @@ export default function BeerBasePanel() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-gray-900 border-2 border-yellow-500 rounded-lg w-[90%] max-w-4xl max-h-[80vh] overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] backdrop-blur-sm">
+      <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none w-[90%] max-w-4xl max-h-[80vh] overflow-hidden shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-yellow-900 to-orange-900 p-4 border-b border-yellow-500">
+        <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] p-4 border-b border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
               <span className="text-3xl">🍺</span>
               <div>
-                <h2 className="text-xl font-bold text-white">Beer Bases</h2>
-                <p className="text-sm text-yellow-200">
+                <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)]">Beer Bases</h2>
+                <p className="text-sm text-[color:var(--nn-amber)]">
                   Special high-reward targets • {totalCount} active bases
                 </p>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-white hover:text-yellow-300 text-2xl font-bold transition-colors"
+              className="text-[color:var(--nn-text-primary)] text-[color:var(--nn-amber)] text-2xl font-bold transition-colors"
             >
               ×
             </button>
@@ -243,12 +243,12 @@ export default function BeerBasePanel() {
         </div>
 
         {/* Controls — distance sort only: power/loot would leak hidden intel */}
-        <div className="bg-gray-800 p-3 border-b border-gray-700 flex items-center justify-between">
-          <span className="text-sm text-gray-400">Sorted by distance — walk to a base to scan its stats</span>
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] flex items-center justify-between">
+          <span className="text-sm text-[color:var(--nn-text-secondary)]">Sorted by distance — walk to a base to scan its stats</span>
           <button
             onClick={fetchBeerBases}
             disabled={loading}
-            className="px-3 py-1 text-xs bg-cyan-600 hover:bg-cyan-500 text-white rounded disabled:opacity-50"
+            className="px-3 py-1 text-xs bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none disabled:opacity-50"
           >
             {loading ? 'Loading...' : 'Refresh'}
           </button>
@@ -257,9 +257,9 @@ export default function BeerBasePanel() {
         {/* Beer Base List */}
         <div className="p-4 max-h-[calc(80vh-200px)] overflow-y-auto">
           {loading && beerBases.length === 0 ? (
-            <div className="text-center text-gray-400 py-8">Loading Beer Bases...</div>
+            <div className="text-center text-[color:var(--nn-text-secondary)] py-8">Loading Beer Bases...</div>
           ) : beerBases.length === 0 ? (
-            <div className="text-center text-gray-400 py-8">
+            <div className="text-center text-[color:var(--nn-text-secondary)] py-8">
               <p className="text-lg mb-2">No Beer Bases found</p>
               <p className="text-sm">Beer Bases respawn weekly on Sundays at 4 AM</p>
             </div>
@@ -268,22 +268,22 @@ export default function BeerBasePanel() {
               {getSortedBeerBases().map((base, index) => (
                 <div
                   key={index}
-                  className={`bg-gray-800 p-4 rounded border-2 transition-all ${
+                  className={`bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border-2 transition-all ${
                     base.scanned
-                      ? 'border-yellow-500 hover:border-yellow-400'
-                      : 'border-gray-600/60 hover:border-yellow-500/50'
+                      ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
+                      : 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <span className="font-bold text-lg text-yellow-300 flex items-center gap-2">
+                      <span className="font-bold text-lg text-[color:var(--nn-amber)] flex items-center gap-2">
                         🍺 {base.username}
                       </span>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-sm text-[color:var(--nn-text-secondary)]">
                         {base.scanned ? (
                           <span className="capitalize">{base.specialization} - Tier {base.tier}</span>
                         ) : (
-                          <span className="italic text-gray-500">Unscouted — walk here to scan</span>
+                          <span className="italic text-[color:var(--nn-text-secondary)]">Unscouted — walk here to scan</span>
                         )}
                       </div>
                     </div>
@@ -291,7 +291,7 @@ export default function BeerBasePanel() {
                       <div className={`font-bold ${getPowerTierColor(base.powerTier)}`}>
                         {base.powerTier.toUpperCase()}
                       </div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-[color:var(--nn-text-secondary)]">
                         {base.scanned
                           ? `Position: (${base.position.x}, ${base.position.y})`
                           : 'Position: ???'}
@@ -301,58 +301,58 @@ export default function BeerBasePanel() {
 
                   <div className="grid grid-cols-4 gap-3 mb-3 text-sm">
                     <div>
-                      <div className="text-gray-400 text-xs">Distance</div>
+                      <div className="text-[color:var(--nn-text-secondary)] text-xs">Distance</div>
                       <div className={`font-bold ${getDistanceColor(base.distance)}`}>
                         {base.distance} tiles
                       </div>
                     </div>
                     <div>
-                      <div className="text-gray-400 text-xs">Army Size</div>
+                      <div className="text-[color:var(--nn-text-secondary)] text-xs">Army Size</div>
                       {base.scanned ? (
-                        <div className="font-bold text-white">{formatNumberAbbreviated(base.armySize)} units</div>
+                        <div className="font-bold text-[color:var(--nn-text-primary)]">{formatNumberAbbreviated(base.armySize)} units</div>
                       ) : (
-                        <div className="font-bold text-gray-600">???</div>
+                        <div className="font-bold text-[color:var(--nn-text-secondary)]">???</div>
                       )}
                     </div>
                     <div>
-                      <div className="text-gray-400 text-xs">Strength</div>
+                      <div className="text-[color:var(--nn-text-secondary)] text-xs">Strength</div>
                       {base.scanned ? (
-                        <div className="font-bold text-red-400">{formatNumberAbbreviated(base.totalStrength)}</div>
+                        <div className="font-bold text-[color:var(--nn-magenta)]">{formatNumberAbbreviated(base.totalStrength)}</div>
                       ) : (
-                        <div className="font-bold text-gray-600">???</div>
+                        <div className="font-bold text-[color:var(--nn-text-secondary)]">???</div>
                       )}
                     </div>
                     <div>
-                      <div className="text-gray-400 text-xs">Defense</div>
+                      <div className="text-[color:var(--nn-text-secondary)] text-xs">Defense</div>
                       {base.scanned ? (
-                        <div className="font-bold text-blue-400">{formatNumberAbbreviated(base.totalDefense)}</div>
+                        <div className="font-bold text-[color:var(--nn-cyan)]">{formatNumberAbbreviated(base.totalDefense)}</div>
                       ) : (
-                        <div className="font-bold text-gray-600">???</div>
+                        <div className="font-bold text-[color:var(--nn-text-secondary)]">???</div>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="text-sm">
-                      <span className="text-gray-400">Loot: </span>
+                      <span className="text-[color:var(--nn-text-secondary)]">Loot: </span>
                       {base.scanned ? (
                         <>
-                          <span className="text-cyan-400 font-bold">
+                          <span className="text-[color:var(--nn-cyan)] font-bold">
                             {formatNumberAbbreviated(base.resources.metal)} 🔩
                           </span>
-                          <span className="text-gray-400"> + </span>
-                          <span className="text-yellow-400 font-bold">
+                          <span className="text-[color:var(--nn-text-secondary)]"> + </span>
+                          <span className="text-[color:var(--nn-amber)] font-bold">
                             {formatNumberAbbreviated(base.resources.energy)} ⚡
                           </span>
                         </>
                       ) : (
-                        <span className="font-bold text-gray-600">??? — stand on the base to scan it</span>
+                        <span className="font-bold text-[color:var(--nn-text-secondary)]">??? — stand on the base to scan it</span>
                       )}
                     </div>
                     <button
                       onClick={() => handleAttack(base.username)}
                       disabled={attacking === base.username}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {attacking === base.username ? 'Attacking...' : 'ATTACK'}
                     </button>
@@ -365,23 +365,23 @@ export default function BeerBasePanel() {
 
         {/* Attack Result Modal */}
         {attackResult && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-10">
-            <div className={`bg-gray-900 border-4 rounded-lg p-6 max-w-md ${
-              attackResult.victory ? 'border-green-500' : 'border-red-500'
+          <div className="absolute inset-0 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] z-10">
+            <div className={`bg-[color:var(--nn-void)] border-4 rounded-none p-6 max-w-md ${
+              attackResult.victory ? 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
             }`}>
               <h3 className={`text-2xl font-bold mb-4 ${
-                attackResult.victory ? 'text-green-400' : 'text-red-400'
+                attackResult.victory ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
               }`}>
                 {attackResult.victory ? '🎉 VICTORY!' : '💀 DEFEAT!'}
               </h3>
-              <p className="text-white mb-4">{attackResult.message}</p>
+              <p className="text-[color:var(--nn-text-primary)] mb-4">{attackResult.message}</p>
               {attackResult.rewards && (
-                <div className="bg-gray-800 p-4 rounded border border-gray-700">
-                  <p className="text-sm text-gray-400 mb-2">Rewards:</p>
+                <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+                  <p className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Rewards:</p>
                   <div className="space-y-1">
-                    <p className="text-cyan-400">Metal: +{formatNumberAbbreviated(attackResult.rewards.metal)} 🔩</p>
-                    <p className="text-yellow-400">Energy: +{formatNumberAbbreviated(attackResult.rewards.energy)} ⚡</p>
-                    <p className="text-purple-400">XP: +{formatNumberAbbreviated(attackResult.rewards.experience)}</p>
+                    <p className="text-[color:var(--nn-cyan)]">Metal: +{formatNumberAbbreviated(attackResult.rewards.metal)} 🔩</p>
+                    <p className="text-[color:var(--nn-amber)]">Energy: +{formatNumberAbbreviated(attackResult.rewards.energy)} ⚡</p>
+                    <p className="text-[color:var(--nn-violet)]">XP: +{formatNumberAbbreviated(attackResult.rewards.experience)}</p>
                   </div>
                 </div>
               )}
@@ -390,9 +390,9 @@ export default function BeerBasePanel() {
         )}
 
         {/* Footer */}
-        <div className="bg-gray-800 p-3 border-t border-gray-700 text-center">
-          <p className="text-xs text-gray-400">
-            Press <kbd className="px-2 py-1 bg-gray-700 rounded border border-gray-600 text-yellow-300">{hotkeyShift ? 'Shift+' : ''}{hotkeyConfig}</kbd> to toggle • ESC to close
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-center">
+          <p className="text-xs text-[color:var(--nn-text-secondary)]">
+            Press <kbd className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] text-[color:var(--nn-amber)]">{hotkeyShift ? 'Shift+' : ''}{hotkeyConfig}</kbd> to toggle • ESC to close
           </p>
         </div>
       </div>

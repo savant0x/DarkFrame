@@ -257,18 +257,18 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
   };
 
   const getMessageClass = (msg: ChatMessage): string => {
-    if (msg.type === 'SYSTEM') return 'bg-blue-900/20 border-l-4 border-blue-500 pl-4';
-    if (msg.type === 'ANNOUNCEMENT') return 'bg-yellow-900/20 border-l-4 border-yellow-500 pl-4';
+    if (msg.type === 'SYSTEM') return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-l-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] pl-4';
+    if (msg.type === 'ANNOUNCEMENT') return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border-l-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] pl-4';
     return '';
   };
 
   const getRoleColor = (msgRole: string): string => {
     switch (msgRole) {
-      case 'LEADER': return 'text-yellow-400 font-bold';
-      case 'CO_LEADER': return 'text-orange-400';
-      case 'OFFICER': return 'text-blue-400';
-      case 'ELITE': return 'text-purple-400';
-      default: return 'text-gray-400';
+      case 'LEADER': return 'text-[color:var(--nn-amber)] font-bold';
+      case 'CO_LEADER': return 'text-[color:var(--nn-amber)]';
+      case 'OFFICER': return 'text-[color:var(--nn-cyan)]';
+      case 'ELITE': return 'text-[color:var(--nn-violet)]';
+      default: return 'text-[color:var(--nn-text-secondary)]';
     }
   };
 
@@ -291,15 +291,15 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-black/40 rounded border border-gray-700">
+    <div className="flex flex-col h-full bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700">
+      <div className="flex justify-between items-center p-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <h2 className="text-xl font-bold">Clan Chat</h2>
         {hasMore && (
           <button
             onClick={loadMoreMessages}
             disabled={isLoading}
-            className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600 disabled:opacity-50 text-sm"
+            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:opacity-50 text-sm"
           >
             Load More
           </button>
@@ -308,7 +308,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
 
       {/* Error Display */}
       {error && (
-        <div className="mx-4 mt-2 p-2 bg-red-900/20 border border-red-500 rounded text-sm">
+        <div className="mx-4 mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-sm">
           {error}
         </div>
       )}
@@ -321,7 +321,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
         {messages.map((msg) => (
           <div
             key={msg._id}
-            className={`p-3 rounded ${getMessageClass(msg)}`}
+            className={`p-3 rounded-none ${getMessageClass(msg)}`}
           >
             {/* Message Header */}
             {msg.type !== 'SYSTEM' && (
@@ -331,12 +331,12 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
                     {msg.username}
                   </span>
                   {msg.type === 'ANNOUNCEMENT' && (
-                    <span className="text-xs bg-yellow-500 text-black px-2 py-0.5 rounded font-bold">
+                    <span className="text-xs bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-0.5 rounded-none font-bold">
                       ANNOUNCEMENT
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-[color:var(--nn-text-secondary)]">
                   {new Date(msg.timestamp).toLocaleTimeString()}
                   {msg.editedAt && ' (edited)'}
                 </span>
@@ -349,20 +349,20 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
                 <textarea
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
-                  className="w-full px-3 py-2 bg-black/40 border border-gray-600 rounded resize-none"
+                  className="w-full px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none resize-none"
                   rows={3}
                   maxLength={500}
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={() => saveEdit(msg._id)}
-                    className="px-3 py-1 bg-green-600 rounded hover:bg-green-500 text-sm"
+                    className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none text-sm"
                   >
                     Save
                   </button>
                   <button
                     onClick={cancelEdit}
-                    className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-500 text-sm"
+                    className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none text-sm"
                   >
                     Cancel
                   </button>
@@ -370,7 +370,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
               </div>
             ) : (
               <>
-                <p className="text-gray-200 whitespace-pre-wrap break-words">
+                <p className="text-[color:var(--nn-text-primary)] whitespace-pre-wrap break-words">
                   {msg.message}
                 </p>
 
@@ -380,7 +380,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
                     {canEdit(msg) && (
                       <button
                         onClick={() => startEdit(msg)}
-                        className="text-xs text-blue-400 hover:text-blue-300"
+                        className="text-xs text-[color:var(--nn-cyan)]"
                       >
                         Edit
                       </button>
@@ -388,7 +388,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
                     {canDelete(msg) && (
                       <button
                         onClick={() => deleteMsg(msg._id)}
-                        className="text-xs text-red-400 hover:text-red-300"
+                        className="text-xs text-[color:var(--nn-magenta)]"
                       >
                         Delete
                       </button>
@@ -403,7 +403,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-gray-700">
+      <div className="p-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         {isLeader && (
           <label className="flex items-center gap-2 mb-2 text-sm">
             <input
@@ -412,7 +412,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
               onChange={(e) => setIsAnnouncement(e.target.checked)}
               className="w-4 h-4"
             />
-            <span className="text-yellow-400">Send as Announcement</span>
+            <span className="text-[color:var(--nn-amber)]">Send as Announcement</span>
           </label>
         )}
         
@@ -427,7 +427,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
               }
             }}
             placeholder="Type your message... (Shift+Enter for new line)"
-            className="flex-1 px-3 py-2 bg-black/40 border border-gray-600 rounded resize-none"
+            className="flex-1 px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none resize-none"
             rows={3}
             maxLength={500}
             disabled={isLoading}
@@ -435,12 +435,12 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
           <button
             onClick={sendMessage}
             disabled={isLoading || !messageText.trim()}
-            className="px-6 bg-blue-600 rounded hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Send
           </button>
         </div>
-        <div className="text-xs text-gray-500 mt-1 text-right">
+        <div className="text-xs text-[color:var(--nn-text-secondary)] mt-1 text-right">
           {messageText.length}/500
         </div>
       </div>

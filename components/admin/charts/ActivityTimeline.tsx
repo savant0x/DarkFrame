@@ -48,8 +48,8 @@ export default function ActivityTimeline({ data, period, loading, error }: Activ
     const date = new Date(data.timestamp);
 
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
-        <p className="text-gray-300 text-sm font-semibold mb-2">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3 shadow-lg">
+        <p className="text-[color:var(--nn-text-secondary)] text-sm font-semibold mb-2">
           {period === '24h' 
             ? date.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit' })
             : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit' })
@@ -57,14 +57,14 @@ export default function ActivityTimeline({ data, period, loading, error }: Activ
         </p>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className="text-gray-400 text-sm">Actions:</span>
-            <span className="text-white font-semibold">{data.count}</span>
+            <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Actions:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{data.count}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className="text-gray-400 text-sm">Players:</span>
-            <span className="text-white font-semibold">{data.uniquePlayers}</span>
+            <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"></div>
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Players:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{data.uniquePlayers}</span>
           </div>
         </div>
       </div>
@@ -74,10 +74,10 @@ export default function ActivityTimeline({ data, period, loading, error }: Activ
   // Loading state
   if (loading) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-3"></div>
-          <p className="text-gray-400">Loading activity data...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-3"></div>
+          <p className="text-[color:var(--nn-text-secondary)]">Loading activity data...</p>
         </div>
       </div>
     );
@@ -86,10 +86,10 @@ export default function ActivityTimeline({ data, period, loading, error }: Activ
   // Error state
   if (error) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg border border-red-500">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
         <div className="text-center">
-          <p className="text-red-400 font-semibold mb-1">Failed to load activity data</p>
-          <p className="text-gray-500 text-sm">{error}</p>
+          <p className="text-[color:var(--nn-magenta)] font-semibold mb-1">Failed to load activity data</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">{error}</p>
         </div>
       </div>
     );
@@ -98,14 +98,14 @@ export default function ActivityTimeline({ data, period, loading, error }: Activ
   // No data state
   if (!data || data.length === 0) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
-        <p className="text-gray-500">No activity data for this period</p>
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">No activity data for this period</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-[300px] bg-gray-800 rounded-lg p-4">
+    <div className="w-full h-[300px] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />

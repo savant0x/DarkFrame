@@ -31,10 +31,10 @@ export default function ClanPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-          <p className="text-xl text-white/70">Loading clan data...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
+          <p className="text-xl text-[color:var(--nn-text-primary)]/70">Loading clan data...</p>
         </div>
       </div>
     );
@@ -51,14 +51,14 @@ export default function ClanPage() {
   // Level requirement check
   if (player.level < 10) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white">
+      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-[color:var(--nn-text-primary)]">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           {/* Back Button */}
           <div className="mb-6">
             <Button 
               onClick={() => router.push('/game')} 
               variant="ghost" 
-              className="gap-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30"
+              className="gap-2 text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Game
@@ -66,16 +66,16 @@ export default function ClanPage() {
           </div>
 
           {/* Level Requirement Message */}
-          <div className="bg-glass-dark backdrop-blur-sm border-2 border-yellow-500/50 rounded-lg p-8 text-center">
-            <Crown className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-white mb-3">Level Requirement</h1>
+          <div className="bg-glass-dark backdrop-blur-sm border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-8 text-center">
+            <Crown className="w-16 h-16 text-[color:var(--nn-amber)] mx-auto mb-4" />
+            <h1 className="text-3xl font-bold text-[color:var(--nn-text-primary)] mb-3">Level Requirement</h1>
             <p className="text-text-primary text-lg mb-4">
-              You must reach <span className="text-yellow-400 font-bold">Level 10</span> to access clan features.
+              You must reach <span className="text-[color:var(--nn-amber)] font-bold">Level 10</span> to access clan features.
             </p>
             <p className="text-text-secondary mb-6">
-              Current Level: <span className="text-cyan-400 font-bold">{player.level}</span>
+              Current Level: <span className="text-[color:var(--nn-cyan)] font-bold">{player.level}</span>
             </p>
-            <Button onClick={() => router.push('/game')} className="bg-cyan-600 hover:bg-cyan-700">
+            <Button onClick={() => router.push('/game')} className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]">
               Return to Game
             </Button>
           </div>
@@ -87,14 +87,14 @@ export default function ClanPage() {
   // Player has a clan - show ClanPanel
   if (player.clanId) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white">
+      <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-[color:var(--nn-text-primary)]">
         <div className="container mx-auto px-4 py-6 max-w-7xl">
           {/* Back Button */}
           <div className="mb-6">
             <Button 
               onClick={() => router.push('/game')} 
               variant="ghost" 
-              className="gap-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30"
+              className="gap-2 text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to Game
@@ -110,14 +110,14 @@ export default function ClanPage() {
 
   // Player has no clan - show create/join options
   return (
-    <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white">
+    <div className="min-h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-[color:var(--nn-text-primary)]">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Back Button */}
         <div className="mb-6">
           <Button 
             onClick={() => router.push('/game')} 
             variant="ghost" 
-            className="gap-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30"
+            className="gap-2 text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Game
@@ -125,10 +125,10 @@ export default function ClanPage() {
         </div>
 
         {/* No Clan State */}
-        <div className="bg-glass-dark backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg p-8">
+        <div className="bg-glass-dark backdrop-blur-sm border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-8">
           <div className="text-center mb-8">
-            <Users className="w-20 h-20 text-cyan-400 mx-auto mb-4" />
-            <h1 className="text-4xl font-bold text-white mb-3">You{"'"}re Not in a Clan</h1>
+            <Users className="w-20 h-20 text-[color:var(--nn-cyan)] mx-auto mb-4" />
+            <h1 className="text-4xl font-bold text-[color:var(--nn-text-primary)] mb-3">You{"'"}re Not in a Clan</h1>
             <p className="text-text-primary text-lg">
               Join forces with other players or create your own clan to unlock exclusive benefits, 
               territory control, and cooperative gameplay features.
@@ -139,7 +139,7 @@ export default function ClanPage() {
           <div className="flex flex-col gap-4 max-w-md mx-auto">
             <Button 
               onClick={() => router.push('/clans')}
-              className="w-full bg-purple-600 hover:bg-purple-700 text-white py-4 text-lg font-bold"
+              className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] py-4 text-lg font-bold"
             >
               <Users className="w-5 h-5 mr-2" />
               Browse & Join Clans
@@ -147,7 +147,7 @@ export default function ClanPage() {
             <Button 
               onClick={() => router.push('/clans')}
               variant="secondary"
-              className="w-full border-cyan-500/50 hover:bg-cyan-950/30 text-cyan-400 py-4 text-lg font-bold"
+              className="w-full border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] py-4 text-lg font-bold"
             >
               <Crown className="w-5 h-5 mr-2" />
               Create New Clan
@@ -156,30 +156,30 @@ export default function ClanPage() {
 
           {/* Clan Benefits */}
           <div className="mt-8 pt-8 border-t border-glass-border">
-            <h3 className="text-lg font-bold text-cyan-400 mb-4">Clan Benefits:</h3>
+            <h3 className="text-lg font-bold text-[color:var(--nn-cyan)] mb-4">Clan Benefits:</h3>
             <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 text-text-primary">
               <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-[color:var(--nn-green)]">✓</span>
                 <span>Shared resources and clan bank</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-[color:var(--nn-green)]">✓</span>
                 <span>Territory control and passive income</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-[color:var(--nn-green)]">✓</span>
                 <span>Cooperative research and perks</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-[color:var(--nn-green)]">✓</span>
                 <span>Clan warfare and alliances</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-[color:var(--nn-green)]">✓</span>
                 <span>Exclusive clan chat and coordination</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-green-400">✓</span>
+                <span className="text-[color:var(--nn-green)]">✓</span>
                 <span>Clan leaderboards and rankings</span>
               </li>
             </ul>

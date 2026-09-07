@@ -160,16 +160,16 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border-2 border-yellow-600 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[color:var(--nn-void)] bg-opacity-80 flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
-        <div className="bg-gradient-to-r from-yellow-900 to-yellow-800 p-4 border-b-2 border-yellow-600 sticky top-0">
+        <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] p-4 border-b-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] sticky top-0">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-yellow-200">➕ Create Auction Listing</h2>
+            <h2 className="text-xl font-bold text-[color:var(--nn-amber)]">➕ Create Auction Listing</h2>
             <button
               onClick={onClose}
-              className="text-yellow-200 hover:text-white text-2xl font-bold px-3 py-1 hover:bg-red-900 rounded"
+              className="text-[color:var(--nn-amber)] hover:text-[color:var(--nn-text-primary)] text-2xl font-bold px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] rounded-none"
             >
               ×
             </button>
@@ -179,50 +179,50 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
         <div className="p-6 space-y-6">
           {/* Error Message */}
           {error && (
-            <div className="bg-red-900 border border-red-600 text-red-200 p-3 rounded">
+            <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] p-3 rounded-none">
               {error}
             </div>
           )}
 
           {/* Item Type Selection */}
           <div>
-            <label className="block text-gray-300 font-semibold mb-2">
+            <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
               Item Type *
             </label>
             <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setItemType(AuctionItemType.Resource)}
-                className={`p-4 rounded border-2 transition-colors ${
+                className={`p-4 rounded-none border-2 transition-colors ${
                   itemType === AuctionItemType.Resource
-                    ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
                 <div className="text-3xl mb-2">💎</div>
-                <div className="text-white font-semibold">Resources</div>
-                <div className="text-xs text-gray-400">Metal, Energy</div>
+                <div className="text-[color:var(--nn-text-primary)] font-semibold">Resources</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Metal, Energy</div>
               </button>
               
               <button
                 onClick={() => setItemType(AuctionItemType.Unit)}
-                className={`p-4 rounded border-2 transition-colors ${
+                className={`p-4 rounded-none border-2 transition-colors ${
                   itemType === AuctionItemType.Unit
-                    ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
                 <div className="text-3xl mb-2">⚔️</div>
-                <div className="text-white font-semibold">Units</div>
-                <div className="text-xs text-gray-400">Combat units</div>
+                <div className="text-[color:var(--nn-text-primary)] font-semibold">Units</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Combat units</div>
               </button>
               
               <button
                 disabled
-                className="p-4 rounded border-2 border-gray-700 bg-gray-800 opacity-50 cursor-not-allowed"
+                className="p-4 rounded-none border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] opacity-50 cursor-not-allowed"
               >
                 <div className="text-3xl mb-2">🎁</div>
-                <div className="text-white font-semibold">Items</div>
-                <div className="text-xs text-gray-400">Phase 5</div>
+                <div className="text-[color:var(--nn-text-primary)] font-semibold">Items</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Phase 5</div>
               </button>
             </div>
           </div>
@@ -231,26 +231,26 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
           {itemType === AuctionItemType.Resource && (
             <div className="space-y-4">
               <div>
-                <label className="block text-gray-300 font-semibold mb-2">
+                <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
                   Resource Type *
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setResourceType(ResourceType.Metal)}
-                    className={`p-3 rounded border-2 transition-colors ${
+                    className={`p-3 rounded-none border-2 transition-colors ${
                       resourceType === ResourceType.Metal
-                        ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                        ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                        : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                     }`}
                   >
                     ⛏️ Metal
                   </button>
                   <button
                     onClick={() => setResourceType(ResourceType.Energy)}
-                    className={`p-3 rounded border-2 transition-colors ${
+                    className={`p-3 rounded-none border-2 transition-colors ${
                       resourceType === ResourceType.Energy
-                        ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                        ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                        : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                     }`}
                   >
                     ⚡ Energy
@@ -259,18 +259,18 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
               </div>
               
               <div>
-                <label className="block text-gray-300 font-semibold mb-2">
+                <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
                   Amount *
                 </label>
                 <input
                   type="number"
                   value={resourceAmount}
                   onChange={(e) => setResourceAmount(e.target.value)}
-                  className="w-full bg-gray-800 text-white border-2 border-gray-700 rounded px-4 py-3 focus:border-yellow-600 outline-none"
+                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
                   placeholder="1000"
                   min="1"
                 />
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                   Minimum: 1 | Will be deducted from inventory
                 </p>
               </div>
@@ -280,13 +280,13 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
           {/* Unit Selection (Simplified for Phase 4) */}
           {itemType === AuctionItemType.Unit && (
             <div>
-              <label className="block text-gray-300 font-semibold mb-2">
+              <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
                 Unit Type *
               </label>
               <select
                 value={unitType}
                 onChange={(e) => setUnitType(e.target.value as UnitType)}
-                className="w-full bg-gray-800 text-white border-2 border-gray-700 rounded px-4 py-3 focus:border-yellow-600 outline-none"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
               >
                 <option value={UnitType.T1_Rifleman}>T1 Rifleman</option>
                 <option value={UnitType.T1_Scout}>T1 Scout</option>
@@ -295,62 +295,62 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
                 <option value={UnitType.T2_Ranger}>T2 Ranger</option>
                 <option value={UnitType.T3_Striker}>T3 Striker</option>
               </select>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Full unit selection from inventory coming in Phase 4 enhancement
               </p>
             </div>
           )}
 
           {/* Pricing Section */}
-          <div className="space-y-4 border-t-2 border-gray-800 pt-4">
-            <h3 className="text-lg font-bold text-yellow-200">Pricing</h3>
+          <div className="space-y-4 border-t-2 border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pt-4">
+            <h3 className="text-lg font-bold text-[color:var(--nn-amber)]">Pricing</h3>
             
             <div>
-              <label className="block text-gray-300 font-semibold mb-2">
-                Starting Bid * <span className="text-yellow-400">💰</span>
+              <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
+                Starting Bid * <span className="text-[color:var(--nn-amber)]">💰</span>
               </label>
               <input
                 type="number"
                 value={startingBid}
                 onChange={(e) => setStartingBid(e.target.value)}
-                className="w-full bg-gray-800 text-white border-2 border-gray-700 rounded px-4 py-3 focus:border-yellow-600 outline-none"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
                 placeholder="1000"
                 min={AUCTION_CONFIG.MIN_STARTING_BID}
                 max={AUCTION_CONFIG.MAX_STARTING_BID}
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Range: {AUCTION_CONFIG.MIN_STARTING_BID.toLocaleString()} - {AUCTION_CONFIG.MAX_STARTING_BID.toLocaleString()} Metal
               </p>
             </div>
             
             <div>
-              <label className="block text-gray-300 font-semibold mb-2">
-                Buyout Price (Optional) <span className="text-blue-400">💰</span>
+              <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
+                Buyout Price (Optional) <span className="text-[color:var(--nn-cyan)]">💰</span>
               </label>
               <input
                 type="number"
                 value={buyoutPrice}
                 onChange={(e) => setBuyoutPrice(e.target.value)}
-                className="w-full bg-gray-800 text-white border-2 border-gray-700 rounded px-4 py-3 focus:border-yellow-600 outline-none"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
                 placeholder="Leave empty for bid-only"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Instant purchase price (must exceed starting bid)
               </p>
             </div>
             
             <div>
-              <label className="block text-gray-300 font-semibold mb-2">
-                Reserve Price (Optional) <span className="text-red-400">💰</span>
+              <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
+                Reserve Price (Optional) <span className="text-[color:var(--nn-magenta)]">💰</span>
               </label>
               <input
                 type="number"
                 value={reservePrice}
                 onChange={(e) => setReservePrice(e.target.value)}
-                className="w-full bg-gray-800 text-white border-2 border-gray-700 rounded px-4 py-3 focus:border-yellow-600 outline-none"
+                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
                 placeholder="Leave empty for no reserve"
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Hidden minimum price (auction fails if not met)
               </p>
             </div>
@@ -358,59 +358,59 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
 
           {/* Duration Selection */}
           <div>
-            <label className="block text-gray-300 font-semibold mb-2">
+            <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
               Auction Duration *
             </label>
             <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setDuration(12)}
-                className={`p-3 rounded border-2 transition-colors ${
+                className={`p-3 rounded-none border-2 transition-colors ${
                   duration === 12
-                    ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
-                <div className="text-white font-semibold">12 Hours</div>
-                <div className="text-xs text-gray-400">Fee: {AUCTION_CONFIG.LISTING_FEE_12H} 💰</div>
+                <div className="text-[color:var(--nn-text-primary)] font-semibold">12 Hours</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Fee: {AUCTION_CONFIG.LISTING_FEE_12H} 💰</div>
               </button>
               <button
                 onClick={() => setDuration(24)}
-                className={`p-3 rounded border-2 transition-colors ${
+                className={`p-3 rounded-none border-2 transition-colors ${
                   duration === 24
-                    ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
-                <div className="text-white font-semibold">24 Hours</div>
-                <div className="text-xs text-gray-400">Fee: {AUCTION_CONFIG.LISTING_FEE_24H} 💰</div>
+                <div className="text-[color:var(--nn-text-primary)] font-semibold">24 Hours</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Fee: {AUCTION_CONFIG.LISTING_FEE_24H} 💰</div>
               </button>
               <button
                 onClick={() => setDuration(48)}
-                className={`p-3 rounded border-2 transition-colors ${
+                className={`p-3 rounded-none border-2 transition-colors ${
                   duration === 48
-                    ? 'border-yellow-600 bg-yellow-900 bg-opacity-30'
-                    : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
-                <div className="text-white font-semibold">48 Hours</div>
-                <div className="text-xs text-gray-400">Fee: {AUCTION_CONFIG.LISTING_FEE_48H} 💰</div>
+                <div className="text-[color:var(--nn-text-primary)] font-semibold">48 Hours</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Fee: {AUCTION_CONFIG.LISTING_FEE_48H} 💰</div>
               </button>
             </div>
           </div>
 
           {/* Fee Summary */}
-          <div className="bg-gray-800 border-2 border-yellow-600 rounded p-4">
-            <h4 className="font-bold text-yellow-200 mb-3">💰 Fee Summary</h4>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
+            <h4 className="font-bold text-[color:var(--nn-amber)] mb-3">💰 Fee Summary</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Listing Fee (upfront):</span>
-                <span className="text-white font-semibold">{getListingFee()} Metal</span>
+                <span className="text-[color:var(--nn-text-secondary)]">Listing Fee (upfront):</span>
+                <span className="text-[color:var(--nn-text-primary)] font-semibold">{getListingFee()} Metal</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Sale Fee (if sold):</span>
-                <span className="text-white font-semibold">{(AUCTION_CONFIG.PUBLIC_SALE_FEE * 100).toFixed(0)}% of final price</span>
+                <span className="text-[color:var(--nn-text-secondary)]">Sale Fee (if sold):</span>
+                <span className="text-[color:var(--nn-text-primary)] font-semibold">{(AUCTION_CONFIG.PUBLIC_SALE_FEE * 100).toFixed(0)}% of final price</span>
               </div>
-              <div className="text-xs text-gray-500 mt-2 border-t border-gray-700 pt-2">
+              <div className="text-xs text-[color:var(--nn-text-secondary)] mt-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] pt-2">
                 ⚠️ Listing fee is non-refundable, even if you cancel the auction
               </div>
             </div>
@@ -421,14 +421,14 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
             <button
               onClick={onClose}
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-gray-700 text-white rounded hover:bg-gray-600 font-semibold disabled:opacity-50"
+              className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] rounded-none bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] font-semibold disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-yellow-600 text-white rounded hover:bg-yellow-500 font-semibold disabled:opacity-50"
+              className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold disabled:opacity-50"
             >
               {loading ? 'Creating...' : `Create Listing (${getListingFee()} 💰)`}
             </button>

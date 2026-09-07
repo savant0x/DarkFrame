@@ -219,17 +219,17 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
   if (!isOpen || !currentTile || !player) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative bg-gray-900/95 backdrop-blur-md border-2 border-cyan-500/50 rounded-lg shadow-[0_0_40px_rgba(0,240,255,0.4)] max-w-2xl w-full mx-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_60%,transparent)] backdrop-blur-sm">
+      <div className="relative bg-[color:var(--nn-void)] backdrop-blur-md border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none shadow-[0_0_40px_rgba(0,240,255,0.4)] max-w-2xl w-full mx-4">
         {/* Header */}
-        <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 p-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white uppercase tracking-wider">
+        <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] p-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] uppercase tracking-wider">
             {currentTile.terrain.toUpperCase()} {currentTile.terrain === TerrainType.Metal ? 'DEPOSIT' : 
              currentTile.terrain === TerrainType.Energy ? 'SOURCE' : ''}
           </h2>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors"
+            className="text-[color:var(--nn-text-primary)]/70 hover:text-[color:var(--nn-text-primary)] transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -238,7 +238,7 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
         {/* Content Area */}
         <div className="p-6">
           {/* Image placeholder (you can add actual terrain images here) */}
-          <div className="bg-gradient-to-br from-purple-900/40 to-blue-900/40 rounded-lg h-48 flex items-center justify-center mb-6 border border-cyan-500/20">
+          <div className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] rounded-none h-48 flex items-center justify-center mb-6 border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
             <div className="text-6xl">
               {currentTile.terrain === TerrainType.Metal && '⛏️'}
               {currentTile.terrain === TerrainType.Energy && '⚡'}
@@ -250,13 +250,13 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
           {/* Pre-Harvest Message or Result */}
           {!result ? (
             <div className="text-center mb-6">
-              <p className="text-white/90 text-lg mb-6">
+              <p className="text-[color:var(--nn-text-primary)]/90 text-lg mb-6">
                 {preHarvestMessage}
               </p>
               <button
                 onClick={handleHarvest}
                 disabled={isHarvesting}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-3 px-8 rounded-lg transition-all hover:scale-105 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,197,94,0.3)]"
+                className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-3 px-8 rounded-none transition-all hover:scale-105 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(34,197,94,0.3)]"
               >
                 {isHarvesting ? 'HARVESTING...' : `${getActionVerb()} (${getKeyHint()})`}
               </button>
@@ -264,13 +264,13 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
           ) : (
             <div className="text-center">
               {/* Success/Failure Message */}
-              <div className={`mb-4 p-4 rounded-lg border-2 ${
+              <div className={`mb-4 p-4 rounded-none border-2 ${
                 result.success 
-                  ? 'bg-green-500/20 border-green-500/50' 
-                  : 'bg-red-500/20 border-red-500/50'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' 
+                  : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
               }`}>
                 <p className={`text-lg font-semibold ${
-                  result.success ? 'text-green-400' : 'text-red-400'
+                  result.success ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
                 }`}>
                   {result.message}
                 </p>
@@ -280,17 +280,17 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
               {result.success && (result.metalGained || result.energyGained) && (
                 <div className="grid grid-cols-2 gap-4 mb-6">
                   {result.metalGained && result.metalGained > 0 && (
-                    <div className="bg-gray-800/50 border border-cyan-500/30 rounded-lg p-4">
-                      <p className="text-white/70 text-sm mb-1">Metal</p>
-                      <p className="text-2xl font-bold text-cyan-400">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
+                      <p className="text-[color:var(--nn-text-primary)]/70 text-sm mb-1">Metal</p>
+                      <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">
                         +{result.metalGained.toLocaleString()}
                       </p>
                     </div>
                   )}
                   {result.energyGained && result.energyGained > 0 && (
-                    <div className="bg-gray-800/50 border border-yellow-500/30 rounded-lg p-4">
-                      <p className="text-white/70 text-sm mb-1">Energy</p>
-                      <p className="text-2xl font-bold text-yellow-400">
+                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
+                      <p className="text-[color:var(--nn-text-primary)]/70 text-sm mb-1">Energy</p>
+                      <p className="text-2xl font-bold text-[color:var(--nn-amber)]">
                         +{result.energyGained.toLocaleString()}
                       </p>
                     </div>
@@ -300,15 +300,15 @@ export default function HarvestModal({ isOpen, onClose }: HarvestModalProps) {
 
               {/* Item Display */}
               {result.success && result.item && (
-                <div className="bg-purple-500/20 border-2 border-purple-500/50 rounded-lg p-4 mb-6">
-                  <p className="text-white/70 text-sm mb-1">Item Found</p>
-                  <p className="text-xl font-bold text-purple-400">{result.item.name}</p>
-                  <p className="text-sm text-white/60 mt-1">{result.item.rarity}</p>
+                <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-4 mb-6">
+                  <p className="text-[color:var(--nn-text-primary)]/70 text-sm mb-1">Item Found</p>
+                  <p className="text-xl font-bold text-[color:var(--nn-violet)]">{result.item.name}</p>
+                  <p className="text-sm text-[color:var(--nn-text-primary)]/60 mt-1">{result.item.rarity}</p>
                 </div>
               )}
 
               {/* Note about auto-close */}
-              <p className="text-white/50 text-sm">
+              <p className="text-[color:var(--nn-text-primary)]/50 text-sm">
                 {result.success ? 'Closing in 2 seconds...' : 'Press Escape to close'}
               </p>
             </div>

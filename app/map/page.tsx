@@ -320,7 +320,7 @@ export default function MapPage() {
   };
   
   const renderMapContent = () => (
-    <div className="h-full w-full flex flex-col bg-gradient-to-b from-bg-space to-black text-white overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-gradient-to-b from-bg-space to-black text-[color:var(--nn-text-primary)] overflow-hidden">
       {/* Header */}
       <header className="bg-glass-light border-b border-glass-border p-4 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -338,14 +338,14 @@ export default function MapPage() {
           <div className="hidden md:flex items-center gap-4 text-sm">
             <div>
               <span className="text-text-secondary">Position:</span>{' '}
-              <span className="font-mono text-blue-400">
+              <span className="font-mono text-[color:var(--nn-cyan)]">
                 ({playerPosition.x}, {playerPosition.y})
               </span>
             </div>
             {selectedTile && (
               <div>
                 <span className="text-text-secondary">Selected:</span>{' '}
-                <span className="font-mono text-green-400">
+                <span className="font-mono text-[color:var(--nn-green)]">
                   ({selectedTile.x}, {selectedTile.y})
                 </span>
               </div>
@@ -377,7 +377,7 @@ export default function MapPage() {
             </div>
             
             {/* Map Info */}
-            <div className="bg-glass-light rounded-lg p-4">
+            <div className="bg-glass-light rounded-none p-4">
               <h3 className="font-semibold mb-2">📍 Your Position</h3>
               <div className="text-sm space-y-1">
                 <p>
@@ -393,7 +393,7 @@ export default function MapPage() {
             
             {/* Selected Tile Info */}
             {selectedTile && (
-              <div className="bg-glass-light rounded-lg p-4">
+              <div className="bg-glass-light rounded-none p-4">
                 <h3 className="font-semibold mb-2">🎯 Selected Tile</h3>
                 <div className="text-sm space-y-1">
                   <p>
@@ -413,7 +413,7 @@ export default function MapPage() {
             )}
             
             {/* Keyboard Shortcuts */}
-            <div className="bg-glass-light rounded-lg p-4 text-xs">
+            <div className="bg-glass-light rounded-none p-4 text-xs">
               <h3 className="font-semibold mb-2">⌨️ Shortcuts</h3>
               <ul className="space-y-1 text-text-primary">
                 <li>Arrow Keys / WASD: Pan</li>
@@ -454,7 +454,7 @@ export default function MapPage() {
                 </div>
                 
                 {/* Map Info Overlay */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-lg text-sm shadow-lg">
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none text-sm shadow-lg">
                   <p className="text-center">
                     <span className="font-bold">🗺️ Full Map View:</span> 150×150 tiles visible • 
                     <span className="font-bold ml-2">Click:</span> Select Tile • 
@@ -469,7 +469,7 @@ export default function MapPage() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
                 <p className="text-text-secondary">Loading map data...</p>
               </div>
             </div>
@@ -477,7 +477,7 @@ export default function MapPage() {
           
           {/* Mobile Zoom Controls (Overlay) */}
           <div className="lg:hidden absolute bottom-4 left-4 right-4">
-            <div className="bg-glass-light bg-opacity-90 rounded-lg p-3 shadow-lg">
+            <div className="bg-glass-light bg-opacity-90 rounded-none p-3 shadow-lg">
               <ZoomControls
                 currentZoom={zoomLevel}
                 onZoomChange={handleZoomChange}
@@ -487,17 +487,17 @@ export default function MapPage() {
           
           {/* Mobile Position Indicator */}
           <div className="lg:hidden absolute top-4 left-4 right-4">
-            <div className="bg-glass-light bg-opacity-90 rounded-lg p-3 shadow-lg text-sm">
+            <div className="bg-glass-light bg-opacity-90 rounded-none p-3 shadow-lg text-sm">
               <div className="flex justify-between items-center">
                 <span className="text-text-secondary">Position:</span>
-                <span className="font-mono text-blue-400">
+                <span className="font-mono text-[color:var(--nn-cyan)]">
                   ({playerPosition.x}, {playerPosition.y})
                 </span>
               </div>
               {selectedTile && (
                 <div className="flex justify-between items-center mt-1 pt-1 border-t border-glass-border">
                   <span className="text-text-secondary">Selected:</span>
-                  <span className="font-mono text-green-400">
+                  <span className="font-mono text-[color:var(--nn-green)]">
                     ({selectedTile.x}, {selectedTile.y})
                   </span>
                 </div>

@@ -241,7 +241,7 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
       {showFriendsPanel && chatUser && (
         <div className="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 lg:right-[19rem] xl:right-[21rem] z-50 max-w-[calc(100vw-1rem)] sm:max-w-md">
           <ErrorBoundary>
-            <div className="rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_85%,transparent)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] backdrop-blur-md overflow-hidden">
+            <div className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_85%,transparent)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] backdrop-blur-md overflow-hidden">
               {/* Friends Panel Header */}
               <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)] px-4 py-3">
                 <div className="flex items-center justify-between">

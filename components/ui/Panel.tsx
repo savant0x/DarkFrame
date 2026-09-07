@@ -93,7 +93,7 @@ export function Panel({
         bg-gradient-to-br from-slate-900/60 to-slate-800/40
         backdrop-blur-xl
         border ${colors.border}
-        rounded-2xl
+        rounded-none
         ${colors.glow}
         overflow-hidden
         transition-all duration-300

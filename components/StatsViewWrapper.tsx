@@ -173,50 +173,50 @@ export default function StatsViewWrapper({ currentTile, playerUsername }: StatsV
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-700 px-6 py-4 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-blue-300">📊 Statistics</h1>
+      <div className="bg-[color:var(--nn-void)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] px-6 py-4 flex-shrink-0">
+        <h1 className="text-2xl font-bold text-[color:var(--nn-cyan)]">📊 Statistics</h1>
       </div>
 
       {/* Tab Navigation */}
-      <div className="bg-gray-800/50 px-6 py-3 border-b border-gray-700 flex gap-2">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] px-6 py-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] flex gap-2">
         <button
           onClick={() => setActiveTab('personal')}
-          className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+          className={`px-6 py-2 rounded-none font-semibold transition-all ${
             activeTab === 'personal'
-              ? 'bg-blue-600 text-white shadow-lg'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-lg'
+              : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
           }`}
         >
           📈 Personal Stats
         </button>
         <button
           onClick={() => setActiveTab('game')}
-          className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+          className={`px-6 py-2 rounded-none font-semibold transition-all ${
             activeTab === 'game'
-              ? 'bg-blue-600 text-white shadow-lg'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-lg'
+              : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
           }`}
         >
           🏆 Game Stats
         </button>
         <button
           onClick={() => setActiveTab('harvest')}
-          className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+          className={`px-6 py-2 rounded-none font-semibold transition-all ${
             activeTab === 'harvest'
-              ? 'bg-blue-600 text-white shadow-lg'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-lg'
+              : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
           }`}
         >
           ⛏️ Harvest Calculator
         </button>
         <button
           onClick={() => setActiveTab('economy')}
-          className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+          className={`px-6 py-2 rounded-none font-semibold transition-all ${
             activeTab === 'economy'
-              ? 'bg-blue-600 text-white shadow-lg'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-lg'
+              : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
           }`}
         >
           💰 Economy
@@ -227,12 +227,12 @@ export default function StatsViewWrapper({ currentTile, playerUsername }: StatsV
       <div className="flex-1 overflow-y-auto p-6">
         {loading && (
           <div className="flex items-center justify-center h-full">
-            <div className="text-xl text-blue-400">Loading statistics...</div>
+            <div className="text-xl text-[color:var(--nn-cyan)]">Loading statistics...</div>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-900/50 border border-red-500 rounded-lg p-4 text-red-200">
+          <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 text-[color:var(--nn-magenta)]">
             ⚠️ Error: {error}
           </div>
         )}
@@ -295,34 +295,34 @@ function PersonalStatsTab({ data }: PersonalStatsTabProps) {
   return (
     <div className="space-y-6">
       {/* Player Overview */}
-      <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-lg p-6 border border-blue-500/30">
-        <h2 className="text-2xl font-bold text-blue-300 mb-4">⚔️ {username}</h2>
+      <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)] mb-4">⚔️ {username}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Level</div>
-            <div className="text-2xl font-bold text-yellow-400">{level}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Level</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-amber)]">{level}</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Combat Power</div>
-            <div className="text-2xl font-bold text-red-400">{combatPower.toLocaleString()}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Combat Power</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">{combatPower.toLocaleString()}</div>
             {powerBreakdown && (
-              <div className="text-xs text-gray-500 mt-1">{powerBreakdown.balanceStatus}</div>
+              <div className="text-xs text-[color:var(--nn-text-secondary)] mt-1">{powerBreakdown.balanceStatus}</div>
             )}
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Metal</div>
-            <div className="text-2xl font-bold text-gray-300">{resources.metal.toLocaleString()}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Metal</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-text-secondary)]">{resources.metal.toLocaleString()}</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Energy</div>
-            <div className="text-2xl font-bold text-blue-400">{resources.energy.toLocaleString()}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Energy</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">{resources.energy.toLocaleString()}</div>
           </div>
         </div>
       </div>
 
       {/* Achievement Stats */}
-      <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-        <h3 className="text-xl font-bold text-blue-300 mb-4">🏆 Achievements</h3>
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+        <h3 className="text-xl font-bold text-[color:var(--nn-cyan)] mb-4">🏆 Achievements</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <StatCard
             icon="⚔️"
@@ -382,31 +382,31 @@ function GameStatsTab({ data, sortBy, onSort }: GameStatsTabProps) {
   return (
     <div className="space-y-6">
       {/* Global Statistics */}
-      <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-lg p-6 border border-purple-500/30">
-        <h2 className="text-2xl font-bold text-purple-300 mb-4">🌍 Global Statistics</h2>
+      <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">🌍 Global Statistics</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Total Players</div>
-            <div className="text-2xl font-bold text-blue-400">{gameStats.totalPlayers.toLocaleString()}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Total Players</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">{gameStats.totalPlayers.toLocaleString()}</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Total Metal</div>
-            <div className="text-2xl font-bold text-gray-300">{gameStats.totalMetal.toLocaleString()}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Total Metal</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-text-secondary)]">{gameStats.totalMetal.toLocaleString()}</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Total Energy</div>
-            <div className="text-2xl font-bold text-blue-400">{gameStats.totalEnergy.toLocaleString()}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Total Energy</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">{gameStats.totalEnergy.toLocaleString()}</div>
           </div>
-          <div className="bg-gray-800/50 rounded-lg p-4">
-            <div className="text-gray-400 text-sm">Average Level</div>
-            <div className="text-2xl font-bold text-yellow-400">{gameStats.averageLevel.toFixed(1)}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Average Level</div>
+            <div className="text-2xl font-bold text-[color:var(--nn-amber)]">{gameStats.averageLevel.toFixed(1)}</div>
           </div>
         </div>
       </div>
 
       {/* Sort Controls */}
-      <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-        <h3 className="text-lg font-semibold text-gray-300 mb-3">Sort By:</h3>
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+        <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-3">Sort By:</h3>
         <div className="flex flex-wrap gap-2">
           <SortButton
             label="⚡ Top Power"
@@ -436,8 +436,8 @@ function GameStatsTab({ data, sortBy, onSort }: GameStatsTabProps) {
       </div>
 
       {/* Leaderboard */}
-      <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700">
-        <h3 className="text-xl font-bold text-blue-300 mb-4">🏆 Top 10 Players</h3>
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+        <h3 className="text-xl font-bold text-[color:var(--nn-cyan)] mb-4">🏆 Top 10 Players</h3>
         <div className="space-y-2">
           {topPlayers.map((player, index) => (
             <LeaderboardRow
@@ -564,35 +564,35 @@ function HarvestCalculatorTab() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-xl text-blue-400">Loading player stats...</div>
+        <div className="text-xl text-[color:var(--nn-cyan)]">Loading player stats...</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-green-900/50 to-blue-900/50 rounded-lg p-6 border border-green-500/30">
-        <h2 className="text-2xl font-bold text-green-300 mb-4">⛏️ Harvest Calculator</h2>
-        <p className="text-gray-400 mb-6">Your current harvest bonuses (auto-populated from your stats)</p>
+      <div className="bg-gradient-to-r from-[color:var(--nn-green)] to-[color:var(--nn-cyan)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-green)] mb-4">⛏️ Harvest Calculator</h2>
+        <p className="text-[color:var(--nn-text-secondary)] mb-6">Your current harvest bonuses (auto-populated from your stats)</p>
 
         {/* VIP Status Alert */}
         {isVIP ? (
-          <div className="bg-yellow-900/50 border border-yellow-500/50 rounded-lg p-4 mb-6">
+          <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4 mb-6">
             <div className="flex items-center gap-3">
               <span className="text-3xl">⚡</span>
               <div>
-                <p className="text-yellow-300 font-bold text-lg">VIP Status Active</p>
-                <p className="text-yellow-200/80 text-sm">All harvests receive 2x multiplier (doubles your final amount)</p>
+                <p className="text-[color:var(--nn-amber)] font-bold text-lg">VIP Status Active</p>
+                <p className="text-[color:var(--nn-amber)] text-sm">All harvests receive 2x multiplier (doubles your final amount)</p>
               </div>
             </div>
           </div>
         ) : (
-          <div className="bg-gray-800/50 border border-gray-600/50 rounded-lg p-4 mb-6">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-4 mb-6">
             <div className="flex items-center gap-3">
               <span className="text-3xl">💎</span>
               <div>
-                <p className="text-gray-300 font-bold text-lg">VIP Not Active</p>
-                <p className="text-gray-400 text-sm">Purchase VIP to receive 2x harvest multiplier on all resources</p>
+                <p className="text-[color:var(--nn-text-secondary)] font-bold text-lg">VIP Not Active</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Purchase VIP to receive 2x harvest multiplier on all resources</p>
               </div>
             </div>
           </div>
@@ -600,23 +600,23 @@ function HarvestCalculatorTab() {
 
         {/* Player Stats Summary */}
         {playerData && (
-          <div className="bg-gray-800 rounded-lg p-4 mb-6 border border-blue-500/30">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6 border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
-                <p className="text-xs text-gray-400">Total Strength</p>
-                <p className="text-lg font-bold text-red-400">{playerData.totalStrength || 0}</p>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Strength</p>
+                <p className="text-lg font-bold text-[color:var(--nn-magenta)]">{playerData.totalStrength || 0}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Total Defense</p>
-                <p className="text-lg font-bold text-blue-400">{playerData.totalDefense || 0}</p>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Defense</p>
+                <p className="text-lg font-bold text-[color:var(--nn-cyan)]">{playerData.totalDefense || 0}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Total Power</p>
-                <p className="text-lg font-bold text-purple-400">{(playerData.totalStrength || 0) + (playerData.totalDefense || 0)}</p>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Power</p>
+                <p className="text-lg font-bold text-[color:var(--nn-violet)]">{(playerData.totalStrength || 0) + (playerData.totalDefense || 0)}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-400">VIP Status</p>
-                <p className="text-lg font-bold text-yellow-400">{isVIP ? '⚡ ACTIVE' : '❌ Inactive'}</p>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">VIP Status</p>
+                <p className="text-lg font-bold text-[color:var(--nn-amber)]">{isVIP ? '⚡ ACTIVE' : '❌ Inactive'}</p>
               </div>
             </div>
           </div>
@@ -625,24 +625,24 @@ function HarvestCalculatorTab() {
         {/* Input Controls */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* Base Amount */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <label className="text-sm text-gray-400 mb-2 block">Base Harvest Amount</label>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <label className="text-sm text-[color:var(--nn-text-secondary)] mb-2 block">Base Harvest Amount</label>
             <input
               type="number"
               min="800"
               max="1500"
               value={baseAmount}
               onChange={(e) => setBaseAmount(parseInt(e.target.value) || 0)}
-              className="w-full bg-gray-700 text-white px-4 py-2 rounded border border-gray-600 focus:border-blue-500 focus:outline-none"
+              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-blue-500 focus:outline-none"
             />
-            <p className="text-xs text-gray-500 mt-1">Normal range: 800-1500</p>
+            <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Normal range: 800-1500</p>
           </div>
 
           {/* Digger Bonus */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <label className="text-sm text-gray-400 mb-2 block">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <label className="text-sm text-[color:var(--nn-text-secondary)] mb-2 block">
               Digger Bonus (%) 
-              <span className="text-green-400 ml-2">✓ Auto-detected</span>
+              <span className="text-[color:var(--nn-green)] ml-2">✓ Auto-detected</span>
             </label>
             <input
               type="number"
@@ -650,16 +650,16 @@ function HarvestCalculatorTab() {
               max="30"
               value={diggerBonus}
               onChange={(e) => setDiggerBonus(parseInt(e.target.value) || 0)}
-              className="w-full bg-gray-700 text-white px-4 py-2 rounded border border-green-600 focus:border-blue-500 focus:outline-none"
+              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] focus:border-blue-500 focus:outline-none"
             />
-            <p className="text-xs text-gray-500 mt-1">From equipped diggers (0-30%)</p>
+            <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">From equipped diggers (0-30%)</p>
           </div>
 
           {/* Shrine Bonus */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <label className="text-sm text-gray-400 mb-2 block">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <label className="text-sm text-[color:var(--nn-text-secondary)] mb-2 block">
               Shrine Boost (%)
-              <span className="text-green-400 ml-2">✓ Auto-detected</span>
+              <span className="text-[color:var(--nn-green)] ml-2">✓ Auto-detected</span>
             </label>
             <input
               type="number"
@@ -667,16 +667,16 @@ function HarvestCalculatorTab() {
               max="100"
               value={shrineBonus}
               onChange={(e) => setShrineBonus(parseInt(e.target.value) || 0)}
-              className="w-full bg-gray-700 text-white px-4 py-2 rounded border border-green-600 focus:border-blue-500 focus:outline-none"
+              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] focus:border-blue-500 focus:outline-none"
             />
-            <p className="text-xs text-gray-500 mt-1">Active shrine boosts</p>
+            <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Active shrine boosts</p>
           </div>
 
           {/* Balance Bonus */}
-          <div className="bg-gray-800 rounded-lg p-4">
-            <label className="text-sm text-gray-400 mb-2 block">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <label className="text-sm text-[color:var(--nn-text-secondary)] mb-2 block">
               Balance Effect (%)
-              <span className="text-green-400 ml-2">✓ Auto-calculated</span>
+              <span className="text-[color:var(--nn-green)] ml-2">✓ Auto-calculated</span>
             </label>
             <input
               type="number"
@@ -684,63 +684,63 @@ function HarvestCalculatorTab() {
               max="20"
               value={balanceBonus}
               onChange={(e) => setBalanceBonus(parseInt(e.target.value) || 0)}
-              className="w-full bg-gray-700 text-white px-4 py-2 rounded border border-green-600 focus:border-blue-500 focus:outline-none"
+              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] focus:border-blue-500 focus:outline-none"
             />
-            <p className="text-xs text-gray-500 mt-1">STR/DEF balance (-20% to +20%)</p>
+            <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">STR/DEF balance (-20% to +20%)</p>
           </div>
 
           {/* VIP Toggle */}
-          <div className="bg-gray-800 rounded-lg p-4 md:col-span-2">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 md:col-span-2">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={isVIP}
                 onChange={(e) => setIsVIP(e.target.checked)}
-                className="w-5 h-5 text-yellow-500 bg-gray-700 border-gray-600 rounded focus:ring-yellow-500"
+                className="w-5 h-5 text-[color:var(--nn-amber)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none focus:ring-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]"
               />
-              <span className="text-sm text-gray-400">
+              <span className="text-sm text-[color:var(--nn-text-secondary)]">
                 ⚡ VIP Status (2x Multiplier)
-                <span className="text-green-400 ml-2">✓ Auto-detected</span>
+                <span className="text-[color:var(--nn-green)] ml-2">✓ Auto-detected</span>
               </span>
             </label>
           </div>
         </div>
 
         {/* Results Display */}
-        <div className="bg-gray-900 rounded-lg p-6 border border-blue-500/30">
+        <div className="bg-[color:var(--nn-void)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="text-center">
-              <p className="text-sm text-gray-400 mb-1">Base Amount</p>
-              <p className="text-2xl font-bold text-blue-400">{baseAmount.toLocaleString()}</p>
+              <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Base Amount</p>
+              <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{baseAmount.toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-400 mb-1">Total Bonus</p>
-              <p className="text-2xl font-bold text-green-400">+{totalBonus.toLocaleString()}</p>
+              <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Total Bonus</p>
+              <p className="text-2xl font-bold text-[color:var(--nn-green)]">+{totalBonus.toLocaleString()}</p>
             </div>
             <div className="text-center">
-              <p className="text-sm text-gray-400 mb-1">Final Harvest</p>
-              <p className="text-3xl font-bold text-yellow-400">{finalAmount.toLocaleString()}</p>
+              <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Final Harvest</p>
+              <p className="text-3xl font-bold text-[color:var(--nn-amber)]">{finalAmount.toLocaleString()}</p>
             </div>
           </div>
 
-          <div className="text-center pt-4 border-t border-gray-700">
-            <p className="text-lg text-gray-300">
-              Total Increase: <span className="text-green-400 font-bold">{bonusPercentage}%</span>
+          <div className="text-center pt-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+            <p className="text-lg text-[color:var(--nn-text-secondary)]">
+              Total Increase: <span className="text-[color:var(--nn-green)] font-bold">{bonusPercentage}%</span>
             </p>
           </div>
 
           {/* Breakdown */}
           <div className="mt-6 space-y-2">
-            <p className="text-sm font-semibold text-gray-300">Calculation Breakdown:</p>
-            <div className="text-sm text-gray-400 space-y-1 bg-gray-800 p-3 rounded">
+            <p className="text-sm font-semibold text-[color:var(--nn-text-secondary)]">Calculation Breakdown:</p>
+            <div className="text-sm text-[color:var(--nn-text-secondary)] space-y-1 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
               <p>1. Base Amount: {baseAmount.toLocaleString()}</p>
               {diggerBonus > 0 && <p>2. + Digger Bonus ({diggerBonus}%): +{Math.floor(baseAmount * (diggerBonus / 100)).toLocaleString()}</p>}
               {shrineBonus > 0 && <p>3. + Shrine Boost ({shrineBonus}%): +{Math.floor(baseAmount * (shrineBonus / 100)).toLocaleString()}</p>}
               {balanceBonus !== 0 && (
                 <p>4. {balanceBonus > 0 ? '+' : ''} Balance Effect ({balanceBonus}%): {balanceBonus > 0 ? '+' : ''}{Math.floor(baseAmount * (balanceBonus / 100)).toLocaleString()}</p>
               )}
-              {isVIP && <p className="text-yellow-400 font-bold">5. ⚡ VIP 2x Multiplier: ×2</p>}
-              <p className="pt-2 border-t border-gray-700 font-bold text-green-400">= {finalAmount.toLocaleString()}</p>
+              {isVIP && <p className="text-[color:var(--nn-amber)] font-bold">5. ⚡ VIP 2x Multiplier: ×2</p>}
+              <p className="pt-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] font-bold text-[color:var(--nn-green)]">= {finalAmount.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -756,9 +756,9 @@ function HarvestCalculatorTab() {
 function EconomyTab() {
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-green-900/50 to-blue-900/50 rounded-lg p-6 border border-green-500/30">
-        <h2 className="text-2xl font-bold text-green-300 mb-4">💰 Economy Statistics</h2>
-        <div className="text-gray-400 text-center py-12">
+      <div className="bg-gradient-to-r from-[color:var(--nn-green)] to-[color:var(--nn-cyan)] rounded-none p-6 border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-green)] mb-4">💰 Economy Statistics</h2>
+        <div className="text-[color:var(--nn-text-secondary)] text-center py-12">
           <p className="text-xl mb-2">🚧 Coming Soon</p>
           <p>Economy tracking and auction house statistics will be available here.</p>
         </div>
@@ -780,21 +780,21 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, color }: StatCardProps) {
   const colorClasses = {
-    red: 'text-red-400',
-    blue: 'text-blue-400',
-    yellow: 'text-yellow-400',
-    green: 'text-green-400',
-    purple: 'text-purple-400',
-    orange: 'text-orange-400',
+    red: 'text-[color:var(--nn-magenta)]',
+    blue: 'text-[color:var(--nn-cyan)]',
+    yellow: 'text-[color:var(--nn-amber)]',
+    green: 'text-[color:var(--nn-green)]',
+    purple: 'text-[color:var(--nn-violet)]',
+    orange: 'text-[color:var(--nn-amber)]',
   };
 
   return (
-    <div className="bg-gray-700/50 rounded-lg p-4 hover:bg-gray-700/70 transition-colors">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none p-4 transition-colors">
       <div className="flex items-center gap-3 mb-2">
         <span className="text-2xl">{icon}</span>
-        <span className="text-gray-300 font-medium">{label}</span>
+        <span className="text-[color:var(--nn-text-secondary)] font-medium">{label}</span>
       </div>
-      <div className={`text-2xl font-bold ${colorClasses[color as keyof typeof colorClasses] || 'text-white'}`}>
+      <div className={`text-2xl font-bold ${colorClasses[color as keyof typeof colorClasses] || 'text-[color:var(--nn-text-primary)]'}`}>
         {value.toLocaleString()}
       </div>
     </div>
@@ -812,10 +812,10 @@ function SortButton({ label, active, onClick }: SortButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+      className={`px-4 py-2 rounded-none font-semibold transition-all ${
         active
-          ? 'bg-blue-600 text-white shadow-lg'
-          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+          ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-lg'
+          : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
       }`}
     >
       {label}
@@ -846,22 +846,22 @@ function LeaderboardRow({ player, rank, sortBy }: LeaderboardRowProps) {
   };
 
   return (
-    <div className="bg-gray-700/50 rounded-lg p-4 hover:bg-gray-700/70 transition-colors">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none p-4 transition-colors">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-2xl font-bold w-12 text-center">
             {getRankIcon(rank)}
           </span>
           <div>
-            <div className="font-bold text-lg text-blue-300">{player.username}</div>
-            <div className="text-sm text-gray-400">
+            <div className="font-bold text-lg text-[color:var(--nn-cyan)]">{player.username}</div>
+            <div className="text-sm text-[color:var(--nn-text-secondary)]">
               Level {player.level ?? 0} • Power: {player.combatPower?.toLocaleString() ?? '0'}
             </div>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold text-yellow-400">{getHighlightedValue()}</div>
-          <div className="text-sm text-gray-400">
+          <div className="text-2xl font-bold text-[color:var(--nn-amber)]">{getHighlightedValue()}</div>
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">
             {sortBy === 'combatPower' && 'Power'}
             {sortBy === 'level' && 'Level'}
             {sortBy === 'resources.metal' && 'Metal'}

@@ -122,13 +122,13 @@ export default function LeaderboardPage() {
   const getBalanceColor = (status: string): string => {
     switch (status) {
       case 'OPTIMAL':
-        return 'text-green-400';
+        return 'text-[color:var(--nn-green)]';
       case 'BALANCED':
-        return 'text-blue-400';
+        return 'text-[color:var(--nn-cyan)]';
       case 'IMBALANCED':
-        return 'text-yellow-400';
+        return 'text-[color:var(--nn-amber)]';
       case 'CRITICAL':
-        return 'text-red-400';
+        return 'text-[color:var(--nn-magenta)]';
       default:
         return 'text-text-secondary';
     }
@@ -139,9 +139,9 @@ export default function LeaderboardPage() {
    */
   if (loading) {
     return (
-      <div className="min-h-screen bg-glass-dark text-white flex items-center justify-center">
+      <div className="min-h-screen bg-glass-dark text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
           <p className="text-xl">Loading leaderboard...</p>
         </div>
       </div>
@@ -153,21 +153,21 @@ export default function LeaderboardPage() {
    */
   if (error) {
     return (
-      <div className="min-h-screen bg-glass-dark text-white flex items-center justify-center">
+      <div className="min-h-screen bg-glass-dark text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <div className="text-center max-w-md">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <div className="text-[color:var(--nn-magenta)] text-6xl mb-4">⚠️</div>
           <h1 className="text-2xl font-bold mb-2">Error Loading Leaderboard</h1>
           <p className="text-text-secondary mb-6">{error}</p>
           <div className="flex gap-4 justify-center">
             <button
               onClick={fetchLeaderboard}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+              className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none transition-colors"
             >
               Try Again
             </button>
             <button
               onClick={() => router.push('/game')}
-              className="px-6 py-2 bg-glass-light hover:bg-glass-light rounded transition-colors"
+              className="px-6 py-2 bg-glass-light hover:bg-glass-light rounded-none transition-colors"
             >
               Back to Game
             </button>
@@ -181,7 +181,7 @@ export default function LeaderboardPage() {
    * Main leaderboard view
    */
   return (
-    <div className="min-h-screen bg-glass-dark text-white p-4">
+    <div className="min-h-screen bg-glass-dark text-[color:var(--nn-text-primary)] p-4">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -196,14 +196,14 @@ export default function LeaderboardPage() {
             <button
               onClick={fetchLeaderboard}
               disabled={refreshing}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-glass-light rounded transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] disabled:bg-glass-light rounded-none transition-colors flex items-center gap-2"
             >
               <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
               Refresh
             </button>
             <button
               onClick={() => router.push('/game')}
-              className="px-4 py-2 bg-glass-light hover:bg-glass-light rounded transition-colors"
+              className="px-4 py-2 bg-glass-light hover:bg-glass-light rounded-none transition-colors"
             >
               ← Back to Game
             </button>
@@ -217,7 +217,7 @@ export default function LeaderboardPage() {
             placeholder="Search players..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded-none focus:outline-none focus:border-blue-500 transition-colors"
           />
           {searchQuery && (
             <p className="text-sm text-text-secondary mt-2">
@@ -242,12 +242,12 @@ export default function LeaderboardPage() {
               </div>
               <div className="text-right">
                 <p className="text-sm text-text-secondary mb-1">Effective Power</p>
-                <p className="text-2xl font-bold text-yellow-400">
+                <p className="text-2xl font-bold text-[color:var(--nn-amber)]">
                   {formatNumber(leaderboardData.currentPlayerData.effectivePower)}
                 </p>
                 <div className="flex gap-4 mt-2 text-sm">
                   <div>
-                    <span className="text-purple-400">⭐ Level {leaderboardData.currentPlayerData.level || 1}</span>
+                    <span className="text-[color:var(--nn-violet)]">⭐ Level {leaderboardData.currentPlayerData.level || 1}</span>
                   </div>
                   <div>
                     <span className="text-text-secondary">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
@@ -265,7 +265,7 @@ export default function LeaderboardPage() {
       
       {/* Leaderboard Table */}
       <div className="max-w-7xl mx-auto">
-        <div className="bg-glass-light rounded-lg overflow-hidden">
+        <div className="bg-glass-light rounded-none overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-glass-light">
@@ -302,7 +302,7 @@ export default function LeaderboardPage() {
                       <tr 
                         key={`${player.rank}-${player.username}`}
                         className={`
-                          ${isCurrentPlayer ? 'bg-blue-900/30' : 'hover:bg-glass-light'}
+                          ${isCurrentPlayer ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'hover:bg-glass-light'}
                           transition-colors
                         `}
                       >
@@ -313,21 +313,21 @@ export default function LeaderboardPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <span className={`font-medium ${isCurrentPlayer ? 'text-blue-400' : 'text-white'}`}>
+                            <span className={`font-medium ${isCurrentPlayer ? 'text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-primary)]'}`}>
                               {player.username}
                             </span>
                             {isCurrentPlayer && (
-                              <span className="ml-2 px-2 py-1 text-xs bg-blue-600 rounded">YOU</span>
+                              <span className="ml-2 px-2 py-1 text-xs bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none">YOU</span>
                             )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className="text-yellow-400 font-bold text-lg">
+                          <span className="text-[color:var(--nn-amber)] font-bold text-lg">
                             {formatNumber(player.effectivePower)}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className="text-purple-400 font-semibold">
+                          <span className="text-[color:var(--nn-violet)] font-semibold">
                             ⭐ {player.level || 1}
                           </span>
                         </td>

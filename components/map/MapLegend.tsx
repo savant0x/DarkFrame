@@ -99,11 +99,11 @@ export function MapLegend({ compact = false }: { compact?: boolean }): React.JSX
 
   return (
     <div 
-      className="bg-glass-light rounded-lg p-4 shadow-lg border border-glass-border"
+      className="bg-glass-light rounded-none p-4 shadow-lg border border-glass-border"
       role="region"
       aria-label="Map legend"
     >
-      <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+      <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
         <span>🗺️</span>
         <span>Map Legend</span>
       </h3>
@@ -147,14 +147,14 @@ function LegendItem({
     <div
       className={`
         flex items-center gap-2
-        ${mobile ? 'p-2 bg-glass-light rounded' : 'flex-col text-center'}
+        ${mobile ? 'p-2 bg-glass-light rounded-none' : 'flex-col text-center'}
       `}
       title={item.description}
     >
       {/* Color indicator */}
       <div
         className={`
-          rounded
+          rounded-none
           ${mobile ? 'w-6 h-6 flex-shrink-0' : 'w-8 h-8 mb-1'}
         `}
         style={{ backgroundColor: item.color }}

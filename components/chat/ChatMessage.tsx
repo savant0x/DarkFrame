@@ -312,7 +312,7 @@ export default function ChatMessage({
           <button
             key={`item-${keyCounter++}`}
             onClick={() => handleItemClick(itemName)}
-            className="text-blue-400 hover:text-blue-300 underline font-medium transition-colors"
+            className="text-[color:var(--nn-cyan)] underline font-medium transition-colors"
             title={`View item: ${itemName}`}
           >
             [{itemName}]
@@ -325,7 +325,7 @@ export default function ChatMessage({
         parts.push(
           <span
             key={`mention-${keyCounter++}`}
-            className="bg-cyan-500/20 text-cyan-400 px-1 rounded font-medium"
+            className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] px-1 rounded-none font-medium"
           >
             @{username}
           </span>
@@ -378,14 +378,14 @@ export default function ChatMessage({
   // ============================================================================
 
   return (
-    <div className="bg-gray-800/50 border border-gray-700/30 rounded-lg p-3 hover:bg-gray-800/70 transition-colors group">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3 transition-colors group">
       {/* MESSAGE HEADER */}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Username (clickable) */}
           <button
             onClick={handleProfileClick}
-            className="text-cyan-400 font-semibold text-sm hover:text-cyan-300 transition-colors"
+            className="text-[color:var(--nn-cyan)] font-semibold text-sm transition-colors"
           >
             {message.senderUsername}
           </button>
@@ -405,7 +405,7 @@ export default function ChatMessage({
           )}
 
           {/* Level */}
-          <span className="text-gray-500 text-xs">Lv {message.senderLevel}</span>
+          <span className="text-[color:var(--nn-text-secondary)] text-xs">Lv {message.senderLevel}</span>
 
           {/* Admin Badge (if applicable) */}
           {isAdmin && message.senderId === currentUserId && (
@@ -417,14 +417,14 @@ export default function ChatMessage({
 
         <div className="flex items-center gap-2">
           {/* Timestamp */}
-          <span className="text-gray-500 text-xs flex items-center gap-1">
+          <span className="text-[color:var(--nn-text-secondary)] text-xs flex items-center gap-1">
             <Clock className="w-3 h-3" />
             {formatTime(message.timestamp)}
           </span>
 
           {/* Edited Indicator */}
           {message.edited && (
-            <span className="text-gray-500 text-xs italic flex items-center gap-1" title={message.editedAt ? `Edited at ${message.editedAt.toLocaleString()}` : 'Edited'}>
+            <span className="text-[color:var(--nn-text-secondary)] text-xs italic flex items-center gap-1" title={message.editedAt ? `Edited at ${message.editedAt.toLocaleString()}` : 'Edited'}>
               <Edit3 className="w-3 h-3" />
               (edited)
             </span>
@@ -434,7 +434,7 @@ export default function ChatMessage({
           <div className="relative opacity-0 group-hover:opacity-100 transition-opacity" ref={actionsRef}>
             <button
               onClick={() => setShowActions(!showActions)}
-              className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700/50 transition-colors"
+              className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] p-1 rounded-none bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors"
               aria-label="Message actions"
             >
               <MoreVertical className="w-4 h-4" />
@@ -442,15 +442,15 @@ export default function ChatMessage({
 
             {/* Dropdown Menu */}
             {showActions && (
-              <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[160px]">
+              <div className="absolute right-0 top-full mt-1 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none shadow-lg z-10 min-w-[160px]">
                 {messageActions.map((action, index) => (
                   <button
                     key={index}
                     onClick={action.onClick}
                     className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
                       action.variant === 'danger'
-                        ? 'text-red-400 hover:bg-red-500/10'
-                        : 'text-gray-300 hover:bg-gray-700/50'
+                        ? 'text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+                        : 'text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'
                     } ${index === 0 ? 'rounded-t-lg' : ''} ${
                       index === messageActions.length - 1 ? 'rounded-b-lg' : ''
                     }`}
@@ -466,7 +466,7 @@ export default function ChatMessage({
       </div>
 
       {/* MESSAGE CONTENT */}
-      <div className="text-gray-300 text-sm whitespace-pre-wrap break-words">
+      <div className="text-[color:var(--nn-text-secondary)] text-sm whitespace-pre-wrap break-words">
         {parseContent(message.content)}
       </div>
     </div>

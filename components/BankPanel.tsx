@@ -304,7 +304,7 @@ export default function BankPanel({
   const isValid = validation.valid && inputAmount > 0;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -430,7 +430,7 @@ export default function BankPanel({
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 bg-bg-tertiary text-text-primary px-4 py-2 rounded-lg border border-border-main focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+                className="flex-1 bg-bg-tertiary text-text-primary px-4 py-2 rounded-none border border-border-main focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
                 placeholder="Enter amount"
                 min="0"
               />
@@ -442,7 +442,7 @@ export default function BankPanel({
               </Button>
             </div>
             {!validation.valid && inputAmount > 0 && (
-              <p className="text-red-400 text-sm mt-1 flex items-center gap-1">
+              <p className="text-[color:var(--nn-magenta)] text-sm mt-1 flex items-center gap-1">
                 <AlertCircle className="w-4 h-4" />
                 {validation.error}
               </p>
@@ -463,7 +463,7 @@ export default function BankPanel({
                     <span className="text-text-tertiary">Amount to deposit:</span>
                     <span className="text-text-primary font-semibold">{inputAmount.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-yellow-400">
+                  <div className="flex justify-between text-[color:var(--nn-amber)]">
                     <span className="flex items-center gap-1">
                       <TrendingDown className="w-4 h-4" />
                       Deposit fee:
@@ -471,7 +471,7 @@ export default function BankPanel({
                     <span className="font-semibold">{DEPOSIT_FEE.toLocaleString()}</span>
                   </div>
                   <Divider className="my-2" />
-                  <div className="flex justify-between text-green-400">
+                  <div className="flex justify-between text-[color:var(--nn-green)]">
                     <span className="flex items-center gap-1">
                       <TrendingUp className="w-4 h-4" />
                       Bank receives:
@@ -487,7 +487,7 @@ export default function BankPanel({
                     <span className="text-text-tertiary">Amount to withdraw:</span>
                     <span className="text-text-primary font-semibold">{inputAmount.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-green-400">
+                  <div className="flex justify-between text-[color:var(--nn-green)]">
                     <span className="font-semibold">No fee charged</span>
                     <Badge variant="success">Free</Badge>
                   </div>
@@ -502,7 +502,7 @@ export default function BankPanel({
                       {inputAmount.toLocaleString()} {resourceType}
                     </span>
                   </div>
-                  <div className="flex justify-between text-yellow-400">
+                  <div className="flex justify-between text-[color:var(--nn-amber)]">
                     <span className="flex items-center gap-1">
                       <TrendingDown className="w-4 h-4" />
                       Exchange fee (20%):
@@ -512,7 +512,7 @@ export default function BankPanel({
                     </span>
                   </div>
                   <Divider className="my-2" />
-                  <div className="flex justify-between text-green-400">
+                  <div className="flex justify-between text-[color:var(--nn-green)]">
                     <span className="flex items-center gap-1">
                       <TrendingUp className="w-4 h-4" />
                       You receive:

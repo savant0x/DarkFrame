@@ -135,14 +135,14 @@ export default function ClansLeaderboard() {
   };
 
   return (
-    <div className="h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-white overflow-y-auto">
+    <div className="h-screen bg-gradient-to-b from-bg-void via-bg-space to-black text-[color:var(--nn-text-primary)] overflow-y-auto">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}
         <div className="mb-6">
           <Button 
             onClick={() => router.push('/game')} 
             variant="ghost" 
-            className="gap-2 text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30"
+            className="gap-2 text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Game
@@ -152,8 +152,8 @@ export default function ClansLeaderboard() {
         {/* Header */}
         <div className="mb-8 text-center">
           <div className="flex items-center justify-center gap-3 mb-3">
-            <Trophy className="w-10 h-10 text-yellow-400" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+            <Trophy className="w-10 h-10 text-[color:var(--nn-amber)]" />
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] bg-clip-text text-transparent">
               Clan Leaderboards
             </h1>
           </div>
@@ -228,7 +228,7 @@ export default function ClansLeaderboard() {
         {/* Leaderboard Content */}
         {isLoading ? (
           <div className="text-center py-20">
-            <Loader2 className="w-16 h-16 mx-auto mb-4 text-cyan-400 animate-spin" />
+            <Loader2 className="w-16 h-16 mx-auto mb-4 text-[color:var(--nn-cyan)] animate-spin" />
             <p className="text-text-secondary text-lg">Loading leaderboard...</p>
           </div>
         ) : leaderboard.length === 0 ? (
@@ -332,10 +332,10 @@ function CategoryButton({ icon, label, active, onClick }: CategoryButtonProps) {
     <button
       onClick={onClick}
       className={`
-        flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all
+        flex items-center justify-center gap-2 px-4 py-3 rounded-none border transition-all
         ${active 
-          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/20' 
-          : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light hover:border-cyan-500/30 hover:text-cyan-400'
+          ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)] shadow-lg shadow-cyan-500/20' 
+          : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]'
         }
       `}
     >
@@ -363,7 +363,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
   const getRankDisplay = () => {
     if (rank === 1) {
       return (
-        <div className="flex items-center gap-2 text-yellow-400">
+        <div className="flex items-center gap-2 text-[color:var(--nn-amber)]">
           <Crown className="w-6 h-6" />
           <span className="text-2xl font-bold">1</span>
         </div>
@@ -379,7 +379,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     }
     if (rank === 3) {
       return (
-        <div className="flex items-center gap-2 text-orange-400">
+        <div className="flex items-center gap-2 text-[color:var(--nn-amber)]">
           <Medal className="w-6 h-6" />
           <span className="text-2xl font-bold">3</span>
         </div>
@@ -438,23 +438,23 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
   };
 
   const borderColor = rank === 1 
-    ? 'border-yellow-500/50' 
+    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]' 
     : rank === 2 
     ? 'border-glass-border' 
     : rank === 3 
-    ? 'border-orange-500/50'
+    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
     : 'border-glass-border';
 
   const bgColor = rank === 1
-    ? 'bg-yellow-500/10'
+    ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
     : rank === 2
     ? 'bg-glass-light/40'
     : rank === 3
-    ? 'bg-orange-500/10'
+    ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
     : 'bg-glass-light';
 
   return (
-    <div className={`${bgColor} border ${borderColor} rounded-lg p-4 hover:border-cyan-500/30 transition-all`}>
+    <div className={`${bgColor} border ${borderColor} rounded-none p-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all`}>
       <div className="flex items-center gap-4">
         {/* Rank */}
         <div className="flex-shrink-0 w-16 text-center">
@@ -464,7 +464,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
         {/* Clan Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-xl font-bold text-white truncate">
+            <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)] truncate">
               {clan.name}
             </h3>
             {getRankChange()}
@@ -478,21 +478,21 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
             <div>
               <span className="text-text-secondary">Level:</span>
-              <span className="text-cyan-400 ml-2 font-semibold">{clan.level.currentLevel}</span>
+              <span className="text-[color:var(--nn-cyan)] ml-2 font-semibold">{clan.level.currentLevel}</span>
             </div>
             <div>
               <span className="text-text-secondary">Members:</span>
-              <span className="text-purple-400 ml-2 font-semibold">
+              <span className="text-[color:var(--nn-violet)] ml-2 font-semibold">
                 {clan.members.length}/{clan.maxMembers}
               </span>
             </div>
             <div>
               <span className="text-text-secondary">Territories:</span>
-              <span className="text-green-400 ml-2 font-semibold">{clan.territories?.length || 0}</span>
+              <span className="text-[color:var(--nn-green)] ml-2 font-semibold">{clan.territories?.length || 0}</span>
             </div>
             <div>
               <span className="text-text-secondary">Leader:</span>
-              <span className="text-yellow-400 ml-2 font-semibold truncate">
+              <span className="text-[color:var(--nn-amber)] ml-2 font-semibold truncate">
                 {clan.members.find(m => m.role === 'LEADER')?.username || 'Unknown'}
               </span>
             </div>
@@ -501,13 +501,13 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
 
         {/* Value Display */}
         <div className="flex-shrink-0 text-right">
-          <div className="text-2xl font-bold text-white mb-1">
+          <div className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-1">
             {getValueDisplay()}
           </div>
           <Button
             onClick={onView}
             variant="ghost"
-            className="gap-2 text-cyan-400 hover:text-cyan-300"
+            className="gap-2 text-[color:var(--nn-cyan)]"
           >
             <Eye className="w-4 h-4" />
             View

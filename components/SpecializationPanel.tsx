@@ -311,7 +311,7 @@ const SpecializationPanel: React.FC = () => {
         <Card
           className={`
             border-2 ${config.borderColor} ${config.bgColor}
-            ${isCurrentDoctrine ? 'ring-4 ring-yellow-500/50' : ''}
+            ${isCurrentDoctrine ? 'ring-4 ring-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]/50' : ''}
             transition-all hover:scale-[1.02] hover:shadow-lg
           `}
         >
@@ -323,7 +323,7 @@ const SpecializationPanel: React.FC = () => {
                 <div>
                   <h3 className={`text-xl font-bold ${config.color}`}>{config.name}</h3>
                   {isCurrentDoctrine && (
-                    <Badge variant="default" className="bg-yellow-500 text-yellow-900 mt-1">
+                    <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] mt-1">
                       ★ CURRENT DOCTRINE ★
                     </Badge>
                   )}
@@ -332,42 +332,42 @@ const SpecializationPanel: React.FC = () => {
             </div>
 
             {/* Description */}
-            <p className="text-gray-300 text-sm mb-4 leading-relaxed">{config.description}</p>
+            <p className="text-[color:var(--nn-text-secondary)] text-sm mb-4 leading-relaxed">{config.description}</p>
 
             {/* Bonuses */}
             <div className="mb-4 space-y-1">
-              <p className="text-xs text-gray-400 uppercase font-semibold mb-2">Bonuses:</p>
+              <p className="text-xs text-[color:var(--nn-text-secondary)] uppercase font-semibold mb-2">Bonuses:</p>
               {config.bonuses.strengthMultiplier && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-green-900/50 text-green-400 text-xs">
+                  <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] text-xs">
                     +{((config.bonuses.strengthMultiplier - 1) * 100).toFixed(0)}% Strength
                   </Badge>
                 </div>
               )}
               {config.bonuses.defenseMultiplier && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-blue-900/50 text-blue-400 text-xs">
+                  <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] text-xs">
                     +{((config.bonuses.defenseMultiplier - 1) * 100).toFixed(0)}% Defense
                   </Badge>
                 </div>
               )}
               {config.bonuses.balancedMultiplier && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-purple-900/50 text-purple-400 text-xs">
+                  <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-violet)] text-xs">
                     +{((config.bonuses.balancedMultiplier - 1) * 100).toFixed(0)}% Balanced Stats
                   </Badge>
                 </div>
               )}
               {config.bonuses.metalCostMultiplier && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-orange-900/50 text-orange-400 text-xs">
+                  <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs">
                     {((1 - config.bonuses.metalCostMultiplier) * 100).toFixed(0)}% Metal Cost
                   </Badge>
                 </div>
               )}
               {config.bonuses.energyCostMultiplier && (
                 <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-cyan-900/50 text-cyan-400 text-xs">
+                  <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] text-xs">
                     {((1 - config.bonuses.energyCostMultiplier) * 100).toFixed(0)}% Energy Cost
                   </Badge>
                 </div>
@@ -403,7 +403,7 @@ const SpecializationPanel: React.FC = () => {
               )}
 
               {isCurrentDoctrine && !canChoose && !canRespec && (
-                <div className="text-center text-sm text-gray-400 italic py-2">
+                <div className="text-center text-sm text-[color:var(--nn-text-secondary)] italic py-2">
                   Current specialization
                 </div>
               )}
@@ -424,7 +424,7 @@ const SpecializationPanel: React.FC = () => {
         variant="primary"
         size="base"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 left-4 shadow-lg z-40 bg-purple-600 hover:bg-purple-700"
+        className="fixed bottom-4 left-4 shadow-lg z-40 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
       >
         <span className="mr-2">⚖️</span>
         Specialization (P)
@@ -437,13 +437,13 @@ const SpecializationPanel: React.FC = () => {
   // ============================================================
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <Card className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 flex justify-between items-center rounded-t-lg">
+        <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-violet)] p-6 flex justify-between items-center rounded-t-lg">
           <div>
-            <h2 className="text-3xl font-bold text-white">Specialization System</h2>
-            <p className="text-gray-200 text-sm mt-1">
+            <h2 className="text-3xl font-bold text-[color:var(--nn-text-primary)]">Specialization System</h2>
+            <p className="text-[color:var(--nn-text-primary)] text-sm mt-1">
               Choose your doctrine and master your path to power
             </p>
           </div>
@@ -451,7 +451,7 @@ const SpecializationPanel: React.FC = () => {
             variant="ghost"
             size="sm"
             onClick={() => setIsOpen(false)}
-            className="text-white hover:text-gray-200"
+            className="text-[color:var(--nn-text-primary)]"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -467,18 +467,18 @@ const SpecializationPanel: React.FC = () => {
             <>
               {/* Requirements Display (if not eligible) */}
               {!eligibility?.hasSpecialization && eligibility && !eligibility.canChoose && (
-                <Panel className="bg-red-900/30 border border-red-500">
-                  <p className="text-red-400 font-semibold mb-2">Requirements Not Met:</p>
-                  <p className="text-gray-300 text-sm mb-3">{eligibility.reason}</p>
+                <Panel className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
+                  <p className="text-[color:var(--nn-magenta)] font-semibold mb-2">Requirements Not Met:</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm mb-3">{eligibility.reason}</p>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <span className="text-gray-400">Level:</span>
+                      <span className="text-[color:var(--nn-text-secondary)]">Level:</span>
                       <Badge variant="default" className="ml-2">
                         {eligibility.requirements?.currentLevel} / {eligibility.requirements?.requiredLevel}
                       </Badge>
                     </div>
                     <div>
-                      <span className="text-gray-400">Research Points:</span>
+                      <span className="text-[color:var(--nn-text-secondary)]">Research Points:</span>
                       <Badge variant="default" className="ml-2">
                         {eligibility.requirements?.currentRP} / {eligibility.requirements?.requiredRP}
                       </Badge>
@@ -489,8 +489,8 @@ const SpecializationPanel: React.FC = () => {
 
               {/* Mastery Progress (if has specialization) */}
               {masteryStatus?.hasSpecialization && masteryStatus.mastery && (
-                <Panel className="border border-purple-500">
-                  <h3 className="text-xl font-bold text-purple-400 mb-4">Mastery Progress</h3>
+                <Panel className="border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+                  <h3 className="text-xl font-bold text-[color:var(--nn-violet)] mb-4">Mastery Progress</h3>
                   <MasteryProgressBar
                     masteryLevel={masteryStatus.mastery.level}
                     masteryXP={masteryStatus.mastery.totalXP}
@@ -500,13 +500,13 @@ const SpecializationPanel: React.FC = () => {
                   {/* Stats */}
                   <div className="mt-4 grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-gray-400 text-sm mb-1">Specialized Units Built:</p>
+                      <p className="text-[color:var(--nn-text-secondary)] text-sm mb-1">Specialized Units Built:</p>
                       <Badge variant="default" className="text-lg">
                         {masteryStatus.stats?.totalUnitsBuilt || 0}
                       </Badge>
                     </div>
                     <div>
-                      <p className="text-gray-400 text-sm mb-1">Battles Won:</p>
+                      <p className="text-[color:var(--nn-text-secondary)] text-sm mb-1">Battles Won:</p>
                       <Badge variant="default" className="text-lg">
                         {masteryStatus.stats?.totalBattlesWon || 0}
                       </Badge>
@@ -515,11 +515,11 @@ const SpecializationPanel: React.FC = () => {
 
                   {/* Next Milestone */}
                   {masteryStatus.milestones?.next && (
-                    <div className="mt-4 bg-purple-900/30 border border-purple-500 rounded p-3">
-                      <p className="text-purple-400 font-semibold text-sm mb-1">
+                    <div className="mt-4 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-3">
+                      <p className="text-[color:var(--nn-violet)] font-semibold text-sm mb-1">
                         Next Milestone: {masteryStatus.milestones.next.level}%
                       </p>
-                      <p className="text-gray-300 text-xs mb-1">
+                      <p className="text-[color:var(--nn-text-secondary)] text-xs mb-1">
                         {masteryStatus.milestones.next.description}
                       </p>
                       <Badge variant="default" className="text-xs">
@@ -545,35 +545,35 @@ const SpecializationPanel: React.FC = () => {
               {eligibility?.hasSpecialization && respecEligibility && (
                 <>
                   <Divider />
-                  <Panel className="bg-yellow-900/30 border border-yellow-500">
-                    <p className="text-yellow-400 font-semibold mb-3">Respec Costs:</p>
+                  <Panel className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
+                    <p className="text-[color:var(--nn-amber)] font-semibold mb-3">Respec Costs:</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
-                        <p className="text-gray-400 text-xs mb-1">RP Cost:</p>
+                        <p className="text-[color:var(--nn-text-secondary)] text-xs mb-1">RP Cost:</p>
                         <Badge variant="default" className="text-base">
                           {respecEligibility.costs?.rp || 50}
                         </Badge>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-xs mb-1">Metal:</p>
+                        <p className="text-[color:var(--nn-text-secondary)] text-xs mb-1">Metal:</p>
                         <Badge variant="default" className="text-base">
                           {formatNumber(respecEligibility.costs?.metal || 50000)}
                         </Badge>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-xs mb-1">Energy:</p>
+                        <p className="text-[color:var(--nn-text-secondary)] text-xs mb-1">Energy:</p>
                         <Badge variant="default" className="text-base">
                           {formatNumber(respecEligibility.costs?.energy || 50000)}
                         </Badge>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-xs mb-1">Cooldown:</p>
+                        <p className="text-[color:var(--nn-text-secondary)] text-xs mb-1">Cooldown:</p>
                         <Badge variant="default" className="text-base">
                           {respecEligibility.costs?.cooldownHours || 48}h
                         </Badge>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 mt-3 italic">
+                    <p className="text-xs text-[color:var(--nn-text-secondary)] mt-3 italic">
                       Note: Respeccing resets mastery to 0% but keeps old specialized units
                     </p>
                   </Panel>
@@ -584,25 +584,25 @@ const SpecializationPanel: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-700 p-3 text-center text-gray-400 text-sm border-t border-gray-600">
-          Press <kbd className="px-2 py-1 bg-gray-600 rounded font-mono">P</kbd> to toggle this panel
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 text-center text-[color:var(--nn-text-secondary)] text-sm border-t border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]">
+          Press <kbd className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-mono">P</kbd> to toggle this panel
         </div>
       </Card>
 
       {/* Respec Confirmation Modal */}
       {showRespecConfirm && selectedDoctrine && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60]">
-          <Card className="max-w-md border-2 border-yellow-500">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_90%,transparent)] flex items-center justify-center z-[60]">
+          <Card className="max-w-md border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
             <div className="p-6">
-              <h3 className="text-xl font-bold text-yellow-400 mb-4">Confirm Respec</h3>
-              <p className="text-gray-300 mb-4">
+              <h3 className="text-xl font-bold text-[color:var(--nn-amber)] mb-4">Confirm Respec</h3>
+              <p className="text-[color:var(--nn-text-secondary)] mb-4">
                 Are you sure you want to respec to{' '}
-                <span className="text-white font-semibold">{doctrines[selectedDoctrine]?.name}</span>?
+                <span className="text-[color:var(--nn-text-primary)] font-semibold">{doctrines[selectedDoctrine]?.name}</span>?
               </p>
               
-              <Panel className="bg-red-900/30 border border-red-500 mb-4">
-                <p className="text-red-400 font-semibold text-sm mb-3">This will cost:</p>
-                <div className="space-y-2 text-sm text-gray-300">
+              <Panel className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mb-4">
+                <p className="text-[color:var(--nn-magenta)] font-semibold text-sm mb-3">This will cost:</p>
+                <div className="space-y-2 text-sm text-[color:var(--nn-text-secondary)]">
                   <div className="flex items-center gap-2">
                     <span>•</span>
                     <Badge variant="default">50 Research Points</Badge>
@@ -616,7 +616,7 @@ const SpecializationPanel: React.FC = () => {
                     <Badge variant="default">50,000 Energy</Badge>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 mt-3 italic">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mt-3 italic">
                   Your mastery will reset to 0%
                 </p>
               </Panel>
@@ -627,7 +627,7 @@ const SpecializationPanel: React.FC = () => {
                   size="base"
                   onClick={handleRespecDoctrine}
                   disabled={loading}
-                  className="flex-1 bg-yellow-600 hover:bg-yellow-700"
+                  className="flex-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"
                 >
                   {loading ? 'Respeccing...' : 'Confirm Respec'}
                 </Button>

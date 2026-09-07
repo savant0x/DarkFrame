@@ -604,7 +604,7 @@ export default function TutorialQuestPanel({
             </div>
 
             {/* Current Step */}
-            <div className={`nn-well mb-3 rounded-lg border p-3 transition-all duration-300 ${
+            <div className={`nn-well mb-3 rounded-none border p-3 transition-all duration-300 ${
               stepJustCompleted ? 'border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-violet)_20%,transparent)]'
             }`}>
               <div className="mb-2 flex items-start gap-2">
@@ -631,7 +631,7 @@ export default function TutorialQuestPanel({
                   
                   {/* Show target coordinates for MOVE_TO_COORDS steps */}
                   {currentStep.action === 'MOVE_TO_COORDS' && targetCoords && (
-                    <div className="mt-2 rounded border px-2 py-1 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-violet) 10%, transparent)' }}>
+                    <div className="mt-2 rounded-none border px-2 py-1 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-violet) 10%, transparent)' }}>
                       {currentStep.validationData?.locationName ? (
                         <div className="flex flex-col gap-1">
                           <span className="text-xs font-semibold text-[color:var(--nn-text-primary)]">
@@ -649,7 +649,7 @@ export default function TutorialQuestPanel({
                     </div>
                   )}
                   {currentStep.action === 'MOVE_TO_COORDS' && !targetCoords && (
-                    <div className="mt-2 rounded border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] px-2 py-1 text-center">
+                    <div className="mt-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] px-2 py-1 text-center">
                       <span className="nn-lab">
                         Loading target location…
                       </span>
@@ -854,8 +854,8 @@ export default function TutorialQuestPanel({
 
     {/* Decline Confirmation Modal */}
     {showDeclineModal && (
-      <div className="fixed inset-0 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm z-[9999]">
-        <div className="w-full max-w-md rounded-xl border p-6" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 55%, transparent)', background: 'oklch(0.13 0.03 265)', boxShadow: '0 0 40px color-mix(in oklab, var(--nn-magenta) 20%, transparent)' }}>
+      <div className="fixed inset-0 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] p-4 backdrop-blur-sm z-[9999]">
+        <div className="w-full max-w-md rounded-none border p-6" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 55%, transparent)', background: 'oklch(0.13 0.03 265)', boxShadow: '0 0 40px color-mix(in oklab, var(--nn-magenta) 20%, transparent)' }}>
           <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-[color:var(--nn-magenta)]">
             Warning: Permanent Action
           </h3>
@@ -864,7 +864,7 @@ export default function TutorialQuestPanel({
             Quitting the tutorial will <strong className="text-[color:var(--nn-magenta)]">permanently forfeit</strong> all rewards:
           </p>
           
-          <ul className="mb-4 space-y-1.5 rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] p-3 text-xs text-[color:var(--nn-text-secondary)]">
+          <ul className="mb-4 space-y-1.5 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] p-3 text-xs text-[color:var(--nn-text-secondary)]">
             <li className="flex items-start gap-2">
               <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>Welcome Package (25,000-50,000 Metal & Energy)</span>
@@ -891,7 +891,7 @@ export default function TutorialQuestPanel({
             </li>
           </ul>
           
-          <div className="mb-6 rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-magenta) 8%, transparent)' }}>
+          <div className="mb-6 rounded-none border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-magenta) 8%, transparent)' }}>
             <p className="text-center text-sm font-semibold text-[color:var(--nn-magenta)]">
               This decision is permanent and cannot be undone.
             </p>
@@ -919,8 +919,8 @@ export default function TutorialQuestPanel({
 
     {/* Final Farewell Message */}
     {showFinalMessage && (
-      <div className="fixed inset-0 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm z-[9999]">
-        <div className="w-full max-w-md rounded-xl border p-8 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-amber) 50%, transparent)', background: 'oklch(0.13 0.03 265)', boxShadow: '0 0 40px color-mix(in oklab, var(--nn-amber) 20%, transparent)' }}>
+      <div className="fixed inset-0 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] p-4 backdrop-blur-sm z-[9999]">
+        <div className="w-full max-w-md rounded-none border p-8 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-amber) 50%, transparent)', background: 'oklch(0.13 0.03 265)', boxShadow: '0 0 40px color-mix(in oklab, var(--nn-amber) 20%, transparent)' }}>
           <h3 className="nn-panel__title mb-4 !text-lg !text-[color:var(--nn-amber)]">
             Tutorial Declined
           </h3>

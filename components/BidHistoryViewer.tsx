@@ -56,43 +56,43 @@ export function BidHistoryViewer({ bids }: BidHistoryViewerProps) {
 
   if (bids.length === 0) {
     return (
-      <div className="text-center text-gray-500 text-sm py-4">
+      <div className="text-center text-[color:var(--nn-text-secondary)] text-sm py-4">
         No bids yet
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900 rounded border border-gray-700 max-h-64 overflow-y-auto">
-      <div className="p-3 border-b border-gray-700 bg-gray-800">
-        <h4 className="text-sm font-semibold text-gray-300">Bid History</h4>
+    <div className="bg-[color:var(--nn-void)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] max-h-64 overflow-y-auto">
+      <div className="p-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
+        <h4 className="text-sm font-semibold text-[color:var(--nn-text-secondary)]">Bid History</h4>
       </div>
       
-      <div className="divide-y divide-gray-800">
+      <div className="divide-y divide-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         {sortedBids.map((bid) => (
           <div
             key={bid.bidId}
             className={`p-3 ${
-              bid.isWinning ? 'bg-green-900 bg-opacity-20 border-l-4 border-green-500' : ''
+              bid.isWinning ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-opacity-20 border-l-4 border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' : ''
             }`}
           >
             <div className="flex justify-between items-start mb-1">
               <div className="flex items-center gap-2">
-                <span className="text-white font-semibold text-sm">
+                <span className="text-[color:var(--nn-text-primary)] font-semibold text-sm">
                   {bid.bidderUsername}
                 </span>
                 {bid.isWinning && (
-                  <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded font-semibold">
+                  <span className="text-xs bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-0.5 rounded-none font-semibold">
                     WINNING
                   </span>
                 )}
               </div>
-              <span className="text-yellow-400 font-bold text-sm">
+              <span className="text-[color:var(--nn-amber)] font-bold text-sm">
                 {bid.bidAmount.toLocaleString()} 💰
               </span>
             </div>
             
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-[color:var(--nn-text-secondary)]">
               {formatTime(bid.bidTime)}
             </div>
           </div>
@@ -100,14 +100,14 @@ export function BidHistoryViewer({ bids }: BidHistoryViewerProps) {
       </div>
 
       {/* Bid Statistics */}
-      <div className="p-3 border-t border-gray-700 bg-gray-800 text-xs text-gray-400">
+      <div className="p-3 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-xs text-[color:var(--nn-text-secondary)]">
         <div className="flex justify-between">
           <span>Total Bids:</span>
-          <span className="text-white font-semibold">{bids.length}</span>
+          <span className="text-[color:var(--nn-text-primary)] font-semibold">{bids.length}</span>
         </div>
         <div className="flex justify-between mt-1">
           <span>Unique Bidders:</span>
-          <span className="text-white font-semibold">
+          <span className="text-[color:var(--nn-text-primary)] font-semibold">
             {new Set(bids.map(b => b.bidderUsername)).size}
           </span>
         </div>

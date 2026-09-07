@@ -195,26 +195,26 @@ export default function WMDResearchPanel() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg">
-        <p className="text-gray-300">Loading research data...</p>
+      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">Loading research data...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-gray-800 rounded-lg space-y-6">
+    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-yellow-400">WMD Research</h2>
-          <p className="text-sm text-gray-400">Unlock advanced warfare technologies</p>
+          <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">WMD Research</h2>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">Unlock advanced warfare technologies</p>
         </div>
         <div className="text-right">
-          <div className="text-3xl font-bold text-green-400">
+          <div className="text-3xl font-bold text-[color:var(--nn-green)]">
             {player?.researchPoints?.toLocaleString() || 0} RP
           </div>
           {research && research.clanResearchBonus > 0 && (
-            <Badge className="bg-blue-600 mt-1">
+            <Badge className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] mt-1">
               +{research.clanResearchBonus}% Clan Bonus
             </Badge>
           )}
@@ -223,15 +223,15 @@ export default function WMDResearchPanel() {
 
       {/* Current Research */}
       {research?.currentResearch && (
-        <Card className="p-4 bg-blue-900 border-blue-600">
+        <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
           <div className="flex justify-between items-center">
             <div>
-              <h3 className="font-bold text-blue-200">Research In Progress</h3>
-              <p className="text-sm text-blue-300">{research.currentResearch.techId}</p>
+              <h3 className="font-bold text-[color:var(--nn-cyan)]">Research In Progress</h3>
+              <p className="text-sm text-[color:var(--nn-cyan)]">{research.currentResearch.techId}</p>
             </div>
             <div className="text-right">
-              <div className="text-xl font-bold text-blue-200">{getTimeRemaining()}</div>
-              <p className="text-xs text-blue-400">remaining</p>
+              <div className="text-xl font-bold text-[color:var(--nn-cyan)]">{getTimeRemaining()}</div>
+              <p className="text-xs text-[color:var(--nn-cyan)]">remaining</p>
             </div>
           </div>
         </Card>
@@ -250,7 +250,7 @@ export default function WMDResearchPanel() {
           onClick={() => setSelectedTrack('MISSILE')}
           variant={selectedTrack === 'MISSILE' ? 'primary' : 'secondary'}
           size="sm"
-          className="bg-red-600 hover:bg-red-700"
+          className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
         >
           Missiles (Tier {research?.missileTier || 0})
         </Button>
@@ -258,7 +258,7 @@ export default function WMDResearchPanel() {
           onClick={() => setSelectedTrack('DEFENSE')}
           variant={selectedTrack === 'DEFENSE' ? 'primary' : 'secondary'}
           size="sm"
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
         >
           Defense (Tier {research?.defenseTier || 0})
         </Button>
@@ -266,7 +266,7 @@ export default function WMDResearchPanel() {
           onClick={() => setSelectedTrack('INTELLIGENCE')}
           variant={selectedTrack === 'INTELLIGENCE' ? 'primary' : 'secondary'}
           size="sm"
-          className="bg-purple-600 hover:bg-purple-700"
+          className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
         >
           Intelligence (Tier {research?.intelligenceTier || 0})
         </Button>
@@ -283,35 +283,35 @@ export default function WMDResearchPanel() {
             <Card 
               key={techId}
               className={`p-4 ${
-                isCompleted ? 'bg-green-900 border-green-600' :
-                isResearching ? 'bg-blue-900 border-blue-600' :
-                isAvailable ? 'bg-gray-700 border-gray-500' :
-                'bg-gray-800 border-gray-700 opacity-50'
+                isCompleted ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' :
+                isResearching ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]' :
+                isAvailable ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]' :
+                'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] opacity-50'
               }`}
             >
               <div className="space-y-2">
                 <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-white">{techId}</h3>
+                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{techId}</h3>
                   {isCompleted && (
-                    <Badge className="bg-green-600">✓ Complete</Badge>
+                    <Badge className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]">✓ Complete</Badge>
                   )}
                 </div>
-                <p className="text-sm text-gray-300">Advanced technology unlock</p>
+                <p className="text-sm text-[color:var(--nn-text-secondary)]">Advanced technology unlock</p>
                 <div className="flex justify-between items-center pt-2">
-                  <span className="text-yellow-400 font-bold">Cost varies</span>
+                  <span className="text-[color:var(--nn-amber)] font-bold">Cost varies</span>
                   {isAvailable && !isCompleted && !isResearching && (
                     <div className="flex gap-1">
                       <Button
                         onClick={() => startResearch(techId)}
                         size="sm"
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
                       >
                         Research
                       </Button>
                       <Button
                         onClick={() => spendRP(techId)}
                         size="sm"
-                        className="bg-yellow-600 hover:bg-yellow-700"
+                        className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"
                       >
                         Instant RP
                       </Button>
@@ -327,8 +327,8 @@ export default function WMDResearchPanel() {
       {/* Empty State */}
       {research && research.availableTechs?.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">All research complete!</p>
-          <p className="text-gray-500 text-sm">You{"'"}ve unlocked all WMD technologies</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">All research complete!</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">You{"'"}ve unlocked all WMD technologies</p>
         </div>
       )}
     </div>

@@ -105,13 +105,13 @@ export default function ClanXPProgress({
           <span className="text-text-secondary">
             {formatNumberAbbreviated(currentXP)} / {formatNumberAbbreviated(totalXP)} XP
           </span>
-          <span className="text-cyan-400 font-bold">{progress.toFixed(1)}%</span>
+          <span className="text-[color:var(--nn-cyan)] font-bold">{progress.toFixed(1)}%</span>
         </div>
 
         <div className="relative h-8 bg-glass-light rounded-full overflow-hidden shadow-inner">
           {/* Animated progress fill */}
           <div
-            className="absolute inset-y-0 left-0 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 transition-all duration-500 ease-out"
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--nn-cyan)] via-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           >
             {/* Shine effect */}
@@ -120,7 +120,7 @@ export default function ClanXPProgress({
 
           {/* Progress text */}
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white font-bold text-sm drop-shadow-lg">
+            <span className="text-[color:var(--nn-text-primary)] font-bold text-sm drop-shadow-lg">
               Level {level}
             </span>
           </div>
@@ -131,7 +131,7 @@ export default function ClanXPProgress({
       {xpGains.map((gain) => (
         <div
           key={gain.id}
-          className="absolute top-0 right-0 text-green-400 font-bold text-lg animate-float-up pointer-events-none"
+          className="absolute top-0 right-0 text-[color:var(--nn-green)] font-bold text-lg animate-float-up pointer-events-none"
         >
           +{formatNumberAbbreviated(gain.amount)} XP
         </div>
@@ -140,7 +140,7 @@ export default function ClanXPProgress({
       {/* Level Up Notification */}
       {showLevelUp && (
         <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce-in">
-          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-8 py-4 rounded-lg shadow-2xl border-4 border-yellow-300">
+          <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)] px-8 py-4 rounded-none shadow-2xl border-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
             <div className="text-center">
               <div className="text-4xl mb-2">🎉</div>
               <div className="text-2xl font-bold">LEVEL UP!</div>
@@ -152,20 +152,20 @@ export default function ClanXPProgress({
 
       {/* Milestone Achievement */}
       {showMilestone && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-gradient-to-b from-purple-900 to-bg-space border-4 border-purple-500 rounded-lg p-8 max-w-md shadow-2xl animate-scale-in">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-gradient-to-b from-[color:var(--nn-violet)] to-bg-space border-4 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md shadow-2xl animate-scale-in">
             <div className="text-center space-y-4">
               <div className="text-6xl">🏆</div>
-              <div className="text-3xl font-bold text-yellow-400">
+              <div className="text-3xl font-bold text-[color:var(--nn-amber)]">
                 MILESTONE REACHED!
               </div>
-              <div className="text-2xl text-white">Level {level}</div>
+              <div className="text-2xl text-[color:var(--nn-text-primary)]">Level {level}</div>
               <div className="text-text-primary">
                 Your clan has reached a major milestone!
               </div>
               <button
                 onClick={() => setShowMilestone(false)}
-                className="px-6 py-3 bg-purple-700 hover:bg-purple-600 text-white rounded-lg font-bold transition mt-4"
+                className="px-6 py-3 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition mt-4"
               >
                 Awesome!
               </button>

@@ -237,23 +237,23 @@ export default function AddFriendModal({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/70 z-40"
+        className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] z-40"
         onClick={handleClose}
       />
 
       {/* Modal */}
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-700">
-            <h2 className="text-2xl font-bold text-cyan-400">Add Friend</h2>
+          <div className="flex items-center justify-between p-6 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+            <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)]">Add Friend</h2>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-gray-800 rounded transition-colors"
+              className="p-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none transition-colors"
               title="Close"
             >
               <svg
-                className="w-6 h-6 text-gray-400"
+                className="w-6 h-6 text-[color:var(--nn-text-secondary)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -272,7 +272,7 @@ export default function AddFriendModal({
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Search Input */}
             <div>
-              <label className="block text-sm font-semibold text-gray-300 mb-2">
+              <label className="block text-sm font-semibold text-[color:var(--nn-text-secondary)] mb-2">
                 Search by username
               </label>
               <div className="relative">
@@ -281,23 +281,23 @@ export default function AddFriendModal({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Enter username..."
-                  className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded focus:border-cyan-500 focus:outline-none text-white"
+                  className="w-full px-4 py-3 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none focus:border-cyan-500 focus:outline-none text-[color:var(--nn-text-primary)]"
                   autoFocus
                 />
                 {searching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-5 h-5 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent rounded-full animate-spin" />
                   </div>
                 )}
               </div>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-1 text-xs text-[color:var(--nn-text-secondary)]">
                 Minimum 1 character, case-insensitive
               </p>
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-sm">
+              <div className="p-3 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-[color:var(--nn-magenta)] text-sm">
                 {error}
               </div>
             )}
@@ -305,12 +305,12 @@ export default function AddFriendModal({
             {/* Search Results */}
             {searchQuery.trim().length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-400 mb-3">
+                <h3 className="text-sm font-semibold text-[color:var(--nn-text-secondary)] mb-3">
                   Search Results ({searchResults.length})
                 </h3>
                 
                 {searchResults.length === 0 && !searching && (
-                  <div className="text-center py-12 text-gray-500">
+                  <div className="text-center py-12 text-[color:var(--nn-text-secondary)]">
                     <svg
                       className="w-16 h-16 mx-auto mb-4 opacity-50"
                       fill="none"
@@ -343,32 +343,32 @@ export default function AddFriendModal({
 
             {/* Selected User - Message Input */}
             {selectedUser && (
-              <div className="p-4 bg-cyan-500/10 border border-cyan-500/30 rounded space-y-3">
+              <div className="p-4 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm text-cyan-400 font-semibold">
+                  <div className="text-sm text-[color:var(--nn-cyan)] font-semibold">
                     Sending request to {selectedUser.username}
                   </div>
                   <button
                     onClick={() => setSelectedUser(null)}
-                    className="text-xs text-gray-400 hover:text-white transition-colors"
+                    className="text-xs text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] transition-colors"
                   >
                     Change
                   </button>
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">
+                  <label className="block text-sm font-semibold text-[color:var(--nn-text-secondary)] mb-2">
                     Intro message (optional)
                   </label>
                   <textarea
                     value={message}
                     onChange={(e) => setMessage(e.target.value.slice(0, 200))}
                     placeholder="Hey! Want to team up?"
-                    className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded focus:border-cyan-500 focus:outline-none text-white resize-none"
+                    className="w-full px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none focus:border-cyan-500 focus:outline-none text-[color:var(--nn-text-primary)] resize-none"
                     rows={3}
                     maxLength={200}
                   />
-                  <p className="mt-1 text-xs text-gray-500 text-right">
+                  <p className="mt-1 text-xs text-[color:var(--nn-text-secondary)] text-right">
                     {message.length}/200 characters
                   </p>
                 </div>
@@ -376,7 +376,7 @@ export default function AddFriendModal({
                 <button
                   onClick={handleSendRequest}
                   disabled={sending}
-                  className="w-full px-4 py-3 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-semibold rounded transition-colors"
+                  className="w-full px-4 py-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] font-semibold rounded-none transition-colors"
                 >
                   {sending ? 'Sending...' : 'Send Friend Request'}
                 </button>
@@ -385,7 +385,7 @@ export default function AddFriendModal({
 
             {/* Initial State */}
             {searchQuery.trim().length === 0 && (
-              <div className="text-center py-12 text-gray-500">
+              <div className="text-center py-12 text-[color:var(--nn-text-secondary)]">
                 <svg
                   className="w-20 h-20 mx-auto mb-4 opacity-50"
                   fill="none"
@@ -428,7 +428,7 @@ function SearchResultCard({ user, isSelected, onSelect }: SearchResultCardProps)
   const getActionButton = () => {
     if (user.friendStatus === 'accepted') {
       return (
-        <span className="px-3 py-1 bg-green-500/20 text-green-400 text-sm rounded">
+        <span className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] text-sm rounded-none">
           ✓ Friends
         </span>
       );
@@ -436,7 +436,7 @@ function SearchResultCard({ user, isSelected, onSelect }: SearchResultCardProps)
 
     if (user.hasPendingRequest) {
       return (
-        <span className="px-3 py-1 bg-yellow-500/20 text-yellow-400 text-sm rounded">
+        <span className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-sm rounded-none">
           Pending
         </span>
       );
@@ -445,10 +445,10 @@ function SearchResultCard({ user, isSelected, onSelect }: SearchResultCardProps)
     return (
       <button
         onClick={onSelect}
-        className={`px-3 py-1 text-sm rounded transition-colors ${
+        className={`px-3 py-1 text-sm rounded-none transition-colors ${
           isSelected
-            ? 'bg-cyan-500 text-black font-semibold'
-            : 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
+            ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] font-semibold'
+            : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]'
         }`}
       >
         {isSelected ? 'Selected' : 'Add Friend'}
@@ -457,29 +457,29 @@ function SearchResultCard({ user, isSelected, onSelect }: SearchResultCardProps)
   };
 
   return (
-    <div className={`p-3 rounded transition-all ${
+    <div className={`p-3 rounded-none transition-all ${
       isSelected
-        ? 'bg-cyan-500/20 border border-cyan-500/50'
-        : 'bg-gray-800/50 hover:bg-gray-800/70'
+        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'
+        : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]'
     }`}>
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-white">
+            <span className="font-semibold text-[color:var(--nn-text-primary)]">
               {user.username}
             </span>
             {user.vip && (
-              <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+              <span className="px-1.5 py-0.5 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs rounded-none">
                 VIP
               </span>
             )}
             {user.clanTag && (
-              <span className="text-cyan-400 text-sm">
+              <span className="text-[color:var(--nn-cyan)] text-sm">
                 {user.clanTag}
               </span>
             )}
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">
             Level {user.level}
           </div>
         </div>

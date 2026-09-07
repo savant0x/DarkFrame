@@ -726,8 +726,8 @@ export default function GamePage() {
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <p className="text-gray-400">
+      <div className="min-h-screen bg-[color:var(--nn-void)] flex items-center justify-center">
+        <p className="text-[color:var(--nn-text-secondary)]">
           {isLoading ? 'Loading player data...' : 'Redirecting...'}
         </p>
       </div>
@@ -867,13 +867,13 @@ export default function GamePage() {
 
       {/* Tier Unlock Panel */}
       {showTierUnlockPanel && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setShowTierUnlockPanel(false)}>
-          <div className="bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-purple-400">🧪 Research & Unlock Tiers</h2>
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50" onClick={() => setShowTierUnlockPanel(false)}>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-4 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">🧪 Research & Unlock Tiers</h2>
               <button
                 onClick={() => setShowTierUnlockPanel(false)}
-                className="text-gray-400 hover:text-white text-2xl font-bold"
+                className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl font-bold"
               >
                 ×
               </button>
@@ -887,7 +887,7 @@ export default function GamePage() {
 
       {/* Panel Error Message Toast */}
       {panelMessage && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-red-900 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-3 rounded-none shadow-lg z-50 animate-fade-in">
           {panelMessage}
         </div>
       )}
@@ -930,13 +930,13 @@ export default function GamePage() {
               />
             </div>
           ) : currentView === 'TILE' ? (
-            <div className="flex items-center justify-center w-full h-full text-gray-400">Loading tile...</div>
+            <div className="flex items-center justify-center w-full h-full text-[color:var(--nn-text-secondary)]">Loading tile...</div>
           ) : currentView === 'LEADERBOARD' ? (
             <div className="h-full w-full flex flex-col p-6">
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -951,7 +951,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -966,7 +966,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -981,7 +981,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -999,7 +999,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1014,14 +1014,14 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-white text-xl">Battle Log View - Coming Soon</div>
+                <div className="text-[color:var(--nn-text-primary)] text-xl">Battle Log View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'INVENTORY' ? (
@@ -1029,14 +1029,14 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
                 </button>
               </div>
               <div className="flex-1 flex items-center justify-center">
-                <div className="text-white text-xl">Inventory View - Coming Soon</div>
+                <div className="text-[color:var(--nn-text-primary)] text-xl">Inventory View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'PROFILE' ? (
@@ -1044,7 +1044,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1059,7 +1059,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1074,7 +1074,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1089,7 +1089,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1107,11 +1107,11 @@ export default function GamePage() {
               onBack={() => setCurrentView('TILE')}
             />
           ) : currentView === 'BANK' ? (
-            <div className="h-full w-full flex flex-col p-6 bg-gray-900 text-white">
+            <div className="h-full w-full flex flex-col p-6 bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)]">
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1120,9 +1120,9 @@ export default function GamePage() {
               <div className="flex-1 overflow-auto">
                 {/* TODO: Convert BankPanel to inline view - for now show placeholder */}
                 <div className="text-center mt-10">
-                  <h2 className="text-2xl font-bold text-yellow-400 mb-4">🏦 Bank</h2>
-                  <p className="text-gray-400">Bank panel conversion in progress...</p>
-                  <p className="text-sm text-gray-500 mt-2">Coming soon!</p>
+                  <h2 className="text-2xl font-bold text-[color:var(--nn-amber)] mb-4">🏦 Bank</h2>
+                  <p className="text-[color:var(--nn-text-secondary)]">Bank panel conversion in progress...</p>
+                  <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">Coming soon!</p>
                 </div>
               </div>
             </div>

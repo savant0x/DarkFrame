@@ -151,26 +151,26 @@ export default function WMDDefensePanel() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'IDLE': return 'bg-green-600';
-      case 'ACTIVE': return 'bg-blue-600';
-      case 'COOLDOWN': return 'bg-yellow-600';
-      case 'DAMAGED': return 'bg-red-600';
-      case 'UPGRADING': return 'bg-purple-600';
-      default: return 'bg-gray-600';
+      case 'IDLE': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case 'ACTIVE': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      case 'COOLDOWN': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      case 'DAMAGED': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
+      case 'UPGRADING': return 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]';
+      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
     }
   };
 
   const getHealthColor = (health: number) => {
-    if (health >= 80) return 'text-green-400';
-    if (health >= 50) return 'text-yellow-400';
-    if (health >= 25) return 'text-orange-400';
-    return 'text-red-400';
+    if (health >= 80) return 'text-[color:var(--nn-green)]';
+    if (health >= 50) return 'text-[color:var(--nn-amber)]';
+    if (health >= 25) return 'text-[color:var(--nn-amber)]';
+    return 'text-[color:var(--nn-magenta)]';
   };
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg">
-        <p className="text-gray-300">Loading defense systems...</p>
+      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">Loading defense systems...</p>
       </div>
     );
   }
@@ -179,27 +179,27 @@ export default function WMDDefensePanel() {
   const totalIntercepts = batteries.reduce((sum, b) => sum + b.successfulIntercepts, 0);
 
   return (
-    <div className="p-6 bg-gray-800 rounded-lg space-y-6">
+    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-blue-400">Defense Systems</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)]">Defense Systems</h2>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">
             {activeBatteries}/{batteries.length} batteries active | {totalIntercepts} total intercepts
           </p>
         </div>
         <Button
           onClick={deployBattery}
           disabled={deploying}
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
         >
           {deploying ? 'Deploying...' : '+ Deploy Battery'}
         </Button>
       </div>
 
       {/* Battery Type Selection */}
-      <Card className="p-4 bg-gray-700">
-        <h3 className="font-bold text-white mb-2">Battery Type</h3>
+      <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
+        <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2">Battery Type</h3>
         <div className="grid grid-cols-5 gap-2">
           {['BASIC', 'ADVANCED', 'ELITE', 'FORTRESS', 'AEGIS'].map(type => (
             <Button
@@ -207,7 +207,7 @@ export default function WMDDefensePanel() {
               onClick={() => setSelectedType(type)}
               variant={selectedType === type ? 'primary' : 'secondary'}
               size="sm"
-              className={selectedType === type ? 'bg-blue-600' : ''}
+              className={selectedType === type ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : ''}
             >
               {type}
             </Button>
@@ -218,12 +218,12 @@ export default function WMDDefensePanel() {
       {/* Battery Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {batteries.map((battery) => (
-          <Card key={battery.batteryId} className="p-4 bg-gray-700 space-y-3">
+          <Card key={battery.batteryId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] space-y-3">
             {/* Header */}
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-bold text-white">{battery.batteryType}</h3>
-                <p className="text-xs text-gray-400">Tier {battery.tier}</p>
+                <h3 className="font-bold text-[color:var(--nn-text-primary)]">{battery.batteryType}</h3>
+                <p className="text-xs text-[color:var(--nn-text-secondary)]">Tier {battery.tier}</p>
               </div>
               <Badge className={getStatusColor(battery.status)}>
                 {battery.status}
@@ -233,27 +233,27 @@ export default function WMDDefensePanel() {
             {/* Stats */}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-300">Intercept Chance:</span>
-                <span className="text-green-400 font-bold">
+                <span className="text-[color:var(--nn-text-secondary)]">Intercept Chance:</span>
+                <span className="text-[color:var(--nn-green)] font-bold">
                   {(battery.interceptChance * 100).toFixed(0)}%
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-300">Health:</span>
+                <span className="text-[color:var(--nn-text-secondary)]">Health:</span>
                 <span className={`font-bold ${getHealthColor(battery.health)}`}>
                   {battery.health}%
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-300">Success Rate:</span>
-                <span className="text-blue-400">
+                <span className="text-[color:var(--nn-text-secondary)]">Success Rate:</span>
+                <span className="text-[color:var(--nn-cyan)]">
                   {battery.totalAttempts > 0
                     ? `${Math.round((battery.successfulIntercepts / battery.totalAttempts) * 100)}%`
                     : 'N/A'}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">
+                <span className="text-[color:var(--nn-text-secondary)]">
                   ✓ {battery.successfulIntercepts} / ✗ {battery.failedIntercepts}
                 </span>
               </div>
@@ -264,14 +264,14 @@ export default function WMDDefensePanel() {
               {battery.health < 100 && !battery.repairing && (
                 <Button
                   onClick={() => repairBattery(battery.batteryId)}
-                  className="flex-1 bg-green-600 hover:bg-green-700"
+                  className="flex-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"
                   size="sm"
                 >
                   Repair
                 </Button>
               )}
               {battery.repairing && (
-                <div className="flex-1 text-center text-sm text-yellow-400">
+                <div className="flex-1 text-center text-sm text-[color:var(--nn-amber)]">
                   Repairing...
                 </div>
               )}
@@ -290,8 +290,8 @@ export default function WMDDefensePanel() {
       {/* Empty State */}
       {batteries.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No defense batteries deployed</p>
-          <p className="text-gray-500 text-sm">Deploy your first battery for protection</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">No defense batteries deployed</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">Deploy your first battery for protection</p>
         </div>
       )}
     </div>

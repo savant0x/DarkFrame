@@ -54,7 +54,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label className="block text-sm font-medium text-text-secondary mb-1.5">
             {label}
-            {props.required && <span className="text-red-500 ml-1">*</span>}
+            {props.required && <span className="text-[color:var(--nn-magenta)] ml-1">*</span>}
           </label>
         )}
 
@@ -72,13 +72,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             className={`
               w-full px-4 py-2.5 
-              bg-bg-tertiary border rounded-lg
+              bg-bg-tertiary border rounded-none
               text-text-primary placeholder-text-tertiary
               transition-all duration-200
               focus:outline-none focus:ring-2
               disabled:opacity-50 disabled:cursor-not-allowed
               ${hasError
-                ? 'border-red-500 focus:ring-red-500/20'
+                ? 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] focus:ring-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]/20'
                 : 'border-border-main focus:border-primary-500 focus:ring-primary-500/20'
               }
               ${leftIcon ? 'pl-10' : ''}
@@ -101,7 +101,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <p
             className={`
               text-sm mt-1.5
-              ${hasError ? 'text-red-500' : 'text-text-tertiary'}
+              ${hasError ? 'text-[color:var(--nn-magenta)]' : 'text-text-tertiary'}
             `}
           >
             {error || helperText}

@@ -181,7 +181,7 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
         <button
           onClick={handleAttack}
           disabled={isAttacking}
-          className="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg transition-all hover:scale-105 disabled:cursor-not-allowed text-xl"
+          className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-4 px-8 rounded-none shadow-lg transition-all hover:scale-105 disabled:cursor-not-allowed text-xl"
         >
           {isAttacking ? 'ATTACKING...' : 'ATTACK FACTORY (R)'}
         </button>
@@ -189,24 +189,24 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
 
       {/* Upgrade Section (for owned factories) */}
       {isOwned && factory && (
-        <div className="bg-gray-900 border-2 border-gray-700 rounded-lg p-4 shadow-lg min-w-[300px]">
+        <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4 shadow-lg min-w-[300px]">
           <div className="text-center mb-3">
-            <h3 className="text-lg font-bold text-white mb-1">🏭 Your Factory</h3>
-            <p className="text-sm text-gray-400">{formatFactoryLevel(currentLevel)}</p>
+            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-1">🏭 Your Factory</h3>
+            <p className="text-sm text-[color:var(--nn-text-secondary)]">{formatFactoryLevel(currentLevel)}</p>
           </div>
 
-          <div className="bg-gray-800 p-3 rounded mb-3 text-sm">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none mb-3 text-sm">
             <div className="flex justify-between mb-1">
-              <span className="text-gray-400">Max Slots:</span>
-              <span className="text-white font-semibold">{stats.maxSlots}</span>
+              <span className="text-[color:var(--nn-text-secondary)]">Max Slots:</span>
+              <span className="text-[color:var(--nn-text-primary)] font-semibold">{stats.maxSlots}</span>
             </div>
             <div className="flex justify-between mb-1">
-              <span className="text-gray-400">Regen Rate:</span>
-              <span className="text-blue-400 font-semibold">{stats.regenRate.toFixed(1)}/hour</span>
+              <span className="text-[color:var(--nn-text-secondary)]">Regen Rate:</span>
+              <span className="text-[color:var(--nn-cyan)] font-semibold">{stats.regenRate.toFixed(1)}/hour</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">Available:</span>
-              <span className="text-green-400 font-semibold">
+              <span className="text-[color:var(--nn-text-secondary)]">Available:</span>
+              <span className="text-[color:var(--nn-green)] font-semibold">
                 {factory.slots - factory.usedSlots}/{factory.slots}
               </span>
             </div>
@@ -214,12 +214,12 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
 
           {canUpgrade && upgradeCost && (
             <>
-              <div className="bg-gray-800 p-3 rounded mb-2 text-sm border border-gray-700">
-                <div className="text-gray-400 text-xs mb-1">Upgrade to Level {upgradeCost.level}:</div>
-                <div className={`font-semibold ${canAfford ? 'text-green-400' : 'text-red-400'}`}>
+              <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none mb-2 text-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+                <div className="text-[color:var(--nn-text-secondary)] text-xs mb-1">Upgrade to Level {upgradeCost.level}:</div>
+                <div className={`font-semibold ${canAfford ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                   {upgradeCost.metal.toLocaleString()} M + {upgradeCost.energy.toLocaleString()} E
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                   → {stats.maxSlots + 2} slots, {(stats.regenRate + 0.1).toFixed(1)}/hour
                 </div>
               </div>
@@ -227,10 +227,10 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
               <button
                 onClick={handleUpgrade}
                 disabled={!canAfford || isUpgrading}
-                className={`w-full py-3 px-4 rounded-lg font-bold transition-all ${
+                className={`w-full py-3 px-4 rounded-none font-bold transition-all ${
                   canAfford && !isUpgrading
-                    ? 'bg-green-600 hover:bg-green-700 text-white hover:scale-105'
-                    : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                    ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] hover:scale-105'
+                    : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
                 }`}
               >
                 {isUpgrading ? '⏳ UPGRADING...' : canAfford ? '⬆️ UPGRADE FACTORY' : '💰 INSUFFICIENT RESOURCES'}
@@ -239,19 +239,19 @@ export default function FactoryButton({ onAttackResult }: FactoryButtonProps) {
           )}
 
           {currentLevel === 10 && (
-            <div className="bg-yellow-900 border border-yellow-700 rounded p-3 text-center">
-              <span className="text-yellow-400 font-bold">⭐ MAX LEVEL REACHED ⭐</span>
+            <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3 text-center">
+              <span className="text-[color:var(--nn-amber)] font-bold">⭐ MAX LEVEL REACHED ⭐</span>
             </div>
           )}
 
           {upgradeMessage && (
-            <div className="mt-2 p-2 bg-gray-800 border border-gray-600 rounded text-sm text-center">
+            <div className="mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-sm text-center">
               {upgradeMessage}
             </div>
           )}
 
-          <p className="text-xs text-gray-500 text-center mt-2">
-            Press <kbd className="bg-gray-700 px-1 rounded">M</kbd> for Factory Management
+          <p className="text-xs text-[color:var(--nn-text-secondary)] text-center mt-2">
+            Press <kbd className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] px-1 rounded-none">M</kbd> for Factory Management
           </p>
         </div>
       )}

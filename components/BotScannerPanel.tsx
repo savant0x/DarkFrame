@@ -190,10 +190,10 @@ export default function BotScannerPanel() {
 
   const getReputationColor = (reputation: string) => {
     switch (reputation) {
-      case 'legendary': return 'text-purple-400';
-      case 'infamous': return 'text-orange-400';
-      case 'notorious': return 'text-yellow-400';
-      default: return 'text-gray-400';
+      case 'legendary': return 'text-[color:var(--nn-violet)]';
+      case 'infamous': return 'text-[color:var(--nn-amber)]';
+      case 'notorious': return 'text-[color:var(--nn-amber)]';
+      default: return 'text-[color:var(--nn-text-secondary)]';
     }
   };
 
@@ -217,11 +217,11 @@ export default function BotScannerPanel() {
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-24 right-4 bg-gray-800/80 text-white px-3 py-2 rounded text-sm">
+      <div className="fixed bottom-24 right-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none text-sm">
         {status?.unlocked ? (
-          <span>Press <kbd className="bg-gray-700 px-2 py-1 rounded">B</kbd> for Bot Scanner</span>
+          <span>Press <kbd className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] px-2 py-1 rounded-none">B</kbd> for Bot Scanner</span>
         ) : (
-          <span className="text-gray-500">Bot Scanner locked (unlock Bot Hunter tech)</span>
+          <span className="text-[color:var(--nn-text-secondary)]">Bot Scanner locked (unlock Bot Hunter tech)</span>
         )}
       </div>
     );
@@ -229,15 +229,15 @@ export default function BotScannerPanel() {
 
   if (!status?.unlocked) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-gray-800 text-white rounded-lg p-6 max-w-md">
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] rounded-none p-6 max-w-md">
           <h2 className="text-2xl font-bold mb-4">🔒 Bot Scanner Locked</h2>
           <p className="mb-4">
             Unlock the <strong>Bot Hunter</strong> tech to use the Bot Scanner feature.
           </p>
           <button
             onClick={() => setIsOpen(false)}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+            className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] px-4 py-2 rounded-none"
           >
             Close
           </button>
@@ -247,15 +247,15 @@ export default function BotScannerPanel() {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 text-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] rounded-none max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gray-800 p-4 border-b border-gray-700">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">🔍 Bot Scanner</h2>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-white text-2xl"
+              className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl"
             >
               ×
             </button>
@@ -268,20 +268,20 @@ export default function BotScannerPanel() {
               {status.hasAdvancedTracking && ' ⚡'}
             </span>
             {cooldownTime && (
-              <span className="text-yellow-400">Next scan: {cooldownTime}</span>
+              <span className="text-[color:var(--nn-amber)]">Next scan: {cooldownTime}</span>
             )}
           </div>
         </div>
 
         {/* Scan Button */}
-        <div className="p-4 bg-gray-800/50 border-b border-gray-700">
+        <div className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
           <button
             onClick={executeScan}
             disabled={scanning || status.onCooldown}
-            className={`w-full py-3 rounded font-bold ${
+            className={`w-full py-3 rounded-none font-bold ${
               scanning || status.onCooldown
-                ? 'bg-gray-600 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700'
+                ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] cursor-not-allowed'
+                : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]'
             }`}
           >
             {scanning ? 'Scanning...' : status.onCooldown ? `On Cooldown (${cooldownTime})` : 'Execute Scan'}
@@ -293,22 +293,22 @@ export default function BotScannerPanel() {
           <div className="flex-1 overflow-y-auto p-4">
             {/* Sort Controls */}
             <div className="mb-4 flex gap-2">
-              <span className="text-gray-400">Sort by:</span>
+              <span className="text-[color:var(--nn-text-secondary)]">Sort by:</span>
               <button
                 onClick={() => setSortBy('distance')}
-                className={`px-2 py-1 rounded text-sm ${sortBy === 'distance' ? 'bg-blue-600' : 'bg-gray-700'}`}
+                className={`px-2 py-1 rounded-none text-sm ${sortBy === 'distance' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'}`}
               >
                 Distance
               </button>
               <button
                 onClick={() => setSortBy('resources')}
-                className={`px-2 py-1 rounded text-sm ${sortBy === 'resources' ? 'bg-blue-600' : 'bg-gray-700'}`}
+                className={`px-2 py-1 rounded-none text-sm ${sortBy === 'resources' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'}`}
               >
                 Resources
               </button>
               <button
                 onClick={() => setSortBy('reputation')}
-                className={`px-2 py-1 rounded text-sm ${sortBy === 'reputation' ? 'bg-blue-600' : 'bg-gray-700'}`}
+                className={`px-2 py-1 rounded-none text-sm ${sortBy === 'reputation' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'}`}
               >
                 Reputation
               </button>
@@ -321,14 +321,14 @@ export default function BotScannerPanel() {
               </h3>
               
               {scanResult.botsFound === 0 ? (
-                <p className="text-gray-400">No bots found within {scanResult.radius} tiles</p>
+                <p className="text-[color:var(--nn-text-secondary)]">No bots found within {scanResult.radius} tiles</p>
               ) : (
                 <div className="space-y-2">
                   {getSortedBots().map((bot, index) => (
                     <div
                       key={index}
-                      className={`bg-gray-800 p-3 rounded border ${
-                        bot.isSpecialBase ? 'border-yellow-500' : 'border-gray-700'
+                      className={`bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none border ${
+                        bot.isSpecialBase ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]'
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -337,7 +337,7 @@ export default function BotScannerPanel() {
                             {bot.username}
                             {bot.isSpecialBase && ' 🍺'}
                           </span>
-                          <div className="text-sm text-gray-400">
+                          <div className="text-sm text-[color:var(--nn-text-secondary)]">
                             <span className="capitalize">{bot.specialization}</span> - Tier {bot.tier}
                           </div>
                         </div>
@@ -346,10 +346,10 @@ export default function BotScannerPanel() {
                             <span>{getReputationIcon(bot.reputation)}</span>
                             <span>{bot.reputation.toUpperCase()}</span>
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-[color:var(--nn-text-secondary)]">
                             {getReputationBonus(bot.reputation)}
                           </div>
-                          <div className="text-sm text-gray-400">
+                          <div className="text-sm text-[color:var(--nn-text-secondary)]">
                             {bot.distance.toFixed(1)} tiles
                           </div>
                         </div>
@@ -357,17 +357,17 @@ export default function BotScannerPanel() {
 
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
-                          <span className="text-gray-400">Position:</span> ({bot.position.x}, {bot.position.y})
+                          <span className="text-[color:var(--nn-text-secondary)]">Position:</span> ({bot.position.x}, {bot.position.y})
                         </div>
                         <div>
-                          <span className="text-gray-400">Resources:</span> {bot.resources.metal}M / {bot.resources.energy}E
+                          <span className="text-[color:var(--nn-text-secondary)]">Resources:</span> {bot.resources.metal}M / {bot.resources.energy}E
                         </div>
                         <div>
-                          <span className="text-gray-400">Army:</span> {bot.armySize} units ({bot.totalStrength}STR / {bot.totalDefense}DEF)
+                          <span className="text-[color:var(--nn-text-secondary)]">Army:</span> {bot.armySize} units ({bot.totalStrength}STR / {bot.totalDefense}DEF)
                         </div>
                         {bot.lastDefeated && (
                           <div>
-                            <span className="text-gray-400">Last Defeated:</span> {new Date(bot.lastDefeated).toLocaleDateString()}
+                            <span className="text-[color:var(--nn-text-secondary)]">Last Defeated:</span> {new Date(bot.lastDefeated).toLocaleDateString()}
                           </div>
                         )}
                       </div>
@@ -385,12 +385,12 @@ export default function BotScannerPanel() {
                 </h3>
                 <div className="space-y-2">
                   {scanResult.nests.map((nest) => (
-                    <div key={nest.id} className="bg-gray-800 p-3 rounded border border-purple-500">
+                    <div key={nest.id} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
                       <div className="flex justify-between">
                         <span className="font-bold">📍 {nest.name}</span>
-                        <span className="text-gray-400">{nest.distance.toFixed(1)} tiles</span>
+                        <span className="text-[color:var(--nn-text-secondary)]">{nest.distance.toFixed(1)} tiles</span>
                       </div>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-sm text-[color:var(--nn-text-secondary)]">
                         Position: ({nest.position.x}, {nest.position.y})
                       </div>
                     </div>

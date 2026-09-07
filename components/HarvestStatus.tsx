@@ -98,18 +98,18 @@ export default function HarvestStatus({ onHarvestClick, isHarvesting }: HarvestS
         <button
           onClick={onHarvestClick}
           disabled={isHarvesting}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-8 rounded-lg shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] transition-all hover:scale-105 text-lg"
+          className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] font-bold py-3 px-8 rounded-none shadow-[0_0_20px_rgba(34,197,94,0.3)] hover:shadow-[0_0_30px_rgba(34,197,94,0.5)] transition-all hover:scale-105 text-lg"
         >
           {isHarvesting ? 'HARVESTING...' : `HARVEST (${currentTile.terrain === TerrainType.Cave || currentTile.terrain === TerrainType.Forest ? 'F' : 'G'})`}
         </button>
       )}
       
       {status === 'harvested' && (
-        <div className="bg-gray-900/80 backdrop-blur-sm text-white font-bold py-2 px-4 rounded-lg border-2 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.3)]">
+        <div className="bg-[color:var(--nn-void)] backdrop-blur-sm text-[color:var(--nn-text-primary)] font-bold py-2 px-4 rounded-none border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] shadow-[0_0_20px_rgba(239,68,68,0.3)]">
           <div className="text-center">
             <div className="text-sm">✗ HARVESTED</div>
             {timeRemaining && (
-              <div className="text-xs mt-1 text-white/70">
+              <div className="text-xs mt-1 text-[color:var(--nn-text-primary)]/70">
                 Resets: <span className="font-mono">{timeRemaining}</span>
               </div>
             )}

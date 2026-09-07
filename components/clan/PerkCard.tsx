@@ -77,31 +77,31 @@ export default function PerkCard({
     switch (tier) {
       case 'BRONZE':
         return {
-          border: 'border-orange-700',
-          text: 'text-orange-400',
-          bg: 'bg-orange-900/20',
-          badge: 'bg-orange-900/50',
+          border: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]',
+          text: 'text-[color:var(--nn-amber)]',
+          bg: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+          badge: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
         };
       case 'SILVER':
         return {
-          border: 'border-blue-700',
-          text: 'text-blue-400',
-          bg: 'bg-blue-900/20',
-          badge: 'bg-blue-900/50',
+          border: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]',
+          text: 'text-[color:var(--nn-cyan)]',
+          bg: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
+          badge: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
         };
       case 'GOLD':
         return {
-          border: 'border-yellow-700',
-          text: 'text-yellow-400',
-          bg: 'bg-yellow-900/20',
-          badge: 'bg-yellow-900/50',
+          border: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]',
+          text: 'text-[color:var(--nn-amber)]',
+          bg: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+          badge: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
         };
       case 'LEGENDARY':
         return {
-          border: 'border-purple-700',
-          text: 'text-purple-400',
-          bg: 'bg-purple-900/20',
-          badge: 'bg-purple-900/50',
+          border: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]',
+          text: 'text-[color:var(--nn-violet)]',
+          bg: 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
+          badge: 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
         };
       default:
         return {
@@ -141,7 +141,7 @@ export default function PerkCard({
 
   return (
     <div
-      className={`rounded-lg p-4 border-2 transition-all ${
+      className={`rounded-none p-4 border-2 transition-all ${
         isActive
           ? `${colors.border} ${colors.bg} shadow-lg`
           : isLocked
@@ -153,13 +153,13 @@ export default function PerkCard({
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="text-2xl">{getCategoryIcon(perk.category)}</span>
-          <div className={`px-2 py-1 rounded text-xs font-bold ${colors.badge} ${colors.text}`}>
+          <div className={`px-2 py-1 rounded-none text-xs font-bold ${colors.badge} ${colors.text}`}>
             {perk.tier}
           </div>
         </div>
         {isActive && (
-          <div className="px-2 py-1 bg-green-900/50 border border-green-700 rounded">
-            <span className="text-green-400 text-xs font-bold">ACTIVE</span>
+          <div className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none">
+            <span className="text-[color:var(--nn-green)] text-xs font-bold">ACTIVE</span>
           </div>
         )}
         {isLocked && (
@@ -168,7 +168,7 @@ export default function PerkCard({
       </div>
 
       {/* Perk Name */}
-      <h4 className={`font-bold mb-1 ${isLocked ? 'text-text-secondary' : 'text-white'}`}>
+      <h4 className={`font-bold mb-1 ${isLocked ? 'text-text-secondary' : 'text-[color:var(--nn-text-primary)]'}`}>
         {perk.name}
       </h4>
 
@@ -178,7 +178,7 @@ export default function PerkCard({
       </p>
 
       {/* Bonus Display */}
-      <div className={`mb-3 px-3 py-2 ${colors.bg} border ${colors.border} rounded text-center`}>
+      <div className={`mb-3 px-3 py-2 ${colors.bg} border ${colors.border} rounded-none text-center`}>
         <div className={`font-bold ${colors.text}`}>
           {formatBonus(perk.bonus.type, perk.bonus.value)}
         </div>
@@ -189,15 +189,15 @@ export default function PerkCard({
         <div className="text-xs text-text-secondary">Cost:</div>
         <div className="grid grid-cols-3 gap-1 text-xs">
           <div className="text-center">
-            <div className="text-orange-400">{formatNumberAbbreviated(perk.cost.metal)}</div>
+            <div className="text-[color:var(--nn-amber)]">{formatNumberAbbreviated(perk.cost.metal)}</div>
             <div className="text-text-secondary">Metal</div>
           </div>
           <div className="text-center">
-            <div className="text-blue-400">{formatNumberAbbreviated(perk.cost.energy)}</div>
+            <div className="text-[color:var(--nn-cyan)]">{formatNumberAbbreviated(perk.cost.energy)}</div>
             <div className="text-text-secondary">Energy</div>
           </div>
           <div className="text-center">
-            <div className="text-purple-400">{formatNumberAbbreviated(perk.cost.researchPoints)}</div>
+            <div className="text-[color:var(--nn-violet)]">{formatNumberAbbreviated(perk.cost.researchPoints)}</div>
             <div className="text-text-secondary">RP</div>
           </div>
         </div>
@@ -205,8 +205,8 @@ export default function PerkCard({
 
       {/* Required Level (for locked) */}
       {isLocked && levelsToUnlock && (
-        <div className="mb-3 px-3 py-2 bg-red-900/20 border border-red-700 rounded text-center">
-          <div className="text-red-400 text-xs">
+        <div className="mb-3 px-3 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-center">
+          <div className="text-[color:var(--nn-magenta)] text-xs">
             🔒 Level {perk.requiredLevel} required
           </div>
           <div className="text-text-secondary text-xs">
@@ -222,10 +222,10 @@ export default function PerkCard({
             <button
               onClick={onDeactivate}
               disabled={isLoading}
-              className={`w-full px-4 py-2 rounded font-semibold transition ${
+              className={`w-full px-4 py-2 rounded-none font-semibold transition ${
                 isLoading
                   ? 'bg-glass-light text-text-secondary cursor-not-allowed'
-                  : 'bg-red-700 hover:bg-red-600 text-white'
+                  : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)]'
               }`}
             >
               {isLoading ? 'Deactivating...' : 'Deactivate'}
@@ -234,7 +234,7 @@ export default function PerkCard({
             <button
               onClick={onActivate}
               disabled={isLoading || !canActivate}
-              className={`w-full px-4 py-2 rounded font-semibold transition ${
+              className={`w-full px-4 py-2 rounded-none font-semibold transition ${
                 isLoading || !canActivate
                   ? 'bg-glass-light text-text-secondary cursor-not-allowed'
                   : `${colors.bg} ${colors.text} border ${colors.border} hover:opacity-80`

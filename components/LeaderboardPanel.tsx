@@ -118,15 +118,15 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
   const getBalanceColor = (status: string): string => {
     switch (status) {
       case 'OPTIMAL':
-        return 'text-green-400';
+        return 'text-[color:var(--nn-green)]';
       case 'BALANCED':
-        return 'text-blue-400';
+        return 'text-[color:var(--nn-cyan)]';
       case 'IMBALANCED':
-        return 'text-yellow-400';
+        return 'text-[color:var(--nn-amber)]';
       case 'CRITICAL':
-        return 'text-red-400';
+        return 'text-[color:var(--nn-magenta)]';
       default:
-        return 'text-gray-400';
+        return 'text-[color:var(--nn-text-secondary)]';
     }
   };
   
@@ -149,11 +149,11 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
    */
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-        <div className="bg-gray-800 rounded-lg shadow-2xl p-8">
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl p-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-xl text-white">Loading leaderboard...</p>
+            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
+            <p className="text-xl text-[color:var(--nn-text-primary)]">Loading leaderboard...</p>
           </div>
         </div>
       </div>
@@ -165,22 +165,22 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
    */
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-        <div className="bg-gray-800 rounded-lg shadow-2xl p-8 max-w-md" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50" onClick={onClose}>
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl p-8 max-w-md" onClick={(e) => e.stopPropagation()}>
           <div className="text-center">
-            <div className="text-red-500 text-6xl mb-4">⚠️</div>
-            <h1 className="text-2xl font-bold mb-2 text-white">Error Loading Leaderboard</h1>
-            <p className="text-gray-400 mb-6">{error}</p>
+            <div className="text-[color:var(--nn-magenta)] text-6xl mb-4">⚠️</div>
+            <h1 className="text-2xl font-bold mb-2 text-[color:var(--nn-text-primary)]">Error Loading Leaderboard</h1>
+            <p className="text-[color:var(--nn-text-secondary)] mb-6">{error}</p>
             <div className="flex gap-4 justify-center">
               <button
                 onClick={fetchLeaderboard}
-                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded transition-colors text-white"
+                className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none transition-colors text-[color:var(--nn-text-primary)]"
               >
                 Try Again
               </button>
               <button
                 onClick={onClose}
-                className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors text-white"
+                className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors text-[color:var(--nn-text-primary)]"
               >
                 Close
               </button>
@@ -195,17 +195,17 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
    * Main leaderboard panel
    */
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div 
-        className="bg-gray-800 rounded-lg shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gray-900 border-b border-gray-700 p-6 flex-shrink-0">
+        <div className="bg-[color:var(--nn-void)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-6 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">🏆 Player Rankings</h1>
-              <p className="text-gray-400">
+              <h1 className="text-4xl font-bold text-[color:var(--nn-text-primary)] mb-2">🏆 Player Rankings</h1>
+              <p className="text-[color:var(--nn-text-secondary)]">
                 {leaderboardData?.totalPlayers.toLocaleString()} players | 
                 Last updated: {leaderboardData ? new Date(leaderboardData.lastUpdated).toLocaleTimeString() : ''}
               </p>
@@ -214,14 +214,14 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
               <button
                 onClick={fetchLeaderboard}
                 disabled={refreshing}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 rounded transition-colors flex items-center gap-2 text-white"
+                className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none transition-colors flex items-center gap-2 text-[color:var(--nn-text-primary)]"
               >
                 <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
                 Refresh
               </button>
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded transition-colors text-white"
+                className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors text-[color:var(--nn-text-primary)]"
               >
                 ✕ Close
               </button>
@@ -235,10 +235,10 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
               placeholder="Search players..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500 transition-colors text-white"
+              className="w-full px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none focus:outline-none focus:border-blue-500 transition-colors text-[color:var(--nn-text-primary)]"
             />
             {searchQuery && (
-              <p className="text-sm text-gray-400 mt-2">
+              <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">
                 Found {filteredLeaderboard.length} player(s) matching &quot;{searchQuery}&quot;
               </p>
             )}
@@ -246,29 +246,29 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
           
           {/* Current Player Rank Card */}
           {leaderboardData?.currentPlayerData && (
-            <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500 rounded-lg p-4">
+            <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Your Rank</p>
-                  <p className="text-3xl font-bold text-white">
+                  <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Your Rank</p>
+                  <p className="text-3xl font-bold text-[color:var(--nn-text-primary)]">
                     {getRankDisplay(leaderboardData.currentPlayerRank || 0)} 
                     {leaderboardData.currentPlayerRank && leaderboardData.currentPlayerRank > 3 && 
                       ` #${leaderboardData.currentPlayerRank}`
                     }
                   </p>
-                  <p className="text-xl mt-1 text-white">{leaderboardData.currentPlayerData.username}</p>
+                  <p className="text-xl mt-1 text-[color:var(--nn-text-primary)]">{leaderboardData.currentPlayerData.username}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-400 mb-1">Effective Power</p>
-                  <p className="text-2xl font-bold text-yellow-400">
+                  <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Effective Power</p>
+                  <p className="text-2xl font-bold text-[color:var(--nn-amber)]">
                     {formatNumber(leaderboardData.currentPlayerData.effectivePower)}
                   </p>
                   <div className="flex gap-4 mt-2 text-sm">
                     <div>
-                      <span className="text-purple-400">⭐ Level {leaderboardData.currentPlayerData.level || 1}</span>
+                      <span className="text-[color:var(--nn-violet)]">⭐ Level {leaderboardData.currentPlayerData.level || 1}</span>
                     </div>
                     <div>
-                      <span className="text-gray-400">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
+                      <span className="text-[color:var(--nn-text-secondary)]">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
                     </div>
                   </div>
                   <p className={`text-sm mt-1 ${getBalanceColor(leaderboardData.currentPlayerData.balanceStatus)}`}>
@@ -284,29 +284,29 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
         {/* Leaderboard Table - Scrollable */}
         <div className="flex-1 overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-gray-700 sticky top-0 z-10">
+            <thead className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[color:var(--nn-text-secondary)] uppercase tracking-wider">
                   Rank
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-[color:var(--nn-text-secondary)] uppercase tracking-wider">
                   Player
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-[color:var(--nn-text-secondary)] uppercase tracking-wider">
                   Effective Power
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-[color:var(--nn-text-secondary)] uppercase tracking-wider">
                   Level
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-3 text-center text-xs font-medium text-[color:var(--nn-text-secondary)] uppercase tracking-wider">
                   Balance
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700">
+            <tbody className="divide-y divide-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
               {filteredLeaderboard.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-400">
+                  <td colSpan={5} className="px-6 py-8 text-center text-[color:var(--nn-text-secondary)]">
                     {searchQuery ? 'No players found matching your search' : 'No players yet'}
                   </td>
                 </tr>
@@ -318,35 +318,35 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
                     <tr 
                       key={`${player.rank}-${player.username}`}
                       className={`
-                        ${isCurrentPlayer ? 'bg-blue-900/30' : 'hover:bg-gray-750'}
+                        ${isCurrentPlayer ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)]'}
                         transition-colors
                       `}
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="text-2xl">{getRankDisplay(player.rank)}</span>
                         {player.rank > 3 && (
-                          <span className="ml-2 text-lg font-semibold text-gray-400">
+                          <span className="ml-2 text-lg font-semibold text-[color:var(--nn-text-secondary)]">
                             #{player.rank}
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <span className={`font-medium ${isCurrentPlayer ? 'text-blue-400' : 'text-white'}`}>
+                          <span className={`font-medium ${isCurrentPlayer ? 'text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-primary)]'}`}>
                             {player.username}
                           </span>
                           {isCurrentPlayer && (
-                            <span className="ml-2 px-2 py-1 text-xs bg-blue-600 rounded text-white">YOU</span>
+                            <span className="ml-2 px-2 py-1 text-xs bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none text-[color:var(--nn-text-primary)]">YOU</span>
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <span className="text-yellow-400 font-bold text-lg">
+                        <span className="text-[color:var(--nn-amber)] font-bold text-lg">
                           {formatNumber(player.effectivePower)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="text-purple-400 font-semibold">
+                        <span className="text-[color:var(--nn-violet)] font-semibold">
                           ⭐ {player.level || 1}
                         </span>
                       </td>
@@ -354,7 +354,7 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
                         <div className={`text-sm ${getBalanceColor(player.balanceStatus)}`}>
                           {player.balanceStatus}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-[color:var(--nn-text-secondary)]">
                           {(player.balanceMultiplier * 100).toFixed(0)}%
                         </div>
                       </td>
@@ -367,7 +367,7 @@ export default function LeaderboardPanel({ onClose }: LeaderboardPanelProps) {
         </div>
         
         {/* Footer */}
-        <div className="bg-gray-900 border-t border-gray-700 p-4 text-center text-gray-500 text-sm flex-shrink-0">
+        <div className="bg-[color:var(--nn-void)] border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-4 text-center text-[color:var(--nn-text-secondary)] text-sm flex-shrink-0">
           <p>Rankings based on Effective Power: (Strength + Defense) × Balance Multiplier</p>
           <p className="mt-1">Maintain balanced armies for optimal ranking position</p>
         </div>

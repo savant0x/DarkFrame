@@ -217,36 +217,36 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
   const myBidInfo = showMyBidStatus && isMyBidAuctionView(auction) ? auction : null;
 
   return (
-    <div className="bg-gray-800 border-2 border-gray-700 rounded-lg p-4 hover:border-yellow-600 transition-colors">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] transition-colors">
       {/* Item Info */}
-      <div className="flex items-center gap-3 mb-3 pb-3 border-b border-gray-700">
+      <div className="flex items-center gap-3 mb-3 pb-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <span className="text-4xl">{itemDisplay.icon}</span>
         <div className="flex-1">
-          <h3 className="text-lg font-bold text-yellow-200">{itemDisplay.name}</h3>
-          <p className="text-sm text-gray-400">{itemDisplay.details}</p>
+          <h3 className="text-lg font-bold text-[color:var(--nn-amber)]">{itemDisplay.name}</h3>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">{itemDisplay.details}</p>
         </div>
       </div>
 
       {/* Seller & Status */}
       <div className="mb-3 space-y-1 text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-400">Seller:</span>
-          <span className="text-white font-semibold">{auction.sellerUsername}</span>
+          <span className="text-[color:var(--nn-text-secondary)]">Seller:</span>
+          <span className="text-[color:var(--nn-text-primary)] font-semibold">{auction.sellerUsername}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Time Left:</span>
+          <span className="text-[color:var(--nn-text-secondary)]">Time Left:</span>
           <span className={`font-semibold ${
-            isExpired ? 'text-red-400' : 'text-green-400'
+            isExpired ? 'text-[color:var(--nn-magenta)]' : 'text-[color:var(--nn-green)]'
           }`}>
             {timeRemaining}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-400">Status:</span>
+          <span className="text-[color:var(--nn-text-secondary)]">Status:</span>
           <span className={`font-semibold ${
-            auction.status === AuctionStatus.Active ? 'text-green-400' :
-            auction.status === AuctionStatus.Sold ? 'text-blue-400' :
-            'text-red-400'
+            auction.status === AuctionStatus.Active ? 'text-[color:var(--nn-green)]' :
+            auction.status === AuctionStatus.Sold ? 'text-[color:var(--nn-cyan)]' :
+            'text-[color:var(--nn-magenta)]'
           }`}>
             {auction.status}
           </span>
@@ -255,13 +255,13 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
 
       {/* My Bid Status (only in My Bids view) */}
       {myBidInfo && (
-        <div className={`mb-3 p-2 rounded ${
-          myBidInfo.isWinning ? 'bg-green-900 border border-green-600' : 'bg-red-900 border border-red-600'
+        <div className={`mb-3 p-2 rounded-none ${
+          myBidInfo.isWinning ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
         }`}>
           <div className="text-sm font-semibold">
             {myBidInfo.isWinning ? '✅ Winning' : '❌ Outbid'}
           </div>
-          <div className="text-xs text-gray-300">
+          <div className="text-xs text-[color:var(--nn-text-secondary)]">
             Your bid: {myBidInfo.myBidAmount?.toLocaleString() || 'N/A'} Metal
           </div>
         </div>
@@ -269,25 +269,25 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
 
       {/* Pricing */}
       <div className="mb-3 space-y-2">
-        <div className="bg-gray-900 p-3 rounded">
+        <div className="bg-[color:var(--nn-void)] p-3 rounded-none">
           <div className="flex justify-between items-center">
-            <span className="text-gray-400 text-sm">Current Bid:</span>
-            <span className="text-yellow-400 font-bold text-lg">
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Current Bid:</span>
+            <span className="text-[color:var(--nn-amber)] font-bold text-lg">
               {auction.currentBid.toLocaleString()} 💰
             </span>
           </div>
           {auction.highestBidder && (
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
               Highest bidder: {auction.highestBidder}
             </div>
           )}
         </div>
 
         {auction.buyoutPrice && (
-          <div className="bg-blue-900 p-2 rounded">
+          <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] p-2 rounded-none">
             <div className="flex justify-between items-center">
-              <span className="text-blue-200 text-sm">Buyout:</span>
-              <span className="text-blue-200 font-bold">
+              <span className="text-[color:var(--nn-cyan)] text-sm">Buyout:</span>
+              <span className="text-[color:var(--nn-cyan)] font-bold">
                 {auction.buyoutPrice.toLocaleString()} 💰
               </span>
             </div>
@@ -299,7 +299,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
       {auction.bids.length > 0 && (
         <button
           onClick={() => setShowBidHistory(!showBidHistory)}
-          className="text-xs text-blue-400 hover:text-blue-300 mb-3 underline"
+          className="text-xs text-[color:var(--nn-cyan)] mb-3 underline"
         >
           {showBidHistory ? 'Hide' : 'Show'} Bid History ({auction.bids.length})
         </button>
@@ -313,7 +313,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-900 border border-red-600 text-red-200 text-xs p-2 rounded mb-3">
+        <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] text-xs p-2 rounded-none mb-3">
           {error}
         </div>
       )}
@@ -328,13 +328,13 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
               value={bidAmount}
               onChange={(e) => setBidAmount(e.target.value)}
               placeholder={`Min: ${minBid.toLocaleString()}`}
-              className="flex-1 bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 text-sm"
+              className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-sm"
               disabled={loading}
             />
             <button
               onClick={handlePlaceBid}
               disabled={loading}
-              className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-500 font-semibold text-sm disabled:opacity-50"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold text-sm disabled:opacity-50"
             >
               {loading ? '...' : 'Bid'}
             </button>
@@ -345,7 +345,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
             <button
               onClick={handleBuyout}
               disabled={loading}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 font-semibold text-sm disabled:opacity-50"
+              className="w-full px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold text-sm disabled:opacity-50"
             >
               {loading ? 'Processing...' : '🛒 Buy Now'}
             </button>
@@ -356,7 +356,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
             <button
               onClick={handleCancel}
               disabled={loading}
-              className="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 font-semibold text-sm disabled:opacity-50"
+              className="w-full px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold text-sm disabled:opacity-50"
             >
               {loading ? 'Cancelling...' : 'Cancel Auction'}
             </button>
@@ -365,7 +365,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
       )}
 
       {auction.status !== AuctionStatus.Active && (
-        <div className="text-center text-gray-500 text-sm py-2">
+        <div className="text-center text-[color:var(--nn-text-secondary)] text-sm py-2">
           {auction.status === AuctionStatus.Sold && '✅ Sold'}
           {auction.status === AuctionStatus.Cancelled && '❌ Cancelled'}
           {auction.status === AuctionStatus.Expired && '⏰ Expired'}

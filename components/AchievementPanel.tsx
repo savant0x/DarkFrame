@@ -55,10 +55,10 @@ interface AchievementProgressData {
  */
 function getRarityClasses(rarity: AchievementRarity): string {
   const map: Record<AchievementRarity, string> = {
-    [AchievementRarity.Common]: 'border-gray-400 bg-gray-900/80',
-    [AchievementRarity.Rare]: 'border-blue-400 bg-blue-900/80',
-    [AchievementRarity.Epic]: 'border-purple-500 bg-purple-900/80',
-    [AchievementRarity.Legendary]: 'border-orange-500 bg-gradient-to-br from-orange-900/80 to-red-900/80'
+    [AchievementRarity.Common]: 'border-[color-mix(in_oklab,var(--nn-cyan)_30%,transparent)] bg-[color:var(--nn-void)]',
+    [AchievementRarity.Rare]: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
+    [AchievementRarity.Epic]: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
+    [AchievementRarity.Legendary]: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-magenta)]'
   };
   return map[rarity] || map[AchievementRarity.Common];
 }
@@ -70,12 +70,12 @@ function getRarityClasses(rarity: AchievementRarity): string {
  */
 function getCategoryColor(category: AchievementCategory): string {
   const map: Record<AchievementCategory, string> = {
-    [AchievementCategory.Combat]: 'text-red-400',
-    [AchievementCategory.Economic]: 'text-yellow-400',
-    [AchievementCategory.Exploration]: 'text-green-400',
-    [AchievementCategory.Progression]: 'text-purple-400'
+    [AchievementCategory.Combat]: 'text-[color:var(--nn-magenta)]',
+    [AchievementCategory.Economic]: 'text-[color:var(--nn-amber)]',
+    [AchievementCategory.Exploration]: 'text-[color:var(--nn-green)]',
+    [AchievementCategory.Progression]: 'text-[color:var(--nn-violet)]'
   };
-  return map[category] || 'text-gray-400';
+  return map[category] || 'text-[color:var(--nn-text-secondary)]';
 }
 
 /**
@@ -173,16 +173,16 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
   // ============================================================
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-yellow-600 to-orange-600 p-4 flex items-center justify-between rounded-t-lg">
+        <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] p-4 flex items-center justify-between rounded-t-lg">
           <div className="flex items-center gap-3">
             <span className="text-4xl">🏆</span>
             <div>
-              <h2 className="text-2xl font-bold text-white">Achievements</h2>
+              <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Achievements</h2>
               {progressData && (
-                <div className="text-sm text-gray-200">
+                <div className="text-sm text-[color:var(--nn-text-primary)]">
                   {progressData.totalUnlocked} / {progressData.totalAvailable} Unlocked ({progressData.progressPercent}%)
                 </div>
               )}
@@ -192,14 +192,14 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-white hover:text-gray-200"
+            className="text-[color:var(--nn-text-primary)]"
           >
             <X className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Category Filter */}
-        <div className="bg-gray-700 p-3 flex gap-2 overflow-x-auto">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 flex gap-2 overflow-x-auto">
           <Button
             variant={selectedCategory === 'all' ? 'primary' : 'ghost'}
             size="sm"
@@ -236,19 +236,19 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
           ) : error ? (
             <div className="text-center py-12">
               <div className="text-5xl mb-4">⚠️</div>
-              <p className="text-red-400 font-semibold mb-2">Failed to load achievements</p>
-              <p className="text-sm text-gray-400">{error}</p>
+              <p className="text-[color:var(--nn-magenta)] font-semibold mb-2">Failed to load achievements</p>
+              <p className="text-sm text-[color:var(--nn-text-secondary)]">{error}</p>
             </div>
           ) : progressData ? (
             <>
               {/* Completion Celebration */}
               {progressData.completionStatus === 'COMPLETE' && (
-                <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg p-6 mb-6 text-center">
+                <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] rounded-none p-6 mb-6 text-center">
                   <div className="text-5xl mb-2">🎉</div>
-                  <div className="text-2xl font-bold text-white mb-2">
+                  <div className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">
                     All Achievements Unlocked!
                   </div>
-                  <div className="text-white">
+                  <div className="text-[color:var(--nn-text-primary)]">
                     You{"'"}ve earned all {progressData.totalAvailable} achievements and unlocked every prestige unit!
                   </div>
                 </div>
@@ -279,7 +279,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                               <div className="flex items-center gap-2">
                                 <span className="text-2xl">{categoryIcon}</span>
                                 <div>
-                                  <div className="font-bold text-white text-lg">
+                                  <div className="font-bold text-[color:var(--nn-text-primary)] text-lg">
                                     {achievement.name}
                                   </div>
                                   <Badge variant="default" className={`${categoryColor} bg-transparent`}>
@@ -293,13 +293,13 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                             </div>
 
                             {/* Description */}
-                            <p className="text-gray-300 text-sm mb-3 leading-relaxed">
+                            <p className="text-[color:var(--nn-text-secondary)] text-sm mb-3 leading-relaxed">
                               {achievement.description}
                             </p>
 
                             {/* Progress Bar */}
                             <div className="mb-3">
-                              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                              <div className="flex justify-between text-xs text-[color:var(--nn-text-secondary)] mb-1">
                                 <span>Progress</span>
                                 <span>{progressPercent}%</span>
                               </div>
@@ -307,28 +307,28 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                                 value={Math.min(progressPercent, 100)}
                                 max={100}
                                 size="base"
-                                className={isUnlocked ? 'bg-green-500' : ''}
+                                className={isUnlocked ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : ''}
                               />
                             </div>
 
                             {/* Requirement */}
-                            <div className="bg-black/30 rounded p-2 mb-3">
-                              <div className="text-gray-400 mb-1 text-xs">Requirement:</div>
-                              <div className="text-white font-semibold text-sm">
+                            <div className="bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] rounded-none p-2 mb-3">
+                              <div className="text-[color:var(--nn-text-secondary)] mb-1 text-xs">Requirement:</div>
+                              <div className="text-[color:var(--nn-text-primary)] font-semibold text-sm">
                                 {achievement.requirement.type}: {achievement.requirement.value.toLocaleString()}
                               </div>
                             </div>
 
                             {/* Rewards */}
-                            <div className="bg-black/30 rounded p-2">
-                              <div className="text-gray-400 mb-1 text-xs">Rewards:</div>
+                            <div className="bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] rounded-none p-2">
+                              <div className="text-[color:var(--nn-text-secondary)] mb-1 text-xs">Rewards:</div>
                               <div className="space-y-1">
-                                <div className="text-yellow-300 text-sm flex items-center gap-1">
+                                <div className="text-[color:var(--nn-amber)] text-sm flex items-center gap-1">
                                   <span>⚔️</span>
                                   <span className="font-semibold">{achievement.reward.unitUnlock}</span>
                                 </div>
                                 {achievement.reward.rpBonus && (
-                                  <div className="text-purple-300 text-sm flex items-center gap-1">
+                                  <div className="text-[color:var(--nn-violet)] text-sm flex items-center gap-1">
                                     <span>💎</span>
                                     <span>+{achievement.reward.rpBonus} RP</span>
                                   </div>
@@ -338,7 +338,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
 
                             {/* Unlocked Date */}
                             {isUnlocked && achievement.unlockedAt && (
-                              <div className="mt-2 text-xs text-gray-400 text-center">
+                              <div className="mt-2 text-xs text-[color:var(--nn-text-secondary)] text-center">
                                 Unlocked: {new Date(achievement.unlockedAt).toLocaleDateString()}
                               </div>
                             )}
@@ -352,9 +352,9 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
 
               {/* Unlocked Prestige Units Summary */}
               {progressData.unlockedPrestigeUnits.length > 0 && (
-                <Card className="bg-gray-700">
+                <Card className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
                   <div className="p-4">
-                    <div className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                    <div className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
                       <span>⚔️</span>
                       Unlocked Prestige Units ({progressData.unlockedPrestigeUnits.length})
                     </div>
@@ -363,7 +363,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
                         <Badge
                           key={unit}
                           variant="default"
-                          className="bg-gray-800 border border-yellow-500 text-yellow-300 text-center py-2"
+                          className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] text-[color:var(--nn-amber)] text-center py-2"
                         >
                           {unit}
                         </Badge>
@@ -377,8 +377,8 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-700 p-3 text-center text-gray-400 text-sm border-t border-gray-600">
-          Press <kbd className="px-2 py-1 bg-gray-600 rounded font-mono">A</kbd> to toggle this panel
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 text-center text-[color:var(--nn-text-secondary)] text-sm border-t border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]">
+          Press <kbd className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-mono">A</kbd> to toggle this panel
         </div>
       </Card>
     </div>

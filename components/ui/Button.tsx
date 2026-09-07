@@ -36,7 +36,7 @@ interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
 const variantClasses = {
   primary: `
     bg-primary-600 hover:bg-primary-700 active:bg-primary-800
-    text-white border border-primary-500
+    text-[color:var(--nn-text-primary)] border border-primary-500
     shadow-md hover:shadow-lg
   `,
   secondary: `
@@ -45,8 +45,8 @@ const variantClasses = {
     shadow-sm hover:shadow-md
   `,
   danger: `
-    bg-red-600 hover:bg-red-700 active:bg-red-800
-    text-white border border-red-500
+    bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] hover:bg-[color-mix(in_oklab,var(--nn-magenta)_32%,transparent)] active:bg-[color-mix(in_oklab,var(--nn-magenta)_40%,transparent)]
+    text-[color:var(--nn-text-primary)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]
     shadow-md hover:shadow-lg
   `,
   ghost: `
@@ -55,8 +55,8 @@ const variantClasses = {
     hover:border-border-light
   `,
   success: `
-    bg-green-600 hover:bg-green-700 active:bg-green-800
-    text-white border border-green-500
+    bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] active:bg-green-800
+    text-[color:var(--nn-text-primary)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]
     shadow-md hover:shadow-lg
   `,
 };
@@ -85,7 +85,7 @@ export function Button({
     <motion.button
       className={`
         inline-flex items-center justify-center gap-2
-        font-medium rounded-lg
+        font-medium rounded-none
         transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
         ${variantClasses[variant]}

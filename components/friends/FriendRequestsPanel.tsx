@@ -235,7 +235,7 @@ export default function FriendRequestsPanel({
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-400">Loading requests...</div>
+        <div className="text-[color:var(--nn-text-secondary)]">Loading requests...</div>
       </div>
     );
   }
@@ -246,10 +246,10 @@ export default function FriendRequestsPanel({
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <div className="text-red-400">{error}</div>
+        <div className="text-[color:var(--nn-magenta)]">{error}</div>
         <button
           onClick={fetchRequests}
-          className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-black rounded transition-colors"
+          className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors"
         >
           Retry
         </button>
@@ -264,18 +264,18 @@ export default function FriendRequestsPanel({
   return (
     <div className="space-y-4">
       {/* Tab Navigation */}
-      <div className="flex gap-2 border-b border-gray-700">
+      <div className="flex gap-2 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <button
           onClick={() => setActiveTab('received')}
           className={`px-4 py-2 font-semibold transition-colors relative ${
             activeTab === 'received'
-              ? 'text-cyan-400 border-b-2 border-cyan-400'
-              : 'text-gray-400 hover:text-gray-300'
+              ? 'text-[color:var(--nn-cyan)] border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'
+              : 'text-[color:var(--nn-text-secondary)] text-[color:var(--nn-text-secondary)]'
           }`}
         >
           Received
           {receivedRequests.length > 0 && (
-            <span className="ml-2 px-2 py-0.5 bg-cyan-500 text-black text-xs rounded-full">
+            <span className="ml-2 px-2 py-0.5 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs rounded-full">
               {receivedRequests.length}
             </span>
           )}
@@ -285,13 +285,13 @@ export default function FriendRequestsPanel({
           onClick={() => setActiveTab('sent')}
           className={`px-4 py-2 font-semibold transition-colors ${
             activeTab === 'sent'
-              ? 'text-cyan-400 border-b-2 border-cyan-400'
-              : 'text-gray-400 hover:text-gray-300'
+              ? 'text-[color:var(--nn-cyan)] border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'
+              : 'text-[color:var(--nn-text-secondary)] text-[color:var(--nn-text-secondary)]'
           }`}
         >
           Sent
           {sentRequests.length > 0 && (
-            <span className="ml-2 px-2 py-0.5 bg-gray-600 text-white text-xs rounded-full">
+            <span className="ml-2 px-2 py-0.5 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] text-xs rounded-full">
               {sentRequests.length}
             </span>
           )}
@@ -337,7 +337,7 @@ function ReceivedRequestsList({
 }: ReceivedRequestsListProps) {
   if (requests.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+      <div className="flex flex-col items-center justify-center h-48 text-[color:var(--nn-text-secondary)]">
         <svg
           className="w-16 h-16 mb-4 opacity-50"
           fill="none"
@@ -364,38 +364,38 @@ function ReceivedRequestsList({
       {requests.map(request => (
         <div
           key={request._id}
-          className="p-4 bg-gray-800/50 rounded space-y-3"
+          className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-3"
         >
           {/* Request Header */}
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">
+                <span className="font-semibold text-[color:var(--nn-text-primary)]">
                   {request.fromUsername}
                 </span>
                 {request.fromVip && (
-                  <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+                  <span className="px-1.5 py-0.5 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs rounded-none">
                     VIP
                   </span>
                 )}
                 {request.fromClanTag && (
-                  <span className="text-cyan-400 text-sm">
+                  <span className="text-[color:var(--nn-cyan)] text-sm">
                     {request.fromClanTag}
                   </span>
                 )}
               </div>
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">
                 Level {request.fromLevel}
               </div>
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-[color:var(--nn-text-secondary)]">
               {formatTimestamp(request.createdAt)}
             </div>
           </div>
 
           {/* Optional Message */}
           {request.message && (
-            <div className="p-2 bg-gray-900/50 rounded text-sm text-gray-300 italic">
+            <div className="p-2 bg-[color:var(--nn-void)] rounded-none text-sm text-[color:var(--nn-text-secondary)] italic">
               &quot;{request.message}&quot;
             </div>
           )}
@@ -404,13 +404,13 @@ function ReceivedRequestsList({
           <div className="flex gap-2">
             <button
               onClick={() => onAccept(request._id)}
-              className="flex-1 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-black rounded transition-colors font-semibold"
+              className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors font-semibold"
             >
               Accept
             </button>
             <button
               onClick={() => onDecline(request._id)}
-              className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+              className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors"
             >
               Decline
             </button>
@@ -439,7 +439,7 @@ function SentRequestsList({
 }: SentRequestsListProps) {
   if (requests.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-gray-400">
+      <div className="flex flex-col items-center justify-center h-48 text-[color:var(--nn-text-secondary)]">
         <svg
           className="w-16 h-16 mb-4 opacity-50"
           fill="none"
@@ -466,24 +466,24 @@ function SentRequestsList({
       {requests.map(request => (
         <div
           key={request._id}
-          className="p-4 bg-gray-800/50 rounded flex items-center justify-between"
+          className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none flex items-center justify-between"
         >
           {/* Request Info */}
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-white">
+              <span className="font-semibold text-[color:var(--nn-text-primary)]">
                 {request.fromUsername}
               </span>
               {request.fromVip && (
-                <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded">
+                <span className="px-1.5 py-0.5 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs rounded-none">
                   VIP
                 </span>
               )}
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-[color:var(--nn-text-secondary)]">
                 Pending
               </span>
             </div>
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-[color:var(--nn-text-secondary)]">
               Sent {formatTimestamp(request.createdAt)}
             </div>
           </div>
@@ -491,7 +491,7 @@ function SentRequestsList({
           {/* Cancel Button */}
           <button
             onClick={() => onCancel(request._id)}
-            className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-sm transition-colors"
+            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] rounded-none text-sm transition-colors"
           >
             Cancel
           </button>

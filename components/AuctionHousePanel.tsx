@@ -269,13 +269,13 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   return (
     <>
       {/* Modal Overlay */}
-      <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-        <div className="bg-bg-primary border-2 border-accent-secondary rounded-lg w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed inset-0 bg-[color:var(--nn-void)] bg-opacity-80 flex items-center justify-center z-50 p-4">
+        <div className="bg-bg-primary border-2 border-accent-secondary rounded-none w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
           
           {/* Header */}
-          <div className="bg-gradient-to-r from-accent-secondary to-yellow-800 p-4 border-b-2 border-accent-secondary">
+          <div className="bg-gradient-to-r from-accent-secondary to-[color:var(--nn-amber)] p-4 border-b-2 border-accent-secondary">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-yellow-200 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[color:var(--nn-amber)] flex items-center gap-2">
                 <Store className="w-6 h-6" />
                 Auction House
               </h2>
@@ -375,7 +375,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
                       value={priceMin}
                       onChange={(e) => setPriceMin(e.target.value)}
                       placeholder="0"
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     />
                   </div>
 
@@ -387,7 +387,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
                       value={priceMax}
                       onChange={(e) => setPriceMax(e.target.value)}
                       placeholder="No limit"
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     />
                   </div>
 
@@ -400,7 +400,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
                     <select
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as SortOption)}
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     >
                       <option value="newly_listed">Newly Listed</option>
                       <option value="ending_soon">Ending Soon</option>
@@ -418,7 +418,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
                         const val = e.target.value;
                         setHasBuyout(val === 'all' ? undefined : val === 'true');
                       }}
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     >
                       <option value="all">All Auctions</option>
                       <option value="true">Buyout Available</option>
@@ -439,7 +439,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
                       value={sellerFilter}
                       onChange={(e) => setSellerFilter(e.target.value)}
                       placeholder="Filter by seller..."
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     />
                   </div>
                   <div className="flex items-end">
@@ -475,7 +475,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
           <div className="flex-1 overflow-y-auto p-4 bg-bg-primary">
             {/* Error State */}
             {error && (
-              <div className="bg-red-900/20 border border-red-500/30 text-red-400 p-4 rounded-lg mb-4">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] p-4 rounded-none mb-4">
                 {error}
               </div>
             )}

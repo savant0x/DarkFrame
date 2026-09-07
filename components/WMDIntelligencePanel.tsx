@@ -175,18 +175,18 @@ export default function WMDIntelligencePanel() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'AVAILABLE': return 'bg-green-600';
-      case 'ON_MISSION': return 'bg-blue-600';
-      case 'COMPROMISED': return 'bg-red-600';
-      case 'RETIRED': return 'bg-gray-600';
-      default: return 'bg-gray-600';
+      case 'AVAILABLE': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case 'ON_MISSION': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      case 'COMPROMISED': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
+      case 'RETIRED': return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
     }
   };
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg">
-        <p className="text-gray-300">Loading intelligence data...</p>
+      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">Loading intelligence data...</p>
       </div>
     );
   }
@@ -194,12 +194,12 @@ export default function WMDIntelligencePanel() {
   const availableSpies = spies.filter(s => s.status === 'AVAILABLE').length;
 
   return (
-    <div className="p-6 bg-gray-800 rounded-lg space-y-6">
+    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-purple-400">Intelligence Network</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">Intelligence Network</h2>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">
             {spies.length} spies | {availableSpies} available
           </p>
         </div>
@@ -220,7 +220,7 @@ export default function WMDIntelligencePanel() {
           </Button>
           <Button
             onClick={runCounterIntel}
-            className="bg-orange-600 hover:bg-orange-700"
+            className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"
             size="sm"
           >
             Counter-Intel
@@ -232,10 +232,10 @@ export default function WMDIntelligencePanel() {
       {view === 'spies' && (
         <>
           {/* Recruitment */}
-          <Card className="p-4 bg-gray-700">
+          <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="font-bold text-white mb-2">Recruit Spy</h3>
+                <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2">Recruit Spy</h3>
                 <div className="flex gap-2">
                   {['SURVEILLANCE', 'SABOTAGE', 'INFILTRATION', 'CYBER'].map(spec => (
                     <Button
@@ -249,7 +249,7 @@ export default function WMDIntelligencePanel() {
                   ))}
                 </div>
               </div>
-              <Button onClick={recruitSpy} className="bg-purple-600 hover:bg-purple-700">
+              <Button onClick={recruitSpy} className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]">
                 + Recruit
               </Button>
             </div>
@@ -258,11 +258,11 @@ export default function WMDIntelligencePanel() {
           {/* Spy Roster */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {spies.map((spy) => (
-              <Card key={spy.spyId} className="p-4 bg-gray-700 space-y-3">
+              <Card key={spy.spyId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] space-y-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-bold text-white">{spy.codename}</h3>
-                    <p className="text-xs text-gray-400">{spy.rank}</p>
+                    <h3 className="font-bold text-[color:var(--nn-text-primary)]">{spy.codename}</h3>
+                    <p className="text-xs text-[color:var(--nn-text-secondary)]">{spy.rank}</p>
                   </div>
                   <Badge className={getStatusColor(spy.status)}>
                     {spy.status}
@@ -271,16 +271,16 @@ export default function WMDIntelligencePanel() {
 
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Specialization:</span>
-                    <span className="text-purple-400">{spy.specialization}</span>
+                    <span className="text-[color:var(--nn-text-secondary)]">Specialization:</span>
+                    <span className="text-[color:var(--nn-violet)]">{spy.specialization}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Experience:</span>
-                    <span className="text-green-400">{spy.experience} XP</span>
+                    <span className="text-[color:var(--nn-text-secondary)]">Experience:</span>
+                    <span className="text-[color:var(--nn-green)]">{spy.experience} XP</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-300">Missions:</span>
-                    <span className="text-blue-400">{spy.missionHistory.length}</span>
+                    <span className="text-[color:var(--nn-text-secondary)]">Missions:</span>
+                    <span className="text-[color:var(--nn-cyan)]">{spy.missionHistory.length}</span>
                   </div>
                 </div>
 
@@ -290,11 +290,11 @@ export default function WMDIntelligencePanel() {
                       placeholder="Target username..."
                       value={targetId}
                       onChange={(e) => setTargetId(e.target.value)}
-                      className="bg-gray-600 text-white text-sm"
+                      className="bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] text-sm"
                     />
                     <Button
                       onClick={() => startMission(spy.spyId, 'RECONNAISSANCE')}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
                       size="sm"
                     >
                       Start Mission
@@ -311,13 +311,13 @@ export default function WMDIntelligencePanel() {
       {view === 'missions' && (
         <div className="space-y-4">
           {missions.map((mission) => (
-            <Card key={mission.missionId} className="p-4 bg-gray-700">
+            <Card key={mission.missionId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="font-bold text-white">{mission.missionType}</h3>
-                  <p className="text-sm text-gray-400">Target: {mission.targetId}</p>
+                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{mission.missionType}</h3>
+                  <p className="text-sm text-[color:var(--nn-text-secondary)]">Target: {mission.targetId}</p>
                 </div>
-                <Badge className={mission.status === 'ACTIVE' ? 'bg-blue-600' : 'bg-gray-600'}>
+                <Badge className={mission.status === 'ACTIVE' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'}>
                   {mission.status}
                 </Badge>
               </div>
@@ -325,7 +325,7 @@ export default function WMDIntelligencePanel() {
           ))}
           {missions.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-gray-400">No active missions</p>
+              <p className="text-[color:var(--nn-text-secondary)]">No active missions</p>
             </div>
           )}
         </div>
@@ -334,8 +334,8 @@ export default function WMDIntelligencePanel() {
       {/* Empty State */}
       {view === 'spies' && spies.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No spies in network</p>
-          <p className="text-gray-500 text-sm">Recruit your first spy to begin operations</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">No spies in network</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">Recruit your first spy to begin operations</p>
         </div>
       )}
     </div>

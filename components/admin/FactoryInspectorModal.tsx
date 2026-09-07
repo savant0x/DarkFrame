@@ -173,10 +173,10 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
    */
   const getTierColor = (tier: string): string => {
     switch (tier) {
-      case 'tier1': return 'text-green-400';
-      case 'tier2': return 'text-blue-400';
-      case 'tier3': return 'text-purple-400';
-      default: return 'text-gray-400';
+      case 'tier1': return 'text-[color:var(--nn-green)]';
+      case 'tier2': return 'text-[color:var(--nn-cyan)]';
+      case 'tier3': return 'text-[color:var(--nn-violet)]';
+      default: return 'text-[color:var(--nn-text-secondary)]';
     }
   };
 
@@ -185,10 +185,10 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
    */
   const getTierBgColor = (tier: string): string => {
     switch (tier) {
-      case 'tier1': return 'bg-green-900/20 border-green-700';
-      case 'tier2': return 'bg-blue-900/20 border-blue-700';
-      case 'tier3': return 'bg-purple-900/20 border-purple-700';
-      default: return 'bg-gray-900/20 border-gray-700';
+      case 'tier1': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]';
+      case 'tier2': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
+      case 'tier3': return 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]';
+      default: return 'bg-[color:var(--nn-void)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]';
     }
   };
 
@@ -215,11 +215,11 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
    */
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-purple-500 rounded-lg p-8 max-w-md w-full">
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
+        <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md w-full">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-            <p className="text-gray-300">Loading factories...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-4"></div>
+            <p className="text-[color:var(--nn-text-secondary)]">Loading factories...</p>
           </div>
         </div>
       </div>
@@ -231,13 +231,13 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
    */
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-red-500 rounded-lg p-8 max-w-md w-full">
-          <h3 className="text-xl font-bold text-red-500 mb-4">Error Loading Factories</h3>
-          <p className="text-gray-300 mb-6">{error}</p>
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
+        <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-8 max-w-md w-full">
+          <h3 className="text-xl font-bold text-[color:var(--nn-magenta)] mb-4">Error Loading Factories</h3>
+          <p className="text-[color:var(--nn-text-secondary)] mb-6">{error}</p>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition"
           >
             Close
           </button>
@@ -250,70 +250,70 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
    * Render main modal
    */
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-purple-500 rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-purple-500">
+        <div className="flex justify-between items-center p-6 border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
           <div>
-            <h2 className="text-2xl font-bold text-purple-400">🏭 Factory Inspector</h2>
-            <p className="text-gray-400 text-sm mt-1">
+            <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">🏭 Factory Inspector</h2>
+            <p className="text-[color:var(--nn-text-secondary)] text-sm mt-1">
               {filteredFactories.length} of {factories.length} factories
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl leading-none"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl leading-none"
           >
             ×
           </button>
         </div>
 
         {/* Filters */}
-        <div className="p-6 border-b border-gray-700 bg-gray-800/50">
+        <div className="p-6 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Owner search */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Owner</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Owner</label>
               <input
                 type="text"
                 value={searchOwner}
                 onChange={(e) => setSearchOwner(e.target.value)}
                 placeholder="Username..."
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               />
             </div>
 
             {/* X coordinate */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">X Coordinate</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">X Coordinate</label>
               <input
                 type="number"
                 value={searchX}
                 onChange={(e) => setSearchX(e.target.value)}
                 placeholder="X..."
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               />
             </div>
 
             {/* Y coordinate */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Y Coordinate</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Y Coordinate</label>
               <input
                 type="number"
                 value={searchY}
                 onChange={(e) => setSearchY(e.target.value)}
                 placeholder="Y..."
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               />
             </div>
 
             {/* Tier filter */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Tier</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Tier</label>
               <select
                 value={filterTier}
                 onChange={(e) => setFilterTier(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               >
                 <option value="all">All Tiers</option>
                 <option value="tier1">Tier 1</option>
@@ -324,11 +324,11 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
 
             {/* Status filter */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Status</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Status</label>
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -347,7 +347,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                 setFilterTier('all');
                 setFilterStatus('all');
               }}
-              className="mt-3 px-4 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition"
+              className="mt-3 px-4 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] text-sm rounded-none transition"
             >
               Clear Filters
             </button>
@@ -358,15 +358,15 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
         <div className="flex-1 overflow-y-auto p-6">
           {currentFactories.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">No factories match your filters</p>
-              <p className="text-gray-500 text-sm mt-2">Try adjusting your search criteria</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-lg">No factories match your filters</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-sm mt-2">Try adjusting your search criteria</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {currentFactories.map((factory) => (
                 <div
                   key={factory._id}
-                  className={`border rounded-lg p-4 ${getTierBgColor(factory.tier)} hover:border-purple-500 transition`}
+                  className={`border rounded-none p-4 ${getTierBgColor(factory.tier)} border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition`}
                 >
                   {/* Header */}
                   <div className="flex justify-between items-start mb-3">
@@ -374,14 +374,14 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                       <span className={`font-bold ${getTierColor(factory.tier)}`}>
                         {factory.tier.toUpperCase()}
                       </span>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-[color:var(--nn-text-secondary)]">
                         ({factory.x}, {factory.y})
                       </p>
                     </div>
-                    <span className={`px-2 py-1 rounded text-xs ${
+                    <span className={`px-2 py-1 rounded-none text-xs ${
                       factory.isActive 
-                        ? 'bg-green-900/50 text-green-400 border border-green-700' 
-                        : 'bg-red-900/50 text-red-400 border border-red-700'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' 
+                        : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
                     }`}>
                       {factory.isActive ? 'ACTIVE' : 'INACTIVE'}
                     </span>
@@ -389,16 +389,16 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
 
                   {/* Owner */}
                   <div className="mb-2">
-                    <p className="text-xs text-gray-500">Owner</p>
-                    <p className="text-white font-medium">{factory.ownerUsername}</p>
+                    <p className="text-xs text-[color:var(--nn-text-secondary)]">Owner</p>
+                    <p className="text-[color:var(--nn-text-primary)] font-medium">{factory.ownerUsername}</p>
                   </div>
 
                   {/* Production */}
                   <div className="mb-2">
-                    <p className="text-xs text-gray-500">Production Rate</p>
-                    <p className="text-white">
+                    <p className="text-xs text-[color:var(--nn-text-secondary)]">Production Rate</p>
+                    <p className="text-[color:var(--nn-text-primary)]">
                       {factory.productionRate}/hr{' '}
-                      <span className={factory.resourceType === 'metal' ? 'text-blue-400' : 'text-yellow-400'}>
+                      <span className={factory.resourceType === 'metal' ? 'text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-amber)]'}>
                         {factory.resourceType === 'metal' ? '⚙️' : '⚡'}
                       </span>
                     </p>
@@ -406,8 +406,8 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
 
                   {/* Current production */}
                   <div className="mb-2">
-                    <p className="text-xs text-gray-500">Waiting Collection</p>
-                    <p className="text-green-400 font-medium">
+                    <p className="text-xs text-[color:var(--nn-text-secondary)]">Waiting Collection</p>
+                    <p className="text-[color:var(--nn-green)] font-medium">
                       {factory.currentProduction.toLocaleString()}{' '}
                       {factory.resourceType === 'metal' ? 'metal' : 'energy'}
                     </p>
@@ -415,8 +415,8 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
 
                   {/* Last production */}
                   <div className="mb-3">
-                    <p className="text-xs text-gray-500">Last Production</p>
-                    <p className="text-gray-400 text-sm">
+                    <p className="text-xs text-[color:var(--nn-text-secondary)]">Last Production</p>
+                    <p className="text-[color:var(--nn-text-secondary)] text-sm">
                       {formatTimeSince(factory.lastProduction)}
                     </p>
                   </div>
@@ -424,13 +424,13 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                   {/* Actions (future) */}
                   <div className="flex gap-2">
                     <button
-                      className="flex-1 px-3 py-1 bg-purple-700 hover:bg-purple-600 text-white text-sm rounded transition"
+                      className="flex-1 px-3 py-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] text-sm rounded-none transition"
                       disabled
                     >
                       View Owner
                     </button>
                     <button
-                      className="px-3 py-1 bg-red-700 hover:bg-red-600 text-white text-sm rounded transition"
+                      className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] text-sm rounded-none transition"
                       disabled
                     >
                       Delete
@@ -444,21 +444,21 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-4 border-t border-gray-700 flex justify-between items-center bg-gray-800/50">
+          <div className="p-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] flex justify-between items-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
             <button
               onClick={handlePrevPage}
               disabled={currentPage === 1}
-              className="px-4 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none transition"
             >
               Previous
             </button>
-            <span className="text-gray-300">
+            <span className="text-[color:var(--nn-text-secondary)]">
               Page {currentPage} of {totalPages}
             </span>
             <button
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none transition"
             >
               Next
             </button>

@@ -204,8 +204,8 @@ export default function MessageInbox({
     <div className={`flex flex-col h-full bg-glass-dark border-r border-glass-border ${className}`}>
       {/* Header */}
       <div className="p-4 border-b border-glass-border">
-        <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-          <MessageCircle className="w-6 h-6 text-blue-400" />
+        <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
+          <MessageCircle className="w-6 h-6 text-[color:var(--nn-cyan)]" />
           Messages
         </h2>
 
@@ -217,7 +217,7 @@ export default function MessageInbox({
             placeholder="Search conversations..."
             value={state.searchQuery}
             onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2 bg-glass-light border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-blue-500"
           />
         </div>
 
@@ -227,7 +227,7 @@ export default function MessageInbox({
             onClick={() => handleFilterChange('all')}
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               state.filter === 'all'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                 : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
@@ -237,7 +237,7 @@ export default function MessageInbox({
             onClick={() => handleFilterChange('unread')}
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               state.filter === 'unread'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                 : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
@@ -247,7 +247,7 @@ export default function MessageInbox({
             onClick={() => handleFilterChange('pinned')}
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
               state.filter === 'pinned'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                 : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
@@ -258,7 +258,7 @@ export default function MessageInbox({
             onClick={() => handleFilterChange('archived')}
             className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
               state.filter === 'archived'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                 : 'bg-glass-light text-text-primary hover:bg-glass-light'
             }`}
           >
@@ -272,14 +272,14 @@ export default function MessageInbox({
       <div className="flex-1 overflow-y-auto">
         {state.isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]"></div>
           </div>
         ) : state.error ? (
           <div className="p-4 text-center">
-            <p className="text-red-400">{state.error}</p>
+            <p className="text-[color:var(--nn-magenta)]">{state.error}</p>
             <button
               onClick={loadConversations}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="mt-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none"
             >
               Retry
             </button>
@@ -320,11 +320,11 @@ export default function MessageInbox({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold text-white truncate">
+                          <span className="font-semibold text-[color:var(--nn-text-primary)] truncate">
                             {otherParticipant}
                           </span>
                           {isPinned && (
-                            <Pin className="w-3 h-3 text-yellow-500" fill="currentColor" />
+                            <Pin className="w-3 h-3 text-[color:var(--nn-amber)]" fill="currentColor" />
                           )}
                         </div>
                         {conversation.lastMessage && (
@@ -338,7 +338,7 @@ export default function MessageInbox({
                       {conversation.lastMessage && (
                         <div className="flex items-center justify-between">
                           <p className={`text-sm truncate ${
-                            unreadCount > 0 ? 'text-white font-medium' : 'text-text-secondary'
+                            unreadCount > 0 ? 'text-[color:var(--nn-text-primary)] font-medium' : 'text-text-secondary'
                           }`}>
                             {conversation.lastMessage.senderId === playerId && (
                               <span className="text-text-secondary">You: </span>
@@ -346,7 +346,7 @@ export default function MessageInbox({
                             {truncateMessage(conversation.lastMessage.content)}
                           </p>
                           {unreadCount > 0 && (
-                            <span className="ml-2 px-2 py-0.5 bg-blue-600 text-white text-xs font-bold rounded-full min-w-[20px] text-center">
+                            <span className="ml-2 px-2 py-0.5 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs font-bold rounded-full min-w-[20px] text-center">
                               {unreadCount > 99 ? '99+' : unreadCount}
                             </span>
                           )}

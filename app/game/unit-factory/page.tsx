@@ -170,22 +170,22 @@ export default function UnitFactoryPage() {
   // Get rarity color
   const getRarityColor = (rarity: UnitRarity): string => {
     switch (rarity) {
-      case UnitRarity.Common: return 'text-gray-400';
-      case UnitRarity.Uncommon: return 'text-green-400';
-      case UnitRarity.Rare: return 'text-blue-400';
-      case UnitRarity.Epic: return 'text-purple-400';
-      case UnitRarity.Legendary: return 'text-yellow-400';
+      case UnitRarity.Common: return 'text-[color:var(--nn-text-secondary)]';
+      case UnitRarity.Uncommon: return 'text-[color:var(--nn-green)]';
+      case UnitRarity.Rare: return 'text-[color:var(--nn-cyan)]';
+      case UnitRarity.Epic: return 'text-[color:var(--nn-violet)]';
+      case UnitRarity.Legendary: return 'text-[color:var(--nn-amber)]';
     }
   };
 
   // Get rarity border
   const getRarityBorder = (rarity: UnitRarity): string => {
     switch (rarity) {
-      case UnitRarity.Common: return 'border-gray-600';
-      case UnitRarity.Uncommon: return 'border-green-600';
-      case UnitRarity.Rare: return 'border-blue-600';
-      case UnitRarity.Epic: return 'border-purple-600';
-      case UnitRarity.Legendary: return 'border-yellow-600';
+      case UnitRarity.Common: return 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]';
+      case UnitRarity.Uncommon: return 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]';
+      case UnitRarity.Rare: return 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
+      case UnitRarity.Epic: return 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]';
+      case UnitRarity.Legendary: return 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]';
     }
   };
 
@@ -245,7 +245,7 @@ export default function UnitFactoryPage() {
   if (!player || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
-        <div className="text-white text-2xl">Loading...</div>
+        <div className="text-[color:var(--nn-text-primary)] text-2xl">Loading...</div>
       </div>
     );
   }
@@ -253,7 +253,7 @@ export default function UnitFactoryPage() {
   if (!playerStats) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
-        <div className="text-white text-2xl">Failed to load unit factory</div>
+        <div className="text-[color:var(--nn-text-primary)] text-2xl">Failed to load unit factory</div>
       </div>
     );
   }
@@ -272,22 +272,22 @@ export default function UnitFactoryPage() {
         tileView={
           <div className="h-full w-full overflow-auto bg-gradient-to-b from-gray-900 to-black">
             {/* Header */}
-            <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
+            <header className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] px-6 py-4">
             <div className="flex items-center justify-between w-full">
               <div>
-                <h1 className="text-3xl font-bold text-blue-400">Unit Factory</h1>
-                <p className="text-sm text-gray-400">Build and manage your military forces</p>
+                <h1 className="text-3xl font-bold text-[color:var(--nn-cyan)]">Unit Factory</h1>
+                <p className="text-sm text-[color:var(--nn-text-secondary)]">Build and manage your military forces</p>
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <div className="text-sm text-gray-400">Army Tier</div>
-                  <div className="text-2xl font-bold text-blue-400">
+                  <div className="text-sm text-[color:var(--nn-text-secondary)]">Army Tier</div>
+                  <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
                     {Math.max(playerStats.totalStrength, playerStats.totalDefense).toLocaleString()}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-gray-400">Factory Build Slots</div>
-                  <div className="text-2xl font-bold text-green-400">
+                  <div className="text-sm text-[color:var(--nn-text-secondary)]">Factory Build Slots</div>
+                  <div className="text-2xl font-bold text-[color:var(--nn-green)]">
                     {playerStats.factoryBuildSlots.toLocaleString()}
                   </div>
                 </div>
@@ -298,29 +298,29 @@ export default function UnitFactoryPage() {
           {/* Main Content */}
           <main className="w-full px-6 py-8">
         {/* Resources Display */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 mb-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div>
-              <div className="text-sm text-gray-400">Metal</div>
-              <div className="text-2xl font-bold text-orange-400">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">Metal</div>
+              <div className="text-2xl font-bold text-[color:var(--nn-amber)]">
                 {playerStats.resources.metal.toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Energy</div>
-              <div className="text-2xl font-bold text-cyan-400">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">Energy</div>
+              <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
                 {playerStats.resources.energy.toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Total Strength</div>
-              <div className="text-2xl font-bold text-red-400">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">Total Strength</div>
+              <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">
                 {playerStats.totalStrength.toLocaleString()}
               </div>
             </div>
             <div>
-              <div className="text-sm text-gray-400">Total Defense</div>
-              <div className="text-2xl font-bold text-blue-400">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">Total Defense</div>
+              <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
                 {playerStats.totalDefense.toLocaleString()}
               </div>
             </div>
@@ -331,20 +331,20 @@ export default function UnitFactoryPage() {
         <div className="flex gap-4 mb-6">
           <button
             onClick={() => setActiveTab('strength')}
-            className={`px-8 py-3 rounded-lg font-semibold transition-colors ${
+            className={`px-8 py-3 rounded-none font-semibold transition-colors ${
               activeTab === 'strength'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
             }`}
           >
             ⚔️ Strength Units
           </button>
           <button
             onClick={() => setActiveTab('defense')}
-            className={`px-8 py-3 rounded-lg font-semibold transition-colors ${
+            className={`px-8 py-3 rounded-none font-semibold transition-colors ${
               activeTab === 'defense'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
             }`}
           >
             🛡️ Defense Units
@@ -353,8 +353,8 @@ export default function UnitFactoryPage() {
 
         {/* Message Display */}
         {message && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            message.startsWith('✅') ? 'bg-green-900 text-green-200' : 'bg-red-900 text-red-200'
+          <div className={`mb-6 p-4 rounded-none ${
+            message.startsWith('✅') ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]' : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
           }`}>
             {message}
           </div>
@@ -371,8 +371,8 @@ export default function UnitFactoryPage() {
                 onClick={() => handleUnitClick(unit)}
                 disabled={!unit.isUnlocked}
                 className={`
-                  relative bg-gray-800 rounded-lg p-4 border-2 transition-all
-                  ${unit.isUnlocked ? 'hover:bg-gray-700 cursor-pointer' : 'opacity-50 cursor-not-allowed'}
+                  relative bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 border-2 transition-all
+                  ${unit.isUnlocked ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] cursor-pointer' : 'opacity-50 cursor-not-allowed'}
                   ${getRarityBorder(unit.rarity)}
                 `}
               >
@@ -385,39 +385,39 @@ export default function UnitFactoryPage() {
                 <div className="font-bold text-lg mb-2">{unit.name}</div>
 
                 {/* Stat Value */}
-                <div className="text-3xl font-bold mb-2 text-yellow-400">
+                <div className="text-3xl font-bold mb-2 text-[color:var(--nn-amber)]">
                   {statValue.toLocaleString()}
                 </div>
 
                 {/* Costs */}
                 <div className="flex justify-between items-center mb-2">
                   <div className="text-sm">
-                    <span className="text-orange-400">{unit.metalCost.toLocaleString()}</span>
-                    <span className="text-gray-500"> metal</span>
+                    <span className="text-[color:var(--nn-amber)]">{unit.metalCost.toLocaleString()}</span>
+                    <span className="text-[color:var(--nn-text-secondary)]"> metal</span>
                   </div>
                   <div className="text-sm">
-                    <span className="text-cyan-400">{unit.energyCost.toLocaleString()}</span>
-                    <span className="text-gray-500"> energy</span>
+                    <span className="text-[color:var(--nn-cyan)]">{unit.energyCost.toLocaleString()}</span>
+                    <span className="text-[color:var(--nn-text-secondary)]"> energy</span>
                   </div>
                 </div>
 
                 {/* Owned Count */}
                 {unit.playerOwned > 0 && (
-                  <div className="text-xs text-green-400 mb-2">
+                  <div className="text-xs text-[color:var(--nn-green)] mb-2">
                     Owned: {unit.playerOwned}
                   </div>
                 )}
 
                 {/* Lock Status */}
                 {!unit.isUnlocked && unit.unlockRequirement && (
-                  <div className="text-xs text-red-400 mt-2">
+                  <div className="text-xs text-[color:var(--nn-magenta)] mt-2">
                     🔒 Requires {unit.unlockRequirement.researchPoints} RP
                     {unit.unlockRequirement.level && ` & Lvl ${unit.unlockRequirement.level}`}
                   </div>
                 )}
 
                 {/* Description */}
-                <div className="text-xs text-gray-400 mt-2">
+                <div className="text-xs text-[color:var(--nn-text-secondary)] mt-2">
                   {unit.description}
                 </div>
               </button>
@@ -433,17 +433,17 @@ export default function UnitFactoryPage() {
 
       {/* Confirmation Modal */}
       {selectedUnit && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full border-2 border-blue-600">
-            <h2 className="text-2xl font-bold mb-4 text-blue-400">Confirm Build</h2>
+        <div className="fixed inset-0 bg-[color:var(--nn-void)] bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-8 max-w-md w-full border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
+            <h2 className="text-2xl font-bold mb-4 text-[color:var(--nn-cyan)]">Confirm Build</h2>
             
             <div className="mb-6">
               <div className="text-xl font-bold mb-2">{selectedUnit.name}</div>
-              <div className="text-sm text-gray-400 mb-4">{selectedUnit.description}</div>
+              <div className="text-sm text-[color:var(--nn-text-secondary)] mb-4">{selectedUnit.description}</div>
               
               {/* Quantity Selector */}
               <div className="mb-4">
-                <label className="block text-sm text-gray-400 mb-2">Quantity</label>
+                <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-2">Quantity</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -453,7 +453,7 @@ export default function UnitFactoryPage() {
                       const value = parseInt(e.target.value) || 1;
                       setBuildQuantity(Math.max(1, value));
                     }}
-                    className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                    className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)]"
                   />
                   <button
                     onClick={() => {
@@ -482,7 +482,7 @@ export default function UnitFactoryPage() {
                       // Set quantity to calculated max
                       setBuildQuantity(maxAffordable);
                     }}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors"
+                    className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none font-semibold transition-colors"
                   >
                     Max
                   </button>
@@ -491,28 +491,28 @@ export default function UnitFactoryPage() {
 
               {/* Total Cost */}
               {totalCost && (
-                <div className="bg-gray-900 rounded-lg p-4 mb-4">
-                  <div className="text-sm text-gray-400 mb-2">Total Cost</div>
+                <div className="bg-[color:var(--nn-void)] rounded-none p-4 mb-4">
+                  <div className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Total Cost</div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-orange-400">Metal:</span>
+                    <span className="text-[color:var(--nn-amber)]">Metal:</span>
                     <span className="font-bold">{totalCost.metal.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-cyan-400">Energy:</span>
+                    <span className="text-[color:var(--nn-cyan)]">Energy:</span>
                     <span className="font-bold">{totalCost.energy.toLocaleString()}</span>
                   </div>
                 </div>
               )}
 
               {/* Stats Gained */}
-              <div className="bg-gray-900 rounded-lg p-4">
-                <div className="text-sm text-gray-400 mb-2">Stats Gained</div>
+              <div className="bg-[color:var(--nn-void)] rounded-none p-4">
+                <div className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Stats Gained</div>
                 {selectedUnit.category === UnitCategory.Strength ? (
-                  <div className="text-red-400 font-bold">
+                  <div className="text-[color:var(--nn-magenta)] font-bold">
                     +{(selectedUnit.strength * buildQuantity).toLocaleString()} Strength
                   </div>
                 ) : (
-                  <div className="text-blue-400 font-bold">
+                  <div className="text-[color:var(--nn-cyan)] font-bold">
                     +{(selectedUnit.defense * buildQuantity).toLocaleString()} Defense
                   </div>
                 )}
@@ -524,14 +524,14 @@ export default function UnitFactoryPage() {
               <button
                 onClick={() => setSelectedUnit(null)}
                 disabled={building}
-                className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-semibold transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBuild}
                 disabled={building}
-                className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none font-semibold transition-colors disabled:opacity-50"
               >
                 {building ? 'Building...' : 'Confirm Build'}
               </button>

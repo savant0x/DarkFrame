@@ -48,20 +48,20 @@ const MasteryProgressBar: React.FC<MasteryProgressBarProps> = ({
 
   // Determine progress bar color based on level
   const getProgressColor = () => {
-    if (masteryLevel >= 100) return 'bg-gradient-to-r from-yellow-500 to-yellow-300';
-    if (masteryLevel >= 75) return 'bg-gradient-to-r from-purple-500 to-purple-300';
-    if (masteryLevel >= 50) return 'bg-gradient-to-r from-blue-500 to-blue-300';
-    if (masteryLevel >= 25) return 'bg-gradient-to-r from-green-500 to-green-300';
+    if (masteryLevel >= 100) return 'bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]';
+    if (masteryLevel >= 75) return 'bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-violet)]';
+    if (masteryLevel >= 50) return 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]';
+    if (masteryLevel >= 25) return 'bg-gradient-to-r from-[color:var(--nn-green)] to-[color:var(--nn-green)]';
     return 'bg-gradient-to-r from-gray-500 to-gray-400';
   };
 
   // Determine level text color
   const getLevelTextColor = () => {
-    if (masteryLevel >= 100) return 'text-yellow-400';
-    if (masteryLevel >= 75) return 'text-purple-400';
-    if (masteryLevel >= 50) return 'text-blue-400';
-    if (masteryLevel >= 25) return 'text-green-400';
-    return 'text-gray-400';
+    if (masteryLevel >= 100) return 'text-[color:var(--nn-amber)]';
+    if (masteryLevel >= 75) return 'text-[color:var(--nn-violet)]';
+    if (masteryLevel >= 50) return 'text-[color:var(--nn-cyan)]';
+    if (masteryLevel >= 25) return 'text-[color:var(--nn-green)]';
+    return 'text-[color:var(--nn-text-secondary)]';
   };
 
   // Calculate XP for next level (100 XP per level)
@@ -76,26 +76,26 @@ const MasteryProgressBar: React.FC<MasteryProgressBarProps> = ({
       {/* Level Display */}
       <div className="flex justify-between items-center">
         <div>
-          <span className="text-gray-400 text-sm">Mastery Level</span>
+          <span className="text-[color:var(--nn-text-secondary)] text-sm">Mastery Level</span>
           <span className={`ml-2 text-2xl font-bold ${getLevelTextColor()}`}>
             {masteryLevel}%
           </span>
         </div>
         {showDetails && masteryLevel < maxLevel && (
-          <div className="text-right text-xs text-gray-400">
+          <div className="text-right text-xs text-[color:var(--nn-text-secondary)]">
             <p>{xpProgress} / {xpPerLevel} XP</p>
-            <p className="text-gray-500">{xpNeeded} needed</p>
+            <p className="text-[color:var(--nn-text-secondary)]">{xpNeeded} needed</p>
           </div>
         )}
         {masteryLevel >= maxLevel && (
-          <span className="text-yellow-400 font-bold text-sm">
+          <span className="text-[color:var(--nn-amber)] font-bold text-sm">
             ★ MASTERED ★
           </span>
         )}
       </div>
 
       {/* Progress Bar Container */}
-      <div className="relative h-8 bg-gray-700 rounded-full overflow-hidden border-2 border-gray-600">
+      <div className="relative h-8 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full overflow-hidden border-2 border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]">
         {/* Progress Fill */}
         <div
           className={`h-full ${getProgressColor()} transition-all duration-500 ease-out`}
@@ -119,7 +119,7 @@ const MasteryProgressBar: React.FC<MasteryProgressBarProps> = ({
               {/* Milestone Line */}
               <div
                 className={`w-0.5 h-full ${
-                  isReached ? 'bg-white/50' : 'bg-gray-500'
+                  isReached ? 'bg-[color:var(--nn-text-primary)]/50' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                 }`}
               />
               
@@ -132,8 +132,8 @@ const MasteryProgressBar: React.FC<MasteryProgressBarProps> = ({
                 <div
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
                     isReached
-                      ? 'bg-green-500 border-green-300 text-white'
-                      : 'bg-gray-700 border-gray-500 text-gray-400'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] text-[color:var(--nn-text-secondary)]'
                   }`}
                 >
                   {isReached ? '✓' : milestone.level}
@@ -154,25 +154,25 @@ const MasteryProgressBar: React.FC<MasteryProgressBarProps> = ({
             return (
               <div
                 key={milestone.level}
-                className={`p-2 rounded border-2 text-center transition-all ${
+                className={`p-2 rounded-none border-2 text-center transition-all ${
                   isReached
-                    ? 'bg-green-900/30 border-green-500'
+                    ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]'
                     : isCurrent
-                    ? 'bg-yellow-900/30 border-yellow-500'
-                    : 'bg-gray-800 border-gray-600'
+                    ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
+                    : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
                 <div className="flex items-center justify-center gap-1">
-                  {isReached && <span className="text-green-400 text-xs">✓</span>}
-                  <p className={`font-bold text-sm ${isReached ? 'text-green-400' : 'text-gray-400'}`}>
+                  {isReached && <span className="text-[color:var(--nn-green)] text-xs">✓</span>}
+                  <p className={`font-bold text-sm ${isReached ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-text-secondary)]'}`}>
                     {milestone.level}%
                   </p>
                 </div>
-                <p className={`text-xs mt-1 ${isReached ? 'text-white' : 'text-gray-500'}`}>
+                <p className={`text-xs mt-1 ${isReached ? 'text-[color:var(--nn-text-primary)]' : 'text-[color:var(--nn-text-secondary)]'}`}>
                   +{milestone.bonus}% bonus
                 </p>
                 {milestone.level >= 75 && (
-                  <p className="text-[10px] text-gray-400 mt-0.5">
+                  <p className="text-[10px] text-[color:var(--nn-text-secondary)] mt-0.5">
                     {milestone.level === 75 ? '4th unit' : '5th unit'}
                   </p>
                 )}
@@ -184,7 +184,7 @@ const MasteryProgressBar: React.FC<MasteryProgressBarProps> = ({
 
       {/* XP Details (collapsed view) */}
       {!showDetails && masteryLevel < maxLevel && (
-        <div className="text-center text-xs text-gray-400">
+        <div className="text-center text-xs text-[color:var(--nn-text-secondary)]">
           {masteryXP.toLocaleString()} / {(maxLevel * xpPerLevel).toLocaleString()} Total XP
         </div>
       )}

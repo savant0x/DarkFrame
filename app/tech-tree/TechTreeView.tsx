@@ -369,7 +369,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
           {!embedded && (
             <button
               onClick={() => router.push('/game')}
-              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded"
+              className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-2 px-4 rounded-none"
             >
               Return to Game
             </button>
@@ -380,22 +380,22 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   }
 
   const renderTechTreeContent = () => (
-    <div className="bg-glass-light rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="bg-glass-light rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
       {/* Header */}
       <div className="bg-glass-dark border-b border-glass-border p-6 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Zap className="w-8 h-8 text-cyan-400" />
-            <h1 className="text-3xl font-bold text-white">Technology Tree</h1>
+            <Zap className="w-8 h-8 text-[color:var(--nn-cyan)]" />
+            <h1 className="text-3xl font-bold text-[color:var(--nn-text-primary)]">Technology Tree</h1>
           </div>
           <div className="text-right">
-            <p className="text-white/50 text-sm">Available Metal</p>
+            <p className="text-[color:var(--nn-text-primary)]/50 text-sm">Available Metal</p>
             <p className="text-2xl font-bold text-text-secondary">⚙️ {player.resources.metal.toLocaleString()}</p>
           </div>
         </div>
 
         {error && (
-          <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 text-red-400">
+          <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 text-[color:var(--nn-magenta)]">
             {error}
           </div>
         )}
@@ -414,11 +414,11 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
             return (
               <div
                 key={tech.id}
-                className={`bg-glass-dark backdrop-blur-sm border-2 rounded-lg overflow-hidden transition-all ${
+                className={`bg-glass-dark backdrop-blur-sm border-2 rounded-none overflow-hidden transition-all ${
                   tech.unlocked
-                    ? 'border-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.3)]'
+                    ? 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] shadow-[0_0_20px_rgba(34,197,94,0.3)]'
                     : tech.researching
-                    ? 'border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                    ? 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] shadow-[0_0_20px_rgba(59,130,246,0.3)]'
                     : canStartResearch
                     ? `border-${color}-500/30 hover:border-${color}-500/50`
                     : 'border-glass-border'
@@ -429,12 +429,12 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                   <div className="mb-2 flex items-center justify-between">
                     <div className="text-[color:var(--nn-accent,var(--nn-cyan))]">{getIcon(tech.icon)}</div>
                     {tech.unlocked ? (
-                      <div className="bg-green-500/20 border border-green-500/50 rounded-full p-2">
-                        <Check className="w-5 h-5 text-green-400" />
+                      <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-full p-2">
+                        <Check className="w-5 h-5 text-[color:var(--nn-green)]" />
                       </div>
                     ) : tech.researching ? (
-                      <div className="bg-blue-500/20 border border-blue-500/50 rounded-full p-2">
-                        <Clock className="w-5 h-5 text-blue-400 animate-spin" />
+                      <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-full p-2">
+                        <Clock className="w-5 h-5 text-[color:var(--nn-cyan)] animate-spin" />
                       </div>
                     ) : isLocked ? (
                       <div className="bg-glass-light rounded-full p-2">
@@ -442,20 +442,20 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                       </div>
                     ) : null}
                   </div>
-                  <h3 className="text-xl font-bold text-white">{tech.name}</h3>
-                  <p className="text-sm text-white/70 capitalize">{tech.category}</p>
+                  <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)]">{tech.name}</h3>
+                  <p className="text-sm text-[color:var(--nn-text-primary)]/70 capitalize">{tech.category}</p>
                 </div>
 
                 {/* Content */}
                 <div className="p-4">
-                  <p className="text-white/80 text-sm mb-4">{tech.description}</p>
+                  <p className="text-[color:var(--nn-text-primary)]/80 text-sm mb-4">{tech.description}</p>
 
                   {/* Effects */}
                   <div className="space-y-2 mb-4">
                     {tech.effects.map((effect, index) => (
                       <div key={index} className="flex items-start gap-2 text-sm">
-                        <TrendingUp className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-white/70">{effect}</span>
+                        <TrendingUp className="w-4 h-4 text-[color:var(--nn-green)] flex-shrink-0 mt-0.5" />
+                        <span className="text-[color:var(--nn-text-primary)]/70">{effect}</span>
                       </div>
                     ))}
                   </div>
@@ -463,16 +463,16 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                   {/* Prerequisites */}
                   {tech.prerequisites.length > 0 && (
                     <div className="mb-4">
-                      <p className="text-xs text-white/50 mb-1">Requires:</p>
+                      <p className="text-xs text-[color:var(--nn-text-primary)]/50 mb-1">Requires:</p>
                       {tech.prerequisites.map(prereqId => {
                         const prereq = technologies.find(t => t.id === prereqId);
                         return (
                           <span
                             key={prereqId}
-                            className={`inline-block text-xs px-2 py-1 rounded mr-2 mb-1 ${
+                            className={`inline-block text-xs px-2 py-1 rounded-none mr-2 mb-1 ${
                               prereq?.unlocked
-                                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
-                                : 'bg-red-500/20 text-red-400 border border-red-500/50'
+                                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]'
+                                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
                             }`}
                           >
                             {prereq?.name || prereqId}
@@ -485,24 +485,24 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                   {/* Cost and Action */}
                   <div className="flex items-center justify-between pt-4 border-t border-white/10">
                     <div>
-                      <p className="text-xs text-white/50">Cost</p>
-                      <p className="text-lg font-bold text-yellow-400">{tech.cost.toLocaleString()}</p>
+                      <p className="text-xs text-[color:var(--nn-text-primary)]/50">Cost</p>
+                      <p className="text-lg font-bold text-[color:var(--nn-amber)]">{tech.cost.toLocaleString()}</p>
                     </div>
                     {tech.unlocked ? (
-                      <span className="bg-green-500/20 text-green-400 font-bold px-4 py-2 rounded border border-green-500/50">
+                      <span className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] font-bold px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
                         Unlocked
                       </span>
                     ) : tech.researching ? (
-                      <span className="bg-blue-500/20 text-blue-400 font-bold px-4 py-2 rounded border border-blue-500/50">
+                      <span className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] font-bold px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
                         Researching...
                       </span>
                     ) : (
                       <button
                         onClick={() => handleResearch(tech.id)}
                         disabled={!canStartResearch || isLoading}
-                        className={`font-bold px-4 py-2 rounded transition-all ${
+                        className={`font-bold px-4 py-2 rounded-none transition-all ${
                           canStartResearch
-                            ? `bg-${color}-600 hover:bg-${color}-700 text-white border border-${color}-500/50`
+                            ? `bg-${color}-600 hover:bg-${color}-700 text-[color:var(--nn-text-primary)] border border-${color}-500/50`
                             : 'bg-glass-light text-text-secondary cursor-not-allowed'
                         }`}
                       >

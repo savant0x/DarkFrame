@@ -60,11 +60,11 @@ type FilterType = 'all' | 'diggers' | 'tradeable';
 type SortType = 'name' | 'rarity' | 'quantity';
 
 const RARITY_COLORS = {
-  Common: 'border-gray-400 bg-gray-800',
-  Uncommon: 'border-green-500 bg-green-900/20',
-  Rare: 'border-blue-500 bg-blue-900/20',
-  Epic: 'border-purple-500 bg-purple-900/20',
-  Legendary: 'border-yellow-500 bg-yellow-900/20',
+  Common: 'border-[color-mix(in_oklab,var(--nn-cyan)_30%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]',
+  Uncommon: 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]',
+  Rare: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
+  Epic: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
+  Legendary: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
 };
 
 const RARITY_ORDER = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
@@ -184,7 +184,7 @@ export default function InventoryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <p className="text-xl">Loading inventory...</p>
       </div>
     );
@@ -192,7 +192,7 @@ export default function InventoryPage() {
 
   if (!inventory) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <p className="text-xl">Failed to load inventory</p>
       </div>
     );
@@ -202,7 +202,7 @@ export default function InventoryPage() {
   const totalGatheringBonus = calculateTotalGatheringBonus();
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
+    <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -213,36 +213,36 @@ export default function InventoryPage() {
         {/* Stats Panel */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {/* Capacity */}
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
             <h3 className="text-lg font-semibold mb-2">Capacity</h3>
             <p className="text-2xl">
               {inventory.usedSlots.toLocaleString()} / {inventory.capacity.toLocaleString()}
             </p>
-            <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+            <div className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2 mt-2">
               <div
-                className="bg-blue-500 h-2 rounded-full transition-all"
+                className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] h-2 rounded-full transition-all"
                 style={{ width: `${(inventory.usedSlots / inventory.capacity) * 100}%` }}
               />
             </div>
           </div>
 
           {/* Diggers */}
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
             <h3 className="text-lg font-semibold mb-2">Diggers</h3>
             <div className="space-y-1 text-sm">
-              <p><span className="text-gray-400">Common:</span> {inventory.diggers.common}</p>
-              <p><span className="text-green-400">Uncommon:</span> {inventory.diggers.uncommon}</p>
-              <p><span className="text-blue-400">Rare:</span> {inventory.diggers.rare}</p>
-              <p><span className="text-purple-400">Epic:</span> {inventory.diggers.epic}</p>
-              <p><span className="text-yellow-400">Legendary:</span> {inventory.diggers.legendary}</p>
+              <p><span className="text-[color:var(--nn-text-secondary)]">Common:</span> {inventory.diggers.common}</p>
+              <p><span className="text-[color:var(--nn-green)]">Uncommon:</span> {inventory.diggers.uncommon}</p>
+              <p><span className="text-[color:var(--nn-cyan)]">Rare:</span> {inventory.diggers.rare}</p>
+              <p><span className="text-[color:var(--nn-violet)]">Epic:</span> {inventory.diggers.epic}</p>
+              <p><span className="text-[color:var(--nn-amber)]">Legendary:</span> {inventory.diggers.legendary}</p>
             </div>
           </div>
 
           {/* Gathering Bonus */}
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
             <h3 className="text-lg font-semibold mb-2">Gathering Bonus</h3>
-            <p className="text-3xl text-green-400">+{totalGatheringBonus}%</p>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-3xl text-[color:var(--nn-green)]">+{totalGatheringBonus}%</p>
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mt-1">
               From diggers and active boosts
             </p>
           </div>
@@ -250,17 +250,17 @@ export default function InventoryPage() {
 
         {/* Active Boosts */}
         {inventory.activeBoosts.length > 0 && (
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] mb-6">
             <h3 className="text-lg font-semibold mb-3">Active Boosts</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {inventory.activeBoosts.map((boost) => (
                 <div
                   key={boost.type}
-                  className="bg-gray-700 p-3 rounded border border-green-500"
+                  className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]"
                 >
                   <p className="font-semibold">{boost.type}</p>
-                  <p className="text-green-400">×{boost.multiplier.toFixed(2)}</p>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-[color:var(--nn-green)]">×{boost.multiplier.toFixed(2)}</p>
+                  <p className="text-sm text-[color:var(--nn-text-secondary)]">
                     {timeRemaining[boost.type] || 'Calculating...'}
                   </p>
                 </div>
@@ -270,38 +270,38 @@ export default function InventoryPage() {
         )}
 
         {/* Controls */}
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] mb-6">
           <div className="flex flex-wrap gap-4">
             {/* Filter */}
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Filter:</label>
+              <label className="text-sm text-[color:var(--nn-text-secondary)] block mb-1">Filter:</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setFilter('all')}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-none ${
                     filter === 'all'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                   }`}
                 >
                   All
                 </button>
                 <button
                   onClick={() => setFilter('diggers')}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-none ${
                     filter === 'diggers'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                   }`}
                 >
                   Diggers
                 </button>
                 <button
                   onClick={() => setFilter('tradeable')}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-none ${
                     filter === 'tradeable'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                   }`}
                 >
                   Tradeable
@@ -311,34 +311,34 @@ export default function InventoryPage() {
 
             {/* Sort */}
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Sort by:</label>
+              <label className="text-sm text-[color:var(--nn-text-secondary)] block mb-1">Sort by:</label>
               <div className="flex gap-2">
                 <button
                   onClick={() => setSortBy('rarity')}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-none ${
                     sortBy === 'rarity'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                   }`}
                 >
                   Rarity
                 </button>
                 <button
                   onClick={() => setSortBy('name')}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-none ${
                     sortBy === 'name'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                   }`}
                 >
                   Name
                 </button>
                 <button
                   onClick={() => setSortBy('quantity')}
-                  className={`px-4 py-2 rounded ${
+                  className={`px-4 py-2 rounded-none ${
                     sortBy === 'quantity'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
                   }`}
                 >
                   Quantity
@@ -353,23 +353,23 @@ export default function InventoryPage() {
           {filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`p-3 rounded-lg border-2 ${
+              className={`p-3 rounded-none border-2 ${
                 RARITY_COLORS[item.rarity as keyof typeof RARITY_COLORS] ||
-                'border-gray-600 bg-gray-800'
+                'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]'
               }`}
             >
               <h4 className="font-semibold text-sm mb-1 truncate">{item.name}</h4>
-              <p className="text-xs text-gray-400 mb-1">{item.rarity}</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mb-1">{item.rarity}</p>
+              <p className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
                 {item.quantity.toLocaleString()}
               </p>
               {item.gatheringBonus && (
-                <p className="text-xs text-green-400 mt-1">
+                <p className="text-xs text-[color:var(--nn-green)] mt-1">
                   +{item.gatheringBonus}% gathering
                 </p>
               )}
               {item.description && (
-                <p className="text-xs text-gray-400 mt-2 line-clamp-2">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mt-2 line-clamp-2">
                   {item.description}
                 </p>
               )}
@@ -379,8 +379,8 @@ export default function InventoryPage() {
 
         {filteredItems.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-xl text-gray-400">No items found</p>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-xl text-[color:var(--nn-text-secondary)]">No items found</p>
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">
               Try adjusting your filters or collect more items
             </p>
           </div>

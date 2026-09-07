@@ -31,12 +31,12 @@ interface BadgeProps {
 }
 
 const variantClasses = {
-  default: 'bg-gray-500/10 text-gray-300 border-gray-500/20',
+  default: 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]',
   primary: 'bg-primary-500/10 text-primary-400 border-primary-500/20',
-  success: 'bg-green-500/10 text-green-400 border-green-500/20',
-  warning: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-  error: 'bg-red-500/10 text-red-400 border-red-500/20',
-  info: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  success: 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]',
+  warning: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]',
+  error: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]',
+  info: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]',
 };
 
 const sizeClasses = {
@@ -58,7 +58,7 @@ export function Badge({
     <span
       className={`
         inline-flex items-center gap-1.5
-        font-medium rounded-md border
+        font-medium rounded-none border
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${className}

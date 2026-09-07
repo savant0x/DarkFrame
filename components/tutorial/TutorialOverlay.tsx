@@ -154,22 +154,22 @@ export default function TutorialOverlay({
       target: step.targetElement || 'body',
       content: (
         <div className="tutorial-step-content">
-          <div className="quest-title text-sm font-bold text-purple-400 mb-1">
+          <div className="quest-title text-sm font-bold text-[color:var(--nn-violet)] mb-1">
             {quest.title}
           </div>
           <h3 className="step-title text-lg font-bold mb-2">{step.title}</h3>
           <p className="step-instruction text-sm mb-3">{step.instruction}</p>
           {step.detailedHelp && (
-            <div className="detailed-help text-xs text-gray-400 mt-2 p-2 bg-gray-800 rounded">
+            <div className="detailed-help text-xs text-[color:var(--nn-text-secondary)] mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
               💡 Tip: {step.detailedHelp}
             </div>
           )}
           {step.reward && (
-            <div className="step-reward text-xs text-green-400 mt-2 p-2 bg-green-900/20 rounded">
+            <div className="step-reward text-xs text-[color:var(--nn-green)] mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none">
               🎁 Reward: {step.reward.displayMessage}
             </div>
           )}
-          <div className="step-meta flex justify-between items-center mt-3 text-xs text-gray-500">
+          <div className="step-meta flex justify-between items-center mt-3 text-xs text-[color:var(--nn-text-secondary)]">
             <span>Difficulty: {step.difficulty}</span>
             {step.estimatedSeconds && (
               <span>~{step.estimatedSeconds}s</span>

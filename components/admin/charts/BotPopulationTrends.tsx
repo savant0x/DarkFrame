@@ -66,8 +66,8 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
     const data = payload[0].payload;
 
     return (
-      <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-lg">
-        <p className="text-gray-300 text-sm font-semibold mb-2">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3 shadow-lg">
+        <p className="text-[color:var(--nn-text-secondary)] text-sm font-semibold mb-2">
           Current Bot Population
         </p>
         <div className="space-y-1">
@@ -77,13 +77,13 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
                 className="w-3 h-3 rounded-full" 
                 style={{ backgroundColor: entry.color }}
               />
-              <span className="text-gray-400 text-sm">{entry.name}:</span>
-              <span className="text-white font-semibold">{entry.value}</span>
+              <span className="text-[color:var(--nn-text-secondary)] text-sm">{entry.name}:</span>
+              <span className="text-[color:var(--nn-text-primary)] font-semibold">{entry.value}</span>
             </div>
           ))}
-          <div className="flex items-center gap-2 pt-1 border-t border-gray-700">
-            <span className="text-gray-400 text-sm">Total:</span>
-            <span className="text-white font-semibold">{data.Total}</span>
+          <div className="flex items-center gap-2 pt-1 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+            <span className="text-[color:var(--nn-text-secondary)] text-sm">Total:</span>
+            <span className="text-[color:var(--nn-text-primary)] font-semibold">{data.Total}</span>
           </div>
         </div>
       </div>
@@ -93,10 +93,10 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
   // Loading state
   if (loading) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-3"></div>
-          <p className="text-gray-400">Loading bot data...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-3"></div>
+          <p className="text-[color:var(--nn-text-secondary)]">Loading bot data...</p>
         </div>
       </div>
     );
@@ -105,10 +105,10 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
   // Error state
   if (error) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg border border-red-500">
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
         <div className="text-center">
-          <p className="text-red-400 font-semibold mb-1">Failed to load bot data</p>
-          <p className="text-gray-500 text-sm">{error}</p>
+          <p className="text-[color:var(--nn-magenta)] font-semibold mb-1">Failed to load bot data</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">{error}</p>
         </div>
       </div>
     );
@@ -117,37 +117,37 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
   // No data state
   if (!currentStats || currentStats.total === 0) {
     return (
-      <div className="w-full h-[300px] flex items-center justify-center bg-gray-800 rounded-lg">
-        <p className="text-gray-500">No bots in ecosystem</p>
+      <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">No bots in ecosystem</p>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-[300px] bg-gray-800 rounded-lg p-4">
+    <div className="w-full h-[300px] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
       {/* Current stats display */}
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-300">Bot Population</h3>
-        <div className="text-2xl font-bold text-white">{currentStats.total}</div>
+        <h3 className="text-sm font-semibold text-[color:var(--nn-text-secondary)]">Bot Population</h3>
+        <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">{currentStats.total}</div>
       </div>
 
       {/* Breakdown grid */}
       <div className="grid grid-cols-5 gap-2 mb-3">
         {Object.entries(currentStats.bySpecialization).map(([spec, count]) => (
-          <div key={spec} className="text-center p-2 bg-gray-700 rounded">
+          <div key={spec} className="text-center p-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none">
             <div 
               className="w-2 h-2 rounded-full mx-auto mb-1"
               style={{ backgroundColor: SPEC_COLORS[spec as keyof typeof SPEC_COLORS] }}
             />
-            <div className="text-xs text-gray-400">{spec}</div>
-            <div className="text-sm font-semibold text-white">{count}</div>
+            <div className="text-xs text-[color:var(--nn-text-secondary)]">{spec}</div>
+            <div className="text-sm font-semibold text-[color:var(--nn-text-primary)]">{count}</div>
           </div>
         ))}
       </div>
 
       {/* Placeholder for future trend chart */}
-      <div className="h-[140px] bg-gray-700 rounded flex items-center justify-center">
-        <div className="text-center text-gray-500">
+      <div className="h-[140px] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none flex items-center justify-center">
+        <div className="text-center text-[color:var(--nn-text-secondary)]">
           <p className="text-sm mb-1">📊 Historical Trends</p>
           <p className="text-xs">Coming soon - Historical bot population tracking</p>
         </div>
@@ -156,24 +156,24 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
       {/* Specialization legend */}
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-          <span className="text-gray-400">Hoarder: Resource focus</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Hoarder: Resource focus</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-gray-400">Fortress: Defense focus</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Fortress: Defense focus</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-red-600"></div>
-          <span className="text-gray-400">Raider: Attack focus</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Raider: Attack focus</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-gray-400">Balanced: Mixed strategy</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Balanced: Mixed strategy</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-          <span className="text-gray-400">Ghost: Stealth focus</span>
+          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"></div>
+          <span className="text-[color:var(--nn-text-secondary)]">Ghost: Stealth focus</span>
         </div>
       </div>
     </div>

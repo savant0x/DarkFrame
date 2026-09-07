@@ -154,12 +154,12 @@ export default function BotMagnetPanel() {
 
   if (!hasTech) {
     return (
-      <div className="bg-slate-800/40 backdrop-blur-sm border border-purple-500/30 rounded-lg p-6">
-        <h2 className="text-2xl font-bold text-purple-400 mb-4">🧲 Bot Magnet</h2>
-        <p className="text-gray-400">
-          Research <span className="text-purple-400 font-semibold">Bot Magnet</span> technology to unlock beacon deployment.
+      <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+        <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">🧲 Bot Magnet</h2>
+        <p className="text-[color:var(--nn-text-secondary)]">
+          Research <span className="text-[color:var(--nn-violet)] font-semibold">Bot Magnet</span> technology to unlock beacon deployment.
         </p>
-        <div className="mt-4 text-sm text-gray-500">
+        <div className="mt-4 text-sm text-[color:var(--nn-text-secondary)]">
           <p>• Deploy beacons to attract bots to strategic locations</p>
           <p>• 30% of nearby bots redirected to beacon area</p>
           <p>• 100-tile attraction radius</p>
@@ -170,15 +170,15 @@ export default function BotMagnetPanel() {
   }
 
   return (
-    <div className="bg-slate-800/40 backdrop-blur-sm border border-purple-500/30 rounded-lg p-6">
-      <h2 className="text-2xl font-bold text-purple-400 mb-4">🧲 Bot Magnet</h2>
+    <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+      <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">🧲 Bot Magnet</h2>
 
       {message && (
         <div
-          className={`mb-4 p-3 rounded ${
+          className={`mb-4 p-3 rounded-none ${
             message.type === 'success'
-              ? 'bg-green-500/20 border border-green-500/50 text-green-400'
-              : 'bg-red-500/20 border border-red-500/50 text-red-400'
+              ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
+              : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)]'
           }`}
         >
           {message.text}
@@ -187,34 +187,34 @@ export default function BotMagnetPanel() {
 
       {/* Active Beacon Display */}
       {beaconStatus?.hasActiveBeacon && beaconStatus.beacon && (
-        <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded">
-          <h3 className="text-lg font-semibold text-purple-300 mb-2">Active Beacon</h3>
+        <div className="mb-6 p-4 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none">
+          <h3 className="text-lg font-semibold text-[color:var(--nn-violet)] mb-2">Active Beacon</h3>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <span className="text-gray-400">Location:</span>
-              <span className="text-white ml-2">
+              <span className="text-[color:var(--nn-text-secondary)]">Location:</span>
+              <span className="text-[color:var(--nn-text-primary)] ml-2">
                 ({beaconStatus.beacon.x}, {beaconStatus.beacon.y})
               </span>
             </div>
             <div>
-              <span className="text-gray-400">Bots Attracted:</span>
-              <span className="text-green-400 ml-2 font-semibold">
+              <span className="text-[color:var(--nn-text-secondary)]">Bots Attracted:</span>
+              <span className="text-[color:var(--nn-green)] ml-2 font-semibold">
                 {beaconStatus.beacon.botsAttracted}
               </span>
             </div>
             <div>
-              <span className="text-gray-400">Radius:</span>
-              <span className="text-white ml-2">{beaconStatus.beacon.attractionRadius} tiles</span>
+              <span className="text-[color:var(--nn-text-secondary)]">Radius:</span>
+              <span className="text-[color:var(--nn-text-primary)] ml-2">{beaconStatus.beacon.attractionRadius} tiles</span>
             </div>
             <div>
-              <span className="text-gray-400">Attraction Rate:</span>
-              <span className="text-white ml-2">
+              <span className="text-[color:var(--nn-text-secondary)]">Attraction Rate:</span>
+              <span className="text-[color:var(--nn-text-primary)] ml-2">
                 {(beaconStatus.beacon.attractionChance * 100).toFixed(0)}%
               </span>
             </div>
             <div className="col-span-2">
-              <span className="text-gray-400">Time Remaining:</span>
-              <span className="text-cyan-400 ml-2 font-semibold">
+              <span className="text-[color:var(--nn-text-secondary)]">Time Remaining:</span>
+              <span className="text-[color:var(--nn-cyan)] ml-2 font-semibold">
                 {calculateTimeRemaining(beaconStatus.beacon.expiresAt)}
               </span>
             </div>
@@ -222,7 +222,7 @@ export default function BotMagnetPanel() {
           <button
             onClick={handleDeactivate}
             disabled={loading}
-            className="mt-4 px-4 py-2 bg-red-500/20 border border-red-500/50 text-red-400 rounded hover:bg-red-500/30 disabled:opacity-50 transition"
+            className="mt-4 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] rounded-none disabled:opacity-50 transition"
           >
             Deactivate Beacon
           </button>
@@ -231,11 +231,11 @@ export default function BotMagnetPanel() {
 
       {/* Cooldown Display */}
       {beaconStatus && !beaconStatus.canDeploy && !beaconStatus.hasActiveBeacon && (
-        <div className="mb-6 p-4 bg-orange-500/10 border border-orange-500/30 rounded">
-          <h3 className="text-lg font-semibold text-orange-300 mb-2">Cooldown Active</h3>
-          <p className="text-gray-400">
+        <div className="mb-6 p-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none">
+          <h3 className="text-lg font-semibold text-[color:var(--nn-amber)] mb-2">Cooldown Active</h3>
+          <p className="text-[color:var(--nn-text-secondary)]">
             Next deployment available in:{' '}
-            <span className="text-orange-400 font-semibold">
+            <span className="text-[color:var(--nn-amber)] font-semibold">
               {formatTimeRemaining(beaconStatus.cooldownRemaining || 0)}
             </span>
           </p>
@@ -245,25 +245,25 @@ export default function BotMagnetPanel() {
       {/* Deployment Form */}
       {beaconStatus?.canDeploy && (
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-purple-300 mb-3">Deploy New Beacon</h3>
+          <h3 className="text-lg font-semibold text-[color:var(--nn-violet)] mb-3">Deploy New Beacon</h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">X Coordinate</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">X Coordinate</label>
               <input
                 type="number"
                 value={deployX}
                 onChange={(e) => setDeployX(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-purple-500/30 rounded text-white focus:outline-none focus:border-purple-500"
+                className="w-full px-3 py-2 bg-slate-700 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] focus:outline-none focus:border-purple-500"
                 placeholder="X"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Y Coordinate</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Y Coordinate</label>
               <input
                 type="number"
                 value={deployY}
                 onChange={(e) => setDeployY(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-purple-500/30 rounded text-white focus:outline-none focus:border-purple-500"
+                className="w-full px-3 py-2 bg-slate-700 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] focus:outline-none focus:border-purple-500"
                 placeholder="Y"
               />
             </div>
@@ -271,7 +271,7 @@ export default function BotMagnetPanel() {
           <button
             onClick={handleDeploy}
             disabled={loading || !deployX || !deployY}
-            className="w-full px-4 py-3 bg-purple-500/20 border border-purple-500/50 text-purple-300 rounded hover:bg-purple-500/30 disabled:opacity-50 transition font-semibold"
+            className="w-full px-4 py-3 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)] rounded-none disabled:opacity-50 transition font-semibold"
           >
             {loading ? 'Deploying...' : '🧲 Deploy Beacon'}
           </button>
@@ -279,9 +279,9 @@ export default function BotMagnetPanel() {
       )}
 
       {/* Info Section */}
-      <div className="mt-6 p-4 bg-slate-700/30 rounded border border-slate-600/30">
-        <h4 className="text-sm font-semibold text-purple-300 mb-2">Beacon Mechanics</h4>
-        <ul className="text-xs text-gray-400 space-y-1">
+      <div className="mt-6 p-4 bg-slate-700/30 rounded-none border border-slate-600/30">
+        <h4 className="text-sm font-semibold text-[color:var(--nn-violet)] mb-2">Beacon Mechanics</h4>
+        <ul className="text-xs text-[color:var(--nn-text-secondary)] space-y-1">
           <li>• Attracts 30% of bots spawning within 100-tile radius</li>
           <li>• Bots spawn within 20 tiles of beacon center</li>
           <li>• Active for 7 days (168 hours)</li>

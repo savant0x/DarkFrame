@@ -45,9 +45,9 @@ interface StatCardProps {
 
 const colorClasses = {
   primary: 'text-primary-500 bg-primary-500/10',
-  success: 'text-green-500 bg-green-500/10',
-  warning: 'text-yellow-500 bg-yellow-500/10',
-  error: 'text-red-500 bg-red-500/10',
+  success: 'text-[color:var(--nn-green)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]',
+  warning: 'text-[color:var(--nn-amber)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+  error: 'text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]',
   metal: 'text-metal bg-metal/10',
   energy: 'text-energy bg-energy/10',
   xp: 'text-xp bg-xp/10',
@@ -67,7 +67,7 @@ export function StatCard({
   const content = (
     <div
       className={`
-        bg-bg-secondary border border-border-light rounded-lg p-6
+        bg-bg-secondary border border-border-light rounded-none p-6
         hover:border-border-main transition-colors duration-200
         ${className}
       `}
@@ -75,7 +75,7 @@ export function StatCard({
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3">
           {icon && (
-            <div className={`p-2 rounded-md ${colorClass}`}>
+            <div className={`p-2 rounded-none ${colorClass}`}>
               {icon}
             </div>
           )}
@@ -86,10 +86,10 @@ export function StatCard({
         {trend && (
           <div
             className={`
-              flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded
+              flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-none
               ${trend.direction === 'up' 
-                ? 'text-green-500 bg-green-500/10' 
-                : 'text-red-500 bg-red-500/10'
+                ? 'text-[color:var(--nn-green)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' 
+                : 'text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
               }
             `}
           >

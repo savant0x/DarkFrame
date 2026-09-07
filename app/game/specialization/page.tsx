@@ -38,7 +38,7 @@ export default function SpecializationPage() {
           </p>
           <button
             onClick={() => router.push('/game')}
-            className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] transition-all duration-300"
+            className="px-6 py-3 bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] text-[color:var(--nn-text-primary)] rounded-none font-semibold hover:shadow-[0_0_30px_rgba(0,240,255,0.5)] transition-all duration-300"
           >
             <ArrowLeft className="inline w-4 h-4 mr-2" />
             Back to Game
@@ -54,7 +54,7 @@ export default function SpecializationPage() {
       <div className="max-w-6xl mx-auto mb-6">
         <button
           onClick={() => router.push('/game')}
-          className="flex items-center gap-2 text-neon-cyan hover:text-cyan-300 transition-colors mb-4"
+          className="flex items-center gap-2 text-neon-cyan text-[color:var(--nn-cyan)] transition-colors mb-4"
         >
           <ArrowLeft className="w-5 h-5" />
           <span className="font-semibold">Back to Game</span>

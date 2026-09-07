@@ -15,6 +15,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import type { AchievementRecord, BattleStatistics } from '@/types/game.types';
 
 interface PublicProfile {
   username: string;
@@ -30,8 +31,8 @@ interface PublicProfile {
   currentPosition: { x: number; y: number } | null;
   totalStrength: number;
   totalDefense: number;
-  battleStats: unknown;
-  achievements: unknown;
+  battleStats: BattleStatistics | null;
+  achievements: AchievementRecord[];
   createdAt: string | null;
 }
 
@@ -82,7 +83,7 @@ export default function PublicProfilePage() {
   if (state.status === 'loading') {
     return (
       <div className="min-h-screen bg-glass-dark flex items-center justify-center">
-        <p className="text-white text-lg">Loading profile…</p>
+        <p className="text-[color:var(--nn-text-primary)] text-lg">Loading profile…</p>
       </div>
     );
   }
@@ -90,15 +91,15 @@ export default function PublicProfilePage() {
   if (state.status === 'not-found') {
     return (
       <div className="min-h-screen bg-glass-dark flex items-center justify-center">
-        <div className="text-center bg-glass-light rounded-lg p-10 border border-glass-border max-w-md">
+        <div className="text-center bg-glass-light rounded-none p-10 border border-glass-border max-w-md">
           <p className="text-4xl mb-4">🛰️</p>
-          <h1 className="text-2xl font-bold text-white mb-2">Signal lost</h1>
+          <h1 className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">Signal lost</h1>
           <p className="text-text-secondary mb-6">
-            No operator profile found for <span className="text-white font-semibold">{username}</span>.
+            No operator profile found for <span className="text-[color:var(--nn-text-primary)] font-semibold">{username}</span>.
           </p>
           <button
             onClick={() => router.push('/game')}
-            className="px-5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold transition-colors"
+            className="px-5 py-2 rounded-none bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] font-semibold transition-colors"
           >
             Back to Game
           </button>
@@ -114,13 +115,13 @@ export default function PublicProfilePage() {
     <div className="min-h-screen bg-glass-dark py-10 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
-        <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
+        <div className="bg-glass-light rounded-none p-6 border border-glass-border">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold text-white">{profile.username}</h1>
+                <h1 className="text-3xl font-bold text-[color:var(--nn-text-primary)]">{profile.username}</h1>
                 {profile.vip && (
-                  <span className="px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 text-xs font-bold">
+                  <span className="px-2 py-0.5 rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)] text-xs font-bold">
                     VIP
                   </span>
                 )}
@@ -132,7 +133,7 @@ export default function PublicProfilePage() {
             </div>
             <button
               onClick={() => router.push('/game')}
-              className="px-4 py-2 rounded-lg bg-glass-dark border border-glass-border text-text-secondary hover:text-white text-sm transition-colors"
+              className="px-4 py-2 rounded-none bg-glass-dark border border-glass-border text-text-secondary hover:text-[color:var(--nn-text-primary)] text-sm transition-colors"
             >
               ← Back to Game
             </button>
@@ -140,13 +141,13 @@ export default function PublicProfilePage() {
 
           {/* Bot identity banner — in-game fiction: bots are rogue machines, not players. */}
           {profile.isBot && (
-            <div className="mt-4 bg-orange-900/30 border border-orange-500/40 rounded-lg p-3 flex items-center gap-3">
+            <div className="mt-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3 flex items-center gap-3">
               <span className="text-2xl">⚠️</span>
               <div>
-                <p className="text-orange-300 font-semibold text-sm">
+                <p className="text-[color:var(--nn-amber)] font-semibold text-sm">
                   Autonomous rogue unit — not a player
                 </p>
-                <p className="text-orange-400/70 text-xs">
+                <p className="text-[color:var(--nn-amber)] text-xs">
                   This entity is an AI-controlled war machine tracked by the Bot Scanner.
                 </p>
               </div>
@@ -154,7 +155,7 @@ export default function PublicProfilePage() {
           )}
 
           {!profile.isBot && isSelf && (
-            <p className="mt-3 text-cyan-400 text-sm">This is you — manage your profile from the nav.</p>
+            <p className="mt-3 text-[color:var(--nn-cyan)] text-sm">This is you — manage your profile from the nav.</p>
           )}
         </div>
 
@@ -169,7 +170,7 @@ export default function PublicProfilePage() {
         {/* Location */}
         <Section title="Last Known Position">
           {profile.currentPosition ? (
-            <p className="text-white">
+            <p className="text-[color:var(--nn-text-primary)]">
               Sector ({profile.currentPosition.x}, {profile.currentPosition.y})
               {profile.base && (
                 <span className="text-text-secondary">
@@ -194,7 +195,7 @@ export default function PublicProfilePage() {
 
         {/* Achievements */}
         <Section title="Achievements">
-          <p className="text-white">{Array.isArray(profile.achievements) ? profile.achievements.length : 0} unlocked</p>
+          <p className="text-[color:var(--nn-text-primary)]">{Array.isArray(profile.achievements) ? profile.achievements.length : 0} unlocked</p>
         </Section>
 
         {/* Enlisted */}
@@ -210,17 +211,17 @@ export default function PublicProfilePage() {
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
+    <div className="bg-glass-light rounded-none p-4 border border-glass-border">
       <div className="text-xs text-text-secondary mb-1">{label}</div>
-      <div className="text-xl font-bold text-white">{value}</div>
+      <div className="text-xl font-bold text-[color:var(--nn-text-primary)]">{value}</div>
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
-      <h2 className="text-sm font-semibold text-cyan-400 mb-3">{title}</h2>
+    <div className="bg-glass-light rounded-none p-6 border border-glass-border">
+      <h2 className="text-sm font-semibold text-[color:var(--nn-cyan)] mb-3">{title}</h2>
       {children}
     </div>
   );

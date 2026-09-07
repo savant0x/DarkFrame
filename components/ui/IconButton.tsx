@@ -38,11 +38,11 @@ const variantClasses = {
   `,
   primary: `
     bg-primary-600 hover:bg-primary-700 active:bg-primary-800
-    text-white border border-primary-500
+    text-[color:var(--nn-text-primary)] border border-primary-500
   `,
   danger: `
-    bg-red-600 hover:bg-red-700 active:bg-red-800
-    text-white border border-red-500
+    bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] hover:bg-[color-mix(in_oklab,var(--nn-magenta)_32%,transparent)] active:bg-[color-mix(in_oklab,var(--nn-magenta)_40%,transparent)]
+    text-[color:var(--nn-text-primary)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]
   `,
   ghost: `
     bg-transparent hover:bg-bg-tertiary active:bg-bg-hover
@@ -69,7 +69,7 @@ export function IconButton({
     <motion.button
       className={`
         inline-flex items-center justify-center
-        rounded-lg transition-all duration-200
+        rounded-none transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
         ${variantClasses[variant]}
         ${sizeClasses[size]}

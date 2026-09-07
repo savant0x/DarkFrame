@@ -201,17 +201,17 @@ export default function WMDMissilePanel() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'ASSEMBLING': return 'bg-yellow-600';
-      case 'READY': return 'bg-green-600';
-      case 'LAUNCHED': return 'bg-blue-600';
-      default: return 'bg-gray-600';
+      case 'ASSEMBLING': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      case 'READY': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case 'LAUNCHED': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
+      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
     }
   };
 
   if (loading) {
     return (
-      <div className="p-6 bg-gray-800 rounded-lg">
-        <p className="text-gray-300">Loading missiles...</p>
+      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)]">Loading missiles...</p>
       </div>
     );
   }
@@ -219,27 +219,27 @@ export default function WMDMissilePanel() {
   const selectedMissileData = missiles.find(m => m.missileId === selectedMissile);
 
   return (
-    <div className="p-6 bg-gray-800 rounded-lg space-y-6">
+    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-red-400">Missile Arsenal</h2>
-          <p className="text-sm text-gray-400">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-magenta)]">Missile Arsenal</h2>
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">
             {missiles.length} missile{missiles.length !== 1 ? 's' : ''} in inventory
           </p>
         </div>
         <Button
           onClick={createMissile}
           disabled={creatingMissile}
-          className="bg-red-600 hover:bg-red-700"
+          className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
         >
           {creatingMissile ? 'Creating...' : '+ New Missile'}
         </Button>
       </div>
 
       {/* Warhead Selection for New Missiles */}
-      <Card className="p-4 bg-gray-700">
-        <h3 className="font-bold text-white mb-2">Warhead Type</h3>
+      <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
+        <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2">Warhead Type</h3>
         <div className="grid grid-cols-5 gap-2">
           {['TACTICAL', 'STRATEGIC', 'BUNKER_BUSTER', 'EMP', 'CLAN_BUSTER'].map(type => (
             <Button
@@ -247,7 +247,7 @@ export default function WMDMissilePanel() {
               onClick={() => setSelectedWarhead(type)}
               variant={selectedWarhead === type ? 'primary' : 'secondary'}
               size="sm"
-              className={selectedWarhead === type ? 'bg-red-600' : ''}
+              className={selectedWarhead === type ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' : ''}
             >
               {type.replace('_', ' ')}
             </Button>
@@ -258,13 +258,13 @@ export default function WMDMissilePanel() {
       {/* Missile Inventory */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {missiles.map((missile) => (
-          <Card key={missile.missileId} className="p-4 bg-gray-700">
+          <Card key={missile.missileId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
             <div className="space-y-3">
               {/* Header */}
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-white">{missile.warheadType}</h3>
-                  <p className="text-xs text-gray-400">
+                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{missile.warheadType}</h3>
+                  <p className="text-xs text-[color:var(--nn-text-secondary)]">
                     ID: {missile.missileId.slice(-8)}
                   </p>
                 </div>
@@ -277,8 +277,8 @@ export default function WMDMissilePanel() {
               {missile.status === 'ASSEMBLING' && (
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-300">Assembly Progress</span>
-                    <span className="text-yellow-400 font-bold">
+                    <span className="text-[color:var(--nn-text-secondary)]">Assembly Progress</span>
+                    <span className="text-[color:var(--nn-amber)] font-bold">
                       {getComponentProgress(missile)}
                     </span>
                   </div>
@@ -289,7 +289,7 @@ export default function WMDMissilePanel() {
                         onClick={() => assembleComponent(missile.missileId, comp)}
                         disabled={installed}
                         size="sm"
-                        className={`text-xs ${installed ? 'bg-green-600' : 'bg-gray-600 hover:bg-gray-500'}`}
+                        className={`text-xs ${installed ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'}`}
                       >
                         {comp.slice(0, 3).toUpperCase()}
                         {installed && ' ✓'}
@@ -304,7 +304,7 @@ export default function WMDMissilePanel() {
                 {missile.status === 'READY' && (
                   <Button
                     onClick={() => setSelectedMissile(missile.missileId)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    className="flex-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
                     size="sm"
                   >
                     Launch
@@ -314,7 +314,7 @@ export default function WMDMissilePanel() {
                   onClick={() => dismantleMissile(missile.missileId)}
                   variant="danger"
                   size="sm"
-                  className="text-red-400 hover:bg-red-900"
+                  className="text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
                 >
                   Dismantle
                 </Button>
@@ -326,29 +326,29 @@ export default function WMDMissilePanel() {
 
       {/* Launch Interface */}
       {selectedMissileData && (
-        <Card className="p-6 bg-blue-900 border-blue-600 space-y-4">
-          <h3 className="text-xl font-bold text-blue-200">Launch Missile</h3>
+        <Card className="p-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] space-y-4">
+          <h3 className="text-xl font-bold text-[color:var(--nn-cyan)]">Launch Missile</h3>
           <div className="space-y-3">
             <div>
-              <label className="text-sm text-blue-300 block mb-1">Target Player Username</label>
+              <label className="text-sm text-[color:var(--nn-cyan)] block mb-1">Target Player Username</label>
               <Input
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
                 placeholder="Enter target username..."
-                className="bg-blue-800 border-blue-600 text-white"
+                className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-text-primary)]"
               />
             </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => launchMissile(selectedMissileData.missileId)}
-                className="flex-1 bg-red-600 hover:bg-red-700"
+                className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
               >
                 🚀 LAUNCH MISSILE
               </Button>
               <Button
                 onClick={() => setSelectedMissile(null)}
                 variant="secondary"
-                className="border-blue-400 text-blue-400"
+                className="border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]"
               >
                 Cancel
               </Button>
@@ -360,8 +360,8 @@ export default function WMDMissilePanel() {
       {/* Empty State */}
       {missiles.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-400 text-lg">No missiles in arsenal</p>
-          <p className="text-gray-500 text-sm">Create your first missile to begin</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-lg">No missiles in arsenal</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm">Create your first missile to begin</p>
         </div>
       )}
     </div>

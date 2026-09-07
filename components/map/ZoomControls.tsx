@@ -157,16 +157,16 @@ export function ZoomControls({
             key={zoom.level}
             onClick={() => onZoomChange(zoom.level)}
             className={`
-              px-2 py-1 rounded text-xs font-medium
+              px-2 py-1 rounded-none text-xs font-medium
               transition-all duration-200
               flex items-center justify-center gap-1
               ${
                 currentZoom === zoom.level
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-glass-light text-text-primary hover:bg-glass-light hover:text-white'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-md'
+                  : 'bg-glass-light text-text-primary hover:bg-glass-light hover:text-[color:var(--nn-text-primary)]'
               }
               active:scale-95
-              focus:outline-none focus:ring-1 focus:ring-blue-500
+              focus:outline-none focus:ring-1 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]
             `}
             title={zoom.description}
             aria-label={`${zoom.label} - ${zoom.description}`}
@@ -181,7 +181,7 @@ export function ZoomControls({
       {/* Keyboard shortcuts hint */}
       <div className="text-xs text-text-secondary text-center md:text-left mt-1">
         <span className="hidden md:inline text-xs">
-          <kbd className="px-1 py-0.5 bg-glass-light rounded text-xs">+/-</kbd> zoom
+          <kbd className="px-1 py-0.5 bg-glass-light rounded-none text-xs">+/-</kbd> zoom
         </span>
       </div>
     </div>

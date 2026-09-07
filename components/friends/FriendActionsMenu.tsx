@@ -173,7 +173,7 @@ export default function FriendActionsMenu({
       {/* Dropdown Menu */}
       <div
         ref={menuRef}
-        className="absolute right-0 mt-1 w-48 bg-gray-800 border border-gray-700 rounded shadow-lg z-10"
+        className="absolute right-0 mt-1 w-48 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none shadow-lg z-10"
       >
         {/* Message */}
         {onMessage && (
@@ -182,7 +182,7 @@ export default function FriendActionsMenu({
               onMessage();
               onClose();
             }}
-            className="w-full px-4 py-2 text-left text-cyan-400 hover:bg-gray-700 transition-colors flex items-center gap-2"
+            className="w-full px-4 py-2 text-left text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors flex items-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -195,7 +195,7 @@ export default function FriendActionsMenu({
         <button
           onClick={() => setShowRemoveConfirm(true)}
           disabled={processing}
-          className="w-full px-4 py-2 text-left text-yellow-400 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="w-full px-4 py-2 text-left text-[color:var(--nn-amber)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
@@ -207,7 +207,7 @@ export default function FriendActionsMenu({
         <button
           onClick={() => setShowBlockConfirm(true)}
           disabled={processing}
-          className="w-full px-4 py-2 text-left text-red-400 hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-t border-gray-700"
+          className="w-full px-4 py-2 text-left text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -272,39 +272,39 @@ function ConfirmationModal({
   processing,
 }: ConfirmationModalProps) {
   const confirmButtonClass = confirmColor === 'red'
-    ? 'bg-red-500 hover:bg-red-600'
-    : 'bg-yellow-500 hover:bg-yellow-600';
+    ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+    : 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/70 z-40"
+        className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] z-40"
         onClick={onCancel}
       />
 
       {/* Modal */}
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl w-full max-w-md p-6 space-y-4">
+        <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none shadow-2xl w-full max-w-md p-6 space-y-4">
           {/* Title */}
-          <h3 className="text-xl font-bold text-white">{title}</h3>
+          <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)]">{title}</h3>
 
           {/* Message */}
-          <p className="text-gray-300">{message}</p>
+          <p className="text-[color:var(--nn-text-secondary)]">{message}</p>
 
           {/* Actions */}
           <div className="flex gap-3 pt-4">
             <button
               onClick={onCancel}
               disabled={processing}
-              className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
+              className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:opacity-50 disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={onConfirm}
               disabled={processing}
-              className={`flex-1 px-4 py-2 ${confirmButtonClass} disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors font-semibold`}
+              className={`flex-1 px-4 py-2 ${confirmButtonClass} disabled:opacity-50 disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none transition-colors font-semibold`}
             >
               {processing ? 'Processing...' : confirmText}
             </button>

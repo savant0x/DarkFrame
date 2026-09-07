@@ -41,10 +41,10 @@ export default function XPProgressBar({
   
   // Determine progress bar color based on percentage
   const getProgressColor = () => {
-    if (progressPercent >= 90) return 'bg-gradient-to-r from-yellow-400 to-yellow-500';
-    if (progressPercent >= 75) return 'bg-gradient-to-r from-green-400 to-green-500';
-    if (progressPercent >= 50) return 'bg-gradient-to-r from-blue-400 to-blue-500';
-    if (progressPercent >= 25) return 'bg-gradient-to-r from-cyan-400 to-cyan-500';
+    if (progressPercent >= 90) return 'bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]';
+    if (progressPercent >= 75) return 'bg-gradient-to-r from-[color:var(--nn-green)] to-[color:var(--nn-green)]';
+    if (progressPercent >= 50) return 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]';
+    if (progressPercent >= 25) return 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]';
     return 'bg-gradient-to-r from-gray-400 to-gray-500';
   };
   
@@ -52,12 +52,12 @@ export default function XPProgressBar({
     return (
       <div className="w-full">
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs text-gray-400">Level {level}</span>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-[color:var(--nn-text-secondary)]">Level {level}</span>
+          <span className="text-xs text-[color:var(--nn-text-secondary)]">
             {Math.floor(progressPercent)}%
           </span>
         </div>
-        <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+        <div className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2 overflow-hidden">
           <div
             className={`h-full ${getProgressColor()} transition-all duration-300 ease-out`}
             style={{ width: `${progressPercent}%` }}
@@ -72,27 +72,27 @@ export default function XPProgressBar({
       {/* Level and Progress Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-yellow-400">⭐ Level {level}</span>
+          <span className="text-lg font-bold text-[color:var(--nn-amber)]">⭐ Level {level}</span>
         </div>
         <div className="text-right">
-          <div className="text-sm text-gray-300">
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">
             {formatNumber(currentLevelXP)} / {formatNumber(xpForNextLevel)} XP
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-[color:var(--nn-text-secondary)]">
             {Math.floor(progressPercent)}% to next level
           </div>
         </div>
       </div>
       
       {/* Progress Bar */}
-      <div className="relative w-full bg-gray-700 rounded-full h-6 overflow-hidden shadow-inner">
+      <div className="relative w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-6 overflow-hidden shadow-inner">
         {/* Filled portion */}
         <div
           className={`h-full ${getProgressColor()} transition-all duration-500 ease-out flex items-center justify-end pr-2`}
           style={{ width: `${progressPercent}%` }}
         >
           {progressPercent > 20 && (
-            <span className="text-xs font-bold text-white drop-shadow-md">
+            <span className="text-xs font-bold text-[color:var(--nn-text-primary)] drop-shadow-md">
               {Math.floor(progressPercent)}%
             </span>
           )}
@@ -103,7 +103,7 @@ export default function XPProgressBar({
       </div>
       
       {/* Total XP Display */}
-      <div className="mt-1 text-center text-xs text-gray-500">
+      <div className="mt-1 text-center text-xs text-[color:var(--nn-text-secondary)]">
         Total XP: {formatNumber(totalXP)}
       </div>
     </div>

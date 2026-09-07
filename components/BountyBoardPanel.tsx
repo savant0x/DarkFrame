@@ -50,17 +50,17 @@ interface BountyData {
 // ============================================================================
 
 const SPECIALIZATION_INFO: Record<string, { icon: string; color: string }> = {
-  Hoarder: { icon: '💰', color: 'text-yellow-400' },
-  Fortress: { icon: '🛡️', color: 'text-blue-400' },
-  Raider: { icon: '⚔️', color: 'text-red-400' },
-  Balanced: { icon: '⚖️', color: 'text-green-400' },
-  Ghost: { icon: '👻', color: 'text-purple-400' },
+  Hoarder: { icon: '💰', color: 'text-[color:var(--nn-amber)]' },
+  Fortress: { icon: '🛡️', color: 'text-[color:var(--nn-cyan)]' },
+  Raider: { icon: '⚔️', color: 'text-[color:var(--nn-magenta)]' },
+  Balanced: { icon: '⚖️', color: 'text-[color:var(--nn-green)]' },
+  Ghost: { icon: '👻', color: 'text-[color:var(--nn-violet)]' },
 };
 
 const DIFFICULTY_INFO: Record<string, { color: string; bgColor: string; label: string }> = {
-  easy: { color: 'text-green-400', bgColor: 'bg-green-500/20', label: 'Easy' },
-  medium: { color: 'text-yellow-400', bgColor: 'bg-yellow-500/20', label: 'Medium' },
-  hard: { color: 'text-red-400', bgColor: 'bg-red-500/20', label: 'Hard' },
+  easy: { color: 'text-[color:var(--nn-green)]', bgColor: 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]', label: 'Easy' },
+  medium: { color: 'text-[color:var(--nn-amber)]', bgColor: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]', label: 'Medium' },
+  hard: { color: 'text-[color:var(--nn-magenta)]', bgColor: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]', label: 'Hard' },
 };
 
 // ============================================================================
@@ -176,25 +176,25 @@ export default function BountyBoardPanel() {
     return (
       <div
         key={bounty.id}
-        className={`rounded-lg border-2 p-4 transition-all ${
+        className={`rounded-none border-2 p-4 transition-all ${
           bounty.completed
-            ? 'border-green-500/50 bg-green-500/10'
-            : 'border-gray-700 bg-gray-800/50'
+            ? 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]'
+            : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]'
         }`}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded text-sm font-bold ${difficultyInfo.bgColor} ${difficultyInfo.color}`}>
+            <span className={`px-2 py-1 rounded-none text-sm font-bold ${difficultyInfo.bgColor} ${difficultyInfo.color}`}>
               {difficultyInfo.label}
             </span>
-            <span className="text-gray-400">Tier {bounty.tier}</span>
+            <span className="text-[color:var(--nn-text-secondary)]">Tier {bounty.tier}</span>
           </div>
           {bounty.completed && (
             bounty.claimed ? (
-              <CheckCircle className="text-green-400" size={24} />
+              <CheckCircle className="text-[color:var(--nn-green)]" size={24} />
             ) : (
-              <Gift className="text-yellow-400 animate-pulse" size={24} />
+              <Gift className="text-[color:var(--nn-amber)] animate-pulse" size={24} />
             )
           )}
         </div>
@@ -203,25 +203,25 @@ export default function BountyBoardPanel() {
         <div className="flex items-center gap-3 mb-3">
           <span className={`text-3xl ${specInfo.color}`}>{specInfo.icon}</span>
           <div>
-            <div className="text-white font-bold">
+            <div className="text-[color:var(--nn-text-primary)] font-bold">
               Defeat {bounty.defeatsRequired}× {bounty.specialization} Bots
             </div>
-            <div className="text-gray-400 text-sm">Tier {bounty.tier}</div>
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Tier {bounty.tier}</div>
           </div>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-3">
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-gray-400">Progress</span>
-            <span className={bounty.completed ? 'text-green-400' : 'text-white'}>
+            <span className="text-[color:var(--nn-text-secondary)]">Progress</span>
+            <span className={bounty.completed ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-text-primary)]'}>
               {bounty.currentDefeats} / {bounty.defeatsRequired}
             </span>
           </div>
-          <div className="w-full bg-gray-700 rounded-full h-2">
+          <div className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2">
             <div
               className={`h-2 rounded-full transition-all ${
-                bounty.completed ? 'bg-green-500' : 'bg-blue-500'
+                bounty.completed ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]'
               }`}
               style={{ width: `${Math.min(progress, 100)}%` }}
             />
@@ -230,12 +230,12 @@ export default function BountyBoardPanel() {
 
         {/* Rewards */}
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm text-gray-400">Rewards:</div>
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">Rewards:</div>
           <div className="flex gap-3 text-sm">
-            <span className="text-gray-300">
+            <span className="text-[color:var(--nn-text-secondary)]">
               💰 {bounty.metalReward.toLocaleString()}
             </span>
-            <span className="text-blue-300">
+            <span className="text-[color:var(--nn-cyan)]">
               ⚡ {bounty.energyReward.toLocaleString()}
             </span>
           </div>
@@ -246,14 +246,14 @@ export default function BountyBoardPanel() {
           <button
             onClick={() => handleClaimReward(bounty.id)}
             disabled={claiming === bounty.id}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-2 px-4 rounded transition-colors"
+            className="w-full bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-2 px-4 rounded-none transition-colors"
           >
             {claiming === bounty.id ? 'Claiming...' : 'Claim Reward'}
           </button>
         )}
 
         {bounty.claimed && (
-          <div className="w-full bg-gray-700 text-gray-400 text-center font-bold py-2 px-4 rounded">
+          <div className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] text-center font-bold py-2 px-4 rounded-none">
             Reward Claimed
           </div>
         )}
@@ -267,40 +267,40 @@ export default function BountyBoardPanel() {
 
   if (loading && !bountyData) {
     return (
-      <div className="bg-gray-900 rounded-lg p-6 border-2 border-gray-700">
+      <div className="bg-[color:var(--nn-void)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <div className="flex items-center justify-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-          <span className="text-gray-400">Loading bounty board...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]" />
+          <span className="text-[color:var(--nn-text-secondary)]">Loading bounty board...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900 rounded-lg p-6 border-2 border-gray-700">
+    <div className="bg-[color:var(--nn-void)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Trophy className="text-yellow-400" size={32} />
+          <Trophy className="text-[color:var(--nn-amber)]" size={32} />
           <div>
-            <h2 className="text-2xl font-bold text-white">Bounty Board</h2>
-            <p className="text-gray-400 text-sm">Daily bot hunting challenges</p>
+            <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Bounty Board</h2>
+            <p className="text-[color:var(--nn-text-secondary)] text-sm">Daily bot hunting challenges</p>
           </div>
         </div>
 
         {/* Next Refresh Timer */}
-        <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg">
-          <Clock className="text-blue-400" size={20} />
+        <div className="flex items-center gap-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] px-4 py-2 rounded-none">
+          <Clock className="text-[color:var(--nn-cyan)]" size={20} />
           <div className="text-sm">
-            <div className="text-gray-400">Next refresh</div>
-            <div className="text-white font-bold">{timeUntilRefresh}</div>
+            <div className="text-[color:var(--nn-text-secondary)]">Next refresh</div>
+            <div className="text-[color:var(--nn-text-primary)] font-bold">{timeUntilRefresh}</div>
           </div>
         </div>
       </div>
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded mb-4">
+        <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] px-4 py-3 rounded-none mb-4">
           {error}
         </div>
       )}
@@ -308,21 +308,21 @@ export default function BountyBoardPanel() {
       {/* Statistics */}
       {bountyData && (
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-gray-800 rounded-lg p-3 text-center">
-            <div className="text-gray-400 text-sm">Completed</div>
-            <div className="text-white text-2xl font-bold">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 text-center">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Completed</div>
+            <div className="text-[color:var(--nn-text-primary)] text-2xl font-bold">
               {bountyData.stats.totalCompleted}
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-3 text-center">
-            <div className="text-gray-400 text-sm">Claimed</div>
-            <div className="text-white text-2xl font-bold">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 text-center">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Claimed</div>
+            <div className="text-[color:var(--nn-text-primary)] text-2xl font-bold">
               {bountyData.stats.totalClaimed}
             </div>
           </div>
-          <div className="bg-gray-800 rounded-lg p-3 text-center">
-            <div className="text-gray-400 text-sm">Unclaimed</div>
-            <div className="text-yellow-400 text-2xl font-bold">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 text-center">
+            <div className="text-[color:var(--nn-text-secondary)] text-sm">Unclaimed</div>
+            <div className="text-[color:var(--nn-amber)] text-2xl font-bold">
               {bountyData.stats.unclaimedRewards}
             </div>
           </div>
@@ -337,12 +337,12 @@ export default function BountyBoardPanel() {
       )}
 
       {/* Instructions */}
-      <div className="mt-6 bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+      <div className="mt-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <div className="flex items-start gap-2">
-          <Target className="text-blue-400 mt-1" size={20} />
-          <div className="text-sm text-gray-300">
+          <Target className="text-[color:var(--nn-cyan)] mt-1" size={20} />
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">
             <p className="font-bold mb-1">How Bounties Work:</p>
-            <ul className="list-disc list-inside space-y-1 text-gray-400">
+            <ul className="list-disc list-inside space-y-1 text-[color:var(--nn-text-secondary)]">
               <li>Defeat the specified bot type and tier to progress</li>
               <li>Complete all required defeats to unlock rewards</li>
               <li>Claim rewards before midnight or they expire</li>

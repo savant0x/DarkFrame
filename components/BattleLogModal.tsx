@@ -79,14 +79,14 @@ export default function BattleLogModal({ isOpen, onClose, logType, username }: B
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gray-700 p-4 border-b border-gray-600 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-blue-400">{getLogTitle()}</h2>
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)]">{getLogTitle()}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl font-bold"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl font-bold"
           >
             ×
           </button>
@@ -96,66 +96,66 @@ export default function BattleLogModal({ isOpen, onClose, logType, username }: B
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
             <div className="text-center py-8">
-              <div className="text-gray-400">Loading logs...</div>
+              <div className="text-[color:var(--nn-text-secondary)]">Loading logs...</div>
             </div>
           ) : logs.length === 0 ? (
             <div className="text-center py-8">
-              <div className="text-gray-400">No logs found</div>
+              <div className="text-[color:var(--nn-text-secondary)]">No logs found</div>
             </div>
           ) : (
             <div className="space-y-3">
               {paginatedLogs.map((log, index) => (
                 <div
                   key={log._id || index}
-                  className={`p-4 rounded-lg border ${
+                  className={`p-4 rounded-none border ${
                     log.outcome === 'victory'
-                      ? 'bg-green-900/20 border-green-600'
-                      : 'bg-red-900/20 border-red-600'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]'
+                      : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
                   }`}
                 >
                   {/* Timestamp */}
-                  <div className="text-xs text-gray-400 mb-2">
+                  <div className="text-xs text-[color:var(--nn-text-secondary)] mb-2">
                     {new Date(log.timestamp).toLocaleString()}
                   </div>
 
                   {/* Battle Info */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <div className="text-sm text-gray-400">Attacker</div>
-                      <div className="font-bold text-red-400">{log.attacker}</div>
-                      <div className="text-sm text-gray-300">
+                      <div className="text-sm text-[color:var(--nn-text-secondary)]">Attacker</div>
+                      <div className="font-bold text-[color:var(--nn-magenta)]">{log.attacker}</div>
+                      <div className="text-sm text-[color:var(--nn-text-secondary)]">
                         ⚔️ {log.attackerStrength.toLocaleString()} STR
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm text-gray-400">Defender</div>
-                      <div className="font-bold text-blue-400">{log.defender}</div>
-                      <div className="text-sm text-gray-300">
+                      <div className="text-sm text-[color:var(--nn-text-secondary)]">Defender</div>
+                      <div className="font-bold text-[color:var(--nn-cyan)]">{log.defender}</div>
+                      <div className="text-sm text-[color:var(--nn-text-secondary)]">
                         🛡️ {log.defenderDefense.toLocaleString()} DEF
                       </div>
                     </div>
                   </div>
 
                   {/* Outcome */}
-                  <div className="mt-3 pt-3 border-t border-gray-600">
-                    <div className={`font-bold ${log.outcome === 'victory' ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className="mt-3 pt-3 border-t border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]">
+                    <div className={`font-bold ${log.outcome === 'victory' ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                       {log.outcome === 'victory' ? '✅ VICTORY' : '❌ DEFEAT'}
                     </div>
                     
                     {log.resourcesStolen && (log.resourcesStolen.metal > 0 || log.resourcesStolen.energy > 0) && (
-                      <div className="text-sm text-yellow-400 mt-1">
+                      <div className="text-sm text-[color:var(--nn-amber)] mt-1">
                         💰 Resources: {log.resourcesStolen.metal.toLocaleString()} metal, {log.resourcesStolen.energy.toLocaleString()} energy
                       </div>
                     )}
                     
                     {log.factoryCaptured && (
-                      <div className="text-sm text-purple-400 mt-1">
+                      <div className="text-sm text-[color:var(--nn-violet)] mt-1">
                         🏭 Factory Captured!
                       </div>
                     )}
                     
                     {log.location && (
-                      <div className="text-sm text-gray-400 mt-1">
+                      <div className="text-sm text-[color:var(--nn-text-secondary)] mt-1">
                         📍 Location: ({log.location.x}, {log.location.y})
                       </div>
                     )}
@@ -168,21 +168,21 @@ export default function BattleLogModal({ isOpen, onClose, logType, username }: B
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="bg-gray-700 p-4 border-t border-gray-600 flex justify-between items-center">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] flex justify-between items-center">
             <button
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded"
+              className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none"
             >
               Previous
             </button>
-            <div className="text-gray-300">
+            <div className="text-[color:var(--nn-text-secondary)]">
               Page {page} of {totalPages} ({logs.length} total logs)
             </div>
             <button
               onClick={() => setPage(Math.min(totalPages, page + 1))}
               disabled={page === totalPages}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-4 py-2 rounded"
+              className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none"
             >
               Next
             </button>

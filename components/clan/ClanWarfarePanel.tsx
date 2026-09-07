@@ -126,7 +126,7 @@ export default function ClanWarfarePanel({
         <Button
           onClick={() => setActiveTab('wars')}
           variant={activeTab === 'wars' ? 'secondary' : 'ghost'}
-          className={`flex-1 gap-2 ${activeTab === 'wars' ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : ''}`}
+          className={`flex-1 gap-2 ${activeTab === 'wars' ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' : ''}`}
         >
           <Swords className="w-4 h-4" />
           Wars
@@ -137,7 +137,7 @@ export default function ClanWarfarePanel({
         <Button
           onClick={() => setActiveTab('alliances')}
           variant={activeTab === 'alliances' ? 'secondary' : 'ghost'}
-          className={`flex-1 gap-2 ${activeTab === 'alliances' ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : ''}`}
+          className={`flex-1 gap-2 ${activeTab === 'alliances' ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : ''}`}
         >
           <Handshake className="w-4 h-4" />
           Alliances
@@ -151,10 +151,10 @@ export default function ClanWarfarePanel({
 
       {/* Permission Notice */}
       {!canManageWars && (
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+        <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="text-yellow-400 font-medium">Leadership Required</p>
+            <p className="text-[color:var(--nn-amber)] font-medium">Leadership Required</p>
             <p className="text-text-secondary mt-1">
               Only Leaders and Co-Leaders can declare wars or create alliances.
             </p>
@@ -231,15 +231,15 @@ function WarsTab({ wars, clan, canManageWars, isLoading, onDeclareWar, onRefresh
     <div className="space-y-4">
       {/* Action Button */}
       {canManageWars && (
-        <Button onClick={onDeclareWar} className="w-full gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-400">
+        <Button onClick={onDeclareWar} className="w-full gap-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]">
           <Swords className="w-4 h-4" />
           Declare War
         </Button>
       )}
 
       {/* War Costs Info */}
-      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-        <p className="text-sm text-red-400 mb-2 font-medium">War Declaration Cost:</p>
+      <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
+        <p className="text-sm text-[color:var(--nn-magenta)] mb-2 font-medium">War Declaration Cost:</p>
         <div className="flex items-center gap-4 text-sm text-text-secondary">
           <span>2,000 Metal</span>
           <span>•</span>
@@ -268,7 +268,7 @@ function WarsTab({ wars, clan, canManageWars, isLoading, onDeclareWar, onRefresh
           {/* Active Wars */}
           {activeWars.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[color:var(--nn-magenta)] mb-3 flex items-center gap-2">
                 <Swords className="w-4 h-4" />
                 Active Wars ({activeWars.length})
               </h3>
@@ -288,7 +288,7 @@ function WarsTab({ wars, clan, canManageWars, isLoading, onDeclareWar, onRefresh
           {/* Declared Wars */}
           {declaredWars.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-yellow-400 mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-[color:var(--nn-amber)] mb-3 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4" />
                 Pending Wars ({declaredWars.length})
               </h3>
@@ -363,15 +363,15 @@ function WarCard({ war, currentClanId }: WarCardProps) {
     : 0;
 
   return (
-    <div className={`border rounded-lg p-4 ${
+    <div className={`border rounded-none p-4 ${
       war.status === ClanWarStatus.ACTIVE 
-        ? 'bg-red-500/10 border-red-500/30' 
+        ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]' 
         : 'bg-glass-light border-glass-border'
     }`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Swords className="w-5 h-5 text-red-400" />
-          <span className="font-semibold text-white">
+          <Swords className="w-5 h-5 text-[color:var(--nn-magenta)]" />
+          <span className="font-semibold text-[color:var(--nn-text-primary)]">
             {isAttacker ? 'Attacking' : 'Defending'} vs Clan {opponentId.slice(0, 8)}
           </span>
         </div>
@@ -382,25 +382,25 @@ function WarCard({ war, currentClanId }: WarCardProps) {
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <span className="text-text-secondary">Your Wins:</span>
-          <span className="text-green-400 ml-2 font-semibold">
+          <span className="text-[color:var(--nn-green)] ml-2 font-semibold">
             {isAttacker ? war.stats.attackerBattlesWon : war.stats.defenderBattlesWon}
           </span>
         </div>
         <div>
           <span className="text-text-secondary">Their Wins:</span>
-          <span className="text-red-400 ml-2 font-semibold">
+          <span className="text-[color:var(--nn-magenta)] ml-2 font-semibold">
             {isAttacker ? war.stats.defenderBattlesWon : war.stats.attackerBattlesWon}
           </span>
         </div>
         <div>
           <span className="text-text-secondary">Territory Gained:</span>
-          <span className="text-cyan-400 ml-2 font-semibold">
+          <span className="text-[color:var(--nn-cyan)] ml-2 font-semibold">
             +{isAttacker ? war.stats.attackerTerritoryGained : war.stats.defenderTerritoryGained}
           </span>
         </div>
         <div>
           <span className="text-text-secondary">Territory Lost:</span>
-          <span className="text-orange-400 ml-2 font-semibold">
+          <span className="text-[color:var(--nn-amber)] ml-2 font-semibold">
             -{isAttacker ? war.stats.defenderTerritoryGained : war.stats.attackerTerritoryGained}
           </span>
         </div>
@@ -418,12 +418,12 @@ function WarCard({ war, currentClanId }: WarCardProps) {
       {war.status === ClanWarStatus.ENDED && war.winner && (
         <div className="mt-3 pt-3 border-t border-glass-border">
           {war.winner === currentClanId ? (
-            <div className="flex items-center gap-2 text-green-400">
+            <div className="flex items-center gap-2 text-[color:var(--nn-green)]">
               <CheckCircle2 className="w-4 h-4" />
               <span className="font-semibold">Victory!</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-red-400">
+            <div className="flex items-center gap-2 text-[color:var(--nn-magenta)]">
               <XCircle className="w-4 h-4" />
               <span className="font-semibold">Defeat</span>
             </div>
@@ -451,15 +451,15 @@ function AlliancesTab({ alliances, clan, canManageWars, isLoading, onCreateAllia
     <div className="space-y-4">
       {/* Action Button */}
       {canManageWars && (
-        <Button onClick={onCreateAlliance} className="w-full gap-2 bg-green-500/20 hover:bg-green-500/30 text-green-400">
+        <Button onClick={onCreateAlliance} className="w-full gap-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]">
           <Handshake className="w-4 h-4" />
           Propose Alliance
         </Button>
       )}
 
       {/* Alliance Benefits */}
-      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
-        <p className="text-sm text-green-400 mb-2 font-medium">Alliance Benefits:</p>
+      <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-3">
+        <p className="text-sm text-[color:var(--nn-green)] mb-2 font-medium">Alliance Benefits:</p>
         <ul className="text-xs text-text-secondary space-y-1">
           <li>• Cannot declare war on allied clans</li>
           <li>• Shared intelligence on enemy movements</li>
@@ -546,11 +546,11 @@ function AllianceCard({ alliance, currentClanId, canManage, onRefresh }: Allianc
   };
 
   return (
-    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+    <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Handshake className="w-5 h-5 text-green-400" />
-          <span className="font-semibold text-white">
+          <Handshake className="w-5 h-5 text-[color:var(--nn-green)]" />
+          <span className="font-semibold text-[color:var(--nn-text-primary)]">
             Alliance with {alliedClanIds.length} clan{alliedClanIds.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -581,11 +581,11 @@ function AllianceCard({ alliance, currentClanId, canManage, onRefresh }: Allianc
       </div>
 
       {canManage && (
-        <div className="mt-3 pt-3 border-t border-green-500/20">
+        <div className="mt-3 pt-3 border-t border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
           <Button
             onClick={handleBreakAlliance}
             variant="ghost"
-            className="w-full text-red-400 hover:text-red-300 hover:bg-red-500/10"
+            className="w-full text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
           >
             <X className="w-4 h-4 mr-2" />
             Break Alliance
@@ -647,10 +647,10 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-glass-dark border border-red-500/30 rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <Swords className="w-5 h-5 text-red-400" />
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
+          <Swords className="w-5 h-5 text-[color:var(--nn-magenta)]" />
           Declare War
         </h2>
 
@@ -668,8 +668,8 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
           </div>
 
           {/* War Costs */}
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
-            <p className="text-sm text-red-400 mb-2 font-medium">Declaration Cost:</p>
+          <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
+            <p className="text-sm text-[color:var(--nn-magenta)] mb-2 font-medium">Declaration Cost:</p>
             <div className="space-y-1 text-sm text-text-secondary">
               <div>• 2,000 Metal</div>
               <div>• 2,000 Energy</div>
@@ -677,11 +677,11 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
           </div>
 
           {/* Warning */}
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+          <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3">
             <div className="flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
               <div className="text-xs text-text-secondary">
-                <p className="text-yellow-400 font-medium mb-1">Warning:</p>
+                <p className="text-[color:var(--nn-amber)] font-medium mb-1">Warning:</p>
                 <p>War is costly and risky. Ensure your clan is prepared for battle.</p>
               </div>
             </div>
@@ -700,7 +700,7 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
             </Button>
             <Button
               type="submit"
-              className="flex-1 gap-2 bg-red-500/20 hover:bg-red-500/30 text-red-400"
+              className="flex-1 gap-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]"
               disabled={isDeclaring}
             >
               {isDeclaring ? (
@@ -771,10 +771,10 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-glass-dark border border-green-500/30 rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-          <Handshake className="w-5 h-5 text-green-400" />
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-6 w-full max-w-md">
+        <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
+          <Handshake className="w-5 h-5 text-[color:var(--nn-green)]" />
           Propose Alliance
         </h2>
 
@@ -800,13 +800,13 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
               value={terms}
               onChange={(e) => setTerms(e.target.value)}
               rows={3}
-              className="w-full bg-glass-light border border-glass-border rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500"
+              className="w-full bg-glass-light border border-glass-border rounded-none px-3 py-2 text-[color:var(--nn-text-primary)] text-sm focus:outline-none focus:border-cyan-500"
             />
           </div>
 
           {/* Benefits */}
-          <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
-            <p className="text-sm text-green-400 mb-2 font-medium">Alliance Benefits:</p>
+          <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-3">
+            <p className="text-sm text-[color:var(--nn-green)] mb-2 font-medium">Alliance Benefits:</p>
             <ul className="text-xs text-text-secondary space-y-1">
               <li>• Cannot declare war on each other</li>
               <li>• Coordinated military strategies</li>
@@ -827,7 +827,7 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
             </Button>
             <Button
               type="submit"
-              className="flex-1 gap-2 bg-green-500/20 hover:bg-green-500/30 text-green-400"
+              className="flex-1 gap-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]"
               disabled={isCreating}
             >
               {isCreating ? (

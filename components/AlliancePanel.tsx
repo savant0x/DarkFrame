@@ -285,14 +285,14 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
   };
 
   return (
-    <div className="flex flex-col h-full bg-black/40 rounded border border-gray-700">
+    <div className="flex flex-col h-full bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-700">
+      <div className="flex justify-between items-center p-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <h2 className="text-xl font-bold">Alliances</h2>
         {canManage && (
           <button
             onClick={() => setShowProposeModal(true)}
-            className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-500"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none"
           >
             Propose Alliance
           </button>
@@ -301,7 +301,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
 
       {/* Error Display */}
       {error && (
-        <div className="mx-4 mt-2 p-2 bg-red-900/20 border border-red-500 rounded text-sm">
+        <div className="mx-4 mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-sm">
           {error}
         </div>
       )}
@@ -311,16 +311,16 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
         {/* Pending Proposals */}
         {pendingProposals.length > 0 && (
           <div>
-            <h3 className="text-lg font-bold mb-2 text-yellow-400">Pending Proposals</h3>
+            <h3 className="text-lg font-bold mb-2 text-[color:var(--nn-amber)]">Pending Proposals</h3>
             {pendingProposals.map((proposal) => (
-              <div key={proposal._id} className="p-4 bg-yellow-900/20 border border-yellow-500/30 rounded mb-2">
+              <div key={proposal._id} className="p-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none mb-2">
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="font-bold">{proposal.clanName1}</p>
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-[color:var(--nn-text-secondary)]">
                       Proposes {proposal.type.replace(/_/g, ' ')}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                       {new Date(proposal.proposedAt).toLocaleString()}
                     </p>
                   </div>
@@ -328,13 +328,13 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                     <div className="flex gap-2">
                       <button
                         onClick={() => acceptAlliance(proposal._id)}
-                        className="px-3 py-1 bg-green-600 rounded hover:bg-green-500 text-sm"
+                        className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none text-sm"
                       >
                         Accept
                       </button>
                       <button
                         onClick={() => breakAlliance(proposal._id)}
-                        className="px-3 py-1 bg-red-600 rounded hover:bg-red-500 text-sm"
+                        className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] rounded-none text-sm"
                       >
                         Reject
                       </button>
@@ -351,22 +351,22 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
           <h3 className="text-lg font-bold mb-2">Active Alliances ({alliances.length})</h3>
           
           {alliances.length === 0 && (
-            <div className="text-center text-gray-500 py-8">
+            <div className="text-center text-[color:var(--nn-text-secondary)] py-8">
               No active alliances
             </div>
           )}
           
           {alliances.map((alliance) => (
-            <div key={alliance._id} className="p-4 bg-black/20 border border-gray-600 rounded mb-3">
+            <div key={alliance._id} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none mb-3">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <p className="font-bold text-lg">{getAllyName(alliance)}</p>
-                  <p className="text-sm text-blue-400">{alliance.type.replace(/_/g, ' ')}</p>
+                  <p className="text-sm text-[color:var(--nn-cyan)]">{alliance.type.replace(/_/g, ' ')}</p>
                 </div>
                 {canManage && (
                   <button
                     onClick={() => breakAlliance(alliance._id)}
-                    className="px-3 py-1 bg-red-600 rounded hover:bg-red-500 text-sm"
+                    className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] rounded-none text-sm"
                   >
                     Break Alliance
                   </button>
@@ -383,7 +383,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                         setSelectedAlliance(alliance);
                         setShowContractModal(true);
                       }}
-                      className="px-2 py-1 bg-gray-700 rounded hover:bg-gray-600 text-xs"
+                      className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-xs"
                     >
                       Add Contract
                     </button>
@@ -391,11 +391,11 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                 </div>
                 
                 {alliance.contracts.length === 0 ? (
-                  <p className="text-xs text-gray-500">No contracts</p>
+                  <p className="text-xs text-[color:var(--nn-text-secondary)]">No contracts</p>
                 ) : (
                   <div className="space-y-1">
                     {alliance.contracts.map((contract, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-gray-800/50 p-2 rounded text-sm">
+                      <div key={idx} className="flex justify-between items-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-2 rounded-none text-sm">
                         <span>
                           {contract.type.replace(/_/g, ' ')}
                           {contract.percentage && ` (${contract.percentage}%)`}
@@ -403,7 +403,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                         {canManage && (
                           <button
                             onClick={() => removeContract(alliance._id, contract.type)}
-                            className="text-xs text-red-400 hover:text-red-300"
+                            className="text-xs text-[color:var(--nn-magenta)]"
                           >
                             Remove
                           </button>
@@ -420,8 +420,8 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
 
       {/* Propose Alliance Modal */}
       {showProposeModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
+          <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-6 w-full max-w-md">
             <h3 className="text-xl font-bold mb-4">Propose Alliance</h3>
             
             <div className="space-y-4">
@@ -431,7 +431,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                   type="text"
                   value={proposeData.targetClanName}
                   onChange={(e) => setProposeData({ ...proposeData, targetClanName: e.target.value })}
-                  className="w-full px-3 py-2 bg-black/40 border border-gray-600 rounded"
+                  className="w-full px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none"
                   placeholder="Enter exact clan name..."
                 />
               </div>
@@ -441,7 +441,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                 <select
                   value={proposeData.allianceType}
                   onChange={(e) => setProposeData({ ...proposeData, allianceType: e.target.value as AllianceType })}
-                  className="w-full px-3 py-2 bg-black/40 border border-gray-600 rounded"
+                  className="w-full px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none"
                 >
                   {(Object.keys(allianceCosts) as AllianceType[]).map((type) => (
                     <option key={type} value={type} disabled={!canAfford(type)}>
@@ -450,7 +450,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                   {allianceDescriptions[proposeData.allianceType]}
                 </p>
               </div>
@@ -459,13 +459,13 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                 <button
                   onClick={proposeAlliance}
                   disabled={!proposeData.targetClanName || !canAfford(proposeData.allianceType)}
-                  className="flex-1 px-4 py-2 bg-blue-600 rounded hover:bg-blue-500 disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none disabled:opacity-50"
                 >
                   Propose
                 </button>
                 <button
                   onClick={() => setShowProposeModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+                  className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]"
                 >
                   Cancel
                 </button>
@@ -477,8 +477,8 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
 
       {/* Add Contract Modal */}
       {showContractModal && selectedAlliance && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
+          <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-6 w-full max-w-md">
             <h3 className="text-xl font-bold mb-4">Add Contract</h3>
             
             <div className="space-y-4">
@@ -487,7 +487,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                 <select
                   value={contractData.contractType}
                   onChange={(e) => setContractData({ ...contractData, contractType: e.target.value as ContractType })}
-                  className="w-full px-3 py-2 bg-black/40 border border-gray-600 rounded"
+                  className="w-full px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none"
                 >
                   {contractLimits[selectedAlliance.type as AllianceType].map((type) => (
                     <option key={type} value={type}>
@@ -508,7 +508,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                     onChange={(e) => setContractData({ ...contractData, percentage: parseInt(e.target.value) })}
                     min={1}
                     max={contractData.contractType === 'RESOURCE_SHARING' ? 50 : 30}
-                    className="w-full px-3 py-2 bg-black/40 border border-gray-600 rounded"
+                    className="w-full px-3 py-2 bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none"
                   />
                 </div>
               )}
@@ -516,7 +516,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
               <div className="flex gap-2">
                 <button
                   onClick={addContract}
-                  className="flex-1 px-4 py-2 bg-blue-600 rounded hover:bg-blue-500"
+                  className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none"
                 >
                   Add Contract
                 </button>
@@ -525,7 +525,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
                     setShowContractModal(false);
                     setSelectedAlliance(null);
                   }}
-                  className="flex-1 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
+                  className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]"
                 >
                   Cancel
                 </button>

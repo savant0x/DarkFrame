@@ -52,8 +52,8 @@ const REPUTATION_TIERS = {
     min: 0,
     max: 5,
     label: 'Unknown',
-    color: 'text-gray-400',
-    bgColor: 'bg-gray-500/20',
+    color: 'text-[color:var(--nn-text-secondary)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]',
     icon: Eye,
     lootBonus: 1.0,
     description: 'A new adversary',
@@ -62,8 +62,8 @@ const REPUTATION_TIERS = {
     min: 6,
     max: 15,
     label: 'Notorious',
-    color: 'text-yellow-400',
-    bgColor: 'bg-yellow-500/20',
+    color: 'text-[color:var(--nn-amber)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
     icon: Star,
     lootBonus: 1.1,
     description: '+10% loot from this bot',
@@ -72,8 +72,8 @@ const REPUTATION_TIERS = {
     min: 16,
     max: 30,
     label: 'Infamous',
-    color: 'text-orange-400',
-    bgColor: 'bg-orange-500/20',
+    color: 'text-[color:var(--nn-amber)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
     icon: Skull,
     lootBonus: 1.25,
     description: '+25% loot from this bot',
@@ -82,8 +82,8 @@ const REPUTATION_TIERS = {
     min: 31,
     max: Infinity,
     label: 'Legendary',
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/20',
+    color: 'text-[color:var(--nn-violet)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
     icon: Crown,
     lootBonus: 1.5,
     description: '+50% loot from this bot',
@@ -186,7 +186,7 @@ export default function ReputationPanel() {
     return (
       <div
         key={bot.botId}
-        className={`rounded-lg border-2 p-4 transition-all ${repInfo.bgColor} border-opacity-50`}
+        className={`rounded-none border-2 p-4 transition-all ${repInfo.bgColor} border-opacity-50`}
         style={{ borderColor: repInfo.color.replace('text-', '') }}
       >
         {/* Header */}
@@ -194,8 +194,8 @@ export default function ReputationPanel() {
           <div className="flex items-center gap-3">
             <Icon className={repInfo.color} size={28} />
             <div>
-              <div className="text-white font-bold">{bot.botName}</div>
-              <div className="text-gray-400 text-sm">
+              <div className="text-[color:var(--nn-text-primary)] font-bold">{bot.botName}</div>
+              <div className="text-[color:var(--nn-text-secondary)] text-sm">
                 {bot.specialization} • Tier {bot.tier}
               </div>
             </div>
@@ -207,19 +207,19 @@ export default function ReputationPanel() {
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-3">
-          <div className="bg-gray-800/50 rounded p-2 text-center">
-            <div className="text-gray-400 text-xs">Defeats</div>
-            <div className="text-white font-bold text-lg">{bot.defeats}</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 text-center">
+            <div className="text-[color:var(--nn-text-secondary)] text-xs">Defeats</div>
+            <div className="text-[color:var(--nn-text-primary)] font-bold text-lg">{bot.defeats}</div>
           </div>
-          <div className="bg-gray-800/50 rounded p-2 text-center">
-            <div className="text-gray-400 text-xs">Loot Bonus</div>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 text-center">
+            <div className="text-[color:var(--nn-text-secondary)] text-xs">Loot Bonus</div>
             <div className={`font-bold text-lg ${repInfo.color}`}>
               +{Math.round((repInfo.lootBonus - 1) * 100)}%
             </div>
           </div>
-          <div className="bg-gray-800/50 rounded p-2 text-center">
-            <div className="text-gray-400 text-xs">Last Defeat</div>
-            <div className="text-white font-bold text-xs">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 text-center">
+            <div className="text-[color:var(--nn-text-secondary)] text-xs">Last Defeat</div>
+            <div className="text-[color:var(--nn-text-primary)] font-bold text-xs">
               {formatTimeAgo(bot.lastDefeatAt)}
             </div>
           </div>
@@ -227,12 +227,12 @@ export default function ReputationPanel() {
 
         {/* Total Loot */}
         <div className="flex items-center justify-between mb-3 text-sm">
-          <span className="text-gray-400">Total Loot:</span>
+          <span className="text-[color:var(--nn-text-secondary)]">Total Loot:</span>
           <div className="flex gap-3">
-            <span className="text-gray-300">
+            <span className="text-[color:var(--nn-text-secondary)]">
               💰 {bot.totalLoot.metal.toLocaleString()}
             </span>
-            <span className="text-blue-300">
+            <span className="text-[color:var(--nn-cyan)]">
               ⚡ {bot.totalLoot.energy.toLocaleString()}
             </span>
           </div>
@@ -242,12 +242,12 @@ export default function ReputationPanel() {
         {bot.reputation !== 'legendary' && (
           <div>
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-400">Progress to Next Tier</span>
-              <span className="text-white">
+              <span className="text-[color:var(--nn-text-secondary)]">Progress to Next Tier</span>
+              <span className="text-[color:var(--nn-text-primary)]">
                 {bot.defeats} / {repInfo.max + 1}
               </span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2">
+            <div className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2">
               <div
                 className={`h-2 rounded-full transition-all ${repInfo.color.replace('text-', 'bg-')}`}
                 style={{ width: `${progressToNext}%` }}
@@ -278,24 +278,24 @@ export default function ReputationPanel() {
 
   if (loading) {
     return (
-      <div className="bg-gray-900 rounded-lg p-6 border-2 border-gray-700">
+      <div className="bg-[color:var(--nn-void)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <div className="flex items-center justify-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
-          <span className="text-gray-400">Loading reputation data...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]" />
+          <span className="text-[color:var(--nn-text-secondary)]">Loading reputation data...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-900 rounded-lg p-6 border-2 border-gray-700">
+    <div className="bg-[color:var(--nn-void)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Trophy className="text-purple-400" size={32} />
+          <Trophy className="text-[color:var(--nn-violet)]" size={32} />
           <div>
-            <h2 className="text-2xl font-bold text-white">Bot Reputation</h2>
-            <p className="text-gray-400 text-sm">Track your nemeses and earn bonuses</p>
+            <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Bot Reputation</h2>
+            <p className="text-[color:var(--nn-text-secondary)] text-sm">Track your nemeses and earn bonuses</p>
           </div>
         </div>
 
@@ -303,30 +303,30 @@ export default function ReputationPanel() {
         <div className="flex gap-2">
           <button
             onClick={() => setSortBy('defeats')}
-            className={`px-3 py-1 rounded text-sm transition-colors ${
+            className={`px-3 py-1 rounded-none text-sm transition-colors ${
               sortBy === 'defeats'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
             }`}
           >
             By Defeats
           </button>
           <button
             onClick={() => setSortBy('reputation')}
-            className={`px-3 py-1 rounded text-sm transition-colors ${
+            className={`px-3 py-1 rounded-none text-sm transition-colors ${
               sortBy === 'reputation'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
             }`}
           >
             By Tier
           </button>
           <button
             onClick={() => setSortBy('recent')}
-            className={`px-3 py-1 rounded text-sm transition-colors ${
+            className={`px-3 py-1 rounded-none text-sm transition-colors ${
               sortBy === 'recent'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
             }`}
           >
             Recent
@@ -336,7 +336,7 @@ export default function ReputationPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded mb-4">
+        <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] px-4 py-3 rounded-none mb-4">
           {error}
         </div>
       )}
@@ -348,15 +348,15 @@ export default function ReputationPanel() {
           return (
             <div
               key={key}
-              className={`rounded-lg p-3 text-center ${tier.bgColor} border border-opacity-30`}
+              className={`rounded-none p-3 text-center ${tier.bgColor} border border-opacity-30`}
               style={{ borderColor: tier.color.replace('text-', '') }}
             >
               <Icon className={`${tier.color} mx-auto mb-2`} size={24} />
               <div className={`font-bold ${tier.color}`}>{tier.label}</div>
-              <div className="text-gray-400 text-xs">
+              <div className="text-[color:var(--nn-text-secondary)] text-xs">
                 {tier.min}-{tier.max === Infinity ? '∞' : tier.max} defeats
               </div>
-              <div className="text-gray-300 text-xs mt-1">
+              <div className="text-[color:var(--nn-text-secondary)] text-xs mt-1">
                 {tier.description}
               </div>
             </div>
@@ -366,10 +366,10 @@ export default function ReputationPanel() {
 
       {/* Tracked Bots List */}
       {sortedBots.length === 0 ? (
-        <div className="bg-gray-800/50 rounded-lg p-8 text-center border border-gray-700">
-          <Eye className="text-gray-500 mx-auto mb-3" size={48} />
-          <p className="text-gray-400">No bots tracked yet</p>
-          <p className="text-gray-500 text-sm mt-2">
+        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-8 text-center border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+          <Eye className="text-[color:var(--nn-text-secondary)] mx-auto mb-3" size={48} />
+          <p className="text-[color:var(--nn-text-secondary)]">No bots tracked yet</p>
+          <p className="text-[color:var(--nn-text-secondary)] text-sm mt-2">
             Defeat bots to start building your reputation
           </p>
         </div>
@@ -380,12 +380,12 @@ export default function ReputationPanel() {
       )}
 
       {/* Instructions */}
-      <div className="mt-6 bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+      <div className="mt-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <div className="flex items-start gap-2">
-          <Star className="text-yellow-400 mt-1" size={20} />
-          <div className="text-sm text-gray-300">
+          <Star className="text-[color:var(--nn-amber)] mt-1" size={20} />
+          <div className="text-sm text-[color:var(--nn-text-secondary)]">
             <p className="font-bold mb-1">How Reputation Works:</p>
-            <ul className="list-disc list-inside space-y-1 text-gray-400">
+            <ul className="list-disc list-inside space-y-1 text-[color:var(--nn-text-secondary)]">
               <li>Defeating the same bot multiple times increases your reputation</li>
               <li>Higher reputation tiers grant increased loot bonuses</li>
               <li>Legendary reputation (31+ defeats) gives +50% loot</li>

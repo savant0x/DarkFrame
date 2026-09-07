@@ -54,40 +54,40 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
   const defenderUnitsCaptured = result.defender.unitsCaptured;
 
   return (
-    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border-2 rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_90%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border-2 rounded-none max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header - Victory/Defeat Banner */}
         <div className={`p-6 text-center ${
           isVictory 
-            ? 'bg-gradient-to-r from-green-600 to-green-700'
+            ? 'bg-gradient-to-r from-[color:var(--nn-green)] to-[color:var(--nn-green)]'
             : isDraw
-            ? 'bg-gradient-to-r from-yellow-600 to-yellow-700'
-            : 'bg-gradient-to-r from-red-600 to-red-700'
+            ? 'bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]'
+            : 'bg-gradient-to-r from-[color:var(--nn-magenta)] to-[color:var(--nn-magenta)]'
         }`}>
           <div className="text-6xl mb-2 animate-bounce">
             {isVictory ? '🎉' : isDraw ? '⚔️' : '💀'}
           </div>
-          <h2 className="text-4xl font-bold text-white mb-2">
+          <h2 className="text-4xl font-bold text-[color:var(--nn-text-primary)] mb-2">
             {isVictory ? 'VICTORY!' : isDraw ? 'DRAW!' : 'DEFEAT!'}
           </h2>
-          <p className="text-white text-lg">
+          <p className="text-[color:var(--nn-text-primary)] text-lg">
             {result.message}
           </p>
         </div>
 
         <div className="p-6">
           {/* Battle Statistics */}
-          <div className="bg-gray-800 rounded-lg p-4 mb-6">
-            <h3 className="text-xl font-bold text-white mb-4">📊 Battle Statistics</h3>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6">
+            <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4">📊 Battle Statistics</h3>
             
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Combat Rounds</p>
-                <p className="text-2xl font-bold text-white">{result.rounds}</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Combat Rounds</p>
+                <p className="text-2xl font-bold text-[color:var(--nn-text-primary)]">{result.rounds}</p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Battle Type</p>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Battle Type</p>
+                <p className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
                   {result.battleType === BattleType.Infantry ? '⚔️ Infantry' : '🏠 Base'}
                 </p>
               </div>
@@ -95,44 +95,44 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
 
             {/* Participants */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-red-900/30 border border-red-500 rounded-lg p-3">
-                <p className="font-bold text-red-400 mb-2">⚔️ Attacker</p>
-                <p className="text-white font-bold text-lg">{result.attacker.username}</p>
-                <div className="text-sm text-gray-300 mt-2 space-y-1">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
+                <p className="font-bold text-[color:var(--nn-magenta)] mb-2">⚔️ Attacker</p>
+                <p className="text-[color:var(--nn-text-primary)] font-bold text-lg">{result.attacker.username}</p>
+                <div className="text-sm text-[color:var(--nn-text-secondary)] mt-2 space-y-1">
                   <div className="flex justify-between">
                     <span>Starting HP:</span>
                     <span className="font-bold">{result.attacker.startingHP}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Ending HP:</span>
-                    <span className={`font-bold ${result.attacker.endingHP > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className={`font-bold ${result.attacker.endingHP > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                       {result.attacker.endingHP}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Damage Dealt:</span>
-                    <span className="font-bold text-red-400">{result.attacker.damageDealt}</span>
+                    <span className="font-bold text-[color:var(--nn-magenta)]">{result.attacker.damageDealt}</span>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-blue-900/30 border border-blue-500 rounded-lg p-3">
-                <p className="font-bold text-blue-400 mb-2">🛡️ Defender</p>
-                <p className="text-white font-bold text-lg">{result.defender.username}</p>
-                <div className="text-sm text-gray-300 mt-2 space-y-1">
+              <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
+                <p className="font-bold text-[color:var(--nn-cyan)] mb-2">🛡️ Defender</p>
+                <p className="text-[color:var(--nn-text-primary)] font-bold text-lg">{result.defender.username}</p>
+                <div className="text-sm text-[color:var(--nn-text-secondary)] mt-2 space-y-1">
                   <div className="flex justify-between">
                     <span>Starting HP:</span>
                     <span className="font-bold">{result.defender.startingHP}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Ending HP:</span>
-                    <span className={`font-bold ${result.defender.endingHP > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className={`font-bold ${result.defender.endingHP > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                       {result.defender.endingHP}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Damage Dealt:</span>
-                    <span className="font-bold text-blue-400">{result.defender.damageDealt}</span>
+                    <span className="font-bold text-[color:var(--nn-cyan)]">{result.defender.damageDealt}</span>
                   </div>
                 </div>
               </div>
@@ -142,50 +142,50 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
           {/* Units Lost & Captured */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             {/* Attacker's Losses */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h4 className="font-bold text-red-400 mb-3">💀 Your Losses</h4>
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+              <h4 className="font-bold text-[color:var(--nn-magenta)] mb-3">💀 Your Losses</h4>
               {totalUnitsLost === 0 ? (
-                <p className="text-green-400 text-sm">No units lost! 🎉</p>
+                <p className="text-[color:var(--nn-green)] text-sm">No units lost! 🎉</p>
               ) : (
                 <div className="text-center">
-                  <div className="text-4xl font-bold text-red-400 mb-2">{totalUnitsLost}</div>
-                  <p className="text-gray-400 text-sm">Total Units Lost</p>
+                  <div className="text-4xl font-bold text-[color:var(--nn-magenta)] mb-2">{totalUnitsLost}</div>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm">Total Units Lost</p>
                 </div>
               )}
             </div>
 
             {/* Units Captured */}
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h4 className="font-bold text-green-400 mb-3">🎖️ Units Captured</h4>
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+              <h4 className="font-bold text-[color:var(--nn-green)] mb-3">🎖️ Units Captured</h4>
               {totalUnitsCaptured === 0 ? (
-                <p className="text-gray-400 text-sm">No units captured</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">No units captured</p>
               ) : (
                 <div className="text-center">
-                  <div className="text-4xl font-bold text-green-400 mb-2">{totalUnitsCaptured}</div>
-                  <p className="text-gray-400 text-sm">Total Units Captured</p>
+                  <div className="text-4xl font-bold text-[color:var(--nn-green)] mb-2">{totalUnitsCaptured}</div>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm">Total Units Captured</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* Defender's Losses (for reference) */}
-          <div className="bg-gray-800 rounded-lg p-4 mb-6">
-            <h4 className="font-bold text-blue-400 mb-3">🛡️ Defender{"'"}s Casualties</h4>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6">
+            <h4 className="font-bold text-[color:var(--nn-cyan)] mb-3">🛡️ Defender{"'"}s Casualties</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
-                <p className="text-gray-400 text-sm mb-2">Units Lost</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm mb-2">Units Lost</p>
                 {defenderUnitsLost === 0 ? (
-                  <p className="text-green-400 text-sm">None</p>
+                  <p className="text-[color:var(--nn-green)] text-sm">None</p>
                 ) : (
-                  <div className="text-2xl font-bold text-red-400">{defenderUnitsLost}</div>
+                  <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">{defenderUnitsLost}</div>
                 )}
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-sm mb-2">Units Captured</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm mb-2">Units Captured</p>
                 {defenderUnitsCaptured === 0 ? (
-                  <p className="text-gray-400 text-sm">None</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm">None</p>
                 ) : (
-                  <div className="text-2xl font-bold text-green-400">{defenderUnitsCaptured}</div>
+                  <div className="text-2xl font-bold text-[color:var(--nn-green)]">{defenderUnitsCaptured}</div>
                 )}
               </div>
             </div>
@@ -193,14 +193,14 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
 
           {/* Resources Stolen (Base Attacks Only) */}
           {result.resourcesStolen && result.resourcesStolen.amount > 0 && (
-            <div className="bg-yellow-900/30 border border-yellow-500 rounded-lg p-4 mb-6">
-              <h4 className="font-bold text-yellow-400 mb-2">💰 Resources Plundered</h4>
-              <p className="text-white text-lg">
+            <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4 mb-6">
+              <h4 className="font-bold text-[color:var(--nn-amber)] mb-2">💰 Resources Plundered</h4>
+              <p className="text-[color:var(--nn-text-primary)] text-lg">
                 {isVictory ? 'You stole' : 'You lost'}{' '}
-                <span className="font-bold text-yellow-400">
+                <span className="font-bold text-[color:var(--nn-amber)]">
                   {result.resourcesStolen.amount.toLocaleString()}
                 </span>{' '}
-                <span className="text-yellow-300">{result.resourcesStolen.resourceType.toUpperCase()}</span>
+                <span className="text-[color:var(--nn-amber)]">{result.resourcesStolen.resourceType.toUpperCase()}</span>
                 {' '}
                 {result.battleType === BattleType.Base ? '(20% of defender\'s reserves)' : ''}
               </p>
@@ -208,27 +208,27 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
           )}
 
           {/* XP Earned */}
-          <div className="bg-purple-900/30 border border-purple-500 rounded-lg p-4 mb-6">
-            <h4 className="font-bold text-purple-400 mb-3">✨ Experience Gained</h4>
+          <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-4 mb-6">
+            <h4 className="font-bold text-[color:var(--nn-violet)] mb-3">✨ Experience Gained</h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Your XP</p>
-                <p className="text-2xl font-bold text-purple-400">+{result.attacker.xpEarned}</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Your XP</p>
+                <p className="text-2xl font-bold text-[color:var(--nn-violet)]">+{result.attacker.xpEarned}</p>
               </div>
               <div className="text-center">
-                <p className="text-gray-400 text-sm">Defender XP</p>
-                <p className="text-2xl font-bold text-purple-400">+{result.defender.xpEarned}</p>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">Defender XP</p>
+                <p className="text-2xl font-bold text-[color:var(--nn-violet)]">+{result.defender.xpEarned}</p>
               </div>
             </div>
           </div>
 
           {/* Level Up Notification */}
           {(result.attackerLevelUp || result.defenderLevelUp) && (
-            <div className="bg-gradient-to-r from-yellow-600 to-orange-600 rounded-lg p-4 mb-6 text-center">
+            <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] rounded-none p-4 mb-6 text-center">
               <div className="text-4xl mb-2">🎉</div>
-              <h4 className="font-bold text-white text-xl mb-2">LEVEL UP!</h4>
+              <h4 className="font-bold text-[color:var(--nn-text-primary)] text-xl mb-2">LEVEL UP!</h4>
               {result.attackerLevelUp && (
-                <p className="text-white">
+                <p className="text-[color:var(--nn-text-primary)]">
                   You reached <span className="font-bold">Level {result.attackerNewLevel}!</span>
                   <span className="block text-sm mt-1">
                     Earned {result.attacker.xpEarned} XP! ✨
@@ -242,7 +242,7 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-bold transition-colors"
+              className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition-colors"
             >
               Close
             </button>
@@ -251,15 +251,15 @@ export default function BattleResultModal({ isOpen, result, onClose }: BattleRes
                 // Navigate to battle log viewer (implement later)
                 onClose();
               }}
-              className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition-colors"
+              className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition-colors"
             >
               📜 View Detailed Log
             </button>
           </div>
 
           {/* Info Footer */}
-          <div className="mt-6 bg-gray-800 rounded-lg p-3">
-            <p className="text-xs text-gray-400 text-center">
+          <div className="mt-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3">
+            <p className="text-xs text-[color:var(--nn-text-secondary)] text-center">
               {isVictory 
                 ? '🎉 Great job! Your strategy paid off. Keep building your army for future battles!'
                 : isDraw

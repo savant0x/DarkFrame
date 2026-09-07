@@ -199,14 +199,14 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border-2 border-red-500 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-red-600 p-4 flex justify-between items-center sticky top-0 z-10">
-          <h2 className="text-2xl font-bold text-white">⚔️ Launch Attack</h2>
+        <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] p-4 flex justify-between items-center sticky top-0 z-10">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">⚔️ Launch Attack</h2>
           <button
             onClick={onClose}
-            className="text-white hover:text-gray-300 text-2xl font-bold"
+            className="text-[color:var(--nn-text-primary)] text-[color:var(--nn-text-secondary)] text-2xl font-bold"
           >
             ✕
           </button>
@@ -215,34 +215,34 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
         <div className="p-6">
           {/* Attack Type Selector */}
           <div className="mb-6">
-            <h3 className="text-lg font-bold text-white mb-3">Attack Type</h3>
+            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3">Attack Type</h3>
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setAttackType('infantry')}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-4 rounded-none border-2 transition-all ${
                   attackType === 'infantry'
-                    ? 'border-red-500 bg-red-900/50'
-                    : 'border-gray-600 bg-gray-800 hover:border-gray-500'
+                    ? 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
                 <div className="text-3xl mb-2">⚔️</div>
-                <div className="font-bold text-white">Infantry Battle</div>
-                <div className="text-sm text-gray-400 mt-1">
+                <div className="font-bold text-[color:var(--nn-text-primary)]">Infantry Battle</div>
+                <div className="text-sm text-[color:var(--nn-text-secondary)] mt-1">
                   Direct player combat. No resource theft.
                 </div>
               </button>
 
               <button
                 onClick={() => setAttackType('base')}
-                className={`p-4 rounded-lg border-2 transition-all ${
+                className={`p-4 rounded-none border-2 transition-all ${
                   attackType === 'base'
-                    ? 'border-red-500 bg-red-900/50'
-                    : 'border-gray-600 bg-gray-800 hover:border-gray-500'
+                    ? 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                 }`}
               >
                 <div className="text-3xl mb-2">🏠</div>
-                <div className="font-bold text-white">Base Raid</div>
-                <div className="text-sm text-gray-400 mt-1">
+                <div className="font-bold text-[color:var(--nn-text-primary)]">Base Raid</div>
+                <div className="text-sm text-[color:var(--nn-text-secondary)] mt-1">
                   Attack player{"'"}s base. Steal 20% resources on win.
                 </div>
               </button>
@@ -251,43 +251,43 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
 
           {/* Target Selection */}
           <div className="mb-6">
-            <h3 className="text-lg font-bold text-white mb-3">Target Player</h3>
+            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3">Target Player</h3>
             <input
               type="text"
               value={targetUsername}
               onChange={(e) => setTargetUsername(e.target.value)}
               placeholder="Enter username..."
-              className="w-full bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-red-500 focus:outline-none"
+              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-3 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-red-500 focus:outline-none"
             />
           </div>
 
           {/* Resource Selection (Base Attack Only) */}
           {attackType === 'base' && (
             <div className="mb-6">
-              <h3 className="text-lg font-bold text-white mb-3">Resource to Steal</h3>
+              <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3">Resource to Steal</h3>
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => setResourceToSteal('metal')}
-                  className={`p-3 rounded-lg border-2 transition-all ${
+                  className={`p-3 rounded-none border-2 transition-all ${
                     resourceToSteal === 'metal'
-                      ? 'border-yellow-500 bg-yellow-900/30'
-                      : 'border-gray-600 bg-gray-800 hover:border-gray-500'
+                      ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
+                      : 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                   }`}
                 >
                   <div className="text-2xl mb-1">⚙️</div>
-                  <div className="font-bold text-yellow-400">Metal</div>
+                  <div className="font-bold text-[color:var(--nn-amber)]">Metal</div>
                 </button>
 
                 <button
                   onClick={() => setResourceToSteal('energy')}
-                  className={`p-3 rounded-lg border-2 transition-all ${
+                  className={`p-3 rounded-none border-2 transition-all ${
                     resourceToSteal === 'energy'
-                      ? 'border-cyan-500 bg-cyan-900/30'
-                      : 'border-gray-600 bg-gray-800 hover:border-gray-500'
+                      ? 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]'
+                      : 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
                   }`}
                 >
                   <div className="text-2xl mb-1">⚡</div>
-                  <div className="font-bold text-cyan-400">Energy</div>
+                  <div className="font-bold text-[color:var(--nn-cyan)]">Energy</div>
                 </button>
               </div>
             </div>
@@ -295,12 +295,12 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
 
           {/* Unit Selection */}
           <div className="mb-6">
-            <h3 className="text-lg font-bold text-white mb-3">Select Units</h3>
+            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3">Select Units</h3>
             
             {unitSelections.length === 0 ? (
-              <div className="bg-gray-800 rounded-lg p-6 text-center">
-                <p className="text-gray-400">You don{"'"}t have any units to attack with.</p>
-                <p className="text-sm text-gray-500 mt-2">Build units at your factories first!</p>
+              <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 text-center">
+                <p className="text-[color:var(--nn-text-secondary)]">You don{"'"}t have any units to attack with.</p>
+                <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">Build units at your factories first!</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -311,10 +311,10 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
                   return (
                     <div
                       key={selection.unitType}
-                      className={`border-2 rounded-lg p-3 transition-all ${
+                      className={`border-2 rounded-none p-3 transition-all ${
                         selection.selected
-                          ? 'border-red-500 bg-red-900/20'
-                          : 'border-gray-600 bg-gray-800'
+                          ? 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+                          : 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -325,8 +325,8 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
                           className="w-5 h-5 cursor-pointer"
                         />
                         <div className="flex-1">
-                          <div className="font-bold text-white">{config.name}</div>
-                          <div className="text-xs text-gray-400">
+                          <div className="font-bold text-[color:var(--nn-text-primary)]">{config.name}</div>
+                          <div className="text-xs text-[color:var(--nn-text-secondary)]">
                             STR: {config.strength} | DEF: {config.defense}
                           </div>
                         </div>
@@ -338,9 +338,9 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
                             disabled={!selection.selected}
                             min="0"
                             max={maxQuantity}
-                            className="w-20 bg-gray-700 text-white px-2 py-1 rounded text-sm border border-gray-600 focus:border-red-500 focus:outline-none disabled:opacity-50"
+                            className="w-20 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none text-sm border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-red-500 focus:outline-none disabled:opacity-50"
                           />
-                          <div className="text-xs text-gray-500 mt-1">/ {maxQuantity}</div>
+                          <div className="text-xs text-[color:var(--nn-text-secondary)] mt-1">/ {maxQuantity}</div>
                         </div>
                       </div>
                     </div>
@@ -352,20 +352,20 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
 
           {/* Army Preview */}
           {selectedUnits.length > 0 && (
-            <div className="bg-gray-800 rounded-lg p-4 mb-6">
-              <h3 className="font-bold text-white mb-3">⚔️ Army Preview</h3>
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6">
+              <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-3">⚔️ Army Preview</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-gray-400 text-sm">Total Units</p>
-                  <p className="text-2xl font-bold text-white">{totalUnits}</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm">Total Units</p>
+                  <p className="text-2xl font-bold text-[color:var(--nn-text-primary)]">{totalUnits}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-sm">Total STR</p>
-                  <p className="text-2xl font-bold text-red-400">{totalSTR}</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm">Total STR</p>
+                  <p className="text-2xl font-bold text-[color:var(--nn-magenta)]">{totalSTR}</p>
                 </div>
                 <div>
-                  <p className="text-gray-400 text-sm">Total DEF</p>
-                  <p className="text-2xl font-bold text-blue-400">{totalDEF}</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm">Total DEF</p>
+                  <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{totalDEF}</p>
                 </div>
               </div>
             </div>
@@ -373,8 +373,8 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
 
           {/* Error Message */}
           {error && (
-            <div className="bg-red-900/30 border border-red-500 rounded-lg p-3 mb-6">
-              <p className="text-red-400">❌ {error}</p>
+            <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 mb-6">
+              <p className="text-[color:var(--nn-magenta)]">❌ {error}</p>
             </div>
           )}
 
@@ -383,23 +383,23 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
             <button
               onClick={onClose}
               disabled={loading}
-              className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-bold transition-colors disabled:opacity-50"
+              className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleLaunchAttack}
               disabled={loading || selectedUnits.length === 0}
-              className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? '⚔️ Attacking...' : '⚔️ Launch Attack'}
             </button>
           </div>
 
           {/* Info Box */}
-          <div className="mt-6 bg-gray-800 rounded-lg p-4">
-            <p className="font-bold text-red-400 mb-2">⚠️ Combat Info:</p>
-            <ul className="list-disc list-inside space-y-1 text-gray-300 text-sm">
+          <div className="mt-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
+            <p className="font-bold text-[color:var(--nn-magenta)] mb-2">⚠️ Combat Info:</p>
+            <ul className="list-disc list-inside space-y-1 text-[color:var(--nn-text-secondary)] text-sm">
               <li><strong>Infantry Battle:</strong> Direct combat. Winner gains XP (+150 attacker, +75 defender).</li>
               <li><strong>Base Raid:</strong> Attack player{"'"}s base. Winner steals 20% of selected resource (+200 XP).</li>
               <li><strong>Units:</strong> Both sides may lose units. Winners capture 10-15% of defeated units.</li>

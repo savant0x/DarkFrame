@@ -60,30 +60,30 @@ const ROLE_CONFIG: Record<ClanRole, {
   [ClanRole.LEADER]: {
     icon: Crown,
     label: 'Leader',
-    color: 'text-yellow-400',
-    bgColor: 'bg-yellow-500/20',
-    borderColor: 'border-yellow-500/30'
+    color: 'text-[color:var(--nn-amber)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+    borderColor: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
   },
   [ClanRole.CO_LEADER]: {
     icon: Crown,
     label: 'Co-Leader',
-    color: 'text-orange-400',
-    bgColor: 'bg-orange-500/20',
-    borderColor: 'border-orange-500/30'
+    color: 'text-[color:var(--nn-amber)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+    borderColor: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
   },
   [ClanRole.OFFICER]: {
     icon: Shield,
     label: 'Officer',
-    color: 'text-purple-400',
-    bgColor: 'bg-purple-500/20',
-    borderColor: 'border-purple-500/30'
+    color: 'text-[color:var(--nn-violet)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
+    borderColor: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]'
   },
   [ClanRole.ELITE]: {
     icon: Star,
     label: 'Elite',
-    color: 'text-cyan-400',
-    bgColor: 'bg-cyan-500/20',
-    borderColor: 'border-cyan-500/30'
+    color: 'text-[color:var(--nn-cyan)]',
+    bgColor: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
+    borderColor: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'
   },
   [ClanRole.MEMBER]: {
     icon: User,
@@ -301,8 +301,8 @@ export default function ClanMembersPanel({
       {/* Header Stats */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-purple-400" />
+          <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] flex items-center gap-2">
+            <Users className="w-5 h-5 text-[color:var(--nn-violet)]" />
             Clan Members
           </h3>
           <p className="text-sm text-text-secondary">
@@ -339,7 +339,7 @@ export default function ClanMembersPanel({
             return (
               <div
                 key={member.playerId}
-                className={`bg-glass-light rounded-lg p-3 border ${roleConfig.borderColor} hover:bg-glass-light transition-colors`}
+                className={`bg-glass-light rounded-none p-3 border ${roleConfig.borderColor} hover:bg-glass-light transition-colors`}
               >
                 <div className="flex items-center justify-between gap-3">
                   {/* Member Info */}
@@ -349,7 +349,7 @@ export default function ClanMembersPanel({
                       <RoleIcon className={`w-5 h-5 ${roleConfig.color}`} />
                       <Circle
                         className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${
-                          online ? 'fill-green-400 text-green-400' : 'fill-text-secondary text-text-tertiary'
+                          online ? 'fill-green-400 text-[color:var(--nn-green)]' : 'fill-text-secondary text-text-tertiary'
                         }`}
                       />
                     </div>
@@ -357,10 +357,10 @@ export default function ClanMembersPanel({
                     {/* Name & Badge */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-white font-semibold truncate">
+                        <span className="text-[color:var(--nn-text-primary)] font-semibold truncate">
                           {member.username}
                           {isCurrentUser && (
-                            <span className="text-cyan-400 text-xs ml-1">(You)</span>
+                            <span className="text-[color:var(--nn-cyan)] text-xs ml-1">(You)</span>
                           )}
                         </span>
                       </div>

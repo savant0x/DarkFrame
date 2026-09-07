@@ -317,22 +317,22 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
    */
   const getActivityIcon = (type: ActivityEventType) => {
     const iconMap: Record<ActivityEventType, React.ReactNode> = {
-      MEMBER_JOIN: <UserPlus className="w-4 h-4 text-green-400" />,
+      MEMBER_JOIN: <UserPlus className="w-4 h-4 text-[color:var(--nn-green)]" />,
       MEMBER_LEAVE: <UserMinus className="w-4 h-4 text-text-secondary" />,
-      MEMBER_KICKED: <UserMinus className="w-4 h-4 text-red-400" />,
-      PROMOTION: <ArrowUp className="w-4 h-4 text-yellow-400" />,
+      MEMBER_KICKED: <UserMinus className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
+      PROMOTION: <ArrowUp className="w-4 h-4 text-[color:var(--nn-amber)]" />,
       DEMOTION: <ArrowDown className="w-4 h-4 text-text-secondary" />,
-      BANK_DEPOSIT: <Coins className="w-4 h-4 text-green-400" />,
-      BANK_WITHDRAW: <Coins className="w-4 h-4 text-yellow-400" />,
-      WAR_DECLARED: <Swords className="w-4 h-4 text-red-400" />,
-      WAR_VICTORY: <Shield className="w-4 h-4 text-green-400" />,
-      WAR_DEFEAT: <Shield className="w-4 h-4 text-red-400" />,
-      TERRITORY_CLAIMED: <Map className="w-4 h-4 text-cyan-400" />,
-      TERRITORY_LOST: <Map className="w-4 h-4 text-red-400" />,
-      ALLIANCE_FORMED: <Handshake className="w-4 h-4 text-purple-400" />,
+      BANK_DEPOSIT: <Coins className="w-4 h-4 text-[color:var(--nn-green)]" />,
+      BANK_WITHDRAW: <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />,
+      WAR_DECLARED: <Swords className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
+      WAR_VICTORY: <Shield className="w-4 h-4 text-[color:var(--nn-green)]" />,
+      WAR_DEFEAT: <Shield className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
+      TERRITORY_CLAIMED: <Map className="w-4 h-4 text-[color:var(--nn-cyan)]" />,
+      TERRITORY_LOST: <Map className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
+      ALLIANCE_FORMED: <Handshake className="w-4 h-4 text-[color:var(--nn-violet)]" />,
       ALLIANCE_BROKEN: <Handshake className="w-4 h-4 text-text-secondary" />,
-      PERK_ACTIVATED: <Sparkles className="w-4 h-4 text-yellow-400" />,
-      RESEARCH_COMPLETED: <Beaker className="w-4 h-4 text-purple-400" />
+      PERK_ACTIVATED: <Sparkles className="w-4 h-4 text-[color:var(--nn-amber)]" />,
+      RESEARCH_COMPLETED: <Beaker className="w-4 h-4 text-[color:var(--nn-violet)]" />
     };
 
     return iconMap[type] || <Activity className="w-4 h-4 text-text-secondary" />;
@@ -362,8 +362,8 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       {/* CHAT SECTION */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-cyan-400" />
+          <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)] flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-[color:var(--nn-cyan)]" />
             Clan Chat
           </h3>
           <Button onClick={fetchMessages} variant="ghost" className="gap-2" disabled={isLoadingMessages}>
@@ -372,11 +372,11 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
         </div>
 
         {/* Message List */}
-        <div className="bg-glass-dark border border-glass-border rounded-lg h-[500px] flex flex-col">
+        <div className="bg-glass-dark border border-glass-border rounded-none h-[500px] flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {isLoadingMessages && messages.length === 0 ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                <Loader2 className="w-8 h-8 text-[color:var(--nn-cyan)] animate-spin" />
               </div>
             ) : messages.length === 0 ? (
               <div className="text-center py-20 text-text-secondary">
@@ -385,10 +385,10 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
               </div>
             ) : (
               messages.map(message => (
-                <div key={message.id} className="bg-glass-light border border-glass-border rounded-lg p-3">
+                <div key={message.id} className="bg-glass-light border border-glass-border rounded-none p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-cyan-400 font-semibold text-sm">{message.senderUsername}</span>
+                      <span className="text-[color:var(--nn-cyan)] font-semibold text-sm">{message.senderUsername}</span>
                       <Badge variant={message.senderRole === 'LEADER' ? 'warning' : 'info'} className="text-xs">
                         {message.senderRole}
                       </Badge>
@@ -398,7 +398,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
                       {canDeleteMessages && message.senderId !== currentUserId && (
                         <button
                           onClick={() => handleDeleteMessage(message.id)}
-                          className="text-red-400 hover:text-red-300 transition-colors"
+                          className="text-[color:var(--nn-magenta)] transition-colors"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -431,7 +431,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
             <div className="flex items-center justify-between mt-2 text-xs text-text-secondary">
               <span>{messageInput.length} / {maxMessageLength}</span>
               {messageInput.length > maxMessageLength * 0.9 && (
-                <span className="text-yellow-400">Character limit approaching</span>
+                <span className="text-[color:var(--nn-amber)]">Character limit approaching</span>
               )}
             </div>
           </div>
@@ -441,8 +441,8 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       {/* ACTIVITY FEED SECTION */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Activity className="w-5 h-5 text-purple-400" />
+          <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)] flex items-center gap-2">
+            <Activity className="w-5 h-5 text-[color:var(--nn-violet)]" />
             Activity Feed
           </h3>
           <Button onClick={fetchActivities} variant="ghost" className="gap-2" disabled={isLoadingActivities}>
@@ -485,10 +485,10 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
         </div>
 
         {/* Activity List */}
-        <div className="bg-glass-dark border border-glass-border rounded-lg h-[500px] overflow-y-auto p-4 space-y-2">
+        <div className="bg-glass-dark border border-glass-border rounded-none h-[500px] overflow-y-auto p-4 space-y-2">
           {isLoadingActivities && activities.length === 0 ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+              <Loader2 className="w-8 h-8 text-[color:var(--nn-violet)] animate-spin" />
             </div>
           ) : filteredActivities.length === 0 ? (
             <div className="text-center py-20 text-text-secondary">
@@ -497,18 +497,18 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
             </div>
           ) : (
             filteredActivities.map(activity => (
-              <div key={activity.id} className="bg-glass-light border border-glass-border rounded-lg p-3">
+              <div key={activity.id} className="bg-glass-light border border-glass-border rounded-none p-3">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">{getActivityIcon(activity.type)}</div>
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-1">
-                      <p className="text-sm text-white leading-relaxed">{activity.description}</p>
+                      <p className="text-sm text-[color:var(--nn-text-primary)] leading-relaxed">{activity.description}</p>
                       <Badge variant={getActivityBadgeVariant(activity.type)} className="text-xs ml-2">
                         {activity.type.replace(/_/g, ' ')}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-text-secondary">
-                      <span className="text-cyan-400">{activity.actorUsername}</span>
+                      <span className="text-[color:var(--nn-cyan)]">{activity.actorUsername}</span>
                       <span>•</span>
                       <Clock className="w-3 h-3" />
                       <span>{formatTimeAgo(activity.timestamp)}</span>
@@ -523,25 +523,25 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
 
         {/* Activity Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
             <div className="text-text-secondary mb-1">Total Events</div>
-            <div className="text-white font-bold">{activities.length}</div>
+            <div className="text-[color:var(--nn-text-primary)] font-bold">{activities.length}</div>
           </div>
-          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
             <div className="text-text-secondary mb-1">Last 24h</div>
-            <div className="text-cyan-400 font-bold">
+            <div className="text-[color:var(--nn-cyan)] font-bold">
               {activities.filter(a => new Date().getTime() - a.timestamp.getTime() < 86400000).length}
             </div>
           </div>
-          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
             <div className="text-text-secondary mb-1">Member Actions</div>
-            <div className="text-green-400 font-bold">
+            <div className="text-[color:var(--nn-green)] font-bold">
               {activities.filter(a => ['MEMBER_JOIN', 'MEMBER_LEAVE', 'PROMOTION', 'DEMOTION'].includes(a.type)).length}
             </div>
           </div>
-          <div className="bg-glass-light border border-glass-border rounded-lg p-2 text-center">
+          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
             <div className="text-text-secondary mb-1">Warfare</div>
-            <div className="text-red-400 font-bold">
+            <div className="text-[color:var(--nn-magenta)] font-bold">
               {activities.filter(a => ['WAR_DECLARED', 'WAR_VICTORY', 'WAR_DEFEAT'].includes(a.type)).length}
             </div>
           </div>
@@ -565,9 +565,9 @@ function FilterButton({ label, active, onClick, count }: FilterButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+      className={`px-3 py-1.5 rounded-none border text-sm font-medium transition-all ${
         active
-          ? 'bg-purple-500/20 border-purple-500/50 text-purple-400'
+          ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]'
           : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light'
       }`}
     >

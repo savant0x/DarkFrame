@@ -123,15 +123,15 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
   }).length;
 
   return (
-    <div className={`${onClose ? 'fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4' : ''}`}>
-      <div className={`bg-gray-900 rounded-xl w-full ${onClose ? 'border-2 border-purple-500 max-w-6xl max-h-[90vh] overflow-y-auto' : ''}`}>
+    <div className={`${onClose ? 'fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4' : ''}`}>
+      <div className={`bg-[color:var(--nn-void)] rounded-none w-full ${onClose ? 'border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] max-w-6xl max-h-[90vh] overflow-y-auto' : ''}`}>
         {/* Header */}
-        <div className="bg-purple-600 p-4 flex justify-between items-center sticky top-0 z-10">
-          <h2 className="text-2xl font-bold text-white">📜 Battle History</h2>
+        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] p-4 flex justify-between items-center sticky top-0 z-10">
+          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">📜 Battle History</h2>
           {onClose && (
             <button
               onClick={onClose}
-              className="text-white hover:text-gray-300 text-2xl font-bold"
+              className="text-[color:var(--nn-text-primary)] text-[color:var(--nn-text-secondary)] text-2xl font-bold"
             >
               ✕
             </button>
@@ -141,31 +141,31 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
         <div className="p-6">
           {/* Stats Summary */}
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="bg-gray-800 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm">Total Battles</p>
-              <p className="text-3xl font-bold text-white">{totalBattles}</p>
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 text-center">
+              <p className="text-[color:var(--nn-text-secondary)] text-sm">Total Battles</p>
+              <p className="text-3xl font-bold text-[color:var(--nn-text-primary)]">{totalBattles}</p>
             </div>
-            <div className="bg-green-900/30 border border-green-500 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm">Victories</p>
-              <p className="text-3xl font-bold text-green-400">{victories}</p>
+            <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4 text-center">
+              <p className="text-[color:var(--nn-text-secondary)] text-sm">Victories</p>
+              <p className="text-3xl font-bold text-[color:var(--nn-green)]">{victories}</p>
             </div>
-            <div className="bg-red-900/30 border border-red-500 rounded-lg p-4 text-center">
-              <p className="text-gray-400 text-sm">Defeats</p>
-              <p className="text-3xl font-bold text-red-400">{defeats}</p>
+            <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 text-center">
+              <p className="text-[color:var(--nn-text-secondary)] text-sm">Defeats</p>
+              <p className="text-3xl font-bold text-[color:var(--nn-magenta)]">{defeats}</p>
             </div>
           </div>
 
           {/* Filters */}
-          <div className="bg-gray-800 rounded-lg p-4 mb-6">
-            <h3 className="font-bold text-white mb-3">🔍 Filters</h3>
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6">
+            <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-3">🔍 Filters</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Role Filter */}
               <div>
-                <label className="block text-gray-400 text-sm mb-2">Role</label>
+                <label className="block text-[color:var(--nn-text-secondary)] text-sm mb-2">Role</label>
                 <select
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value as FilterRole)}
-                  className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-purple-500 focus:outline-none"
                 >
                   <option value="all">All Battles</option>
                   <option value="attacker">⚔️ Attacks</option>
@@ -175,11 +175,11 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
 
               {/* Outcome Filter */}
               <div>
-                <label className="block text-gray-400 text-sm mb-2">Outcome</label>
+                <label className="block text-[color:var(--nn-text-secondary)] text-sm mb-2">Outcome</label>
                 <select
                   value={filterOutcome}
                   onChange={(e) => setFilterOutcome(e.target.value as FilterOutcome)}
-                  className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-purple-500 focus:outline-none"
                 >
                   <option value="all">All Outcomes</option>
                   <option value="victory">✅ Victories</option>
@@ -190,11 +190,11 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
 
               {/* Type Filter */}
               <div>
-                <label className="block text-gray-400 text-sm mb-2">Battle Type</label>
+                <label className="block text-[color:var(--nn-text-secondary)] text-sm mb-2">Battle Type</label>
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value as FilterType)}
-                  className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-purple-500 focus:outline-none"
                 >
                   <option value="all">All Types</option>
                   <option value="INFANTRY">⚔️ Infantry</option>
@@ -207,14 +207,14 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
           {/* Loading State */}
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]"></div>
             </div>
           )}
 
           {/* Error State */}
           {error && (
-            <div className="bg-red-900/30 border border-red-500 rounded-lg p-4">
-              <p className="text-red-400">❌ {error}</p>
+            <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4">
+              <p className="text-[color:var(--nn-magenta)]">❌ {error}</p>
             </div>
           )}
 
@@ -222,9 +222,9 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
           {!loading && !error && (
             <>
               {filteredBattles.length === 0 ? (
-                <div className="bg-gray-800 rounded-lg p-8 text-center">
-                  <p className="text-gray-400 text-lg">No battles found</p>
-                  <p className="text-gray-500 text-sm mt-2">
+                <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-8 text-center">
+                  <p className="text-[color:var(--nn-text-secondary)] text-lg">No battles found</p>
+                  <p className="text-[color:var(--nn-text-secondary)] text-sm mt-2">
                     {filterRole !== 'all' || filterOutcome !== 'all' || filterType !== 'all'
                       ? 'Try adjusting your filters'
                       : 'Launch your first attack to see battle history!'}
@@ -242,18 +242,18 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                     return (
                       <div
                         key={battle._id}
-                        className={`border-2 rounded-lg overflow-hidden transition-all ${
+                        className={`border-2 rounded-none overflow-hidden transition-all ${
                           isVictory
-                            ? 'border-green-500 bg-green-900/20'
+                            ? 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]'
                             : isDraw
-                            ? 'border-yellow-500 bg-yellow-900/20'
-                            : 'border-red-500 bg-red-900/20'
+                            ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
+                            : 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
                         }`}
                       >
                         {/* Battle Summary */}
                         <div
                           onClick={() => setExpandedBattle(isExpanded ? null : (battle._id || battle.battleId))}
-                          className="p-4 cursor-pointer hover:bg-gray-800/50 transition-colors"
+                          className="p-4 cursor-pointer bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] transition-colors"
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
@@ -262,15 +262,15 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-white text-lg">
+                                  <span className="font-bold text-[color:var(--nn-text-primary)] text-lg">
                                     {isAttacker ? '⚔️ Attack' : '🛡️ Defense'}
                                   </span>
-                                  <span className="text-gray-400">vs</span>
-                                  <span className="font-bold text-white text-lg">
+                                  <span className="text-[color:var(--nn-text-secondary)]">vs</span>
+                                  <span className="font-bold text-[color:var(--nn-text-primary)] text-lg">
                                     {isAttacker ? battle.defender.username : battle.attacker.username}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
+                                <div className="flex items-center gap-3 mt-1 text-sm text-[color:var(--nn-text-secondary)]">
                                   <span>{battle.battleType === BattleType.Infantry ? '⚔️ Infantry' : '🏠 Base'}</span>
                                   <span>•</span>
                                   <span>{battle.totalRounds} rounds</span>
@@ -281,11 +281,11 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                             </div>
                             <div className="text-right">
                               <div className={`font-bold text-xl ${
-                                isVictory ? 'text-green-400' : isDraw ? 'text-yellow-400' : 'text-red-400'
+                                isVictory ? 'text-[color:var(--nn-green)]' : isDraw ? 'text-[color:var(--nn-amber)]' : 'text-[color:var(--nn-magenta)]'
                               }`}>
                                 {isVictory ? 'VICTORY' : isDraw ? 'DRAW' : 'DEFEAT'}
                               </div>
-                              <div className="text-purple-400 text-sm mt-1">
+                              <div className="text-[color:var(--nn-violet)] text-sm mt-1">
                                 +{isAttacker ? battle.attacker.xpEarned : battle.defender.xpEarned} XP
                               </div>
                             </div>
@@ -294,33 +294,33 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
 
                         {/* Expanded Details */}
                         {isExpanded && (
-                          <div className="border-t border-gray-700 bg-gray-800/50 p-4">
+                          <div className="border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               {/* Attacker Stats */}
-                              <div className="bg-red-900/30 border border-red-500 rounded-lg p-3">
-                                <h4 className="font-bold text-red-400 mb-2">
+                              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
+                                <h4 className="font-bold text-[color:var(--nn-magenta)] mb-2">
                                   ⚔️ {battle.attacker.username} (Attacker)
                                 </h4>
                                 <div className="space-y-1 text-sm">
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">HP:</span>
-                                    <span className="text-white">
+                                    <span className="text-[color:var(--nn-text-secondary)]">HP:</span>
+                                    <span className="text-[color:var(--nn-text-primary)]">
                                       {battle.attacker.startingHP} → {battle.attacker.endingHP}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">Damage Dealt:</span>
-                                    <span className="text-red-400 font-bold">{battle.attacker.damageDealt}</span>
+                                    <span className="text-[color:var(--nn-text-secondary)]">Damage Dealt:</span>
+                                    <span className="text-[color:var(--nn-magenta)] font-bold">{battle.attacker.damageDealt}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">Units Lost:</span>
-                                    <span className="text-red-400">
+                                    <span className="text-[color:var(--nn-text-secondary)]">Units Lost:</span>
+                                    <span className="text-[color:var(--nn-magenta)]">
                                       {battle.attacker.unitsLost}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">Units Captured:</span>
-                                    <span className="text-green-400">
+                                    <span className="text-[color:var(--nn-text-secondary)]">Units Captured:</span>
+                                    <span className="text-[color:var(--nn-green)]">
                                       {battle.attacker.unitsCaptured}
                                     </span>
                                   </div>
@@ -328,30 +328,30 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                               </div>
 
                               {/* Defender Stats */}
-                              <div className="bg-blue-900/30 border border-blue-500 rounded-lg p-3">
-                                <h4 className="font-bold text-blue-400 mb-2">
+                              <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
+                                <h4 className="font-bold text-[color:var(--nn-cyan)] mb-2">
                                   🛡️ {battle.defender.username} (Defender)
                                 </h4>
                                 <div className="space-y-1 text-sm">
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">HP:</span>
-                                    <span className="text-white">
+                                    <span className="text-[color:var(--nn-text-secondary)]">HP:</span>
+                                    <span className="text-[color:var(--nn-text-primary)]">
                                       {battle.defender.startingHP} → {battle.defender.endingHP}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">Damage Dealt:</span>
-                                    <span className="text-blue-400 font-bold">{battle.defender.damageDealt}</span>
+                                    <span className="text-[color:var(--nn-text-secondary)]">Damage Dealt:</span>
+                                    <span className="text-[color:var(--nn-cyan)] font-bold">{battle.defender.damageDealt}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">Units Lost:</span>
-                                    <span className="text-red-400">
+                                    <span className="text-[color:var(--nn-text-secondary)]">Units Lost:</span>
+                                    <span className="text-[color:var(--nn-magenta)]">
                                       {battle.defender.unitsLost}
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span className="text-gray-400">Units Captured:</span>
-                                    <span className="text-green-400">
+                                    <span className="text-[color:var(--nn-text-secondary)]">Units Captured:</span>
+                                    <span className="text-[color:var(--nn-green)]">
                                       {battle.defender.unitsCaptured}
                                     </span>
                                   </div>
@@ -361,15 +361,15 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
 
                             {/* Resources Stolen */}
                             {battle.resourcesStolen && battle.resourcesStolen.amount > 0 && (
-                              <div className="mt-3 bg-yellow-900/30 border border-yellow-500 rounded-lg p-3">
-                                <p className="text-yellow-400 font-bold">
+                              <div className="mt-3 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3">
+                                <p className="text-[color:var(--nn-amber)] font-bold">
                                   💰 {battle.resourcesStolen.resourceType.toUpperCase()} Stolen: {battle.resourcesStolen.amount.toLocaleString()}
                                 </p>
                               </div>
                             )}
 
                             {/* Battle Message */}
-                            <div className="mt-3 text-center text-gray-400 text-sm italic">
+                            <div className="mt-3 text-center text-[color:var(--nn-text-secondary)] text-sm italic">
                               &quot;{battle.message}&quot;
                             </div>
                           </div>
@@ -385,7 +385,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                 <div className="text-center mt-6">
                   <button
                     onClick={fetchBattleLogs}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition-colors"
+                    className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition-colors"
                   >
                     Load More
                   </button>

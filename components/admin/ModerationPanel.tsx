@@ -524,9 +524,9 @@ export default function ModerationPanel() {
     return (
       <Panel className="max-w-2xl mx-auto mt-8">
         <div className="text-center py-12">
-          <Shield className="w-16 h-16 text-red-400 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Access Denied</h2>
-          <p className="text-gray-400">
+          <Shield className="w-16 h-16 text-[color:var(--nn-magenta)] mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-2">Access Denied</h2>
+          <p className="text-[color:var(--nn-text-secondary)]">
             You do not have permission to access the moderation panel.
           </p>
         </div>
@@ -541,8 +541,8 @@ export default function ModerationPanel() {
     return (
       <Panel className="max-w-6xl mx-auto mt-8">
         <div className="text-center py-12">
-          <RefreshCw className="w-16 h-16 text-cyan-400 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-400">Loading moderation data...</p>
+          <RefreshCw className="w-16 h-16 text-[color:var(--nn-cyan)] mx-auto mb-4 animate-spin" />
+          <p className="text-[color:var(--nn-text-secondary)]">Loading moderation data...</p>
         </div>
       </Panel>
     );
@@ -557,8 +557,8 @@ export default function ModerationPanel() {
       {/* HEADER */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Shield className="w-6 h-6 text-cyan-400" />
-          <h2 className="text-xl font-bold text-white">Moderation Dashboard</h2>
+          <Shield className="w-6 h-6 text-[color:var(--nn-cyan)]" />
+          <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)]">Moderation Dashboard</h2>
         </div>
         <Button
           onClick={loadModerationData}
@@ -576,10 +576,10 @@ export default function ModerationPanel() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors whitespace-nowrap ${
+            className={`px-4 py-2 rounded-none font-medium text-sm transition-colors whitespace-nowrap ${
               activeTab === tab
-                ? 'bg-cyan-500 text-white'
-                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
+                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'
             }`}
           >
             {tab === 'mutes' && `Mutes (${mutedUsers.length})`}
@@ -595,7 +595,7 @@ export default function ModerationPanel() {
         {/* Search */}
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--nn-text-secondary)]" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -610,7 +610,7 @@ export default function ModerationPanel() {
           <select
             value={channelFilter}
             onChange={(e) => setChannelFilter(e.target.value as ChannelType | 'ALL')}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm"
           >
             <option value="ALL">All Channels</option>
             {Object.values(ChannelType).map((channel) => (
@@ -626,7 +626,7 @@ export default function ModerationPanel() {
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm"
           >
             <option value="ALL">All Actions</option>
             <option value="MUTE">Mute</option>
@@ -647,8 +647,8 @@ export default function ModerationPanel() {
           <>
             {/* Bulk Actions */}
             {selectedMutes.size > 0 && (
-              <div className="flex items-center justify-between bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
-                <span className="text-cyan-400 text-sm">
+              <div className="flex items-center justify-between bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
+                <span className="text-[color:var(--nn-cyan)] text-sm">
                   {selectedMutes.size} user(s) selected
                 </span>
                 <Button onClick={handleBulkUnmute} variant="primary" size="sm">
@@ -659,7 +659,7 @@ export default function ModerationPanel() {
 
             {/* Mutes List */}
             {filteredMutes.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-8 text-[color:var(--nn-text-secondary)]">
                 No active mutes found
               </div>
             ) : (
@@ -670,8 +670,8 @@ export default function ModerationPanel() {
                 return (
                   <div
                     key={muteKey}
-                    className={`bg-gray-800/50 border rounded-lg p-4 flex items-center justify-between ${
-                      isSelected ? 'border-cyan-500' : 'border-gray-700/30'
+                    className={`bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border rounded-none p-4 flex items-center justify-between ${
+                      isSelected ? 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]'
                     }`}
                   >
                     <div className="flex items-center gap-4 flex-1">
@@ -688,28 +688,28 @@ export default function ModerationPanel() {
                           }
                           setSelectedMutes(newSelected);
                         }}
-                        className="w-4 h-4 rounded border-gray-600 bg-gray-700"
+                        className="w-4 h-4 rounded-none border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]"
                       />
 
                       {/* User Info */}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-white font-medium">{mute.username}</span>
+                          <span className="text-[color:var(--nn-text-primary)] font-medium">{mute.username}</span>
                           <Badge variant="error" size="sm">
                             {mute.channelId}
                           </Badge>
                         </div>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-[color:var(--nn-text-secondary)] text-sm">
                           Reason: {mute.reason}
                         </p>
-                        <p className="text-gray-500 text-xs mt-1">
+                        <p className="text-[color:var(--nn-text-secondary)] text-xs mt-1">
                           Muted by {mute.mutedBy} • {formatTimeAgo(mute.mutedAt)}
                         </p>
                       </div>
 
                       {/* Time Remaining */}
                       <div className="text-right">
-                        <div className="flex items-center gap-1 text-yellow-400 text-sm">
+                        <div className="flex items-center gap-1 text-[color:var(--nn-amber)] text-sm">
                           <Clock className="w-4 h-4" />
                           {formatTimeRemaining(mute.expiresAt)}
                         </div>
@@ -737,8 +737,8 @@ export default function ModerationPanel() {
           <>
             {/* Bulk Actions */}
             {selectedBans.size > 0 && (
-              <div className="flex items-center justify-between bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
-                <span className="text-cyan-400 text-sm">
+              <div className="flex items-center justify-between bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
+                <span className="text-[color:var(--nn-cyan)] text-sm">
                   {selectedBans.size} user(s) selected
                 </span>
                 <Button onClick={handleBulkUnban} variant="primary" size="sm">
@@ -749,7 +749,7 @@ export default function ModerationPanel() {
 
             {/* Bans List */}
             {filteredBans.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-8 text-[color:var(--nn-text-secondary)]">
                 No active bans found
               </div>
             ) : (
@@ -760,8 +760,8 @@ export default function ModerationPanel() {
                 return (
                   <div
                     key={banKey}
-                    className={`bg-gray-800/50 border rounded-lg p-4 flex items-center justify-between ${
-                      isSelected ? 'border-cyan-500' : 'border-gray-700/30'
+                    className={`bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border rounded-none p-4 flex items-center justify-between ${
+                      isSelected ? 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]'
                     }`}
                   >
                     <div className="flex items-center gap-4 flex-1">
@@ -778,13 +778,13 @@ export default function ModerationPanel() {
                           }
                           setSelectedBans(newSelected);
                         }}
-                        className="w-4 h-4 rounded border-gray-600 bg-gray-700"
+                        className="w-4 h-4 rounded-none border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]"
                       />
 
                       {/* User Info */}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-white font-medium">{ban.username}</span>
+                          <span className="text-[color:var(--nn-text-primary)] font-medium">{ban.username}</span>
                           <Badge variant="error" size="sm">
                             {ban.channelId}
                           </Badge>
@@ -794,10 +794,10 @@ export default function ModerationPanel() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-[color:var(--nn-text-secondary)] text-sm">
                           Reason: {ban.reason}
                         </p>
-                        <p className="text-gray-500 text-xs mt-1">
+                        <p className="text-[color:var(--nn-text-secondary)] text-xs mt-1">
                           Banned by {ban.bannedBy} • {formatTimeAgo(ban.bannedAt)}
                         </p>
                       </div>
@@ -805,7 +805,7 @@ export default function ModerationPanel() {
                       {/* Time Remaining (if temporary) */}
                       {ban.expiresAt && (
                         <div className="text-right">
-                          <div className="flex items-center gap-1 text-red-400 text-sm">
+                          <div className="flex items-center gap-1 text-[color:var(--nn-magenta)] text-sm">
                             <Clock className="w-4 h-4" />
                             {formatTimeRemaining(ban.expiresAt)}
                           </div>
@@ -833,8 +833,8 @@ export default function ModerationPanel() {
         {activeTab === 'blacklist' && (
           <>
             {/* Add New Word */}
-            <div className="bg-gray-800/50 border border-gray-700/30 rounded-lg p-4">
-              <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
+              <h3 className="text-[color:var(--nn-text-primary)] font-medium mb-3 flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 Add Blacklisted Word
               </h3>
@@ -851,7 +851,7 @@ export default function ModerationPanel() {
                 <select
                   value={newWordSeverity}
                   onChange={(e) => setNewWordSeverity(e.target.value as 'low' | 'medium' | 'high')}
-                  className="px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white"
+                  className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)]"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -865,7 +865,7 @@ export default function ModerationPanel() {
 
             {/* Blacklist */}
             {filteredBlacklist.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-8 text-[color:var(--nn-text-secondary)]">
                 No blacklisted words found
               </div>
             ) : (
@@ -873,11 +873,11 @@ export default function ModerationPanel() {
                 {filteredBlacklist.map((word) => (
                   <div
                     key={word.id}
-                    className="bg-gray-800/50 border border-gray-700/30 rounded-lg p-3 flex items-center justify-between"
+                    className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3 flex items-center justify-between"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-white font-medium">{word.word}</span>
+                        <span className="text-[color:var(--nn-text-primary)] font-medium">{word.word}</span>
                         <Badge
                           variant={
                             word.severity === 'high' ? 'error' :
@@ -889,13 +889,13 @@ export default function ModerationPanel() {
                           {word.severity}
                         </Badge>
                       </div>
-                      <p className="text-gray-500 text-xs">
+                      <p className="text-[color:var(--nn-text-secondary)] text-xs">
                         Added by {word.addedBy} • {formatTimeAgo(word.addedAt)}
                       </p>
                     </div>
                     <button
                       onClick={() => handleRemoveBlacklistWord(word.id)}
-                      className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-500/10 transition-colors"
+                      className="text-[color:var(--nn-magenta)] p-1 rounded-none bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] transition-colors"
                       aria-label="Remove word"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -911,14 +911,14 @@ export default function ModerationPanel() {
         {activeTab === 'logs' && (
           <>
             {filteredLogs.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
+              <div className="text-center py-8 text-[color:var(--nn-text-secondary)]">
                 No moderation logs found
               </div>
             ) : (
               filteredLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="bg-gray-800/50 border border-gray-700/30 rounded-lg p-4"
+                  className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -929,16 +929,16 @@ export default function ModerationPanel() {
                         <Badge variant="info" size="sm">
                           {log.channelId}
                         </Badge>
-                        <span className="text-gray-500 text-xs">
+                        <span className="text-[color:var(--nn-text-secondary)] text-xs">
                           {formatTimeAgo(log.timestamp)}
                         </span>
                       </div>
-                      <p className="text-white text-sm mb-1">
-                        <span className="text-cyan-400 font-medium">{log.moderatorUsername}</span>
+                      <p className="text-[color:var(--nn-text-primary)] text-sm mb-1">
+                        <span className="text-[color:var(--nn-cyan)] font-medium">{log.moderatorUsername}</span>
                         {' → '}
-                        <span className="text-white font-medium">{log.targetUsername}</span>
+                        <span className="text-[color:var(--nn-text-primary)] font-medium">{log.targetUsername}</span>
                       </p>
-                      <p className="text-gray-400 text-sm">
+                      <p className="text-[color:var(--nn-text-secondary)] text-sm">
                         Reason: {log.reason}
                       </p>
                     </div>

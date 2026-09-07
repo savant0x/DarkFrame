@@ -143,7 +143,7 @@ export default function HarvestButton({ onHarvestResult }: HarvestButtonProps) {
         <button
           onClick={handleHarvest}
           disabled={isHarvesting}
-          className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-4 px-8 rounded-lg shadow-lg transition-all hover:scale-105 disabled:cursor-not-allowed text-xl"
+          className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-4 px-8 rounded-none shadow-lg transition-all hover:scale-105 disabled:cursor-not-allowed text-xl"
         >
           {isHarvesting ? 'HARVESTING...' : `HARVEST (${getKeyHint()})`}
         </button>

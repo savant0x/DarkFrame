@@ -164,21 +164,21 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
 
   if (!projection && !isLoading) {
     return (
-      <div className="bg-black/40 rounded border border-gray-700 p-4">
-        <p className="text-gray-500">No territory income data</p>
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-4">
+        <p className="text-[color:var(--nn-text-secondary)]">No territory income data</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-black/40 rounded border border-gray-700 p-4">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_40%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-bold">Territory Passive Income</h3>
         {canCollect && projection && (
           <button
             onClick={collectIncome}
             disabled={isCollecting}
-            className="px-4 py-2 bg-green-600 rounded hover:bg-green-500 disabled:opacity-50 text-sm"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none disabled:opacity-50 text-sm"
           >
             {isCollecting ? 'Collecting...' : 'Collect Income'}
           </button>
@@ -187,12 +187,12 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
 
       {/* Error/Success Display */}
       {error && (
-        <div className="mb-3 p-2 bg-red-900/20 border border-red-500 rounded text-sm">
+        <div className="mb-3 p-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-sm">
           {error}
         </div>
       )}
       {successMessage && (
-        <div className="mb-3 p-2 bg-green-900/20 border border-green-500 rounded text-sm">
+        <div className="mb-3 p-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none text-sm">
           {successMessage}
         </div>
       )}
@@ -201,33 +201,33 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
         <div className="space-y-4">
           {/* Overview Stats */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-black/20 border border-gray-600 rounded p-3">
-              <p className="text-sm text-gray-400">Total Territories</p>
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-3">
+              <p className="text-sm text-[color:var(--nn-text-secondary)]">Total Territories</p>
               <p className="text-2xl font-bold">{projection.totalTerritories}</p>
             </div>
-            <div className="bg-black/20 border border-gray-600 rounded p-3">
-              <p className="text-sm text-gray-400">Daily Income</p>
-              <p className="text-lg font-bold text-green-400">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-3">
+              <p className="text-sm text-[color:var(--nn-text-secondary)]">Daily Income</p>
+              <p className="text-lg font-bold text-[color:var(--nn-green)]">
                 {projection.projectedDailyMetal.toLocaleString()}M
               </p>
-              <p className="text-lg font-bold text-blue-400">
+              <p className="text-lg font-bold text-[color:var(--nn-cyan)]">
                 {projection.projectedDailyEnergy.toLocaleString()}E
               </p>
             </div>
           </div>
 
           {/* Average Income */}
-          <div className="bg-black/20 border border-gray-600 rounded p-3">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-3">
             <p className="text-sm font-bold mb-2">Average Income Per Territory</p>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-400">Metal:</span>
-              <span className="font-bold text-green-400">
+              <span className="text-sm text-[color:var(--nn-text-secondary)]">Metal:</span>
+              <span className="font-bold text-[color:var(--nn-green)]">
                 {projection.averageIncomePerTerritory.metal.toLocaleString()}M
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-400">Energy:</span>
-              <span className="font-bold text-blue-400">
+              <span className="text-sm text-[color:var(--nn-text-secondary)]">Energy:</span>
+              <span className="font-bold text-[color:var(--nn-cyan)]">
                 {projection.averageIncomePerTerritory.energy.toLocaleString()}E
               </span>
             </div>
@@ -235,12 +235,12 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
 
           {/* Territory Breakdown */}
           {projection.territoryBreakdown && projection.territoryBreakdown.length > 0 && (
-            <div className="bg-black/20 border border-gray-600 rounded p-3">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-3">
               <p className="text-sm font-bold mb-2">Territory Distribution by Tier</p>
               <div className="space-y-2">
                 {projection.territoryBreakdown.map((tier) => (
                   <div key={tier.tier} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-400">
+                    <span className="text-[color:var(--nn-text-secondary)]">
                       Tier {tier.tier}: {tier.count} territories
                     </span>
                     <span className="font-bold">
@@ -253,10 +253,10 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
           )}
 
           {/* Collection Times */}
-          <div className="bg-black/20 border border-gray-600 rounded p-3">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_20%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-3">
             {projection.lastCollectionTime && (
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-400">Last Collection:</span>
+                <span className="text-[color:var(--nn-text-secondary)]">Last Collection:</span>
                 <span className="font-bold">
                   {new Date(projection.lastCollectionTime).toLocaleString()}
                 </span>
@@ -264,8 +264,8 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
             )}
             {projection.nextCollectionTime && (
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Next Collection:</span>
-                <span className="font-bold text-yellow-400">
+                <span className="text-[color:var(--nn-text-secondary)]">Next Collection:</span>
+                <span className="font-bold text-[color:var(--nn-amber)]">
                   {timeUntilNext || 'Calculating...'}
                 </span>
               </div>
@@ -273,15 +273,15 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
           </div>
 
           {/* Info Box */}
-          <div className="bg-blue-900/20 border border-blue-500/30 rounded p-3">
-            <p className="text-xs text-blue-300">
+          <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
+            <p className="text-xs text-[color:var(--nn-cyan)]">
               💡 <strong>Passive Income:</strong> Territories generate income automatically every 24 hours at 00:00 UTC.
               Leaders and Co-Leaders can manually collect income at any time, but automatic collection ensures you never miss earnings!
             </p>
           </div>
         </div>
       ) : (
-        <div className="text-center text-gray-500 py-8">
+        <div className="text-center text-[color:var(--nn-text-secondary)] py-8">
           Loading income data...
         </div>
       )}

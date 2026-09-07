@@ -1131,7 +1131,7 @@ export default function ChatPanel({
 
   const connectionIcon =
     isPollingMessages ? (
-      <Wifi className="w-4 h-4 text-green-400" />
+      <Wifi className="w-4 h-4 text-[color:var(--nn-green)]" />
     ) : (
       <Loader2 className="w-4 h-4 text-[color:var(--nn-amber)] animate-spin" />
     );
@@ -1468,7 +1468,7 @@ export default function ChatPanel({
                             <textarea
                               value={editedContent}
                               onChange={(e) => setEditedContent(e.target.value.slice(0, MAX_MESSAGE_LENGTH))}
-                              className="w-full resize-none rounded border border-[color-mix(in_oklab,var(--nn-cyan)_40%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] px-3 py-2 text-sm text-[color:var(--nn-text-primary)] focus:border-[color:var(--nn-cyan)] focus:outline-none"
+                              className="w-full resize-none rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_40%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] px-3 py-2 text-sm text-[color:var(--nn-text-primary)] focus:border-[color:var(--nn-cyan)] focus:outline-none"
                               rows={3}
                               autoFocus
                             />
@@ -1501,7 +1501,7 @@ export default function ChatPanel({
                                 {canEdit && (
                                   <button
                                     onClick={() => startEdit(message.id, message.content)}
-                                    className="rounded px-2 py-1 text-xs text-[color:var(--nn-text-tertiary)] transition-colors hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] hover:text-[color:var(--nn-cyan)]"
+                                    className="rounded-none px-2 py-1 text-xs text-[color:var(--nn-text-tertiary)] transition-colors hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] hover:text-[color:var(--nn-cyan)]"
                                     title="Edit (15 min window)"
                                   >
                                     Edit
@@ -1509,7 +1509,7 @@ export default function ChatPanel({
                                 )}
                                 <button
                                   onClick={() => setDeleteConfirmId(message.id)}
-                                  className="rounded px-2 py-1 text-xs text-[color:var(--nn-text-tertiary)] transition-colors hover:bg-[color-mix(in_oklab,var(--nn-magenta)_10%,transparent)] hover:text-[color:var(--nn-magenta)]"
+                                  className="rounded-none px-2 py-1 text-xs text-[color:var(--nn-text-tertiary)] transition-colors hover:bg-[color-mix(in_oklab,var(--nn-magenta)_10%,transparent)] hover:text-[color:var(--nn-magenta)]"
                                   title="Delete message"
                                 >
                                   Delete
@@ -1829,7 +1829,7 @@ export default function ChatPanel({
                   </div>
                   <button
                     onClick={() => setDeleteConversationConfirmId(selectedConversationId)}
-                    className="rounded border border-[color-mix(in_oklab,var(--nn-magenta)_40%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_10%,transparent)] p-1.5 transition-all hover:bg-[color-mix(in_oklab,var(--nn-magenta)_20%,transparent)]"
+                    className="rounded-none border border-[color-mix(in_oklab,var(--nn-magenta)_40%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_10%,transparent)] p-1.5 transition-all hover:bg-[color-mix(in_oklab,var(--nn-magenta)_20%,transparent)]"
                     title="Delete Conversation"
                   >
                     <Trash2 className="w-4 h-4 text-[color:var(--nn-magenta)]" />
@@ -1926,7 +1926,7 @@ export default function ChatPanel({
 
       {/* NEW MESSAGE MODAL */}
       {showNewMessageModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
           <div className="nn-panel w-full max-w-md p-6" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="nn-chat__title flex items-center gap-2">
@@ -2008,7 +2008,7 @@ export default function ChatPanel({
 
       {/* DELETE CONVERSATION CONFIRMATION MODAL */}
       {deleteConversationConfirmId && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
           <div className="nn-panel w-full max-w-sm p-6" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="nn-chat__title flex items-center gap-2" style={{ color: 'var(--nn-magenta)' }}>
@@ -2044,7 +2044,7 @@ export default function ChatPanel({
 
       {/* DELETE CONFIRMATION MODAL */}
       {deleteConfirmId && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
           <div className="nn-panel w-full max-w-sm p-6" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="nn-chat__title flex items-center gap-2" style={{ color: 'var(--nn-magenta)' }}>
@@ -2080,7 +2080,7 @@ export default function ChatPanel({
 
       {/* ASK VETERANS MODAL */}
       {askVeteransModal.isOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
           <div className="nn-panel w-full max-w-md p-6" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="nn-chat__title flex items-center gap-2">

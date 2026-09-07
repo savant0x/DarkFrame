@@ -82,23 +82,23 @@ function getCategoryInfo(category: 'INDUSTRIAL' | 'COMBAT' | 'STRATEGIC'): Categ
   const map: Record<string, CategoryInfo> = {
     INDUSTRIAL: {
       name: 'Industrial',
-      color: 'text-blue-400',
-      bgColor: 'bg-blue-900/30',
-      borderColor: 'border-blue-500',
+      color: 'text-[color:var(--nn-cyan)]',
+      bgColor: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
+      borderColor: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]',
       icon: '⚙️',
     },
     COMBAT: {
       name: 'Combat',
-      color: 'text-red-400',
-      bgColor: 'bg-red-900/30',
-      borderColor: 'border-red-500',
+      color: 'text-[color:var(--nn-magenta)]',
+      bgColor: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]',
+      borderColor: 'border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]',
       icon: '⚔️',
     },
     STRATEGIC: {
       name: 'Strategic',
-      color: 'text-purple-400',
-      bgColor: 'bg-purple-900/30',
-      borderColor: 'border-purple-500',
+      color: 'text-[color:var(--nn-violet)]',
+      bgColor: 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
+      borderColor: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]',
       icon: '🧠',
     },
   };
@@ -245,22 +245,22 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
   // ============================================================
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
           <div className="flex items-center gap-3">
             <span className="text-3xl">📜</span>
             <div>
-              <h2 className="text-2xl font-bold text-white">Discovery Log</h2>
-              <p className="text-sm text-gray-400">Ancient Technologies Tracker</p>
+              <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Discovery Log</h2>
+              <p className="text-sm text-[color:var(--nn-text-secondary)]">Ancient Technologies Tracker</p>
             </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-gray-400 hover:text-white"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)]"
           >
             <X className="h-5 w-5" />
           </Button>
@@ -275,8 +275,8 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
           ) : error ? (
             <div className="text-center py-12">
               <div className="text-5xl mb-4">⚠️</div>
-              <p className="text-red-400 mb-2 font-semibold">Failed to load discoveries</p>
-              <p className="text-sm text-gray-400">{error}</p>
+              <p className="text-[color:var(--nn-magenta)] mb-2 font-semibold">Failed to load discoveries</p>
+              <p className="text-sm text-[color:var(--nn-text-secondary)]">{error}</p>
             </div>
           ) : (
             <>
@@ -284,16 +284,16 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
               <Panel className="mb-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-bold text-white">Overall Progress</h3>
-                    <p className="text-sm text-gray-400">
+                    <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)]">Overall Progress</h3>
+                    <p className="text-sm text-[color:var(--nn-text-secondary)]">
                       {progress.totalDiscovered} / {progress.totalPossible} Technologies Discovered
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-bold text-yellow-400">
+                    <div className="text-3xl font-bold text-[color:var(--nn-amber)]">
                       {Math.round(progress.percentComplete)}%
                     </div>
-                    <div className="text-xs text-gray-400">Complete</div>
+                    <div className="text-xs text-[color:var(--nn-text-secondary)]">Complete</div>
                   </div>
                 </div>
 
@@ -317,7 +317,7 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
                           <span className="text-xl">{info.icon}</span>
                           <span className={`text-sm font-bold ${info.color}`}>{info.name}</span>
                         </div>
-                        <div className="text-lg font-bold text-white mb-1">
+                        <div className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-1">
                           {catProgress.discovered} / {catProgress.total}
                         </div>
                         <ProgressBar
@@ -335,7 +335,7 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
 
               {/* Category Filter Tabs */}
               <div className="flex items-center gap-2 mb-6 flex-wrap">
-                <span className="text-sm text-gray-400 font-semibold mr-2">Filter:</span>
+                <span className="text-sm text-[color:var(--nn-text-secondary)] font-semibold mr-2">Filter:</span>
                 <Button
                   variant={filter === 'ALL' ? 'primary' : 'ghost'}
                   size="sm"
@@ -393,21 +393,21 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
                             </div>
 
                             {/* Content */}
-                            <h3 className="text-lg font-bold text-white mb-1">{discovery.name}</h3>
-                            <p className="text-sm text-gray-300 mb-3 leading-relaxed">
+                            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-1">{discovery.name}</h3>
+                            <p className="text-sm text-[color:var(--nn-text-secondary)] mb-3 leading-relaxed">
                               {discovery.description}
                             </p>
 
                             {/* Bonus Display */}
-                            <div className="bg-gray-800/50 rounded p-2 border border-gray-600 mb-2">
-                              <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+                            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] mb-2">
+                              <div className="text-xs text-[color:var(--nn-text-secondary)] uppercase tracking-wide mb-1">
                                 Bonus
                               </div>
-                              <div className="text-sm font-bold text-green-400">{discovery.bonus}</div>
+                              <div className="text-sm font-bold text-[color:var(--nn-green)]">{discovery.bonus}</div>
                             </div>
 
                             {/* Discovery Date */}
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-[color:var(--nn-text-secondary)]">
                               Discovered: {new Date(discovery.discoveredAt).toLocaleDateString()}
                             </div>
                           </div>
@@ -421,30 +421,30 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
                     const info = getCategoryInfo(tech.category);
                     return (
                       <StaggerItem key={tech.id}>
-                        <Card className="border-2 border-gray-700 bg-gray-800/30 opacity-50">
+                        <Card className="border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] opacity-50">
                           <div className="p-4">
                             {/* Header */}
                             <div className="flex items-start justify-between mb-3">
                               <span className="text-3xl grayscale">🔒</span>
-                              <Badge variant="default" className="bg-gray-700 text-gray-400">
+                              <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)]">
                                 {info.name.toUpperCase()}
                               </Badge>
                             </div>
 
                             {/* Content */}
-                            <h3 className="text-lg font-bold text-gray-500 mb-1">???</h3>
-                            <p className="text-sm text-gray-600 mb-3">Undiscovered technology</p>
+                            <h3 className="text-lg font-bold text-[color:var(--nn-text-secondary)] mb-1">???</h3>
+                            <p className="text-sm text-[color:var(--nn-text-secondary)] mb-3">Undiscovered technology</p>
 
                             {/* Bonus Display */}
-                            <div className="bg-gray-800/50 rounded p-2 border border-gray-700 mb-2">
-                              <div className="text-xs text-gray-600 uppercase tracking-wide mb-1">
+                            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] mb-2">
+                              <div className="text-xs text-[color:var(--nn-text-secondary)] uppercase tracking-wide mb-1">
                                 Bonus
                               </div>
-                              <div className="text-sm font-bold text-gray-600">???</div>
+                              <div className="text-sm font-bold text-[color:var(--nn-text-secondary)]">???</div>
                             </div>
 
                             {/* Discovery Hint */}
-                            <div className="text-xs text-gray-600">
+                            <div className="text-xs text-[color:var(--nn-text-secondary)]">
                               Find in caves and forests (5% chance)
                             </div>
                           </div>
@@ -457,12 +457,12 @@ export default function DiscoveryLogPanel({ isOpen, onClose }: DiscoveryLogPanel
 
               {/* Completion Message */}
               {progress.completionStatus === 'COMPLETE' && (
-                <div className="mt-6 p-6 bg-gradient-to-r from-yellow-900 to-orange-900 border-2 border-yellow-500 rounded-lg text-center">
+                <div className="mt-6 p-6 bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none text-center">
                   <div className="text-5xl mb-3">🎉</div>
-                  <h3 className="text-2xl font-bold text-white mb-2">
+                  <h3 className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">
                     All Technologies Discovered!
                   </h3>
-                  <p className="text-yellow-300">
+                  <p className="text-[color:var(--nn-amber)]">
                     You have uncovered all 15 ancient technologies and gained their permanent bonuses!
                   </p>
                 </div>

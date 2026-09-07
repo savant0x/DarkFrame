@@ -50,7 +50,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 2.99,
     icon: '🌱',
     daysEquivalent: 0.15, // ~3-4 hours of play
-    color: 'from-green-600 to-emerald-600'
+    color: 'from-[color:var(--nn-green)] to-[color:var(--nn-green)]'
   },
   {
     id: 'boost',
@@ -60,7 +60,7 @@ const RP_PACKAGES: RPPackage[] = [
     popular: true,
     icon: '⚡',
     daysEquivalent: 0.7, // ~17 hours of play
-    color: 'from-blue-600 to-cyan-600'
+    color: 'from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]'
   },
   {
     id: 'power',
@@ -69,7 +69,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 24.99,
     icon: '💪',
     daysEquivalent: 2, // 2 days of active play
-    color: 'from-purple-600 to-pink-600'
+    color: 'from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)]'
   },
   {
     id: 'mega',
@@ -78,7 +78,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 59.99,
     icon: '🚀',
     daysEquivalent: 7, // 1 week of active play
-    color: 'from-orange-600 to-red-600'
+    color: 'from-[color:var(--nn-amber)] to-[color:var(--nn-magenta)]'
   },
   {
     id: 'legendary',
@@ -87,7 +87,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 99.99,
     icon: '👑',
     daysEquivalent: 14, // 2 weeks of active play
-    color: 'from-yellow-500 to-yellow-600'
+    color: 'from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]'
   }
 ];
 
@@ -147,19 +147,19 @@ export default function RPPackagesPage() {
   if (!player) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+        <div className="text-[color:var(--nn-text-primary)] text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula text-white p-6">
+    <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula text-[color:var(--nn-text-primary)] p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <BackButton destination="/game" />
         
         <div className="mt-6 text-center">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent mb-4">
+          <h1 className="text-5xl font-bold bg-gradient-to-r from-[color:var(--nn-amber)] via-[color:var(--nn-amber)] to-[color:var(--nn-magenta)] bg-clip-text text-transparent mb-4">
             💎 Research Point Shop
           </h1>
           <p className="text-xl text-text-primary mb-2">
@@ -170,13 +170,13 @@ export default function RPPackagesPage() {
           </p>
           
           {/* Current RP Balance */}
-          <div className="inline-block bg-glass-light border-2 border-yellow-500 rounded-lg px-8 py-4 mb-8">
+          <div className="inline-block bg-glass-light border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none px-8 py-4 mb-8">
             <div className="text-sm text-text-secondary mb-1">Your Current Balance</div>
-            <div className="text-4xl font-bold text-yellow-400">
+            <div className="text-4xl font-bold text-[color:var(--nn-amber)]">
               {player.researchPoints?.toLocaleString() || 0} RP
             </div>
             {isVIP && (
-              <div className="text-sm text-purple-400 mt-2">
+              <div className="text-sm text-[color:var(--nn-violet)] mt-2">
                 👑 VIP: +20% bonus RP on all purchases!
               </div>
             )}
@@ -184,7 +184,7 @@ export default function RPPackagesPage() {
         </div>
 
         {/* Free RP Sources Info */}
-        <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500 rounded-lg p-6 mb-8">
+        <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6 mb-8">
           <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
             <span>🎁</span>
             <span>Free RP Sources (No Purchase Required)</span>
@@ -242,41 +242,41 @@ export default function RPPackagesPage() {
               return (
                 <div
                   key={pkg.id}
-                  className={`relative bg-glass-light rounded-xl overflow-hidden transition-all duration-300 ${
+                  className={`relative bg-glass-light rounded-none overflow-hidden transition-all duration-300 ${
                     pkg.popular 
-                      ? 'border-4 border-yellow-500 shadow-lg shadow-yellow-500/50 scale-105' 
+                      ? 'border-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] shadow-lg shadow-yellow-500/50 scale-105' 
                       : 'border-2 border-glass-border hover:border-glass-border'
                   }`}
                 >
                   {pkg.popular && (
-                    <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-center py-1 text-xs font-bold">
+                    <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-center py-1 text-xs font-bold">
                       ⭐ MOST POPULAR ⭐
                     </div>
                   )}
                   
                   <div className={`bg-gradient-to-br ${pkg.color} p-6 ${pkg.popular ? 'pt-8' : ''}`}>
                     <div className="text-6xl text-center mb-2">{pkg.icon}</div>
-                    <h3 className="text-xl font-bold text-center text-white">{pkg.name}</h3>
+                    <h3 className="text-xl font-bold text-center text-[color:var(--nn-text-primary)]">{pkg.name}</h3>
                   </div>
 
                   <div className="p-6">
                     <div className="text-center mb-4">
-                      <div className="text-4xl font-bold text-yellow-400 mb-2">
+                      <div className="text-4xl font-bold text-[color:var(--nn-amber)] mb-2">
                         {finalRP.toLocaleString()} RP
                       </div>
                       {isVIP && (
-                        <div className="text-sm text-purple-400 mb-2">
+                        <div className="text-sm text-[color:var(--nn-violet)] mb-2">
                           (+{(pkg.rp * VIP_BONUS).toLocaleString()} VIP bonus)
                         </div>
                       )}
-                      <div className="text-2xl font-bold text-white">
+                      <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
                         ${pkg.price}
                       </div>
                     </div>
 
                     <div className="text-center text-sm text-text-secondary mb-4">
                       <div className="mb-1">⏱️ Time Saved</div>
-                      <div className="text-green-400 font-semibold">
+                      <div className="text-[color:var(--nn-green)] font-semibold">
                         {pkg.daysEquivalent < 1 
                           ? `~${Math.round(pkg.daysEquivalent * 24)} hours`
                           : `~${pkg.daysEquivalent} days`
@@ -287,10 +287,10 @@ export default function RPPackagesPage() {
                     <button
                       onClick={() => handlePurchase(pkg)}
                       disabled={loading && isSelected}
-                      className={`w-full py-3 rounded-lg font-bold transition-all duration-200 ${
+                      className={`w-full py-3 rounded-none font-bold transition-all duration-200 ${
                         pkg.popular
-                          ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-black'
-                          : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          ? 'bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] hover:from-[color:var(--nn-amber)] hover:to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)]'
+                          : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {loading && isSelected ? '⏳ Processing...' : '💳 Purchase'}
@@ -304,19 +304,19 @@ export default function RPPackagesPage() {
 
         {/* Purchase Result */}
         {purchaseResult && (
-          <div className={`max-w-2xl mx-auto p-4 rounded-lg text-center ${
+          <div className={`max-w-2xl mx-auto p-4 rounded-none text-center ${
             purchaseResult.startsWith('✅') 
-              ? 'bg-green-900/50 border border-green-500 text-green-300'
+              ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
               : purchaseResult.startsWith('🚧')
-              ? 'bg-yellow-900/50 border border-yellow-500 text-yellow-300'
-              : 'bg-red-900/50 border border-red-500 text-red-300'
+              ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] text-[color:var(--nn-amber)]'
+              : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)]'
           }`}>
             {purchaseResult}
           </div>
         )}
 
         {/* FAQ / Transparency Section */}
-        <div className="bg-glass-light border border-glass-border rounded-lg p-6 mt-8">
+        <div className="bg-glass-light border border-glass-border rounded-none p-6 mt-8">
           <h3 className="text-2xl font-bold mb-4">❓ Frequently Asked Questions</h3>
           <div className="space-y-4">
             <FAQItem
@@ -343,7 +343,7 @@ export default function RPPackagesPage() {
         </div>
 
         {/* Call to Action - VIP Subscription */}
-        <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border-2 border-purple-500 rounded-lg p-8 mt-8 text-center">
+        <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 mt-8 text-center">
           <h3 className="text-3xl font-bold mb-4">
             👑 Want Better Long-Term Value?
           </h3>
@@ -351,20 +351,20 @@ export default function RPPackagesPage() {
             VIP subscription gives you <strong>+50% RP on everything</strong> you earn, plus 2x auto-farm speed!
           </p>
           <div className="flex justify-center gap-4">
-            <div className="bg-glass-light rounded-lg p-4">
+            <div className="bg-glass-light rounded-none p-4">
               <div className="text-sm text-text-secondary">VIP Monthly</div>
-              <div className="text-2xl font-bold text-purple-400">$9.99/mo</div>
-              <div className="text-xs text-green-400 mt-1">+50% all RP sources</div>
+              <div className="text-2xl font-bold text-[color:var(--nn-violet)]">$9.99/mo</div>
+              <div className="text-xs text-[color:var(--nn-green)] mt-1">+50% all RP sources</div>
             </div>
-            <div className="bg-glass-light rounded-lg p-4">
+            <div className="bg-glass-light rounded-none p-4">
               <div className="text-sm text-text-secondary">VIP Yearly</div>
-              <div className="text-2xl font-bold text-purple-400">$99.99/yr</div>
-              <div className="text-xs text-green-400 mt-1">2 months free!</div>
+              <div className="text-2xl font-bold text-[color:var(--nn-violet)]">$99.99/yr</div>
+              <div className="text-xs text-[color:var(--nn-green)] mt-1">2 months free!</div>
             </div>
           </div>
           <button
             onClick={() => router.push('/shop/vip')}
-            className="mt-6 px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 rounded-lg font-bold text-lg transition-all"
+            className="mt-6 px-8 py-3 bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] hover:from-[color:var(--nn-violet)] hover:to-[color:var(--nn-magenta)] rounded-none font-bold text-lg transition-all"
           >
             Learn More About VIP
           </button>
@@ -387,10 +387,10 @@ interface FreeSourceCardProps {
 
 function FreeSourceCard({ icon, title, amount, description }: FreeSourceCardProps) {
   return (
-    <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
+    <div className="bg-glass-light rounded-none p-4 border border-glass-border">
       <div className="text-3xl mb-2">{icon}</div>
       <div className="font-bold text-lg mb-1">{title}</div>
-      <div className="text-2xl text-yellow-400 font-bold mb-2">{amount}</div>
+      <div className="text-2xl text-[color:var(--nn-amber)] font-bold mb-2">{amount}</div>
       <div className="text-sm text-text-secondary">{description}</div>
     </div>
   );
@@ -403,7 +403,7 @@ interface FAQItemProps {
 
 function FAQItem({ question, answer }: FAQItemProps) {
   return (
-    <div className="border-l-4 border-blue-500 pl-4">
+    <div className="border-l-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] pl-4">
       <div className="font-bold text-lg mb-2">{question}</div>
       <div className="text-text-primary">{answer}</div>
     </div>

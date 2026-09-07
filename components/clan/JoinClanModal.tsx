@@ -178,7 +178,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          className="absolute inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm"
           onClick={onClose}
         />
 
@@ -187,17 +187,17 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-6xl h-[85vh] bg-gradient-to-br from-bg-space to-bg-nebula rounded-lg border-2 border-purple-500/30 shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full max-w-6xl h-[85vh] bg-gradient-to-br from-bg-space to-bg-nebula rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-2xl overflow-hidden flex flex-col"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/30 px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] px-6 py-4 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
-              <Users className="w-6 h-6 text-purple-400" />
-              <h2 className="text-2xl font-bold text-white">Join a Clan</h2>
+              <Users className="w-6 h-6 text-[color:var(--nn-violet)]" />
+              <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Join a Clan</h2>
             </div>
             <button
               onClick={onClose}
-              className="text-text-secondary hover:text-white transition-colors"
+              className="text-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -240,7 +240,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="bg-glass-light rounded-lg p-4 space-y-3"
+                className="bg-glass-light rounded-none p-4 space-y-3"
               >
                 <div className="grid grid-cols-3 gap-4">
                   {/* Public Only Toggle */}
@@ -250,9 +250,9 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                     </label>
                     <button
                       onClick={() => handleFilterChange('publicOnly', !filters.publicOnly)}
-                      className={`w-full px-3 py-2 rounded border transition-colors ${
+                      className={`w-full px-3 py-2 rounded-none border transition-colors ${
                         filters.publicOnly
-                          ? 'bg-green-500/20 border-green-500 text-green-400'
+                          ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
                           : 'bg-glass-light border-glass-border text-text-secondary'
                       }`}
                     >
@@ -337,7 +337,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-3">
-                  <div className="w-12 h-12 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="w-12 h-12 border-4 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] border-t-transparent rounded-full animate-spin mx-auto" />
                   <p className="text-text-secondary">Loading clans...</p>
                 </div>
               </div>
@@ -361,19 +361,19 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       key={clanIdStr}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-glass-light rounded-lg border border-glass-border hover:border-purple-500/50 transition-all p-4 space-y-3"
+                      className="bg-glass-light rounded-none border border-glass-border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition-all p-4 space-y-3"
                     >
                       {/* Clan Header */}
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-lg font-bold text-white truncate">
+                            <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] truncate">
                               {clan.name}
                             </h3>
                             {clan.settings.requiresApproval ? (
-                              <Lock className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                              <Lock className="w-4 h-4 text-[color:var(--nn-violet)] flex-shrink-0" />
                             ) : (
-                              <Unlock className="w-4 h-4 text-green-400 flex-shrink-0" />
+                              <Unlock className="w-4 h-4 text-[color:var(--nn-green)] flex-shrink-0" />
                             )}
                           </div>
                           <p className="text-xs text-text-secondary line-clamp-2">
@@ -386,19 +386,19 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
                           <div className="text-xs text-text-secondary">Level</div>
-                          <div className="text-sm font-bold text-cyan-400">
+                          <div className="text-sm font-bold text-[color:var(--nn-cyan)]">
                             {clan.level.currentLevel}
                           </div>
                         </div>
                         <div>
                           <div className="text-xs text-text-secondary">Members</div>
-                          <div className="text-sm font-bold text-purple-400">
+                          <div className="text-sm font-bold text-[color:var(--nn-violet)]">
                             {clan.members.length}/{clan.maxMembers}
                           </div>
                         </div>
                         <div>
                           <div className="text-xs text-text-secondary">Power</div>
-                          <div className="text-sm font-bold text-yellow-400">
+                          <div className="text-sm font-bold text-[color:var(--nn-amber)]">
                             {clan.stats.totalPower.toLocaleString()}
                           </div>
                         </div>
@@ -407,7 +407,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       {/* Leader & Requirements */}
                       <div className="text-xs space-y-1">
                         <div className="flex items-center gap-2 text-text-secondary">
-                          <Crown className="w-3 h-3 text-yellow-400" />
+                          <Crown className="w-3 h-3 text-[color:var(--nn-amber)]" />
                           <span>Leader: {clan.members.find(m => m.role === 'LEADER')?.username || 'Unknown'}</span>
                         </div>
                         {clan.settings.minLevelToJoin > 1 && (
@@ -421,9 +421,9 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       {/* Join Button */}
                       <div>
                         {!eligibility.eligible ? (
-                          <div className="bg-red-500/10 border border-red-500/30 rounded px-3 py-2 flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                            <span className="text-xs text-red-400">{eligibility.reason}</span>
+                          <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none px-3 py-2 flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-[color:var(--nn-magenta)] flex-shrink-0" />
+                            <span className="text-xs text-[color:var(--nn-magenta)]">{eligibility.reason}</span>
                           </div>
                         ) : (
                           <Button

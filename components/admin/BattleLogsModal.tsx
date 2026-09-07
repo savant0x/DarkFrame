@@ -187,10 +187,10 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
    */
   const getOutcomeColor = (outcome: string): string => {
     switch (outcome) {
-      case 'attacker_win': return 'text-green-400';
-      case 'defender_win': return 'text-red-400';
-      case 'draw': return 'text-yellow-400';
-      default: return 'text-gray-400';
+      case 'attacker_win': return 'text-[color:var(--nn-green)]';
+      case 'defender_win': return 'text-[color:var(--nn-magenta)]';
+      case 'draw': return 'text-[color:var(--nn-amber)]';
+      default: return 'text-[color:var(--nn-text-secondary)]';
     }
   };
 
@@ -199,10 +199,10 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
    */
   const getOutcomeBgColor = (outcome: string): string => {
     switch (outcome) {
-      case 'attacker_win': return 'bg-green-900/20';
-      case 'defender_win': return 'bg-red-900/20';
-      case 'draw': return 'bg-yellow-900/20';
-      default: return 'bg-gray-900/20';
+      case 'attacker_win': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
+      case 'defender_win': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
+      case 'draw': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
+      default: return 'bg-[color:var(--nn-void)]';
     }
   };
 
@@ -223,11 +223,11 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
    */
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-purple-500 rounded-lg p-8 max-w-md w-full">
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
+        <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md w-full">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
-            <p className="text-gray-300">Loading battle logs...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-4"></div>
+            <p className="text-[color:var(--nn-text-secondary)]">Loading battle logs...</p>
           </div>
         </div>
       </div>
@@ -239,13 +239,13 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
    */
   if (error) {
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-gray-900 border border-red-500 rounded-lg p-8 max-w-md w-full">
-          <h3 className="text-xl font-bold text-red-500 mb-4">Error Loading Battle Logs</h3>
-          <p className="text-gray-300 mb-6">{error}</p>
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
+        <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-8 max-w-md w-full">
+          <h3 className="text-xl font-bold text-[color:var(--nn-magenta)] mb-4">Error Loading Battle Logs</h3>
+          <p className="text-[color:var(--nn-text-secondary)] mb-6">{error}</p>
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition"
+            className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition"
           >
             Close
           </button>
@@ -258,26 +258,26 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
    * Render main modal
    */
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-purple-500 rounded-lg max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-purple-500">
+        <div className="flex justify-between items-center p-6 border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
           <div>
-            <h2 className="text-2xl font-bold text-purple-400">⚔️ Battle Logs</h2>
-            <p className="text-gray-400 text-sm mt-1">
+            <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">⚔️ Battle Logs</h2>
+            <p className="text-[color:var(--nn-text-secondary)] text-sm mt-1">
               {filteredLogs.length} of {logs.length} battles
             </p>
           </div>
           <div className="flex gap-3">
             <button
               onClick={handleExport}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded transition text-sm"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition text-sm"
             >
               📥 Export JSON
             </button>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white text-2xl leading-none"
+              className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl leading-none"
             >
               ×
             </button>
@@ -285,27 +285,27 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
         </div>
 
         {/* Filters */}
-        <div className="p-6 border-b border-gray-700 bg-gray-800/50">
+        <div className="p-6 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Player search */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Player (Attacker or Defender)</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Player (Attacker or Defender)</label>
               <input
                 type="text"
                 value={searchPlayer}
                 onChange={(e) => setSearchPlayer(e.target.value)}
                 placeholder="Username..."
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               />
             </div>
 
             {/* Outcome filter */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Outcome</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Outcome</label>
               <select
                 value={filterOutcome}
                 onChange={(e) => setFilterOutcome(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               >
                 <option value="all">All Outcomes</option>
                 <option value="attacker_win">Attacker Victory</option>
@@ -316,23 +316,23 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
 
             {/* Date from */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Date From</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Date From</label>
               <input
                 type="date"
                 value={filterDateFrom}
                 onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               />
             </div>
 
             {/* Date to */}
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Date To</label>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Date To</label>
               <input
                 type="date"
                 value={filterDateTo}
                 onChange={(e) => setFilterDateTo(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-white text-sm focus:border-purple-500 outline-none"
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
               />
             </div>
           </div>
@@ -346,7 +346,7 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
                 setFilterDateFrom('');
                 setFilterDateTo('');
               }}
-              className="mt-3 px-4 py-1 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded transition"
+              className="mt-3 px-4 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] text-sm rounded-none transition"
             >
               Clear Filters
             </button>
@@ -357,61 +357,61 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
         <div className="flex-1 overflow-y-auto p-6">
           {currentLogs.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-400 text-lg">No battle logs match your filters</p>
-              <p className="text-gray-500 text-sm mt-2">Try adjusting your search criteria</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-lg">No battle logs match your filters</p>
+              <p className="text-[color:var(--nn-text-secondary)] text-sm mt-2">Try adjusting your search criteria</p>
             </div>
           ) : (
             <div className="space-y-3">
               {currentLogs.map((log) => (
                 <div
                   key={log._id}
-                  className={`border border-gray-700 rounded-lg p-4 ${getOutcomeBgColor(log.outcome)} hover:border-purple-500 transition`}
+                  className={`border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4 ${getOutcomeBgColor(log.outcome)} border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition`}
                 >
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                     {/* Timestamp */}
                     <div>
-                      <p className="text-xs text-gray-500">Timestamp</p>
-                      <p className="text-white text-sm">{formatDateTime(log.timestamp)}</p>
-                      <p className="text-gray-400 text-xs mt-1">
+                      <p className="text-xs text-[color:var(--nn-text-secondary)]">Timestamp</p>
+                      <p className="text-[color:var(--nn-text-primary)] text-sm">{formatDateTime(log.timestamp)}</p>
+                      <p className="text-[color:var(--nn-text-secondary)] text-xs mt-1">
                         ({log.location.x}, {log.location.y})
                       </p>
                     </div>
 
                     {/* Attacker */}
                     <div>
-                      <p className="text-xs text-gray-500">Attacker</p>
-                      <p className="text-white font-medium">{log.attackerUsername}</p>
+                      <p className="text-xs text-[color:var(--nn-text-secondary)]">Attacker</p>
+                      <p className="text-[color:var(--nn-text-primary)] font-medium">{log.attackerUsername}</p>
                       {log.attackerLosses !== undefined && (
-                        <p className="text-red-400 text-xs">-{log.attackerLosses} units</p>
+                        <p className="text-[color:var(--nn-magenta)] text-xs">-{log.attackerLosses} units</p>
                       )}
                     </div>
 
                     {/* Defender */}
                     <div>
-                      <p className="text-xs text-gray-500">Defender</p>
-                      <p className="text-white font-medium">{log.defenderUsername}</p>
+                      <p className="text-xs text-[color:var(--nn-text-secondary)]">Defender</p>
+                      <p className="text-[color:var(--nn-text-primary)] font-medium">{log.defenderUsername}</p>
                       {log.defenderLosses !== undefined && (
-                        <p className="text-red-400 text-xs">-{log.defenderLosses} units</p>
+                        <p className="text-[color:var(--nn-magenta)] text-xs">-{log.defenderLosses} units</p>
                       )}
                     </div>
 
                     {/* Outcome */}
                     <div>
-                      <p className="text-xs text-gray-500">Outcome</p>
+                      <p className="text-xs text-[color:var(--nn-text-secondary)]">Outcome</p>
                       <p className={`font-bold ${getOutcomeColor(log.outcome)}`}>
                         {formatOutcome(log.outcome)}
                       </p>
-                      <p className="text-blue-400 text-xs">+{log.xpGained} XP</p>
+                      <p className="text-[color:var(--nn-cyan)] text-xs">+{log.xpGained} XP</p>
                     </div>
 
                     {/* Resources */}
                     <div>
-                      <p className="text-xs text-gray-500">Resources Transferred</p>
+                      <p className="text-xs text-[color:var(--nn-text-secondary)]">Resources Transferred</p>
                       <div className="flex gap-3">
-                        <span className="text-blue-400 text-sm">
+                        <span className="text-[color:var(--nn-cyan)] text-sm">
                           ⚙️ {log.resourcesTransferred.metal.toLocaleString()}
                         </span>
-                        <span className="text-yellow-400 text-sm">
+                        <span className="text-[color:var(--nn-amber)] text-sm">
                           ⚡ {log.resourcesTransferred.energy.toLocaleString()}
                         </span>
                       </div>
@@ -425,21 +425,21 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-4 border-t border-gray-700 flex justify-between items-center bg-gray-800/50">
+          <div className="p-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] flex justify-between items-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
             <button
               onClick={handlePrevPage}
               disabled={currentPage === 1}
-              className="px-4 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none transition"
             >
               Previous
             </button>
-            <span className="text-gray-300">
+            <span className="text-[color:var(--nn-text-secondary)]">
               Page {currentPage} of {totalPages}
             </span>
             <button
               onClick={handleNextPage}
               disabled={currentPage === totalPages}
-              className="px-4 py-2 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition"
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none transition"
             >
               Next
             </button>

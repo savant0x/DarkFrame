@@ -185,19 +185,19 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
    * Render main modal
    */
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border-2 border-red-500 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+      <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b-2 border-red-500 bg-red-900/20">
+        <div className="flex justify-between items-center p-6 border-b-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]">
           <div>
-            <h2 className="text-2xl font-bold text-red-400">⚠️ System Reset Tools</h2>
-            <p className="text-red-300 text-sm mt-1 font-bold">
+            <h2 className="text-2xl font-bold text-[color:var(--nn-magenta)]">⚠️ System Reset Tools</h2>
+            <p className="text-[color:var(--nn-magenta)] text-sm mt-1 font-bold">
               DANGEROUS OPERATIONS - REQUIRES CONFIRMATION
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl leading-none"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl leading-none"
           >
             ×
           </button>
@@ -205,15 +205,15 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
 
         {/* Success Message */}
         {success && (
-          <div className="p-4 bg-green-900/50 border-b border-green-700">
-            <p className="text-green-400 font-medium">✅ {success}</p>
+          <div className="p-4 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
+            <p className="text-[color:var(--nn-green)] font-medium">✅ {success}</p>
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="p-4 bg-red-900/50 border-b border-red-700">
-            <p className="text-red-400 font-medium">❌ {error}</p>
+          <div className="p-4 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
+            <p className="text-[color:var(--nn-magenta)] font-medium">❌ {error}</p>
           </div>
         )}
 
@@ -222,9 +222,9 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
           {!confirm.action ? (
             /* Action Selection */
             <div>
-              <div className="bg-red-900/30 border border-red-700 rounded-lg p-4 mb-6">
-                <h3 className="text-red-400 font-bold mb-2">⚠️ WARNING</h3>
-                <p className="text-gray-300 text-sm">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 mb-6">
+                <h3 className="text-[color:var(--nn-magenta)] font-bold mb-2">⚠️ WARNING</h3>
+                <p className="text-[color:var(--nn-text-secondary)] text-sm">
                   These operations are IRREVERSIBLE and can cause significant data loss.
                   Only use these tools if you understand the consequences.
                   All actions are logged to the admin audit trail.
@@ -235,7 +235,7 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
                 {resetActions.map((action) => (
                   <div
                     key={action.id}
-                    className={`border-2 border-${action.color}-700 bg-${action.color}-900/20 rounded-lg p-4`}
+                    className={`border-2 border-${action.color}-700 bg-${action.color}-900/20 rounded-none p-4`}
                   >
                     <div className="flex items-start gap-3 mb-3">
                       <span className="text-3xl">{action.icon}</span>
@@ -243,14 +243,14 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
                         <h3 className={`text-${action.color}-400 font-bold text-lg`}>
                           {action.name}
                         </h3>
-                        <p className="text-gray-300 text-sm mt-1">
+                        <p className="text-[color:var(--nn-text-secondary)] text-sm mt-1">
                           {action.description}
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={() => handleStartConfirm(action.id)}
-                      className={`w-full px-4 py-2 bg-${action.color}-700 hover:bg-${action.color}-600 text-white rounded font-medium transition`}
+                      className={`w-full px-4 py-2 bg-${action.color}-700 hover:bg-${action.color}-600 text-[color:var(--nn-text-primary)] rounded-none font-medium transition`}
                     >
                       Initiate {action.name}
                     </button>
@@ -261,15 +261,15 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
           ) : !confirm.showSecondary ? (
             /* Primary Confirmation */
             <div>
-              <div className="bg-red-900/30 border-2 border-red-700 rounded-lg p-6 mb-6">
-                <h3 className="text-red-400 font-bold text-xl mb-4">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6 mb-6">
+                <h3 className="text-[color:var(--nn-magenta)] font-bold text-xl mb-4">
                   {currentAction?.icon} Confirm {currentAction?.name}
                 </h3>
-                <p className="text-gray-300 mb-4">{currentAction?.description}</p>
+                <p className="text-[color:var(--nn-text-secondary)] mb-4">{currentAction?.description}</p>
                 
-                <div className="bg-black/50 border border-red-700 rounded p-4 mb-4">
-                  <p className="text-red-400 font-bold mb-2">To proceed, type exactly:</p>
-                  <p className="text-white font-mono text-lg bg-gray-900 px-3 py-2 rounded">
+                <div className="bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 mb-4">
+                  <p className="text-[color:var(--nn-magenta)] font-bold mb-2">To proceed, type exactly:</p>
+                  <p className="text-[color:var(--nn-text-primary)] font-mono text-lg bg-[color:var(--nn-void)] px-3 py-2 rounded-none">
                     {currentAction?.confirmText}
                   </p>
                 </div>
@@ -279,11 +279,11 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
                   value={confirm.typedConfirm}
                   onChange={(e) => setConfirm({ ...confirm, typedConfirm: e.target.value })}
                   placeholder="Type confirmation text here..."
-                  className="w-full px-4 py-3 bg-gray-900 border-2 border-red-700 rounded text-white font-mono text-lg focus:border-red-500 outline-none"
+                  className="w-full px-4 py-3 bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] font-mono text-lg focus:border-red-500 outline-none"
                 />
 
                 {confirm.typedConfirm && !isConfirmValid && (
-                  <p className="text-red-400 text-sm mt-2">
+                  <p className="text-[color:var(--nn-magenta)] text-sm mt-2">
                     ❌ Text does not match. Check spelling and capitalization.
                   </p>
                 )}
@@ -292,14 +292,14 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
               <div className="flex gap-3">
                 <button
                   onClick={handleCancelConfirm}
-                  className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded font-medium transition"
+                  className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-medium transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleProceedToSecondary}
                   disabled={!isConfirmValid}
-                  className="flex-1 px-6 py-3 bg-red-700 hover:bg-red-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded font-medium transition"
+                  className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] rounded-none font-medium transition"
                 >
                   Proceed to Final Confirmation
                 </button>
@@ -308,14 +308,14 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
           ) : (
             /* Secondary Confirmation */
             <div>
-              <div className="bg-red-900/30 border-2 border-red-700 rounded-lg p-6 mb-6">
-                <h3 className="text-red-400 font-bold text-xl mb-4">
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6 mb-6">
+                <h3 className="text-[color:var(--nn-magenta)] font-bold text-xl mb-4">
                   ⚠️ FINAL CONFIRMATION
                 </h3>
-                <p className="text-white text-lg mb-4">
+                <p className="text-[color:var(--nn-text-primary)] text-lg mb-4">
                   You are about to execute: <span className="font-bold">{currentAction?.name}</span>
                 </p>
-                <p className="text-red-300 font-bold">
+                <p className="text-[color:var(--nn-magenta)] font-bold">
                   This action is IRREVERSIBLE. All data will be permanently deleted.
                 </p>
               </div>
@@ -323,14 +323,14 @@ export default function SystemResetModal({ onClose }: SystemResetModalProps) {
               <div className="flex gap-3">
                 <button
                   onClick={handleCancelConfirm}
-                  className="flex-1 px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded font-medium transition"
+                  className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-medium transition"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleExecute}
                   disabled={loading}
-                  className="flex-1 px-6 py-3 bg-red-700 hover:bg-red-600 disabled:bg-gray-700 text-white rounded font-bold transition"
+                  className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-bold transition"
                 >
                   {loading ? 'Executing...' : 'EXECUTE RESET'}
                 </button>

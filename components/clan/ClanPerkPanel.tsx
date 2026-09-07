@@ -90,10 +90,10 @@ interface PerkCardProps {
 
 function PerkCard({ perk, isActive = false, onActivate, onDeactivate, isLoading = false }: PerkCardProps) {
   const tierColors = {
-    BRONZE: 'border-orange-700/50 bg-orange-900/10',
+    BRONZE: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
     SILVER: 'border-glass-border bg-glass-light',
-    GOLD: 'border-yellow-400/50 bg-yellow-900/10',
-    LEGENDARY: 'border-purple-500/50 bg-purple-900/10',
+    GOLD: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+    LEGENDARY: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
   };
 
   const categoryIcons = {
@@ -104,11 +104,11 @@ function PerkCard({ perk, isActive = false, onActivate, onDeactivate, isLoading 
   };
 
   return (
-    <div className={`border-2 rounded-lg p-4 space-y-3 ${tierColors[perk.tier]} ${perk.levelsToUnlock ? 'opacity-60' : ''}`}>
+    <div className={`border-2 rounded-none p-4 space-y-3 ${tierColors[perk.tier]} ${perk.levelsToUnlock ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           {categoryIcons[perk.category]}
-          <h4 className="text-white font-semibold text-sm">{perk.name}</h4>
+          <h4 className="text-[color:var(--nn-text-primary)] font-semibold text-sm">{perk.name}</h4>
         </div>
         <Badge variant={isActive ? 'success' : 'default'} className="text-xs">
           {perk.tier}
@@ -120,14 +120,14 @@ function PerkCard({ perk, isActive = false, onActivate, onDeactivate, isLoading 
       <div className="space-y-1 text-xs">
         <div className="flex items-center justify-between">
           <span className="text-text-secondary">Bonus:</span>
-          <span className="text-cyan-400 font-semibold">+{perk.bonus.value}% {perk.bonus.type.replace('_', ' ')}</span>
+          <span className="text-[color:var(--nn-cyan)] font-semibold">+{perk.bonus.value}% {perk.bonus.type.replace('_', ' ')}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-text-secondary">Cost:</span>
-          <span className="text-yellow-400">{perk.cost.metal}M + {perk.cost.energy}E + {perk.cost.researchPoints}RP</span>
+          <span className="text-[color:var(--nn-amber)]">{perk.cost.metal}M + {perk.cost.energy}E + {perk.cost.researchPoints}RP</span>
         </div>
         {perk.levelsToUnlock && (
-          <div className="flex items-center justify-between text-red-400">
+          <div className="flex items-center justify-between text-[color:var(--nn-magenta)]">
             <Lock className="w-3 h-3" />
             <span>Unlock at Level {perk.requiredLevel}</span>
           </div>
@@ -273,10 +273,10 @@ export default function ClanPerkPanel({
   // Get tier color
   const _getTierColor = (tier: string): string => {
     switch (tier) {
-      case 'BRONZE': return 'text-orange-400 border-orange-700';
-      case 'SILVER': return 'text-blue-400 border-blue-700';
-      case 'GOLD': return 'text-yellow-400 border-yellow-700';
-      case 'LEGENDARY': return 'text-purple-400 border-purple-700';
+      case 'BRONZE': return 'text-[color:var(--nn-amber)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]';
+      case 'SILVER': return 'text-[color:var(--nn-cyan)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
+      case 'GOLD': return 'text-[color:var(--nn-amber)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]';
+      case 'LEGENDARY': return 'text-[color:var(--nn-violet)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]';
       default: return 'text-text-secondary border-glass-border';
     }
   };
@@ -307,12 +307,12 @@ export default function ClanPerkPanel({
 
   if (loading) {
     return (
-      <div className="bg-glass-light rounded-lg p-6 border border-glass-border">
+      <div className="bg-glass-light rounded-none p-6 border border-glass-border">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-glass-light rounded w-1/3"></div>
+          <div className="h-8 bg-glass-light rounded-none w-1/3"></div>
           <div className="grid grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-40 bg-glass-light rounded"></div>
+              <div key={i} className="h-40 bg-glass-light rounded-none"></div>
             ))}
           </div>
         </div>
@@ -322,11 +322,11 @@ export default function ClanPerkPanel({
 
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-700 rounded-lg p-6">
-        <p className="text-red-400">Error loading perks: {error}</p>
+      <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6">
+        <p className="text-[color:var(--nn-magenta)]">Error loading perks: {error}</p>
         <button
           onClick={fetchPerks}
-          className="mt-4 px-4 py-2 bg-red-700 hover:bg-red-600 rounded transition"
+          className="mt-4 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] rounded-none transition"
         >
           Retry
         </button>
@@ -335,46 +335,46 @@ export default function ClanPerkPanel({
   }
 
   return (
-    <div className="bg-glass-light rounded-lg p-6 border border-glass-border space-y-6">
+    <div className="bg-glass-light rounded-none p-6 border border-glass-border space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Clan Perks</h2>
+        <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Clan Perks</h2>
         <div className="text-sm text-text-secondary">
-          Clan Level: <span className="text-cyan-400 font-bold">{clanLevel}</span>
+          Clan Level: <span className="text-[color:var(--nn-cyan)] font-bold">{clanLevel}</span>
         </div>
       </div>
 
       {/* Total Bonuses Summary */}
-      <div className="bg-glass-dark border border-cyan-700/50 rounded-lg p-4">
-        <h3 className="text-cyan-400 font-bold mb-3">Total Active Bonuses</h3>
+      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
+        <h3 className="text-[color:var(--nn-cyan)] font-bold mb-3">Total Active Bonuses</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {totalBonuses.attack > 0 && (
             <div className="text-center">
-              <div className="text-red-400 text-2xl font-bold">+{totalBonuses.attack}%</div>
+              <div className="text-[color:var(--nn-magenta)] text-2xl font-bold">+{totalBonuses.attack}%</div>
               <div className="text-text-secondary text-xs">Attack</div>
             </div>
           )}
           {totalBonuses.defense > 0 && (
             <div className="text-center">
-              <div className="text-blue-400 text-2xl font-bold">+{totalBonuses.defense}%</div>
+              <div className="text-[color:var(--nn-cyan)] text-2xl font-bold">+{totalBonuses.defense}%</div>
               <div className="text-text-secondary text-xs">Defense</div>
             </div>
           )}
           {totalBonuses.resourceYield > 0 && (
             <div className="text-center">
-              <div className="text-green-400 text-2xl font-bold">+{totalBonuses.resourceYield}%</div>
+              <div className="text-[color:var(--nn-green)] text-2xl font-bold">+{totalBonuses.resourceYield}%</div>
               <div className="text-text-secondary text-xs">Resources</div>
             </div>
           )}
           {totalBonuses.xpGain > 0 && (
             <div className="text-center">
-              <div className="text-purple-400 text-2xl font-bold">+{totalBonuses.xpGain}%</div>
+              <div className="text-[color:var(--nn-violet)] text-2xl font-bold">+{totalBonuses.xpGain}%</div>
               <div className="text-text-secondary text-xs">XP Gain</div>
             </div>
           )}
           {totalBonuses.territoryCostReduction > 0 && (
             <div className="text-center">
-              <div className="text-yellow-400 text-2xl font-bold">-{totalBonuses.territoryCostReduction}%</div>
+              <div className="text-[color:var(--nn-amber)] text-2xl font-bold">-{totalBonuses.territoryCostReduction}%</div>
               <div className="text-text-secondary text-xs">Territory Cost</div>
             </div>
           )}
@@ -388,7 +388,7 @@ export default function ClanPerkPanel({
 
       {/* Active Perks */}
       <div>
-        <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+        <h3 className="text-[color:var(--nn-text-primary)] font-bold mb-3 flex items-center gap-2">
           <span>✨</span>
           Active Perks ({activeCount} / {maxActive})
         </h3>
@@ -409,7 +409,7 @@ export default function ClanPerkPanel({
               return (
                 <div
                   key={`empty-${index}`}
-                  className="bg-glass-dark border-2 border-dashed border-glass-border rounded-lg p-4 flex items-center justify-center h-40"
+                  className="bg-glass-dark border-2 border-dashed border-glass-border rounded-none p-4 flex items-center justify-center h-40"
                 >
                   <span className="text-text-tertiary text-sm">Empty Slot</span>
                 </div>
@@ -422,13 +422,13 @@ export default function ClanPerkPanel({
       {/* Filters */}
       <div className="space-y-3">
         <div>
-          <h4 className="text-white font-semibold mb-2">Filter by Category</h4>
+          <h4 className="text-[color:var(--nn-text-primary)] font-semibold mb-2">Filter by Category</h4>
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-4 py-2 rounded transition ${
+              className={`px-4 py-2 rounded-none transition ${
                 selectedCategory === null
-                  ? 'bg-cyan-700 text-white'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                   : 'bg-glass-light text-text-primary hover:bg-glass-light'
               }`}
             >
@@ -438,9 +438,9 @@ export default function ClanPerkPanel({
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-4 py-2 rounded transition flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-none transition flex items-center gap-2 ${
                   selectedCategory === cat
-                    ? 'bg-cyan-700 text-white'
+                    ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                     : 'bg-glass-light text-text-primary hover:bg-glass-light'
                 }`}
               >
@@ -452,13 +452,13 @@ export default function ClanPerkPanel({
         </div>
 
         <div>
-          <h4 className="text-white font-semibold mb-2">Filter by Tier</h4>
+          <h4 className="text-[color:var(--nn-text-primary)] font-semibold mb-2">Filter by Tier</h4>
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => setSelectedTier(null)}
-              className={`px-4 py-2 rounded transition ${
+              className={`px-4 py-2 rounded-none transition ${
                 selectedTier === null
-                  ? 'bg-cyan-700 text-white'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
                   : 'bg-glass-light text-text-primary hover:bg-glass-light'
               }`}
             >
@@ -468,9 +468,9 @@ export default function ClanPerkPanel({
               <button
                 key={tier}
                 onClick={() => setSelectedTier(tier)}
-                className={`px-4 py-2 rounded transition ${
+                className={`px-4 py-2 rounded-none transition ${
                   selectedTier === tier
-                    ? `bg-cyan-700 text-white`
+                    ? `bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]`
                     : `bg-glass-light text-text-primary hover:bg-glass-light`
                 }`}
               >
@@ -483,8 +483,8 @@ export default function ClanPerkPanel({
 
       {/* AI Recommendations */}
       {recommendations.length > 0 && (
-        <div className="bg-purple-900/20 border border-purple-700/50 rounded-lg p-4">
-          <h3 className="text-purple-400 font-bold mb-3 flex items-center gap-2">
+        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-4">
+          <h3 className="text-[color:var(--nn-violet)] font-bold mb-3 flex items-center gap-2">
             <span>🤖</span>
             AI Recommendations
           </h3>
@@ -492,16 +492,16 @@ export default function ClanPerkPanel({
             {recommendations.slice(0, 3).map((rec, _index) => (
               <div
                 key={rec.perk.id}
-                className="bg-glass-dark border border-glass-border rounded p-3"
+                className="bg-glass-dark border border-glass-border rounded-none p-3"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-white font-semibold">{rec.perk.name}</div>
+                    <div className="text-[color:var(--nn-text-primary)] font-semibold">{rec.perk.name}</div>
                     <div className="text-text-secondary text-sm">{rec.reason}</div>
                   </div>
-                  <div className={`px-2 py-1 rounded text-xs font-bold ${
-                    rec.priority === 'high' ? 'bg-red-900/50 text-red-400' :
-                    rec.priority === 'medium' ? 'bg-yellow-900/50 text-yellow-400' :
+                  <div className={`px-2 py-1 rounded-none text-xs font-bold ${
+                    rec.priority === 'high' ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]' :
+                    rec.priority === 'medium' ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-amber)]' :
                     'bg-glass-light text-text-secondary'
                   }`}>
                     {rec.priority.toUpperCase()}
@@ -516,7 +516,7 @@ export default function ClanPerkPanel({
       {/* Unlocked Perks */}
       {unlockedPerks.length > 0 && (
         <div>
-          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+          <h3 className="text-[color:var(--nn-text-primary)] font-bold mb-3 flex items-center gap-2">
             <span>🔓</span>
             Available Perks ({unlockedPerks.length})
           </h3>
@@ -538,7 +538,7 @@ export default function ClanPerkPanel({
       {/* Locked Perks */}
       {lockedPerks.length > 0 && (
         <div>
-          <h3 className="text-white font-bold mb-3 flex items-center gap-2">
+          <h3 className="text-[color:var(--nn-text-primary)] font-bold mb-3 flex items-center gap-2">
             <span>🔒</span>
             Locked Perks ({lockedPerks.length})
           </h3>

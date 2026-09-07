@@ -25,8 +25,8 @@ export default function BalanceIndicator({ balanceEffects, str, def }: BalanceIn
   // Handle no army case
   if (total === 0) {
     return (
-      <div className="bg-gray-700 p-3 rounded">
-        <p className="text-gray-400 text-sm text-center">No army built yet</p>
+      <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 rounded-none">
+        <p className="text-[color:var(--nn-text-secondary)] text-sm text-center">No army built yet</p>
       </div>
     );
   }
@@ -38,10 +38,10 @@ export default function BalanceIndicator({ balanceEffects, str, def }: BalanceIn
   // Determine bar color based on status
   const getBarColor = () => {
     switch (balanceEffects.status) {
-      case 'CRITICAL': return { str: 'bg-red-600', def: 'bg-red-800' };
-      case 'IMBALANCED': return { str: 'bg-yellow-600', def: 'bg-yellow-800' };
-      case 'BALANCED': return { str: 'bg-green-600', def: 'bg-green-800' };
-      case 'OPTIMAL': return { str: 'bg-yellow-400', def: 'bg-yellow-600' };
+      case 'CRITICAL': return { str: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]', def: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' };
+      case 'IMBALANCED': return { str: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]', def: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]' };
+      case 'BALANCED': return { str: 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]', def: 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' };
+      case 'OPTIMAL': return { str: 'bg-[color-mix(in_oklab,var(--nn-amber)_12%,transparent)]', def: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]' };
     }
   };
   
@@ -50,10 +50,10 @@ export default function BalanceIndicator({ balanceEffects, str, def }: BalanceIn
   const statusIcon = getBalanceStatusIcon(balanceEffects.status);
   
   return (
-    <div className="bg-gray-700 p-3 rounded space-y-2">
+    <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 rounded-none space-y-2">
       {/* Status Header */}
       <div className="flex justify-between items-center">
-        <span className="text-gray-400 text-sm">Balance Status:</span>
+        <span className="text-[color:var(--nn-text-secondary)] text-sm">Balance Status:</span>
         <span className={`${statusColor} font-bold text-sm flex items-center gap-1`}>
           <span>{statusIcon}</span>
           <span>{balanceEffects.status}</span>
@@ -61,14 +61,14 @@ export default function BalanceIndicator({ balanceEffects, str, def }: BalanceIn
       </div>
       
       {/* Balance Bar */}
-      <div className="relative h-6 bg-gray-800 rounded-full overflow-hidden flex">
+      <div className="relative h-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-full overflow-hidden flex">
         {/* STR Side (Left) */}
         <div
           className={`${barColors.str} flex items-center justify-start px-2 transition-all duration-300`}
           style={{ width: `${strPercent}%` }}
         >
           {strPercent > 15 && (
-            <span className="text-white text-xs font-bold">
+            <span className="text-[color:var(--nn-text-primary)] text-xs font-bold">
               🎯 {strPercent.toFixed(0)}%
             </span>
           )}
@@ -80,7 +80,7 @@ export default function BalanceIndicator({ balanceEffects, str, def }: BalanceIn
           style={{ width: `${defPercent}%` }}
         >
           {defPercent > 15 && (
-            <span className="text-white text-xs font-bold">
+            <span className="text-[color:var(--nn-text-primary)] text-xs font-bold">
               {defPercent.toFixed(0)}% 🛡️
             </span>
           )}
@@ -89,19 +89,19 @@ export default function BalanceIndicator({ balanceEffects, str, def }: BalanceIn
       
       {/* Balance Ratio */}
       <div className="flex justify-between items-center text-xs">
-        <span className="text-red-400">
+        <span className="text-[color:var(--nn-magenta)]">
           🎯 STR: {str}
         </span>
         <span className={`${statusColor} font-bold`}>
           Ratio: {formatBalanceRatio(balanceEffects.ratio)}
         </span>
-        <span className="text-blue-400">
+        <span className="text-[color:var(--nn-cyan)]">
           DEF: {def} 🛡️
         </span>
       </div>
       
       {/* Description */}
-      <div className="text-xs text-gray-300 text-center pt-1 border-t border-gray-600">
+      <div className="text-xs text-[color:var(--nn-text-secondary)] text-center pt-1 border-t border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]">
         {balanceEffects.status === 'CRITICAL' && (
           <span>Heavily imbalanced - severe penalties active!</span>
         )}

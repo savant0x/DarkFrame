@@ -76,23 +76,23 @@ export default function LevelUpModal({
   
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/70 transition-opacity duration-300 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] transition-opacity duration-300 ${
         visible ? 'opacity-100' : 'opacity-0'
       }`}
       onClick={handleClose}
     >
       <div
-        className={`relative bg-gradient-to-br from-yellow-900 via-yellow-800 to-orange-900 border-4 border-yellow-400 rounded-lg p-8 max-w-md w-full shadow-2xl transform transition-all duration-300 ${
+        className={`relative bg-gradient-to-br from-[color:var(--nn-amber)] via-[color:var(--nn-amber)] to-[color:var(--nn-amber)] border-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-8 max-w-md w-full shadow-2xl transform transition-all duration-300 ${
           visible ? 'scale-100' : 'scale-75'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Animated Stars Background */}
-        <div className="absolute inset-0 overflow-hidden rounded-lg pointer-events-none">
+        <div className="absolute inset-0 overflow-hidden rounded-none pointer-events-none">
           {[...Array(20)].map((_, i) => (
             <div
               key={i}
-              className="absolute text-yellow-300 animate-twinkle"
+              className="absolute text-[color:var(--nn-amber)] animate-twinkle"
               style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
@@ -109,13 +109,13 @@ export default function LevelUpModal({
         <div className="relative z-10">
           {/* Title */}
           <div className="text-center mb-6">
-            <h1 className="text-5xl font-bold text-yellow-300 mb-2 animate-bounce">
+            <h1 className="text-5xl font-bold text-[color:var(--nn-amber)] mb-2 animate-bounce">
               LEVEL UP!
             </h1>
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-[color:var(--nn-text-primary)]">
               Level {newLevel}
               {levelsGained > 1 && (
-                <span className="text-xl text-yellow-200 ml-2">
+                <span className="text-xl text-[color:var(--nn-amber)] ml-2">
                   (+{levelsGained} levels!)
                 </span>
               )}
@@ -123,18 +123,18 @@ export default function LevelUpModal({
           </div>
           
           {/* Rewards */}
-          <div className="bg-black/30 rounded-lg p-4 mb-4">
-            <h3 className="text-center text-yellow-300 font-bold mb-3">
+          <div className="bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] rounded-none p-4 mb-4">
+            <h3 className="text-center text-[color:var(--nn-amber)] font-bold mb-3">
               🎁 Rewards Earned
             </h3>
             <div className="space-y-2">
-              <div className="flex items-center justify-between bg-purple-900/50 rounded p-3">
-                <span className="text-purple-200">Research Points:</span>
-                <span className="text-2xl font-bold text-purple-300">
+              <div className="flex items-center justify-between bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] rounded-none p-3">
+                <span className="text-[color:var(--nn-violet)]">Research Points:</span>
+                <span className="text-2xl font-bold text-[color:var(--nn-violet)]">
                   +{rpAwarded} RP
                 </span>
               </div>
-              <div className="text-center text-sm text-gray-300">
+              <div className="text-center text-sm text-[color:var(--nn-text-secondary)]">
                 Total RP: {totalRP}
               </div>
             </div>
@@ -142,15 +142,15 @@ export default function LevelUpModal({
           
           {/* Unlocks */}
           {unlocks.length > 0 && (
-            <div className="bg-black/30 rounded-lg p-4 mb-4">
-              <h3 className="text-center text-green-300 font-bold mb-3">
+            <div className="bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] rounded-none p-4 mb-4">
+              <h3 className="text-center text-[color:var(--nn-green)] font-bold mb-3">
                 🔓 New Unlocks Available
               </h3>
               <ul className="space-y-2">
                 {unlocks.map((unlock, index) => (
                   <li
                     key={index}
-                    className="text-sm text-green-200 bg-green-900/30 rounded p-2 border border-green-700"
+                    className="text-sm text-[color:var(--nn-green)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none p-2 border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]"
                   >
                     {unlock}
                   </li>
@@ -162,14 +162,14 @@ export default function LevelUpModal({
           {/* Close Button */}
           <button
             onClick={handleClose}
-            className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-6 rounded-lg transition-colors transform hover:scale-105"
+            className="w-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-3 px-6 rounded-none transition-colors transform hover:scale-105"
           >
             Awesome! ✨
           </button>
           
           {/* Auto-close indicator */}
           {autoCloseDelay > 0 && (
-            <div className="text-center text-xs text-gray-400 mt-2">
+            <div className="text-center text-xs text-[color:var(--nn-text-secondary)] mt-2">
               Auto-closing in {Math.ceil(autoCloseDelay / 1000)}s
             </div>
           )}

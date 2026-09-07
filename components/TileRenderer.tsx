@@ -47,23 +47,23 @@ function getTerrainColor(terrain: TerrainType): string {
     case TerrainType.Metal:
       return 'bg-gradient-to-br from-gray-400 to-gray-600';
     case TerrainType.Energy:
-      return 'bg-gradient-to-br from-cyan-400 to-blue-600';
+      return 'bg-gradient-to-br from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]';
     case TerrainType.Cave:
-      return 'bg-gradient-to-br from-purple-900 to-black';
+      return 'bg-gradient-to-br from-[color:var(--nn-violet)] to-black';
     case TerrainType.Forest:
-      return 'bg-gradient-to-br from-green-700 to-green-900';
+      return 'bg-gradient-to-br from-[color:var(--nn-green)] to-[color:var(--nn-green)]';
     case TerrainType.Factory:
-      return 'bg-gradient-to-br from-red-600 to-orange-700';
+      return 'bg-gradient-to-br from-[color:var(--nn-magenta)] to-[color:var(--nn-amber)]';
     case TerrainType.Wasteland:
-      return 'bg-gradient-to-br from-amber-900 to-yellow-800';
+      return 'bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]';
     case TerrainType.Bank:
-      return 'bg-gradient-to-br from-yellow-500 to-yellow-700';
+      return 'bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]';
     case TerrainType.Shrine:
-      return 'bg-gradient-to-br from-purple-500 to-purple-900';
+      return 'bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-violet)]';
     case TerrainType.AuctionHouse:
-      return 'bg-gradient-to-br from-emerald-500 to-teal-700';
+      return 'bg-gradient-to-br from-[color:var(--nn-green)] to-[color:var(--nn-green)]';
     default:
-      return 'bg-gray-500';
+      return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
   }
 }
 
@@ -360,7 +360,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           />
         ) : (
           <div className={`w-full h-full ${getTerrainColor(tile.terrain)} flex items-center justify-center`}>
-            <div className="text-center text-white">
+            <div className="text-center text-[color:var(--nn-text-primary)]">
               <div className="text-6xl mb-4">
                 {tile.terrain === TerrainType.Metal && '⚙️'}
                 {tile.terrain === TerrainType.Energy && '⚡'}
@@ -433,7 +433,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
         {/* Bank Type Indicator Badge */}
         {tile.terrain === TerrainType.Bank && tile.bankType && (
-          <div className="absolute top-4 right-4 bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold shadow-lg z-20">
+          <div className="absolute top-4 right-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-1 rounded-full text-sm font-bold shadow-lg z-20">
             {tile.bankType === 'metal' && '⚙️ Metal'}
             {tile.bankType === 'energy' && '⚡ Energy'}
             {tile.bankType === 'exchange' && '🔄 Exchange'}
@@ -538,7 +538,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(30)].map((_, i) => (
                     <div
                       key={`sparkle-${i}`}
-                      className="absolute w-1.5 h-1.5 bg-white rounded-full animate-float nn-bearer__spark"
+                      className="absolute w-1.5 h-1.5 bg-[color:var(--nn-text-primary)] rounded-full animate-float nn-bearer__spark"
                       style={{
                         left: `${Math.random() * 100}%`,
                         bottom: `${Math.random() * 100}%`,
@@ -848,7 +848,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className="absolute w-20 h-20 bg-gray-900/40 rounded-full blur-xl"
+                  className="absolute w-20 h-20 bg-[color:var(--nn-void)] rounded-full blur-xl"
                   style={{
                     left: `${30 + (i * 10)}%`,
                     top: `${40 + (i % 2) * 20}%`,
@@ -933,7 +933,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {/* {tile.terrain === TerrainType.Factory && factoryData?.owner === player?.username && (
             <button
               onClick={() => router.push('/game/factory-management')}
-              className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold px-4 py-2 rounded transition-colors"
+              className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] font-semibold px-4 py-2 rounded-none transition-colors"
             >
               🏭 Manage Factory
             </button>

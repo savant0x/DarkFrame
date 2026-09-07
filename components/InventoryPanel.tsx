@@ -106,10 +106,10 @@ type SortType = 'name' | 'rarity' | 'quantity';
 const getRarityColor = (rarity: ItemRarity): string => {
   const colors: Record<ItemRarity, string> = {
     [ItemRarity.Common]: 'text-text-secondary',
-    [ItemRarity.Uncommon]: 'text-green-400',
-    [ItemRarity.Rare]: 'text-blue-400',
-    [ItemRarity.Epic]: 'text-purple-400',
-    [ItemRarity.Legendary]: 'text-yellow-400',
+    [ItemRarity.Uncommon]: 'text-[color:var(--nn-green)]',
+    [ItemRarity.Rare]: 'text-[color:var(--nn-cyan)]',
+    [ItemRarity.Epic]: 'text-[color:var(--nn-violet)]',
+    [ItemRarity.Legendary]: 'text-[color:var(--nn-amber)]',
   };
   return colors[rarity] || 'text-text-secondary';
 };
@@ -120,10 +120,10 @@ const getRarityColor = (rarity: ItemRarity): string => {
 const getRarityBorder = (rarity: ItemRarity): string => {
   const borders: Record<ItemRarity, string> = {
     [ItemRarity.Common]: 'border-border-main',
-    [ItemRarity.Uncommon]: 'border-green-500',
-    [ItemRarity.Rare]: 'border-blue-500',
-    [ItemRarity.Epic]: 'border-purple-500',
-    [ItemRarity.Legendary]: 'border-yellow-500',
+    [ItemRarity.Uncommon]: 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]',
+    [ItemRarity.Rare]: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]',
+    [ItemRarity.Epic]: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]',
+    [ItemRarity.Legendary]: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]',
   };
   return borders[rarity] || 'border-border-main';
 };
@@ -293,10 +293,10 @@ export function InventoryPanel() {
     <>
       {/* Inventory Modal - No toggle button (triggered by keyboard or left panel button) */}
       {isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-bg-primary border-2 border-border-main rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-[color:var(--nn-void)] bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-bg-primary border-2 border-border-main rounded-none max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl">
             {/* Header */}
-            <div className="bg-accent-primary text-white p-4 flex justify-between items-center">
+            <div className="bg-accent-primary text-[color:var(--nn-text-primary)] p-4 flex justify-between items-center">
               <h2 className="text-2xl font-bold flex items-center gap-2">
                 <Package className="w-6 h-6" />
                 INVENTORY
@@ -341,17 +341,17 @@ export function InventoryPanel() {
 
             {/* Active Boost */}
             {inventory?.activeBoosts?.gatheringBoost && (
-              <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
-                <h3 className="text-white font-bold mb-2 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-green-400" />
+              <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4">
+                <h3 className="text-[color:var(--nn-text-primary)] font-bold mb-2 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-[color:var(--nn-green)]" />
                   ACTIVE BOOST
                 </h3>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-lg font-bold text-green-300">
+                    <p className="text-lg font-bold text-[color:var(--nn-green)]">
                       +{inventory.activeBoosts.gatheringBoost}% gathering bonus
                     </p>
-                    <p className="text-sm text-green-400 flex items-center gap-2 mt-1">
+                    <p className="text-sm text-[color:var(--nn-green)] flex items-center gap-2 mt-1">
                       <Clock className="w-4 h-4" />
                       Expires in: {boostTimeRemaining}
                     </p>
@@ -396,7 +396,7 @@ export function InventoryPanel() {
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortType)}
-                    className="bg-bg-tertiary text-text-primary border border-border-main rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
+                    className="bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary"
                   >
                     <option value="rarity">Sort by Rarity</option>
                     <option value="name">Sort by Name</option>
@@ -452,8 +452,8 @@ export function InventoryPanel() {
 
                       {/* Bonus Value */}
                       {item.bonusValue && (
-                        <div className="bg-bg-secondary rounded px-3 py-2 border border-green-500/30">
-                          <p className="text-sm font-bold text-green-400">
+                        <div className="bg-bg-secondary rounded-none px-3 py-2 border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
+                          <p className="text-sm font-bold text-[color:var(--nn-green)]">
                             Bonus: +{item.bonusValue}%
                           </p>
                         </div>
@@ -474,7 +474,7 @@ export function InventoryPanel() {
           </div>
         ) : (
           <Card className="text-center py-12 m-6">
-            <p className="text-red-400 text-lg">Failed to load inventory</p>
+            <p className="text-[color:var(--nn-magenta)] text-lg">Failed to load inventory</p>
           </Card>
         )}
           </div>

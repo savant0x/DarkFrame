@@ -1,7 +1,7 @@
 /**
  * @file components/AchievementNotification.tsx
- * @created 2025-01-17
- * @overview Celebration popup when achievement is unlocked
+ * @overview Achievement unlock popup — NEON NOIR §5.1: quiet glass, category
+ * signal rail, rarity token chip, Orbitron header. Auto-dismisses after 10s.
  */
 
 'use client';
@@ -14,16 +14,25 @@ interface AchievementNotificationProps {
   onDismiss: () => void;
 }
 
+/** Category → signal-rail token */
+const CATEGORY_ACCENT: Record<AchievementCategory, string> = {
+  [AchievementCategory.Combat]: 'var(--nn-magenta)',
+  [AchievementCategory.Economic]: 'var(--nn-amber)',
+  [AchievementCategory.Exploration]: 'var(--nn-green)',
+  [AchievementCategory.Progression]: 'var(--nn-violet)',
+};
+
+/** Rarity → token chip (border + tint + label color) */
+const RARITY_CHIP: Record<AchievementRarity, { border: string; tint: number; color: string }> = {
+  [AchievementRarity.Common]: { border: 'var(--nn-text-secondary)', tint: 14, color: 'var(--nn-text-secondary)' },
+  [AchievementRarity.Rare]: { border: 'var(--nn-cyan)', tint: 16, color: 'var(--nn-cyan)' },
+  [AchievementRarity.Epic]: { border: 'var(--nn-violet)', tint: 18, color: 'var(--nn-violet)' },
+  [AchievementRarity.Legendary]: { border: 'var(--nn-amber)', tint: 20, color: 'var(--nn-amber)' },
+};
+
 /**
- * Celebratory notification when player unlocks achievement
- * 
- * Features:
- * - Category-specific colors (Combat=red, Economic=gold, Exploration=green, Progression=purple)
- * - Shows rarity badge (Common/Rare/Epic/Legendary)
- * - Displays prestige unit unlocked
- * - Shows RP bonus earned
- * - Auto-dismisses after 10 seconds
- * - Confetti animation for Epic/Legendary
+ * Celebratory notification when player unlocks achievement.
+ * Square quiet-glass panel; the left signal rail carries the category accent.
  */
 export const AchievementNotification: React.FC<AchievementNotificationProps> = ({
   achievement,
@@ -39,7 +48,7 @@ export const AchievementNotification: React.FC<AchievementNotificationProps> = (
   useEffect(() => {
     if (achievement) {
       setIsVisible(true);
-      
+
       // Auto-dismiss after 10 seconds
       const timer = setTimeout(() => {
         handleDismiss();
@@ -53,44 +62,33 @@ export const AchievementNotification: React.FC<AchievementNotificationProps> = (
     return null;
   }
 
-  // Category-specific colors
-  const categoryColors: Record<AchievementCategory, string> = {
-    [AchievementCategory.Combat]: 'from-red-600 to-red-800 border-red-500',
-    [AchievementCategory.Economic]: 'from-yellow-600 to-yellow-800 border-yellow-500',
-    [AchievementCategory.Exploration]: 'from-green-600 to-green-800 border-green-500',
-    [AchievementCategory.Progression]: 'from-purple-600 to-purple-800 border-purple-500'
-  };
-
-  // Rarity colors
-  const rarityColors: Record<AchievementRarity, string> = {
-    [AchievementRarity.Common]: 'bg-gray-500 text-white',
-    [AchievementRarity.Rare]: 'bg-blue-500 text-white',
-    [AchievementRarity.Epic]: 'bg-purple-600 text-white',
-    [AchievementRarity.Legendary]: 'bg-gradient-to-r from-orange-500 to-red-600 text-white'
-  };
-
-  const colorClass = categoryColors[achievement.category];
-  const rarityClass = rarityColors[achievement.rarity];
+  const accent = CATEGORY_ACCENT[achievement.category];
+  const rarity = RARITY_CHIP[achievement.rarity];
+  const isEpicPlus =
+    achievement.rarity === AchievementRarity.Epic ||
+    achievement.rarity === AchievementRarity.Legendary;
 
   return (
     <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 animate-bounce-in">
-      {/* Confetti for Epic/Legendary - Using CSS animations to avoid CSP violations */}
-      {(achievement.rarity === AchievementRarity.Epic || achievement.rarity === AchievementRarity.Legendary) && (
+      {/* Ember confetti for Epic/Legendary — CSS animations, no CSP violations */}
+      {isEpicPlus && (
         <div className="absolute inset-0 pointer-events-none">
           {[...Array(20)].map((_, i) => {
-            // Generate random positions and delays using array index for deterministic values
-            const leftPercent = ((i * 37) % 100); // Pseudo-random 0-100
-            const delayMs = ((i * 73) % 500); // Pseudo-random 0-500ms
-            const durationMs = 1000 + ((i * 111) % 1000); // Pseudo-random 1000-2000ms
-            
+            // Deterministic pseudo-random values from the index
+            const leftPercent = (i * 37) % 100;
+            const delayMs = (i * 73) % 500;
+            const durationMs = 1000 + ((i * 111) % 1000);
+
             return (
               <div
                 key={i}
-                className={`absolute w-2 h-2 bg-yellow-400 rounded-full animate-confetti`}
+                className="absolute w-1.5 h-1.5 rounded-full animate-confetti"
                 style={{
                   left: `${leftPercent}%`,
                   animationDelay: `${delayMs}ms`,
-                  animationDuration: `${durationMs}ms`
+                  animationDuration: `${durationMs}ms`,
+                  backgroundColor: i % 3 === 0 ? 'var(--nn-amber)' : i % 3 === 1 ? 'var(--nn-magenta)' : 'var(--nn-cyan)',
+                  boxShadow: '0 0 6px color-mix(in oklab, var(--nn-amber) 60%, transparent)',
                 }}
               />
             );
@@ -99,68 +97,104 @@ export const AchievementNotification: React.FC<AchievementNotificationProps> = (
       )}
 
       <div
-        className={`
-          bg-gradient-to-br ${colorClass}
-          border-4 rounded-lg shadow-2xl
-          p-6 min-w-[400px] max-w-[500px]
-          transform transition-all duration-300
-        `}
+        className="rounded-none p-5 min-w-[400px] max-w-[500px]"
+        style={{
+          background: 'color-mix(in oklab, var(--nn-void) 90%, transparent)',
+          border: '1px solid color-mix(in oklab, var(--nn-cyan) 16%, transparent)',
+          borderLeft: `3px solid ${accent}`,
+          boxShadow: `0 0 40px color-mix(in oklab, ${accent} 25%, transparent), 0 8px 32px rgba(0,0,0,0.6)`,
+          backdropFilter: 'blur(8px)',
+        }}
+        onClick={handleDismiss}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="text-4xl">🏆</div>
+            <span className="text-2xl">🏆</span>
             <div>
-              <div className="text-2xl font-bold text-white drop-shadow-lg">
-                Achievement Unlocked!
+              <div
+                className="text-lg font-bold text-[color:var(--nn-text-primary)]"
+                style={{ fontFamily: "'Orbitron', sans-serif", letterSpacing: '0.04em' }}
+              >
+                ACHIEVEMENT UNLOCKED
               </div>
-              <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase ${rarityClass} mt-1`}>
+              <div
+                className="mt-1 inline-block px-2 py-0.5 text-xs font-bold uppercase"
+                style={{
+                  letterSpacing: '0.14em',
+                  color: rarity.color,
+                  border: `1px solid color-mix(in oklab, ${rarity.border} ${rarity.tint * 3}%, transparent)`,
+                  background: `color-mix(in oklab, ${rarity.border} ${rarity.tint}%, transparent)`,
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                }}
+              >
                 {achievement.rarity}
               </div>
             </div>
           </div>
           <button
             onClick={handleDismiss}
-            className="text-white hover:text-gray-200 text-2xl font-bold"
+            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-magenta)] transition-colors text-xl font-bold leading-none"
             aria-label="Dismiss notification"
           >
             ×
           </button>
         </div>
 
-        {/* Achievement Details */}
-        <div className="bg-black/30 rounded-lg p-4 mb-4">
-          <div className="text-xl font-bold text-white mb-2">
+        {/* Achievement Details — neutral well */}
+        <div
+          className="rounded-none p-4 mb-3"
+          style={{
+            border: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)',
+            background: 'color-mix(in oklab, var(--nn-void) 45%, transparent)',
+          }}
+        >
+          <div
+            className="mb-1 text-base font-bold text-[color:var(--nn-text-primary)]"
+            style={{ fontFamily: "'Orbitron', sans-serif", letterSpacing: '0.03em' }}
+          >
             {achievement.name}
           </div>
-          <div className="text-gray-200 text-sm mb-3">
+          <div className="mb-2 text-sm text-[color:var(--nn-text-secondary)]">
             {achievement.description}
           </div>
-          <div className="text-gray-300 text-xs uppercase tracking-wide">
-            Category: {achievement.category}
+          <div
+            className="text-xs uppercase text-[color:var(--nn-text-secondary)]"
+            style={{ letterSpacing: '0.14em' }}
+          >
+            {achievement.category}
           </div>
         </div>
 
-        {/* Rewards */}
-        <div className="bg-black/30 rounded-lg p-4">
-          <div className="text-white font-bold mb-2 flex items-center gap-2">
-            <span className="text-lg">🎁</span>
+        {/* Rewards — well with rail */}
+        <div
+          className="rounded-none p-4"
+          style={{
+            border: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)',
+            borderLeft: `2px solid ${accent}`,
+            background: 'color-mix(in oklab, var(--nn-void) 45%, transparent)',
+          }}
+        >
+          <div
+            className="mb-2 text-xs font-bold uppercase text-[color:var(--nn-text-secondary)]"
+            style={{ letterSpacing: '0.16em' }}
+          >
             Rewards
           </div>
           <div className="space-y-2">
             {/* Prestige Unit Unlock */}
-            <div className="flex items-center gap-2 text-yellow-300">
-              <span className="text-lg">⚔️</span>
-              <span className="font-semibold">
+            <div className="flex items-center gap-2 text-sm text-[color:var(--nn-amber)]">
+              <span>⚔️</span>
+              <span className="nn-num font-semibold">
                 Unlocked: {achievement.reward.unitUnlock}
               </span>
             </div>
 
             {/* RP Bonus */}
             {achievement.reward.rpBonus && (
-              <div className="flex items-center gap-2 text-purple-300">
-                <span className="text-lg">💎</span>
-                <span className="font-semibold">
+              <div className="flex items-center gap-2 text-sm text-[color:var(--nn-violet)]">
+                <span>💎</span>
+                <span className="nn-num font-semibold">
                   +{achievement.reward.rpBonus} Research Points
                 </span>
               </div>
@@ -168,37 +202,14 @@ export const AchievementNotification: React.FC<AchievementNotificationProps> = (
           </div>
         </div>
 
-        {/* Progress indicator */}
-        <div className="mt-4 text-center text-white text-sm">
-          Click anywhere to dismiss
+        {/* Dismiss hint */}
+        <div
+          className="mt-3 text-center text-xs text-[color:var(--nn-text-secondary)]"
+          style={{ letterSpacing: '0.12em' }}
+        >
+          CLICK ANYWHERE TO DISMISS
         </div>
       </div>
     </div>
   );
 };
-
-// ============================================================
-// IMPLEMENTATION NOTES:
-// ============================================================
-// - Auto-dismiss after 10 seconds
-// - Manual dismiss via X button or click
-// - Category-specific gradient backgrounds
-// - Rarity badge with appropriate styling
-// - Confetti animation for Epic/Legendary achievements
-// - Shows prestige unit unlocked and RP bonus
-// - Positioned at top-center of screen
-// ============================================================
-// USAGE EXAMPLE:
-// ============================================================
-// const [achievement, setAchievement] = useState<Achievement | null>(null);
-// 
-// // When achievement unlocked:
-// setAchievement(unlockedAchievement);
-// 
-// <AchievementNotification
-//   achievement={achievement}
-//   onDismiss={() => setAchievement(null)}
-// />
-// ============================================================
-// END OF FILE
-// ============================================================

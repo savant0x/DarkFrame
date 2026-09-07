@@ -220,7 +220,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          className="absolute inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm"
           onClick={onClose}
         />
 
@@ -229,17 +229,17 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-2xl bg-gradient-to-br from-bg-space to-bg-nebula rounded-lg border-2 border-purple-500/30 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-2xl bg-gradient-to-br from-bg-space to-bg-nebula rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-2xl overflow-hidden"
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-purple-900/30 to-blue-900/30 border-b border-purple-500/30 px-6 py-4 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Crown className="w-6 h-6 text-yellow-400" />
-              <h2 className="text-2xl font-bold text-white">Create New Clan</h2>
+              <Crown className="w-6 h-6 text-[color:var(--nn-amber)]" />
+              <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Create New Clan</h2>
             </div>
             <button
               onClick={onClose}
-              className="text-text-secondary hover:text-white transition-colors"
+              className="text-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -248,15 +248,15 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
           {/* Content */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
             {/* Cost Display */}
-            <div className="bg-glass-light rounded-lg p-4 border border-glass-border">
-              <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <Coins className="w-4 h-4 text-yellow-400" />
+            <div className="bg-glass-light rounded-none p-4 border border-glass-border">
+              <h3 className="text-sm font-semibold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />
                 Creation Cost
               </h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center">
                   <div className="text-xs text-text-secondary mb-1">Metal</div>
-                  <div className={`text-lg font-bold ${player && player.resources.metal >= CREATION_COSTS.metal ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`text-lg font-bold ${player && player.resources.metal >= CREATION_COSTS.metal ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                     {CREATION_COSTS.metal.toLocaleString()}
                   </div>
                   {player && (
@@ -267,7 +267,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-text-secondary mb-1">Energy</div>
-                  <div className={`text-lg font-bold ${player && player.resources.energy >= CREATION_COSTS.energy ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`text-lg font-bold ${player && player.resources.energy >= CREATION_COSTS.energy ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                     {CREATION_COSTS.energy.toLocaleString()}
                   </div>
                   {player && (
@@ -278,7 +278,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 </div>
                 <div className="text-center">
                   <div className="text-xs text-text-secondary mb-1">RP</div>
-                  <div className={`text-lg font-bold ${player && player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-green-400' : 'text-red-400'}`}>
+                  <div className={`text-lg font-bold ${player && player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                     {CREATION_COSTS.researchPoints}
                   </div>
                   {player && (
@@ -292,8 +292,8 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
 
             {/* Clan Name */}
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
-                Clan Name <span className="text-red-400">*</span>
+              <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
+                Clan Name <span className="text-[color:var(--nn-magenta)]">*</span>
               </label>
               <div className="relative">
                 <Input
@@ -307,17 +307,17 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 {formData.name.length >= 3 && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {isCheckingName ? (
-                      <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent rounded-full animate-spin" />
                     ) : nameAvailable === true ? (
-                      <Check className="w-5 h-5 text-green-400" />
+                      <Check className="w-5 h-5 text-[color:var(--nn-green)]" />
                     ) : nameAvailable === false ? (
-                      <X className="w-5 h-5 text-red-400" />
+                      <X className="w-5 h-5 text-[color:var(--nn-magenta)]" />
                     ) : null}
                   </div>
                 )}
               </div>
               {errors.name && (
-                <p className="text-red-400 text-xs mt-1 flex items-center gap-1">
+                <p className="text-[color:var(--nn-magenta)] text-xs mt-1 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   {errors.name}
                 </p>
@@ -329,19 +329,19 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
+              <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
                 Description
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 placeholder="Describe your clan's purpose and goals..."
-                className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded-lg text-white placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors resize-none"
+                className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors resize-none"
                 rows={4}
                 maxLength={500}
               />
               {errors.description && (
-                <p className="text-red-400 text-xs mt-1">{errors.description}</p>
+                <p className="text-[color:var(--nn-magenta)] text-xs mt-1">{errors.description}</p>
               )}
               <p className="text-text-secondary text-xs mt-1">
                 {formData.description.length}/500 characters
@@ -352,16 +352,16 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
             <div className="grid grid-cols-2 gap-4">
               {/* Privacy Toggle */}
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">
+                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
                   Privacy
                 </label>
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleChange('isPublic', true)}
-                    className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-4 py-2 rounded-none border transition-colors ${
                       formData.isPublic
-                        ? 'bg-green-500/20 border-green-500 text-green-400'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
                         : 'bg-glass-light border-glass-border text-text-secondary'
                     }`}
                   >
@@ -370,9 +370,9 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                   <button
                     type="button"
                     onClick={() => handleChange('isPublic', false)}
-                    className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
+                    className={`flex-1 px-4 py-2 rounded-none border transition-colors ${
                       !formData.isPublic
-                        ? 'bg-purple-500/20 border-purple-500 text-purple-400'
+                        ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]'
                         : 'bg-glass-light border-glass-border text-text-secondary'
                     }`}
                   >
@@ -386,7 +386,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
 
               {/* Minimum Level */}
               <div>
-                <label className="block text-sm font-semibold text-white mb-2">
+                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
                   Minimum Level
                 </label>
                 <Input
@@ -402,9 +402,9 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
 
             {/* Submit Error */}
             {errors.submit && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <p className="text-red-400 text-sm">{errors.submit}</p>
+              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 flex items-start gap-2">
+                <AlertCircle className="w-5 h-5 text-[color:var(--nn-magenta)] flex-shrink-0 mt-0.5" />
+                <p className="text-[color:var(--nn-magenta)] text-sm">{errors.submit}</p>
               </div>
             )}
 

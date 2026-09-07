@@ -14,7 +14,7 @@ export const BattleStatsPanel: React.FC<{ username: string }> = ({ username }) =
   if (loading) return <div>Loading battle stats...</div>;
   if (error) return <div>Error loading battle stats</div>;
   return (
-    <div className="p-4 bg-gray-900 rounded-lg shadow">
+    <div className="p-4 bg-[color:var(--nn-void)] rounded-none shadow">
       <h2 className="text-xl font-bold mb-2">Battle Stats</h2>
       <div className="mb-2">Wins: {stats.wins}</div>
       <div className="mb-2">Losses: {stats.losses}</div>

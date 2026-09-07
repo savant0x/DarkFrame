@@ -39,9 +39,9 @@ interface ProgressBarProps {
 
 const colorClasses = {
   primary: 'bg-primary-500',
-  success: 'bg-green-500',
-  warning: 'bg-yellow-500',
-  error: 'bg-red-500',
+  success: 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]',
+  warning: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]',
+  error: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]',
   xp: 'bg-xp',
   health: 'bg-health',
   energy: 'bg-energy',

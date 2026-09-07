@@ -26,9 +26,9 @@ interface SkeletonProps {
 }
 
 const variantClasses = {
-  text: 'h-4 rounded',
+  text: 'h-4 rounded-none',
   circular: 'rounded-full',
-  rectangular: 'rounded-md',
+  rectangular: 'rounded-none',
 };
 
 export function Skeleton({

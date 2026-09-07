@@ -141,17 +141,17 @@ export default function ClanLeaderboardView() {
   };
 
   return (
-    <div className="bg-gradient-to-b from-gray-950 via-gray-900 to-black rounded-lg shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="bg-gradient-to-b from-gray-950 via-gray-900 to-black rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
       {/* Header Section */}
-      <div className="bg-gray-900/90 border-b border-gray-700 p-6 flex-shrink-0">
+      <div className="bg-[color:var(--nn-void)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-6 flex-shrink-0">
         {/* Title */}
         <div className="flex items-center gap-3 mb-6">
-          <Trophy className="w-10 h-10 text-yellow-400" />
+          <Trophy className="w-10 h-10 text-[color:var(--nn-amber)]" />
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] bg-clip-text text-transparent">
               Clan Leaderboards
             </h1>
-            <p className="text-gray-400 text-lg">
+            <p className="text-[color:var(--nn-text-secondary)] text-lg">
               Compete for supremacy across {totalClans} clans
             </p>
           </div>
@@ -208,12 +208,12 @@ export default function ClanLeaderboardView() {
         {/* Search Bar */}
         <div className="mb-4">
           <div className="relative max-w-md mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[color:var(--nn-text-secondary)]" />
             <Input
               placeholder="Search clan by name..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              className="pl-12 text-center bg-gray-800 border-gray-700 text-white"
+              className="pl-12 text-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-primary)]"
             />
           </div>
         </div>
@@ -225,16 +225,16 @@ export default function ClanLeaderboardView() {
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
           <div className="text-center py-20">
-            <Loader2 className="w-16 h-16 mx-auto mb-4 text-cyan-400 animate-spin" />
-            <p className="text-gray-400 text-lg">Loading leaderboard...</p>
+            <Loader2 className="w-16 h-16 mx-auto mb-4 text-[color:var(--nn-cyan)] animate-spin" />
+            <p className="text-[color:var(--nn-text-secondary)] text-lg">Loading leaderboard...</p>
           </div>
         ) : leaderboard.length === 0 ? (
           <div className="text-center py-20">
-            <Trophy className="w-16 h-16 mx-auto mb-4 text-gray-600" />
-            <p className="text-gray-400 text-lg mb-2">
+            <Trophy className="w-16 h-16 mx-auto mb-4 text-[color:var(--nn-text-secondary)]" />
+            <p className="text-[color:var(--nn-text-secondary)] text-lg mb-2">
               {searchQuery ? 'No clans found matching your search' : 'No clans in this category yet'}
             </p>
-            <p className="text-gray-500 text-sm">
+            <p className="text-[color:var(--nn-text-secondary)] text-sm">
               {searchQuery ? 'Try a different search term' : 'Be the first to create a clan!'}
             </p>
           </div>
@@ -254,7 +254,7 @@ export default function ClanLeaderboardView() {
       </div>
 
       {/* Footer with Pagination */}
-      <div className="bg-gray-900/90 border-t border-gray-700 p-4 flex-shrink-0">
+      <div className="bg-[color:var(--nn-void)] border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-4 flex-shrink-0">
         {totalPages > 1 && (
           <div className="mb-4 flex items-center justify-center gap-4">
             <Button
@@ -307,7 +307,7 @@ export default function ClanLeaderboardView() {
         )}
 
         {/* Footer Info */}
-        <div className="text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-[color:var(--nn-text-secondary)]">
           <p>Showing {((currentPage - 1) * clansPerPage) + 1} - {Math.min(currentPage * clansPerPage, totalClans)} of {totalClans} clans</p>
           <p className="mt-2">Rankings update every 5 minutes</p>
         </div>
@@ -331,10 +331,10 @@ function CategoryButton({ icon, label, active, onClick }: CategoryButtonProps) {
     <button
       onClick={onClick}
       className={`
-        flex items-center justify-center gap-2 px-4 py-3 rounded-lg border transition-all
+        flex items-center justify-center gap-2 px-4 py-3 rounded-none border transition-all
         ${active 
-          ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400 shadow-lg shadow-cyan-500/20' 
-          : 'bg-gray-800/50 border-gray-700/50 text-gray-400 hover:bg-gray-700/50 hover:border-cyan-500/30 hover:text-cyan-400'
+          ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)] shadow-lg shadow-cyan-500/20' 
+          : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]'
         }
       `}
     >
@@ -359,7 +359,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
   const getRankDisplay = () => {
     if (rank === 1) {
       return (
-        <div className="flex items-center gap-2 text-yellow-400">
+        <div className="flex items-center gap-2 text-[color:var(--nn-amber)]">
           <Crown className="w-6 h-6" />
           <span className="text-2xl font-bold">1</span>
         </div>
@@ -367,7 +367,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     }
     if (rank === 2) {
       return (
-        <div className="flex items-center gap-2 text-gray-300">
+        <div className="flex items-center gap-2 text-[color:var(--nn-text-secondary)]">
           <Medal className="w-6 h-6" />
           <span className="text-2xl font-bold">2</span>
         </div>
@@ -375,13 +375,13 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     }
     if (rank === 3) {
       return (
-        <div className="flex items-center gap-2 text-orange-400">
+        <div className="flex items-center gap-2 text-[color:var(--nn-amber)]">
           <Medal className="w-6 h-6" />
           <span className="text-2xl font-bold">3</span>
         </div>
       );
     }
-    return <span className="text-2xl font-bold text-gray-500">#{rank}</span>;
+    return <span className="text-2xl font-bold text-[color:var(--nn-text-secondary)]">#{rank}</span>;
   };
 
   const getValueDisplay = () => {
@@ -426,23 +426,23 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
   };
 
   const borderColor = rank === 1 
-    ? 'border-yellow-500/50' 
+    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]' 
     : rank === 2 
-    ? 'border-gray-400/50' 
+    ? 'border-[color-mix(in_oklab,var(--nn-cyan)_30%,transparent)]' 
     : rank === 3 
-    ? 'border-orange-500/50'
-    : 'border-gray-700/50';
+    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
+    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]';
 
   const bgColor = rank === 1
-    ? 'bg-yellow-500/10'
+    ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
     : rank === 2
-    ? 'bg-gray-500/10'
+    ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
     : rank === 3
-    ? 'bg-orange-500/10'
-    : 'bg-gray-800/50';
+    ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
+    : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]';
 
   return (
-    <div className={`${bgColor} border ${borderColor} rounded-lg p-4 hover:border-cyan-500/30 transition-all`}>
+    <div className={`${bgColor} border ${borderColor} rounded-none p-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all`}>
       <div className="flex items-center gap-4">
         {/* Rank */}
         <div className="flex-shrink-0 w-16 text-center">
@@ -452,7 +452,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
         {/* Clan Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <h3 className="text-xl font-bold text-white truncate">
+            <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)] truncate">
               {clan.name}
             </h3>
             {getRankChange()}
@@ -461,18 +461,18 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
             )}
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-gray-400">
+          <div className="flex items-center gap-4 text-sm text-[color:var(--nn-text-secondary)]">
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
               {clan.members?.length || 0}/50
             </div>
-            <div className="text-lg font-semibold text-cyan-400">
+            <div className="text-lg font-semibold text-[color:var(--nn-cyan)]">
               {getValueDisplay()}
             </div>
           </div>
 
           {clan.description && (
-            <p className="text-sm text-gray-500 mt-2 truncate">
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2 truncate">
               {clan.description}
             </p>
           )}

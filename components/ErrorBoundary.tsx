@@ -130,8 +130,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       // Default fallback UI
       return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-gray-900">
-          <Card className="max-w-2xl w-full border-2 border-red-500">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-[color:var(--nn-void)]">
+          <Card className="max-w-2xl w-full border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
             <div className="p-6">
               {/* Error Icon */}
               <div className="text-center mb-4">
@@ -139,29 +139,29 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </div>
 
               {/* Error Title */}
-              <h1 className="text-2xl font-bold text-red-400 text-center mb-2">
+              <h1 className="text-2xl font-bold text-[color:var(--nn-magenta)] text-center mb-2">
                 Oops! Something went wrong
               </h1>
 
               {/* Error Message */}
-              <p className="text-gray-300 text-center mb-6">
+              <p className="text-[color:var(--nn-text-secondary)] text-center mb-6">
                 We encountered an unexpected error. Don{"'"}t worry, your progress is saved.
               </p>
 
               {/* Error Details (Development Mode) */}
               {process.env.NODE_ENV === 'development' && error && (
-                <Panel className="bg-red-900/20 border border-red-500 mb-6">
+                <Panel className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mb-6">
                   <div className="mb-3">
-                    <h3 className="font-bold text-red-400 mb-2">Error Details:</h3>
-                    <pre className="text-xs text-red-300 overflow-x-auto bg-black/30 p-3 rounded">
+                    <h3 className="font-bold text-[color:var(--nn-magenta)] mb-2">Error Details:</h3>
+                    <pre className="text-xs text-[color:var(--nn-magenta)] overflow-x-auto bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] p-3 rounded-none">
                       {error.toString()}
                     </pre>
                   </div>
                   
                   {errorInfo && (
                     <div>
-                      <h3 className="font-bold text-red-400 mb-2">Component Stack:</h3>
-                      <pre className="text-xs text-red-300 overflow-x-auto bg-black/30 p-3 rounded max-h-48">
+                      <h3 className="font-bold text-[color:var(--nn-magenta)] mb-2">Component Stack:</h3>
+                      <pre className="text-xs text-[color:var(--nn-magenta)] overflow-x-auto bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] p-3 rounded-none max-h-48">
                         {errorInfo.componentStack}
                       </pre>
                     </div>
@@ -183,14 +183,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   variant="primary"
                   size="base"
                   onClick={this.handleReload}
-                  className="flex-1 bg-red-600 hover:bg-red-700"
+                  className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
                 >
                   Reload Page
                 </Button>
               </div>
 
               {/* Help Text */}
-              <p className="text-xs text-gray-500 text-center mt-4">
+              <p className="text-xs text-[color:var(--nn-text-secondary)] text-center mt-4">
                 If this problem persists, please contact support or check the console for details.
               </p>
             </div>

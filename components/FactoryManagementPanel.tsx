@@ -193,8 +193,8 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-bg-primary border-2 border-border-main rounded-lg w-full max-w-6xl max-h-[90vh] flex flex-col">
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+        <div className="bg-bg-primary border-2 border-border-main rounded-none w-full max-w-6xl max-h-[90vh] flex flex-col">
           <div className="bg-bg-secondary p-4 border-b border-border-main">
             <div className="flex justify-between items-center mb-3">
               <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
@@ -215,7 +215,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
             
             {/* Batch Release Controls */}
             {factoryCount > 0 && (
-              <div className="mt-3 p-3 bg-bg-primary border border-border-light rounded-lg">
+              <div className="mt-3 p-3 bg-bg-primary border border-border-light rounded-none">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                     <Filter className="w-4 h-4" />
@@ -267,7 +267,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
                     <select 
                       value={sortBy} 
                       onChange={(e) => setSortBy(e.target.value as SortOption)}
-                      className="flex-1 bg-bg-secondary border border-border-light rounded px-2 py-1 text-xs text-text-primary"
+                      className="flex-1 bg-bg-secondary border border-border-light rounded-none px-2 py-1 text-xs text-text-primary"
                     >
                       <option value="level">Level (High to Low)</option>
                       <option value="slots">Max Slots (High to Low)</option>
@@ -281,7 +281,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
 
           <div className="flex-1 overflow-y-auto p-4 bg-bg-primary">
             {loading && <div className="text-center py-12"><LoadingSpinner size="lg" /><p className="text-text-secondary mt-4">Loading factories...</p></div>}
-            {error && <div className="text-center text-red-400 py-8">{error}</div>}
+            {error && <div className="text-center text-[color:var(--nn-magenta)] py-8">{error}</div>}
             {!loading && !error && factoryCount === 0 && (
               <div className="text-center text-text-secondary py-12">
                 <FactoryIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
@@ -316,13 +316,13 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
                       {upgradeCost && (
                         <Card className="bg-bg-secondary border-border-light mb-3 p-3">
                           <div className="text-xs text-text-tertiary mb-1">Upgrade to Level {upgradeCost.level}:</div>
-                          <div className={`text-sm font-semibold ${canUpgrade ? 'text-green-400' : 'text-red-400'}`}>
+                          <div className={`text-sm font-semibold ${canUpgrade ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                             {upgradeCost.metal.toLocaleString()} M + {upgradeCost.energy.toLocaleString()} E
                           </div>
                           <div className="text-xs text-text-tertiary mt-1">Next: {stats.maxSlots + 2} slots, {(stats.regenRate + 0.1).toFixed(1)}/hour</div>
                         </Card>
                       )}
-                      {factory.level === 10 && <div className="mb-3 p-2 bg-yellow-900/20 border border-yellow-500/30 rounded text-center"><Badge variant="warning">⭐ MAX LEVEL ⭐</Badge></div>}
+                      {factory.level === 10 && <div className="mb-3 p-2 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none text-center"><Badge variant="warning">⭐ MAX LEVEL ⭐</Badge></div>}
                       <div className="flex gap-2">
                         <Button onClick={() => { onNavigate(factory.x, factory.y); onClose(); }} variant="primary" size="sm" className="flex-1"><MapPin className="w-4 h-4 mr-1" />Jump</Button>
                         {upgradeCost && <Button onClick={() => handleUpgrade(factory.x, factory.y)} disabled={!canUpgrade} variant="success" size="sm" className="flex-1"><TrendingUp className="w-4 h-4 mr-1" />Upgrade</Button>}
@@ -343,11 +343,11 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
       </div>
 
       {abandonConfirm && (
-        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[60] p-4">
-          <Card className="max-w-md border-red-500/50">
-            <h3 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2"><AlertTriangle className="w-6 h-6" />Abandon Factory?</h3>
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_90%,transparent)] flex items-center justify-center z-[60] p-4">
+          <Card className="max-w-md border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
+            <h3 className="text-xl font-bold text-[color:var(--nn-magenta)] mb-4 flex items-center gap-2"><AlertTriangle className="w-6 h-6" />Abandon Factory?</h3>
             <p className="text-text-secondary mb-2">Are you sure you want to abandon the factory at ({abandonConfirm.x}, {abandonConfirm.y})?</p>
-            <p className="text-red-400 text-sm mb-4">This will reset the factory to Level 1, make it unclaimed, and <strong>DELETE ALL UNITS</strong>. This cannot be undone!</p>
+            <p className="text-[color:var(--nn-magenta)] text-sm mb-4">This will reset the factory to Level 1, make it unclaimed, and <strong>DELETE ALL UNITS</strong>. This cannot be undone!</p>
             <div className="flex gap-3">
               <Button onClick={() => setAbandonConfirm(null)} variant="secondary" className="flex-1">Cancel</Button>
               <Button onClick={() => handleAbandon(abandonConfirm.x, abandonConfirm.y)} variant="danger" className="flex-1">Abandon Factory</Button>

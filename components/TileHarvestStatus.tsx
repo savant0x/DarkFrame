@@ -115,10 +115,10 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
   return (
     <div className="fixed top-4 right-4 z-40 animate-fade-in">
       <div
-        className={`px-4 py-2 rounded-lg border-2 backdrop-blur-sm shadow-lg flex items-center gap-2 transition-all ${
+        className={`px-4 py-2 rounded-none border-2 backdrop-blur-sm shadow-lg flex items-center gap-2 transition-all ${
           isReady
-            ? 'bg-green-500/20 border-green-500/50 text-green-300'
-            : 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
+            : 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] text-[color:var(--nn-amber)]'
         }`}
       >
         {isReady ? (
