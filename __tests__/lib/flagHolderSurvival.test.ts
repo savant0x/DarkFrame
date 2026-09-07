@@ -20,7 +20,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Table } from 'drizzle-orm';
-import { players, flags } from '@/lib/db/schema';
 
 // ---------------------------------------------------------------------------
 // Chainable Drizzle fake — records every operation instead of touching pg.
