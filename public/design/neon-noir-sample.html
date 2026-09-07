@@ -247,6 +247,72 @@
 
   <div class="divide"></div>
 
+  <!-- COMPONENTS -->
+  <div class="sec-label"><i class="tick"></i><h2 class="display">02 · HUD Components</h2><span>corner brackets · scanlines · semantic glow</span></div>
+  <div class="grid2">
+
+    <!-- stats panel — THE LEFT SIDEBAR SPEC -->
+    <div class="panel brackets" style="position:relative">
+      <div class="panel-head"><h3 class="display">Player Info</h3><span class="k">ID ▸ FAME</span></div>
+      <div class="row"><span>Commander</span><b>fame</b></div>
+      <div class="row"><span>Level</span><b class="num">3</b></div>
+      <div class="row"><span>Factories</span><b class="num" style="color:var(--signal-cyan)">2</b></div>
+      <div class="meters">
+        <div class="meter">
+          <div class="lab"><span>STRENGTH</span><b class="num">1,284</b></div>
+          <div class="track"><div class="fill str"></div><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        </div>
+        <div class="meter">
+          <div class="lab"><span>DEFENSE</span><b class="num">776</b></div>
+          <div class="track"><div class="fill def"></div><div class="segs"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+        </div>
+      </div>
+      <div class="row"><span>Metal</span><span class="val num">12,480 <span class="gain">+240</span></span></div>
+      <div class="row"><span>Energy</span><span class="val num">8,912 <span class="gain">+95</span></span></div>
+    </div>
+
+    <!-- controls -->
+    <div class="panel">
+      <div class="panel-head"><h3 class="display">Actions</h3><span class="k">SECTOR ▸ 066·149</span></div>
+      <div class="btnrow">
+        <button class="btn btn-cyan">Harvest</button>
+        <button class="btn btn-green">Build Unit</button>
+        <button class="btn btn-magenta">Attack</button>
+        <button class="btn btn-ghost">Scout</button>
+        <button class="btn btn-cyan" disabled>Locked</button>
+      </div>
+      <div style="display:flex;gap:26px;align-items:center;padding:6px 16px 18px;">
+        <div class="cd"><span class="num">7s</span></div>
+        <div style="flex:1">
+          <div class="prog" style="padding:0 0 12px">
+            <div class="lab"><span>XP · LEVEL 3</span><b class="num">889 / 2,203</b></div>
+            <div class="track vio"><div class="fill vio"></div></div>
+          </div>
+          <div class="prog" style="padding:0">
+            <div class="lab"><span>RESEARCH POINTS</span><b class="num">1,340</b></div>
+            <div class="track vio"><div class="fill vio" style="width:66%"></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="threat"><p>⚠ WMD LAUNCH DETECTED · IMPACT 00:42 — COUNTERMEASURES AVAILABLE</p></div>
+    </div>
+
+  </div>
+
+  <div class="divide"></div>
+
+  <!-- TYPOGRAPHY -->
+  <div class="sec-label"><i class="tick"></i><h2 class="display">03 · Typography</h2><span>Orbitron HUD · Inter prose</span></div>
+  <div class="type-spec">
+    <div class="t1 display">Strategic Command Interface</div>
+    <div class="t2 num">2,794 units destroyed · 33,346 metal salvaged</div>
+    <div class="t3">Mission Briefing — Sector Clearance</div>
+    <div class="t4">Body copy stays in Inter for readability. Every numeral that a commander compares — resources, cooldowns, coordinates, power — renders in Orbitron with tabular figures so columns never jitter as values tick.</div>
+    <div><span class="tn">148,203</span><small>tabular ticker · amber resource readout</small></div>
+  </div>
+
+  <div class="divide"></div>
+
   <!-- ============================================================
        SECTION 04 · GAME RAIL MODULES (Phase 2 approval extension)
        ============================================================ -->
