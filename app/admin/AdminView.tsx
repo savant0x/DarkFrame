@@ -1098,7 +1098,7 @@ By Specialization:
 
   return (
     <div className={embedded ? "p-6" : "nn-shell min-h-screen text-[color:var(--nn-text-primary)] p-8"}>
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {!embedded && <BackButton />}
 
         <div className="flex items-center justify-between mb-8 mt-4">

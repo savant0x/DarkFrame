@@ -1991,3 +1991,4 @@ span.nn-panel__icon > svg {
   text-transform: uppercase;
   color: var(--nn-rail, var(--nn-cyan));
 }
+.nn-brief--magenta { --nn-rail: var(--nn-magenta); }

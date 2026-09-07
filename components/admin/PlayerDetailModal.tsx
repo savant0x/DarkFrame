@@ -274,31 +274,30 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
-      <div className="bg-[color:var(--nn-void)] rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="nn-panel nn-panel--violet nn-panel--x-pad max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] p-4 flex justify-between items-center border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
-            👤 {username}
-            {playerData?.isBot && <span className="ml-2 text-sm text-[color:var(--nn-cyan)]">(BOT)</span>}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] text-2xl font-bold"
-          >
-            ×
-          </button>
+        <div className="nn-panel__header nn-panel__header--bleed">
+          <span className="nn-panel__title">Player ▸ {username}</span>
+          <span className="flex items-center gap-3">
+            {playerData?.isBot && <span className="nn-chip nn-chip--cyan">BOT</span>}
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="font-mono text-sm text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
+            >
+              ×
+            </button>
+          </span>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 p-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+        <div className="flex flex-wrap gap-2 border-b border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pb-3">
           {(['overview', 'activity', 'sessions', 'flags', 'admin'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                activeTab === tab
-                  ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                  : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
+              className={`nn-tabchip ${
+                activeTab === tab ? 'nn-tabchip--on' : ''
               }`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -310,7 +309,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-3"></div>
+              <div className="mx-auto mb-3 h-10 w-10 animate-spin border border-[color-mix(in_oklab,var(--nn-violet)_40%,transparent)] border-t-[color:var(--nn-violet)]"></div>
               <p className="text-[color:var(--nn-text-secondary)]">Loading player data...</p>
             </div>
           ) : error ? (
@@ -324,26 +323,26 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
               {activeTab === 'overview' && playerData && (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                      <p className="text-[color:var(--nn-text-secondary)] text-sm">Level</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-amber)]">{playerData.level}</p>
+                    <div className="nn-stat">
+                      <p className="nn-stat__lab">Level</p>
+                      <p className="nn-stat__num nn-stat__num--glow-amber">{playerData.level}</p>
                     </div>
-                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                      <p className="text-[color:var(--nn-text-secondary)] text-sm">Rank</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-violet)]">{playerData.rank}</p>
+                    <div className="nn-stat">
+                      <p className="nn-stat__lab">Rank</p>
+                      <p className="nn-stat__num nn-stat__num--glow-violet">{playerData.rank}</p>
                     </div>
-                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                      <p className="text-[color:var(--nn-text-secondary)] text-sm">Metal</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{playerData.resources.metal.toLocaleString()}</p>
+                    <div className="nn-stat">
+                      <p className="nn-stat__lab">Metal</p>
+                      <p className="nn-stat__num nn-stat__num--glow-cyan">{playerData.resources.metal.toLocaleString()}</p>
                     </div>
-                    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                      <p className="text-[color:var(--nn-text-secondary)] text-sm">Energy</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-amber)]">{playerData.resources.energy.toLocaleString()}</p>
+                    <div className="nn-stat">
+                      <p className="nn-stat__lab">Energy</p>
+                      <p className="nn-stat__num nn-stat__num--glow-amber">{playerData.resources.energy.toLocaleString()}</p>
                     </div>
                   </div>
 
                   <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                    <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-3">Location</h3>
+                    <h3 className="nn-lab mb-3">Location</h3>
                     <p className="text-[color:var(--nn-text-primary)]">Position: ({playerData.position.x}, {playerData.position.y})</p>
                     {playerData.baseLocation && (
                       <p className="text-[color:var(--nn-text-secondary)]">Base: {playerData.baseLocation}</p>
@@ -352,7 +351,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
 
                   {playerData.createdAt && (
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                      <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-3">Account Info</h3>
+                      <h3 className="nn-lab mb-3">Account Info</h3>
                       <p className="text-[color:var(--nn-text-secondary)]">Created: {formatDateTime(playerData.createdAt)}</p>
                       {playerData.lastActive && (
                         <p className="text-[color:var(--nn-text-secondary)]">Last Active: {formatDateTime(playerData.lastActive)}</p>
@@ -366,7 +365,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
               {activeTab === 'activity' && activityData && (
                 <div className="space-y-4">
                   <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none mb-4">
-                    <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Activity Summary</h3>
+                    <h3 className="nn-lab mb-2">Activity Summary</h3>
                     <p className="text-[color:var(--nn-text-secondary)]">Total Actions: {activityData.stats.totalActions}</p>
                     <p className="text-[color:var(--nn-text-secondary)]">Most Common: {activityData.stats.mostCommonAction}</p>
                   </div>
@@ -393,7 +392,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
               {activeTab === 'sessions' && sessionData && (
                 <div className="space-y-4">
                   <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none mb-4">
-                    <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Session Summary</h3>
+                    <h3 className="nn-lab mb-2">Session Summary</h3>
                     <p className="text-[color:var(--nn-text-secondary)]">Total Sessions: {sessionData.stats.totalSessions}</p>
                     <p className="text-[color:var(--nn-text-secondary)]">Avg Duration: {formatDuration(sessionData.stats.avgDuration)}</p>
                     <p className="text-[color:var(--nn-text-secondary)]">Total Play Time: {formatDuration(sessionData.stats.totalPlayTime)}</p>
@@ -418,14 +417,14 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
               {activeTab === 'flags' && flagData && (
                 <div className="space-y-4">
                   {flagData.isBanned && (
-                    <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] p-4 rounded-none">
-                      <p className="text-[color:var(--nn-magenta)] font-bold">⚠️ PLAYER IS BANNED</p>
+                    <div className="nn-brief nn-brief--magenta">
+                      <p className="font-bold"><strong>Banned</strong> — this player is currently banned</p>
                     </div>
                   )}
 
                   {flagData.maxSeverity && (
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none">
-                      <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Max Severity</h3>
+                      <h3 className="nn-lab mb-2">Max Severity</h3>
                       <p className={`text-lg font-bold ${
                         flagData.maxSeverity === 'CRITICAL' ? 'text-[color:var(--nn-magenta)]' :
                         flagData.maxSeverity === 'HIGH' ? 'text-[color:var(--nn-amber)]' :
@@ -473,41 +472,41 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                       <button
                         onClick={handleUnbanPlayer}
                         disabled={actionLoading}
-                        className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] disabled:opacity-50 text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
+                        className="nn-abtn nn-abtn--green disabled:opacity-50"
                       >
-                        ✅ Unban Player
+                        Unban Player
                       </button>
                     ) : (
                       <button
                         onClick={handleBanPlayer}
                         disabled={actionLoading}
-                        className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] disabled:opacity-50 text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
+                        className="nn-abtn nn-abtn--danger disabled:opacity-50"
                       >
-                        🚫 Ban Player
+                        Ban Player
                       </button>
                     )}
 
                     <button
                       onClick={handleGiveResources}
                       disabled={actionLoading}
-                      className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] disabled:opacity-50 text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
+                      className="nn-abtn nn-abtn--cyan disabled:opacity-50"
                     >
-                      💎 Give Resources
+                      Give Resources
                     </button>
 
                     <button
                       onClick={handleClearFlags}
                       disabled={actionLoading}
-                      className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] disabled:opacity-50 text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
+                      className="nn-abtn nn-abtn--amber disabled:opacity-50"
                     >
-                      🧹 Clear Flags
+                      Clear Flags
                     </button>
 
                     <button
                       disabled={actionLoading}
-                      className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] disabled:opacity-50 text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
+                      className="nn-abtn nn-abtn--violet disabled:opacity-50"
                     >
-                      🔄 Reset Progress
+                      Reset Progress
                     </button>
                   </div>
 
