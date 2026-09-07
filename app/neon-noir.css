@@ -957,6 +957,87 @@ span.nn-panel__icon > svg {
   background: color-mix(in oklab, var(--nn-magenta) 12%, transparent);
   box-shadow: 0 0 18px color-mix(in oklab, var(--nn-magenta) 40%, transparent);
 }
+.nn-btn--danger {
+  border-color: color-mix(in oklab, var(--nn-magenta) 60%, transparent);
+  color: var(--nn-magenta);
+}
+.nn-btn--danger:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--nn-magenta) 12%, transparent);
+  box-shadow: 0 0 18px color-mix(in oklab, var(--nn-magenta) 45%, transparent);
+}
+
+/* §04 tutorial reward rows: neutral well + left signal rail, label-only accent */
+.nn-tut-reward {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--nn-text-secondary) 18%, transparent);
+  border-left: 2px solid var(--nn-accent, var(--nn-green));
+  background: var(--nn-void);
+  padding: 8px 10px;
+}
+.nn-tut-reward > svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+  margin-top: 1px;
+  color: var(--nn-accent, var(--nn-green));
+}
+.nn-tut-reward .nn-tut-reward__lab {
+  font-family: var(--nn-font-body);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nn-accent, var(--nn-green));
+  margin-bottom: 2px;
+}
+.nn-tut-reward .nn-tut-reward__text {
+  font-family: var(--nn-font-body);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--nn-text-secondary);
+}
+
+/* §04 tutorial corner controls: pinned top-right, HUD-hit-area, outside the
+   header flow so the header stays title+meta only. */
+.nn-tut-ctl {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  z-index: 2;
+}
+.nn-tut-ctl button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  color: var(--nn-text-tertiary);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 18%, transparent);
+  cursor: pointer;
+  transition: color var(--nn-dur-state) var(--nn-ease), background var(--nn-dur-state) var(--nn-ease);
+}
+.nn-tut-ctl button:hover {
+  color: var(--nn-text-primary);
+  background: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 10%, transparent);
+}
+.nn-tut-ctl button:last-child:hover {
+  color: var(--nn-magenta);
+}
+.nn-tut-ctl svg {
+  width: 12px;
+  height: 12px;
+}
+.nn-panel--tut .nn-panel__header {
+  padding-right: 58px; /* clear the corner controls */
+}
+.nn-panel--tut .nn-panel__meta {
+  display: none; /* meta tag duplicated by the Progress readout inside */
+}
 
 /* ===================================================================== */
 /* SAMPLE ACCENT MODULES — Flag (amber) · WMD (magenta) · AutoFarm/      */

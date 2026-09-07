@@ -534,14 +534,36 @@ export default function TutorialQuestPanel({
     <>
       {/* Main Quest Panel - docked inside the controls rail on lg+, floating below lg */}
       <div className={`tutorial-quest-panel ${wrapperClasses}`}>
-      <div className={`nn-panel overflow-hidden transition-all duration-300 ${
+      <div className={`nn-panel nn-panel--tut overflow-hidden transition-all duration-300 ${
         stepJustCompleted ? '!border-[color:var(--nn-green)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-green)_30%,transparent)] scale-105' : 
         questJustCompleted ? '!border-[color:var(--nn-violet)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-violet)_30%,transparent)] scale-105' :
         ''
       }`} style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+        {/* Corner controls — pinned to the panel's top-right edge (§04),
+            outside the header flow so the header stays title + progress. */}
+        <div className="nn-tut-ctl">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expand' : 'Collapse'}
+            aria-label={isCollapsed ? 'Expand tutorial' : 'Collapse tutorial'}
+          >
+            {isCollapsed ? (
+              <ChevronUp />
+            ) : (
+              <ChevronDown />
+            )}
+          </button>
+          <button
+            onClick={handleSkip}
+            title="Skip Tutorial"
+            aria-label="Skip tutorial"
+          >
+            <X />
+          </button>
+        </div>
         {/* Header */}
         <div className="nn-panel__header px-4 py-2">
-          <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Trophy className={`nn-panel__icon ${questJustCompleted ? 'animate-bounce' : ''}`} />
               <span className="nn-panel__title">Tutorial Quest</span>
@@ -549,39 +571,19 @@ export default function TutorialQuestPanel({
                 <CheckCircle2 className="w-4 h-4 text-[color:var(--nn-green)] animate-pulse" />
               )}
             </div>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="rounded p-1 text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-text-primary)]"
-                title={isCollapsed ? 'Expand' : 'Collapse'}
-              >
-                {isCollapsed ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </button>
-              <button
-                onClick={handleSkip}
-                className="rounded p-1 text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
-                title="Skip Tutorial"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
           
-          {/* Overall Quest Progress Bar */}
-          <div className="mt-2">
-            <div className="mb-1 flex items-center justify-between text-xs">
-              <span className="nn-lab">Progress</span>
-              <span className="nn-num text-[color:var(--nn-violet)]">{questStepProgress}</span>
-            </div>
-            <div className="nn-meter h-2">
-              <div 
-                className="nn-meter__fill transition-all duration-500 ease-out"
-                style={{ width: `${questProgressPercent}%`, background: 'var(--nn-violet)', boxShadow: '0 0 8px color-mix(in oklab, var(--nn-violet) 50%, transparent)' }}
-              />
+            {/* Overall Quest Progress Bar */}
+            <div className="mt-2">
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="nn-lab">Progress</span>
+                <span className="nn-num text-[color:var(--nn-violet)]">{questStepProgress}</span>
+              </div>
+              <div className="nn-meter h-2">
+                <div 
+                  className="nn-meter__fill transition-all duration-500 ease-out"
+                  style={{ width: `${questProgressPercent}%`, background: 'var(--nn-violet)', boxShadow: '0 0 8px color-mix(in oklab, var(--nn-violet) 50%, transparent)' }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -801,38 +803,35 @@ export default function TutorialQuestPanel({
         )}
       </div>
 
-      {/* Reward Boxes - Outside main panel */}
+      {/* Reward Boxes - Outside main panel (§04: neutral well + signal rail) */}
       {!isCollapsed && currentStep.reward && (
-        <div className="rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-green) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-green) 8%, transparent)' }}>
-          <div className="flex items-center gap-2">
-            <Gift className="h-4 w-4 flex-shrink-0 text-[color:var(--nn-green)]" />
-            <span className="break-words text-xs text-[color:var(--nn-green)]">
-              {currentStep.reward.displayMessage}
-            </span>
+        <div className="nn-tut-reward" style={{ '--nn-accent': 'var(--nn-green)' } as React.CSSProperties}>
+          <Gift />
+          <div className="min-w-0">
+            <div className="nn-tut-reward__lab">Step Reward</div>
+            <div className="nn-tut-reward__text">{currentStep.reward.displayMessage}</div>
           </div>
         </div>
       )}
 
       {!isCollapsed && currentQuest.completionReward && (
-        <div className="rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-violet) 8%, transparent)' }}>
-          <div className="flex items-center gap-2">
-            <Trophy className="h-4 w-4 flex-shrink-0 text-[color:var(--nn-violet)]" />
-            <div className="min-w-0 flex-1">
-              <div className="mb-1 text-xs font-semibold text-[color:var(--nn-violet)]">Quest Completion Reward:</div>
-              <div className="break-words text-xs text-[color:var(--nn-text-secondary)]">{currentQuest.completionReward.displayMessage}</div>
-            </div>
+        <div className="nn-tut-reward" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+          <Trophy />
+          <div className="min-w-0">
+            <div className="nn-tut-reward__lab">Quest Completion</div>
+            <div className="nn-tut-reward__text">{currentQuest.completionReward.displayMessage}</div>
           </div>
         </div>
       )}
 
-      {/* Quit Tutorial Button - Separate Box at Bottom */}
+      {/* Quit Tutorial Button - Separate Box at Bottom (§04 well) */}
       {!isCollapsed && (
-        <div className="rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-magenta) 8%, transparent)' }}>
+        <div className="nn-tut-reward" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
           <button
             onClick={handleQuitClick}
-            className="nn-btn nn-btn--danger flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-semibold"
+            className="nn-btn nn-btn--danger"
           >
-            <X className="w-4 h-4" />
+            <X />
             Quit Tutorial (Forfeit All Rewards)
           </button>
         </div>

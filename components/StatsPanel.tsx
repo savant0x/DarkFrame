@@ -228,8 +228,9 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
     <div className="space-y-3 p-3">
       {/* Player Info */}
       <HudPanel accent="var(--nn-cyan)" icon={<User />} title="Player Info" meta={`ID ▸ ${player.username.toUpperCase().slice(0, 12)}`}>
-        <Row label="Commander" value={player.username} />
+        <Row icon={<User />} label="Commander" value={player.username} />
         <Row
+          icon={<Wrench />}
           label="Factories"
           value={
             <button
@@ -242,8 +243,8 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
             </button>
           }
         />
-        <Row label="Level" value={player.level ?? 1} />
-        <Row label="Rank" value={player.rank ?? 1} />
+        <Row icon={<Star />} label="Level" value={player.level ?? 1} />
+        <Row icon={<Trophy />} label="Rank" value={player.rank ?? 1} />
         <Row
           icon={<MapPin />}
           label="Position"
