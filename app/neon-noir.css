@@ -1992,3 +1992,23 @@ span.nn-panel__icon > svg {
   color: var(--nn-rail, var(--nn-cyan));
 }
 .nn-brief--magenta { --nn-rail: var(--nn-magenta); }
+
+/* Header row: full-bleed instrument label bar at the top of a brief */
+.nn-brief__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: -12px -14px 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid color-mix(in oklab, var(--nn-rail, var(--nn-cyan)) 18%, transparent);
+  background: color-mix(in oklab, var(--nn-rail, var(--nn-cyan)) 7%, transparent);
+}
+.nn-brief__title {
+  font-family: var(--nn-font-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nn-rail, var(--nn-cyan));
+}

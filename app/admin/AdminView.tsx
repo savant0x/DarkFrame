@@ -1066,8 +1066,8 @@ By Specialization:
   // Helper functions for RP Economy
   const formatRpSourceName = (source: string) => {
     const sourceMap: Record<string, string> = {
-      'harvest_milestone': '🌾 Harvest Milestone',
-      'level_up': '⬆️ Level Up',
+      'harvest_milestone': 'Harvest Milestone',
+      'level_up': 'Level Up',
       'battle': 'Battle',
       'achievement': 'Achievement',
       'daily_login': 'Daily Login',
@@ -1886,8 +1886,8 @@ By Specialization:
 
                   {/* Variety Enforcement Settings (FID-20251025-001) */}
                   <div className="nn-brief nn-brief--amber mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="nn-lab" style={{ color: 'var(--nn-amber)' }}>
+                    <div className="nn-brief__head">
+                      <h4 className="nn-brief__title">
                         Variety Enforcement · Anti-Homogeneity
                       </h4>
                       <select 
@@ -1974,8 +1974,8 @@ By Specialization:
 
                   {/* Dynamic Schedules (FID-20251025-003) */}
                   <div className="nn-brief nn-brief--cyan mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="nn-lab" style={{ color: 'var(--nn-cyan)' }}>
+                    <div className="nn-brief__head">
+                      <h4 className="nn-brief__title">
                         Dynamic Respawn Schedules · Multi-Slot
                       </h4>
                       <select 
@@ -2373,9 +2373,9 @@ By Specialization:
                       </p>
                       
                       {/* Mode Toggle */}
-                      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <label className="nn-lab" style={{ color: 'var(--nn-green)' }}>Predictive Mode</label>
+                      <div className="nn-brief nn-brief--green">
+                        <div className="nn-brief__head">
+                          <label className="nn-brief__title">Predictive Mode</label>
                           <select 
                             value={beerBaseConfig.usePredictiveSpawning ? 'true' : 'false'}
                             onChange={(e) => setBeerBaseConfig({
@@ -2696,7 +2696,7 @@ By Specialization:
                     
                     {/* Missile Statistics */}
                     <div className="mb-4">
-                      <h4 className="nn-panel__title mb-2">🚀 Missile Operations</h4>
+                      <h4 className="nn-panel__title mb-2">Missile Operations</h4>
                       <div className="grid grid-cols-5 gap-3">
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-2 rounded-none text-center">
                           <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Launched</p>
@@ -2735,7 +2735,7 @@ By Specialization:
 
                     {/* Voting Statistics */}
                     <div className="mb-4">
-                      <h4 className="nn-panel__title mb-2">🗳️ Voting Patterns</h4>
+                      <h4 className="nn-panel__title mb-2">Voting Patterns</h4>
                       <div className="grid grid-cols-4 gap-3">
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-2 rounded-none text-center">
                           <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Votes</p>
@@ -2836,7 +2836,7 @@ By Specialization:
 
                 {/* Emergency Admin Actions */}
                 <div className="nn-tile">
-                  <h3 className="nn-panel__title mb-3">🚨 Emergency Actions</h3>
+                  <h3 className="nn-panel__title mb-3">Emergency Actions</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
                       <h4 className="nn-panel__title">Missile Control</h4>
@@ -2886,7 +2886,7 @@ By Specialization:
                           }}
                           className="w-full bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold text-sm transition-colors"
                         >
-                          🛑 Emergency Disarm
+                          Emergency Disarm
                         </button>
                       </div>
                     </div>
@@ -3162,7 +3162,6 @@ By Specialization:
                         {/* Generation/Spending */}
                         <div className="nn-tile">
                           <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[color:var(--nn-violet)]">
-                            <span>💸</span>
                             <span>Generation vs Spending</span>
                           </h3>
                           <div className="space-y-2 text-sm">
@@ -3242,7 +3241,7 @@ By Specialization:
                             {rpTopEarners.slice(0, 5).map((player, index) => (
                               <div key={player.username} className="flex items-center justify-between p-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none text-sm">
                                 <div className="flex items-center gap-2">
-                                  <span>{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
+                                  <span className="nn-num w-7 text-center text-xs" style={{ color: index === 0 ? 'var(--nn-amber)' : index === 1 ? 'var(--nn-cyan)' : index === 2 ? 'var(--nn-violet)' : 'var(--nn-text-tertiary)' }}>{`#${index + 1}`}</span>
                                   <span className="font-semibold">{player.username}</span>
                                   {player.isVIP && <span className="text-xs bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] px-1 py-0.5 rounded-none">VIP</span>}
                                 </div>
@@ -3255,7 +3254,7 @@ By Specialization:
                         {/* Top Spenders */}
                         <div className="nn-tile">
                           <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[color:var(--nn-violet)]">
-                            <span>💸</span>
+                            
                             <span>Top RP Spenders</span>
                             <span className="text-xs text-[color:var(--nn-text-secondary)] ml-auto">{rpDateFilter}</span>
                           </h3>
@@ -3263,7 +3262,7 @@ By Specialization:
                             {rpTopSpenders.slice(0, 5).map((player, index) => (
                               <div key={player.username} className="flex items-center justify-between p-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none text-sm">
                                 <div className="flex items-center gap-2">
-                                  <span>{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}</span>
+                                  <span className="nn-num w-7 text-center text-xs" style={{ color: index === 0 ? 'var(--nn-amber)' : index === 1 ? 'var(--nn-cyan)' : index === 2 ? 'var(--nn-violet)' : 'var(--nn-text-tertiary)' }}>{`#${index + 1}`}</span>
                                   <span className="font-semibold">{player.username}</span>
                                   {player.isVIP && <span className="text-xs bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] px-1 py-0.5 rounded-none">VIP</span>}
                                 </div>
@@ -3278,7 +3277,6 @@ By Specialization:
                       <div className="nn-tile">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-bold flex items-center gap-2 text-[color:var(--nn-violet)]">
-                            <span>📜</span>
                             <span>Recent RP Transactions</span>
                           </h3>
                           

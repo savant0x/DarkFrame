@@ -135,7 +135,7 @@ export async function createFlagBot(position?: Position): Promise<Player> {
       ...botData,
       currentHP: FLAG_BOT_CONFIG.baseHP,
       maxHP: FLAG_BOT_CONFIG.baseHP,
-      username: `Flag-Bearer-${Math.floor(Math.random() * 9999)}`,
+      username: `Flag_Bearer_${Math.floor(Math.random() * 9999)}`,
     };
     
     // Insert bot into database — domain→row mapping (nested base/currentPosition/resources →

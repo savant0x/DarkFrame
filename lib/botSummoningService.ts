@@ -128,7 +128,7 @@ export async function summonBots(
       config.summonedAt = new Date();
     }
 
-    botsToInsert.push({ ...bot, username: bot.username || `Bot-${Date.now()}-${botsToInsert.length}` });
+    botsToInsert.push({ ...bot, username: bot.username || `Bot_${Date.now().toString(36)}_${botsToInsert.length}` });
     botInfo.push({
       username: bot.username || 'Unknown',
       position,

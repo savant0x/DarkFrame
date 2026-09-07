@@ -15,6 +15,7 @@ import {
   generateBeerBaseName,
   generateBossName,
 } from '@/lib/botService';
+import { UsernameSchema } from '@/lib/validation/schemas';
 
 const MAX_USERNAME_LENGTH = 20;
 const SAMPLES = 500;
@@ -32,11 +33,17 @@ describe('bot name generation (FID-20260906-007)', () => {
       expect(names.size).toBeGreaterThan(SAMPLES / 4);
     });
 
-    it('produces themed Prefix-Suffix names, never machine slugs', () => {
+    it('produces themed Prefix_Suffix names, never machine slugs', () => {
       for (let i = 0; i < SAMPLES; i++) {
         const name = generateBotName();
-        expect(name).toMatch(/^[A-Z][a-z]+(-[A-Za-z]+)*(-\d{1,3})?$/);
+        expect(name).toMatch(/^[A-Z][a-z]+(_[A-Za-z]+)*(_\d{1,3})?$/);
         expect(name).not.toMatch(/^b[A-Z]\d{12}$/); // legacy Beer Base slug shape
+      }
+    });
+
+    it('always satisfies UsernameSchema (no hyphens/spaces)', () => {
+      for (let i = 0; i < SAMPLES; i++) {
+        expect(UsernameSchema.safeParse(generateBotName()).success).toBe(true);
       }
     });
   });
@@ -55,18 +62,24 @@ describe('bot name generation (FID-20260906-007)', () => {
       }
     });
 
-    it('produces place-style "<Descriptor> <Noun>" names', () => {
+    it('produces place-style "<Descriptor>_<Noun>" names', () => {
       for (let i = 0; i < SAMPLES; i++) {
         const name = generateBeerBaseName();
-        expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+( \d+)?$/);
+        expect(name).toMatch(/^[A-Z][a-z]+_[A-Z][a-z]+(_\d+)?$/);
       }
       const samples = new Set<string>();
       for (let i = 0; i < 200; i++) samples.add(generateBeerBaseName());
       expect(samples.size).toBeGreaterThan(50); // 20 nouns × 20 descriptors
     });
 
+    it('always satisfies UsernameSchema (no hyphens/spaces)', () => {
+      for (let i = 0; i < SAMPLES; i++) {
+        expect(UsernameSchema.safeParse(generateBeerBaseName()).success).toBe(true);
+      }
+    });
+
     it('fallback path with 3-digit variant suffix still fits', () => {
-      // Worst case: variant 99 renders " 100" (4 chars incl. space).
+      // Worst case: variant 99 renders "_100" (4 chars incl. underscore).
       const name = generateBeerBaseName(99);
       expect(name.length).toBeLessThanOrEqual(MAX_USERNAME_LENGTH);
     });
@@ -80,10 +93,16 @@ describe('bot name generation (FID-20260906-007)', () => {
       }
     });
 
-    it('keeps the BOSS- prefix for visibility', () => {
+    it('keeps the BOSS_ prefix for visibility', () => {
       for (let i = 0; i < SAMPLES; i++) {
-        // Core may be a single word or a hyphenated Prefix-Suffix composition.
-        expect(generateBossName()).toMatch(/^BOSS-[A-Za-z]+(-[A-Za-z]+)*(-\d{1,3})?$/);
+        // Core may be a single word or an underscored Prefix_Suffix composition.
+        expect(generateBossName()).toMatch(/^BOSS_[A-Za-z]+(_[A-Za-z]+)*(_\d{1,3})?$/);
+      }
+    });
+
+    it('always satisfies UsernameSchema (no hyphens/spaces)', () => {
+      for (let i = 0; i < SAMPLES; i++) {
+        expect(UsernameSchema.safeParse(generateBossName()).success).toBe(true);
       }
     });
   });

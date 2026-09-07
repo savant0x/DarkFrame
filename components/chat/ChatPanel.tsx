@@ -87,7 +87,7 @@ import { ChannelType } from '@/lib/channelService';
 import { DirectMessage, ConversationPreview, DMMessageStatus } from '@/types/directMessage';
 
 /** Extract a user-facing message from an unknown thrown value (bare catches;
- *  no `catch (e: any)` — the shape is narrowed here, once). */
+ *  no `catch (e)` — the shape is narrowed here, once). */
 function getErrorMessage(error: Error | unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -283,6 +283,8 @@ export default function ChatPanel({
   const [isSending, setIsSending] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  // Channels that already consumed their one transient-failure retry.
+  const retriedChannels = useRef<Set<ChannelType>>(new Set());
   const [typingUsers, setTypingUsers] = useState<Map<ChannelType, TypingUser[]>>(new Map());
   const [onlineCount, setOnlineCount] = useState<Map<ChannelType, number>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Map<ChannelType, number>>(new Map());
@@ -681,9 +683,18 @@ export default function ChatPanel({
   const loadMessages = async (channelId: ChannelType) => {
     setIsLoadingMessages(true);
     try {
-      // TODO Task 8: Implement /api/chat endpoint
-      const response = await fetch(`/api/chat?channelId=${channelId}&limit=${MESSAGE_LOAD_LIMIT}`);
-      if (!response.ok) throw new Error('Failed to load messages');
+      // Retry once on transient failures (401 during cold start, 5xx on
+      // first compile) before surfacing an error — the observed "Failed to
+      // load messages" was a single 401 while the session was warming up.
+      const load = () => fetch(`/api/chat?channelId=${channelId}&limit=${MESSAGE_LOAD_LIMIT}`);
+      let response = await load();
+      if ((response.status === 401 || response.status >= 500) && !retriedChannels.current.has(channelId)) {
+        retriedChannels.current.add(channelId);
+        await new Promise((r) => setTimeout(r, 900));
+        response = await load();
+      }
+      retriedChannels.current.delete(channelId);
+      if (!response.ok) throw new Error(`Failed to load messages (HTTP ${response.status})`);
 
       const data = await response.json();
       // FID-20260905-001: server field is `message` (see mapping note above).

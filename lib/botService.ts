@@ -145,20 +145,21 @@ const MAX_USERNAME_LENGTH = 20;
  * fallback guarantees a valid name after 8 attempts.
  *
  * @returns Themed bot username within the 20-char column budget
- *          (e.g., "Alpha-Command", "Quantum-Prime", "Shadow-Hunter-42")
+ *          (e.g., "Alpha_Command", "Quantum_Prime", "Shadow_Hunter_42")
+ *          Uses only [A-Za-z0-9_] — UsernameSchema rejects hyphens/spaces.
  */
 export function generateBotName(): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const prefix = BOT_NAME_PREFIXES[Math.floor(Math.random() * BOT_NAME_PREFIXES.length)];
     const suffix = BOT_NAME_SUFFIXES[Math.floor(Math.random() * BOT_NAME_SUFFIXES.length)];
-    const variant = Math.random() < 0.3 ? `-${Math.floor(Math.random() * 999) + 1}` : '';
-    const name = `${prefix}-${suffix}${variant}`;
+    const variant = Math.random() < 0.3 ? `_${Math.floor(Math.random() * 999) + 1}` : '';
+    const name = `${prefix}_${suffix}${variant}`;
     if (name.length <= MAX_USERNAME_LENGTH) return name;
   }
   // Deterministic fallback: longest prefix is 11 chars, so prefix + number
   // always fits the budget (≤ 15 chars).
   const prefix = BOT_NAME_PREFIXES[Math.floor(Math.random() * BOT_NAME_PREFIXES.length)];
-  return `${prefix}-${Math.floor(Math.random() * 999) + 1}`;
+  return `${prefix}_${Math.floor(Math.random() * 999) + 1}`;
 }
 
 /**
@@ -190,13 +191,13 @@ const BEER_BASE_DESCRIPTORS = [
 export function generateBeerBaseName(variant = 0): string {
   const descriptor = BEER_BASE_DESCRIPTORS[Math.floor(Math.random() * BEER_BASE_DESCRIPTORS.length)];
   const noun = BEER_BASE_NOUNS[Math.floor(Math.random() * BEER_BASE_NOUNS.length)];
-  const suffix = variant > 0 ? ` ${variant + 1}` : '';
-  let name = `${descriptor} ${noun}`;
+  const suffix = variant > 0 ? `_${variant + 1}` : '';
+  let name = `${descriptor}_${noun}`;
   if (name.length + suffix.length > MAX_USERNAME_LENGTH) {
     // Short-noun fallback keeps every composition ≤ 16 chars, leaving room
     // for the collision variant (measured, not assumed — a 3-digit variant
-    // needs 4 chars including the space).
-    name = `${descriptor} Keep`;
+    // needs 4 chars including the underscore).
+    name = `${descriptor}_Keep`;
   }
   return `${name}${suffix}`;
 }
@@ -215,11 +216,11 @@ const BOSS_BUDGET_PREFIXES = BOT_NAME_PREFIXES.filter((w) => w.length <= 9);
 export function generateBossName(): string {
   for (let attempt = 0; attempt < 8; attempt++) {
     const core = generateBotName();
-    const name = `BOSS-${core}`;
+    const name = `BOSS_${core}`;
     if (name.length <= MAX_USERNAME_LENGTH) return name;
   }
   const prefix = BOSS_BUDGET_PREFIXES[Math.floor(Math.random() * BOSS_BUDGET_PREFIXES.length)];
-  return `BOSS-${prefix}-${Math.floor(Math.random() * 999) + 1}`;
+  return `BOSS_${prefix}_${Math.floor(Math.random() * 999) + 1}`;
 }
 
 // ============================================================
