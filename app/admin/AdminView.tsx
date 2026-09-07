@@ -1159,29 +1159,28 @@ By Specialization:
           <div className="space-y-6">
             {/* Game Statistics */}
             {stats && (
-              <div className="nn-panel nn-panel--violet">
-                <h2 className="nn-panel__title mb-4">Game Statistics</h2>
+              <div className="nn-panel nn-panel--x-pad nn-panel--violet">
+                <div className="nn-panel__header nn-panel__header--bleed">
+                  <span className="nn-panel__title">Game Statistics</span>
+                  <span className="nn-panel__meta">SOURCE ▸ SERVER AGGREGATE</span>
+                </div>
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="nn-tile">
-                    <p className="text-[color:var(--nn-text-secondary)] text-sm">Total Players</p>
-                    <p className="nn-num text-xl font-bold text-[color:var(--nn-cyan)]">{stats.totalPlayers}</p>
+                  <div className="nn-stat">
+                    <p className="nn-stat__lab">Total Players</p>
+                    <p className="nn-stat__num nn-stat__num--glow-cyan">{stats.totalPlayers}</p>
                   </div>
-                  <div className="nn-tile">
-                    <p className="text-[color:var(--nn-text-secondary)] text-sm">Player Bases</p>
-                    <p className="nn-num text-xl font-bold text-[color:var(--nn-green)]">{stats.totalBases}</p>
+                  <div className="nn-stat">
+                    <p className="nn-stat__lab">Player Bases</p>
+                    <p className="nn-stat__num nn-stat__num--glow-green">{stats.totalBases}</p>
                   </div>
-                  <div className="nn-tile">
-                    <p className="text-[color:var(--nn-text-secondary)] text-sm">Factories</p>
-                    <p className="nn-num text-xl font-bold text-[color:var(--nn-magenta)]">{stats.totalFactories}</p>
+                  <div className="nn-stat">
+                    <p className="nn-stat__lab">Factories</p>
+                    <p className="nn-stat__num nn-stat__num--glow-magenta">{stats.totalFactories}</p>
                   </div>
-                  <div className="nn-tile">
-                    <p className="text-[color:var(--nn-text-secondary)] text-sm">Active Players (1h / 24h / 7d)</p>
-                    <p className="nn-num text-xl font-bold text-[color:var(--nn-green)]">{(stats.activePlayers1h ?? 0)} / {stats.activePlayers24h} / {(stats.activePlayers7d ?? 0)}</p>
-                  </div>
-                  <div className="nn-tile">
-                    <p className="text-[color:var(--nn-text-secondary)] text-sm">Active (24h)</p>
-                    <p className="nn-num text-xl font-bold text-[color:var(--nn-amber)]">{stats.activePlayers24h}</p>
-                  </div>
+                  <div className="nn-stat">
+                    <p className="nn-stat__lab">Active · 1h / 24h / 7d</p>
+                    <p className="nn-stat__num nn-stat__num--glow-green">{(stats.activePlayers1h ?? 0)} / {stats.activePlayers24h} / {(stats.activePlayers7d ?? 0)}</p>
+                  </div>                  
                 </div>
 
                 <div className="mt-6">
@@ -1189,31 +1188,31 @@ By Specialization:
                   <div className="grid grid-cols-7 gap-2">
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Wasteland</p>
-                      <p className="text-lg font-bold">{stats.mapStats.wastelands}</p>
+                      <p className="nn-num text-lg font-bold">{stats.mapStats.wastelands}</p>
                     </div>
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Metal</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-cyan)]">{stats.mapStats.metal}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-cyan)]">{stats.mapStats.metal}</p>
                     </div>
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Energy</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-amber)]">{stats.mapStats.energy}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">{stats.mapStats.energy}</p>
                     </div>
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Caves</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-amber)]">{stats.mapStats.caves}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">{stats.mapStats.caves}</p>
                     </div>
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Forests</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-green)]">{stats.mapStats.forests}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-green)]">{stats.mapStats.forests}</p>
                     </div>
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Banks</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-violet)]">{stats.mapStats.banks}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-violet)]">{stats.mapStats.banks}</p>
                     </div>
                     <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Shrines</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-magenta)]">{stats.mapStats.shrines}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-magenta)]">{stats.mapStats.shrines}</p>
                     </div>
                   </div>
                 </div>
@@ -1221,9 +1220,12 @@ By Specialization:
             )}
 
             {/* Player Management */}
-            <div className="nn-panel nn-panel--violet">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="nn-panel__title">Player Management</h2>
+            <div className="nn-panel nn-panel--x-pad nn-panel--violet">
+              <div className="nn-panel__header nn-panel__header--bleed">
+                <span className="nn-panel__title">Player Management</span>
+                <span className="nn-panel__meta">REGISTRY ▸ ALL PLAYERS</span>
+              </div>
+              <div className="flex justify-end items-center mb-4">
                 <input
                   type="text"
                   placeholder="Search players..."
@@ -1234,28 +1236,28 @@ By Specialization:
               </div>
 
               <div className="bg-[color:var(--nn-void)] rounded-none overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
+                <table className="nn-table">
+                  <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Username</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Level</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Rank</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Metal</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Energy</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Base</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Actions</th>
+                      <th>Username</th>
+                      <th>Level</th>
+                      <th>Rank</th>
+                      <th>Metal</th>
+                      <th>Energy</th>
+                      <th>Base</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+                  <tbody>
                     {filteredPlayers.map((p) => (
                       <tr key={p.username} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] transition-colors">
-                        <td className="px-4 py-3 text-[color:var(--nn-text-primary)] font-medium">{p.username}</td>
-                        <td className="px-4 py-3 text-[color:var(--nn-amber)]">{p.level}</td>
-                        <td className="px-4 py-3 text-[color:var(--nn-violet)]">{p.rank}</td>
-                        <td className="px-4 py-3 text-[color:var(--nn-cyan)]">{p.metal.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-[color:var(--nn-amber)]">{p.energy.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-[color:var(--nn-green)]">{p.baseLocation}</td>
-                        <td className="px-4 py-3">
+                        <td className="font-medium">{p.username}</td>
+                        <td className="nn-table__num text-[color:var(--nn-amber)]">{p.level}</td>
+                        <td className="nn-table__num text-[color:var(--nn-violet)]">{p.rank}</td>
+                        <td className="nn-table__num text-[color:var(--nn-cyan)]">{p.metal.toLocaleString()}</td>
+                        <td className="nn-table__num text-[color:var(--nn-amber)]">{p.energy.toLocaleString()}</td>
+                        <td className="nn-table__num text-[color:var(--nn-green)]">{p.baseLocation}</td>
+                        <td>
                           <button
                             onClick={() => setSelectedPlayer(p.username)}
                             className="nn-abtn nn-abtn--violet"
@@ -1279,9 +1281,12 @@ By Specialization:
             </div>
 
             {/* VIP Management */}
-            <div className="nn-panel nn-panel--amber">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="nn-panel__title">VIP Management</h2>
+            <div className="nn-panel nn-panel--x-pad nn-panel--amber">
+              <div className="nn-panel__header nn-panel__header--bleed">
+                <span className="nn-panel__title">VIP Management</span>
+                <span className="nn-panel__meta">TIER ▸ STATUS CONTROL</span>
+              </div>
+              <div className="flex justify-end items-center mb-4">
                 <div className="flex gap-2 items-center">
                   <input
                     type="text"
@@ -1340,22 +1345,22 @@ By Specialization:
 
               {/* Users Table */}
               <div className="bg-[color:var(--nn-void)] rounded-none overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
+                <table className="nn-table">
+                  <thead>
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Username</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Email</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Expires</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-[color:var(--nn-text-secondary)] uppercase">Actions</th>
+                      <th>Username</th>
+                      <th>Email</th>
+                      <th>Status</th>
+                      <th>Expires</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
+                  <tbody>
                     {filteredVipUsers.map((user) => (
                       <tr key={user.username} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
-                        <td className="px-4 py-3 text-[color:var(--nn-text-primary)] font-medium">{user.username}</td>
-                        <td className="px-4 py-3 text-[color:var(--nn-text-secondary)] text-sm">{user.email || 'N/A'}</td>
-                        <td className="px-4 py-3">
+                        <td className="font-medium">{user.username}</td>
+                        <td className="nn-table__num text-[color:var(--nn-text-secondary)] text-sm">{user.email || 'N/A'}</td>
+                        <td>
                           {user.vip ? (
                             <span className="nn-chip nn-chip--amber">
                               VIP
@@ -1366,7 +1371,7 @@ By Specialization:
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-[color:var(--nn-text-secondary)] text-sm">
+                        <td className="nn-table__num text-[color:var(--nn-text-secondary)] text-sm">
                           {user.vip && user.vipExpiration 
                             ? new Date(user.vipExpiration).toLocaleDateString('en-US', {
                                 year: 'numeric',
@@ -1377,7 +1382,7 @@ By Specialization:
                               })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3">
+                        <td>
                           <div className="flex gap-2">
                             {!user.vip ? (
                               <>
@@ -1431,9 +1436,12 @@ By Specialization:
             </div>
 
             {/* Analytics Dashboard */}
-            <div className="nn-panel">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="nn-panel__title">Analytics Dashboard</h2>
+            <div className="nn-panel nn-panel--x-pad">
+              <div className="nn-panel__header nn-panel__header--bleed">
+                <span className="nn-panel__title">Analytics Dashboard</span>
+                <span className="nn-panel__meta">TELEMETRY ▸ LIVE</span>
+              </div>
+              <div className="flex justify-end items-center mb-4">
                 
                 {/* Period Selector */}
                 <div className="flex gap-2">
@@ -1524,8 +1532,11 @@ By Specialization:
             </div>
 
             {/* Database Tools */}
-            <div className="nn-panel nn-panel--violet">
-              <h2 className="nn-panel__title mb-4">Database Tools</h2>
+            <div className="nn-panel nn-panel--x-pad nn-panel--violet">
+              <div className="nn-panel__header nn-panel__header--bleed">
+                <span className="nn-panel__title">Database Tools</span>
+                <span className="nn-panel__meta">OPS ▸ DIRECT ACCESS</span>
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <button 
                   onClick={async () => {
@@ -1550,19 +1561,15 @@ By Specialization:
                   View Tiles
                 </button>
                 <button className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
-                  onClick={() => setShowFactoryInspector(true)}
-                >
-                  🏭 Factory Inspector
+                  onClick={() => setShowFactoryInspector(true)}> Factory Inspector
                 </button>
                 <button className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
-                  onClick={() => setShowBattleLogs(true)}
-                >
-                  📝 Battle Logs
+                  onClick={() => setShowBattleLogs(true)}> Battle Logs
                 </button>
                 <button className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
                   onClick={() => setShowAchievementStats(true)}
                 >
-                  🎯 Achievement Stats
+                  Achievement Stats
                 </button>
                 <button className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
                   onClick={() => setShowSystemReset(true)}
@@ -1573,8 +1580,11 @@ By Specialization:
             </div>
 
             {/* Bot System Controls */}
-            <div className="nn-panel">
-              <h2 className="nn-panel__title mb-4">Bot Ecosystem Controls</h2>
+            <div className="nn-panel nn-panel--x-pad">
+              <div className="nn-panel__header nn-panel__header--bleed">
+                <span className="nn-panel__title">Bot Ecosystem Controls</span>
+                <span className="nn-panel__meta">POPULATION ▸ MANAGED</span>
+              </div>
               
               <div className="space-y-6">
                 {/* Bot Statistics */}
@@ -1647,7 +1657,7 @@ By Specialization:
                       onClick={() => setShowFactoryInspector(true)}
                       className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-3 rounded-none font-semibold transition-colors text-sm"
                     >
-                      🏭 Factory Inspector
+                      Factory Inspector
                     </button>
                     <button 
                       onClick={() => setShowHotkeyManager(true)}
@@ -2221,7 +2231,7 @@ By Specialization:
 
                           {/* Tier Distribution */}
                           <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                            <h5 className="nn-panel__title mb-3">🎯 Spawn Distribution by Tier</h5>
+                            <h5 className="nn-panel__title mb-3">Spawn Distribution by Tier</h5>
                             <div className="space-y-2">
                               {beerSpawnStats?.tierDistribution?.map((tier) => {
                                 const percentage = (tier.count / (beerSpawnStats?.dailySpawns?.reduce((sum, d) => sum + d.count, 0) || 1)) * 100;
@@ -2610,9 +2620,12 @@ By Specialization:
             </div>
 
             {/* WMD System Oversight */}
-            <div id="admin-wmd-section" className="nn-panel nn-panel--magenta">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="nn-panel__title">WMD System Oversight</h2>
+            <div id="admin-wmd-section" className="nn-panel nn-panel--x-pad nn-panel--magenta">
+              <div className="nn-panel__header nn-panel__header--bleed">
+                <span className="nn-panel__title">WMD System Oversight</span>
+                <span className="nn-panel__meta">THREAT ▸ STRATEGIC</span>
+              </div>
+              <div className="flex items-center justify-end gap-2 mb-4">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[color:var(--nn-text-secondary)]">Time Range:</span>
                   <select 
@@ -2768,7 +2781,7 @@ By Specialization:
                     {/* Defense & Economic Stats */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <h4 className="nn-panel__title mb-2">🛡️ Defense Operations</h4>
+                        <h4 className="nn-panel__title mb-2">Defense Operations</h4>
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-xs text-[color:var(--nn-text-secondary)]">Research Attempts</span>
@@ -3075,9 +3088,7 @@ By Specialization:
                               showError('Failed to flag activity');
                             }
                           }}
-                          className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold text-sm transition-colors"
-                        >
-                          🚩 Create Alert
+                          className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold text-sm transition-colors"> Create Alert
                         </button>
                       </div>
                     </div>
@@ -3343,7 +3354,7 @@ By Specialization:
                                   <td className={`py-2 px-2 text-right font-bold ${tx.amount >= 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                                     {tx.amount >= 0 ? '+' : ''}{tx.amount?.toLocaleString()}
                                   </td>
-                                  <td className="py-2 px-2 text-center">{tx.vipBonusApplied ? '👑' : '-'}</td>
+                                  <td className="py-2 px-2 text-center">{tx.vipBonusApplied ? 'VIP' : '-'}</td>
                                 </tr>
                               ))}
                             </tbody>

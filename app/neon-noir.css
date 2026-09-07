@@ -1830,3 +1830,136 @@ span.nn-panel__icon > svg {
   transform: translateX(24px);
   background: var(--nn-green);
 }
+
+/* ====================================================================== */
+/* Page-level furniture — sample §generic-sections (.sec-label) & tables  */
+/* ====================================================================== */
+
+/* Section label: glowing cyan tick + Orbitron title + tertiary note       */
+.nn-sec {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.nn-sec::before {
+  content: '';
+  width: 26px;
+  height: 2px;
+  flex: none;
+  background: var(--nn-cyan);
+  box-shadow: 0 0 8px var(--nn-cyan);
+}
+.nn-sec__title {
+  font-family: var(--nn-font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--nn-cyan);
+  text-shadow: 0 0 14px color-mix(in oklab, var(--nn-cyan) 45%, transparent);
+}
+.nn-sec__note {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--nn-text-tertiary);
+}
+.nn-sec__end { margin-left: auto; }
+
+/* Accent variants of the section tick */
+.nn-sec--violet::before { background: var(--nn-violet);  box-shadow: 0 0 8px var(--nn-violet); }
+.nn-sec--violet .nn-sec__title { color: var(--nn-violet); text-shadow: 0 0 14px color-mix(in oklab, var(--nn-violet) 45%, transparent); }
+.nn-sec--amber::before  { background: var(--nn-amber);   box-shadow: 0 0 8px var(--nn-amber); }
+.nn-sec--amber .nn-sec__title  { color: var(--nn-amber);  text-shadow: 0 0 14px color-mix(in oklab, var(--nn-amber) 45%, transparent); }
+.nn-sec--magenta::before { background: var(--nn-magenta); box-shadow: 0 0 8px var(--nn-magenta); }
+.nn-sec--magenta .nn-sec__title { color: var(--nn-magenta); text-shadow: 0 0 14px color-mix(in oklab, var(--nn-magenta) 45%, transparent); }
+
+/* Data table — instrument styling: scanline head, caps micro headers,     */
+/* 12.5px body, hairline dividers, cyan hover tint, tabular numerals.     */
+.nn-table { width: 100%; border-collapse: collapse; }
+.nn-table thead th {
+  font-family: var(--nn-font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--nn-text-tertiary);
+  padding: 11px 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 20%, transparent);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 4%, transparent) 0 1px,
+      transparent 1px 3px
+    );
+  white-space: nowrap;
+}
+.nn-table tbody td {
+  padding: 10px 16px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--nn-text-primary);
+  border-bottom: 1px solid color-mix(in oklab, var(--nn-cyan) 7%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.nn-table tbody tr { transition: background var(--nn-dur-state) var(--nn-ease); }
+.nn-table tbody tr:hover { background: color-mix(in oklab, var(--nn-cyan) 5%, transparent); }
+.nn-table tbody tr:last-child td { border-bottom: 0; }
+.nn-table .nn-table__num { font-family: var(--nn-font-display); font-size: 12px; letter-spacing: 0.04em; }
+.nn-table .nn-table__dim { color: var(--nn-text-secondary); }
+
+/* Stat block — labeled numeral instrument (sample type-spec .tn scale).  */
+.nn-stat {
+  position: relative;
+  padding: 14px 16px 12px;
+  background: oklch(0.13 0.03 265 / 0.55);
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent);
+}
+.nn-stat::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 10px;
+  height: 2px;
+  background: var(--nn-accent, var(--nn-cyan));
+  box-shadow: 0 0 8px var(--nn-accent, var(--nn-cyan));
+}
+.nn-stat__lab {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nn-text-tertiary);
+  margin-bottom: 6px;
+}
+.nn-stat__num {
+  font-family: var(--nn-font-display);
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  color: var(--nn-text-primary);
+}
+.nn-stat__num--glow-cyan    { color: var(--nn-cyan);    text-shadow: 0 0 12px color-mix(in oklab, var(--nn-cyan) 55%, transparent); }
+.nn-stat__num--glow-green   { color: var(--nn-green);   text-shadow: 0 0 12px color-mix(in oklab, var(--nn-green) 55%, transparent); }
+.nn-stat__num--glow-magenta { color: var(--nn-magenta); text-shadow: 0 0 12px color-mix(in oklab, var(--nn-magenta) 55%, transparent); }
+.nn-stat__num--glow-amber   { color: var(--nn-amber);   text-shadow: 0 0 12px color-mix(in oklab, var(--nn-amber) 55%, transparent); }
+.nn-stat__num--glow-violet  { color: var(--nn-violet);  text-shadow: 0 0 12px color-mix(in oklab, var(--nn-violet) 55%, transparent); }
+.nn-stat__sub {
+  margin-top: 5px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--nn-text-tertiary);
+}
+
+/* Full-bleed header strip for padded panels: .nn-panel sets its own
+   padding (0 0 6px), so a padded shell opts in via --x-pad (!important
+   outranks the base rule) and the strip counter-margins to the edges. */
+.nn-panel--x-pad {
+  padding: 0 20px 20px !important;
+}
+.nn-panel__header--bleed {
+  margin: 0 -20px 18px;
+  padding: 12px 20px;
+}

@@ -345,16 +345,16 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   };
 
   /**
-   * Get category color
+   * Get category accent token (NEON NOIR semantic signals)
    */
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      movement: 'cyan',
-      combat: 'red',
-      economy: 'yellow',
-      special: 'purple',
+  const getCategoryAccent = (category: string): string => {
+    const accents: Record<string, string> = {
+      movement: 'var(--nn-cyan)',
+      combat: 'var(--nn-magenta)',
+      economy: 'var(--nn-amber)',
+      special: 'var(--nn-violet)',
     };
-    return colors[category] || 'gray';
+    return accents[category] || 'var(--nn-cyan)';
   };
 
   // ============================================================
@@ -369,7 +369,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
           {!embedded && (
             <button
               onClick={() => router.push('/game')}
-              className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] font-bold py-2 px-4 rounded-none"
+              className="nn-btn nn-btn--primary mt-4"
             >
               Return to Game
             </button>
@@ -380,32 +380,33 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   }
 
   const renderTechTreeContent = () => (
-    <div className="bg-glass-light rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="bg-glass-dark border-b border-glass-border p-6 flex-shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Zap className="w-8 h-8 text-[color:var(--nn-cyan)]" />
-            <h1 className="text-3xl font-bold text-[color:var(--nn-text-primary)]">Technology Tree</h1>
-          </div>
-          <div className="text-right">
-            <p className="text-[color:var(--nn-text-primary)]/50 text-sm">Available Metal</p>
-            <p className="text-2xl font-bold text-text-secondary">⚙️ {player.resources.metal.toLocaleString()}</p>
+    <div className="h-full overflow-auto" style={{ background: 'var(--nn-void)' }}>
+      {/* Page header — sample .sec-label */}
+      <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] px-6 py-5" style={{ background: 'color-mix(in oklab, var(--nn-void) 88%, transparent)' }}>
+        <div className="nn-sec">
+          <span className="nn-sec__title">Research &amp; Technology</span>
+          <span className="nn-sec__note">Tree ▸ {technologies.length} Branches</span>
+          <div className="nn-stat nn-sec__end !py-2 !px-4">
+            <p className="nn-stat__lab">Available Metal</p>
+            <p className="nn-stat__num nn-stat__num--glow-amber !text-lg">{player.resources.metal.toLocaleString()}</p>
           </div>
         </div>
-
         {error && (
-          <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 text-[color:var(--nn-magenta)]">
-            {error}
+          <div className="nn-note mt-4">
+            <p>{error}</p>
           </div>
         )}
       </div>
 
-      <div className="flex-1 overflow-auto p-6">
-        {/* Categories */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="flex-1 p-6">
+        {/* Technology cards — status accents via --nn-accent per card */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {technologies.map(tech => {
-            const color = getCategoryColor(tech.category);
+            const accent = tech.unlocked
+              ? 'var(--nn-green)'
+              : tech.researching
+              ? 'var(--nn-cyan)'
+              : getCategoryAccent(tech.category);
             const canStartResearch = canResearch(tech);
             const isLocked = tech.prerequisites.some(
               prereqId => !technologies.find(t => t.id === prereqId)?.unlocked
@@ -414,48 +415,41 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
             return (
               <div
                 key={tech.id}
-                className={`bg-glass-dark backdrop-blur-sm border-2 rounded-none overflow-hidden transition-all ${
-                  tech.unlocked
-                    ? 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] shadow-[0_0_20px_rgba(34,197,94,0.3)]'
-                    : tech.researching
-                    ? 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] shadow-[0_0_20px_rgba(59,130,246,0.3)]'
-                    : canStartResearch
-                    ? `border-${color}-500/30 hover:border-${color}-500/50`
-                    : 'border-glass-border'
-                }`}
+                className={`nn-panel ${isLocked && !tech.unlocked && !tech.researching ? 'opacity-70' : ''}`}
+                style={{ '--nn-accent': accent } as React.CSSProperties}
               >
-                {/* Header */}
-                <div className="border-b p-4" style={{ borderColor: 'color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 25%, transparent)', background: 'color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 8%, transparent)' } as React.CSSProperties}>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="text-[color:var(--nn-accent,var(--nn-cyan))]">{getIcon(tech.icon)}</div>
-                    {tech.unlocked ? (
-                      <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-full p-2">
-                        <Check className="w-5 h-5 text-[color:var(--nn-green)]" />
-                      </div>
-                    ) : tech.researching ? (
-                      <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-full p-2">
-                        <Clock className="w-5 h-5 text-[color:var(--nn-cyan)] animate-spin" />
-                      </div>
-                    ) : isLocked ? (
-                      <div className="bg-glass-light rounded-full p-2">
-                        <Lock className="w-5 h-5 text-text-secondary" />
-                      </div>
-                    ) : null}
-                  </div>
-                  <h3 className="text-xl font-bold text-[color:var(--nn-text-primary)]">{tech.name}</h3>
-                  <p className="text-sm text-[color:var(--nn-text-primary)]/70 capitalize">{tech.category}</p>
+                {/* Card header — scanline strip with status chip */}
+                <div className="nn-panel__header">
+                  <span className="nn-panel__icon">{getIcon(tech.icon)}</span>
+                  <span className="nn-panel__title">{tech.name}</span>
+                  {tech.unlocked ? (
+                    <span className="nn-chip nn-chip--green nn-panel__meta">
+                      <Check className="h-3 w-3" /> Unlocked
+                    </span>
+                  ) : tech.researching ? (
+                    <span className="nn-chip nn-chip--cyan nn-panel__meta">
+                      <Clock className="h-3 w-3 animate-spin" /> Researching
+                    </span>
+                  ) : isLocked ? (
+                    <span className="nn-chip nn-panel__meta">
+                      <Lock className="h-3 w-3" /> Locked
+                    </span>
+                  ) : (
+                    <span className="nn-chip nn-chip--amber nn-panel__meta">Available</span>
+                  )}
                 </div>
 
-                {/* Content */}
+                {/* Card body */}
                 <div className="p-4">
-                  <p className="text-[color:var(--nn-text-primary)]/80 text-sm mb-4">{tech.description}</p>
+                  <p className="nn-lab mb-2">{tech.category}</p>
+                  <p className="mb-4 text-[13px] leading-relaxed text-[color:var(--nn-text-secondary)]">{tech.description}</p>
 
-                  {/* Effects */}
-                  <div className="space-y-2 mb-4">
+                  {/* Effects — gain ledger rows */}
+                  <div className="space-y-1.5 mb-4">
                     {tech.effects.map((effect, index) => (
-                      <div key={index} className="flex items-start gap-2 text-sm">
-                        <TrendingUp className="w-4 h-4 text-[color:var(--nn-green)] flex-shrink-0 mt-0.5" />
-                        <span className="text-[color:var(--nn-text-primary)]/70">{effect}</span>
+                      <div key={index} className="flex items-start gap-2 text-[13px]">
+                        <TrendingUp className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-[color:var(--nn-green)]" />
+                        <span className="text-[color:var(--nn-text-secondary)]">{effect}</span>
                       </div>
                     ))}
                   </div>
@@ -463,48 +457,38 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                   {/* Prerequisites */}
                   {tech.prerequisites.length > 0 && (
                     <div className="mb-4">
-                      <p className="text-xs text-[color:var(--nn-text-primary)]/50 mb-1">Requires:</p>
-                      {tech.prerequisites.map(prereqId => {
-                        const prereq = technologies.find(t => t.id === prereqId);
-                        return (
-                          <span
-                            key={prereqId}
-                            className={`inline-block text-xs px-2 py-1 rounded-none mr-2 mb-1 ${
-                              prereq?.unlocked
-                                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]'
-                                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
-                            }`}
-                          >
-                            {prereq?.name || prereqId}
-                          </span>
-                        );
-                      })}
+                      <p className="nn-lab mb-1.5">Requires</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tech.prerequisites.map(prereqId => {
+                          const prereq = technologies.find(t => t.id === prereqId);
+                          return (
+                            <span
+                              key={prereqId}
+                              className={`nn-chip ${prereq?.unlocked ? 'nn-chip--green' : 'nn-chip--magenta'}`}
+                            >
+                              {prereq?.name || prereqId}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
-                  {/* Cost and Action */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                  {/* Cost + action footer */}
+                  <div className="flex items-center justify-between border-t border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] pt-4">
                     <div>
-                      <p className="text-xs text-[color:var(--nn-text-primary)]/50">Cost</p>
-                      <p className="text-lg font-bold text-[color:var(--nn-amber)]">{tech.cost.toLocaleString()}</p>
+                      <p className="nn-lab">Cost</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">{tech.cost.toLocaleString()}</p>
                     </div>
                     {tech.unlocked ? (
-                      <span className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] font-bold px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
-                        Unlocked
-                      </span>
+                      <span className="nn-chip nn-chip--green px-3 py-1.5 text-[10px]">Unlocked</span>
                     ) : tech.researching ? (
-                      <span className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)] font-bold px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-                        Researching...
-                      </span>
+                      <span className="nn-chip nn-chip--cyan px-3 py-1.5 text-[10px]">Researching</span>
                     ) : (
                       <button
                         onClick={() => handleResearch(tech.id)}
                         disabled={!canStartResearch || isLoading}
-                        className={`font-bold px-4 py-2 rounded-none transition-all ${
-                          canStartResearch
-                            ? `bg-${color}-600 hover:bg-${color}-700 text-[color:var(--nn-text-primary)] border border-${color}-500/50`
-                            : 'bg-glass-light text-text-secondary cursor-not-allowed'
-                        }`}
+                        className="nn-abtn nn-abtn--cyan px-5 py-2"
                       >
                         Research
                       </button>
