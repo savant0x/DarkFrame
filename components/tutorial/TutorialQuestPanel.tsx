@@ -591,10 +591,10 @@ export default function TutorialQuestPanel({
         {/* Content (collapsible) */}
         {!isCollapsed && (
           <div className="p-4">
-            {/* Quest Title */}
+            {/* Quest Title — quiet violet label; the step well carries the emphasis */}
             <div className="mb-3">
-              <h3 className={`mb-1 text-sm font-bold transition-all ${
-                questJustCompleted ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-text-primary)]'
+              <h3 className={`nn-lab !text-[color:var(--nn-violet)] !text-[10px] mb-1 ${
+                questJustCompleted ? '!text-[color:var(--nn-green)]' : ''
               }`}>
                 {currentQuest.title}
               </h3>

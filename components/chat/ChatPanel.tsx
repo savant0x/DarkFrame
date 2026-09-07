@@ -198,7 +198,6 @@ interface ChannelMetadata {
   name: string;
   icon: React.ReactNode;
   description: string;
-  color: string;
   canAccess: boolean;
   unreadCount: number;
 }
@@ -559,7 +558,6 @@ export default function ChatPanel({
         name: 'Global',
         icon: <MessageCircle className="w-4 h-4" />,
         description: 'Chat with all players',
-        color: 'text-cyan-400',
         canAccess: true,
         unreadCount: unreadCounts.get(ChannelType.GLOBAL) || 0,
       },
@@ -568,7 +566,6 @@ export default function ChatPanel({
         name: 'Newbie',
         icon: <HelpCircle className="w-4 h-4" />,
         description: 'For new players (Lv 1-5)',
-        color: 'text-green-400',
         canAccess: hasNewbieAccess,
         unreadCount: unreadCounts.get(ChannelType.NEWBIE) || 0,
       },
@@ -577,7 +574,6 @@ export default function ChatPanel({
         name: clanName || 'Clan',
         icon: <Users className="w-4 h-4" />,
         description: 'Clan members only',
-        color: 'text-purple-400',
         canAccess: hasClanAccess,
         unreadCount: unreadCounts.get(ChannelType.CLAN) || 0,
       },
@@ -586,7 +582,6 @@ export default function ChatPanel({
         name: 'Trade',
         icon: <Zap className="w-4 h-4" />,
         description: 'Trading & marketplace',
-        color: 'text-yellow-400',
         canAccess: true,
         unreadCount: unreadCounts.get(ChannelType.TRADE) || 0,
       },
@@ -595,16 +590,14 @@ export default function ChatPanel({
         name: 'Help',
         icon: <AlertCircle className="w-4 h-4" />,
         description: 'Ask for help',
-        color: 'text-blue-400',
         canAccess: true,
         unreadCount: unreadCounts.get(ChannelType.HELP) || 0,
       },
       {
         id: ChannelType.VIP,
         name: 'VIP',
-        icon: <Zap className="w-4 h-4 text-yellow-400" />,
+        icon: <Zap className="w-4 h-4 text-[color:var(--nn-amber)]" />,
         description: 'VIP members only',
-        color: 'text-yellow-400',
         canAccess: hasVIPAccess,
         unreadCount: unreadCounts.get(ChannelType.VIP) || 0,
       },
@@ -1140,7 +1133,7 @@ export default function ChatPanel({
     isPollingMessages ? (
       <Wifi className="w-4 h-4 text-green-400" />
     ) : (
-      <Loader2 className="w-4 h-4 text-yellow-400 animate-spin" />
+      <Loader2 className="w-4 h-4 text-[color:var(--nn-amber)] animate-spin" />
     );
 
   const connectionText = isPollingMessages ? 'Connected' : 'Connecting...';
@@ -1206,7 +1199,7 @@ export default function ChatPanel({
         options={{
           target: '_blank',
           rel: 'noopener noreferrer',
-          className: 'text-blue-400 hover:text-blue-300 underline hover:no-underline transition-colors',
+          className: 'text-[color:var(--nn-cyan)] hover:underline underline-offset-2 transition-colors',
         }}
       >
         {parts.map((part, index) => {
@@ -1219,7 +1212,7 @@ export default function ChatPanel({
             return (
               <span 
                 key={index} 
-                className="bg-cyan-500/20 text-cyan-400 font-bold px-1 py-0.5 rounded"
+                className="rounded-none bg-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] text-[color:var(--nn-cyan)] font-bold px-1 py-0.5"
               >
                 @{part}
               </span>
@@ -1244,63 +1237,42 @@ export default function ChatPanel({
   const widthClass = 'w-full sm:w-96 lg:w-[28rem] xl:w-[32rem]';
 
   return (
-    /* NEON NOIR §5.1: glass overlay(3) — nn-void-based, cyan ambient edge */
-    <div className={`${heightClass} ${widthClass} flex flex-col bg-[color-mix(in_oklab,var(--nn-void)_62%,transparent)] backdrop-blur-xl border border-[color-mix(in_oklab,var(--nn-cyan)_20%,transparent)] hover:border-[color-mix(in_oklab,var(--nn-cyan)_40%,transparent)] rounded-2xl shadow-[0_0_24px_color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] overflow-hidden transition-all duration-300`}>
-      {/* Holographic shine effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-transparent via-neon-cyan/5 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-      
-      {/* Animated corner accents */}
-      <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-cyan-500/20 rounded-tl-2xl opacity-50" />
-      <div className="absolute top-0 right-0 w-8 h-8 border-t-2 border-r-2 border-cyan-500/20 rounded-tr-2xl opacity-50" />
-      <div className="absolute bottom-0 left-0 w-8 h-8 border-b-2 border-l-2 border-cyan-500/20 rounded-bl-2xl opacity-50" />
-      <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-cyan-500/20 rounded-br-2xl opacity-50" />
-
+    /* NEON NOIR §05: quiet glass per sample .chat — square shell, cyan ambient edge */
+    <div className={`nn-chat ${heightClass} ${widthClass}`}>
       {/* HEADER */}
-      <div className="relative z-10 px-5 py-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-[color:var(--nn-cyan)]">
-              <MessageCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="nn-panel__title !text-[0.8125rem] !text-[color:var(--nn-text-primary)]">
-                Global Chat
-              </h3>
-              <p className="nn-lab mt-0.5">{connectionText}</p>
-            </div>
+      <div className="nn-chat__head">
+        <div className="flex items-center gap-3">
+          <MessageCircle className="nn-panel__icon" />
+          <div>
+            <h3 className="nn-chat__title">Global Chat</h3>
+            <p className="nn-lab mt-0.5">{connectionText}</p>
           </div>
-          <div className="flex items-center gap-2">
-            {connectionIcon}
-            {/* Size toggle buttons */}
-            <div className="flex gap-1 ml-2">
-              <button
-                onClick={() => setPanelSize('full')}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  panelSize === 'full' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-tertiary)] hover:text-[color:var(--nn-cyan)]'
-                }`}
-                title="Full size"
-              >
-                Full
-              </button>
-              <button
-                onClick={() => setPanelSize('half')}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  panelSize === 'half' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-tertiary)] hover:text-[color:var(--nn-cyan)]'
-                }`}
-                title="Half size"
-              >
-                Half
-              </button>
-              <button
-                onClick={() => setPanelSize('minimal')}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  panelSize === 'minimal' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-tertiary)] hover:text-[color:var(--nn-cyan)]'
-                }`}
-                title="Minimize"
-              >
-                Min
-              </button>
-            </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {connectionIcon}
+          {/* Size toggle buttons — sample .sz text chips */}
+          <div className="nn-sz ml-2">
+            <button
+              onClick={() => setPanelSize('full')}
+              className={panelSize === 'full' ? 'on' : ''}
+              title="Full size"
+            >
+              Full
+            </button>
+            <button
+              onClick={() => setPanelSize('half')}
+              className={panelSize === 'half' ? 'on' : ''}
+              title="Half size"
+            >
+              Half
+            </button>
+            <button
+              onClick={() => setPanelSize('minimal')}
+              className={panelSize === 'minimal' ? 'on' : ''}
+              title="Minimize"
+            >
+              Min
+            </button>
           </div>
         </div>
       </div>
@@ -1308,48 +1280,44 @@ export default function ChatPanel({
       {/* MINIMAL MODE - Polished Single Message Preview */}
       {panelSize === 'minimal' && (
         <div 
-          className="relative z-10 px-4 py-3 cursor-pointer hover:bg-cyan-500/5 transition-all duration-200 group border-t border-cyan-500/10"
+          className="px-4 py-3 cursor-pointer transition-colors border-t border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] hover:bg-[color-mix(in_oklab,var(--nn-cyan)_6%,transparent)]"
           onClick={() => setPanelSize('half')} 
           title="Click to expand chat"
         >
           {currentMessages && currentMessages.length > 0 ? (
             <div className="flex items-start gap-3">
               {/* User Avatar with Initials */}
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500/30 to-blue-500/30 border border-cyan-500/50 flex items-center justify-center font-bold text-xs text-cyan-300 shadow-lg shadow-cyan-500/20">
+              <div className="flex-shrink-0 w-8 h-8 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] flex items-center justify-center font-bold text-xs text-[color:var(--nn-cyan)]">
                 {getUserInitials(currentMessages[currentMessages.length - 1]?.senderUsername || '')}
               </div>
               
               {/* Message Content */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-cyan-400 font-semibold text-sm group-hover:text-cyan-300 transition-colors">
-                    {currentMessages[currentMessages.length - 1]?.senderUsername || 'Unknown'}
-                  </span>
+                  <span className="nn-msg__who"><b>{currentMessages[currentMessages.length - 1]?.senderUsername || 'Unknown'}</b></span>
                   {currentMessages[currentMessages.length - 1]?.senderIsVIP && (
-                    <span className="px-1.5 py-0.5 bg-yellow-500/20 border border-yellow-500/30 rounded text-[10px] font-bold text-yellow-400">
-                      VIP
-                    </span>
+                    <span className="nn-chip nn-chip--amber !px-1.5 !py-0 !text-[0.625rem]">VIP</span>
                   )}
-                  <span className="text-xs text-gray-500 ml-auto flex-shrink-0">
+                  <span className="nn-msg__time ml-auto flex-shrink-0">
                     {formatTime(currentMessages[currentMessages.length - 1]?.timestamp || new Date())}
                   </span>
                 </div>
-                <p className="text-sm text-gray-300 truncate group-hover:text-white transition-colors">
+                <p className="nn-msg__text truncate">
                   {currentMessages[currentMessages.length - 1]?.content || ''}
                 </p>
                 
                 {/* Unread indicator if there are multiple messages */}
                 {currentMessages.length > 1 && (
-                  <div className="mt-1.5 flex items-center gap-1.5 text-xs text-cyan-400">
-                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[color:var(--nn-cyan)]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[color:var(--nn-cyan)] animate-pulse" />
                     <span className="font-medium">+{currentMessages.length - 1} more messages</span>
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-3 text-gray-500">
-              <div className="w-8 h-8 rounded-full bg-gray-800/50 border border-gray-700/50 flex items-center justify-center">
+            <div className="flex items-center gap-3 text-[color:var(--nn-text-tertiary)]">
+              <div className="w-8 h-8 rounded-none bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_15%,transparent)] flex items-center justify-center">
                 <MessageCircle className="w-4 h-4" />
               </div>
               <p className="text-sm italic">No messages yet - Click to start chatting</p>
@@ -1361,17 +1329,17 @@ export default function ChatPanel({
       {/* HALF MODE - Channel Selector (Compact) + Messages */}
       {panelSize === 'half' && (
         <>
-          {/* Compact Channel Selector */}
-          <div className="relative z-10 px-4 py-2 border-b border-gray-700/50 flex-shrink-0">
+          {/* Compact Channel Selector — tokens, native select */}
+          <div className="px-4 py-2 border-b border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
-                <Users className="w-4 h-4 text-[color:var(--nn-text-tertiary)]" />
+                <Users className="nn-panel__icon" />
                 <span className="nn-lab">{currentOnlineCount} online</span>
               </div>
               <select
                 value={activeChannel}
                 onChange={(e) => setActiveChannel(e.target.value as ChannelType)}
-                className="rounded border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] px-3 py-1 text-sm text-[color:var(--nn-cyan)] focus:border-[color:var(--nn-cyan)] focus:outline-none cursor-pointer"
+                className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] px-3 py-1 text-sm text-[color:var(--nn-cyan)] focus:border-[color:var(--nn-cyan)] focus:outline-none cursor-pointer"
               >
                 {channels.map((channel) => (
                   <option key={channel.id} value={channel.id}>
@@ -1456,17 +1424,17 @@ export default function ChatPanel({
       {panelSize !== 'minimal' && activeTab === 'CHAT' && (
         <>
           {/* MESSAGE LIST - FLEX-1 TAKES ALL AVAILABLE SPACE */}
-          <div className="relative z-10 flex-1 overflow-hidden px-5 py-4">
+          <div className="flex-1 overflow-hidden">
             <div
-              className="h-full space-y-2 overflow-y-auto rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_35%,transparent)] p-4"
+              className="nn-msgs"
               onScroll={handleScroll}
             >
               {isLoadingMessages && currentMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+                  <Loader2 className="nn-panel__icon animate-spin" />
                 </div>
               ) : currentMessages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                <div className="flex flex-col items-center justify-center h-full text-[color:var(--nn-text-tertiary)]">
                   <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
                   <p>No messages yet. Start the conversation!</p>
                 </div>
@@ -1478,19 +1446,19 @@ export default function ChatPanel({
                     const isEditing = editingMessageId === message.id;
 
                     return (
-                      <div key={message.id} className="rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3">
+                      <div key={message.id} className={`nn-msg ${isOwnMessage ? 'nn-msg--own' : ''}`}>
                         {/* Message Header */}
-                        <div className="mb-2 flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-[color:var(--nn-cyan)]">{message.senderUsername}</span>
+                        <div className="nn-msg__head">
+                          <div className="nn-msg__who">
+                            <b>{message.senderUsername}</b>
                             {message.senderIsVIP && (
                               <span className="nn-chip nn-chip--amber !px-1.5 !py-0 !text-[0.625rem]">VIP</span>
                             )}
-                            <span className="nn-lab !text-[0.625rem]">Lv {message.senderLevel}</span>
+                            <span className="text-[color:var(--nn-text-tertiary)]">· Lv {message.senderLevel}</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="nn-lab !text-[0.625rem]">{formatTime(message.timestamp)}</span>
-                            {message.edited && <span className="nn-lab !text-[0.625rem] italic">(edited)</span>}
+                            <span className="nn-msg__time">{formatTime(message.timestamp)}</span>
+                            {message.edited && <span className="nn-msg__time italic">(edited)</span>}
                           </div>
                         </div>
 
@@ -1524,7 +1492,7 @@ export default function ChatPanel({
                           </div>
                         ) : (
                           <div className="flex items-start justify-between gap-2">
-                            <p className="flex-1 whitespace-pre-wrap text-sm text-[color:var(--nn-text-secondary)]">
+                            <p className="nn-msg__text flex-1 whitespace-pre-wrap">
                               {renderMessageContent(message.content)}
                             </p>
                             {/* Action Buttons for Own Messages */}
@@ -1561,7 +1529,7 @@ export default function ChatPanel({
               {showScrollButton && (
                 <button
                   onClick={scrollToBottom}
-                  className="absolute bottom-8 right-8 bg-cyan-500/80 hover:bg-cyan-500 text-white rounded-full p-2 shadow-lg transition-all"
+                  className="absolute bottom-8 right-8 border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_85%,transparent)] text-[color:var(--nn-cyan)] rounded-none p-2 transition-all hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)]"
                 >
                   <ArrowDown className="w-5 h-5" />
                 </button>
@@ -1571,7 +1539,7 @@ export default function ChatPanel({
 
           {/* TYPING INDICATORS - FLEX-SHRINK-0 */}
           {currentTypingUsers.length > 0 && (
-            <div className="relative z-10 text-xs text-gray-400 italic px-5 pb-2 flex-shrink-0">
+            <div className="nn-lab px-5 pb-2 flex-shrink-0 italic">
               {currentTypingUsers.length === 1
                 ? `${currentTypingUsers[0].username} is typing...`
                 : currentTypingUsers.length === 2
@@ -1581,35 +1549,34 @@ export default function ChatPanel({
           )}
 
           {/* MESSAGE INPUT - FLEX-SHRINK-0, PINNED TO BOTTOM WITH NO MARGIN */}
-          <div className="relative z-10 space-y-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] px-5 py-3 flex-shrink-0 rounded-b-2xl">
+          <div className="space-y-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] px-5 py-3 flex-shrink-0">
             <div className="flex gap-2">
               {/* Emoji Picker Button */}
               <div className="relative" ref={emojiPickerRef}>
-                <Button
+                <button
                   onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-                  variant="secondary"
-                  size="sm"
-                  className="px-3"
+                  className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] p-2 text-[color:var(--nn-text-secondary)] transition-colors hover:border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] hover:text-[color:var(--nn-cyan)]"
+                  title="Emoji"
                 >
                   <Smile className="w-4 h-4" />
-                </Button>
+                </button>
 
                 {isEmojiPickerOpen && (
-                  <div className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_92%,transparent)] shadow-2xl">
+                  <div className="absolute bottom-full left-0 z-50 mb-2 w-80 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_92%,transparent)] shadow-2xl">
                     {/* Header */}
                     <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] px-4 py-3">
-                      <h3 className="nn-panel__title">Common Emojis</h3>
+                      <h3 className="nn-lab">Common Emojis</h3>
                     </div>
 
                     {/* Recently Used */}
-                    <div className="px-4 py-3 border-b border-gray-700/30">
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">Recently Used</p>
+                    <div className="px-4 py-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)]">
+                      <p className="nn-lab mb-2">Recently Used</p>
                       <div className="grid grid-cols-8 gap-1">
                         {['🔥', '🦊', '😂', '😊', '👀', '💪', '🧸', '😭'].map((emoji) => (
                           <button
                             key={`recent-${emoji}`}
                             onClick={() => handleEmojiSelect(emoji)}
-                            className="text-2xl hover:bg-cyan-500/10 rounded p-1.5 transition-all hover:scale-110 flex items-center justify-center"
+                            className="text-2xl rounded-none p-1.5 transition-all hover:scale-110 hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] flex items-center justify-center"
                             title={emoji}
                           >
                             {emoji}
@@ -1620,7 +1587,7 @@ export default function ChatPanel({
 
                     {/* Smileys & People */}
                     <div className="px-4 py-3 max-h-64 overflow-y-auto">
-                      <p className="text-xs text-gray-400 mb-2 font-semibold">Smileys & People</p>
+                      <p className="nn-lab mb-2">Smileys & People</p>
                       <div className="grid grid-cols-8 gap-1">
                         {['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', 
                           '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩',
@@ -1633,7 +1600,7 @@ export default function ChatPanel({
                           <button
                             key={`smile-${emoji}`}
                             onClick={() => handleEmojiSelect(emoji)}
-                            className="text-2xl hover:bg-cyan-500/10 rounded p-1.5 transition-all hover:scale-110 flex items-center justify-center"
+                            className="text-2xl rounded-none p-1.5 transition-all hover:scale-110 hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] flex items-center justify-center"
                             title={emoji}
                           >
                             {emoji}
@@ -1643,27 +1610,27 @@ export default function ChatPanel({
                     </div>
 
                     {/* Category Tabs Footer */}
-                    <div className="px-4 py-2 border-t border-gray-700/50 bg-gray-800/50">
-                      <div className="flex items-center justify-around text-gray-400">
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Smileys">
+                    <div className="px-4 py-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)]">
+                      <div className="flex items-center justify-around text-[color:var(--nn-text-tertiary)]">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Smileys">
                           <span className="text-lg">😀</span>
                         </button>
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Animals">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Animals">
                           <span className="text-lg">🐾</span>
                         </button>
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Food">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Food">
                           <span className="text-lg">🍔</span>
                         </button>
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Activities">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Activities">
                           <span className="text-lg">⚽</span>
                         </button>
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Travel">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Travel">
                           <span className="text-lg">🗺️</span>
                         </button>
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Objects">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Objects">
                           <span className="text-lg">💡</span>
                         </button>
-                        <button className="p-2 hover:bg-cyan-500/10 rounded transition-colors" title="Symbols">
+                        <button className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] transition-colors" title="Symbols">
                           <span className="text-lg">❤️</span>
                         </button>
                       </div>
@@ -1699,14 +1666,14 @@ export default function ChatPanel({
                   style={{
                     control: {
                       backgroundColor: 'color-mix(in oklab, var(--nn-void) 80%, transparent)',
-                      fontSize: 14,
+                      fontSize: 12.5,
                       fontWeight: 'normal',
                     },
                     '&multiLine': {
                       control: {
                         minHeight: 40,
                         border: '1px solid color-mix(in oklab, var(--nn-cyan) 25%, transparent)',
-                        borderRadius: '0.5rem',
+                        borderRadius: 0,
                       },
                       highlighter: {
                         padding: 9,
@@ -1716,24 +1683,25 @@ export default function ChatPanel({
                         padding: 9,
                         color: 'var(--nn-text-primary)',
                         outline: 'none',
+                        fontFamily: 'var(--nn-font-body)',
                       },
                     },
                     suggestions: {
                       list: {
-                        backgroundColor: 'oklch(0.13 0.03 265)',
-                        border: '1px solid oklch(0.82 0.15 195)',
-                        borderRadius: '0.5rem',
-                        fontSize: 14,
+                        backgroundColor: 'color-mix(in oklab, var(--nn-void) 95%, transparent)',
+                        border: '1px solid color-mix(in oklab, var(--nn-cyan) 30%, transparent)',
+                        borderRadius: 0,
+                        fontSize: 12.5,
                         maxHeight: 200,
                         overflow: 'auto',
                       },
                       item: {
                         padding: '8px 12px',
-                        borderBottom: '1px solid color-mix(in oklab, var(--nn-cyan) 15%, transparent)',
+                        borderBottom: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)',
                         color: 'var(--nn-text-secondary)',
                         '&focused': {
                           backgroundColor: 'color-mix(in oklab, var(--nn-cyan) 12%, transparent)',
-                          color: 'oklch(0.82 0.15 195)',
+                          color: 'var(--nn-cyan)',
                         },
                       },
                     },
@@ -1746,10 +1714,10 @@ export default function ChatPanel({
                     markup="@[__display__](__id__)"
                     style={{
                       backgroundColor: 'color-mix(in oklab, var(--nn-cyan) 12%, transparent)',
-                      color: 'oklch(0.82 0.15 195)',
+                      color: 'var(--nn-cyan)',
                       fontWeight: 'bold',
                       padding: '2px 4px',
-                      borderRadius: '4px',
+                      borderRadius: 0,
                     }}
                   />
                 </MentionsInput>
@@ -1786,10 +1754,10 @@ export default function ChatPanel({
           <div className="w-[30%] border-r border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] flex flex-col">
             {/* Header */}
             <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] flex items-center justify-between bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] px-4 py-3">
-              <h3 className="nn-panel__title !text-[color:var(--nn-cyan)]">Conversations</h3>
+              <h3 className="nn-lab !text-[color:var(--nn-cyan)]">Conversations</h3>
               <button
                 onClick={() => setShowNewMessageModal(true)}
-                className="rounded border border-[color-mix(in_oklab,var(--nn-cyan)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] p-1.5 transition-all hover:bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
+                className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_35%,transparent)] p-1.5 transition-all hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)]"
                 title="New Message"
               >
                 <UserPlus className="w-4 h-4 text-[color:var(--nn-cyan)]" />
@@ -1800,15 +1768,15 @@ export default function ChatPanel({
             <div className="flex-1 overflow-y-auto">
               {isLoadingConversations && conversations.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                  <Loader2 className="nn-panel__icon animate-spin" />
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-                  <Mail className="w-10 h-10 text-gray-600 mb-3" />
-                  <p className="text-sm text-gray-400 mb-2">No conversations yet</p>
+                  <Mail className="w-10 h-10 text-[color:var(--nn-text-tertiary)] mb-3" />
+                  <p className="text-sm text-[color:var(--nn-text-secondary)] mb-2">No conversations yet</p>
                   <button
                     onClick={() => setShowNewMessageModal(true)}
-                    className="text-xs text-cyan-400 hover:text-cyan-300 underline"
+                    className="nn-link text-xs"
                   >
                     Start a conversation
                   </button>
@@ -1818,12 +1786,12 @@ export default function ChatPanel({
                   <button
                     key={conv.id}
                     onClick={() => setSelectedConversationId(conv.id)}
-                    className={`w-full px-4 py-3 border-b border-gray-700/30 hover:bg-gray-800/50 transition-all text-left ${
-                      selectedConversationId === conv.id ? 'bg-cyan-500/10 border-l-2 border-l-cyan-500' : ''
+                    className={`w-full px-4 py-3 border-b border-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)] transition-colors text-left ${
+                      selectedConversationId === conv.id ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] border-l-2 border-l-[color:var(--nn-cyan)]' : ''
                     }`}
                   >
                     <div className="flex items-start justify-between mb-1">
-                      <span className="text-sm font-semibold text-cyan-400">{conv.otherUsername}</span>
+                      <span className="text-sm font-semibold text-[color:var(--nn-cyan)]">{conv.otherUsername}</span>
                       {conv.unreadCount > 0 && (
                         <Badge variant="error" className="min-w-[18px] h-4 text-[10px] px-1">
                           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
@@ -1832,11 +1800,11 @@ export default function ChatPanel({
                     </div>
                     {conv.lastMessage && (
                       <>
-                        <p className="text-xs text-gray-400 truncate mb-1">
+                        <p className="text-xs text-[color:var(--nn-text-secondary)] truncate mb-1">
                           {conv.lastMessage.senderId === userId ? 'You: ' : ''}
                           {conv.lastMessage.content}
                         </p>
-                        <span className="text-[10px] text-gray-500">
+                        <span className="text-[10px] text-[color:var(--nn-text-tertiary)]">
                           {formatTime(conv.lastMessage.timestamp)}
                         </span>
                       </>
@@ -1869,10 +1837,10 @@ export default function ChatPanel({
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-900/30">
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)]">
                   {isLoadingDMMessages && dmMessages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
-                      <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                      <Loader2 className="nn-panel__icon animate-spin" />
                     </div>
                   ) : dmMessages.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-[color:var(--nn-text-secondary)]">
@@ -1890,7 +1858,7 @@ export default function ChatPanel({
                             className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
-                              className={`max-w-[70%] rounded-lg p-3 ${
+                              className={`max-w-[70%] rounded-none p-3 ${
                                 isOwnMessage
                                   ? 'border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] text-[color:var(--nn-text-primary)]'
                                   : 'border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] text-[color:var(--nn-text-secondary)]'
@@ -1898,11 +1866,11 @@ export default function ChatPanel({
                             >
                               <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                               <div className="flex items-center gap-2 mt-1">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-[color:var(--nn-text-tertiary)]">
                                   {formatTime(msg.timestamp)}
                                 </span>
                                 {msg.editedAt && (
-                                  <span className="text-xs text-gray-500 italic">(edited)</span>
+                                  <span className="text-xs text-[color:var(--nn-text-tertiary)] italic">(edited)</span>
                                 )}
                               </div>
                             </div>
@@ -1946,11 +1914,11 @@ export default function ChatPanel({
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
-                <Mail className="w-16 h-16 mb-4 opacity-30" />
-                <p className="text-lg mb-2">Select a conversation</p>
-                <p className="text-sm text-gray-500">Choose a conversation from the list to start chatting</p>
-              </div>
+                <div className="flex-1 flex flex-col items-center justify-center text-[color:var(--nn-text-secondary)]">
+                  <Mail className="w-16 h-16 mb-4 opacity-30" />
+                  <p className="text-lg mb-2">Select a conversation</p>
+                  <p className="text-sm text-[color:var(--nn-text-tertiary)]">Choose a conversation from the list to start chatting</p>
+                </div>
             )}
           </div>
         </div>
@@ -1959,10 +1927,10 @@ export default function ChatPanel({
       {/* NEW MESSAGE MODAL */}
       {showNewMessageModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-800 border border-cyan-500/50 rounded-lg p-6 max-w-md w-full mx-4 max-h-[600px] flex flex-col">
+          <div className="nn-panel w-full max-w-md p-6" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-cyan-400" />
+              <h3 className="nn-chat__title flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-[color:var(--nn-cyan)]" />
                 New Message
               </h3>
               <button
@@ -1971,22 +1939,22 @@ export default function ChatPanel({
                   setPlayerSearchQuery('');
                   setPlayerSearchResults([]);
                 }}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-400 mb-4">Search for a player to start a conversation</p>
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mb-4">Search for a player to start a conversation</p>
 
             {/* Search Input */}
             <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--nn-text-tertiary)]" />
               <Input
                 value={playerSearchQuery}
                 onChange={(e) => handlePlayerSearch(e.target.value)}
                 placeholder="Search by username..."
-                className="pl-10 bg-gray-900 border-gray-700 text-white"
+                className="pl-10 rounded-none border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] text-[color:var(--nn-text-primary)]"
                 autoFocus
               />
             </div>
@@ -1995,12 +1963,12 @@ export default function ChatPanel({
             <div className="flex-1 overflow-y-auto">
               {isSearching ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+                  <Loader2 className="nn-panel__icon animate-spin" />
                 </div>
               ) : playerSearchResults.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <Users className="w-10 h-10 text-gray-600 mb-3" />
-                  <p className="text-sm text-gray-400">
+                  <Users className="w-10 h-10 text-[color:var(--nn-text-tertiary)] mb-3" />
+                  <p className="text-sm text-[color:var(--nn-text-secondary)]">
                     {playerSearchQuery.length < 2
                       ? 'Type at least 2 characters to search'
                       : 'No players found'}
@@ -2012,24 +1980,22 @@ export default function ChatPanel({
                     <button
                       key={player._id}
                       onClick={() => handleStartConversation(player._id, player.username)}
-                      className="w-full px-4 py-3 bg-gray-900/50 hover:bg-cyan-500/10 border border-gray-700/50 hover:border-cyan-500/50 rounded-lg transition-all text-left"
+                      className="w-full px-4 py-3 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] transition-colors text-left hover:border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] hover:bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)]"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <span className="text-sm font-semibold text-cyan-400">{player.username}</span>
+                          <span className="text-sm font-semibold text-[color:var(--nn-cyan)]">{player.username}</span>
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-gray-500">Level {player.level}</span>
+                            <span className="text-xs text-[color:var(--nn-text-tertiary)]">Level {player.level}</span>
                             {player.vip && (
-                              <Badge variant="warning" className="text-[10px] px-1 py-0">
-                                VIP
-                              </Badge>
+                              <span className="nn-chip nn-chip--amber !px-1.5 !py-0 !text-[0.625rem]">VIP</span>
                             )}
                             {player.clanTag && (
-                              <span className="text-xs text-purple-400">[{player.clanTag}]</span>
+                              <span className="text-xs text-[color:var(--nn-violet)]">[{player.clanTag}]</span>
                             )}
                           </div>
                         </div>
-                        <MessageCircle className="w-4 h-4 text-cyan-400" />
+                        <MessageCircle className="w-4 h-4 text-[color:var(--nn-cyan)]" />
                       </div>
                     </button>
                   ))}
@@ -2043,21 +2009,21 @@ export default function ChatPanel({
       {/* DELETE CONVERSATION CONFIRMATION MODAL */}
       {deleteConversationConfirmId && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-800 border border-red-500/50 rounded-lg p-6 max-w-sm w-full mx-4">
+          <div className="nn-panel w-full max-w-sm p-6" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-red-400" />
+              <h3 className="nn-chat__title flex items-center gap-2" style={{ color: 'var(--nn-magenta)' }}>
+                <AlertCircle className="w-5 h-5" />
                 Delete Conversation
               </h3>
               <button
                 onClick={() => setDeleteConversationConfirmId(null)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-400 mb-6">
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mb-6">
               Are you sure you want to delete this conversation? All messages will be permanently deleted.
             </p>
 
@@ -2067,7 +2033,7 @@ export default function ChatPanel({
               </Button>
               <Button
                 onClick={() => handleDeleteConversation(deleteConversationConfirmId)}
-                className="flex-1 bg-red-500 hover:bg-red-600"
+                className="nn-btn nn-btn--danger flex-1"
               >
                 Delete
               </Button>
@@ -2079,21 +2045,21 @@ export default function ChatPanel({
       {/* DELETE CONFIRMATION MODAL */}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-800 border border-red-500/50 rounded-lg p-6 max-w-sm w-full mx-4">
+          <div className="nn-panel w-full max-w-sm p-6" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-red-400" />
+              <h3 className="nn-chat__title flex items-center gap-2" style={{ color: 'var(--nn-magenta)' }}>
+                <AlertCircle className="w-5 h-5" />
                 Delete Message
               </h3>
               <button
                 onClick={() => setDeleteConfirmId(null)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-400 mb-6">
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mb-6">
               Are you sure you want to delete this message? This action cannot be undone.
             </p>
 
@@ -2103,7 +2069,7 @@ export default function ChatPanel({
               </Button>
               <Button
                 onClick={() => deleteMessage(deleteConfirmId)}
-                className="flex-1 bg-red-500 hover:bg-red-600"
+                className="nn-btn nn-btn--danger flex-1"
               >
                 Delete
               </Button>
@@ -2115,21 +2081,21 @@ export default function ChatPanel({
       {/* ASK VETERANS MODAL */}
       {askVeteransModal.isOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-gray-800 border border-cyan-500/50 rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="nn-panel w-full max-w-md p-6" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <HelpCircle className="w-5 h-5 text-cyan-400" />
+              <h3 className="nn-chat__title flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-[color:var(--nn-cyan)]" />
                 Ask Veterans
               </h3>
               <button
                 onClick={() => setAskVeteransModal({ isOpen: false, question: '' })}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-sm text-gray-400 mb-4">
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mb-4">
               Your question will notify all veteran players (Level {VETERAN_MIN_LEVEL}+). Please be specific and
               respectful.
             </p>
@@ -2143,11 +2109,11 @@ export default function ChatPanel({
                 }))
               }
               placeholder="Enter your question..."
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white text-sm resize-none focus:outline-none focus:border-cyan-500"
+              className="w-full rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] p-3 text-[color:var(--nn-text-primary)] text-sm resize-none focus:outline-none focus:border-[color-mix(in_oklab,var(--nn-cyan)_55%,transparent)]"
               rows={4}
             />
 
-            <div className="flex items-center justify-between mt-2 mb-4 text-xs text-gray-500">
+            <div className="flex items-center justify-between mt-2 mb-4 text-xs text-[color:var(--nn-text-tertiary)]">
               <span>
                 {askVeteransModal.question.length} / {MAX_VETERAN_QUESTION_LENGTH}
               </span>
@@ -2164,7 +2130,7 @@ export default function ChatPanel({
               <Button
                 onClick={submitVeteranQuestion}
                 disabled={!askVeteransModal.question.trim()}
-                className="flex-1 bg-cyan-500 hover:bg-cyan-600"
+                className="nn-btn nn-btn--primary flex-1"
               >
                 Send to Veterans
               </Button>
