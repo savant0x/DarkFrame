@@ -23,6 +23,7 @@
  */
 
 import { GAME_CONSTANTS } from '@/types/game.types';
+import type { Tile, SanitizedPlayer } from '@/types/game.types';
 import {
   AutoFarmConfig,
   AutoFarmState,
@@ -30,6 +31,9 @@ import {
   AutoFarmSessionStats,
   AutoFarmEvent,
   TileProcessResult,
+  HarvestAttemptResult,
+  CombatAttemptResult,
+  CombatUnit,
   DEFAULT_SESSION_STATS,
   RankFilter,
   ResourceTarget
@@ -527,25 +531,28 @@ export class AutoFarmEngine {
       
       // Check for player base (combat)
       if (tileInfo.occupiedByBase && tileInfo.baseOwner && this.config.attackPlayers) {
-        const combatResult = await this.attackBase(tileInfo);
-        if (combatResult) {
+        const combatAttempt = await this.attackBase(tileInfo);
+        if (combatAttempt.success) {
           return {
             success: true,
             position,
             action: 'attacked',
-            combatResult
+            combatResult: { won: combatAttempt.won ?? false }
           };
         }
       }
 
       // Check for harvestable resources
-      const harvestResult = await this.attemptHarvest(position, tileInfo);
-      if (harvestResult && harvestResult.success) {
+      const harvestAttempt = await this.attemptHarvest(position, tileInfo);
+      if (harvestAttempt.success) {
         return {
           success: true,
           position,
           action: 'harvested',
-          resourcesGained: harvestResult
+          resourcesGained: {
+            metal: harvestAttempt.metalGained,
+            energy: harvestAttempt.energyGained
+          }
         };
       }
 
@@ -725,7 +732,7 @@ export class AutoFarmEngine {
   /**
    * Get tile information from server
    */
-  private async getTileInfo(position: { x: number; y: number }): Promise<any> {
+  private async getTileInfo(position: { x: number; y: number }): Promise<Tile | null> {
     try {
       const response = await fetch(`/api/tile?x=${position.x}&y=${position.y}`);
       const data = await response.json();
@@ -784,7 +791,7 @@ export class AutoFarmEngine {
    * Attempt to harvest resources with actual server verification
    * Waits for player resources to update confirming harvest succeeded
    */
-  private async attemptHarvest(position: { x: number; y: number }, tileInfo: any): Promise<any> {
+  private async attemptHarvest(position: { x: number; y: number }, tileInfo: Tile): Promise<HarvestAttemptResult> {
     try {
       // Check if tile has harvestable resources
       const harvestableTerrains = ['Metal', 'Energy', 'Cave', 'Forest'];
@@ -919,7 +926,7 @@ export class AutoFarmEngine {
    * NOTE: For MVP, we'll track attack attempts but actual combat integration
    * requires unit selection logic which will be implemented in Phase 2
    */
-  private async attackBase(tileInfo: any): Promise<any> {
+  private async attackBase(tileInfo: Tile): Promise<CombatAttemptResult> {
     try {
       // Get username
       const username = localStorage.getItem('darkframe_username');
@@ -938,7 +945,8 @@ export class AutoFarmEngine {
       const attackerRank = playerData.data.rank || 1;
       
       // Get defender's data
-      const defenderUsername = tileInfo.baseOwner?.username;
+      // Tile.baseOwner IS the owner's username (varchar column, FID-009-era schema).
+      const defenderUsername = tileInfo.baseOwner;
       if (!defenderUsername) {
         return { success: false, reason: 'No base owner found' };
       }
@@ -1051,7 +1059,7 @@ export class AutoFarmEngine {
    * Select units for combat based on resource targeting strategy
    * Targets players based on what resources WE (the attacker) need most
    */
-  private selectUnitsForCombat(units: any[], attackerResources: any, _defender: any): any[] {
+  private selectUnitsForCombat(units: CombatUnit[], attackerResources: { metal?: number; energy?: number } | null | undefined, _defender: SanitizedPlayer | null | undefined): CombatUnit[] {
     if (!units || units.length === 0) return [];
     
     // Apply resource targeting strategy based on what the ATTACKER needs
@@ -1059,12 +1067,12 @@ export class AutoFarmEngine {
       case ResourceTarget.METAL:
         // We need metal - attack players to gain metal
         // Use strongest units for efficiency
-        return [...units].sort((a, b) => (b.str || 0) - (a.str || 0));
+        return [...units].sort((a, b) => b.strength - a.strength);
         
       case ResourceTarget.ENERGY:
         // We need energy - attack players to gain energy
         // Use strongest units for efficiency
-        return [...units].sort((a, b) => (b.str || 0) - (a.str || 0));
+        return [...units].sort((a, b) => b.strength - a.strength);
         
       case ResourceTarget.LOWEST:
         // We need whatever resource we're lowest on
@@ -1075,11 +1083,11 @@ export class AutoFarmEngine {
         
         // Attack players to gain our lowest resource
         // Use strongest units for efficiency
-        return [...units].sort((a, b) => (b.str || 0) - (a.str || 0));
+        return [...units].sort((a, b) => b.strength - a.strength);
         
       default:
         // Default: use strongest units
-        return [...units].sort((a, b) => (b.str || 0) - (a.str || 0));
+        return [...units].sort((a, b) => b.strength - a.strength);
     }
   }
 

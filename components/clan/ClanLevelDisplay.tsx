@@ -26,7 +26,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { formatNumberAbbreviated } from '@/utils/formatting';
+
 
 interface LevelInfo {
   currentLevel: number;
@@ -93,8 +95,8 @@ export default function ClanLevelDisplay({
       setMilestones(data.milestones);
       setEstimatedHours(data.estimatedHoursToNextLevel);
       setError(null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }

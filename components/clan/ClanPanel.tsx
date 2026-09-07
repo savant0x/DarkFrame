@@ -26,6 +26,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { useGameContext } from '@/context/GameContext';
 import { 
   Panel, 
@@ -747,9 +748,9 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
 
       toast.success('Clan created successfully!');
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create clan');
-      setErrors({ submit: error.message });
+    } catch (error) {
+      toast.error(getErrorMessage(error) || 'Failed to create clan');
+      setErrors({ submit: getErrorMessage(error) });
     } finally {
       setIsSubmitting(false);
     }
@@ -976,8 +977,8 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
 
       toast.success('Successfully joined clan!');
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to join clan');
+    } catch (error) {
+      toast.error(getErrorMessage(error) || 'Failed to join clan');
     } finally {
       setIsJoining(false);
     }

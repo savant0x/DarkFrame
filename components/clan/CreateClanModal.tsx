@@ -23,6 +23,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { useGameContext } from '@/context/GameContext';
 import { Button, Input } from '@/components/ui';
 import { 
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
+
 
 interface CreateClanModalProps {
   isOpen: boolean;
@@ -193,10 +195,10 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
       toast.success('Clan created successfully!');
       await refreshPlayer();
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating clan:', error);
-      toast.error(error.message || 'Failed to create clan');
-      setErrors({ submit: error.message || 'Failed to create clan' });
+      toast.error(getErrorMessage(error) || 'Failed to create clan');
+      setErrors({ submit: getErrorMessage(error) || 'Failed to create clan' });
     } finally {
       setIsSubmitting(false);
     }

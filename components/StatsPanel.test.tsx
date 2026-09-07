@@ -257,7 +257,7 @@ describe('StatsPanel', () => {
         clanName: 'Elite Warriors',
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ tag: 'EW' }),
       });
@@ -287,7 +287,7 @@ describe('StatsPanel', () => {
         clanName: 'Elite Warriors',
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ tag: 'EW' }),
       });

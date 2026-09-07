@@ -22,6 +22,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { Button, Badge, Input } from '@/components/ui';
 import {
   Users,
@@ -165,9 +166,9 @@ export default function ClanMembersPanel({
 
       toast.success(`${targetUsername} promoted to ${ROLE_CONFIG[newRole].label}`);
       onRefresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error promoting member:', error);
-      toast.error(error.message || 'Failed to promote member');
+      toast.error(getErrorMessage(error) || 'Failed to promote member');
     } finally {
       setIsActionLoading(false);
     }
@@ -210,9 +211,9 @@ export default function ClanMembersPanel({
 
       toast.success(`${targetUsername} demoted to ${ROLE_CONFIG[newRole].label}`);
       onRefresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error demoting member:', error);
-      toast.error(error.message || 'Failed to demote member');
+      toast.error(getErrorMessage(error) || 'Failed to demote member');
     } finally {
       setIsActionLoading(false);
     }
@@ -245,9 +246,9 @@ export default function ClanMembersPanel({
 
       toast.success(`${targetUsername} has been removed from the clan`);
       onRefresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error kicking member:', error);
-      toast.error(error.message || 'Failed to kick member');
+      toast.error(getErrorMessage(error) || 'Failed to kick member');
     } finally {
       setIsActionLoading(false);
     }

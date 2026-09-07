@@ -22,6 +22,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { Button, Input } from '@/components/ui';
 import {
   Coins,
@@ -117,9 +118,9 @@ export default function ClanBankPanel({
       setDepositEnergy(0);
       setDepositRP(0);
       onRefresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error depositing:', error);
-      toast.error(error.message || 'Failed to deposit resources');
+      toast.error(getErrorMessage(error) || 'Failed to deposit resources');
     } finally {
       setIsDepositing(false);
     }
@@ -177,9 +178,9 @@ export default function ClanBankPanel({
       setWithdrawEnergy(0);
       setWithdrawRP(0);
       onRefresh();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error withdrawing:', error);
-      toast.error(error.message || 'Failed to withdraw resources');
+      toast.error(getErrorMessage(error) || 'Failed to withdraw resources');
     } finally {
       setIsWithdrawing(false);
     }

@@ -79,7 +79,7 @@ describe('InventoryPanel', () => {
     vi.clearAllMocks();
     
     // Mock successful fetch by default
-    (global.fetch as any).mockResolvedValue({
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => mockInventoryData,
     });
@@ -200,7 +200,7 @@ describe('InventoryPanel', () => {
     });
 
     it('should handle fetch errors gracefully', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Network error'));
       
       render(<InventoryPanel />);
       
@@ -222,7 +222,7 @@ describe('InventoryPanel', () => {
     });
 
     it('should handle non-ok response status', async () => {
-      (global.fetch as any).mockResolvedValue({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
         status: 500,
       });
@@ -441,7 +441,7 @@ describe('InventoryPanel', () => {
         },
       };
       
-      (global.fetch as any).mockResolvedValue({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: async () => expiredBoostData,
       });
@@ -544,7 +544,7 @@ describe('InventoryPanel', () => {
         },
       };
       
-      (global.fetch as any).mockResolvedValue({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: async () => emptyInventoryData,
       });

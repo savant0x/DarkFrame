@@ -120,7 +120,7 @@ describe('HarvestButton', () => {
 
   describe('Button Click Harvesting', () => {
     it('should call harvest API when button is clicked', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           success: true,
@@ -162,7 +162,7 @@ describe('HarvestButton', () => {
         energyGained: 0,
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => harvestData,
       });
@@ -186,7 +186,7 @@ describe('HarvestButton', () => {
     it('should call onHarvestResult callback on API failure', async () => {
       const onHarvestResult = vi.fn();
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           success: false,
@@ -218,7 +218,7 @@ describe('HarvestButton', () => {
     it('should call onHarvestResult callback on network error', async () => {
       const onHarvestResult = vi.fn();
 
-      (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
 
       (useGameContext as any).mockReturnValue({
         player: mockPlayer,
@@ -244,7 +244,7 @@ describe('HarvestButton', () => {
 
   describe('Keyboard Shortcuts', () => {
     it('should harvest metal tile on G key press', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           success: true,
@@ -269,7 +269,7 @@ describe('HarvestButton', () => {
     });
 
     it('should harvest energy tile on G key press', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           success: true,
@@ -294,7 +294,7 @@ describe('HarvestButton', () => {
     });
 
     it('should harvest cave tile on F key press', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: async () => ({
           success: true,
@@ -350,7 +350,7 @@ describe('HarvestButton', () => {
 
   describe('Loading States', () => {
     it('should show harvesting text when action is in progress', async () => {
-      (global.fetch as any).mockImplementation(() => 
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve({
           ok: true,
           json: async () => ({ success: true, metalGained: 1000, energyGained: 0 })
@@ -404,7 +404,7 @@ describe('HarvestButton', () => {
     });
 
     it('should prevent multiple simultaneous harvests', async () => {
-      (global.fetch as any).mockImplementation(() => 
+      (global.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(() => 
         new Promise(resolve => setTimeout(() => resolve({
           ok: true,
           json: async () => ({ success: true, metalGained: 1000, energyGained: 0 })

@@ -22,6 +22,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { useGameContext } from '@/context/GameContext';
 import { Button, Input } from '@/components/ui';
 import { 
@@ -104,9 +105,9 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
       setClans(data.clans || []);
       setTotalPages(data.totalPages || 1);
       setCurrentPage(page);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching clans:', error);
-      toast.error(error.message || 'Failed to load clans');
+      toast.error(getErrorMessage(error) || 'Failed to load clans');
       setClans([]);
     } finally {
       setIsLoading(false);
@@ -161,8 +162,8 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
       toast.success(`Successfully joined ${clanName}`);
       refreshPlayer?.();
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to join clan');
+    } catch (error) {
+      toast.error(getErrorMessage(error) || 'Failed to join clan');
     } finally {
       setJoiningClanId(null);
     }

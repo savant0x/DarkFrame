@@ -22,6 +22,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { Filter } from 'bad-words';
 import { db } from '@/lib/db';
 import { conversations, messages } from '@/lib/db/schema';
@@ -271,14 +272,14 @@ export async function getConversations(
       totalCount,
       hasMore: offset + results.length < totalCount,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching conversations:', error);
     return {
       success: false,
       conversations: [],
       totalCount: 0,
       hasMore: false,
-      error: error.message || 'Failed to fetch conversations',
+      error: getErrorMessage(error) || 'Failed to fetch conversations',
     };
   }
 }
@@ -361,11 +362,11 @@ export async function sendDirectMessage(
       message,
       conversation,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error sending message:', error);
     return {
       success: false,
-      error: error.message || 'Failed to send message',
+      error: getErrorMessage(error) || 'Failed to send message',
     };
   }
 }
@@ -391,7 +392,7 @@ export async function getConversationForParticipant(
     const participants = row.participants as string[];
     if (!Array.isArray(participants) || !participants.includes(playerId)) return null;
     return mapConversationToType(row);
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error in getConversationForParticipant:', error);
     return null;
   }
@@ -437,14 +438,14 @@ export async function getMessageHistory(
       hasMore,
       conversationId: request.conversationId,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching message history:', error);
     return {
       success: false,
       messages: [],
       hasMore: false,
       conversationId: request.conversationId,
-      error: error.message || 'Failed to fetch messages',
+      error: getErrorMessage(error) || 'Failed to fetch messages',
     };
   }
 }
@@ -502,11 +503,11 @@ export async function markMessagesAsRead(
       success: true,
       readCount: result.rowCount ?? 0,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error marking messages as read:', error);
     return {
       success: false,
-      error: error.message || 'Failed to mark messages as read',
+      error: getErrorMessage(error) || 'Failed to mark messages as read',
     };
   }
 }
@@ -549,11 +550,11 @@ export async function deleteDirectMessage(
       .where(eq(messages.id, messageId));
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error deleting message:', error);
     return {
       success: false,
-      error: error.message || 'Failed to delete message',
+      error: getErrorMessage(error) || 'Failed to delete message',
     };
   }
 }
@@ -594,14 +595,14 @@ export async function searchConversations(
       totalCount: results.length,
       hasMore: false,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error searching conversations:', error);
     return {
       success: false,
       conversations: [],
       totalCount: 0,
       hasMore: false,
-      error: error.message || 'Failed to search conversations',
+      error: getErrorMessage(error) || 'Failed to search conversations',
     };
   }
 }

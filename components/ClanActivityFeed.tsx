@@ -25,6 +25,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
+
 
 interface Activity {
   _id: string;
@@ -69,8 +71,8 @@ export function ClanActivityFeed({ clanId }: ClanActivityFeedProps) {
         setActivities(prev => [...prev, ...(data.activities || [])]);
       }
       setHasMore(data.activities?.length === 50);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

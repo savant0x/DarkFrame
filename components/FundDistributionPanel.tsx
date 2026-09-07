@@ -31,6 +31,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 interface DistributionHistory {
   _id: string;
@@ -103,8 +104,8 @@ export function FundDistributionPanel({
       }
       
       setHistory(data.distributions || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -160,8 +161,8 @@ export function FundDistributionPanel({
       
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

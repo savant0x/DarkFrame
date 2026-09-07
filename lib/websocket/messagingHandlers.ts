@@ -19,6 +19,7 @@
  */
 
 import type { Server as SocketIOServer, Socket } from 'socket.io';
+import { getErrorMessage } from '@/lib/errorMessage';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -121,10 +122,10 @@ export async function handleMessageSend(
 
     console.log(`[Messaging] Message sent successfully: ${message._id}`);
     callback?.({ success: true, messageId: message._id.toString() });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Messaging] Error in handleMessageSend:', {
-      error: error.message,
-      stack: error.stack,
+      error: getErrorMessage(error),
+      stack: (error as Error).stack,
     });
     socket.emit('message:error', {
       error: 'Internal server error',
@@ -181,10 +182,10 @@ export async function handleMessageRead(
     io.to(conversationRoom).emit('message:read', receiptPayload);
 
     console.log(`[Messaging] Read receipt sent: ${result.readCount} messages marked as read`);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Messaging] Error in handleMessageRead:', {
-      error: error.message,
-      stack: error.stack,
+      error: getErrorMessage(error),
+      stack: (error as Error).stack,
     });
   }
 }
@@ -220,7 +221,7 @@ export async function handleTypingStart(
 
     // Also emit to recipient's personal room
     socket.to(`user_${data.recipientId}`).emit('typing:start', typingPayload);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Messaging] Error in handleTypingStart:', error);
   }
 }
@@ -256,7 +257,7 @@ export async function handleTypingStop(
 
     // Also emit to recipient's personal room
     socket.to(`user_${data.recipientId}`).emit('typing:stop', typingPayload);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Messaging] Error in handleTypingStop:', error);
   }
 }
@@ -280,7 +281,7 @@ export async function handleJoinConversation(
     socket.join(conversationRoom);
     
     console.log(`[Messaging] ${user.username} joined conversation room: ${conversationRoom}`);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Messaging] Error in handleJoinConversation:', error);
   }
 }
@@ -304,7 +305,7 @@ export async function handleLeaveConversation(
     socket.leave(conversationRoom);
     
     console.log(`[Messaging] ${user.username} left conversation room: ${conversationRoom}`);
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Messaging] Error in handleLeaveConversation:', error);
   }
 }

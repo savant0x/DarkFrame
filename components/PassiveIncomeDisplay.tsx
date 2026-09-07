@@ -29,6 +29,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 
 interface IncomeProjection {
   totalTerritories: number;
@@ -78,8 +79,8 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
       }
       
       setProjection(data.projection);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -116,8 +117,8 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
       
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(null), 5000);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsCollecting(false);
     }

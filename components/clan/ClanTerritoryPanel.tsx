@@ -28,6 +28,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { 
   MapPin, 
@@ -44,6 +45,7 @@ import {
 import { toast } from 'sonner';
 import type { Clan, ClanTerritory } from '@/types/clan.types';
 import { ClanRole, ROLE_PERMISSIONS } from '@/types/clan.types';
+
 
 interface ClanTerritoryPanelProps {
   clan: Clan;
@@ -397,9 +399,9 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
       
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error claiming territory:', error);
-      toast.error(error.message || 'Failed to claim territory');
+      toast.error(getErrorMessage(error) || 'Failed to claim territory');
     } finally {
       setIsClaiming(false);
     }

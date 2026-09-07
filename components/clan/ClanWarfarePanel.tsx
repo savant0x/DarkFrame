@@ -29,6 +29,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { Button, Input, Badge, Divider } from '@/components/ui';
 import { 
   Swords, 
@@ -48,6 +49,7 @@ import {
 import { toast } from 'sonner';
 import type { Clan, ClanWar } from '@/types/clan.types';
 import { ClanRole, ROLE_PERMISSIONS, ClanWarStatus } from '@/types/clan.types';
+
 
 interface ClanWarfarePanelProps {
   clan: Clan;
@@ -638,9 +640,9 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
       
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error declaring war:', error);
-      toast.error(error.message || 'Failed to declare war');
+      toast.error(getErrorMessage(error) || 'Failed to declare war');
     } finally {
       setIsDeclaring(false);
     }
@@ -762,9 +764,9 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
       
       onSuccess();
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error creating alliance:', error);
-      toast.error(error.message || 'Failed to create alliance');
+      toast.error(getErrorMessage(error) || 'Failed to create alliance');
     } finally {
       setIsCreating(false);
     }
