@@ -67,3 +67,6 @@ next-env.d.ts
 
 # Freebuff thread runtime (server logs, parity baselines — never ship operator secrets)
 .freebuff/
+
+# scraped third-party docs dumps (HeroUI llms-*.txt research material, ~10.5MB — kept local, never committed)
+docs/**/llms-*.txt

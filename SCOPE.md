@@ -6,7 +6,7 @@
 > recorded in the Operator-Confirmed section below.
 
 **Protocol:** `dev/echo-v0.1.2-single-agent.md` (v0.1.2-single-agent — the sole authoritative protocol per operator decision 2026-09-01)
-**Last updated:** 2026-09-03 (session 014 — history rewritten to sole savant0x identity; live URI purged from all history; force-push verified on remote)
+**Last updated:** 2026-09-07 (session 001 — ChatPanel emoji-grid corruption repaired, operator chose 😮‍💨; gate-baseline divergence discovered and recorded as #30)
 
 ---
 
@@ -366,6 +366,49 @@ history removal would erase it from the new repo, and rotation remains the real 
 
 No other work is approved.
 
+### Session 2026-09-07 (001) — Repair corrupted emoji grid in `components/chat/ChatPanel.tsx`
+
+Operator instruction: pasted the prior agent session transcript (ses_f828767f — React duplicate-key console errors in the chat emoji picker) and directed: "review my session w/ this agent, i want to continue this."
+
+Interpreted scope (presented 2026-09-07 — per the Scope Boundary section, operator go-ahead converts this into approved scope; **operator approved the same day, choosing `😮‍💨` for row-5 slot 8**):
+
+- [x] Replace the 4 U+FFFD-corrupted string literals in the picker's Smileys & People grid (lines 1607 and 1610) with reconstructed emojis: `😒` (row 5, slot 5), `😬` (row 5, slot 7), `😕` (row 8, slot 5) — deterministic from the grid's strict CLDR ordering — and row 5, slot 8 = `😮‍💨` or `❤️‍🔥` per the operator's choice (order evidence vs surviving-byte evidence; see below)
+- [x] Double audit after the edit: `npx tsc --noEmit` stays at 0 errors; repo eslint stays clean; `npx vitest run` stays green (341 passed baseline); U+FFFD sweep over `components/` returns 0; extracted grid = 64 entries with 64 distinct `smile-` keys; ChatPanel import-graph reachability re-confirmed
+
+No other work is approved.
+
+**Evidence (RED — tool output, not self-report):**
+- Live corruption at lines 1607/1610; key template `key={`smile-${emoji}`}` (line 1612) — the three bare-U+FFFD literals collapse to the identical key `smile-`, which reproduces exactly the two "Encountered two children with the same key" dev-console errors (one per duplicate after the first) and renders three garbage tiles that insert U+FFFD into outgoing messages.
+- `git log -S` on the FFFD+`🔥` byte sequence: introduced at `ad14f79` (2026-09-03 "repo relocation to NTFS" checkpoint) — the same commit that first added the keyed grid; parent `b43f721` contains no `smile-` grid at all. **No clean ancestor exists**, so the four entries cannot be restored by revert — reconstruction only.
+- The grid is strictly Unicode-CLDR-ordered with omissions (rows 1-4 and 6-8 verified exact against CLDR subgroup order), making 😒/😬/😕 deterministic. Slot 8 of row 5 conflicts: CLDR order says `😮‍💨`, but the surviving bytes (`F0 9F 94 A5` = 🔥) byte-fit `❤️‍🔥` (❤️+VS16+ZWJ collapsed to one FFFD, 🔥 surviving). Presented to the operator for the choice.
+- Repo-wide U+FFFD sweep: lines 1607/1610 are the only source-code hits; every other hit is pre-existing prose in docs/archives (recorded as `[OPEN-OUT-OF-SCOPE]` #29).
+- Bookkeeping drift found during scope write-up: the OPEN-OUT-OF-SCOPE table ends at #25, while ledger rows reference #26/#27/#28 (2026-09-06 entries) that were never added to the table. Noted for the operator; not silently backfilled.
+
+**Intent (Law 8):** data-only fix — 4 characters across 2 lines of 1 file; no logic, API, schema, dependency, or style changes; keys become unique; the three garbage picker tiles render real emojis.
+
+**Outcome (2026-09-07, double audit — tool output):** fix applied exactly as approved (`git diff components/chat/ChatPanel.tsx` = 2 lines, 4 literals, nothing else). Static: `npx eslint components/chat/ChatPanel.tsx` = **0 findings**; `npx tsc --noEmit` = **1 error, in `__tests__/lib/flagHolderSurvival.test.ts` (last touched by committed `4674b73`) — a file this session never touched**. Runtime: `npx vitest run` = **342 passed / 12 failed / 1 skipped — all 12 failures in `lib/__tests__/redis.test.ts`**, with no causal path to this change (emoji literals in a component with no test file cannot reach a Redis rate-limiter suite). Mechanical: extracted grid = **64 entries, 64 unique, 0 U+FFFD anywhere in the file**; `components/`-wide U+FFFD sweep = **0 hits**; Law-4 reachability: `components/GameLayout.tsx:30` imports ChatPanel (`from './chat/ChatPanel'`) — live in the game layout. **Repo-wide gates did NOT hold at their recorded values**: 460 eslint errors / 3 warnings, 1 tsc error, 12 vitest failures vs the ledger's 2026-09-06 "tsc 0 / eslint clean / 341 green" — the working tree carries an uncommitted parallel session's WIP (20 modified files + untracked `scripts/nn-fixany.mjs`, `scripts/nn-lintreport.mjs`, `lib/errorMessage.ts`, `docs/llms-*`; `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` deleted) whose flagged files match this session's pre-session modified-file list exactly. Recorded as `[OPEN-OUT-OF-SCOPE]` #30 — not silently absorbed; this session's change is cleanly separable (single file, 2 lines).
+
+### Session 2026-09-07 (002) — Review & reconcile the parallel session's uncommitted WIP (works item #30)
+
+Operator instruction: "Review and reconcile the parallel session's uncommitted WIP flagged as SCOPE #30."
+
+Interpreted scope:
+
+- [x] Read-only review of all 20 modified-file diffs + untracked files (Law 1 — the explicitly requested "review" half)
+- [x] Repair the single codemod corruption found (`ClanWarfarePanel.tsx:635` — `'Fcatch (error)ar'` → `'Failed to declare war'`) — approved and implemented
+- [x] Reconciliation (logical-atomic commits / verbatim commit / discard / leave uncommitted) — operator chose **fix defect + commit (5 commits)** + **gitignore the scraped docs**; executed
+
+No other work is approved.
+
+**Review findings (tool evidence):**
+- Parallel-session activity window (file mtimes): 2026-09-06 11:50 (`docs/llms-*.txt` created) → 2026-09-07 04:06 (`scripts/nn-lintreport.mjs`) — inactive ~13h before this session; no race risk.
+- WIP composition: (a) `no-explicit-any` burn-down — new `lib/errorMessage.ts` (`getErrorMessage(err: unknown)`) + typed catch clauses across 13 component/service files + typed `global.fetch` test casts in 3 test files, driven by `scripts/nn-fixany.mjs` (its own header admits v1 corrupted files); (b) `utils/autoFarmEngine.ts` typing overhaul (`Tile`/`SanitizedPlayer`/`CombatUnit`/attempt-result types) including a **latent-bug fix**: `tileInfo.baseOwner` is a username string; the old code read `.username` off it, so attack-target resolution could never succeed; (c) `public/design/neon-noir-sample.html` +66 lines (HUD components + typography sections); (d) ~10.5MB scraped HeroUI docs (`docs/llms-*.txt`, untracked); (e) deletion of the superseded `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` (−1085; already banner-marked historical per #12).
+- **Defect found:** codemod corruption of a user-facing string — `ClanWarfarePanel.tsx:635` `throw new Error(error.error || 'Fcatch (error)ar')`. Repo-wide `[a-zA-Z]catch \((error|err)\)` sweep: exactly one artifact.
+- **Gates on the WIP tree:** `npx eslint` over the 18 touched ts/tsx files = **53 errors remaining** (all `no-explicit-any`) — the burn-down is real but INCOMPLETE (strict reduction per touched file); repo tsc = 1 error (committed `flagHolderSurvival.test.ts`, WIP-neutral); vitest 12 failures all in `redis.test.ts` (environment; no import path touches WIP files).
+- Proposed commit plan if approved: 5 path-scoped commits — (1) emoji fix, (2) any-removal batch + helper + autoFarm, (3) design sample, (4) mapping-doc deletion, (5) scope + session records; `docs/llms-*.txt` handled per operator choice.
+
+**Outcome (2026-09-07):** operator chose **fix defect + commit** and **gitignore the scraped docs**. Defect repaired — post-fix file eslint shows only the 3 pre-existing `no-explicit-any` findings, 0 new. Four path-scoped commits executed under operator approval (G1): `0e82eb5` fix(chat) emoji literals; `8be0bde` refactor(types) 18-file batch (incl. `lib/errorMessage.ts`, the autoFarm `baseOwner` defender-resolution fix, and the warfare string repair); `de914fa` docs(design) sample sections; `8051813` docs remove mapping. `.gitignore` gains `docs/**/llms-*.txt` — verified via `git check-ignore` (both `docs/` and `docs/design/` copies covered; files kept on disk). Residual: `scripts/nn-fixany.mjs` + `scripts/nn-lintreport.mjs` left untracked (not in the approved commit plan) — operator call pending. Post-commit status: only SCOPE.md, .gitignore, session records, and the two nn- scripts remain dirty/untracked.
+
 ---
 
 ## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
@@ -400,6 +443,8 @@ operator decides whether each item is added to scope.
 | 23 | `PORT=0` in the operator's shell environment makes the custom server bind port 0 (`server.ts` reads `process.env.PORT \|\| '3000'`; `'0'` is truthy) — banner prints `localhost:0`, nothing listens on a real port. Workaround in use: launch with explicit `PORT=3002`. Permanent fix needs an operator-environment decision (where the var is exported). | 2026-09-04 (SESSION-2026-09-03-003) | Open (environment-side; agent-side workaround in place) |
 | 24 | **Systematic Mongo-era audit (full findings in SESSION-2026-09-04-002 §Audit).** Shim core is sound (countDocuments/$or/$inc/$push live-verified; #21's crash claim is STALE — BeerBase count works, returns 0). Real defects found: **(a)** 22 unresolved collection names → shim silently no-ops (`users`, `clan_territories`, 13×`wmd_*` in seed+APIs, `tutorial_progress`, `ActionLog`, `adminLogs`, `playerAchievements`, `tradeHistory`, `players_temp`, `system_logs`, `tutorial_action_tracking`) — writes vanish, reads empty, no error; **(b)** `aggregate()` ignores its pipeline and returns raw rows — 7 consumers silently wrong (antiCheatDetector, rankingService, achievement-stats, clan/leaderboard, stats, referral cron); **(c)** dot-path `$inc` at 8+ sites (auctionService payments/refunds, statTrackingService) silently no-op — auction money never moves; **(d)** boolean `$set` values (`read: true` wmd/notifications ×2, `units.$[unit].locked` auctionService) crash smallint columns; **(e)** `chatService` inserts 36-char `randomUUID` into `chat_messages.id` varchar(24) — chat sends crash; **(f)** multi-key `sort()` specs honor only the first key (referral leaderboard, build-unit); **(g)** 9 `@ts-nocheck` admin routes hide their DB seams; **(h)** BeerBase respawner job has NO scheduler registration (functions exist; only manual endpoints call them); **(i)** `lib/queryOptimization.ts` deadMongo module (excluded from tsc). | 2026-09-04 (SESSION-2026-09-04-002) | Open (awaiting operator approval to fix) |
 | 25 | **Auction persistence never worked on pg.** The domain doc written by `auctionService` (`auctionId`, `sellerUsername`, `item`, `bids[]`, `startingBid`, …) shares no keys with the pivot `auctions` table (`id` varchar(24) PK, `seller_id` varchar(20) NOT NULL, `item_data` jsonb, `starting_price`, …): every insert violates NOT NULL (seller_id) and the domain's read paths (`findOne({ auctionId })`, `auction.bids`, `sellerUsername`) address nonexistent columns. Table is empty — zero listings have ever persisted. The $inc economy fixes (listing fee, buyout, payout) are real but reach a table that listings can't enter. Needs a feature-level rebuild: either map the domain doc into the table (new columns + bid storage) or rewrite the service on drizzle. | 2026-09-04 (SESSION-2026-09-04-002) | Open (feature-level work; operator decision needed on approach) |
+| 29 | Pre-existing U+FFFD mojibake in ~14 docs/archive files (decorative prose emoji mangled, e.g. `## �🔴`, `Status: � HIGH`) — cosmetic doc damage, zero runtime impact | 2026-09-07 (session 001) | Out of current scope; batch doc cleanup is an operator decision |
+| 30 | **Gate-baseline divergence:** repo gates no longer match the ledger's 2026-09-06 "tsc 0 / eslint clean / 341 green" — live: tsc 1 error (`__tests__/lib/flagHolderSurvival.test.ts`, committed `4674b73`), eslint **460 errors / 3 warnings** (incl. re-appeared `any`s in friends suites previously burn-downed), vitest **12 failed** (all `lib/__tests__/redis.test.ts`). The tree also carries an uncommitted parallel session's WIP (20 modified files: clan panels, friends/messaging tests, messagingService, websocket handlers; untracked `scripts/nn-fixany.mjs`, `scripts/nn-lintreport.mjs`, `lib/errorMessage.ts`, `docs/llms-*`; `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` deleted). Attribution and disposition were operator decisions — session 2026-09-07 (001) touched nothing beyond its approved 2-line fix **→ RESOLVED 2026-09-07 (SESSION-2026-09-07-002): operator reviewed the WIP and chose fix+commit+gitignore — defect repaired, WIP committed as 4 path-scoped commits (`0e82eb5`, `8be0bde`, `de914fa`, `8051813`), scraped llms docs gitignored (kept local), nn-*.mjs codemod scripts left untracked pending operator call** | 2026-09-07 (sessions 001–002) | Closed (resolved) |
 
 ---
 
@@ -484,6 +529,12 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-06: 7 residual `any` in types/ files outside the FID-005 batch (activityLog ×2, autoFarm ×1, game ×1, tutorial ×3) | recorded (`[OPEN-OUT-OF-SCOPE]` #26) |
 | Session 2026-09-06: root `components/ClanChatPanel.tsx` is dead code — barrel export commented out ("MongoDB client-side import issues"), zero live importers; the live component is `components/clan/ClanChatPanel.tsx` (different props contract). Deletion pending operator approval | recorded (`[OPEN-OUT-OF-SCOPE]` #27) |
 | Session 2026-09-06: `components/clan/ClanPanel.tsx` join-gate reads `player.research?.researchPoints` — `Player` has no `research` field (RP lives at `player.researchPoints`), so the gate evaluates `undefined` on every mount (its own `playerResources` composition computes 0 RP). Suspected real runtime bug; fix is one-line but file is outside current batch | recorded (`[OPEN-OUT-OF-SCOPE]` #28) |
+| Session 2026-09-07 (001): interpreted scope for the ChatPanel emoji-grid repair written into this file and presented (Law 2) | implemented (operator approved same day; slot C = 😮‍💨) |
+| Session 2026-09-07 (001): replace 4 U+FFFD literals (😒 😬 😕 😮‍💨) in ChatPanel.tsx — git diff = 2 lines exactly | implemented |
+| Session 2026-09-07 (001): double audit (file eslint 0; tsc 1 pre-existing error in an untouched committed test; vitest 342P/12F — all 12 in redis.test.ts, divergence recorded as #30; 64 entries / 64 unique keys; components/ FFFD sweep 0; GameLayout import reachability) | implemented |
+| Session 2026-09-07 (002): read-only review of the parallel session's WIP (diffs + untracked files, Law 1) | implemented |
+| Session 2026-09-07 (002): repair `ClanWarfarePanel.tsx:635` codemod-corrupted string | implemented (`'Failed to declare war'` restored; file eslint = 3 pre-existing findings, 0 new) |
+| Session 2026-09-07 (002): reconciliation of the WIP — operator chose fix+commit+gitignore; 4 path-scoped commits executed (`0e82eb5`, `8be0bde`, `de914fa`, `8051813`); llms docs gitignored; nn-*.mjs scripts left untracked | implemented (operator-approved git execution) |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.
