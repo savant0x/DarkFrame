@@ -6,7 +6,7 @@
 > recorded in the Operator-Confirmed section below.
 
 **Protocol:** `dev/echo-v0.1.2-single-agent.md` (v0.1.2-single-agent — the sole authoritative protocol per operator decision 2026-09-01)
-**Last updated:** 2026-09-07 (session 001 — ChatPanel emoji-grid corruption repaired, operator chose 😮‍💨; gate-baseline divergence discovered and recorded as #30)
+**Last updated:** 2026-09-07 (session 004 — burn-down batch 1 in progress; operator additions executed: flagHolder unused imports removed, nn-*.mjs tooling committed with one dead-var repair)
 
 ---
 
@@ -427,6 +427,23 @@ No other work is approved.
 2. **`__tests__/lib/flagHolderSurvival.test.ts` — TS2345 at (87,22). Root cause: contravariance mismatch in the test fake.** Line 87 = `setTableNameResolver(getTableName)`; the fake types its resolver `(t: unknown) => string`, but drizzle's `getTableName<T extends Table>(table: T): T['_']['name']` cannot accept `unknown`. The fake only ever receives drizzle tables (`players`, `flags`), so the honest typing is `Table` throughout the fake (`from`/`update`/`delete`/`insert`/`tableName`/resolver), making `getTableName` assignable with no casts and no suppressions. Expected: **tsc back to 0** — restoring the recorded clean baseline; the suite itself already passes at runtime (3/3).
 
 Gates after the (pending) remediation: full `npx tsc --noEmit` → 0 errors; full vitest → 354 passed / 0 failed / 1 skipped (the 12 redis failures recovered).
+
+### Session 2026-09-07 (004) — no-explicit-any burn-down, batch 1: the 53 findings in the WIP-touched files
+
+Operator instruction (explicit, continues the session-002 review finding): "Continue the no-explicit-any burn-down starting with the 53 remaining findings in the already-touched files."
+
+Approved items:
+
+- [ ] Remediate all 53 `no-explicit-any` findings across the 10 files with honest types — no `any`, no rule suppressions, no rule loosening (continues the session-2026-09-02-004/009 + FID-005 standing directive)
+- [ ] Verify each batch: per-file eslint → 0; repo lint count strictly down (−53 from the 460 baseline); `npx tsc --noEmit` stays at 0; full vitest stays 354/0/1; changed files re-read 0-EOF
+
+Explicitly NOT approved: findings in files outside the WIP-touched set (next batches); touching the 3 `react-hooks/exhaustive-deps` warnings; the 2 pre-existing unused-import errors in flagHolderSurvival.test.ts; disposing the nn-*.mjs scripts.
+
+**Operator additions mid-session (both executed):** (1) "Remove the 2 pre-existing unused players/flags imports in flagHolderSurvival.test.ts" — done (test still 3/3; file lint 0); (2) "Commit the two nn-*.mjs codemod scripts as tooling, or delete them" — choice delegated to the agent: **committed** (deletion of untracked files is irreversible; commit is trivially revertible; tooling is in active use by this burn-down; v1-corruption history already documented in nn-fixany.mjs's own header). One-line repair required for Law 15: `nn-lintreport.mjs` had a dead `const counts = {}` declaration (unused-var lint error) — removed before committing.
+
+---
+
+## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
 
 **Outcome (2026-09-07):** both fixes applied and verified — `lib/__tests__/redis.test.ts` gained the `vi.hoisted` env pin (REDIS_URL='disabled', UPSTASH=''; documented rationale in-file); `__tests__/lib/flagHolderSurvival.test.ts` fake retyped `unknown`→`Table` (import + `tableName` + `from` + `update`/`delete`/`insert` + the `setTableNameResolver` setter — the first pass missed the setter and tsc caught it at (90,22)). Evidence: `vitest run lib/__tests__/redis.test.ts` = **16/16** (fallback path visibly exercised — "[RateLimiter] Redis unavailable, allowing request" in the no-fallback test); `vitest run __tests__/lib/flagHolderSurvival.test.ts` = 3/3; full `npx vitest run` = **354 passed / 0 failed / 1 skipped**; `npx tsc --noEmit` = **exit 0** (recorded clean baseline restored). Residual (pre-existing, not touched): 2 `no-unused-vars` eslint errors in flagHolderSurvival.test.ts (`players`/`flags` imported but never referenced — present in session 001's baseline lint output).
 
