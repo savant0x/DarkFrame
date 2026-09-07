@@ -281,28 +281,26 @@ export default function TutorialOverlay({
 
   return (
     <>
-      {/* Tutorial Progress Bar (top of screen) */}
+      {/* Tutorial Progress Bar (top of screen) — NEON NOIR .nn-banner:
+          quiet glass tab under the nav, violet signal, sample .nn-meter. */}
       {uiState.showOverlay && (
-        <div className="tutorial-progress-bar fixed top-14 left-0 right-0 sm:left-20 sm:right-20 lg:left-[19rem] lg:right-[19rem] xl:left-[21rem] xl:right-[21rem] z-[9999] bg-gray-900/95 backdrop-blur-sm border-b border-purple-500/30 rounded-b-lg">
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-purple-400">Tutorial Progress</span>
-                {uiState.currentQuest && (
-                  <span className="text-xs text-gray-400">
-                    {uiState.currentQuest.title}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs font-mono text-gray-400">
-                {progressPercent}% Complete
-              </span>
+        <div className="nn-banner">
+          <div className="nn-banner__head">
+            <div className="flex min-w-0 items-baseline gap-3">
+              <span className="nn-banner__title">Tutorial Progress</span>
+              {uiState.currentQuest && (
+                <span className="nn-banner__quest">{uiState.currentQuest.title}</span>
+              )}
             </div>
-            <div className="w-full bg-gray-800 rounded-full h-2">
-              <div
-                className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              />
+            <span className="nn-banner__pct">{progressPercent}% COMPLETE</span>
+          </div>
+          <div className="nn-meter h-1.5">
+            <div
+              className="nn-meter__seg nn-meter__seg--vio transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
+            <div className="nn-meter__ticks" aria-hidden>
+              <i /><i /><i /><i /><i /><i /><i /><i />
             </div>
           </div>
         </div>
@@ -315,11 +313,11 @@ export default function TutorialOverlay({
         continuous
         onEvent={handleJoyrideCallback}
         options={{
-          arrowColor: '#1f2937',
-          backgroundColor: '#1f2937',
-          overlayColor: 'rgba(0, 0, 0, 0.7)',
-          primaryColor: '#8b5cf6',
-          textColor: '#f3f4f6',
+          arrowColor: '#141220', /* --nn-deep */
+          backgroundColor: '#141220',
+          overlayColor: 'rgba(4, 4, 10, 0.78)',
+          primaryColor: '#a855f7', /* --nn-violet */
+          textColor: '#eceaf4', /* --nn-text-primary */
           zIndex: 10000,
           showProgress: true,
           buttons: ['back', 'skip', 'primary'],

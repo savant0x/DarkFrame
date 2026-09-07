@@ -363,9 +363,9 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-space via-blue-900/20 to-bg-space flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center" style={{ background: 'var(--nn-void)' }}>
         <div className="text-center">
-          <p className="text-white/70 mb-4">Loading player data...</p>
+          <p className="nn-lab mb-4">Loading player data...</p>
           {!embedded && (
             <button
               onClick={() => router.push('/game')}
@@ -425,9 +425,9 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                 }`}
               >
                 {/* Header */}
-                <div className={`bg-gradient-to-r from-${color}-500/20 to-${color}-500/10 border-b border-${color}-500/30 p-4`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className={`text-${color}-400`}>{getIcon(tech.icon)}</div>
+                <div className="border-b p-4" style={{ borderColor: 'color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 25%, transparent)', background: 'color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 8%, transparent)' } as React.CSSProperties}>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-[color:var(--nn-accent,var(--nn-cyan))]">{getIcon(tech.icon)}</div>
                     {tech.unlocked ? (
                       <div className="bg-green-500/20 border border-green-500/50 rounded-full p-2">
                         <Check className="w-5 h-5 text-green-400" />

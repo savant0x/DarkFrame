@@ -122,8 +122,8 @@ export default function StatsPage() {
       return (
         <div className="h-full w-full flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
-            <p className="text-white/70">Loading statistics...</p>
+            <div className="animate-spin mx-auto mb-4 h-14 w-14 rounded-none border-2 border-b-0 border-[color-mix(in_oklab,var(--nn-violet)_45%,transparent)]"></div>
+            <p className="nn-lab">Loading statistics...</p>
           </div>
         </div>
       );
@@ -135,11 +135,11 @@ export default function StatsPage() {
     if (error) {
       return (
         <div className="h-full w-full flex items-center justify-center">
-          <div className="bg-red-500/20 border-2 border-red-500/50 rounded-lg p-6 max-w-md">
-            <p className="text-red-400 text-center">{error}</p>
+          <div className="nn-panel max-w-md p-6" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
+            <p className="nn-msg__text text-center">{error}</p>
             <button
               onClick={() => router.push('/game')}
-              className="mt-4 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded"
+              className="nn-btn nn-btn--ghost mt-4 w-full"
             >
               Return to Game
             </button>
@@ -149,21 +149,21 @@ export default function StatsPage() {
     }
 
     return (
-      <div className="h-full w-full overflow-auto bg-gradient-to-b from-bg-space to-black">
+      <div className="h-full w-full overflow-auto" style={{ background: 'var(--nn-void)' }}>
       {/* Header */}
-      <div className="bg-glass-dark backdrop-blur-md border-b-2 border-purple-500/30 p-6">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="border-b border-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] p-6" style={{ background: 'color-mix(in oklab, var(--nn-void) 88%, transparent)' }}>
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/game')}
-              className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
+              className="nn-link flex items-center gap-2"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Back to Game</span>
             </button>
-            <div className="h-8 w-px bg-purple-500/30"></div>
-            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-              <Trophy className="w-8 h-8 text-purple-400" />
+            <div className="h-8 w-px bg-[color-mix(in_oklab,var(--nn-violet)_30%,transparent)]"></div>
+            <h1 className="nn-chat__title flex items-center gap-3" style={{ fontSize: 16 }}>
+              <Trophy className="w-6 h-6 text-[color:var(--nn-violet)]" />
               Game Statistics
             </h1>
           </div>
@@ -174,81 +174,57 @@ export default function StatsPage() {
         {/* Global Stats Overview */}
         {gameStats && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <Users className="w-6 h-6 text-purple-400" />
-                <h3 className="text-lg font-bold text-white">Total Players</h3>
+            <div className="nn-panel p-5">
+              <div className="nn-lab mb-2 flex items-center gap-2">
+                <Users className="w-4 h-4 text-[color:var(--nn-violet)]" />
+                Total Players
               </div>
-              <p className="text-3xl font-bold text-purple-400">{gameStats.totalPlayers.toLocaleString()}</p>
+              <p className="nn-num text-2xl font-bold text-[color:var(--nn-violet)]">{gameStats.totalPlayers.toLocaleString()}</p>
             </div>
 
-            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <Coins className="w-6 h-6 text-orange-400" />
-                <h3 className="text-lg font-bold text-white">Total Metal</h3>
+            <div className="nn-panel p-5">
+              <div className="nn-lab mb-2 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />
+                Total Metal
               </div>
-              <p className="text-3xl font-bold text-orange-400">{gameStats.totalMetal.toLocaleString()}</p>
+              <p className="nn-num text-2xl font-bold text-[color:var(--nn-amber)]">{gameStats.totalMetal.toLocaleString()}</p>
             </div>
 
-            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <Coins className="w-6 h-6 text-cyan-400" />
-                <h3 className="text-lg font-bold text-white">Total Energy</h3>
+            <div className="nn-panel p-5">
+              <div className="nn-lab mb-2 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-[color:var(--nn-cyan)]" />
+                Total Energy
               </div>
-              <p className="text-3xl font-bold text-cyan-400">{gameStats.totalEnergy.toLocaleString()}</p>
+              <p className="nn-num text-2xl font-bold text-[color:var(--nn-cyan)]">{gameStats.totalEnergy.toLocaleString()}</p>
             </div>
 
-            <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <Target className="w-6 h-6 text-purple-400" />
-                <h3 className="text-lg font-bold text-white">Avg Level</h3>
+            <div className="nn-panel p-5">
+              <div className="nn-lab mb-2 flex items-center gap-2">
+                <Target className="w-4 h-4 text-[color:var(--nn-violet)]" />
+                Avg Level
               </div>
-              <p className="text-3xl font-bold text-purple-400">{gameStats.averageLevel.toFixed(1)}</p>
+              <p className="nn-num text-2xl font-bold text-[color:var(--nn-violet)]">{gameStats.averageLevel.toFixed(1)}</p>
             </div>
           </div>
         )}
 
         {/* Top Players Section */}
-        <div className="bg-glass-dark backdrop-blur-sm border-2 border-purple-500/30 rounded-lg overflow-hidden">
+        <div className="nn-panel overflow-hidden">
           {/* Header with Sort Options */}
-          <div className="bg-gradient-to-r from-purple-500/20 to-purple-600/20 border-b border-purple-500/30 p-4">
+          <div className="border-b border-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] p-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Crown className="w-6 h-6 text-yellow-400" />
+              <h2 className="nn-chat__title flex items-center gap-2" style={{ fontSize: 12 }}>
+                <Crown className="w-5 h-5 text-[color:var(--nn-amber)]" />
                 Top Players
               </h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSortBy('power')}
-                  className={`px-3 py-1 rounded ${
-                    sortBy === 'power'
-                      ? 'bg-purple-500/30 text-purple-400 border border-purple-500/50'
-                      : 'bg-glass-light text-white/70 hover:bg-glass-light'
-                  }`}
-                >
-                  <Swords className="w-4 h-4 inline mr-1" />
+              <div className="nn-sz">
+                <button onClick={() => setSortBy('power')} className={sortBy === 'power' ? 'on' : ''}>
                   Power
                 </button>
-                <button
-                  onClick={() => setSortBy('level')}
-                  className={`px-3 py-1 rounded ${
-                    sortBy === 'level'
-                      ? 'bg-purple-500/30 text-purple-400 border border-purple-500/50'
-                      : 'bg-glass-light text-white/70 hover:bg-glass-light'
-                  }`}
-                >
-                  <Award className="w-4 h-4 inline mr-1" />
+                <button onClick={() => setSortBy('level')} className={sortBy === 'level' ? 'on' : ''}>
                   Level
                 </button>
-                <button
-                  onClick={() => setSortBy('metal')}
-                  className={`px-3 py-1 rounded ${
-                    sortBy === 'metal'
-                      ? 'bg-purple-500/30 text-purple-400 border border-purple-500/50'
-                      : 'bg-glass-light text-white/70 hover:bg-glass-light'
-                  }`}
-                >
-                  <Coins className="w-4 h-4 inline mr-1" />
+                <button onClick={() => setSortBy('metal')} className={sortBy === 'metal' ? 'on' : ''}>
                   Metal
                 </button>
               </div>
@@ -258,48 +234,44 @@ export default function StatsPage() {
           {/* Player List */}
           <div className="p-4">
             {topPlayers.length === 0 ? (
-              <p className="text-white/70 text-center py-8">No players found</p>
+              <p className="nn-lab py-8 text-center">No players found</p>
             ) : (
               <div className="space-y-2">
                 {topPlayers.map((player, index) => (
                   <div
                     key={player._id}
-                    className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
+                    className={`flex items-center justify-between border p-4 transition-colors ${
                       index === 0
-                        ? 'bg-yellow-500/10 border-yellow-500/50'
-                        : index === 1
-                        ? 'bg-glass-light border-glass-border'
-                        : index === 2
-                        ? 'bg-orange-500/10 border-orange-500/50'
-                        : 'bg-glass-light border-glass-border hover:bg-glass-light'
+                        ? 'nn-well !border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)]'
+                        : 'nn-well'
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className="text-2xl font-bold text-white/50 w-8 text-center">
+                      <div className="nn-num w-8 text-center text-xl font-bold text-[color:var(--nn-text-tertiary)]">
                         #{index + 1}
                       </div>
                       <div>
-                        <p className="text-white font-bold text-lg">{player.username}</p>
-                        <p className="text-white/50 text-sm">Level {player.level}</p>
+                        <p className="text-sm font-bold text-[color:var(--nn-cyan)]">{player.username}</p>
+                        <p className="nn-msg__time">Level {player.level}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       {sortBy === 'power' && (
-                        <div className="flex items-center gap-2">
-                          <Swords className="w-4 h-4 text-purple-400" />
-                          <span className="text-white font-bold">{player.totalPower.toLocaleString()}</span>
+                        <div className="nn-num flex items-center justify-end gap-2 font-bold text-[color:var(--nn-violet)]">
+                          <Swords className="w-4 h-4" />
+                          {player.totalPower.toLocaleString()}
                         </div>
                       )}
                       {sortBy === 'level' && (
-                        <div className="flex items-center gap-2">
-                          <Award className="w-4 h-4 text-purple-400" />
-                          <span className="text-white font-bold">Level {player.level}</span>
+                        <div className="nn-num flex items-center justify-end gap-2 font-bold text-[color:var(--nn-violet)]">
+                          <Award className="w-4 h-4" />
+                          Level {player.level}
                         </div>
                       )}
                       {sortBy === 'metal' && (
-                        <div className="flex items-center gap-2">
-                          <Coins className="w-4 h-4 text-orange-400" />
-                          <span className="text-white font-bold">{player.metal.toLocaleString()}</span>
+                        <div className="nn-num flex items-center justify-end gap-2 font-bold text-[color:var(--nn-amber)]">
+                          <Coins className="w-4 h-4" />
+                          {player.metal.toLocaleString()}
                         </div>
                       )}
                     </div>

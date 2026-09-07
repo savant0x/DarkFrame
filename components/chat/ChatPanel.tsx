@@ -1550,12 +1550,12 @@ export default function ChatPanel({
 
           {/* MESSAGE INPUT - FLEX-SHRINK-0, PINNED TO BOTTOM WITH NO MARGIN */}
           <div className="space-y-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] px-5 py-3 flex-shrink-0">
-            <div className="flex gap-2">
+            <div className="flex items-stretch gap-2">
               {/* Emoji Picker Button */}
-              <div className="relative" ref={emojiPickerRef}>
+              <div className="relative flex items-center" ref={emojiPickerRef}>
                 <button
                   onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-                  className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] p-2 text-[color:var(--nn-text-secondary)] transition-colors hover:border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] hover:text-[color:var(--nn-cyan)]"
+                  className="flex h-full items-center justify-center rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] p-2 text-[color:var(--nn-text-secondary)] transition-colors hover:border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] hover:text-[color:var(--nn-cyan)]"
                   title="Emoji"
                 >
                   <Smile className="w-4 h-4" />

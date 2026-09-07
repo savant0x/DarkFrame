@@ -48,10 +48,10 @@ export default function WMDPage() {
 
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg shadow-2xl h-full overflow-hidden flex items-center justify-center p-8">
+      <div className="nn-panel flex h-full items-center justify-center overflow-hidden p-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-gray-300 text-lg">Loading WMD Systems...</p>
+          <div className="animate-spin mx-auto mb-4 h-14 w-14 rounded-none border-2 border-t-0 border-[color-mix(in_oklab,var(--nn-magenta)_45%,transparent)]"></div>
+          <p className="nn-lab">Loading WMD Systems...</p>
         </div>
       </div>
     );

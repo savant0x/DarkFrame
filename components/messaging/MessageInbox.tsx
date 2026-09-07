@@ -99,11 +99,11 @@ export default function MessageInbox({
           isLoading: false,
         }));
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading conversations:', error);
       setState(prev => ({
         ...prev,
-        error: error.message || 'Failed to load conversations',
+        error: error instanceof Error ? error.message : 'Failed to load conversations',
         isLoading: false,
       }));
     }
@@ -312,7 +312,7 @@ export default function MessageInbox({
                 >
                   <div className="flex items-start gap-3">
                     {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                    <div className="flex h-12 w-12 flex-none items-center justify-center rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] text-lg font-bold text-[color:var(--nn-cyan)]">
                       {otherParticipant.charAt(0).toUpperCase()}
                     </div>
 

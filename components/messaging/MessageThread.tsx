@@ -300,7 +300,7 @@ export default function MessageThread({
       <div className="p-4 border-b border-glass-border bg-glass-light">
         <div className="flex items-center gap-3">
           {/* Recipient Avatar */}
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] font-bold text-[color:var(--nn-cyan)]">
             {recipientUsername.charAt(0).toUpperCase()}
           </div>
 

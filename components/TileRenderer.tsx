@@ -339,6 +339,10 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           F2 uniformity fix: width = min(100%, calc(100dvh - 56px - 4rem)) on .nn-viewport-wrap,
           identical px on every terrain. Corner brackets + scanlines + status strip. */}
       <div className="nn-viewport">
+        <div className="nn-viewport__corner nn-viewport__corner--tl" />
+        <div className="nn-viewport__corner nn-viewport__corner--tr" />
+        <div className="nn-viewport__corner nn-viewport__corner--bl" />
+        <div className="nn-viewport__corner nn-viewport__corner--br" />
         <div className="nn-viewport__scanlines" />
         {/* Terrain Layer (Background) */}
         {!imageError && imagePath ? (

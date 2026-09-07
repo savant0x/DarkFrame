@@ -53,6 +53,62 @@
   padding-top: 56px;
 }
 
+/* Top tutorial progress banner (TutorialOverlay) — quiet glass strip in the
+   sample .nn-meter model: Inter label, violet signal, square meter. */
+.nn-banner {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 32px));
+  z-index: 40;
+  padding: 8px 16px 10px;
+  background: color-mix(in oklab, var(--nn-void) 88%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in oklab, var(--nn-violet) 22%, transparent);
+  border-top: 0;
+}
+.nn-banner__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.nn-banner__title {
+  font-family: var(--nn-font-body);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nn-violet);
+}
+.nn-banner__quest {
+  font-family: var(--nn-font-body);
+  font-size: 11px;
+  color: var(--nn-text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nn-banner__pct {
+  font-family: var(--nn-font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--nn-text-tertiary);
+  flex: none;
+}
+
+/* While the banner is mounted, clear it: the tile viewport drops below the
+   strip so its top edge + corner brackets stay visible. The banner is a
+   sibling of .nn-shell (page-level overlay), so the body-level :has() is
+   the self-contained selector — no state plumbing between TutorialOverlay
+   and the layout. */
+body:has(.nn-banner) .nn-viewport-wrap { margin-top: 88px; }
+
 /* Tutorial quest dock — fixed overlay against the right sidebar's inner
    edge, BOTTOM-pinned to mirror the chat panel on the left. */
 .nn-tutorial-dock {
@@ -537,6 +593,7 @@ span.nn-panel__icon > svg {
 /* composer send (sample): borderless cyan text button, left-rule divider */
 .nn-send {
   flex: none;
+  align-self: stretch; /* full composer height: text vertically centered */
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -767,7 +824,7 @@ span.nn-panel__icon > svg {
 .nn-viewport {
   position: relative;
   aspect-ratio: 1 / 1;
-  border-radius: var(--nn-radius, 10px);
+  border-radius: 0; /* HUD is squared — radius reads as card, not instrument */
   background: oklab(0.12 0.01 0 / 0.55);
   box-shadow:
     inset 0 0 0 1px color-mix(in oklab, var(--nn-cyan) 26%, transparent),
@@ -777,10 +834,8 @@ span.nn-panel__icon > svg {
   overflow: hidden;
 }
 
-/* corner brackets */
-.nn-viewport::before,
-.nn-viewport::after {
-  content: '';
+/* corner brackets — all four, per .nn-panel::before/::after framing model */
+.nn-viewport__corner {
   position: absolute;
   width: 26px;
   height: 26px;
@@ -789,8 +844,10 @@ span.nn-panel__icon > svg {
   border: 2px solid var(--nn-cyan);
   filter: drop-shadow(0 0 6px color-mix(in oklab, var(--nn-cyan) 70%, transparent));
 }
-.nn-viewport::before { top: 6px; left: 6px; border-right: 0; border-bottom: 0; border-top-left-radius: 6px; }
-.nn-viewport::after  { bottom: 6px; right: 6px; border-left: 0; border-top: 0; border-bottom-right-radius: 6px; }
+.nn-viewport__corner--tl { top: 6px; left: 6px; border-right: 0; border-bottom: 0; }
+.nn-viewport__corner--tr { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
+.nn-viewport__corner--bl { bottom: 6px; left: 6px; border-right: 0; border-top: 0; }
+.nn-viewport__corner--br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; }
 
 /* subtle scanline texture */
 .nn-viewport__scanlines {

@@ -228,7 +228,7 @@ export default function LeaderboardPage() {
         
         {/* Current Player Rank Card */}
         {leaderboardData?.currentPlayerData && (
-          <div className="bg-gradient-to-r from-blue-900/50 to-purple-900/50 border border-blue-500 rounded-lg p-4 mb-6">
+          <div className="nn-panel nn-panel--violet mb-6 p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-text-secondary mb-1">Your Rank</p>
