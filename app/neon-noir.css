@@ -1963,3 +1963,24 @@ span.nn-panel__icon > svg {
   margin: 0 -20px 18px;
   padding: 12px 20px;
 }
+
+/* ============ nn-brief — quiet sub-panel: hairline box + accent rail ============ */
+.nn-brief {
+  padding: 12px 14px;
+  background: oklch(0.13 0.03 265 / 0.55);
+  border: 1px solid color-mix(in oklab, var(--nn-rail, var(--nn-cyan)) 20%, transparent);
+  border-left: 2px solid var(--nn-rail, var(--nn-cyan));
+  border-radius: 0;
+}
+.nn-brief--amber  { --nn-rail: var(--nn-amber); }
+.nn-brief--cyan   { --nn-rail: var(--nn-cyan); }
+.nn-brief--green  { --nn-rail: var(--nn-green); }
+.nn-brief--violet { --nn-rail: var(--nn-violet); }
+.nn-brief strong, .nn-brief b {
+  font-family: var(--nn-font-display);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nn-rail, var(--nn-cyan));
+}
