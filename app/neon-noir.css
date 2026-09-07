@@ -778,7 +778,7 @@ span.nn-panel__icon > svg {
      no bright-then-dark snap, no mid-load re-grade. Drift runs independently. */
   opacity: 0;
   transition: opacity 700ms ease-out;
-  animation: nn-scene-drift 9s ease-in-out infinite alternate;
+  animation: nn-scene-drift 18s ease-in-out infinite alternate;
 }
 
 .nn-scene__image--ready { opacity: 0.35; }
