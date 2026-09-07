@@ -29,7 +29,7 @@ import WebSocketConsoleModal from '@/components/admin/WebSocketConsoleModal';
 import HotkeyManagerPanel from '@/components/HotkeyManagerPanel';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
-import { Users, Crown, CalendarClock, Coins } from 'lucide-react';
+import { Beer, Coins, Crown, Users, CalendarClock } from 'lucide-react';
 
 interface AdminStats {
   totalPlayers: number;
@@ -938,10 +938,10 @@ By Specialization:
       
       const data = await response.json();
       if (data.success) {
-        showSuccess(`✅ VIP granted to ${username} for ${days} days`);
+        showSuccess(`VIP granted to ${username} for ${days} days`);
         loadVipUsers(); // Refresh list
       } else {
-        showError(`❌ Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (error) {
       console.error('Error granting VIP:', error);
@@ -962,10 +962,10 @@ By Specialization:
       
       const data = await response.json();
       if (data.success) {
-        showSuccess(`✅ VIP revoked from ${username}`);
+        showSuccess(`VIP revoked from ${username}`);
         loadVipUsers(); // Refresh list
       } else {
-        showError(`❌ Error: ${data.error}`);
+        showError(`Error: ${data.error}`);
       }
     } catch (error) {
       console.error('Error revoking VIP:', error);
@@ -1010,7 +1010,7 @@ By Specialization:
   // Bulk RP Adjustment
   const handleRpBulkAdjustment = async () => {
     if (!rpBulkUsername || rpBulkAmount === 0 || !rpBulkReason) {
-      setRpBulkResult('❌ Please fill all fields');
+      setRpBulkResult('Please fill all fields');
       return;
     }
     
@@ -1032,17 +1032,17 @@ By Specialization:
       const data = await res.json();
       
       if (res.ok) {
-        setRpBulkResult(`✅ Success! ${rpBulkUsername} now has ${data.newBalance} RP`);
+        setRpBulkResult(`Success! ${rpBulkUsername} now has ${data.newBalance} RP`);
         setRpBulkUsername('');
         setRpBulkAmount(0);
         setRpBulkReason('');
         loadRpEconomyData(); // Refresh data
       } else {
-        setRpBulkResult(`❌ Error: ${data.message}`);
+        setRpBulkResult(`Error: ${data.message}`);
       }
       
     } catch (error) {
-      setRpBulkResult('❌ Failed to adjust RP');
+      setRpBulkResult('Failed to adjust RP');
       console.error('Bulk adjustment error:', error);
     } finally {
       setRpBulkLoading(false);
@@ -1068,10 +1068,10 @@ By Specialization:
     const sourceMap: Record<string, string> = {
       'harvest_milestone': '🌾 Harvest Milestone',
       'level_up': '⬆️ Level Up',
-      'battle': '⚔️ Battle',
-      'achievement': '🏆 Achievement',
-      'daily_login': '📅 Daily Login',
-      'admin_adjustment': '⚙️ Admin Adjustment'
+      'battle': 'Battle',
+      'achievement': 'Achievement',
+      'daily_login': 'Daily Login',
+      'admin_adjustment': 'Admin Adjustment'
     };
     return sourceMap[source] || source;
   };
@@ -1090,20 +1090,20 @@ By Specialization:
 
   if (!player || !isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-[color:var(--nn-text-primary)] flex items-center justify-center">
+      <div className="nn-shell min-h-screen text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <p>Access Denied - Admin Only</p>
       </div>
     );
   }
 
   return (
-    <div className={embedded ? "p-6" : "min-h-screen bg-gradient-to-b from-gray-900 to-black text-[color:var(--nn-text-primary)] p-8"}>
+    <div className={embedded ? "p-6" : "nn-shell min-h-screen text-[color:var(--nn-text-primary)] p-8"}>
       <div className="max-w-7xl mx-auto">
         {!embedded && <BackButton />}
 
         <div className="flex items-center justify-between mb-8 mt-4">
-          <h1 className="text-4xl font-bold text-[color:var(--nn-violet)]">⚙️ Admin Panel</h1>
-          <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+          <h1 className="nn-panel__title" style={{ fontSize: '1.5rem', letterSpacing: '0.25em' }}>ADMIN PANEL</h1>
+          <div className="nn-chip nn-chip--violet" style={{ padding: '0.375rem 1rem', fontSize: '0.75rem' }}>
             <p className="text-sm text-[color:var(--nn-violet)]">Admin: {player.username}</p>
           </div>
         </div>
@@ -1141,9 +1141,9 @@ By Specialization:
             {health.data.wmdAlerts.unacknowledged > 0 ? (
               <button
                 onClick={() => document.getElementById('admin-wmd-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                className="ml-auto bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] px-3 py-1 rounded-none text-[color:var(--nn-magenta)] transition-colors"
+                className="nn-abtn nn-abtn--danger px-3 py-1 text-xs ml-auto"
               >
-                ⚠ {health.data.wmdAlerts.unacknowledged} WMD alert{health.data.wmdAlerts.unacknowledged === 1 ? '' : 's'} — review
+                ALERT · {health.data.wmdAlerts.unacknowledged} WMD alert{health.data.wmdAlerts.unacknowledged === 1 ? '' : 's'} — review
               </button>
             ) : (
               <span className="ml-auto text-[color:var(--nn-green)]">WMD alerts clear</span>
@@ -1159,59 +1159,59 @@ By Specialization:
           <div className="space-y-6">
             {/* Game Statistics */}
             {stats && (
-              <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">📊 Game Statistics</h2>
+              <div className="nn-panel nn-panel--violet">
+                <h2 className="nn-panel__title mb-4">Game Statistics</h2>
                 <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-[color:var(--nn-void)] p-4 rounded-none">
+                  <div className="nn-tile">
                     <p className="text-[color:var(--nn-text-secondary)] text-sm">Total Players</p>
-                    <p className="text-3xl font-bold text-[color:var(--nn-cyan)]">{stats.totalPlayers}</p>
+                    <p className="nn-num text-xl font-bold text-[color:var(--nn-cyan)]">{stats.totalPlayers}</p>
                   </div>
-                  <div className="bg-[color:var(--nn-void)] p-4 rounded-none">
+                  <div className="nn-tile">
                     <p className="text-[color:var(--nn-text-secondary)] text-sm">Player Bases</p>
-                    <p className="text-3xl font-bold text-[color:var(--nn-green)]">{stats.totalBases}</p>
+                    <p className="nn-num text-xl font-bold text-[color:var(--nn-green)]">{stats.totalBases}</p>
                   </div>
-                  <div className="bg-[color:var(--nn-void)] p-4 rounded-none">
+                  <div className="nn-tile">
                     <p className="text-[color:var(--nn-text-secondary)] text-sm">Factories</p>
-                    <p className="text-3xl font-bold text-[color:var(--nn-magenta)]">{stats.totalFactories}</p>
+                    <p className="nn-num text-xl font-bold text-[color:var(--nn-magenta)]">{stats.totalFactories}</p>
                   </div>
-                  <div className="bg-[color:var(--nn-void)] p-4 rounded-none">
+                  <div className="nn-tile">
                     <p className="text-[color:var(--nn-text-secondary)] text-sm">Active Players (1h / 24h / 7d)</p>
-                    <p className="text-3xl font-bold text-[color:var(--nn-green)]">{(stats.activePlayers1h ?? 0)} / {stats.activePlayers24h} / {(stats.activePlayers7d ?? 0)}</p>
+                    <p className="nn-num text-xl font-bold text-[color:var(--nn-green)]">{(stats.activePlayers1h ?? 0)} / {stats.activePlayers24h} / {(stats.activePlayers7d ?? 0)}</p>
                   </div>
-                  <div className="bg-[color:var(--nn-void)] p-4 rounded-none">
+                  <div className="nn-tile">
                     <p className="text-[color:var(--nn-text-secondary)] text-sm">Active (24h)</p>
-                    <p className="text-3xl font-bold text-[color:var(--nn-amber)]">{stats.activePlayers24h}</p>
+                    <p className="nn-num text-xl font-bold text-[color:var(--nn-amber)]">{stats.activePlayers24h}</p>
                   </div>
                 </div>
 
                 <div className="mt-6">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-violet)] mb-3">Map Distribution</h3>
+                  <h3 className="nn-panel__title mb-3">Map Distribution</h3>
                   <div className="grid grid-cols-7 gap-2">
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Wasteland</p>
                       <p className="text-lg font-bold">{stats.mapStats.wastelands}</p>
                     </div>
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Metal</p>
                       <p className="text-lg font-bold text-[color:var(--nn-cyan)]">{stats.mapStats.metal}</p>
                     </div>
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Energy</p>
                       <p className="text-lg font-bold text-[color:var(--nn-amber)]">{stats.mapStats.energy}</p>
                     </div>
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Caves</p>
                       <p className="text-lg font-bold text-[color:var(--nn-amber)]">{stats.mapStats.caves}</p>
                     </div>
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Forests</p>
                       <p className="text-lg font-bold text-[color:var(--nn-green)]">{stats.mapStats.forests}</p>
                     </div>
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Banks</p>
                       <p className="text-lg font-bold text-[color:var(--nn-violet)]">{stats.mapStats.banks}</p>
                     </div>
-                    <div className="bg-[color:var(--nn-void)] p-3 rounded-none text-center">
+                    <div className="nn-tile p-3 text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Shrines</p>
                       <p className="text-lg font-bold text-[color:var(--nn-magenta)]">{stats.mapStats.shrines}</p>
                     </div>
@@ -1221,15 +1221,15 @@ By Specialization:
             )}
 
             {/* Player Management */}
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+            <div className="nn-panel nn-panel--violet">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">👥 Player Management</h2>
+                <h2 className="nn-panel__title">Player Management</h2>
                 <input
                   type="text"
                   placeholder="Search players..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-2 text-[color:var(--nn-text-primary)] focus:border-purple-500 focus:outline-none w-64"
+                  className="nn-input w-64"
                 />
               </div>
 
@@ -1258,7 +1258,7 @@ By Specialization:
                         <td className="px-4 py-3">
                           <button
                             onClick={() => setSelectedPlayer(p.username)}
-                            className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-1 rounded-none text-sm transition-colors"
+                            className="nn-abtn nn-abtn--violet"
                           >
                             View
                           </button>
@@ -1270,49 +1270,49 @@ By Specialization:
 
                 {filteredPlayers.length === 0 && (
                   <div className="text-center py-10">
-                    <Users className="w-10 h-10 mx-auto mb-2 text-text-tertiary" />
-                    <p className="text-text-secondary">No players found</p>
-                    <p className="text-sm text-text-tertiary mt-1">Try a different search or filter.</p>
+                    <Users className="w-10 h-10 mx-auto mb-2 nn-text-dim" />
+                    <p className="nn-text-dim">No players found</p>
+                    <p className="text-sm nn-text-dim mt-1">Try a different search or filter.</p>
                   </div>
                 )}
               </div>
             </div>
 
             {/* VIP Management */}
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
+            <div className="nn-panel nn-panel--amber">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">⚡ VIP Management</h2>
+                <h2 className="nn-panel__title">VIP Management</h2>
                 <div className="flex gap-2 items-center">
                   <input
                     type="text"
                     placeholder="Search users..."
                     value={vipSearchTerm}
                     onChange={(e) => setVipSearchTerm(e.target.value)}
-                    className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-2 text-[color:var(--nn-text-primary)] focus:border-yellow-500 focus:outline-none w-64"
+                    className="nn-input w-64"
                   />
                   <button
                     onClick={loadVipUsers}
                     disabled={vipLoading}
-                    className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold transition-colors"
+                    className="nn-abtn nn-abtn--amber px-6 py-2.5"
                   >
-                    {vipLoading ? '⟳' : '🔄'} Refresh
+                    {vipLoading ? 'LOADING' : 'REFRESH'}
                   </button>
                 </div>
               </div>
 
               {/* Stats Cards */}
               <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="bg-[color:var(--nn-void)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
+                <div className="nn-tile border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
                   <p className="text-sm text-[color:var(--nn-text-secondary)]">Total Users</p>
-                  <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{vipUsers.length}</p>
+                  <p className="nn-num text-lg font-bold text-[color:var(--nn-cyan)]">{vipUsers.length}</p>
                 </div>
-                <div className="bg-[color:var(--nn-void)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
+                <div className="nn-tile border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
                   <p className="text-sm text-[color:var(--nn-text-secondary)]">VIP Users</p>
-                  <p className="text-2xl font-bold text-[color:var(--nn-amber)]">{vipCount}</p>
+                  <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">{vipCount}</p>
                 </div>
-                <div className="bg-[color:var(--nn-void)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+                <div className="nn-tile border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
                   <p className="text-sm text-[color:var(--nn-text-secondary)]">Basic Users</p>
-                  <p className="text-2xl font-bold text-[color:var(--nn-violet)]">{basicCount}</p>
+                  <p className="nn-num text-lg font-bold text-[color:var(--nn-violet)]">{basicCount}</p>
                 </div>
               </div>
 
@@ -1320,31 +1320,19 @@ By Specialization:
               <div className="flex gap-2 mb-4">
                 <button
                   onClick={() => setVipFilter('all')}
-                  className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                    vipFilter === 'all'
-                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-                  }`}
+                  className={`nn-tabchip ${vipFilter === 'all' ? 'nn-tabchip--on' : ''}`}
                 >
                   All Users
                 </button>
                 <button
                   onClick={() => setVipFilter('vip')}
-                  className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                    vipFilter === 'vip'
-                      ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-                  }`}
+                  className={`nn-tabchip ${vipFilter === 'vip' ? 'nn-tabchip--on' : ''}`}
                 >
                   VIP Only
                 </button>
                 <button
                   onClick={() => setVipFilter('basic')}
-                  className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                    vipFilter === 'basic'
-                      ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-                  }`}
+                  className={`nn-tabchip ${vipFilter === 'basic' ? 'nn-tabchip--on' : ''}`}
                 >
                   Basic Only
                 </button>
@@ -1369,11 +1357,11 @@ By Specialization:
                         <td className="px-4 py-3 text-[color:var(--nn-text-secondary)] text-sm">{user.email || 'N/A'}</td>
                         <td className="px-4 py-3">
                           {user.vip ? (
-                            <span className="inline-block bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)] px-3 py-1 rounded-full text-xs font-bold">
-                              ⚡ VIP
+                            <span className="nn-chip nn-chip--amber">
+                              VIP
                             </span>
                           ) : (
-                            <span className="inline-block bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-1 rounded-full text-xs font-bold">
+                            <span className="nn-chip">
                               BASIC
                             </span>
                           )}
@@ -1418,7 +1406,7 @@ By Specialization:
                             ) : (
                               <button
                                 onClick={() => handleRevokeVip(user.username)}
-                                className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs rounded-none transition-colors"
+                                className="nn-abtn nn-abtn--magenta"
                               >
                                 Revoke
                               </button>
@@ -1431,9 +1419,9 @@ By Specialization:
                     {filteredVipUsers.length === 0 && (
                       <tr>
                         <td colSpan={5} className="px-4 py-10 text-center">
-                          <Crown className="w-10 h-10 mx-auto mb-2 text-text-tertiary" />
-                          <p className="text-text-secondary">No users found</p>
-                          <p className="text-sm text-text-tertiary mt-1">VIP grants will appear here.</p>
+                          <Crown className="w-10 h-10 mx-auto mb-2 nn-text-dim" />
+                          <p className="nn-text-dim">No users found</p>
+                          <p className="text-sm nn-text-dim mt-1">VIP grants will appear here.</p>
                         </td>
                       </tr>
                     )}
@@ -1443,48 +1431,36 @@ By Specialization:
             </div>
 
             {/* Analytics Dashboard */}
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
+            <div className="nn-panel">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)]">📊 Analytics Dashboard</h2>
+                <h2 className="nn-panel__title">Analytics Dashboard</h2>
                 
                 {/* Period Selector */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setAnalyticsPeriod('24h')}
-                    className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                      analyticsPeriod === '24h'
-                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                        : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-                    }`}
+                    className={`nn-tabchip ${analyticsPeriod === '24h' ? 'nn-tabchip--on' : ''}`}
                   >
                     24 Hours
                   </button>
                   <button
                     onClick={() => setAnalyticsPeriod('7d')}
-                    className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                      analyticsPeriod === '7d'
-                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                        : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-                    }`}
+                    className={`nn-tabchip ${analyticsPeriod === '7d' ? 'nn-tabchip--on' : ''}`}
                   >
                     7 Days
                   </button>
                   <button
                     onClick={() => setAnalyticsPeriod('30d')}
-                    className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                      analyticsPeriod === '30d'
-                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                        : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-                    }`}
+                    className={`nn-tabchip ${analyticsPeriod === '30d' ? 'nn-tabchip--on' : ''}`}
                   >
                     30 Days
                   </button>
                   <button
                     onClick={loadAnalyticsData}
                     disabled={analyticsLoading}
-                    className="px-4 py-2 rounded-none font-semibold bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:opacity-50 transition-colors"
+                    className="nn-abtn nn-abtn--cyan px-6 py-2.5 disabled:opacity-40"
                   >
-                    {analyticsLoading ? '⟳' : '🔄'} Refresh
+                    {analyticsLoading ? 'LOADING' : 'REFRESH'}
                   </button>
                 </div>
               </div>
@@ -1493,7 +1469,7 @@ By Specialization:
               <div className="grid grid-cols-2 gap-6">
                 {/* Activity Timeline */}
                 <div>
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Player Activity Trends</h3>
+                  <h3 className="nn-panel__title mb-2">Player Activity Trends</h3>
                   <ActivityTimeline 
                     data={activityData}
                     period={analyticsPeriod}
@@ -1504,7 +1480,7 @@ By Specialization:
 
                 {/* Resource Gains */}
                 <div>
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Resource Accumulation</h3>
+                  <h3 className="nn-panel__title mb-2">Resource Accumulation</h3>
                   <ResourceGains 
                     data={resourceData}
                     period={analyticsPeriod}
@@ -1515,7 +1491,7 @@ By Specialization:
 
                 {/* Session Distribution */}
                 <div>
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Session Duration Distribution</h3>
+                  <h3 className="nn-panel__title mb-2">Session Duration Distribution</h3>
                   <SessionDistribution 
                     buckets={sessionData?.buckets || []}
                     period={analyticsPeriod}
@@ -1526,7 +1502,7 @@ By Specialization:
 
                 {/* Flag Breakdown */}
                 <div>
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Anti-Cheat Flag Severity</h3>
+                  <h3 className="nn-panel__title mb-2">Anti-Cheat Flag Severity</h3>
                   <FlagBreakdown 
                     data={flagData}
                     totalFlagged={flagData.reduce((sum, f) => sum + f.count, 0)}
@@ -1537,7 +1513,7 @@ By Specialization:
 
                 {/* Bot Population */}
                 <div className="col-span-2">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-text-secondary)] mb-2">Bot Population by Specialization</h3>
+                  <h3 className="nn-panel__title mb-2">Bot Population by Specialization</h3>
                   <BotPopulationTrends 
                     currentStats={botStats ?? { total: 0, bySpecialization: { Hoarder: 0, Fortress: 0, Raider: 0, Balanced: 0, Ghost: 0 } }}
                     loading={!botStats}
@@ -1548,8 +1524,8 @@ By Specialization:
             </div>
 
             {/* Database Tools */}
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-              <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">🛠️ Database Tools</h2>
+            <div className="nn-panel nn-panel--violet">
+              <h2 className="nn-panel__title mb-4">Database Tools</h2>
               <div className="grid grid-cols-3 gap-4">
                 <button 
                   onClick={async () => {
@@ -1571,7 +1547,7 @@ By Specialization:
                   onClick={() => setShowTileInspector(true)}
                   className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
                 >
-                  📊 View Tiles
+                  View Tiles
                 </button>
                 <button className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
                   onClick={() => setShowFactoryInspector(true)}
@@ -1591,67 +1567,67 @@ By Specialization:
                 <button className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-4 rounded-none font-semibold transition-colors"
                   onClick={() => setShowSystemReset(true)}
                 >
-                  🔄 Reset Systems
+                  Reset Systems
                 </button>
               </div>
             </div>
 
             {/* Bot System Controls */}
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-              <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)] mb-4">🤖 Bot Ecosystem Controls</h2>
+            <div className="nn-panel">
+              <h2 className="nn-panel__title mb-4">Bot Ecosystem Controls</h2>
               
               <div className="space-y-6">
                 {/* Bot Statistics */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-3">Bot Population</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">Bot Population</h3>
                   <div className="grid grid-cols-5 gap-3">
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Bots</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{botStats?.total || 0}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-cyan)]">{botStats?.total || 0}</p>
                     </div>
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Hoarders</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-amber)]">{botStats?.bySpecialization?.Hoarder || 0}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">{botStats?.bySpecialization?.Hoarder || 0}</p>
                     </div>
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Fortresses</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{botStats?.bySpecialization?.Fortress || 0}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-cyan)]">{botStats?.bySpecialization?.Fortress || 0}</p>
                     </div>
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Raiders</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-magenta)]">{botStats?.bySpecialization?.Raider || 0}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-magenta)]">{botStats?.bySpecialization?.Raider || 0}</p>
                     </div>
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                       <p className="text-xs text-[color:var(--nn-text-secondary)]">Ghosts</p>
-                      <p className="text-2xl font-bold text-[color:var(--nn-violet)]">{botStats?.bySpecialization?.Ghost || 0}</p>
+                      <p className="nn-num text-lg font-bold text-[color:var(--nn-violet)]">{botStats?.bySpecialization?.Ghost || 0}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Quick Actions */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-3">Quick Actions</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">Quick Actions</h3>
                   <div className="grid grid-cols-3 gap-3">
                     <button 
                       onClick={handleSpawn10Bots}
                       disabled={botActionLoading}
                       className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-4 py-3 rounded-none font-semibold transition-colors text-sm"
                     >
-                      ➕ Spawn 10 Bots
+                      Spawn 10 Bots
                     </button>
                     <button 
                       onClick={handleRunRegen}
                       disabled={botActionLoading}
                       className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-4 py-3 rounded-none font-semibold transition-colors text-sm"
                     >
-                      🔄 Run Regen Cycle
+                      Run Regen Cycle
                     </button>
                     <button 
                       onClick={handleBotAnalytics}
                       disabled={botActionLoading}
                       className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-4 py-3 rounded-none font-semibold transition-colors text-sm"
                     >
-                      📊 Bot Analytics
+                      Bot Analytics
                     </button>
                   </div>
                   <div className="grid grid-cols-5 gap-3 mt-3">
@@ -1683,14 +1659,14 @@ By Specialization:
                       onClick={() => setShowSystemReset(true)}
                       className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-3 rounded-none font-semibold transition-colors text-sm"
                     >
-                      ⚠️ System Reset
+                      System Reset
                     </button>
                   </div>
                 </div>
 
                 {/* System Configuration */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-3">System Configuration</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">System Configuration</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm text-[color:var(--nn-text-secondary)]">Total Bot Cap</label>
@@ -1726,13 +1702,13 @@ By Specialization:
                     disabled={botActionLoading}
                     className="mt-4 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-6 py-2 rounded-none font-semibold transition-colors w-full"
                   >
-                    💾 Save Configuration
+                    Save Configuration
                   </button>
                 </div>
 
                 {/* Resource Regeneration Rates */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-3">Regeneration Rates (% per hour)</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">Regeneration Rates (% per hour)</h3>
                   <div className="grid grid-cols-5 gap-3">
                     <div className="space-y-2">
                       <label className="text-xs text-[color:var(--nn-amber)]">Hoarder</label>
@@ -1803,10 +1779,10 @@ By Specialization:
                 </div>
 
                 {/* Beer Base Smart Spawning */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4 border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
+                <div className="nn-panel nn-panel--amber p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-lg font-semibold text-[color:var(--nn-amber)] flex items-center gap-2">
-                      <span>🍺</span>
+                    <h3 className="nn-panel__title flex items-center gap-2">
+                      <Beer className="w-4 h-4" />
                       <span>Beer Base Smart Spawning</span>
                       <span className="text-xs bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] px-2 py-1 rounded-none">AUTO</span>
                     </h3>
@@ -1819,7 +1795,7 @@ By Specialization:
                   
                   <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3 mb-4">
                     <p className="text-xs text-[color:var(--nn-amber)]">
-                      🤖 <strong>Smart System Active:</strong> Beer Bases automatically spawn based on player levels. 
+                      <strong>Smart System Active:</strong> Beer Bases automatically spawn based on player levels. 
                       System analyzes active players and spawns appropriate difficulty targets.
                     </p>
                   </div>
@@ -1835,8 +1811,8 @@ By Specialization:
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, enabled: e.target.value === 'true'})}
                         className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)]"
                       >
-                        <option value="true">✅ Enabled</option>
-                        <option value="false">❌ Disabled</option>
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
                       </select>
                     </div>
                     <div className="space-y-2">
@@ -1922,8 +1898,8 @@ By Specialization:
                         onChange={(e) => setBeerBaseConfig({...beerBaseConfig, varietyEnabled: e.target.value === 'true'})}
                         className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-2 py-1 text-[color:var(--nn-text-primary)] text-xs"
                       >
-                        <option value="true">✅ Enabled</option>
-                        <option value="false">❌ Disabled</option>
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
                       </select>
                     </div>
                     
@@ -2003,7 +1979,7 @@ By Specialization:
                   <div className="mt-4 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="text-sm font-semibold text-[color:var(--nn-cyan)] flex items-center gap-2">
-                        📅 Dynamic Respawn Schedules
+                        Dynamic Respawn Schedules
                         <span className="text-xs text-[color:var(--nn-text-secondary)]">(Multiple respawn times)</span>
                       </h4>
                       <select 
@@ -2012,7 +1988,7 @@ By Specialization:
                         className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-2 py-1 text-[color:var(--nn-text-primary)] text-xs"
                       >
                         <option value="false">🕐 Legacy Single Schedule</option>
-                        <option value="true">✅ Dynamic Schedules</option>
+                        <option value="true">Dynamic Schedules</option>
                       </select>
                     </div>
                     
@@ -2027,9 +2003,9 @@ By Specialization:
                           <div className="text-center py-4 text-[color:var(--nn-text-secondary)]">Loading schedules...</div>
                         ) : schedules.length === 0 ? (
                           <div className="rounded-none p-4 text-center bg-glass-light">
-                            <CalendarClock className="w-8 h-8 mx-auto mb-2 text-text-tertiary" />
-                            <p className="text-text-secondary text-sm">No schedules configured</p>
-                            <p className="text-text-tertiary text-xs mt-1">Click &quot;Add Schedule&quot; to create one.</p>
+                            <CalendarClock className="w-8 h-8 mx-auto mb-2 nn-text-dim" />
+                            <p className="nn-text-dim text-sm">No schedules configured</p>
+                            <p className="nn-text-dim text-xs mt-1">Click &quot;Add Schedule&quot; to create one.</p>
                           </div>
                         ) : (
                           <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -2046,9 +2022,9 @@ By Specialization:
                                   <div className="flex items-center gap-3">
                                     <button
                                       onClick={() => handleToggleSchedule(schedule)}
-                                      className={`w-12 h-6 rounded-full transition-colors ${schedule.enabled ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'}`}
+                                      className={`nn-switch ${schedule.enabled ? 'nn-switch--on' : ''}`}
                                     >
-                                      <div className={`w-5 h-5 bg-[color:var(--nn-text-primary)] rounded-full transition-transform ${schedule.enabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                                      <div className="nn-switch__knob" />
                                     </button>
                                     <div className="flex-1">
                                       <div className="text-sm text-[color:var(--nn-text-primary)] font-medium">
@@ -2062,13 +2038,13 @@ By Specialization:
                                   <div className="flex gap-2">
                                     <button
                                       onClick={() => handleEditSchedule(schedule)}
-                                      className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs rounded-none"
+                                      className="nn-abtn nn-abtn--cyan"
                                     >
                                       Edit
                                     </button>
                                     <button
                                       onClick={() => handleDeleteSchedule(schedule.id)}
-                                      className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs rounded-none"
+                                      className="nn-abtn nn-abtn--magenta"
                                     >
                                       Delete
                                     </button>
@@ -2094,7 +2070,7 @@ By Specialization:
                           }}
                           className="mt-3 w-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none text-sm font-semibold"
                         >
-                          ➕ Add Schedule
+                          Add Schedule
                         </button>
                       </>
                     ) : (
@@ -2110,14 +2086,14 @@ By Specialization:
                       disabled={beerBaseLoading}
                       className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-6 py-2 rounded-none font-semibold transition-colors"
                     >
-                      💾 Save Beer Base Config
+                      Save Beer Base Config
                     </button>
                     <button 
                       onClick={handleRespawnBeerBases}
                       disabled={beerBaseLoading}
                       className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-6 py-2 rounded-none font-semibold transition-colors"
                     >
-                      🍺 Manual Respawn Now
+                      Manual Respawn Now
                     </button>
                   </div>
 
@@ -2139,8 +2115,8 @@ By Specialization:
                     className="w-full p-3 text-left bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] transition-colors flex items-center justify-between rounded-none"
                   >
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-cyan)]">
-                        📊 Beer Base Analytics Dashboard
+                      <h4 className="nn-panel__title">
+                        Beer Base Analytics Dashboard
                       </h4>
                       <span className="text-xs text-[color:var(--nn-text-secondary)]">(365-day retention)</span>
                     </div>
@@ -2156,10 +2132,8 @@ By Specialization:
                             <button
                               key={period}
                               onClick={() => setBeerAnalyticsPeriod(period)}
-                              className={`px-3 py-1 rounded-none text-xs font-semibold transition-colors ${
-                                beerAnalyticsPeriod === period
-                                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                                  : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
+                              className={`nn-tabchip ${
+                                beerAnalyticsPeriod === period ? 'nn-tabchip--on' : ''
                               }`}
                             >
                               {period.toUpperCase()}
@@ -2170,9 +2144,9 @@ By Specialization:
                           <button
                             onClick={loadBeerBaseAnalytics}
                             disabled={beerAnalyticsLoading}
-                            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                            className="nn-abtn nn-abtn--ghost text-xs"
                           >
-                            {beerAnalyticsLoading ? '⟳' : '🔄'} Refresh
+                            {beerAnalyticsLoading ? 'LOADING' : 'REFRESH'}
                           </button>
                           <button
                             onClick={async () => {
@@ -2188,7 +2162,7 @@ By Specialization:
                                 '_blank'
                               );
                             }}
-                            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                            className="nn-abtn nn-abtn--green"
                           >
                             📥 Export CSV
                           </button>
@@ -2199,7 +2173,7 @@ By Specialization:
                         <div className="text-center py-8 text-[color:var(--nn-text-secondary)]">Loading analytics...</div>
                       ) : beerAnalyticsError ? (
                         <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 text-[color:var(--nn-magenta)]">
-                          ❌ Error: {beerAnalyticsError}
+                          Error: {beerAnalyticsError}
                         </div>
                       ) : (
                         <>
@@ -2207,7 +2181,7 @@ By Specialization:
                           <div className="grid grid-cols-4 gap-3">
                             <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
                               <div className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Total Spawns</div>
-                              <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
+                              <div className="nn-num text-lg font-bold text-[color:var(--nn-cyan)]">
                                 {beerSpawnStats?.dailySpawns?.reduce((sum, d) => sum + d.count, 0) || 0}
                               </div>
                               <div className="text-xs text-[color:var(--nn-text-secondary)]">
@@ -2216,7 +2190,7 @@ By Specialization:
                             </div>
                             <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
                               <div className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Total Defeats</div>
-                              <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">
+                              <div className="nn-num text-lg font-bold text-[color:var(--nn-magenta)]">
                                 {beerDefeatStats?.dailyDefeats?.reduce((sum, d) => sum + d.count, 0) || 0}
                               </div>
                               <div className="text-xs text-[color:var(--nn-text-secondary)]">
@@ -2225,7 +2199,7 @@ By Specialization:
                             </div>
                             <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">
                               <div className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Defeat Rate</div>
-                              <div className="text-2xl font-bold text-[color:var(--nn-amber)]">
+                              <div className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">
                                 {beerEffectivenessStats?.defeatRate 
                                   ? `${(beerEffectivenessStats.defeatRate * 100).toFixed(1)}%`
                                   : '0%'}
@@ -2236,7 +2210,7 @@ By Specialization:
                             </div>
                             <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
                               <div className="text-xs text-[color:var(--nn-text-secondary)] mb-1">Avg Lifespan</div>
-                              <div className="text-2xl font-bold text-[color:var(--nn-violet)]">
+                              <div className="nn-num text-lg font-bold text-[color:var(--nn-violet)]">
                                 {beerEffectivenessStats?.avgLifespanByTier?.[0]?.avgLifespanHours
                                   ? `${(beerEffectivenessStats.avgLifespanByTier.reduce((sum, t) => sum + (t.avgLifespanHours || 0), 0) / beerEffectivenessStats.avgLifespanByTier.length).toFixed(1)}h`
                                   : '0h'}
@@ -2247,7 +2221,7 @@ By Specialization:
 
                           {/* Tier Distribution */}
                           <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                            <h5 className="text-sm font-semibold text-[color:var(--nn-cyan)] mb-3">🎯 Spawn Distribution by Tier</h5>
+                            <h5 className="nn-panel__title mb-3">🎯 Spawn Distribution by Tier</h5>
                             <div className="space-y-2">
                               {beerSpawnStats?.tierDistribution?.map((tier) => {
                                 const percentage = (tier.count / (beerSpawnStats?.dailySpawns?.reduce((sum, d) => sum + d.count, 0) || 1)) * 100;
@@ -2257,7 +2231,7 @@ By Specialization:
                                 return (
                                   <div key={tier.tier} className="flex items-center gap-3">
                                     <div className="w-24 text-xs text-[color:var(--nn-text-secondary)]">{tierNames[tier.tier]}</div>
-                                    <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-6 overflow-hidden">
+                                    <div className="nn-meter flex-1">
                                       <div 
                                         className={`${tierColors[tier.tier]} h-full flex items-center justify-center text-xs font-bold text-[color:var(--nn-text-primary)] transition-all`}
                                         style={{ width: `${percentage}%` }}
@@ -2274,7 +2248,7 @@ By Specialization:
 
                           {/* Defeat Stats by Tier */}
                           <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                            <h5 className="text-sm font-semibold text-[color:var(--nn-magenta)] mb-3">⚔️ Defeats by Tier</h5>
+                            <h5 className="nn-panel__title mb-3">Defeats by Tier</h5>
                             <div className="space-y-2">
                               {beerDefeatStats?.defeatsByTier?.map((tier) => {
                                 const tierNames = ['WEAK', 'MEDIUM', 'STRONG', 'ELITE', 'ULTRA', 'LEGENDARY'];
@@ -2294,7 +2268,7 @@ By Specialization:
 
                           {/* Top Players */}
                           <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                            <h5 className="text-sm font-semibold text-[color:var(--nn-amber)] mb-3">🏆 Top Beer Base Hunters</h5>
+                            <h5 className="nn-panel__title mb-3">Top Beer Base Hunters</h5>
                             <div className="space-y-2">
                               {beerDefeatStats?.topPlayers?.slice(0, 10).map((player, index) => (
                                 <div key={player.username} className="flex items-center justify-between bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none px-3 py-2">
@@ -2312,7 +2286,7 @@ By Specialization:
                                       {player.totalRewards.metal.toLocaleString()} 🔩
                                     </span>
                                     <span className="text-[color:var(--nn-amber)]">
-                                      {player.totalRewards.energy.toLocaleString()} ⚡
+                                      {player.totalRewards.energy.toLocaleString()}
                                     </span>
                                   </div>
                                 </div>
@@ -2322,7 +2296,7 @@ By Specialization:
 
                           {/* Effectiveness Metrics */}
                           <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                            <h5 className="text-sm font-semibold text-[color:var(--nn-violet)] mb-3">📈 Effectiveness Metrics</h5>
+                            <h5 className="nn-panel__title mb-3">Effectiveness Metrics</h5>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <div className="text-xs text-[color:var(--nn-text-secondary)] mb-2">Average Lifespan by Tier</div>
@@ -2359,7 +2333,7 @@ By Specialization:
                           {/* Spawn Sources */}
                           {beerSpawnStats?.spawnSources && (
                             <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                              <h5 className="text-sm font-semibold text-[color:var(--nn-green)] mb-3">🎲 Spawn Sources</h5>
+                              <h5 className="nn-panel__title mb-3">🎲 Spawn Sources</h5>
                               <div className="flex gap-4">
                                 {beerSpawnStats.spawnSources.map((source) => (
                                   <div key={source.source} className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none p-3 text-center">
@@ -2388,8 +2362,8 @@ By Specialization:
                     className="w-full p-3 text-left bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] transition-colors flex items-center justify-between rounded-none"
                   >
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-green)]">
-                        🔮 Predictive Spawning
+                      <h4 className="nn-panel__title">
+                        Predictive Spawning
                       </h4>
                       <span className="text-xs text-[color:var(--nn-text-secondary)]">(Historical data forecasting)</span>
                     </div>
@@ -2415,8 +2389,8 @@ By Specialization:
                             })}
                             className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)] text-sm"
                           >
-                            <option value="false">📊 Current Player Levels</option>
-                            <option value="true">🔮 Predictive (Forecast)</option>
+                            <option value="false">Current Player Levels</option>
+                            <option value="true">Predictive (Forecast)</option>
                           </select>
                         </div>
                         
@@ -2448,7 +2422,7 @@ By Specialization:
                           : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'
                       }`}>
                         <div className="flex items-center gap-2">
-                          <span className="text-2xl">{beerBaseConfig.usePredictiveSpawning ? '🔮' : '📊'}</span>
+                          <span className='nn-panel__title'>{beerBaseConfig.usePredictiveSpawning ? 'PREDICTIVE' : 'DISTRIBUTED'}</span>
                           <div>
                             <div className="text-sm font-bold text-[color:var(--nn-text-primary)]">
                               {beerBaseConfig.usePredictiveSpawning ? 'PREDICTIVE MODE ACTIVE' : 'CURRENT MODE ACTIVE'}
@@ -2464,7 +2438,7 @@ By Specialization:
 
                       {/* Distribution Comparison */}
                       <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4">
-                        <h5 className="text-sm font-semibold text-[color:var(--nn-green)] mb-3">📊 Distribution Comparison</h5>
+                        <h5 className="nn-panel__title mb-3">Distribution Comparison</h5>
                         <p className="text-xs text-[color:var(--nn-text-secondary)] mb-3">
                           Compare current vs predicted tier distributions. Predictive mode helps maintain challenge as players progress.
                         </p>
@@ -2515,9 +2489,9 @@ By Specialization:
                               });
                               const data = await res.json();
                               if (data.success) {
-                                showSuccess(`✅ Predictions recalculated!\n\nProjected ${data.playerCount} players over ${data.weeksAhead} weeks.\nNew distribution: ${JSON.stringify(data.distribution, null, 2)}`);
+                                showSuccess(`Predictions recalculated!\n\nProjected ${data.playerCount} players over ${data.weeksAhead} weeks.\nNew distribution: ${JSON.stringify(data.distribution, null, 2)}`);
                               } else {
-                                showError(`❌ Error: ${data.error}`);
+                                showError(`Error: ${data.error}`);
                               }
                             } catch (err) {
                               console.error('Recalculation error:', err);
@@ -2529,11 +2503,11 @@ By Specialization:
                           disabled={beerBaseLoading}
                           className="flex-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] disabled:cursor-not-allowed text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold text-sm transition-colors"
                         >
-                          {beerBaseLoading ? '⏳ Calculating...' : '🔄 Recalculate Predictions'}
+                          {beerBaseLoading ? 'CALCULATING' : 'RECALCULATE PREDICTIONS'}
                         </button>
                         <button
                           onClick={() => {
-                            showInfo('🔮 Predictive Spawning Details:\n\n' +
+                            showInfo('Predictive Spawning Details:\n\n' +
                               '1. ALGORITHM: Linear regression on 365 days of player snapshots\n' +
                               '2. PROJECTION: Forecasts player levels N weeks ahead\n' +
                               '3. TIER MAPPING: Projected levels → Power tier distribution\n' +
@@ -2542,7 +2516,7 @@ By Specialization:
                               'Use Case: Prevent "too easy" spawns as playerbase advances rapidly'
                             );
                           }}
-                          className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold text-sm transition-colors"
+                          className="nn-abtn nn-abtn--ghost text-xs"
                         >
                           ℹ️ How It Works
                         </button>
@@ -2551,7 +2525,7 @@ By Specialization:
                       {/* Implementation Status */}
                       <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3">
                         <div className="flex items-start gap-2">
-                          <span className="text-lg">⚠️</span>
+                          <span className="nn-panel__title">ALERT</span>
                           <div className="text-xs text-[color:var(--nn-amber)]">
                             <strong>Implementation Status:</strong> Backend integration complete. 
                             API endpoints /api/admin/beer-bases/predictive-comparison and 
@@ -2565,8 +2539,8 @@ By Specialization:
                 </div>
 
                 {/* Tech System Costs */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-3">Tech System Costs & Cooldowns</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">Tech System Costs & Cooldowns</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm text-[color:var(--nn-text-secondary)]">Bot Magnet Cost (Metal)</label>
@@ -2604,8 +2578,8 @@ By Specialization:
                 </div>
 
                 {/* Phase-Out System */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-cyan)] mb-3">Phase-Out System</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">Phase-Out System</h3>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <label className="text-sm text-[color:var(--nn-text-secondary)]">Enabled</label>
@@ -2636,9 +2610,9 @@ By Specialization:
             </div>
 
             {/* WMD System Oversight */}
-            <div id="admin-wmd-section" className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
+            <div id="admin-wmd-section" className="nn-panel nn-panel--magenta">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-magenta)]">☢️ WMD System Oversight</h2>
+                <h2 className="nn-panel__title">WMD System Oversight</h2>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-[color:var(--nn-text-secondary)]">Time Range:</span>
                   <select 
@@ -2656,33 +2630,33 @@ By Specialization:
               <div className="space-y-6">
                 {/* System Health Status */}
                 {wmdStatus && (
-                  <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                    <h3 className="text-lg font-semibold text-[color:var(--nn-magenta)] mb-3">System Health</h3>
+                  <div className="nn-tile">
+                    <h3 className="nn-panel__title mb-3">System Health</h3>
                     <div className="grid grid-cols-4 gap-3">
                       <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                         <p className="text-xs text-[color:var(--nn-text-secondary)]">Active Operations</p>
-                        <p className="text-2xl font-bold text-[color:var(--nn-magenta)]">
+                        <p className="nn-num text-lg font-bold text-[color:var(--nn-magenta)]">
                           {wmdStatus.activeOperations?.missiles || 0}
                         </p>
                         <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Missiles</p>
                       </div>
                       <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                         <p className="text-xs text-[color:var(--nn-text-secondary)]">Active Votes</p>
-                        <p className="text-2xl font-bold text-[color:var(--nn-amber)]">
+                        <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">
                           {wmdStatus.activeOperations?.votes || 0}
                         </p>
                         <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Pending</p>
                       </div>
                       <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                         <p className="text-xs text-[color:var(--nn-text-secondary)]">Scheduled Jobs</p>
-                        <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">
+                        <p className="nn-num text-lg font-bold text-[color:var(--nn-cyan)]">
                           {wmdStatus.jobs?.scheduled || 0}
                         </p>
                         <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Queue</p>
                       </div>
                       <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none text-center">
                         <p className="text-xs text-[color:var(--nn-text-secondary)]">System Alerts</p>
-                        <p className={`text-2xl font-bold ${(wmdStatus.alerts?.length || 0) > 0 ? 'text-[color:var(--nn-magenta)]' : 'text-[color:var(--nn-green)]'}`}>
+                        <p className={`nn-num text-lg font-bold ${(wmdStatus.alerts?.length || 0) > 0 ? 'text-[color:var(--nn-magenta)]' : 'text-[color:var(--nn-green)]'}`}>
                           {wmdStatus.alerts?.length || 0}
                         </p>
                         <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Active</p>
@@ -2692,7 +2666,7 @@ By Specialization:
                     {/* Active Alerts */}
                     {wmdStatus.alerts && wmdStatus.alerts.length > 0 && (
                       <div className="mt-4 space-y-2">
-                        <h4 className="text-sm font-semibold text-[color:var(--nn-magenta)]">⚠️ Active Alerts</h4>
+                        <h4 className="nn-panel__title">Active Alerts</h4>
                         {wmdStatus.alerts.map((alert, idx) => (
                           <div key={idx} className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
                             <div className="flex items-start justify-between">
@@ -2717,12 +2691,12 @@ By Specialization:
 
                 {/* Analytics Summary */}
                 {wmdAnalytics && (
-                  <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                    <h3 className="text-lg font-semibold text-[color:var(--nn-magenta)] mb-3">Analytics Summary</h3>
+                  <div className="nn-tile">
+                    <h3 className="nn-panel__title mb-3">Analytics Summary</h3>
                     
                     {/* Missile Statistics */}
                     <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-amber)] mb-2">🚀 Missile Operations</h4>
+                      <h4 className="nn-panel__title mb-2">🚀 Missile Operations</h4>
                       <div className="grid grid-cols-5 gap-3">
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-2 rounded-none text-center">
                           <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Launched</p>
@@ -2761,7 +2735,7 @@ By Specialization:
 
                     {/* Voting Statistics */}
                     <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-amber)] mb-2">🗳️ Voting Patterns</h4>
+                      <h4 className="nn-panel__title mb-2">🗳️ Voting Patterns</h4>
                       <div className="grid grid-cols-4 gap-3">
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-2 rounded-none text-center">
                           <p className="text-xs text-[color:var(--nn-text-secondary)]">Total Votes</p>
@@ -2794,7 +2768,7 @@ By Specialization:
                     {/* Defense & Economic Stats */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <h4 className="text-sm font-semibold text-[color:var(--nn-cyan)] mb-2">🛡️ Defense Operations</h4>
+                        <h4 className="nn-panel__title mb-2">🛡️ Defense Operations</h4>
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-xs text-[color:var(--nn-text-secondary)]">Research Attempts</span>
@@ -2818,7 +2792,7 @@ By Specialization:
                       </div>
 
                       <div>
-                        <h4 className="text-sm font-semibold text-[color:var(--nn-green)] mb-2">💰 Economic Impact</h4>
+                        <h4 className="nn-panel__title mb-2">Economic Impact</h4>
                         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
                           <div className="flex justify-between items-center mb-2">
                             <span className="text-xs text-[color:var(--nn-text-secondary)]">Total Spent</span>
@@ -2847,7 +2821,7 @@ By Specialization:
                     {/* Balance Warnings */}
                     {wmdAnalytics.balance?.warnings && wmdAnalytics.balance.warnings.length > 0 && (
                       <div className="mt-4">
-                        <h4 className="text-sm font-semibold text-[color:var(--nn-amber)] mb-2">⚠️ Balance Warnings</h4>
+                        <h4 className="nn-panel__title mb-2">Balance Warnings</h4>
                         <div className="space-y-2">
                           {wmdAnalytics.balance.warnings.map((warning: string, idx: number) => (
                             <div key={idx} className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none px-3 py-2">
@@ -2861,11 +2835,11 @@ By Specialization:
                 )}
 
                 {/* Emergency Admin Actions */}
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                  <h3 className="text-lg font-semibold text-[color:var(--nn-magenta)] mb-3">🚨 Emergency Actions</h3>
+                <div className="nn-tile">
+                  <h3 className="nn-panel__title mb-3">🚨 Emergency Actions</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-magenta)]">Missile Control</h4>
+                      <h4 className="nn-panel__title">Missile Control</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
@@ -2918,7 +2892,7 @@ By Specialization:
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-amber)]">Vote Control</h4>
+                      <h4 className="nn-panel__title">Vote Control</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
@@ -2971,7 +2945,7 @@ By Specialization:
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-cyan)]">Cooldown Adjustment</h4>
+                      <h4 className="nn-panel__title">Cooldown Adjustment</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
@@ -3027,7 +3001,7 @@ By Specialization:
                     </div>
 
                     <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-[color:var(--nn-violet)]">Flag Suspicious Activity</h4>
+                      <h4 className="nn-panel__title">Flag Suspicious Activity</h4>
                       <div className="space-y-2">
                         <input 
                           type="text"
@@ -3113,7 +3087,7 @@ By Specialization:
             </div>
 
         {/* RP Economy Management */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
+        <div className="nn-panel nn-panel--violet">
               <button
                 onClick={() => {
                   setRpEconomyExpanded(!rpEconomyExpanded);
@@ -3124,7 +3098,7 @@ By Specialization:
                 className="w-full p-6 text-left bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] transition-colors flex items-center justify-between"
               >
                 <div>
-                  <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">💰 RP Economy Management</h2>
+                  <h2 className="nn-panel__title">RP Economy Management</h2>
                   <p className="text-[color:var(--nn-text-secondary)] text-sm mt-1">Monitor and manage the Research Point economy</p>
                 </div>
                 <span className="text-3xl text-[color:var(--nn-violet)]">{rpEconomyExpanded ? '▼' : '▶'}</span>
@@ -3137,50 +3111,50 @@ By Specialization:
                   ) : (
                     <>
                       {/* Quick Actions Bar */}
-                      <div className="flex items-center justify-between bg-[color:var(--nn-void)] rounded-none p-4">
+                      <div className="flex items-center justify-between nn-tile">
                         <div className="text-sm text-[color:var(--nn-text-secondary)]">
                           Last refreshed: {new Date().toLocaleTimeString()}
                         </div>
                         <button
                           onClick={loadRpEconomyData}
                           disabled={rpLoading}
-                          className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-semibold transition-colors text-sm"
+                          className="nn-abtn nn-abtn--violet px-6 py-2.5"
                         >
-                          {rpLoading ? '⏳ Loading...' : '🔄 Refresh Data'}
+                          {rpLoading ? 'LOADING' : 'REFRESH DATA'}
                         </button>
                       </div>
 
                       {/* Economy Overview Stats */}
                       <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
+                        <div className="nn-well nn-well--accent !mx-0 p-4" style={{ borderColor: 'color-mix(in oklab, var(--nn-amber) 35%, transparent)' }}>
                           <div className="flex items-center justify-between mb-2">
-                            <div className="text-2xl">💰</div>
+                            <div className="nn-lab">TOTAL RP</div>
                             <div className="text-xs opacity-80">Total RP in Circulation</div>
                           </div>
-                          <div className="text-2xl font-bold">{rpStats?.totalRP?.toLocaleString() || '0'}</div>
+                          <div className="nn-num text-lg font-bold">{rpStats?.totalRP?.toLocaleString() || '0'}</div>
                         </div>
-                        <div className="bg-gradient-to-br from-[color:var(--nn-green)] to-[color:var(--nn-green)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
+                        <div className="nn-well nn-well--accent !mx-0 p-4" style={{ borderColor: 'color-mix(in oklab, var(--nn-green) 35%, transparent)' }}>
                           <div className="flex items-center justify-between mb-2">
-                            <div className="text-2xl">📈</div>
+                            <div className="nn-lab">TREND</div>
                             <div className="text-xs opacity-80">Daily Generation</div>
                           </div>
-                          <div className="text-2xl font-bold">{rpStats?.dailyGeneration?.toLocaleString() || '0'}</div>
+                          <div className="nn-num text-lg font-bold">{rpStats?.dailyGeneration?.toLocaleString() || '0'}</div>
                           <div className="text-xs opacity-80">Last 24 hours</div>
                         </div>
-                        <div className="bg-gradient-to-br from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
+                        <div className="nn-well nn-well--accent !mx-0 p-4" style={{ borderColor: 'color-mix(in oklab, var(--nn-cyan) 35%, transparent)' }}>
                           <div className="flex items-center justify-between mb-2">
-                            <div className="text-2xl">👥</div>
+                            <div className="nn-lab">HOLDERS</div>
                             <div className="text-xs opacity-80">Active Earners</div>
                           </div>
-                          <div className="text-2xl font-bold">{rpStats?.activeEarners24h?.toLocaleString() || '0'}</div>
+                          <div className="nn-num text-lg font-bold">{rpStats?.activeEarners24h?.toLocaleString() || '0'}</div>
                           <div className="text-xs opacity-80">Last 24 hours</div>
                         </div>
-                        <div className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
+                        <div className="nn-well nn-well--accent !mx-0 p-4" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 35%, transparent)' }}>
                           <div className="flex items-center justify-between mb-2">
-                            <div className="text-2xl">📊</div>
+                            <div className="nn-lab">STAT</div>
                             <div className="text-xs opacity-80">Average Balance</div>
                           </div>
-                          <div className="text-2xl font-bold">{rpStats?.averageBalance?.toLocaleString() || '0'}</div>
+                          <div className="nn-num text-lg font-bold">{rpStats?.averageBalance?.toLocaleString() || '0'}</div>
                           <div className="text-xs opacity-80">Median: {rpStats?.medianBalance?.toLocaleString() || '0'}</div>
                         </div>
                       </div>
@@ -3188,7 +3162,7 @@ By Specialization:
                       {/* Generation vs Spending & Bulk Adjustment */}
                       <div className="grid grid-cols-2 gap-6">
                         {/* Generation/Spending */}
-                        <div className="bg-[color:var(--nn-void)] rounded-none p-4">
+                        <div className="nn-tile">
                           <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[color:var(--nn-violet)]">
                             <span>💸</span>
                             <span>Generation vs Spending</span>
@@ -3214,9 +3188,9 @@ By Specialization:
                         </div>
 
                         {/* Bulk RP Adjustment Tool */}
-                        <div className="bg-[color:var(--nn-void)] rounded-none p-4">
+                        <div className="nn-tile">
                           <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[color:var(--nn-violet)]">
-                            <span>⚙️</span>
+                            
                             <span>Bulk RP Adjustment</span>
                           </h3>
                           <div className="space-y-2">
@@ -3246,10 +3220,10 @@ By Specialization:
                               disabled={rpBulkLoading || !rpBulkUsername || rpBulkAmount === 0 || !rpBulkReason}
                               className="w-full px-4 py-2 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-semibold transition-colors text-sm"
                             >
-                              {rpBulkLoading ? '⏳ Processing...' : '💰 Adjust RP Balance'}
+                              {rpBulkLoading ? 'PROCESSING' : 'ADJUST RP BALANCE'}
                             </button>
                             {rpBulkResult && (
-                              <div className={`text-xs p-2 rounded-none ${rpBulkResult.startsWith('✅') ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]' : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'}`}>
+                              <div className={`text-xs p-2 rounded-none ${rpBulkResult.startsWith('Success') ? 'bg-[color-mix(in_oklab,var(--nn-green)_12%,transparent)] text-[color:var(--nn-green)]' : 'bg-[color-mix(in_oklab,var(--nn-magenta)_12%,transparent)] text-[color:var(--nn-magenta)]'}`}>
                                 {rpBulkResult}
                               </div>
                             )}
@@ -3260,9 +3234,9 @@ By Specialization:
                       {/* Top Earners and Spenders */}
                       <div className="grid grid-cols-2 gap-6">
                         {/* Top Earners */}
-                        <div className="bg-[color:var(--nn-void)] rounded-none p-4">
+                        <div className="nn-tile">
                           <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[color:var(--nn-violet)]">
-                            <span>🏆</span>
+                            
                             <span>Top RP Earners</span>
                             <span className="text-xs text-[color:var(--nn-text-secondary)] ml-auto">{rpDateFilter}</span>
                           </h3>
@@ -3281,7 +3255,7 @@ By Specialization:
                         </div>
 
                         {/* Top Spenders */}
-                        <div className="bg-[color:var(--nn-void)] rounded-none p-4">
+                        <div className="nn-tile">
                           <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-[color:var(--nn-violet)]">
                             <span>💸</span>
                             <span>Top RP Spenders</span>
@@ -3303,7 +3277,7 @@ By Specialization:
                       </div>
 
                       {/* Transaction History with Filters */}
-                      <div className="bg-[color:var(--nn-void)] rounded-none p-4">
+                      <div className="nn-tile">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-bold flex items-center gap-2 text-[color:var(--nn-violet)]">
                             <span>📜</span>
@@ -3376,9 +3350,9 @@ By Specialization:
                           </table>
                           {rpTransactions.length === 0 && (
                             <div className="text-center py-10">
-                              <Coins className="w-10 h-10 mx-auto mb-2 text-text-tertiary" />
-                              <p className="text-text-secondary">No transactions found</p>
-                              <p className="text-sm text-text-tertiary mt-1">RP activity will appear here.</p>
+                              <Coins className="w-10 h-10 mx-auto mb-2 nn-text-dim" />
+                              <p className="nn-text-dim">No transactions found</p>
+                              <p className="text-sm nn-text-dim mt-1">RP activity will appear here.</p>
                             </div>
                           )}
                         </div>
@@ -3445,7 +3419,7 @@ By Specialization:
           {/* Schedule Management Modal (FID-20251025-003) */}
           {showScheduleModal && (
             <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
-              <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 max-w-md w-full border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
+              <div className="nn-panel max-w-md w-full">
                 <h3 className="text-xl font-bold text-[color:var(--nn-cyan)] mb-4">
                   {editingSchedule ? 'Edit Schedule' : 'Add New Schedule'}
                 </h3>

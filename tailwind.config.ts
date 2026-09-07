@@ -39,17 +39,29 @@ const config: Config = {
         'bg-void': '#050814',          // Darker void areas
         'bg-nebula': '#1a1f3a',       // Lighter nebula areas
         
+        // FID-20260906-005 NEON NOIR: semantic aliases re-anchored to the nn-
+        // token system. The old slate hexes rendered the pre-noir skin; these
+        // now resolve through the design system's CSS custom properties so the
+        // ~576 text-text-*/bg-bg-*/border-border-* usages across 47 files all
+        // speak the same tokens (var() colors — no opacity modifiers allowed).
+        'bg-primary': 'var(--nn-panel, oklch(0.21 0.04 265 / 0.72))',
+        'bg-secondary': 'oklch(0.13 0.03 265 / 0.55)',
+        'bg-tertiary': 'var(--nn-void, #050814)',
+        'bg-hover': 'color-mix(in oklab, var(--nn-cyan) 10%, transparent)',
+        'border-main': 'color-mix(in oklab, var(--nn-cyan) 16%, transparent)',
+        'border-light': 'color-mix(in oklab, var(--nn-cyan) 10%, transparent)',
+        
         // Glass panel colors (with transparency)
         'glass-dark': 'rgba(15, 23, 42, 0.6)',     // Dark glass
         'glass-darker': 'rgba(10, 14, 39, 0.8)',   // Darker glass
         'glass-light': 'rgba(30, 41, 59, 0.5)',    // Light glass
         'glass-border': 'rgba(0, 240, 255, 0.2)',  // Cyan border glow
         
-        // Text colors
-        'text-primary': '#f1f5f9',     // Bright white for primary text
-        'text-secondary': '#94a3b8',   // Muted gray for secondary
-        'text-tertiary': '#64748b',    // Even more muted for tertiary
-        'text-neon': '#00f0ff',        // Neon cyan for accents
+        // Text colors — NEON NOIR tokens (was slate hexes pre-noir)
+        'text-primary': 'var(--nn-text-primary, oklch(0.95 0.01 250))',
+        'text-secondary': 'var(--nn-text-secondary, oklch(0.72 0.02 255))',
+        'text-tertiary': 'var(--nn-text-tertiary, oklch(0.55 0.02 255))',
+        'text-neon': 'var(--nn-cyan, #00f0ff)',
         
         // Game-specific colors (updated for sci-fi theme)
         metal: '#94a3b8',

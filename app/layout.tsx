@@ -51,21 +51,24 @@ export default function RootLayout({
         <ToastContainer />
         {/* FID-20260906-005 T2.1: global promise-based confirm host (replaces window.confirm) */}
         <ConfirmDialogHost />
-        <Toaster 
+        {/* NEON NOIR: react-hot-toast surface tokenized — square quiet-glass
+            panel, token colors, mono numerals. Duplicate of the custom
+            ToastContainer kept for parity with existing toast.* call sites. */}
+        <Toaster
           theme="dark"
           position="top-right"
           expand={true}
-          richColors
           toastOptions={{
             style: {
-              background: 'rgb(30, 41, 59)', // bg-bg-secondary
-              border: '1px solid rgb(51, 65, 85)', // border-border-main
-              color: 'rgb(241, 245, 249)', // text-text-primary
-              fontSize: '0.875rem',
-              borderRadius: '0.5rem',
-              padding: '1rem',
+              background: 'color-mix(in oklab, var(--nn-void) 88%, transparent)',
+              border: '1px solid color-mix(in oklab, var(--nn-cyan) 25%, transparent)',
+              color: 'var(--nn-text-primary)',
+              fontFamily: 'var(--font-inter), Inter, sans-serif',
+              fontSize: '0.8125rem',
+              borderRadius: '0',
+              padding: '0.75rem 1rem',
+              backdropFilter: 'blur(12px)',
             },
-            className: 'font-inter',
             duration: 4000,
           }}
         />

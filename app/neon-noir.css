@@ -1330,12 +1330,15 @@ span.nn-panel__icon > svg {
 /* ===================================================================== */
 
 .nn-panel--amber {
+  --nn-accent: var(--nn-amber);
   border-color: color-mix(in oklab, var(--nn-amber) 35%, transparent);
 }
 .nn-panel--magenta {
+  --nn-accent: var(--nn-magenta);
   border-color: color-mix(in oklab, var(--nn-magenta) 35%, transparent);
 }
 .nn-panel--violet {
+  --nn-accent: var(--nn-violet);
   border-color: color-mix(in oklab, var(--nn-violet) 35%, transparent);
 }
 
@@ -1721,4 +1724,109 @@ span.nn-panel__icon > svg {
   margin-top: 6px;
   color: var(--nn-magenta);
   text-shadow: 0 0 14px color-mix(in oklab, var(--nn-magenta) 90%, transparent);
+}
+
+/* ====================================================================== */
+/* Admin console primitives (FID-20260906-005 system review)               */
+/* ====================================================================== */
+
+/* inline action button — compact sibling of .nn-btn for tables/toolbars.
+   ALL outline style per §02; never a filled slab. */
+.nn-abtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 6px 14px;
+  border-radius: 0;
+  font-family: var(--nn-font-display);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nn-text-secondary);
+  background: transparent;
+  border: 1px solid color-mix(in oklab, var(--nn-text-secondary) 25%, transparent);
+  cursor: pointer;
+  transition:
+    color var(--nn-dur-state) var(--nn-ease),
+    border-color var(--nn-dur-state) var(--nn-ease),
+    background var(--nn-dur-state) var(--nn-ease),
+    box-shadow var(--nn-dur-state) var(--nn-ease);
+}
+.nn-abtn:hover {
+  color: var(--nn-text-primary);
+  border-color: color-mix(in oklab, var(--nn-cyan) 45%, transparent);
+}
+.nn-abtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.nn-abtn:focus-visible { outline: none; box-shadow: var(--nn-glow-focus); }
+.nn-abtn--cyan    { color: var(--nn-cyan);    border-color: color-mix(in oklab, var(--nn-cyan) 45%, transparent); }
+.nn-abtn--cyan:hover    { background: color-mix(in oklab, var(--nn-cyan) 10%, transparent);    box-shadow: 0 0 12px color-mix(in oklab, var(--nn-cyan) 25%, transparent); }
+.nn-abtn--magenta { color: var(--nn-magenta); border-color: color-mix(in oklab, var(--nn-magenta) 45%, transparent); }
+.nn-abtn--magenta:hover { background: color-mix(in oklab, var(--nn-magenta) 10%, transparent); box-shadow: 0 0 12px color-mix(in oklab, var(--nn-magenta) 25%, transparent); }
+.nn-abtn--green   { color: var(--nn-green);   border-color: color-mix(in oklab, var(--nn-green) 45%, transparent); }
+.nn-abtn--green:hover   { background: color-mix(in oklab, var(--nn-green) 10%, transparent);   box-shadow: 0 0 12px color-mix(in oklab, var(--nn-green) 25%, transparent); }
+.nn-abtn--violet  { color: var(--nn-violet);  border-color: color-mix(in oklab, var(--nn-violet) 45%, transparent); }
+.nn-abtn--violet:hover  { background: color-mix(in oklab, var(--nn-violet) 10%, transparent);  box-shadow: 0 0 12px color-mix(in oklab, var(--nn-violet) 25%, transparent); }
+.nn-abtn--amber   { color: var(--nn-amber);   border-color: color-mix(in oklab, var(--nn-amber) 45%, transparent); }
+.nn-abtn--amber:hover   { background: color-mix(in oklab, var(--nn-amber) 10%, transparent);   box-shadow: 0 0 12px color-mix(in oklab, var(--nn-amber) 25%, transparent); }
+.nn-abtn--danger  { color: var(--nn-magenta); border-color: color-mix(in oklab, var(--nn-magenta) 55%, transparent); background: color-mix(in oklab, var(--nn-magenta) 8%, transparent); }
+.nn-abtn--danger:hover  { background: color-mix(in oklab, var(--nn-magenta) 16%, transparent); box-shadow: 0 0 14px color-mix(in oklab, var(--nn-magenta) 35%, transparent); }
+.nn-abtn--ghost:hover { color: var(--nn-cyan); }
+
+/* stat tile — quiet void well for a labeled numeral; no accent slab */
+.nn-tile {
+  background: oklch(0.13 0.03 265 / 0.55);
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 10%, transparent);
+  border-radius: 0;
+  padding: 1rem;
+}
+.nn-tile .nn-lab { margin-bottom: 4px; }
+
+/* form input — transparent field, token hairline, cyan focus glow */
+.nn-input {
+  background: color-mix(in oklab, var(--nn-void) 82%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 16%, transparent);
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+  font-family: var(--nn-font-body);
+  font-size: 0.8125rem;
+  color: var(--nn-text-primary);
+  outline: none;
+  transition: border-color var(--nn-dur-state) var(--nn-ease), box-shadow var(--nn-dur-state) var(--nn-ease);
+}
+.nn-input::placeholder { color: var(--nn-text-tertiary); }
+.nn-input:focus {
+  border-color: color-mix(in oklab, var(--nn-cyan) 55%, transparent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--nn-cyan) 18%, transparent);
+}
+
+/* square HUD switch (was a rounded iOS toggle) */
+.nn-switch {
+  position: relative;
+  width: 44px;
+  height: 20px;
+  border-radius: 0;
+  background: oklch(0.13 0.03 265 / 0.9);
+  border: 1px solid color-mix(in oklab, var(--nn-text-secondary) 30%, transparent);
+  cursor: pointer;
+  transition: border-color var(--nn-dur-state) var(--nn-ease), background var(--nn-dur-state) var(--nn-ease);
+  flex: none;
+}
+.nn-switch--on {
+  border-color: color-mix(in oklab, var(--nn-green) 55%, transparent);
+  background: color-mix(in oklab, var(--nn-green) 12%, transparent);
+}
+.nn-switch__knob {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--nn-text-tertiary);
+  transition: transform var(--nn-dur-state) var(--nn-ease), background var(--nn-dur-state) var(--nn-ease);
+}
+.nn-switch--on .nn-switch__knob {
+  transform: translateX(24px);
+  background: var(--nn-green);
 }
