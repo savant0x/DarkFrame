@@ -53,14 +53,21 @@
   padding-top: 56px;
 }
 
+/* Rail width — matches GameLayout's aside widths (lg:w-72 / xl:w-80, hidden
+   below lg). Single source of truth so overlays like .nn-banner can't drift
+   out of sync with the rails again. */
+:root { --nn-rail-w: 0px; }
+@media (min-width: 1024px) { :root { --nn-rail-w: 18rem; } }
+@media (min-width: 1280px) { :root { --nn-rail-w: 20rem; } }
+
 /* Top tutorial progress banner (TutorialOverlay) — quiet glass strip in the
    sample .nn-meter model: Inter label, violet signal, square meter. */
 .nn-banner {
   position: fixed;
   top: 56px;
-  /* Spans the full gap between the two rails (both are 18rem). */
-  left: 18rem;
-  right: 18rem;
+  /* Spans the gap between the two rails via the shared rail-width var. */
+  left: var(--nn-rail-w);
+  right: var(--nn-rail-w);
   width: auto;
   z-index: 40;
   padding: 8px 16px 10px;
