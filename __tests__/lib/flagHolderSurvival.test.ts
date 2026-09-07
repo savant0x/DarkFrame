@@ -19,6 +19,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Table } from 'drizzle-orm';
 import { players, flags } from '@/lib/db/schema';
 
 // ---------------------------------------------------------------------------
@@ -33,8 +34,10 @@ const { calls, state, fakeDb, setTableNameResolver } = vi.hoisted(() => {
   const calls: RecordedCall[] = [];
   const state = { flagRows: [] as Record<string, unknown>[], holderRows: [] as Record<string, unknown>[] };
   // Drizzle keeps the SQL table name behind a symbol, not `.name` — the real
-  // getTableName is injected from module scope after imports.
-  let tableName: (t: unknown) => string = () => 'unknown';
+  // getTableName is injected from module scope after imports. The fake only
+  // ever receives drizzle tables, so `Table` (not `unknown`) is the honest
+  // parameter type — and the only one getTableName is assignable to.
+  let tableName: (t: Table) => string = () => 'unknown';
   function resolveRowsFor(table: string): Record<string, unknown>[] {
     return table === 'flags' ? state.flagRows : state.holderRows;
   }
@@ -45,7 +48,7 @@ const { calls, state, fakeDb, setTableNameResolver } = vi.hoisted(() => {
       return Promise.resolve(resolveRowsFor(table));
     };
     return {
-      from: (t: unknown) => {
+      from: (t: Table) => {
         table = tableName(t);
         return {
           limit: finish,
@@ -76,11 +79,11 @@ const { calls, state, fakeDb, setTableNameResolver } = vi.hoisted(() => {
   }
   const fakeDb = {
     select: () => makeReader(),
-    update: (t: unknown) => makeWriter('update', tableName(t)),
-    delete: (t: unknown) => makeWriter('delete', tableName(t)),
-    insert: (t: unknown) => makeWriter('insert', tableName(t)),
+    update: (t: Table) => makeWriter('update', tableName(t)),
+    delete: (t: Table) => makeWriter('delete', tableName(t)),
+    insert: (t: Table) => makeWriter('insert', tableName(t)),
   };
-  return { calls, state, fakeDb, setTableNameResolver: (fn: (t: unknown) => string) => { tableName = fn; } };
+  return { calls, state, fakeDb, setTableNameResolver: (fn: (t: Table) => string) => { tableName = fn; } };
 });
 
 import { getTableName } from 'drizzle-orm';

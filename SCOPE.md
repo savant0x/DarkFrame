@@ -409,6 +409,27 @@ No other work is approved.
 
 **Outcome (2026-09-07):** operator chose **fix defect + commit** and **gitignore the scraped docs**. Defect repaired — post-fix file eslint shows only the 3 pre-existing `no-explicit-any` findings, 0 new. Four path-scoped commits executed under operator approval (G1): `0e82eb5` fix(chat) emoji literals; `8be0bde` refactor(types) 18-file batch (incl. `lib/errorMessage.ts`, the autoFarm `baseOwner` defender-resolution fix, and the warfare string repair); `de914fa` docs(design) sample sections; `8051813` docs remove mapping. `.gitignore` gains `docs/**/llms-*.txt` — verified via `git check-ignore` (both `docs/` and `docs/design/` copies covered; files kept on disk). Residual: `scripts/nn-fixany.mjs` + `scripts/nn-lintreport.mjs` left untracked (not in the approved commit plan) — operator call pending. Post-commit status: only SCOPE.md, .gitignore, session records, and the two nn- scripts remain dirty/untracked.
 
+### Session 2026-09-07 (003) — Diagnose the 12 redis.test.ts failures + the flagHolderSurvival tsc error
+
+Operator instruction: "Diagnose the 12 failing redis.test.ts suites (likely environment) and the flagHolderSurvival tsc error."
+
+Interpreted scope:
+
+- [x] Root-cause both gate failures with tool evidence (read-only diagnosis; remediation presented, not applied)
+- [x] Remediation (test-only, minimal): operator approved ("apply the test, approve") and both fixes implemented + verified
+
+No other work is approved.
+
+**Findings (tool evidence):**
+
+1. **`lib/__tests__/redis.test.ts` — 12/16 failures. Root cause: test-environment determinism, not a lib defect.** Chain: the operator's shell exports `REDIS_URL=redis://localhost:6379` (same leak class as #23's `PORT=0`); `vitest.setup.ts` does not clear it; `lib/redis.ts` computes `REDIS_ENABLED = true` at module load; the test's ioredis mock makes `new Redis()` return `{ status: 'ready', incr: vi.fn() }` whose `incr()` returns `undefined`; `check()` then evaluates `return current <= maxRequests` → `undefined <= N` → **always `false`**. Evidence: the 4 "passing" tests are exactly the ones that expect `false` (block-over-limit, `maxRequests=0`, speed, config-shape) — vacuously passing; every expect-`true`/cooldown assertion fails. The suite's declared intent ("in-memory fallback is NOT mocked — real implementation") is defeated because `REDIS_ENABLED` true means the fallback path is never reached. Explains the regression vs session 006's green run: `REDIS_URL` entered the test env after 2026-09-02 (#13 era).
+   **Proposed fix (test-only):** `vi.hoisted(() => { process.env.REDIS_URL = 'disabled'; process.env.UPSTASH_REDIS_REST_URL = ''; })` at the top of the test file (runs before module evaluation, so `REDIS_ENABLED` computes `false`) — restores the intended no-Redis/fallback semantics and makes the suite host-env-independent. Expected: 16/16 green.
+2. **`__tests__/lib/flagHolderSurvival.test.ts` — TS2345 at (87,22). Root cause: contravariance mismatch in the test fake.** Line 87 = `setTableNameResolver(getTableName)`; the fake types its resolver `(t: unknown) => string`, but drizzle's `getTableName<T extends Table>(table: T): T['_']['name']` cannot accept `unknown`. The fake only ever receives drizzle tables (`players`, `flags`), so the honest typing is `Table` throughout the fake (`from`/`update`/`delete`/`insert`/`tableName`/resolver), making `getTableName` assignable with no casts and no suppressions. Expected: **tsc back to 0** — restoring the recorded clean baseline; the suite itself already passes at runtime (3/3).
+
+Gates after the (pending) remediation: full `npx tsc --noEmit` → 0 errors; full vitest → 354 passed / 0 failed / 1 skipped (the 12 redis failures recovered).
+
+**Outcome (2026-09-07):** both fixes applied and verified — `lib/__tests__/redis.test.ts` gained the `vi.hoisted` env pin (REDIS_URL='disabled', UPSTASH=''; documented rationale in-file); `__tests__/lib/flagHolderSurvival.test.ts` fake retyped `unknown`→`Table` (import + `tableName` + `from` + `update`/`delete`/`insert` + the `setTableNameResolver` setter — the first pass missed the setter and tsc caught it at (90,22)). Evidence: `vitest run lib/__tests__/redis.test.ts` = **16/16** (fallback path visibly exercised — "[RateLimiter] Redis unavailable, allowing request" in the no-fallback test); `vitest run __tests__/lib/flagHolderSurvival.test.ts` = 3/3; full `npx vitest run` = **354 passed / 0 failed / 1 skipped**; `npx tsc --noEmit` = **exit 0** (recorded clean baseline restored). Residual (pre-existing, not touched): 2 `no-unused-vars` eslint errors in flagHolderSurvival.test.ts (`players`/`flags` imported but never referenced — present in session 001's baseline lint output).
+
 ---
 
 ## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
@@ -535,6 +556,8 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-07 (002): read-only review of the parallel session's WIP (diffs + untracked files, Law 1) | implemented |
 | Session 2026-09-07 (002): repair `ClanWarfarePanel.tsx:635` codemod-corrupted string | implemented (`'Failed to declare war'` restored; file eslint = 3 pre-existing findings, 0 new) |
 | Session 2026-09-07 (002): reconciliation of the WIP — operator chose fix+commit+gitignore; 4 path-scoped commits executed (`0e82eb5`, `8be0bde`, `de914fa`, `8051813`); llms docs gitignored; nn-*.mjs scripts left untracked | implemented (operator-approved git execution) |
+| Session 2026-09-07 (003): diagnosis of redis.test.ts (12F) + flagHolderSurvival TS2345 — root causes identified with tool evidence | implemented |
+| Session 2026-09-07 (003): remediation (redis env determinism via `vi.hoisted`; `Table`-typed test fake incl. the resolver setter) | implemented (operator-approved; tsc 0, vitest 354/0/1, redis suite 16/16) |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.

@@ -25,6 +25,21 @@ import {
 
 } from '../redis';
 
+/**
+ * Test-environment determinism (session 2026-09-07-003): the operator's shell
+ * exports REDIS_URL (same leak class as SCOPE #23's PORT=0), and vitest.setup.ts
+ * does not clear it. lib/redis.ts computes REDIS_ENABLED at module load, so an
+ * inherited REDIS_URL flips the limiter onto the (mocked, unimplemented) Redis
+ * path — `incr()` returns undefined and `check()` evaluates `undefined <= N`
+ * -> always false — defeating the suite's declared intent ("in-memory fallback
+ * is NOT mocked"). Pin Redis OFF before module evaluation so the real fallback
+ * implementation is exercised and the suite is host-env-independent.
+ */
+vi.hoisted(() => {
+  process.env.REDIS_URL = 'disabled';
+  process.env.UPSTASH_REDIS_REST_URL = '';
+});
+
 // Mock ioredis module
 vi.mock('ioredis', () => {
   const Redis = vi.fn();
