@@ -24,7 +24,7 @@
 
 import { db } from '@/lib/db';
 import { players, flags } from '@/lib/db/schema';
-import { and, eq, like, sql } from 'drizzle-orm';
+import { and, eq, like, or, sql } from 'drizzle-orm';
 import { BotSpecialization, type Player, type Position } from '@/types/game.types';
 import { createBotPlayer } from '@/lib/botService';
 import { mapRowToPlayer, mapDomainPlayerToRow, getPlayerByUsername } from '@/lib/playerService';
@@ -415,14 +415,27 @@ export async function initializeFlagSystem(): Promise<void> {
       return;
     }
     
-    // Check if any flag bots already exist in players table
+    // Check if any flag bots already exist in players table. Match both the
+    // legacy hyphen pattern and the current schema-valid underscore pattern,
+    // and NEVER consider a human row (isBot = 1 guard) a cleanup candidate.
     const existingFlagBotRows = await db.select().from(players).where(
-      like(players.username, 'Flag-Bearer-%')
+      and(
+        eq(players.isBot, 1),
+        or(
+          like(players.username, 'Flag-Bearer-%'),
+          like(players.username, 'Flag\_Bearer\_%')
+        )
+      )
     ).limit(1);
     
     if (existingFlagBotRows.length > 0) {
       console.log('⚠️ Found orphaned flag bot without flag document - cleaning up');
-      await db.delete(players).where(eq(players.username, existingFlagBotRows[0].username));
+      await db.delete(players).where(
+        and(
+          eq(players.username, existingFlagBotRows[0].username),
+          eq(players.isBot, 1)
+        )
+      );
     }
     
     // No flag exists - create the first flag bot
