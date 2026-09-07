@@ -29,6 +29,7 @@ import WMDMiniStatus from '@/components/WMDMiniStatus';
 import WMDHub from '@/components/WMDHub';
 import { TerrainType, Discovery, Achievement, type FlagBearer, type FlagDetailPayload, type HarvestResult, type AttackResult, type Factory } from '@/types';
 import { AutoFarmEngine } from '@/utils/autoFarmEngine';
+import { foundItems } from '@/lib/inventoryUtils';
 import { AutoFarmStatus, AutoFarmSessionStats, AutoFarmAllTimeStats, AutoFarmEvent, DEFAULT_SESSION_STATS, DEFAULT_ALL_TIME_STATS } from '@/types/autoFarm.types';
 import { loadAllTimeStats } from '@/lib/autoFarmPersistence';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
@@ -132,8 +133,6 @@ export default function GamePage() {
   const [flagBearer, setFlagBearer] = useState<FlagBearer | null>(null);
   // FID-20260906-001 §5.8: full extended payload (challenge/bonuses/actions).
   const [flagDetail, setFlagDetail] = useState<FlagDetailPayload | null>(null);
-  const [attackCooldown, setAttackCooldown] = useState<boolean>(false);
-  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
   // Redirect to login if no player (but ONLY after loading finishes)
   // This prevents race conditions where we redirect before GameContext loads player
@@ -763,6 +762,8 @@ export default function GamePage() {
         onWMDClick={() => setCurrentView('WMD')}
         onDMClick={() => setChatTab('DM')}
         dmUnreadCount={dmUnreadCount}
+        metal={player?.resources.metal ?? 0}
+        energy={player?.resources.energy ?? 0}
       />
       
       <InventoryPanel />
@@ -908,7 +909,7 @@ export default function GamePage() {
         onDMUnreadCountChange={setDmUnreadCount}
         tileView={
           currentView === 'TILE' && currentTile ? (
-            <div className="flex items-center justify-center w-full h-full p-4">
+            <div className="flex w-full justify-center p-4">
               <TileRenderer 
                 tile={currentTile} 
                 harvestResult={harvestResult}
@@ -1100,7 +1101,7 @@ export default function GamePage() {
             </div>
           ) : currentView === 'SHRINE' ? (
             <ShrinePanel
-              tradeableItems={player?.inventory?.items?.filter(i => i.type === 'TRADEABLE_ITEM') || []}
+              tradeableItems={foundItems(player?.inventory?.items || []).filter(i => i.type === 'TRADEABLE_ITEM')}
               activeBoosts={player?.shrineBoosts || []}
               onTransaction={refreshGameState}
               onBack={() => setCurrentView('TILE')}

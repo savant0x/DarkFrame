@@ -337,7 +337,6 @@ export default function FlagTrackerPanel({
   // ============================================================
   // TRACKER VIEW — non-bearer: track + steal
   // ============================================================
-  const compassArrowRot = getRotationForDirectionPublic(direction);
   const canChallenge = !inAttackRange || !!challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false);
 
   // Full panel view with main collapsible header
@@ -462,12 +461,7 @@ export default function FlagTrackerPanel({
                     <i className="s">S</i>
                     <i className="w">W</i>
                     <i className="e">E</i>
-                    <span
-                      className="arrow"
-                      style={{ transform: `rotate(${compassArrowRot}deg)` }}
-                    >
-                      {compassArrow}
-                    </span>
+                    <span className="arrow">{compassArrow}</span>
                   </div>
                   <p>
                     Bearer is to the <b>{direction}</b>
@@ -514,21 +508,4 @@ export default function FlagTrackerPanel({
       )}
     </div>
   );
-}
-
-/**
- * Public wrapper for the module-private rotation helper (kept module-local).
- */
-function getRotationForDirectionPublic(direction: CompassDirection): number {
-  const rotations: Record<CompassDirection, number> = {
-    [CompassDirection.North]: 0,
-    [CompassDirection.NorthEast]: 45,
-    [CompassDirection.East]: 90,
-    [CompassDirection.SouthEast]: 135,
-    [CompassDirection.South]: 180,
-    [CompassDirection.SouthWest]: 225,
-    [CompassDirection.West]: 270,
-    [CompassDirection.NorthWest]: 315
-  };
-  return rotations[direction];
 }

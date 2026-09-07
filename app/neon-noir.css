@@ -58,9 +58,10 @@
 .nn-banner {
   position: fixed;
   top: 56px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(680px, calc(100vw - 32px));
+  /* Spans the full gap between the two rails (both are 18rem). */
+  left: 18rem;
+  right: 18rem;
+  width: auto;
   z-index: 40;
   padding: 8px 16px 10px;
   background: color-mix(in oklab, var(--nn-void) 88%, transparent);
@@ -1131,6 +1132,128 @@ span.nn-panel__icon > svg {
   box-shadow: 0 0 18px color-mix(in oklab, var(--nn-magenta) 45%, transparent);
 }
 
+/* ============================================================
+   TILE ACTION DECK (§5.1 extension) — the AAA result/info deck under
+   the viewport image. Header = scanline title bar; content = flat wells
+   and gain readouts in the sample's row-ledger language.
+   ============================================================ */
+.nn-deck {
+  margin-top: 1rem;
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 16%, transparent);
+  background: color-mix(in oklab, var(--nn-void) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.nn-deck__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid color-mix(in oklab, var(--nn-cyan) 14%, transparent);
+  background:
+    repeating-linear-gradient(0deg,
+      transparent 0 2px,
+      color-mix(in oklab, var(--nn-cyan) 3%, transparent) 2px 3px);
+}
+.nn-deck__title {
+  font-family: var(--nn-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nn-cyan);
+}
+.nn-deck__title--green { color: var(--nn-green); }
+.nn-deck__title--magenta { color: var(--nn-magenta); }
+.nn-deck__title--amber { color: var(--nn-amber); }
+.nn-deck__title--violet { color: var(--nn-violet); }
+.nn-deck__meta {
+  font-family: var(--nn-font-display);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--nn-text-tertiary);
+  flex: none;
+}
+.nn-deck__body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nn-deck__desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--nn-text-secondary);
+  margin: 0;
+}
+/* Gain readouts: big Orbitron number + quiet Inter unit (sample ledger) */
+.nn-deck__gains {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  padding: 6px 0 2px;
+}
+.nn-deck__gain {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.nn-deck__gain .nn-num { font-size: 22px; }
+/* VS power comparison row */
+.nn-deck__vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 8px 0;
+}
+.nn-deck__vs .nn-deck__side { text-align: center; }
+.nn-deck__vs .nn-deck__side .nn-num { font-size: 20px; }
+.nn-deck__vslab {
+  font-family: var(--nn-font-display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--nn-text-tertiary);
+}
+/* Item / capture callout: neutral well + left signal rail (reward-row model) */
+.nn-deck__callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid color-mix(in oklab, var(--nn-text-secondary) 18%, transparent);
+  border-left: 2px solid var(--nn-accent, var(--nn-violet));
+  background: var(--nn-void);
+  padding: 9px 12px;
+}
+.nn-deck__callout-title {
+  font-family: var(--nn-font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nn-accent, var(--nn-violet));
+}
+.nn-deck__callout-sub {
+  font-size: 11.5px;
+  color: var(--nn-text-secondary);
+}
+/* Footnote strip above the message line */
+.nn-deck__foot {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--nn-text-tertiary);
+}
+/* Closing intel line: bordered top rail, quiet prose */
+.nn-deck__msg {
+  border-top: 1px solid color-mix(in oklab, var(--nn-cyan) 10%, transparent);
+  padding-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nn-text-secondary);
+  white-space: pre-line;
+  margin: 0;
+  text-align: center;
+}
+
 /* §04 tutorial reward rows: neutral well + left signal rail, label-only accent */
 .nn-tut-reward {
   display: flex;
@@ -1371,4 +1494,234 @@ span.nn-panel__icon > svg {
   border-radius: 9999px;
   background: var(--nn-magenta);
   box-shadow: 0 0 8px color-mix(in oklab, var(--nn-magenta) 90%, transparent);
+}
+
+/* ============================================================
+   Flag trail particle system — §5.1 amber ember language.
+   8-minute decay via inline trailOpacity; CSS supplies the look.
+   ============================================================ */
+.nn-viewport__range {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 30;
+  padding: 3px 8px;
+  font-family: var(--nn-font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--nn-amber);
+  background: color-mix(in oklab, var(--nn-void) 70%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-amber) 45%, transparent);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--nn-amber) 25%, transparent);
+}
+.nn-trail__edge { animation: nnTrailPulse 2.4s ease-in-out infinite; }
+@keyframes nnTrailPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.55; }
+}
+.nn-trail__glow {
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in oklab, var(--nn-amber) 34%, transparent) 0%,
+    color-mix(in oklab, var(--nn-amber) 18%, transparent) 45%,
+    transparent 72%
+  );
+}
+.nn-trail__ember {
+  will-change: transform, opacity;
+  filter: saturate(1.2);
+}
+.nn-trail__ring {
+  border: 2px solid color-mix(in oklab, var(--nn-amber) 60%, transparent);
+}
+.nn-trail__spark {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  z-index: 27;
+  background: radial-gradient(circle, var(--nn-amber) 0%, transparent 70%);
+  animation: nnSparkPing 1.6s ease-out infinite;
+  pointer-events: none;
+}
+.nn-trail__spark--tl { top: -8px; left: -8px; }
+.nn-trail__spark--tr { top: -8px; right: -8px; animation-delay: 0.2s; }
+.nn-trail__spark--bl { bottom: -8px; left: -8px; animation-delay: 0.4s; }
+.nn-trail__spark--br { bottom: -8px; right: -8px; animation-delay: 0.6s; }
+@keyframes nnSparkPing {
+  0% { transform: scale(0.6); opacity: 0.9; }
+  80%, 100% { transform: scale(1.6); opacity: 0; }
+}
+.nn-trail__age {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  padding: 6px 10px;
+  background: color-mix(in oklab, var(--nn-void) 78%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-amber) 55%, transparent);
+  backdrop-filter: blur(4px);
+}
+.nn-trail__age-label {
+  font-family: var(--nn-font-mono, 'JetBrains Mono', monospace);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--nn-amber);
+}
+.nn-trail__age-num {
+  font-family: var(--nn-font-display, 'Orbitron', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--nn-text-primary);
+  line-height: 1;
+}
+.nn-trail__age-num small {
+  font-size: 10px;
+  color: var(--nn-text-secondary);
+  margin-left: 2px;
+}
+.nn-trail__mark {
+  font-family: var(--nn-font-display, 'Orbitron', sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--nn-amber);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Flag bearer + combat overlays — §5.1 amber/magenta accents.
+   ============================================================ */
+.nn-bearer__edge {
+  border: 3px solid color-mix(in oklab, var(--nn-amber) 70%, transparent);
+  box-shadow:
+    0 0 40px color-mix(in oklab, var(--nn-amber) 60%, transparent),
+    inset 0 0 40px color-mix(in oklab, var(--nn-amber) 30%, transparent);
+}
+.nn-bearer__edge--soft {
+  border: 2px solid color-mix(in oklab, var(--nn-amber) 35%, transparent);
+  box-shadow: 0 0 20px color-mix(in oklab, var(--nn-amber) 25%, transparent);
+}
+.nn-bearer__ember {
+  background: var(--nn-amber);
+  box-shadow: 0 0 8px color-mix(in oklab, var(--nn-amber) 80%, transparent);
+  opacity: 0.75;
+}
+.nn-bearer__spark {
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
+  opacity: 0.9;
+}
+.nn-bearer__orb {
+  background: radial-gradient(circle, var(--nn-amber) 0%, transparent 70%);
+  opacity: 0.55;
+  filter: blur(2px);
+}
+.nn-bearer__ring {
+  border: 2px solid color-mix(in oklab, var(--nn-amber) 45%, transparent);
+}
+.nn-bearer__badge {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-family: var(--nn-font-display, 'Orbitron', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--nn-void);
+  background: var(--nn-amber);
+  border: 1px solid color-mix(in oklab, var(--nn-text-primary) 40%, transparent);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--nn-amber) 60%, transparent);
+  pointer-events: none;
+}
+.nn-bearer__info {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  min-width: 140px;
+  background: color-mix(in oklab, var(--nn-void) 82%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-amber) 50%, transparent);
+  backdrop-filter: blur(4px);
+}
+.nn-bearer__name {
+  font-family: var(--nn-font-display, 'Orbitron', sans-serif);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--nn-amber);
+}
+.nn-bearer__meta {
+  font-family: var(--nn-font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--nn-text-secondary);
+}
+.nn-bearer__attack {
+  margin-top: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+.nn-bearer__held {
+  margin-top: 8px;
+  padding: 6px 10px;
+  font-family: var(--nn-font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: var(--nn-green);
+  border: 1px solid color-mix(in oklab, var(--nn-green) 50%, transparent);
+  background: color-mix(in oklab, var(--nn-green) 10%, transparent);
+}
+.nn-viewport__chip {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 20;
+  padding: 4px 10px;
+  font-family: var(--nn-font-mono, 'JetBrains Mono', monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+.nn-viewport__chip--violet {
+  color: var(--nn-violet);
+  background: color-mix(in oklab, var(--nn-void) 70%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-violet) 50%, transparent);
+}
+.nn-attack__edge {
+  border: 3px solid color-mix(in oklab, var(--nn-magenta) 75%, transparent);
+  box-shadow: 0 0 50px color-mix(in oklab, var(--nn-magenta) 70%, transparent);
+}
+.nn-attack__spark {
+  background: linear-gradient(to bottom, var(--nn-magenta), transparent);
+}
+.nn-attack__impact {
+  background: var(--nn-magenta);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--nn-magenta) 80%, transparent);
+}
+.nn-attack__dmg {
+  font-family: var(--nn-font-display, 'Orbitron', sans-serif);
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 6px;
+  color: var(--nn-magenta);
+  text-shadow: 0 0 14px color-mix(in oklab, var(--nn-magenta) 90%, transparent);
 }

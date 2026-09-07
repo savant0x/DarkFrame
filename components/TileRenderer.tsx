@@ -15,7 +15,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Home, Skull } from 'lucide-react';
+import { Home, Skull, Flag } from 'lucide-react';
 import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
@@ -374,10 +374,10 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               </div>
               <p className="text-2xl font-bold">{tile.terrain}</p>
               {tile.terrain === TerrainType.Bank && tile.bankType && (
-                <p className="text-sm text-yellow-200 mt-2">
-                  {tile.bankType === 'metal' && '⚙️ Metal Storage'}
-                  {tile.bankType === 'energy' && '⚡ Energy Storage'}
-                  {tile.bankType === 'exchange' && '🔄 Exchange'}
+                <p className="text-sm mt-2" style={{ color: 'var(--nn-amber)', letterSpacing: '0.1em' }}>
+                  {tile.bankType === 'metal' && 'METAL STORAGE'}
+                  {tile.bankType === 'energy' && 'ENERGY STORAGE'}
+                  {tile.bankType === 'exchange' && 'EXCHANGE'}
                 </p>
               )}
             </div>
@@ -442,8 +442,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
         {/* Shrine Indicator Badge */}
         {tile.terrain === TerrainType.Shrine && (
-          <div className="absolute top-4 right-4 bg-purple-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg z-20">
-            ⛩️ Shrine
+          <div className="nn-viewport__chip nn-viewport__chip--violet">
+            SHRINE
           </div>
         )}
 
@@ -455,17 +455,14 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {isCurrentPlayerBearer ? (
                 <>
                   {/* Minimal effects when you're the bearer */}
-                  <div className="absolute inset-0 bg-gradient-radial from-yellow-400/15 via-orange-400/8 to-transparent"></div>
-                  <div className="absolute inset-0 border-2 border-yellow-400/40 shadow-[0_0_20px_rgba(250,204,21,0.3)]"></div>
+                  <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, color-mix(in oklab, var(--nn-amber) 15%, transparent) 0%, transparent 70%)' }}></div>
+                  <div className="absolute inset-0 nn-bearer__edge--soft"></div>
                 </>
               ) : (
                 <>
                   {/* Full effects when viewing another bearer */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/50 via-orange-500/50 to-red-500/50 animate-pulse"></div>
-                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/40 via-transparent to-orange-400/40 animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                  <div className="absolute inset-0 bg-gradient-radial from-yellow-500/60 via-orange-500/40 to-transparent animate-pulse" style={{ animationDelay: '0.25s' }}></div>
-                  <div className="absolute inset-0 border-8 border-yellow-400 animate-pulse shadow-[0_0_80px_rgba(250,204,21,1),0_0_120px_rgba(251,191,36,0.8),0_0_160px_rgba(234,179,8,0.6),inset_0_0_60px_rgba(250,204,21,0.4)]"></div>
-                  <div className="absolute inset-0 border-4 border-orange-500 animate-pulse shadow-[0_0_60px_rgba(249,115,22,0.9)]" style={{ animationDelay: '0.3s' }}></div>
+                  <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, color-mix(in oklab, var(--nn-amber) 40%, transparent) 0%, color-mix(in oklab, var(--nn-amber) 18%, transparent) 55%, transparent 75%)' }}></div>
+                  <div className="absolute inset-0 nn-bearer__edge animate-pulse"></div>
                 </>
               )}
             </div>
@@ -478,7 +475,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(10)].map((_, i) => (
                     <div
                       key={`subtle-${i}`}
-                      className="absolute w-1.5 h-1.5 bg-yellow-400/40 rounded-full animate-float shadow-[0_0_6px_rgba(250,204,21,0.3)]"
+                      className="absolute w-1.5 h-1.5 rounded-full animate-float nn-bearer__ember"
                       style={{
                         left: `${(i * 10) % 100}%`,
                         bottom: `${(i * 10) % 100}%`,
@@ -494,7 +491,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(40)].map((_, i) => (
                     <div
                       key={`bottom-${i}`}
-                      className="absolute w-3 h-3 bg-yellow-400 rounded-full animate-float opacity-80 shadow-[0_0_10px_rgba(250,204,21,0.8)]"
+                      className="absolute w-3 h-3 rounded-full animate-float nn-bearer__ember"
                       style={{
                         left: `${(i * 2.5) % 100}%`,
                         bottom: `${(i % 4) * 8}%`,
@@ -507,7 +504,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(40)].map((_, i) => (
                     <div
                       key={`middle-${i}`}
-                      className="absolute w-2.5 h-2.5 bg-orange-400 rounded-full animate-float opacity-75 shadow-[0_0_8px_rgba(251,146,60,0.8)]"
+                      className="absolute w-2.5 h-2.5 rounded-full animate-float nn-bearer__ember"
                       style={{
                         left: `${((i * 2.5) + 1.25) % 100}%`,
                         bottom: `${((i % 4) * 8) + 35}%`,
@@ -520,7 +517,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(40)].map((_, i) => (
                     <div
                       key={`top-${i}`}
-                      className="absolute w-2 h-2 bg-red-400 rounded-full animate-float opacity-70 shadow-[0_0_6px_rgba(248,113,113,0.8)]"
+                      className="absolute w-2 h-2 rounded-full animate-float nn-bearer__ember"
                       style={{
                         left: `${((i * 2.5) + 0.5) % 100}%`,
                         bottom: `${((i % 4) * 8) + 70}%`,
@@ -541,7 +538,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(30)].map((_, i) => (
                     <div
                       key={`sparkle-${i}`}
-                      className="absolute w-1.5 h-1.5 bg-white rounded-full animate-float opacity-90 shadow-[0_0_12px_rgba(255,255,255,1)]"
+                      className="absolute w-1.5 h-1.5 bg-white rounded-full animate-float nn-bearer__spark"
                       style={{
                         left: `${Math.random() * 100}%`,
                         bottom: `${Math.random() * 100}%`,
@@ -555,7 +552,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(15)].map((_, i) => (
                     <div
                       key={`orb-${i}`}
-                      className="absolute w-6 h-6 bg-gradient-to-br from-yellow-300 to-orange-400 rounded-full animate-float opacity-60 blur-sm shadow-[0_0_20px_rgba(250,204,21,1)]"
+                      className="absolute w-6 h-6 rounded-full animate-float nn-bearer__orb"
                       style={{
                         left: `${(i * 7) % 100}%`,
                         bottom: `${(i * 11) % 100}%`,
@@ -568,8 +565,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
                 {/* Rotating Ring Effect */}
                 <div className="absolute inset-0 z-30 pointer-events-none">
-                  <div className="absolute inset-4 border-4 border-yellow-300/50 rounded-full animate-spin" style={{ animationDuration: '8s' }}></div>
-                  <div className="absolute inset-8 border-4 border-orange-300/50 rounded-full animate-spin" style={{ animationDuration: '6s', animationDirection: 'reverse' }}></div>
+                  <div className="absolute inset-4 rounded-full nn-bearer__ring animate-spin" style={{ animationDuration: '8s' }}></div>
+                  <div className="absolute inset-8 rounded-full nn-bearer__ring animate-spin" style={{ animationDuration: '6s', animationDirection: 'reverse' }}></div>
                 </div>
               </>
             )}
@@ -595,31 +592,31 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
             {/* Flag Bearer Badge - Only show for non-bearers */}
             {!isCurrentPlayerBearer && (
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-2 rounded-full text-lg font-bold shadow-2xl z-40 border-2 border-yellow-300 animate-bounce">
-                🚩 FLAG BEARER
+              <div className="nn-bearer__badge animate-bounce">
+                <Flag className="h-4 w-4" /> FLAG BEARER
               </div>
             )}
 
             {/* Bearer Info */}
-            <div className="absolute bottom-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg text-sm z-40 border border-yellow-400">
-              <div className="font-bold text-yellow-300">{flagBearer.username ?? 'Unknown'}</div>
-              <div className="text-xs">Level: {flagBearer.level ?? '?'}</div>
+            <div className="nn-bearer__info">
+              <div className="nn-bearer__name">{flagBearer.username ?? 'Unknown'}</div>
+              <div className="nn-bearer__meta">LVL {flagBearer.level ?? '?'}</div>
               {flagBearer.currentHP && flagBearer.maxHP && (
-                <div className="text-xs">HP: {flagBearer.currentHP}/{flagBearer.maxHP}</div>
+                <div className="nn-bearer__meta">HP {flagBearer.currentHP}/{flagBearer.maxHP}</div>
               )}
               {/* Only show attack button if player is NOT the bearer */}
               {onFlagAttack && !isCurrentPlayerBearer && (
                 <button
                   onClick={() => onFlagAttack(flagBearer)}
-                  className="mt-2 w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white px-3 py-1 rounded-md text-xs font-semibold transition-all hover:scale-105 active:scale-95 border border-red-400 shadow-lg"
+                  className="nn-btn nn-btn--danger nn-bearer__attack"
                 >
-                  ⚔️ Attack Bearer
+                  ATTACK BEARER
                 </button>
               )}
               {/* Show status message if player IS the bearer */}
               {isCurrentPlayerBearer && (
-                <div className="mt-2 w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white px-3 py-2 rounded-md text-xs font-semibold text-center border border-green-400 shadow-lg">
-                  ✓ You hold the flag!
+                <div className="nn-bearer__held">
+                  YOU HOLD THE FLAG
                 </div>
               )}
             </div>
@@ -636,7 +633,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 opacity: Math.max(0.1, 1 - (distanceToFlagBearer / 10))
               }}
             >
-              <div className="absolute inset-0 bg-gradient-radial from-yellow-500/20 via-orange-500/10 to-transparent animate-pulse"></div>
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, color-mix(in oklab, var(--nn-amber) 20%, transparent) 0%, transparent 70%)' }}></div>
             </div>
             
             {/* Directional Particles - Fewer particles further away */}
@@ -654,7 +651,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 return (
                   <div
                     key={i}
-                    className="absolute w-1.5 h-1.5 bg-yellow-400/60 rounded-full animate-float"
+                    className="absolute w-1.5 h-1.5 rounded-full animate-float nn-bearer__ember"
                     style={{
                       left: `${particleX}%`,
                       top: `${particleY}%`,
@@ -669,8 +666,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
             {/* Distance Badge - Only show if within attack range (5 tiles) */}
             {distanceToFlagBearer <= 5 && (
-              <div className="absolute top-2 right-2 bg-orange-600/80 backdrop-blur-sm text-white px-2 py-1 rounded-md text-xs font-bold z-30 border border-yellow-400/50 shadow-lg animate-pulse">
-                🚩 {Math.round(distanceToFlagBearer)} tiles away
+              <div className="nn-viewport__range" style={{ opacity: trailOpacity }}>
+                {Math.round(distanceToFlagBearer)} TILES AWAY
               </div>
             )}
           </>
@@ -686,15 +683,13 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               style={{ opacity: trailOpacity }}
             >
               <div 
-                className="absolute inset-0 border-[10px] border-yellow-300 animate-pulse"
+                className="absolute inset-0 nn-trail__edge animate-pulse"
                 style={{
-                  backgroundColor: `rgba(250, 204, 21, ${trailOpacity * 0.3})`,
+                  backgroundColor: `color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 30)}%, transparent)`,
                   boxShadow: `
-                    inset 0 0 60px rgba(250, 204, 21, ${trailOpacity}),
-                    inset 0 0 100px rgba(251, 146, 60, ${trailOpacity * 0.8}),
-                    0 0 80px rgba(250, 204, 21, ${trailOpacity}),
-                    0 0 120px rgba(251, 146, 60, ${trailOpacity}),
-                    0 0 160px rgba(252, 211, 77, ${trailOpacity * 0.7})
+                    inset 0 0 60px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent),
+                    inset 0 0 100px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 80)}%, transparent),
+                    0 0 80px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent)
                   `
                 }}
               ></div>
@@ -705,9 +700,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               className="absolute inset-0 z-24 pointer-events-none"
               style={{ opacity: trailOpacity }}
             >
-              <div className="absolute inset-0 bg-gradient-radial from-yellow-200 via-orange-300/90 to-yellow-300/70 animate-pulse"></div>
-              <div className="absolute inset-0 bg-gradient-to-br from-yellow-300/80 via-orange-300/80 to-red-400/60"></div>
-              <div className="absolute inset-0 bg-yellow-200/40"></div>
+              <div className="absolute inset-0 nn-trail__glow animate-pulse"></div>
             </div>
             
             {/* LAYER 3: GIGANTIC Animated Particles - FILL THE TILE */}
@@ -715,20 +708,19 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {[...Array(Math.ceil(120 * trailOpacity))].map((_, i) => (
                 <div
                   key={`trail-${i}`}
-                  className="absolute bg-yellow-200 rounded-full animate-float"
+                  className="absolute rounded-full animate-float nn-trail__ember"
                   style={{
-                    width: `${10 + (i % 5) * 3}px`,
-                    height: `${10 + (i % 5) * 3}px`,
+                    width: `${4 + (i % 5) * 2}px`,
+                    height: `${4 + (i % 5) * 2}px`,
                     left: `${(i * 3 + 2) % 98}%`,
                     bottom: `${(i * 5) % 95}%`,
                     animationDelay: `${i * 0.03}s`,
                     animationDuration: `${1.5 + (i % 4) * 0.3}s`,
                     opacity: trailOpacity,
-                    backgroundColor: i % 3 === 0 ? 'rgb(250, 204, 21)' : i % 3 === 1 ? 'rgb(251, 146, 60)' : 'rgb(252, 211, 77)',
+                    backgroundColor: i % 3 === 0 ? 'var(--nn-amber)' : i % 3 === 1 ? 'var(--nn-amber)' : 'var(--nn-green)',
                     boxShadow: `
-                      0 0 ${30 * trailOpacity}px rgba(250, 204, 21, ${trailOpacity}),
-                      0 0 ${50 * trailOpacity}px rgba(251, 146, 60, ${trailOpacity}),
-                      0 0 ${70 * trailOpacity}px rgba(252, 211, 77, ${trailOpacity * 0.8})
+                      0 0 ${12 * trailOpacity}px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent),
+                      0 0 ${24 * trailOpacity}px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 80)}%, transparent)
                     `
                   }}
                 ></div>
@@ -740,7 +732,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {[...Array(16)].map((_, i) => (
                 <div
                   key={`swirl-${i}`}
-                  className="absolute w-16 h-16 rounded-full border-[4px] border-yellow-300"
+                  className="absolute w-16 h-16 rounded-full nn-trail__ring"
                   style={{
                     left: '50%',
                     top: '50%',
@@ -748,34 +740,31 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                     animation: `expand-fade ${1.2 + i * 0.15}s ease-out infinite`,
                     animationDelay: `${i * 0.1}s`,
                     opacity: trailOpacity,
-                    boxShadow: `0 0 30px rgba(250, 204, 21, ${trailOpacity})`
+                    boxShadow: `0 0 30px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent)`
                   }}
                 ></div>
               ))}
             </div>
 
             {/* LAYER 5: GIGANTIC Corner Sparkles */}
-            <div className="absolute top-0 left-0 w-12 h-12 bg-yellow-200 rounded-full z-27 animate-ping shadow-[0_0_40px_rgba(250,204,21,1)]" style={{ opacity: trailOpacity }}></div>
-            <div className="absolute top-0 right-0 w-12 h-12 bg-yellow-200 rounded-full z-27 animate-ping shadow-[0_0_40px_rgba(250,204,21,1)]" style={{ opacity: trailOpacity, animationDelay: '0.2s' }}></div>
-            <div className="absolute bottom-0 left-0 w-12 h-12 bg-yellow-200 rounded-full z-27 animate-ping shadow-[0_0_40px_rgba(250,204,21,1)]" style={{ opacity: trailOpacity, animationDelay: '0.4s' }}></div>
-            <div className="absolute bottom-0 right-0 w-12 h-12 bg-yellow-200 rounded-full z-27 animate-ping shadow-[0_0_40px_rgba(250,204,21,1)]" style={{ opacity: trailOpacity, animationDelay: '0.6s' }}></div>
+            <div className="nn-trail__spark nn-trail__spark--tl" style={{ opacity: trailOpacity }}></div>
+            <div className="nn-trail__spark nn-trail__spark--tr" style={{ opacity: trailOpacity, animationDelay: '0.2s' }}></div>
+            <div className="nn-trail__spark nn-trail__spark--bl" style={{ opacity: trailOpacity, animationDelay: '0.4s' }}></div>
+            <div className="nn-trail__spark nn-trail__spark--br" style={{ opacity: trailOpacity, animationDelay: '0.6s' }}></div>
             
             {/* LAYER 6: GIGANTIC Trail Age Badge */}
             <div 
-              className="absolute bottom-1 right-1 bg-gradient-to-br from-yellow-300 to-orange-500 backdrop-blur-sm text-black px-6 py-3 rounded-2xl text-xl font-black z-30 border-[4px] border-yellow-100 shadow-2xl"
+              className="nn-trail__age"
               style={{ 
                 opacity: trailOpacity,
                 boxShadow: `
-                  0 0 40px rgba(250, 204, 21, ${trailOpacity}),
-                  0 0 60px rgba(251, 146, 60, ${trailOpacity}),
-                  inset 0 0 30px rgba(255, 255, 255, 0.5)
+                  0 0 40px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent),
+                  0 0 60px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 70)}%, transparent)
                 `
               }}
             >
-              <div className="flex items-center gap-3">
-                <span className="text-4xl animate-pulse">🚩</span>
-                <span className="drop-shadow-[0_2px_6px_rgba(0,0,0,1)]">{Math.ceil((1 - trailAge) * 8)}min</span>
-              </div>
+              <span className="nn-trail__age-label">TRAIL</span>
+              <span className="nn-trail__age-num">{Math.ceil((1 - trailAge) * 8)}<small>min</small></span>
             </div>
 
             {/* LAYER 7: GIGANTIC "FLAG TRAIL" Text Overlay */}
@@ -784,14 +773,12 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               style={{ opacity: trailOpacity }}
             >
               <div 
-                className="text-yellow-100 font-black text-3xl tracking-widest animate-pulse"
+                className="nn-trail__mark animate-pulse"
                 style={{
                   textShadow: `
-                    0 0 20px rgba(250, 204, 21, ${trailOpacity}),
-                    0 0 40px rgba(251, 146, 60, ${trailOpacity}),
-                    0 0 60px rgba(252, 211, 77, ${trailOpacity}),
-                    4px 4px 8px rgba(0, 0, 0, 1),
-                    -2px -2px 4px rgba(255, 255, 255, 0.5)
+                    0 0 20px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent),
+                    0 0 40px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 80)}%, transparent),
+                    4px 4px 8px rgba(0, 0, 0, 1)
                   `
                 }}
               >
@@ -806,8 +793,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           <>
             {/* Explosive Flash Effect */}
             <div className="absolute inset-0 z-35 pointer-events-none">
-              <div className="absolute inset-0 bg-gradient-to-br from-red-500/40 via-orange-500/40 to-yellow-500/30 animate-pulse"></div>
-              <div className="absolute inset-0 border-4 border-red-500 animate-pulse shadow-[0_0_50px_rgba(239,68,68,0.9)]"></div>
+              <div className="absolute inset-0 animate-pulse" style={{ background: 'linear-gradient(135deg, color-mix(in oklab, var(--nn-magenta) 40%, transparent), transparent 70%)' }}></div>
+              <div className="absolute inset-0 nn-attack__edge animate-pulse"></div>
             </div>
 
             {/* Combat Sparks - Radiating Outward */}
@@ -823,7 +810,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 return (
                   <div
                     key={i}
-                    className="absolute w-1 h-6 bg-gradient-to-b from-red-500 via-orange-400 to-transparent rounded-full opacity-80"
+                    className="absolute w-1 h-6 rounded-full opacity-80 nn-attack__spark"
                     style={{
                       left: `${startX}%`,
                       top: `${startY}%`,
@@ -843,7 +830,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 return (
                   <div
                     key={i}
-                    className="absolute w-3 h-3 bg-orange-500 rounded-full opacity-70"
+                    className="absolute w-3 h-3 rounded-full opacity-70 nn-attack__impact"
                     style={{
                       left: '50%',
                       top: '50%',
@@ -877,9 +864,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 {attackResult?.success ? '⚔️' : isAttacking ? '💥' : ''}
               </div>
               {attackResult?.damageDealt && (
-                <div className="text-red-500 font-bold text-2xl text-center animate-pulse mt-2 drop-shadow-[0_0_10px_rgba(239,68,68,1)]">
-                  -{attackResult.damageDealt}
-                </div>
+                <div className="nn-attack__dmg animate-pulse">-{attackResult.damageDealt}</div>
               )}
             </div>
           </>
@@ -899,39 +884,31 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
         </div>
       </div>
 
-      {/* Tile Info */}
-      <div className="nn-panel mt-4 space-y-2 p-4">
-        <div className="flex justify-between items-center">
-          <h3 className="font-orbitron text-base font-bold uppercase tracking-[0.12em] text-[color:var(--nn-cyan)]">
-            {isAnyBase ? (
-              <>
-                <span className="text-[color:var(--nn-green)]">Base — {isPlayerBase ? 'Yours' : tile.baseOwner ?? 'Player'}</span>
-                <span className="ml-2 text-[10px] tracking-[0.2em] text-[color:var(--nn-text-tertiary)]">{tile.terrain}</span>
-              </>
-            ) : (
-              tile.terrain
-            )}
-          </h3>
-          <span className="font-orbitron text-sm tabular-nums text-[color:var(--nn-text-tertiary)]">
-            ({tile.x}, {tile.y})
-          </span>
+      {/* NEON NOIR action deck — §5.1 result/info surface under the viewport.
+          Layout: scanline header (title + meta) → body of wells and gains. */}
+      <div className="nn-deck animate-fade-in">
+        <div className="nn-deck__head">
+          <h3 className="nn-deck__title">{isAnyBase ? `Base — ${isPlayerBase ? 'Yours' : tile.baseOwner ?? 'Player'}` : tile.terrain}</h3>
+          <span className="nn-deck__meta">SEC {String(tile.x).padStart(3, '0')} · {String(tile.y).padStart(3, '0')} · {tile.terrain.toUpperCase()}</span>
         </div>
-        <p className="text-sm text-[color:var(--nn-text-secondary)]">{getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}</p>
-        
-        {/* Base Greeting Display */}
-        {isAnyBase && tile.baseGreeting && (
-          <div className="nn-well mt-3 p-3" style={{ margin: '0.75rem 12px 8px', width: 'auto', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
-            <p className="nn-lab">Base message</p>
-            <SafeHtmlRenderer 
-              html={tile.baseGreeting}
-              fallback="Welcome to my base!"
-              className="text-sm text-[color:var(--nn-text-primary)]"
-            />
-          </div>
-        )}
+        <div className="nn-deck__body">
+          <p className="nn-deck__desc">{getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}</p>
+          
+          {/* Base Greeting Display */}
+          {isAnyBase && tile.baseGreeting && (
+            <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+              <p className="nn-lab">Base message</p>
+              <SafeHtmlRenderer 
+                html={tile.baseGreeting}
+                fallback="Welcome to my base!"
+                className="text-sm text-[color:var(--nn-text-primary)]"
+              />
+            </div>
+          )}
+        </div>
         
         {/* Tile Interaction Buttons */}
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="nn-actions2" style={{ flexWrap: 'wrap' }}>
           {/* Bank Button */}
           {tile.terrain === TerrainType.Bank && onBankClick && (
             <button
@@ -972,32 +949,34 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           )}
         </div>
 
-        {/* Bank/Shrine Controls Hint */}
-        {tile.terrain === TerrainType.Bank && (
-          <p className="nn-footnote mt-2" style={{ marginTop: 8 }}>
-            Press <kbd className="nn-kbd">B</kbd> to open Bank interface
-          </p>
-        )}
-        {tile.terrain === TerrainType.Shrine && (
-          <p className="nn-footnote mt-2" style={{ marginTop: 8 }}>
-            Press <kbd className="nn-kbd">S</kbd> to open Shrine interface
-          </p>
-        )}
+        <div className="nn-deck__body" style={{ paddingTop: 0 }}>
+          {/* Bank/Shrine Controls Hint */}
+          {tile.terrain === TerrainType.Bank && (
+            <p className="nn-deck__foot">
+              Press <kbd className="nn-kbd">B</kbd> to open Bank interface
+            </p>
+          )}
+          {tile.terrain === TerrainType.Shrine && (
+            <p className="nn-deck__foot">
+              Press <kbd className="nn-kbd">S</kbd> to open Shrine interface
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Factory Info (if factory tile) */}
+      {/* Factory Info (if factory tile) — §5.1 magenta module */}
       {tile.terrain === TerrainType.Factory && factoryData && (
-        <div className="nn-panel nn-panel--danger mt-4 space-y-3 p-4">
-          <div className="flex justify-between items-center">
-            <h4 className="font-orbitron text-sm font-bold uppercase tracking-[0.14em] text-[color:var(--nn-magenta)]">Factory Status</h4>
+        <div className="nn-deck animate-fade-in">
+          <div className="nn-deck__head">
+            <h4 className="nn-deck__title nn-deck__title--magenta">Factory Status</h4>
             {factoryData.owner && (
-              <span className={`text-xs font-semibold ${factoryData.owner === player?.username ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-amber)]'}`}>
-                {factoryData.owner === player?.username ? 'Yours' : `Owned by ${factoryData.owner}`}
+              <span className="nn-deck__meta" style={{ color: factoryData.owner === player?.username ? 'var(--nn-green)' : 'var(--nn-amber)' }}>
+                {factoryData.owner === player?.username ? 'YOURS' : `OWNER ▸ ${factoryData.owner.toUpperCase()}`}
               </span>
             )}
           </div>
           
-          <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="nn-grid2x2">
             <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
               <span className="nn-lab">Defense</span>
               <div className="nn-num text-[color:var(--nn-text-primary)]">{factoryData.defense.toLocaleString()}</div>
@@ -1039,103 +1018,99 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
         </div>
       )}
 
-      {/* Harvest Result Display (below tile image) */}
+      {/* Harvest Result Display (below tile image) — §5.1 deck */}
       {harvestResult && (
-        <div className="nn-panel mt-4 animate-fade-in p-4">
-          {/* Success/Failure Message */}
-          <div className={`nn-panel__header mb-3 justify-center text-center text-base ${harvestResult.success ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
-            {harvestResult.message || (harvestResult.success ? 'Harvest complete' : 'Harvest failed')}
+        <div className="nn-deck mt-4 animate-fade-in">
+          <div className="nn-deck__head">
+            <h4 className={`nn-deck__title ${harvestResult.success ? 'nn-deck__title--green' : 'nn-deck__title--magenta'}`}>
+              {harvestResult.success ? 'HARVEST COMPLETE' : 'HARVEST FAILED'}
+            </h4>
+            <span className="nn-deck__meta">+{((harvestResult.metalGained ?? 0) + (harvestResult.energyGained ?? 0)).toLocaleString()} RES</span>
           </div>
-          
+
           {/* Resource Results */}
           {harvestResult.success && (harvestResult.metalGained || harvestResult.energyGained) && (
-            <div className="mb-3 flex justify-center gap-6">
-              {harvestResult.metalGained && harvestResult.metalGained > 0 && (
-                <div className="flex items-baseline gap-2">
-                  <span className="nn-num text-xl text-[color:var(--nn-amber)]">
-                    +{harvestResult.metalGained.toLocaleString()}
-                  </span>
-                  <span className="nn-lab">metal</span>
-                </div>
-              )}
-              {harvestResult.energyGained && harvestResult.energyGained > 0 && (
-                <div className="flex items-baseline gap-2">
-                  <span className="nn-num text-xl text-[color:var(--nn-cyan)]">
-                    +{harvestResult.energyGained.toLocaleString()}
-                  </span>
-                  <span className="nn-lab">energy</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Cave Item Result */}
-          {harvestResult.success && harvestResult.item && (
-            <div className="mb-3 flex items-center justify-center gap-3 rounded p-3" style={{ background: 'color-mix(in oklab, var(--nn-violet) 10%, transparent)' }}>
-              <div>
-                <div className="font-bold text-[color:var(--nn-violet)]">{harvestResult.item.name}</div>
-                {harvestResult.item.description && (
-                  <div className="text-sm text-[color:var(--nn-text-secondary)]">{harvestResult.item.description}</div>
+            <div className="nn-deck__body">
+              <div className="nn-grid2x2">
+                {!!harvestResult.metalGained && harvestResult.metalGained > 0 && (
+                  <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                    <span className="nn-lab">Metal</span>
+                    <div className="nn-num text-[color:var(--nn-amber)]">+{harvestResult.metalGained.toLocaleString()}</div>
+                  </div>
+                )}
+                {!!harvestResult.energyGained && harvestResult.energyGained > 0 && (
+                  <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                    <span className="nn-lab">Energy</span>
+                    <div className="nn-num text-[color:var(--nn-cyan)]">+{harvestResult.energyGained.toLocaleString()}</div>
+                  </div>
                 )}
               </div>
             </div>
           )}
 
-          {/* Bonus Applied */}
-          {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
-            <p className="nn-footnote mb-2" style={{ color: 'var(--nn-green)', fontSize: 11 }}>
-              +{harvestResult.bonusApplied.toFixed(2)}% bonus applied
-            </p>
+          {/* Cave Item Result */}
+          {harvestResult.success && harvestResult.item && (
+            <div className="nn-deck__body">
+              <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderColor: 'color-mix(in oklab, var(--nn-violet) 40%, transparent)' }}>
+                <span className="nn-lab">Item recovered</span>
+                <div className="text-sm font-bold text-[color:var(--nn-violet)]">{harvestResult.item.name}</div>
+                {harvestResult.item.description && (
+                  <div className="text-xs text-[color:var(--nn-text-secondary)]">{harvestResult.item.description}</div>
+                )}
+              </div>
+            </div>
           )}
 
-          {/* Result Message */}
-          <div className="mt-2 whitespace-pre-line border-t border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pt-3 text-center text-sm text-[color:var(--nn-text-secondary)]">
-            {harvestResult.message}
+          <div className="nn-deck__body" style={{ paddingTop: harvestResult.bonusApplied && harvestResult.bonusApplied > 0 ? undefined : 0 }}>
+            {/* Bonus Applied */}
+            {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
+              <p className="nn-deck__foot" style={{ color: 'var(--nn-green)' }}>
+                +{harvestResult.bonusApplied.toFixed(2)}% BONUS APPLIED
+              </p>
+            )}
+            {/* Result Message (single instance) */}
+            {harvestResult.message && (
+              <p className="nn-deck__msg" style={{ textAlign: 'left' }}>{harvestResult.message}</p>
+            )}
           </div>
         </div>
       )}
 
-      {/* Attack Result Display (below tile image) */}
+      {/* Attack Result Display (below tile image) — §5.1 magenta deck */}
       {attackResult && (
-        <div className="nn-panel nn-panel--danger mt-4 animate-fade-in p-4">
-          <div className={`nn-panel__header mb-2 justify-center text-center text-base ${attackResult.success ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
-            {attackResult.captured ? 'FACTORY CAPTURED' : attackResult.success ? 'Attack successful' : 'Attack failed'}
+        <div className="nn-deck mt-4 animate-fade-in">
+          <div className="nn-deck__head">
+            <h4 className={`nn-deck__title ${attackResult.captured ? 'nn-deck__title--green' : attackResult.success ? '' : 'nn-deck__title--magenta'}`}>
+              {attackResult.captured ? 'FACTORY CAPTURED' : attackResult.success ? 'ATTACK LANDED' : 'ATTACK FAILED'}
+            </h4>
+            <span className="nn-deck__meta">DMG ▸ {attackResult.damageDealt ?? 0}</span>
           </div>
-          
+
           {/* Power Comparison */}
-          <div className="mb-3 flex justify-center gap-6 rounded p-3" style={{ background: 'color-mix(in oklab, var(--nn-void) 50%, transparent)' }}>
-            <div className="text-center">
-              <div className="nn-lab mb-1">Your power</div>
-              <div className="nn-num text-xl text-[color:var(--nn-cyan)]">
-                {attackResult.playerPower.toLocaleString()}
+          <div className="nn-deck__body">
+            <div className="nn-grid2x2">
+              <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                <span className="nn-lab">Your power</span>
+                <div className="nn-num text-[color:var(--nn-cyan)]">{attackResult.playerPower.toLocaleString()}</div>
               </div>
-            </div>
-            <div className="nn-lab flex items-center" style={{ fontSize: 12 }}>VS</div>
-            <div className="text-center">
-              <div className="nn-lab mb-1">Factory defense</div>
-              <div className="nn-num text-xl text-[color:var(--nn-magenta)]">
-                {attackResult.factoryDefense.toLocaleString()}
+              <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                <span className="nn-lab">Factory defense</span>
+                <div className="nn-num text-[color:var(--nn-magenta)]">{attackResult.factoryDefense.toLocaleString()}</div>
               </div>
             </div>
           </div>
 
-          {/* Capture Status */}
-          {attackResult.captured && (
-            <div className="mb-3 flex items-center justify-center gap-3 rounded p-3" style={{ background: 'color-mix(in oklab, var(--nn-green) 10%, transparent)' }}>
-              <div className="font-bold text-[color:var(--nn-green)]">Factory now under your control</div>
-            </div>
-          )}
-
-          {/* Damage Dealt */}
-          {attackResult.damageDealt && attackResult.damageDealt > 0 && (
-            <p className="nn-footnote mb-2" style={{ color: 'var(--nn-amber)', fontSize: 11 }}>
-              {attackResult.damageDealt} damage dealt
-            </p>
-          )}
-
-          {/* Result Message */}
-          <div className="mt-2 whitespace-pre-line border-t border-[color-mix(in_oklab,var(--nn-magenta)_12%,transparent)] pt-3 text-center text-sm text-[color:var(--nn-text-secondary)]">
-            {attackResult.message}
+          <div className="nn-deck__body" style={{ paddingTop: 0 }}>
+            {attackResult.captured && (
+              <p className="nn-deck__foot" style={{ color: 'var(--nn-green)' }}>
+                FACTORY NOW UNDER YOUR CONTROL
+              </p>
+            )}
+            {attackResult.damageDealt && attackResult.damageDealt > 0 && !attackResult.captured && (
+              <p className="nn-deck__foot" style={{ color: 'var(--nn-amber)' }}>
+                {attackResult.damageDealt} DAMAGE DEALT
+              </p>
+            )}
           </div>
         </div>
       )}
