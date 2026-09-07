@@ -72,7 +72,7 @@ const TYPE_LABELS: Record<string, string> = {
 export default function BattleLogsPage() {
   const router = useRouter();
   const params = useParams();
-  const { player } = useGameContext();
+  const { player, isLoading } = useGameContext();
   const [logs, setLogs] = useState<BattleLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -82,10 +82,13 @@ export default function BattleLogsPage() {
   const logType = params?.type as string;
 
   useEffect(() => {
-    if (!player) {
+    // player is null until GameContext's async session check finishes — an
+    // unconditional bounce here trapped every hard visit at /login.
+    if (!isLoading && !player) {
       router.push('/login');
       return;
     }
+    if (!player) return; // still warming up — the isLoading dependency re-runs this effect
 
     if (!logType || !['attack', 'defense', 'infantry', 'land-mines'].includes(logType)) {
       router.push('/game');
@@ -115,7 +118,7 @@ export default function BattleLogsPage() {
     };
 
     fetchLogs();
-  }, [player, router, logType, page]);
+  }, [player, isLoading, router, logType, page]);
 
   const formatTimestamp = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -139,7 +142,7 @@ export default function BattleLogsPage() {
     }
   };
 
-  if (loading && page === 1) {
+  if (isLoading || (loading && page === 1)) {
     return (
       <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <p className="text-xl">Loading battle logs...</p>
@@ -153,12 +156,10 @@ export default function BattleLogsPage() {
         {/* Header */}
         <div className="mb-6">
           <BackButton />
-          <h1 className="text-4xl font-bold mt-4">
-            {TYPE_LABELS[logType] || 'Battle Logs'}
-          </h1>
-          <p className="text-[color:var(--nn-text-secondary)] mt-2">
-            Showing {logs.length} of {total.toLocaleString()} logs
-          </p>
+          <div className="nn-sec mt-4">
+            <span className="nn-sec__title">{TYPE_LABELS[logType] || 'Battle Logs'}</span>
+            <span className="nn-sec__note">SHOWING {logs.length} OF {total.toLocaleString()}</span>
+          </div>
         </div>
 
         {/* Pagination Controls - Top */}
@@ -167,7 +168,7 @@ export default function BattleLogsPage() {
             <button
               onClick={() => goToPage(page - 1)}
               disabled={page === 1}
-              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
+              className="nn-abtn nn-abtn--ghost disabled:cursor-not-allowed"
             >
               ← Previous
             </button>
@@ -177,7 +178,7 @@ export default function BattleLogsPage() {
             <button
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages}
-              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
+              className="nn-abtn nn-abtn--ghost disabled:cursor-not-allowed"
             >
               Next →
             </button>
@@ -197,10 +198,8 @@ export default function BattleLogsPage() {
             return (
               <div
                 key={log._id}
-                className={`p-4 rounded-none border-2 ${
-                  isVictory
-                    ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]'
-                    : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]'
+                className={`nn-brief ${
+                  isVictory ? 'nn-brief--green' : 'nn-brief--magenta'
                 }`}
               >
                 <div className="flex flex-wrap justify-between items-start gap-4">
@@ -208,22 +207,20 @@ export default function BattleLogsPage() {
                   <div className="flex-1 min-w-[200px]">
                     <div className="flex items-center gap-3 mb-2">
                       <span
-                        className={`px-3 py-1 rounded-none font-bold text-sm ${
-                          isVictory
-                            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                            : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                        className={`nn-chip ${
+                          isVictory ? 'nn-chip--green' : 'nn-chip--magenta'
                         }`}
                       >
                         {isVictory ? 'VICTORY' : 'DEFEAT'}
                       </span>
-                      <span className="text-lg font-semibold">
-                        vs {opponent}
-                      </span>
+                      <span className="nn-num text-lg font-bold">
+                          vs {opponent}
+                        </span>
                     </div>
 
                     <div className="text-sm text-[color:var(--nn-text-secondary)] space-y-1">
                       <p>
-                        Location: ({log.location.x}, {log.location.y})
+                        <span className="nn-lab">Location</span> ({log.location.x}, {log.location.y})
                       </p>
                       <p>{formatTimestamp(log.timestamp)}</p>
                     </div>
@@ -234,14 +231,14 @@ export default function BattleLogsPage() {
                     <div className="text-sm space-y-1">
                       {log.attackerStrength !== undefined && log.defenderStrength !== undefined && (
                         <p className="text-[color:var(--nn-text-secondary)]">
-                          <span className="text-[color:var(--nn-text-secondary)]">Forces:</span>{' '}
+                          <span className="nn-lab">Forces</span>{' '}
                           {log.attackerStrength.toLocaleString()} vs{' '}
                           {log.defenderStrength.toLocaleString()}
                         </p>
                       )}
                       {log.attackerLosses !== undefined && log.defenderLosses !== undefined && (
                         <p className="text-[color:var(--nn-text-secondary)]">
-                          <span className="text-[color:var(--nn-text-secondary)]">Casualties:</span>{' '}
+                          <span className="nn-lab">Casualties</span>{' '}
                           {isAttacker ? log.attackerLosses : log.defenderLosses} units
                         </p>
                       )}
@@ -257,7 +254,7 @@ export default function BattleLogsPage() {
                             metalChange > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
                           }`}
                         >
-                          <span className="text-[color:var(--nn-amber)]">Metal:</span>{' '}
+                          <span className="nn-lab">Metal</span>{' '}
                           {metalChange > 0 ? '+' : ''}
                           {metalChange.toLocaleString()}
                         </p>
@@ -268,7 +265,7 @@ export default function BattleLogsPage() {
                             energyChange > 0 ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
                           }`}
                         >
-                          <span className="text-[color:var(--nn-cyan)]">Energy:</span>{' '}
+                          <span className="nn-lab">Energy</span>{' '}
                           {energyChange > 0 ? '+' : ''}
                           {energyChange.toLocaleString()}
                         </p>
@@ -303,7 +300,7 @@ export default function BattleLogsPage() {
             <button
               onClick={() => goToPage(page - 1)}
               disabled={page === 1}
-              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
+              className="nn-abtn nn-abtn--ghost disabled:cursor-not-allowed"
             >
               ← Previous
             </button>
@@ -324,10 +321,8 @@ export default function BattleLogsPage() {
                   <button
                     key={pageNum}
                     onClick={() => goToPage(pageNum)}
-                    className={`px-3 py-2 rounded-none font-semibold transition-colors ${
-                      page === pageNum
-                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                        : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)]'
+                    className={`nn-tabchip ${
+                      page === pageNum ? 'nn-tabchip--on' : ''
                     }`}
                   >
                     {pageNum}
@@ -338,7 +333,7 @@ export default function BattleLogsPage() {
             <button
               onClick={() => goToPage(page + 1)}
               disabled={page === totalPages}
-              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-secondary)] disabled:cursor-not-allowed rounded-none font-semibold transition-colors"
+              className="nn-abtn nn-abtn--ghost disabled:cursor-not-allowed"
             >
               Next →
             </button>

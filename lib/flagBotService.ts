@@ -24,7 +24,7 @@
 
 import { db } from '@/lib/db';
 import { players, flags } from '@/lib/db/schema';
-import { eq, like, sql } from 'drizzle-orm';
+import { and, eq, like, sql } from 'drizzle-orm';
 import { BotSpecialization, type Player, type Position } from '@/types/game.types';
 import { createBotPlayer } from '@/lib/botService';
 import { mapRowToPlayer, mapDomainPlayerToRow, getPlayerByUsername } from '@/lib/playerService';
@@ -315,10 +315,42 @@ export async function resetFlagBot(): Promise<Player> {
     const flagDoc = flagRows[0];
     
     if (flagDoc?.currentHolder) {
-      // Remove old flag bot
-      await db.delete(players).where(eq(players.username, flagDoc.currentHolder));
-      
-      console.log(`🗑️ Old flag bot removed: ${flagDoc.currentHolderUsername || flagDoc.currentHolder}`);
+      // DEFECT FIX (design doc: FLAG_CONFIG.MAX_HOLD_DURATION = "1 hour
+      // before auto-drop"): when the hold time elapses the flag DROPS — the
+      // holder keeps their account. The old code deleted the holder's player
+      // row outright, which erased a human account mid-session (observed:
+      // fame, 2026-09-07).
+      const holderRows = await db
+        .select({ isBot: players.isBot })
+        .from(players)
+        .where(eq(players.username, flagDoc.currentHolder))
+        .limit(1);
+      if (holderRows[0]?.isBot) {
+        // Despawn: only a bot holder may be removed from players.
+        await db
+          .delete(players)
+          .where(and(eq(players.username, flagDoc.currentHolder), eq(players.isBot, 1)));
+        console.log(`🗑️ Old flag bot removed: ${flagDoc.currentHolderUsername || flagDoc.currentHolder}`);
+      } else {
+        // Auto-drop: release the flag from the human holder — account untouched.
+        await db
+          .update(flags)
+          .set({
+            currentHolder: null,
+            currentHolderUsername: null,
+            sessionEarningsMetal: 0,
+            sessionEarningsEnergy: 0,
+            fleeCount: 0,
+            graceUntil: null,
+            challengeChallenger: null,
+            challengeStartedAt: null,
+            challengeEndsAt: null,
+          })
+          .where(eq(flags.id, flagDoc.id));
+        console.log(
+          `🏳️ MAX_HOLD_DURATION reached — flag auto-dropped from ${flagDoc.currentHolderUsername || flagDoc.currentHolder} (account untouched)`
+        );
+      }
     }
     
     // Create new flag bot at random position
@@ -348,13 +380,16 @@ export async function shouldResetFlag(): Promise<boolean> {
     const flagDoc = flagRows[0];
     
     if (!flagDoc?.currentHolder) {
-      return true; // No holder, needs reset
+      // Unclaimed: respawn after the delay since the last capture.
+      const timeSinceClaim = Date.now() - new Date(flagDoc?.lastCapturedAt || 0).getTime();
+      return timeSinceClaim > FLAG_BOT_CONFIG.respawnDelay;
     }
-    
-    const timeSinceClaim = Date.now() - new Date(flagDoc.lastCapturedAt || 0).getTime();
-    const shouldReset = timeSinceClaim > FLAG_BOT_CONFIG.respawnDelay;
-    
-    return shouldReset;
+
+    // DEFECT FIX: a held flag is claimed — holding duration must never
+    // trigger a reset. The old logic returned true once a player held the
+    // flag longer than respawnDelay, which made the cron delete the
+    // holder's account (see resetFlagBot).
+    return false;
   } catch (error) {
     console.error('❌ Error checking flag reset status:', error);
     return false;
