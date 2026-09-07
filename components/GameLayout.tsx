@@ -130,27 +130,45 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
       onOpenDMWithFriend(friendUsername);
     }
   }, [onOpenDMWithFriend]);
-  return (
-    <div className="relative min-h-screen bg-gray-900 text-gray-100 pt-14">
-      {/* Dynamic Tile Background - Immersive Atmosphere */}
-      {backgroundImage && (
-        <div
-          className="fixed inset-0 z-0 transition-opacity duration-700 ease-in-out"
-          style={{
-            backgroundImage: `url(${backgroundImage})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            opacity: 0.35,
-            filter: 'blur(2px) brightness(0.6)',
-          }}
-        />
-      )}
 
-      {/* Main Game Area */}
+  // NEON NOIR §5.1: derive the per-terrain color grade from the scene image path
+  // (/assets/tiles/<terrain>/...) — cyan-teal energy, rust metal, violet cave, emerald forest, …
+  const terrainClass = React.useMemo(() => {
+    if (!backgroundImage) return 'default';
+    const match = backgroundImage.match(/\/assets\/tiles\/([a-z]+)\//i);
+    const terrain = (match?.[1] ?? 'default').toLowerCase();
+    const GRADES: Record<string, string> = {
+      metal: 'metal', energy: 'energy', cave: 'cave', forest: 'forest',
+      factory: 'factory', shrine: 'shrine', bank: 'bank',
+    };
+    return GRADES[terrain] ?? 'default';
+  }, [backgroundImage]);
+  return (
+    <div className="nn-shell relative min-h-screen text-[color:var(--nn-text-primary)]">
+      {/* NEON NOIR scene layer (§5.1 F3 upgrade): full-window terrain background kept,
+          now with per-terrain color grade, vignette, and 9s ambient drift. The
+          crossfade between terrains is handled by the <img> opacity transition. */}
+      {backgroundImage && (
+        <div className="nn-scene" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element -- full-bleed scene layer; next/image fill is the tile viewport's job */}
+          <img
+            key={backgroundImage}
+            src={backgroundImage}
+            alt=""
+            className="nn-scene__image object-cover"
+            style={{ opacity: 0.35 }}
+          />
+          <div className={`nn-scene__grade nn-scene__grade--${terrainClass}`} />
+          <div className="nn-scene__vignette" />
+        </div>
+    )}
+
+      {/* Main Game Area — nn-shell pads 56px for the fixed TopNav (the old
+          pt-14 utility computed 0 post-Tailwind-4-migration, clipping the
+          rails' first panels under the nav). */}
       <div className="relative z-10 flex flex-col lg:flex-row h-[calc(100vh-56px)]">
         {/* Left Column - Stats + Battle Logs */}
-        <aside className="hidden lg:flex w-full lg:w-72 xl:w-80 bg-gray-800/40 backdrop-blur-sm border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(0,240,255,0.2)] flex-col overflow-hidden" aria-label="Player statistics">
+        <aside className="nn-rail nn-rail--left hidden lg:flex w-full lg:w-72 xl:w-80 flex-col overflow-hidden" aria-label="Player statistics">
           {/* Stats Panel (Scrollable) */}
           <div className="flex-1 overflow-y-auto">
             <ErrorBoundary>
@@ -160,7 +178,7 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
           
           {/* Battle Logs Panel (Fixed at bottom, if provided) */}
           {battleLogs && (
-            <div className="border-t-2 border-cyan-500/30 bg-gray-900/40 backdrop-blur-sm">
+            <div className="nn-rail--left border-t border-[color-mix(in_oklab,var(--nn-cyan)_18%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] backdrop-blur-sm">
               <ErrorBoundary>
                 {battleLogs}
               </ErrorBoundary>
@@ -178,16 +196,21 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
         </main>
 
         {/* Right Panel - Controls */}
-        <aside className="hidden lg:flex lg:flex-col w-full lg:w-72 xl:w-80 bg-gray-800/40 backdrop-blur-sm border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(0,240,255,0.2)] overflow-y-auto" aria-label="Game controls">
+        <aside className="nn-rail nn-rail--right hidden lg:flex lg:flex-col w-full lg:w-72 xl:w-80 overflow-y-auto" aria-label="Game controls">
           <ErrorBoundary>
             {controlsPanel}
           </ErrorBoundary>
-          {/* FID-20260906-005 T3.1 (R4): the tutorial quest panel docks here on lg+
-              instead of floating over the tile action card. Below lg the rail hides
-              and the panel hides with it (mobile drawer is a documented follow-up). */}
-          {tutorialQuestPanel}
         </aside>
       </div>
+
+      {/* Tutorial quest — fixed overlay docked against the right sidebar's inner
+          edge (mirrors chat on the left). Mounted OUTSIDE the rail: the rail's
+          backdrop-filter makes position:fixed children rail-relative. */}
+      {tutorialQuestPanel && (
+        <ErrorBoundary>
+          {tutorialQuestPanel}
+        </ErrorBoundary>
+      )}
 
       {/* Chat Panel - Fixed Overlay (Bottom-Left Corner) */}
       {chatUser && (
@@ -200,7 +223,6 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
               isVIP={chatUser.isVIP}
               clanId={chatUser.clanId}
               clanName={chatUser.clanName}
-              defaultCollapsed={false}
               initialTab={initialChatTab}
               onTabChange={onChatTabChange}
               onDMUnreadCountChange={onDMUnreadCountChange}
@@ -213,17 +235,17 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
       {showFriendsPanel && chatUser && (
         <div className="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 lg:right-[19rem] xl:right-[21rem] z-50 max-w-[calc(100vw-1rem)] sm:max-w-md">
           <ErrorBoundary>
-            <div className="bg-gray-900/95 backdrop-blur-md border-2 border-cyan-500/30 rounded-lg shadow-[0_0_30px_rgba(0,240,255,0.3)] overflow-hidden">
+            <div className="rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_85%,transparent)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] backdrop-blur-md overflow-hidden">
               {/* Friends Panel Header */}
-              <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b-2 border-cyan-500/30 px-4 py-3">
+              <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <UserPlus className="w-5 h-5 text-cyan-400" />
-                    Friends
+                  <h3 className="nn-scan-header flex items-center gap-2 text-sm font-bold tracking-[0.14em] text-[color:var(--nn-text-primary)]">
+                    <UserPlus className="h-4 w-4 text-[color:var(--nn-cyan)]" />
+                    FRIENDS
                   </h3>
                   <button
                     onClick={() => setShowAddFriendModal(true)}
-                    className="px-3 py-1.5 text-xs bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 rounded border border-cyan-500/40 transition-all font-semibold"
+                    className="nn-btn nn-btn--primary px-3 py-1.5 text-xs"
                   >
                     Add Friend
                   </button>
@@ -233,7 +255,7 @@ const GameLayoutInternal = memo(function GameLayoutInternal({
               {/* Friends Panel Content - Scrollable */}
               <div className="max-h-[60vh] overflow-y-auto">
                 {/* Friend Requests Section */}
-                <div className="border-b-2 border-cyan-500/20">
+                <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)]">
                   <FriendRequestsPanel 
                     key={requestsPanelKey}
                     onRequestAccepted={handleRequestAccepted}

@@ -465,8 +465,10 @@ describe('StatsPanel', () => {
 
       render(<StatsPanel />);
       
-      expect(screen.getByTestId('xp-progress-bar')).toBeInTheDocument();
-      expect(screen.getByText(/Level 5: 500\/1000/)).toBeInTheDocument();
+      // FID-20260906-012 P2-R0: XP now renders as the sample §02 meter
+      // ("XP · LEVEL 5" label + Orbitron "500 / 1,000" readout) in-panel.
+      expect(screen.getByText(/XP · LEVEL 5/i)).toBeInTheDocument();
+      expect(screen.getByText('500 / 1,000')).toBeInTheDocument();
     });
 
     it('should not display XP progress bar when xpProgress is missing', () => {

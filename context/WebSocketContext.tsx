@@ -142,6 +142,10 @@ export function WebSocketProvider({
         } else {
           console.warn('[WebSocket] Authentication failed after retries:', err.message);
         }
+      } else if (err.message === 'timeout' || err.message.includes('timeout')) {
+        // Dev-server socket.io timeouts are routine (HMR restarts, cold compiles);
+        // the exponential-backoff reconnect handles them. Not an error condition.
+        console.warn('[WebSocket] Connection timeout, retrying with backoff:', err.message);
       } else {
         console.error('[WebSocket] Connection error:', err.message);
       }

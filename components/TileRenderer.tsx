@@ -15,6 +15,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { Home, Skull } from 'lucide-react';
 import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
@@ -323,10 +324,22 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tile.terrain, factoryData?.level, factoryImagesChecked]);
 
+  // NEON NOIR status strip state chip (§5.1): farmability = green ready / magenta cooldown.
+  const isFarmable = isTileFarmable(tile.terrain);
+  const onCooldown = isFarmable && isPlayerOnCooldown();
+  const stateChip = isFarmable ? (
+    <span className={`nn-chip nn-viewport__chip ${onCooldown ? 'nn-chip--magenta' : 'nn-chip--green'}`}>
+      {onCooldown ? getCooldownTimeRemaining() : 'ready'}
+    </span>
+  ) : null;
+
   return (
-    <div className="w-full max-w-2xl">
-      {/* Tile Display */}
-      <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-cyan-500/40 shadow-[0_0_30px_rgba(0,240,255,0.3)]">
+    <div className="nn-viewport-wrap">
+      {/* Tile Display — HUD viewport: uniform square sized by the shell, never content.
+          F2 uniformity fix: width = min(100%, calc(100dvh - 56px - 4rem)) on .nn-viewport-wrap,
+          identical px on every terrain. Corner brackets + scanlines + status strip. */}
+      <div className="nn-viewport">
+        <div className="nn-viewport__scanlines" />
         {/* Terrain Layer (Background) */}
         {!imageError && imagePath ? (
           <Image
@@ -405,31 +418,12 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           />
         )}
 
-        {/* Farmability Indicator Badge */}
-        {isTileFarmable(tile.terrain) && (
-          <div className="absolute top-2 right-2 z-20">
-            {isPlayerOnCooldown() ? (
-              <div 
-                className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg cursor-help" 
-                title={getCooldownTimeRemaining()}
-              >
-                ON COOLDOWN
-              </div>
-            ) : (
-              <div 
-                className="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg cursor-help" 
-                title="Ready to Harvest"
-              >
-                READY
-              </div>
-            )}
-          </div>
-        )}
+        {/* Farmability moved to the viewport status strip (NEON NOIR §5.1) */}
 
         {/* Base Indicator Badge */}
         {tile.occupiedByBase && (
-          <div className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg z-20">
-            🏠 BASE {isPlayerBase && playerRank > 1 ? `(Rank ${playerRank})` : !isPlayerBase && tile.baseOwner ? `(${tile.baseOwner})` : ''}
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_14%,transparent)] px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider text-[color:var(--nn-green)] shadow-[0_0_14px_color-mix(in_oklab,var(--nn-green)_25%,transparent)]">
+            <Home className="h-3.5 w-3.5" /> Base {isPlayerBase && playerRank > 1 ? `(Rank ${playerRank})` : !isPlayerBase && tile.baseOwner ? `(${tile.baseOwner})` : ''}
           </div>
         )}
 
@@ -886,35 +880,48 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             </div>
           </>
         )}
+
+        {/* Viewport status strip — terrain · coordinates · state (NEON NOIR §5.1).
+            Must live INSIDE .nn-viewport (its absolute anchor). */}
+        <div className="nn-viewport__status">
+          <strong>{tile.terrain}</strong>
+          <span className="nn-viewport__coords">{`[${tile.x} · ${tile.y}]`}</span>
+          {tile.occupiedByBase && tile.baseOwner && !isPlayerBase && (
+            <span className="nn-viewport__coords flex items-center gap-1">
+              <Skull className="h-3 w-3" /> {tile.baseOwner}
+            </span>
+          )}
+          {stateChip}
+        </div>
       </div>
 
       {/* Tile Info */}
-      <div className="mt-4 bg-gray-800/60 backdrop-blur-md rounded-lg p-4 space-y-2 border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(0,240,255,0.2)]">
+      <div className="nn-panel mt-4 space-y-2 p-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-xl font-bold text-blue-400">
+          <h3 className="font-orbitron text-base font-bold uppercase tracking-[0.12em] text-[color:var(--nn-cyan)]">
             {isAnyBase ? (
               <>
-                <span className="text-green-400">🏠 {isPlayerBase ? 'Your Base' : 'Player Base'}</span>
-                <span className="text-sm text-gray-400 ml-2">({tile.terrain} terrain)</span>
+                <span className="text-[color:var(--nn-green)]">Base — {isPlayerBase ? 'Yours' : tile.baseOwner ?? 'Player'}</span>
+                <span className="ml-2 text-[10px] tracking-[0.2em] text-[color:var(--nn-text-tertiary)]">{tile.terrain}</span>
               </>
             ) : (
               tile.terrain
             )}
           </h3>
-          <span className="font-mono text-sm text-gray-400">
+          <span className="font-orbitron text-sm tabular-nums text-[color:var(--nn-text-tertiary)]">
             ({tile.x}, {tile.y})
           </span>
         </div>
-        <p className="text-gray-300 text-sm">{getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}</p>
+        <p className="text-sm text-[color:var(--nn-text-secondary)]">{getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}</p>
         
         {/* Base Greeting Display */}
         {isAnyBase && tile.baseGreeting && (
-          <div className="mt-3 bg-gray-900/80 border border-cyan-500/40 rounded-lg p-3">
-            <p className="text-xs text-gray-400 mb-1">📜 Base Message:</p>
+          <div className="nn-well mt-3 p-3" style={{ margin: '0.75rem 12px 8px', width: 'auto', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+            <p className="nn-lab">Base message</p>
             <SafeHtmlRenderer 
               html={tile.baseGreeting}
               fallback="Welcome to my base!"
-              className="text-white text-sm"
+              className="text-sm text-[color:var(--nn-text-primary)]"
             />
           </div>
         )}
@@ -925,9 +932,9 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {tile.terrain === TerrainType.Bank && onBankClick && (
             <button
               onClick={onBankClick}
-              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded transition-colors"
+              className="nn-btn nn-btn--primary flex-1 px-4 py-2"
             >
-              🏦 Open Bank
+              Open Bank (B)
             </button>
           )}
 
@@ -935,9 +942,9 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {tile.terrain === TerrainType.Shrine && onShrineClick && (
             <button
               onClick={onShrineClick}
-              className="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-semibold px-4 py-2 rounded transition-colors"
+              className="nn-btn nn-btn--primary flex-1 px-4 py-2"
             >
-              ⛩️ Visit Shrine
+              Visit Shrine (S)
             </button>
           )}
 
@@ -949,66 +956,60 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             >
               🏭 Manage Factory
             </button>
-          )} */}
-
-          {/* Harvest Button - Shows on harvestable tiles */}
+          )} */}          {/* Harvest Button - Shows on harvestable tiles */}
           {onHarvestClick && (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy || tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) && (
             <button
               onClick={onHarvestClick}
               disabled={isHarvesting}
-              className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
-                isHarvesting 
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                  : 'bg-green-600 hover:bg-green-500 text-white hover:shadow-lg'
-              }`}
+              className={`nn-btn ${isHarvesting ? 'nn-btn--ghost' : 'nn-btn--primary nn-btn--harvest'} w-full py-3 text-base`}
             >
-              {isHarvesting ? 'HARVESTING...' : `HARVEST (${tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest ? 'F' : 'G'})`}
+              {isHarvesting ? 'HARVESTING…' : `HARVEST (${tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest ? 'F' : 'G'})`}
             </button>
           )}
         </div>
-        
+
         {/* Bank/Shrine Controls Hint */}
         {tile.terrain === TerrainType.Bank && (
-          <div className="mt-2 text-yellow-400 text-sm font-semibold">
-            Press {"'"}B{"'"} to open Bank interface
-          </div>
+          <p className="nn-footnote mt-2" style={{ marginTop: 8 }}>
+            Press <kbd className="nn-kbd">B</kbd> to open Bank interface
+          </p>
         )}
         {tile.terrain === TerrainType.Shrine && (
-          <div className="mt-2 text-purple-400 text-sm font-semibold">
-            Press {"'"}S{"'"} to open Shrine interface
-          </div>
+          <p className="nn-footnote mt-2" style={{ marginTop: 8 }}>
+            Press <kbd className="nn-kbd">S</kbd> to open Shrine interface
+          </p>
         )}
       </div>
 
       {/* Factory Info (if factory tile) */}
       {tile.terrain === TerrainType.Factory && factoryData && (
-        <div className="mt-4 bg-gray-800 border-2 border-red-600 rounded-lg p-4 space-y-3">
+        <div className="nn-panel nn-panel--danger mt-4 space-y-3 p-4">
           <div className="flex justify-between items-center">
-            <h4 className="text-lg font-bold text-red-400">🏭 Factory Status</h4>
+            <h4 className="font-orbitron text-sm font-bold uppercase tracking-[0.14em] text-[color:var(--nn-magenta)]">Factory Status</h4>
             {factoryData.owner && (
-              <span className={`text-sm font-semibold ${factoryData.owner === player?.username ? 'text-green-400' : 'text-orange-400'}`}>
-                {factoryData.owner === player?.username ? '✓ Your Factory' : `Owned by ${factoryData.owner}`}
+              <span className={`text-xs font-semibold ${factoryData.owner === player?.username ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-amber)]'}`}>
+                {factoryData.owner === player?.username ? 'Yours' : `Owned by ${factoryData.owner}`}
               </span>
             )}
           </div>
           
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-gray-900 p-2 rounded">
-              <div className="text-gray-400">Defense</div>
-              <div className="text-white font-bold">{factoryData.defense.toLocaleString()}</div>
+            <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <span className="nn-lab">Defense</span>
+              <div className="nn-num text-[color:var(--nn-text-primary)]">{factoryData.defense.toLocaleString()}</div>
             </div>
-            <div className="bg-gray-900 p-2 rounded">
-              <div className="text-gray-400">Production</div>
-              <div className="text-white font-bold">{factoryData.productionRate}/hr</div>
+            <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <span className="nn-lab">Production</span>
+              <div className="nn-num text-[color:var(--nn-text-primary)]">{factoryData.productionRate}/hr</div>
             </div>
-            <div className="bg-gray-900 p-2 rounded col-span-2">
-              <div className="text-gray-400">Unit Slots</div>
+            <div className="nn-well col-span-2 p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <span className="nn-lab">Unit Slots</span>
               <div className="flex items-center justify-between">
-                <div className="text-white font-bold">{factoryData.usedSlots} / {factoryData.slots}</div>
-                <div className="w-32 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="nn-num text-[color:var(--nn-text-primary)]">{factoryData.usedSlots} / {factoryData.slots}</div>
+                <div className="nn-meter h-2 w-32">
                   <div 
-                    className="h-full bg-blue-500"
-                    style={{ width: `${(factoryData.usedSlots / factoryData.slots) * 100}%` }}
+                    className="nn-meter__fill"
+                    style={{ width: `${Math.min(100, (factoryData.usedSlots / factoryData.slots) * 100)}%` }}
                   />
                 </div>
               </div>
@@ -1020,15 +1021,15 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             <button
               onClick={onAttackClick}
               disabled={isAttacking}
-              className={`w-full py-3 rounded-lg font-bold text-lg transition-all ${
+              className={`nn-btn w-full py-3 text-base ${
                 isAttacking 
-                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                  ? 'nn-btn--ghost' 
                   : factoryData.owner === player?.username
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white hover:shadow-lg'
-                    : 'bg-red-600 hover:bg-red-500 text-white hover:shadow-lg'
+                    ? 'nn-btn--primary'
+                    : 'nn-btn--danger'
               }`}
             >
-              {isAttacking ? 'ATTACKING...' : factoryData.owner === player?.username ? 'MANAGE FACTORY (R)' : 'ATTACK FACTORY (R)'}
+              {isAttacking ? 'ATTACKING…' : factoryData.owner === player?.username ? 'MANAGE FACTORY (R)' : 'ATTACK FACTORY (R)'}
             </button>
           )}
         </div>
@@ -1036,31 +1037,29 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* Harvest Result Display (below tile image) */}
       {harvestResult && (
-        <div className="mt-4 bg-gray-900 border-2 border-gray-700 rounded-lg p-4 animate-fade-in">
+        <div className="nn-panel mt-4 animate-fade-in p-4">
           {/* Success/Failure Message */}
-          <div className={`font-bold text-center text-lg mb-3 ${harvestResult.success ? 'text-green-400' : 'text-red-400'}`}>
-            {harvestResult.message || (harvestResult.success ? '✅ Success' : '❌ Failed')}
+          <div className={`nn-panel__header mb-3 justify-center text-center text-base ${harvestResult.success ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
+            {harvestResult.message || (harvestResult.success ? 'Harvest complete' : 'Harvest failed')}
           </div>
           
           {/* Resource Results */}
           {harvestResult.success && (harvestResult.metalGained || harvestResult.energyGained) && (
-            <div className="flex justify-center gap-6 mb-3">
+            <div className="mb-3 flex justify-center gap-6">
               {harvestResult.metalGained && harvestResult.metalGained > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">⛏️</span>
-                  <span className="text-yellow-400 font-bold text-xl">
+                <div className="flex items-baseline gap-2">
+                  <span className="nn-num text-xl text-[color:var(--nn-amber)]">
                     +{harvestResult.metalGained.toLocaleString()}
                   </span>
-                  <span className="text-gray-400">Metal</span>
+                  <span className="nn-lab">metal</span>
                 </div>
               )}
               {harvestResult.energyGained && harvestResult.energyGained > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl">⚡</span>
-                  <span className="text-blue-400 font-bold text-xl">
+                <div className="flex items-baseline gap-2">
+                  <span className="nn-num text-xl text-[color:var(--nn-cyan)]">
                     +{harvestResult.energyGained.toLocaleString()}
                   </span>
-                  <span className="text-gray-400">Energy</span>
+                  <span className="nn-lab">energy</span>
                 </div>
               )}
             </div>
@@ -1068,12 +1067,11 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
           {/* Cave Item Result */}
           {harvestResult.success && harvestResult.item && (
-            <div className="flex items-center justify-center gap-3 mb-3 bg-purple-900 bg-opacity-30 p-3 rounded">
-              <span className="text-3xl">🎁</span>
+            <div className="mb-3 flex items-center justify-center gap-3 rounded p-3" style={{ background: 'color-mix(in oklab, var(--nn-violet) 10%, transparent)' }}>
               <div>
-                <div className="text-purple-400 font-bold">{harvestResult.item.name}</div>
+                <div className="font-bold text-[color:var(--nn-violet)]">{harvestResult.item.name}</div>
                 {harvestResult.item.description && (
-                  <div className="text-gray-400 text-sm">{harvestResult.item.description}</div>
+                  <div className="text-sm text-[color:var(--nn-text-secondary)]">{harvestResult.item.description}</div>
                 )}
               </div>
             </div>
@@ -1081,13 +1079,13 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
           {/* Bonus Applied */}
           {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
-            <div className="text-center text-green-400 text-sm mb-2">
-              💎 +{harvestResult.bonusApplied.toFixed(2)}% Bonus Applied
-            </div>
+            <p className="nn-footnote mb-2" style={{ color: 'var(--nn-green)', fontSize: 11 }}>
+              +{harvestResult.bonusApplied.toFixed(2)}% bonus applied
+            </p>
           )}
 
           {/* Result Message */}
-          <div className="text-gray-300 text-center text-sm whitespace-pre-line border-t border-gray-700 pt-3 mt-2">
+          <div className="mt-2 whitespace-pre-line border-t border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pt-3 text-center text-sm text-[color:var(--nn-text-secondary)]">
             {harvestResult.message}
           </div>
         </div>
@@ -1095,45 +1093,44 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* Attack Result Display (below tile image) */}
       {attackResult && (
-        <div className="mt-4 bg-gray-900 border-2 border-red-800 rounded-lg p-4 animate-fade-in">
-          <div className={`font-bold text-center text-lg mb-2 ${attackResult.success ? 'text-green-400' : 'text-red-400'}`}>
-            {attackResult.captured ? '⚔️ FACTORY CAPTURED!' : attackResult.success ? '⚔️ Attack Successful' : '❌ Attack Failed'}
+        <div className="nn-panel nn-panel--danger mt-4 animate-fade-in p-4">
+          <div className={`nn-panel__header mb-2 justify-center text-center text-base ${attackResult.success ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
+            {attackResult.captured ? 'FACTORY CAPTURED' : attackResult.success ? 'Attack successful' : 'Attack failed'}
           </div>
           
           {/* Power Comparison */}
-          <div className="flex justify-center gap-6 mb-3 bg-gray-800 p-3 rounded">
+          <div className="mb-3 flex justify-center gap-6 rounded p-3" style={{ background: 'color-mix(in oklab, var(--nn-void) 50%, transparent)' }}>
             <div className="text-center">
-              <div className="text-sm text-gray-400 mb-1">Your Power</div>
-              <div className="text-blue-400 font-bold text-xl">
-                💪 {attackResult.playerPower.toLocaleString()}
+              <div className="nn-lab mb-1">Your power</div>
+              <div className="nn-num text-xl text-[color:var(--nn-cyan)]">
+                {attackResult.playerPower.toLocaleString()}
               </div>
             </div>
-            <div className="text-2xl text-gray-600 flex items-center">VS</div>
+            <div className="nn-lab flex items-center" style={{ fontSize: 12 }}>VS</div>
             <div className="text-center">
-              <div className="text-sm text-gray-400 mb-1">Factory Defense</div>
-              <div className="text-red-400 font-bold text-xl">
-                🛡️ {attackResult.factoryDefense.toLocaleString()}
+              <div className="nn-lab mb-1">Factory defense</div>
+              <div className="nn-num text-xl text-[color:var(--nn-magenta)]">
+                {attackResult.factoryDefense.toLocaleString()}
               </div>
             </div>
           </div>
 
           {/* Capture Status */}
           {attackResult.captured && (
-            <div className="flex items-center justify-center gap-3 mb-3 bg-green-900 bg-opacity-30 p-3 rounded">
-              <span className="text-3xl">🏭</span>
-              <div className="text-green-400 font-bold">Factory now under your control!</div>
+            <div className="mb-3 flex items-center justify-center gap-3 rounded p-3" style={{ background: 'color-mix(in oklab, var(--nn-green) 10%, transparent)' }}>
+              <div className="font-bold text-[color:var(--nn-green)]">Factory now under your control</div>
             </div>
           )}
 
           {/* Damage Dealt */}
           {attackResult.damageDealt && attackResult.damageDealt > 0 && (
-            <div className="text-center text-yellow-400 text-sm mb-2">
-              ⚡ {attackResult.damageDealt} damage dealt
-            </div>
+            <p className="nn-footnote mb-2" style={{ color: 'var(--nn-amber)', fontSize: 11 }}>
+              {attackResult.damageDealt} damage dealt
+            </p>
           )}
 
           {/* Result Message */}
-          <div className="text-gray-300 text-center text-sm whitespace-pre-line border-t border-gray-700 pt-3 mt-2">
+          <div className="mt-2 whitespace-pre-line border-t border-[color-mix(in_oklab,var(--nn-magenta)_12%,transparent)] pt-3 text-center text-sm text-[color:var(--nn-text-secondary)]">
             {attackResult.message}
           </div>
         </div>

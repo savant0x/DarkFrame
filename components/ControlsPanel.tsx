@@ -1,168 +1,93 @@
-// ============================================================
-// FILE: ControlsPanel.tsx
-// CREATED: 2025-01-17
-// LAST MODIFIED: 2025-10-27
-// ============================================================
-// OVERVIEW:
-// Right sidebar controls panel component providing player position info,
-// movement controls, flag bearer status, and gameplay instructions.
-// Displays current coordinates, terrain type, flag bearer bonuses,
-// loading/error states, and keyboard shortcut reference guide.
-// Integrates design system components (Panel, Badge, Button, Divider, Card).
-// ============================================================
+/**
+ * @file components/ControlsPanel.tsx
+ * @created 2025-01-17
+ * @updated 2026-09-06 — FID-20260906-012 Phase 2: NEON NOIR controls rail.
+ * @overview Right sidebar: position readout, flag bearer status, movement cluster
+ */
 
 'use client';
 
 import React from 'react';
-import { MapPin,  Flag } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { MapPin, Flag } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import MovementControls from './MovementControls';
-
-
-
-
-
 import type { FlagBearer } from '@/types';
-
-// ============================================================
-// COMPONENT PROPS
-// ============================================================
 
 interface ControlsPanelProps {
   flagBearer?: FlagBearer | null;
 }
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
-
 /**
- * Controls Panel Component
- * 
- * Right sidebar providing:
- * - Current position display with coordinates and terrain
- * - Flag bearer status and bonuses (when player holds flag)
- * - Loading and error state indicators
- * - Movement controls component integration
- * - Keyboard shortcuts reference guide
- * - Logout functionality
- * - Design system integration for consistent styling
+ * Controls Panel — NEON NOIR (§5.1 right rail).
+ * Position as an instrument readout (Orbitron coords + terrain chip),
+ * flag bearer as an amber alert module, movement as the HUD D-pad cluster.
  */
 export default function ControlsPanel({ flagBearer }: ControlsPanelProps) {
   const { player, currentTile } = useGameContext();
-  const _router = useRouter();
 
-  // Check if current player is the flag bearer
   const isCurrentPlayerBearer = flagBearer && player && flagBearer.username === player.username;
-
-  // ============================================================
-  // MAIN RENDER
-  // ============================================================
 
   return (
     <div className="p-3 space-y-3">
-      {/* Position Info */}
+      {/* Position readout */}
       {player && (
-        <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)]">
-          {/* Banner Title */}
-          <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2">
-            <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-              <MapPin className="w-4 h-4" />
-              POSITION
-            </h3>
-          </div>
-          {/* Content */}
-          <div className="p-3 text-center">
-            <div className="text-2xl font-mono font-bold text-white mb-2">
-              ({player.currentPosition.x}, {player.currentPosition.y})
+        <div className="nn-panel p-3">
+          <h3 className="nn-panel__header mb-3">
+            <MapPin className="h-3.5 w-3.5" />
+            Position
+          </h3>
+          <div className="text-center">
+            <div className="nn-num mb-2 text-3xl text-[color:var(--nn-cyan)] [text-shadow:0_0_16px_color-mix(in_oklab,var(--nn-cyan)_40%,transparent)]">
+              {`[${player.currentPosition.x}, ${player.currentPosition.y}]`}
             </div>
             {currentTile && (
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-xs text-white/70">Terrain:</span>
-                <span className="text-xs text-white font-semibold px-2 py-1 bg-cyan-500/20 border border-cyan-500/30 rounded">
-                  {currentTile.terrain}
-                </span>
-              </div>
+              <span className="nn-chip nn-chip--cyan">{currentTile.terrain}</span>
             )}
           </div>
         </div>
       )}
 
-      {/* Flag Bearer Status - Only show when player holds the flag */}
+      {/* Flag Bearer — amber alert module (only when player holds the flag) */}
       {isCurrentPlayerBearer && (
-        <div className="bg-gradient-to-br from-yellow-900/60 to-orange-900/60 backdrop-blur-sm border-2 border-yellow-500/50 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(250,204,21,0.4)] animate-pulse">
-          {/* Banner Title */}
-          <div className="bg-gradient-to-r from-yellow-500/30 to-orange-500/30 border-b border-yellow-500/50 px-3 py-2">
-            <h3 className="text-sm font-bold text-yellow-100 font-display flex items-center gap-2">
-              <Flag className="w-4 h-4" />
-              FLAG BEARER
-            </h3>
-          </div>
-          {/* Content */}
-          <div className="p-3 space-y-2">
-            <div className="text-center">
-              <div className="text-4xl mb-2">🏴</div>
-              <div className="text-xs text-yellow-100 font-bold mb-3">
-                You hold the flag!
-              </div>
+        <div className="nn-panel nn-panel--amber p-3">
+          <h3 className="nn-panel__header nn-panel__header--amber mb-3">
+            <Flag className="h-3.5 w-3.5" />
+            Flag Bearer
+          </h3>
+          <div className="space-y-2">
+            <div className="text-center font-orbitron text-xs font-bold uppercase tracking-[0.14em] text-[color:var(--nn-amber)]">
+              You hold the flag
             </div>
-            
-            {/* Bonuses */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs bg-green-900/40 border border-green-500/30 rounded px-2 py-1.5">
-                <span className="text-green-100">Harvest Bonus:</span>
-                <span className="text-green-300 font-bold">+100%</span>
-              </div>
-              <div className="flex items-center justify-between text-xs bg-blue-900/40 border border-blue-500/30 rounded px-2 py-1.5">
-                <span className="text-blue-100">XP Bonus:</span>
-                <span className="text-blue-300 font-bold">+100%</span>
-              </div>
+
+            <div className="nn-row justify-between">
+              <span className="nn-row__label">Harvest bonus</span>
+              <span className="nn-num text-[color:var(--nn-green)]">+100%</span>
             </div>
-            
-            {/* Warning */}
-            <div className="text-[10px] text-yellow-200/70 text-center mt-2 italic">
-              ⚠️ You leave a visible trail that others can track
+            <div className="nn-row justify-between">
+              <span className="nn-row__label">XP bonus</span>
+              <span className="nn-num text-[color:var(--nn-violet)]">+100%</span>
             </div>
+
+            <p className="nn-footnote mt-2 text-center">
+              You leave a visible trail others can track
+            </p>
           </div>
         </div>
       )}
 
-      {/* Movement Controls */}
-      <div className="bg-gray-900/60 backdrop-blur-sm border-2 border-cyan-500/30 rounded-lg overflow-hidden shadow-[0_0_20px_rgba(0,240,255,0.2)] p-3">
+      {/* Movement cluster */}
+      <div className="nn-panel p-3">
         <MovementControls />
       </div>
 
-      {/* How to Play Link */}
-      <a 
+      {/* Help */}
+      <a
         href="/help"
         target="_blank"
-        className="block text-center text-white/70 hover:text-white text-xs underline transition-colors"
+        className="nn-link block text-center text-xs"
       >
-        📖 How to Play
+        How to Play
       </a>
     </div>
   );
 }
-
-// ============================================================
-// IMPLEMENTATION NOTES:
-// ============================================================
-// - Position display: Shows current (x, y) coordinates with terrain type
-// - Flag bearer status: Shows when player holds flag with +100% bonuses
-// - Loading state: Animated spinner with blue theme
-// - Error state: Red alert card with error message
-// - Movement controls: Integrated MovementControls component
-// - Instructions: Comprehensive keyboard shortcut reference with badges
-// - Logout: Calls /api/auth/logout, clears context, redirects to login
-// - Design system integration: Panel, Badge, Button, Card, Divider
-// - Toast notifications for logout success/error
-// - Responsive layout with consistent spacing (space-y-3)
-// - All interactive elements use Button component with variants
-// - Keyboard shortcuts displayed in monospace font badges
-// - Loading/error states use Card component with themed borders
-// - Map wrap reminder in footer with icon
-// - Flag bearer panel uses yellow/orange theme with pulse animation
-// ============================================================
-// END OF FILE
-// ============================================================

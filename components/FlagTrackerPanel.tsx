@@ -1,25 +1,25 @@
 /**
  * @file components/FlagTrackerPanel.tsx
  * @created 2025-10-22
- * @overview Flag Tracker Panel — rewritten per FID-20260906-001 §5.8 (Option A).
+ * @updated 2026-09-06 — FID-20260906-012 Phase 2-R1: rebuilt to approved
+ *   sample §04 Flag Tracker markup (amber module, flat wells, compass rose)
+ *   with full parity. Fixes the colliding-wells defect: wells are flat
+ *   siblings per the sample, never nested containers.
+ * @overview Flag Tracker Panel — bearer self-view + tracker view (FID-20260906-001 §5.8).
  *
  * Two views, driven by the extended GET /api/flag payload:
  *  - **Bearer self-view** (viewer IS the holder): the flag's details — the full
  *    while-holding bonus stack, GROSS session earnings, flee counter, challenge
- *    grace, and the 12-hour permanent-milestone progress. This is the "panel
- *    updates and shows the details of the flag" surface from the original design.
+ *    grace, and the 12-hour permanent-milestone progress.
  *  - **Tracker view** (viewer is not the holder): bearer info, location/distance,
- *    compass, and the Steal action (channel start) — the HP "Attack" battle UI is
- *    gone by design (the doc forbids flag battles).
+ *    compass, and the Steal action (channel start).
  *
- * During an active channel: both sides see the countdown; the bearer additionally
- * sees the Flee action with its live escalating cost (or the block reason —
- * 5s lock, 60s cooldown, flee budget exhausted = auto-lose warning); the
- * challenger sees the Claim action once the channel ends.
+ * NEON NOIR: amber = flag signal identity (§3.2); challenge banners go magenta
+ * (danger/combat). All logic, handlers, and conditions unchanged from FID-001.
  */
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Crown, Flag, MapPin, User, Compass, Search, Shield } from 'lucide-react';
 import {
   type FlagBearer,
   type FlagDetailPayload,
@@ -74,6 +74,44 @@ function formatCompact(n: number): string {
   return n.toLocaleString();
 }
 
+/** Collapsible section toggle row — quiet lab + chevron (sample footnote scale). */
+function SectionToggle({
+  icon,
+  label,
+  open,
+  onToggle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className="flex w-full items-center justify-between px-3.5 py-2 text-left transition-colors hover:bg-[color-mix(in_oklab,var(--nn-cyan)_6%,transparent)]"
+    >
+      <span className="nn-lab flex items-center gap-1.5">
+        {icon}
+        {label}
+      </span>
+      <span style={{ fontSize: 9, color: 'var(--nn-text-tertiary)' }}>{open ? '▼' : '▶'}</span>
+    </button>
+  );
+}
+
+/** Container well (holds a collapsible section) — column layout override. */
+function SectionWell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="nn-well" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+      {children}
+    </div>
+  );
+}
+
 export default function FlagTrackerPanel({
   playerPosition,
   flagBearer,
@@ -84,7 +122,6 @@ export default function FlagTrackerPanel({
   onClaim,
   compact = false
 }: FlagTrackerPanelProps) {
-  const router = useRouter();
   const [trackerData, setTrackerData] = useState<FlagTrackerData | null>(null);
 
   // Main panel collapse state
@@ -104,13 +141,14 @@ export default function FlagTrackerPanel({
   // No bearer - show empty state
   if (!flagBearer || !trackerData) {
     return (
-      <div className="bg-gray-900 border-2 border-gray-700 rounded-lg p-4">
-        <div className="flex items-center gap-3">
-          <div className="text-4xl">🏳️</div>
-          <div>
-            <h3 className="text-lg font-bold text-gray-400">No Flag Bearer</h3>
-            <p className="text-sm text-gray-500">The flag is currently unclaimed</p>
-          </div>
+      <div className="nn-panel nn-panel--amber" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+        <div className="nn-panel__header nn-panel__header--amber">
+          <Flag className="nn-panel__icon" />
+          <h3 className="nn-panel__title">Flag Bearer</h3>
+          <span className="nn-panel__meta">UNCLAIMED</span>
+        </div>
+        <div className="nn-panel__body">
+          <p className="nn-footnote">The flag is currently unclaimed</p>
         </div>
       </div>
     );
@@ -121,15 +159,14 @@ export default function FlagTrackerPanel({
   // TypeScript safety: bearer is guaranteed non-null here due to early return above
   if (!bearer) return null;
 
+  const compassArrow = getCompassArrow(direction);
+  const timeRemaining = getTimeRemaining(bearer.holdDuration);
+  const isExpiringSoon = isFlagExpiringSoon(bearer.holdDuration);
   const isBearerViewer = flagDetail?.actions.isBearer ?? false;
   const isChallengerViewer = flagDetail?.actions.isChallenger ?? false;
   const challenge = flagDetail?.challenge ?? null;
   const bonuses = flagDetail?.bonuses ?? null;
   const actions = flagDetail?.actions;
-
-  const compassArrow = getCompassArrow(direction);
-  const timeRemaining = getTimeRemaining(bearer.holdDuration);
-  const isExpiringSoon = isFlagExpiringSoon(bearer.holdDuration);
 
   // ============================================================
   // BEARER SELF-VIEW — the holder sees the flag's details
@@ -141,140 +178,155 @@ export default function FlagTrackerPanel({
     const milestonePct = Math.min(100, (bearer.holdDuration / (12 * 3600)) * 100);
 
     return (
-      <div className="bg-gray-900 border-2 border-yellow-500 rounded-lg overflow-hidden transition-all duration-300">
-        {/* Header */}
+      <div className="nn-panel nn-panel--amber" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+        {/* Header — click to collapse */}
         <div
-          className="bg-gray-800 border-b border-yellow-700 cursor-pointer hover:bg-gray-750 transition-colors"
+          className="nn-panel__header nn-panel__header--amber cursor-pointer"
           onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
         >
-          <div className="px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="text-2xl animate-pulse">👑</div>
-              <div>
-                <h3 className="text-lg font-bold text-yellow-300">You hold the Flag!</h3>
-                <p className="text-xs text-yellow-200/70">Ultimate bonuses active — you are a glowing target</p>
-              </div>
-            </div>
-            <span className="text-gray-400 text-xl">{isPanelCollapsed ? '▶' : '▼'}</span>
-          </div>
+          <Crown className="nn-panel__icon animate-pulse" />
+          <h3 className="nn-panel__title">You hold the Flag</h3>
+          <span className="nn-panel__meta">
+            BEARER · TARGET {isPanelCollapsed ? '▶' : '▼'}
+          </span>
         </div>
 
         {!isPanelCollapsed && (
-          <div className="p-4 space-y-3">
-            {/* Active challenge warning (bearer side) */}
+          <div className="nn-panel__body">
+            {/* Active challenge warning (bearer side) — magenta danger banner */}
             {challenge && (
-              <div className="bg-red-950/60 border-2 border-red-500 rounded-lg p-3 animate-pulse">
-                <div className="text-sm font-bold text-red-300 mb-1">
-                  🚨 FLAG CHALLENGE — {challenge.challenger} is stealing your Flag!
-                </div>
-                <div className="text-xs text-red-200/80">
-                  Channel ends in <span className="font-bold">{challenge.secondsRemaining}s</span>
+              <div
+                className="nn-note animate-pulse"
+                style={{ margin: '12px 12px 8px', flexDirection: 'column', alignItems: 'stretch', gap: '0.375rem' }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 12 }}>
+                  FLAG CHALLENGE — {challenge.challenger} is stealing your Flag
+                </span>
+                <span style={{ color: 'var(--nn-text-secondary)', letterSpacing: 0 }}>
+                  Channel ends in <b className="nn-num">{challenge.secondsRemaining}s</b>
                   {!challenge.canFlee && challenge.fleeBlockReason && (
-                    <> — ⚠️ {challenge.fleeBlockReason}</>
+                    <> — {challenge.fleeBlockReason}</>
                   )}
-                  {challenge.fleeCount >= (challenge.maxFlees ?? 5) - 0 && challenge.fleeCount >= 5 && (
+                  {challenge.fleeCount >= (challenge.maxFlees ?? 5) && (
                     <> — AUTO-LOSS: the Flag transfers when the channel ends.</>
                   )}
-                </div>
+                </span>
                 <button
                   onClick={() => onFlee && onFlee()}
                   disabled={!challenge.canFlee}
-                  className={`mt-2 w-full font-bold py-2 px-3 rounded-lg transition-colors text-sm ${
-                    challenge.canFlee
-                      ? 'bg-orange-600 hover:bg-orange-700 text-white'
-                      : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  }`}
+                  className={`nn-btn nn-btn--magenta ${!challenge.canFlee ? 'cursor-not-allowed opacity-40' : ''}`}
+                  style={{ width: '100%' }}
                   title={
                     challenge.canFlee
                       ? `Cost: ${challenge.fleeCostMetal.toLocaleString()} Metal + ${challenge.fleeCostEnergy.toLocaleString()} Energy (paid to the challenger), then a 5-tile dash`
                       : challenge.fleeBlockReason ?? 'Cannot flee right now'
                   }
                 >
-                  🏃 Flee — costs {formatCompact(challenge.fleeCostMetal)}⚙️ / {formatCompact(challenge.fleeCostEnergy)}⚡
+                  Flee — costs {formatCompact(challenge.fleeCostMetal)} metal / {formatCompact(challenge.fleeCostEnergy)} energy
                 </button>
               </div>
             )}
 
-            {/* Bonus stack */}
+            {/* Bonus stack — flat container well with 2-col compact rows */}
             {bonuses && (
-              <div className="bg-gray-800 rounded-lg overflow-hidden border border-yellow-700/50">
-                <div className="px-3 py-2 bg-yellow-900/30 border-b border-yellow-700/50">
-                  <span className="text-xs font-bold text-yellow-300">⚡ ACTIVE BONUSES (while holding)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5 px-3 py-3 text-xs">
-                  <div className="flex justify-between"><span className="text-gray-400">Harvest</span><span className="text-green-400 font-bold">+{Math.round((bonuses.harvestMultiplier - 1) * 100)}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">XP / RP</span><span className="text-green-400 font-bold">+{Math.round((bonuses.xpMultiplier - 1) * 100)}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Unit STR/DEF</span><span className="text-green-400 font-bold">+{Math.round((bonuses.unitStrengthMultiplier - 1) * 100)}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Auto-farm</span><span className="text-green-400 font-bold">+{Math.round((bonuses.autoFarmSpeedMultiplier - 1) * 100)}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Bank capacity</span><span className="text-green-400 font-bold">+{Math.round((bonuses.bankCapacityMultiplier - 1) * 100)}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Bank fees</span><span className="text-green-400 font-bold">{bonuses.bankFeeMultiplier === 0 ? 'FREE' : `${Math.round((bonuses.bankFeeMultiplier - 1) * 100)}%`}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Clan XP</span><span className="text-green-400 font-bold">+{Math.round((bonuses.clanXpMultiplier - 1) * 100)}%</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Referrals</span><span className="text-green-400 font-bold">+{Math.round((bonuses.referralMultiplier - 1) * 100)}%</span></div>
+              <SectionWell>
+                <SectionToggle
+                  icon={<Crown style={{ width: 12, height: 12 }} />}
+                  label="Active bonuses (while holding)"
+                  open
+                  onToggle={() => undefined}
+                />
+                <div className="grid grid-cols-2 gap-x-4 px-3.5 pb-2.5">
+                  {(
+                    [
+                      ['Harvest', `+${Math.round((bonuses.harvestMultiplier - 1) * 100)}%`],
+                      ['XP / RP', `+${Math.round((bonuses.xpMultiplier - 1) * 100)}%`],
+                      ['Unit STR/DEF', `+${Math.round((bonuses.unitStrengthMultiplier - 1) * 100)}%`],
+                      ['Auto-farm', `+${Math.round((bonuses.autoFarmSpeedMultiplier - 1) * 100)}%`],
+                      ['Bank capacity', `+${Math.round((bonuses.bankCapacityMultiplier - 1) * 100)}%`],
+                      ['Bank fees', bonuses.bankFeeMultiplier === 0 ? 'FREE' : `${Math.round((bonuses.bankFeeMultiplier - 1) * 100)}%`],
+                      ['Clan XP', `+${Math.round((bonuses.clanXpMultiplier - 1) * 100)}%`],
+                      ['Referrals', `+${Math.round((bonuses.referralMultiplier - 1) * 100)}%`],
+                    ] as Array<[string, string]>
+                  ).map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between py-0.5">
+                      <span className="nn-lab" style={{ margin: 0 }}>{label}</span>
+                      <span className="nn-num" style={{ fontSize: 11.5, color: 'var(--nn-green)' }}>{value}</span>
+                    </div>
+                  ))}
                   {bonuses.permanentHarvestBonusPct > 0 && (
-                    <div className="col-span-2 flex justify-between border-t border-gray-700 pt-1.5">
-                      <span className="text-gray-400">Permanent harvest (12h milestone)</span>
-                      <span className="text-cyan-400 font-bold">+{bonuses.permanentHarvestBonusPct}% forever</span>
+                    <div className="col-span-2 mt-1 flex items-center justify-between border-t pt-1.5" style={{ borderColor: 'color-mix(in oklab, var(--nn-amber) 18%, transparent)' }}>
+                      <span className="nn-lab" style={{ margin: 0 }}>Permanent harvest (12h milestone)</span>
+                      <span className="nn-num" style={{ fontSize: 11.5, color: 'var(--nn-cyan)' }}>+{bonuses.permanentHarvestBonusPct}% forever</span>
                     </div>
                   )}
                 </div>
-              </div>
+              </SectionWell>
             )}
 
             {/* Session earnings + flee exposure */}
             {bonuses && (
-              <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-                <div className="px-3 py-2 bg-gray-750 border-b border-gray-700">
-                  <span className="text-xs font-bold text-gray-300">💰 SESSION EARNINGS (steal exposure)</span>
-                </div>
-                <div className="px-3 py-3 space-y-2">
+              <SectionWell>
+                <SectionToggle
+                  icon={<User style={{ width: 12, height: 12 }} />}
+                  label="Session earnings (steal exposure)"
+                  open
+                  onToggle={() => undefined}
+                />
+                <div className="px-3.5 pb-2.5">
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-gray-900/50 rounded p-2">
-                      <div className="text-xs text-gray-400">Metal earned</div>
-                      <div className="text-sm font-bold text-orange-300">{formatCompact(bonuses.sessionEarningsMetal)}</div>
+                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                      <span className="nn-lab" style={{ margin: 0 }}>Metal earned</span>
+                      <b className="nn-num" style={{ fontSize: 13, color: 'var(--nn-amber)' }}>{formatCompact(bonuses.sessionEarningsMetal)}</b>
                     </div>
-                    <div className="bg-gray-900/50 rounded p-2">
-                      <div className="text-xs text-gray-400">Energy earned</div>
-                      <div className="text-sm font-bold text-cyan-300">{formatCompact(bonuses.sessionEarningsEnergy)}</div>
+                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                      <span className="nn-lab" style={{ margin: 0 }}>Energy earned</span>
+                      <b className="nn-num" style={{ fontSize: 13, color: 'var(--nn-cyan)' }}>{formatCompact(bonuses.sessionEarningsEnergy)}</b>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-400">
+                  <p style={{ marginTop: 8, fontSize: 11, lineHeight: 1.55, color: 'var(--nn-text-secondary)' }}>
                     A challenger who steals the Flag takes nothing — but each flee pays them
-                    10–30% of these earnings. Fled <span className="font-bold text-white">{fleeCount}/{maxFlees}</span>
-                    {fleeCount >= maxFlees && <span className="text-red-400 font-bold"> — next challenge cannot be fled!</span>}
-                  </div>
+                    10–30% of these earnings. Fled <b className="nn-num">{fleeCount}/{maxFlees}</b>
+                    {fleeCount >= maxFlees && <b style={{ color: 'var(--nn-magenta)' }}> — next challenge cannot be fled!</b>}
+                  </p>
                   {/* 12h milestone progress */}
-                  <div>
-                    <div className="text-xs text-gray-400 mb-1">
-                      12-hour milestone — permanent +2% harvest
+                  <div style={{ marginTop: 8 }}>
+                    <div className="nn-meter__lab">
+                      <span>12-HOUR MILESTONE · PERMANENT +2% HARVEST</span>
+                      <b className="nn-num" style={{ color: 'var(--nn-amber)' }}>{milestonePct.toFixed(0)}%</b>
                     </div>
-                    <div className="bg-gray-700 rounded-full h-2 overflow-hidden">
-                      <div className="bg-yellow-500 h-full transition-all duration-300" style={{ width: `${milestonePct}%` }} />
+                    <div className="nn-meter">
+                      <div
+                        className="nn-meter__seg"
+                        style={{ width: `${milestonePct}%`, background: 'var(--nn-amber)', boxShadow: '0 0 10px color-mix(in oklab, var(--nn-amber) 50%, transparent)' }}
+                      />
                     </div>
                   </div>
                   {/* Grace indicator */}
                   {actions?.graceUntil && new Date(actions.graceUntil) > new Date() && (
-                    <div className="text-xs text-green-400">
-                      🛡️ Challenge grace active until {new Date(actions.graceUntil).toLocaleTimeString()}
+                    <div className="mt-2 flex items-center gap-1.5" style={{ fontSize: 11, color: 'var(--nn-green)' }}>
+                      <Shield style={{ width: 12, height: 12 }} />
+                      Challenge grace active until {new Date(actions.graceUntil).toLocaleTimeString()}
                     </div>
                   )}
                 </div>
-              </div>
+              </SectionWell>
             )}
 
             {/* Restrictions notice (doc: immediate, prevents exploits) */}
-            <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-              <div className="text-xs text-gray-400">
-                ⛔ While holding: unit building, factory actions, auction house, and banking
-                are <span className="text-red-400 font-bold">disabled</span>. Harvesting, movement, and shrine boosts stay enabled.
-              </div>
+            <div className="nn-note" style={{ margin: '4px 12px 8px' }}>
+              <span style={{ fontSize: 11, lineHeight: 1.5 }}>
+                While holding: unit building, factory actions, auction house, and banking
+                are <b>disabled</b>. Harvesting, movement, and shrine boosts stay enabled.
+              </span>
             </div>
 
             {/* Hold duration */}
-            <div className="bg-gray-900 rounded px-2 py-1.5 flex items-center justify-between border border-gray-700">
-              <span className="text-xs text-gray-400">Holding Flag</span>
-              <span className={`text-xs font-bold ${isExpiringSoon ? 'text-yellow-400' : 'text-green-400'}`}>
+            <div className="nn-row">
+              <span className="nn-row__label">Holding Flag</span>
+              <b className={`nn-num ${isExpiringSoon ? '' : ''}`} style={{ fontSize: 12, color: isExpiringSoon ? 'var(--nn-amber)' : 'var(--nn-green)' }}>
                 {formatHoldDuration(bearer.holdDuration)}
-              </span>
+              </b>
             </div>
           </div>
         )}
@@ -286,235 +338,161 @@ export default function FlagTrackerPanel({
   // TRACKER VIEW — non-bearer: track + steal
   // ============================================================
   const compassArrowRot = getRotationForDirectionPublic(direction);
+  const canChallenge = !inAttackRange || !!challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false);
 
   // Full panel view with main collapsible header
   return (
     <div
-      className={`
-        bg-gray-900 border-2 rounded-lg overflow-hidden transition-all duration-300
-        ${challenge ? 'border-yellow-500 animate-pulse' : inAttackRange ? 'border-green-500' : 'border-red-500'}
-      `}
+      className="nn-panel nn-panel--amber"
+      style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}
     >
-      {/* Main Header - Always Visible, Clickable to Collapse Entire Panel */}
+      {/* Main Header — click to collapse */}
       <div
-        className="bg-gray-800 border-b border-gray-700 cursor-pointer hover:bg-gray-750 transition-colors"
+        className="nn-panel__header nn-panel__header--amber cursor-pointer"
         onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
       >
-        <div className="px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl animate-pulse">🏴</div>
-            <div>
-              <h3 className="text-lg font-bold text-white">Flag Bearer</h3>
-              <p className="text-xs text-gray-400">Steal the flag with a 30-second challenge</p>
-            </div>
-          </div>
-          <span className="text-gray-400 text-xl">{isPanelCollapsed ? '▶' : '▼'}</span>
-        </div>
+        <Flag className="nn-panel__icon animate-pulse" />
+        <h3 className="nn-panel__title">Flag Bearer</h3>
+        <span className="nn-panel__meta">
+          STEAL · 30S CHANNEL {isPanelCollapsed ? '▶' : '▼'}
+        </span>
       </div>
 
-      {/* Panel Content - Collapsible */}
+      {/* Panel Content — collapsible */}
       {!isPanelCollapsed && (
-        <div className="p-4 space-y-3">
+        <div className="nn-panel__body">
           {/* Active channel banner (challenger / observer side) */}
           {challenge && (
-            <div className={`rounded-lg p-3 border-2 ${isChallengerViewer ? 'bg-yellow-950/40 border-yellow-500' : 'bg-gray-800 border-yellow-700/50'}`}>
-              <div className="text-sm font-bold text-yellow-300">
-                🏴 {challenge.challenger} is channeling a steal!
-              </div>
-              <div className="text-xs text-yellow-200/80 mt-1">
+            <div
+              className="nn-note nn-note--caution"
+              style={{ margin: '12px 12px 8px', flexDirection: 'column', alignItems: 'stretch', gap: '0.375rem' }}
+            >
+              <span style={{ fontWeight: 700, fontSize: 12 }}>
+                {challenge.challenger} is channeling a steal
+              </span>
+              <span style={{ color: 'var(--nn-text-secondary)', letterSpacing: 0 }}>
                 {challenge.secondsRemaining > 0
-                  ? <>Channel ends in <span className="font-bold">{challenge.secondsRemaining}s</span> — bearer can flee after the 5s lock.</>
+                  ? <>Channel ends in <b className="nn-num">{challenge.secondsRemaining}s</b> — bearer can flee after the 5s lock.</>
                   : <>Channel complete — the Flag transfers unless the bearer fled.</>}
-              </div>
+              </span>
               {isChallengerViewer && challenge.secondsRemaining <= 0 && (
                 <button
                   onClick={() => onClaim && onClaim()}
-                  className="mt-2 w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm"
+                  className="nn-btn nn-btn--amber"
+                  style={{ width: '100%' }}
                 >
-                  🎉 Claim the Flag
+                  Claim the Flag
                 </button>
               )}
             </div>
           )}
 
-          {/* Bearer Info Section */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {/* Header - Clickable to collapse */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowBearerInfo(!showBearerInfo);
-              }}
-              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
-            >
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                <span>👤</span>
-                <span>Bearer Info</span>
-              </span>
-              <span className="text-gray-400 text-sm">{showBearerInfo ? '▼' : '▶'}</span>
-            </button>
-
-            {/* Collapsible Content */}
+          {/* Bearer Info Section — sample well 1: Player | Level */}
+          <SectionWell>
+            <SectionToggle
+              icon={<User style={{ width: 12, height: 12 }} />}
+              label="Bearer Info"
+              open={showBearerInfo}
+              onToggle={() => setShowBearerInfo(!showBearerInfo)}
+            />
             {showBearerInfo && (
-              <div className="px-3 py-3 border-t border-gray-700 space-y-2">
-                {/* Username and Level */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm text-gray-400">Player</div>
-                    <div className="text-base font-bold text-white">{bearer.username}</div>
+              <div className="px-3.5 pb-2.5">
+                <div className="flex items-start justify-between">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span className="nn-lab">Player</span>
+                    <b style={{ fontSize: 14 }}>{bearer.username}</b>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-400">Level</div>
-                    <div className="text-base font-bold text-cyan-400">{bearer.level}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+                    <span className="nn-lab">Level</span>
+                    <b className="nn-num" style={{ fontSize: 14, color: 'var(--nn-cyan)' }}>{bearer.level}</b>
                   </div>
                 </div>
-
-                {/* Hold Duration */}
-                <div className="bg-gray-900 rounded px-2 py-1.5 flex items-center justify-between">
-                  <span className="text-xs text-gray-400">Holding Flag</span>
-                  <span className={`text-xs font-bold ${isExpiringSoon ? 'text-yellow-400' : 'text-green-400'}`}>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="nn-lab" style={{ margin: 0 }}>Holding Flag</span>
+                  <b className="nn-num" style={{ fontSize: 12, color: isExpiringSoon ? 'var(--nn-amber)' : 'var(--nn-green)' }}>
                     {formatHoldDuration(bearer.holdDuration)} ({timeRemaining})
-                  </span>
+                  </b>
                 </div>
               </div>
             )}
-          </div>
+          </SectionWell>
 
-          {/* Location & Distance Section */}
-          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-            {/* Header - Clickable to collapse */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowLocation(!showLocation);
-              }}
-              className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
-            >
-              <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                <span>📍</span>
-                <span>Location & Distance</span>
-              </span>
-              <span className="text-gray-400 text-sm">{showLocation ? '▼' : '▶'}</span>
-            </button>
-
-            {/* Collapsible Content */}
+          {/* Location & Distance Section — sample well 2: Location | Distance */}
+          <SectionWell>
+            <SectionToggle
+              icon={<MapPin style={{ width: 12, height: 12 }} />}
+              label="Location & Distance"
+              open={showLocation}
+              onToggle={() => setShowLocation(!showLocation)}
+            />
             {showLocation && (
-              <div className="grid grid-cols-2 gap-2 px-3 py-3 border-t border-gray-700">
-                {/* Location */}
-                <div className="bg-gray-900/50 rounded-lg p-2">
-                  <div className="text-xs text-gray-400 mb-1">Location</div>
-                  <div className="text-sm font-bold text-white">
-                    ({bearer.position.x}, {bearer.position.y})
-                  </div>
+              <div className="nn-well" style={{ margin: '0 12px 10px', width: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span className="nn-lab">Location</span>
+                  <b className="nn-num" style={{ fontSize: 13 }}>({bearer.position.x}, {bearer.position.y})</b>
                 </div>
-
-                {/* Distance */}
-                <div className="bg-gray-900/50 rounded-lg p-2">
-                  <div className="text-xs text-gray-400 mb-1">Distance</div>
-                  <div className="text-sm font-bold text-cyan-400">
-                    {formatDistance(distance)}
-                  </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-end' }}>
+                  <span className="nn-lab">Distance</span>
+                  <b className="nn-num" style={{ fontSize: 13, color: 'var(--nn-cyan)' }}>{formatDistance(distance)}</b>
                 </div>
               </div>
             )}
+          </SectionWell>
+
+          {/* Steal Range Status — sample `.range` pill */}
+          <div className={`nn-range ${inAttackRange ? 'nn-range--ok' : 'nn-range--no'}`}>
+            {inAttackRange
+              ? `IN STEAL RANGE (≤${FLAG_CONFIG.ATTACK_RANGE})`
+              : `OUT OF RANGE (+${distance - FLAG_CONFIG.ATTACK_RANGE} TILES)`}
           </div>
 
-          {/* Steal Range Status */}
-          <div
-            className={`
-              rounded-lg p-2 text-center font-bold text-xs border
-              ${inAttackRange
-                ? 'bg-green-900/30 border-green-500 text-green-400'
-                : 'bg-red-900/30 border-red-500 text-red-400'
-              }
-            `}
-          >
-            {inAttackRange ? (
-              <div className="flex items-center justify-center gap-2">
-                <span>✓</span>
-                <span>IN STEAL RANGE</span>
-                <span className="opacity-75">(≤{FLAG_CONFIG.ATTACK_RANGE})</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center gap-2">
-                <span>✗</span>
-                <span>OUT OF RANGE</span>
-                <span className="opacity-75">(+{distance - FLAG_CONFIG.ATTACK_RANGE} tiles)</span>
-              </div>
-            )}
-          </div>
-
-          {/* Compass Direction Section */}
+          {/* Compass Direction Section — sample `.compass` + `.rose`, collapsible */}
           {!compact && (
-            <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-              {/* Header - Clickable to collapse */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowCompass(!showCompass);
-                }}
-                className="w-full px-3 py-2 flex items-center justify-between hover:bg-gray-750 transition-colors"
-              >
-                <span className="text-xs font-bold text-gray-300 flex items-center gap-2">
-                  <span>🧭</span>
-                  <span>Direction</span>
-                </span>
-                <span className="text-gray-400 text-sm">{showCompass ? '▼' : '▶'}</span>
-              </button>
-
-              {/* Collapsible Content */}
+            <SectionWell>
+              <SectionToggle
+                icon={<Compass style={{ width: 12, height: 12 }} />}
+                label="Direction"
+                open={showCompass}
+                onToggle={() => setShowCompass(!showCompass)}
+              />
               {showCompass && (
-                <div className="px-3 py-3 border-t border-gray-700 flex items-center justify-center gap-4">
-                  {/* Compass Rose */}
-                  <div className="relative w-16 h-16">
-                    {/* Background circle */}
-                    <div className="absolute inset-0 border-4 border-gray-700 rounded-full"></div>
-
-                    {/* Cardinal directions */}
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">N</div>
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 text-xs text-gray-500 font-bold">S</div>
-                    <div className="absolute left-0 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">W</div>
-                    <div className="absolute right-0 top-1/2 translate-x-1/2 -translate-y-1/2 text-xs text-gray-500 font-bold">E</div>
-
-                    {/* Direction arrow */}
-                    <div
-                      className="absolute inset-0 flex items-center justify-center text-2xl transition-transform duration-300"
+                <div className="nn-compass" style={{ padding: '6px 12px 12px' }}>
+                  <div className="nn-compass__rose">
+                    <i className="n">N</i>
+                    <i className="s">S</i>
+                    <i className="w">W</i>
+                    <i className="e">E</i>
+                    <span
+                      className="arrow"
                       style={{ transform: `rotate(${compassArrowRot}deg)` }}
                     >
                       {compassArrow}
-                    </div>
+                    </span>
                   </div>
-
-                  <div className="text-xs text-gray-400">
-                    Bearer is to the <span className="text-white font-bold">{direction}</span>
-                  </div>
+                  <p>
+                    Bearer is to the <b>{direction}</b>
+                  </p>
                 </div>
               )}
-            </div>
+            </SectionWell>
           )}
 
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            {/* Track Button */}
+          {/* Action Buttons — sample `.actions2`: Track ghost + Steal amber */}
+          <div className="nn-actions2">
+            {/* Track Button — cyan navigation action */}
             <button
               onClick={() => onTrack && onTrack(bearer)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg transition-colors flex items-center gap-2 text-sm"
+              className="nn-btn nn-btn--ghost"
             >
-              <span>🔍</span>
-              <span>Track</span>
+              <Search />
+              Track
             </button>
 
-            {/* Steal Button (channel start) */}
+            {/* Steal Button (channel start) — amber aggression */}
             <button
               onClick={() => onChallenge && onChallenge()}
-              disabled={!inAttackRange || !!challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false)}
-              className={`
-                font-bold py-2 px-3 rounded-lg transition-colors flex items-center gap-2 text-sm
-                ${!inAttackRange || challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false)
-                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 text-white'
-                }
-              `}
+              disabled={canChallenge}
+              className={`nn-btn nn-btn--amber nn-btn--flex ${canChallenge ? 'cursor-not-allowed opacity-40' : ''}`}
               title={
                 challenge
                   ? 'A steal channel is already running'
@@ -523,15 +501,15 @@ export default function FlagTrackerPanel({
                   : actions?.challengeBlockReason ?? 'Start a 30-second steal channel'
               }
             >
-              <span>🏴</span>
+              <Flag />
               <span>{challenge ? `${challenge.secondsRemaining}s` : 'Steal'}</span>
             </button>
           </div>
 
-          {/* Help Text */}
-          <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-800">
-            💡 Track to view profile • Steal via 30s channel — the bearer can flee, paying you 10–30% of their session earnings
-          </div>
+          {/* Help Text — sample footnote */}
+          <p className="nn-footnote">
+            Track to view profile · Steal via 30s channel — the bearer can flee, paying you 10–30% of their session earnings
+          </p>
         </div>
       )}
     </div>

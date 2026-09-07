@@ -1,28 +1,15 @@
 /**
  * @file components/WMDMiniStatus.tsx
  * @created 2025-10-22
- * @overview WMD Compact Status Widget
- * 
- * OVERVIEW:
- * Minimal status widget for displaying key WMD metrics in the main game UI.
- * Designed for sidebar or header placement. Click to open full WMD Hub.
- * 
- * Features:
- * - RP balance display
- * - Missiles ready count
- * - Active batteries count
- * - Available spies count
- * - Pending votes count
- * - Alert indicators for critical events
- * - Click-to-open WMD Hub
- * 
- * Dependencies: /api/wmd/status endpoint
+ * @updated 2026-09-06 — FID-20260906-012 Phase 2-R1: rebuilt to approved
+ *   sample §04 WMD markup (magenta module, 2×2 stat grid) with parity.
+ * @overview WMD Compact Status Widget — magenta threat module, click opens WMD Hub
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Badge } from '@/components/ui/Badge';
+import { Crosshair } from 'lucide-react';
 
 interface WMDStatus {
   rp: number;
@@ -37,6 +24,7 @@ interface WMDMiniStatusProps {
   onClick?: () => void;
 }
 
+/** Threat module — sample §04: magenta panel, grid2x2 wells, CLICK TO OPEN footnote. */
 export default function WMDMiniStatus({ onClick }: WMDMiniStatusProps) {
   const [status, setStatus] = useState<WMDStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,19 +32,18 @@ export default function WMDMiniStatus({ onClick }: WMDMiniStatusProps) {
   const fetchStatus = async () => {
     try {
       const res = await fetch('/api/wmd/status');
-      
+
       // Handle authentication errors silently (user doesn't have WMD access)
       if (res.status === 401) {
         setLoading(false);
         return;
       }
-      
-      const data = await res.json();
-      if (data.success) {
+
+      const data: { success: boolean; status?: WMDStatus } = await res.json();
+      if (data.success && data.status) {
         setStatus(data.status);
       }
     } catch (error) {
-      // Only log actual errors, not auth failures
       console.error('Failed to fetch WMD status:', error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
@@ -69,60 +56,64 @@ export default function WMDMiniStatus({ onClick }: WMDMiniStatusProps) {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading || !status) {
-    return (
-      <div className="bg-gray-800 rounded-lg p-3 border border-gray-700">
-        <p className="text-xs text-gray-400">Loading WMD...</p>
-      </div>
-    );
-  }
-
   return (
-    <div 
+    <div
       onClick={onClick}
-      className="bg-gray-800 rounded-lg p-3 border border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer"
+      className="nn-panel nn-panel--magenta cursor-pointer"
+      style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}
     >
-      {/* Header */}
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="text-sm font-bold text-white flex items-center gap-1">
-          ⚔️ WMD
-          {status.hasAlerts && (
-            <Badge className="bg-red-600 animate-pulse">!</Badge>
+      <div className="nn-panel__header nn-panel__header--magenta">
+        <Crosshair className="nn-panel__icon" />
+        <span className="nn-panel__title">WMD</span>
+        {status?.hasAlerts && (
+          <span
+            aria-label="Alerts pending"
+            className="ml-2 h-2 w-2 animate-pulse rounded-full"
+            style={{ background: 'var(--nn-magenta)', boxShadow: '0 0 8px var(--nn-magenta)' }}
+          />
+        )}
+        <span className="nn-panel__meta">THREAT MONITOR</span>
+      </div>
+
+      {loading || !status ? (
+        <div className="nn-panel__body">
+          <p className="nn-footnote">Syncing…</p>
+        </div>
+      ) : (
+        <div className="nn-panel__body">
+          {/* 2×2 stat grid (sample `.wmd-grid`) */}
+          <div className="nn-grid2x2">
+            <div className="nn-well">
+              <span className="nn-lab">RP</span>
+              <b className="nn-num" style={{ color: 'var(--nn-cyan)', fontSize: 14 }}>{status.rp.toLocaleString()}</b>
+            </div>
+            <div className="nn-well">
+              <span className="nn-lab">Missiles</span>
+              <b className="nn-num" style={{ color: 'var(--nn-magenta)', fontSize: 14 }}>{status.missilesReady}</b>
+            </div>
+            <div className="nn-well">
+              <span className="nn-lab">Batteries</span>
+              <b className="nn-num" style={{ color: 'var(--nn-amber)', fontSize: 14 }}>{status.batteriesActive}</b>
+            </div>
+            <div className="nn-well">
+              <span className="nn-lab">Spies</span>
+              <b className="nn-num" style={{ color: 'var(--nn-violet)', fontSize: 14 }}>{status.spiesAvailable}</b>
+            </div>
+          </div>
+
+          {/* Pending votes */}
+          {status.pendingVotes > 0 && (
+            <div className="nn-well" style={{ margin: '4px 12px 8px' }}>
+              <span className="nn-lab">Votes</span>
+              <b className="nn-num" style={{ color: 'var(--nn-cyan)', fontSize: 12 }}>
+                {status.pendingVotes} pending
+              </b>
+            </div>
           )}
-        </h3>
-      </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">RP</p>
-          <p className="text-blue-400 font-bold">{status.rp}</p>
-        </div>
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">Missiles</p>
-          <p className="text-green-400 font-bold">{status.missilesReady}</p>
-        </div>
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">Batteries</p>
-          <p className="text-yellow-400 font-bold">{status.batteriesActive}</p>
-        </div>
-        <div className="bg-gray-900 rounded p-1.5">
-          <p className="text-gray-400">Spies</p>
-          <p className="text-purple-400 font-bold">{status.spiesAvailable}</p>
-        </div>
-      </div>
-
-      {/* Pending Votes */}
-      {status.pendingVotes > 0 && (
-        <div className="mt-2 bg-blue-900 rounded p-1.5 text-xs">
-          <p className="text-blue-300">
-            🗳️ {status.pendingVotes} pending vote{status.pendingVotes > 1 ? 's' : ''}
-          </p>
+          <p className="nn-footnote" style={{ letterSpacing: '0.12em' }}>CLICK TO OPEN</p>
         </div>
       )}
-
-      {/* Click Hint */}
-      <p className="text-xs text-gray-500 mt-2 text-center">Click to open</p>
     </div>
   );
 }

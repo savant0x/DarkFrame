@@ -55,44 +55,45 @@ export default function BattleLogLinks() {
   if (!player) return null;
 
   return (
-    <div className="bg-gray-800 border-t border-gray-700 p-3">
-      <h3 className="text-sm font-bold text-gray-400 mb-2">Battle Log</h3>
-      <div className="space-y-1">
+    <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+      <div className="nn-panel__header">
+        <h3 className="nn-panel__title">Battle Log</h3>
+        <span className="nn-panel__meta">AUTO-REFRESH 30S</span>
+      </div>
+      <div className="nn-feed">
         <button
           onClick={() => router.push('/game/battle-logs/attack')}
-          className="w-full text-left text-sm px-2 py-1 rounded hover:bg-gray-700 transition-colors flex justify-between items-center"
+          className="nn-feed__item"
         >
-          <span className="text-gray-300">Attack Logs</span>
-          <span className="text-yellow-400 font-bold">
-            {logCounts.attacks} {logCounts.attacks > 0 && <span className="text-green-400 text-xs ml-1">New</span>}
+          <span>Attack Logs</span>
+          <span className="nn-feed__count">
+            {logCounts.attacks}
+            {logCounts.attacks > 0 && <span className="nn-feed__new">new</span>}
           </span>
         </button>
         <button
           onClick={() => router.push('/game/battle-logs/defense')}
-          className="w-full text-left text-sm px-2 py-1 rounded hover:bg-gray-700 transition-colors flex justify-between items-center"
+          className="nn-feed__item nn-feed__item--defense"
         >
-          <span className="text-gray-300">Defense Logs</span>
-          <span className="text-blue-400 font-bold">
-            {logCounts.defenses} {logCounts.defenses > 0 && <span className="text-green-400 text-xs ml-1">New</span>}
+          <span>Defense Logs</span>
+          <span className="nn-feed__count">
+            {logCounts.defenses}
+            {logCounts.defenses > 0 && <span className="nn-feed__new">new</span>}
           </span>
         </button>
         <button
           onClick={() => router.push('/game/battle-logs/infantry')}
-          className="w-full text-left text-sm px-2 py-1 rounded hover:bg-gray-700 transition-colors flex justify-between items-center"
+          className="nn-feed__item"
         >
-          <span className="text-gray-300">Infantry Logs</span>
-          <span className="text-purple-400 font-bold">
-            {logCounts.infantry}
-          </span>
+          <span>Infantry Logs</span>
+          <span className="nn-feed__count">{logCounts.infantry}</span>
         </button>
         <button
           onClick={() => router.push('/game/battle-logs/land-mines')}
-          className="w-full text-left text-sm px-2 py-1 rounded hover:bg-gray-700 transition-colors flex justify-between items-center"
+          className="nn-feed__item nn-feed__item--defense"
         >
-          <span className="text-gray-300">Land Mine Logs</span>
-          <span className="text-red-400 font-bold">
-            {logCounts.landMines}
-          </span>
+          <span>Land Mine Logs</span>
+          <span className="nn-feed__count">{logCounts.landMines}</span>
         </button>
       </div>
     </div>

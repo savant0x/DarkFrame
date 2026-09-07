@@ -40,8 +40,11 @@ describe('MovementControls', () => {
   describe('Component Rendering', () => {
     it('should render movement controls title', () => {
       render(<MovementControls />);
-      
-      expect(screen.getByText('🎮 MOVEMENT CONTROLS')).toBeInTheDocument();
+
+      // FID-20260906-012 P2-R1: title banner removed — the D-pad now lives
+      // inside the sample's "Movement Controls" panel chrome. Assert the
+      // cluster renders instead of the old emoji header.
+      expect(document.querySelector('.nn-dpad')).toBeInTheDocument();
     });
 
     it('should render all 9 directional buttons', () => {

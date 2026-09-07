@@ -52,43 +52,16 @@ export default function MovementControls() {
     }
   }
 
-  const buttonClass = `
-    w-14 h-14 
-    bg-gray-800/60 hover:bg-cyan-500/20
-    disabled:bg-gray-800/30 disabled:cursor-not-allowed
-    text-white font-bold rounded-lg 
-    transition-all duration-150 
-    border-2 border-cyan-500/30
-    shadow-[0_0_10px_rgba(0,240,255,0.2)]
-    hover:border-cyan-500/50
-    hover:shadow-[0_0_20px_rgba(0,240,255,0.4)]
-    active:scale-95
-  `;
+  // NEON NOIR §5.1: D-pad as HUD cluster — pressed-state glow via .nn-dpad__btn
+  const buttonClass = 'nn-dpad__btn';
 
-  const refreshButtonClass = `
-    w-14 h-14 
-    bg-green-500/20 hover:bg-green-500/30
-    disabled:bg-gray-800/30 disabled:cursor-not-allowed
-    text-white font-bold rounded-lg 
-    transition-all duration-150 
-    border-2 border-green-500/40
-    shadow-[0_0_10px_rgba(0,255,100,0.2)]
-    hover:border-green-500/60
-    hover:shadow-[0_0_20px_rgba(0,255,100,0.4)]
-    active:scale-95
-  `;
+  // center refresh key keeps its green (success) signal identity
+  const refreshButtonClass = 'nn-dpad__btn nn-dpad__btn--refresh';
 
   return (
     <div>
-      {/* Banner Title */}
-      <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border-b border-cyan-500/30 px-3 py-2 -mx-3 -mt-3 mb-3">
-        <h3 className="text-sm font-bold text-white font-display flex items-center gap-2">
-          🎮 MOVEMENT CONTROLS
-        </h3>
-      </div>
-      
-      {/* Compass Grid */}
-      <div className="grid grid-cols-3 gap-2 w-fit mx-auto mb-3">
+      {/* Compass Grid — sample `.dpad`: arrow glyph + letter sub-label */}
+      <div className="nn-dpad mb-2">
         {/* Row 1 */}
         <button
           onClick={() => handleMove(MovementDirection.Northwest)}
@@ -96,8 +69,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="Northwest (Q / 7)"
         >
-          ↖<br />
-          <span className="text-xs">Q</span>
+          ↖<small>Q</small>
         </button>
         <button
           onClick={() => handleMove(MovementDirection.North)}
@@ -105,8 +77,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="North (W / 8 / ↑)"
         >
-          ↑<br />
-          <span className="text-xs">W</span>
+          ↑<small>W</small>
         </button>
         <button
           onClick={() => handleMove(MovementDirection.Northeast)}
@@ -114,8 +85,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="Northeast (E / 9)"
         >
-          ↗<br />
-          <span className="text-xs">E</span>
+          ↗<small>E</small>
         </button>
 
         {/* Row 2 */}
@@ -125,8 +95,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="West (A / 4 / ←)"
         >
-          ←<br />
-          <span className="text-xs">A</span>
+          ←<small>A</small>
         </button>
         <button
           onClick={() => handleMove(MovementDirection.Refresh)}
@@ -134,8 +103,7 @@ export default function MovementControls() {
           className={refreshButtonClass}
           title="Refresh (S / 5)"
         >
-          ⟳<br />
-          <span className="text-xs">S</span>
+          ⟳<small>S</small>
         </button>
         <button
           onClick={() => handleMove(MovementDirection.East)}
@@ -143,8 +111,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="East (D / 6 / →)"
         >
-          →<br />
-          <span className="text-xs">D</span>
+          →<small>D</small>
         </button>
 
         {/* Row 3 */}
@@ -154,8 +121,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="Southwest (Z / 1)"
         >
-          ↙<br />
-          <span className="text-xs">Z</span>
+          ↙<small>Z</small>
         </button>
         <button
           onClick={() => handleMove(MovementDirection.South)}
@@ -163,8 +129,7 @@ export default function MovementControls() {
           className={buttonClass}
           title="South (X / 2 / ↓)"
         >
-          ↓<br />
-          <span className="text-xs">X</span>
+          ↓<small>X</small>
         </button>
         <button
           onClick={() => handleMove(MovementDirection.Southeast)}
@@ -172,13 +137,12 @@ export default function MovementControls() {
           className={buttonClass}
           title="Southeast (C / 3)"
         >
-          ↘<br />
-          <span className="text-xs">C</span>
+          ↘<small>C</small>
         </button>
       </div>
 
-      <p className="text-center text-[10px] text-white/50">
-        Use keyboard: QWEASDZXC · Numpad 1-9 · Arrow keys
+      <p className="nn-footnote" style={{ letterSpacing: '0.1em', paddingBottom: 14 }}>
+        PRESS A KEY OR CLICK A DIRECTION
       </p>
     </div>
   );

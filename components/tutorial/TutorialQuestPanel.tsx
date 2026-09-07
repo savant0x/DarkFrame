@@ -28,7 +28,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { showError } from '@/lib/toastService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
-import { X, ChevronDown, ChevronUp, Trophy, Gift, CheckCircle2, Target } from 'lucide-react';
+import { X, ChevronDown, ChevronUp, Trophy, Gift, CheckCircle2, Target, MapPin } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { TutorialQuest, TutorialStep, TutorialProgress } from '@/types/tutorial.types';
 import { logger } from '@/lib/logger';
@@ -50,22 +50,14 @@ export default function TutorialQuestPanel({
 }: TutorialQuestPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // FID-20260906-005 T3.1 (R4): the panel is mounted INSIDE the right controls
-  // rail (GameLayout). On lg+ it docks in-flow below the rail's panels — the old
-  // viewport-fixed bottom-right overlay collided with the tile action card.
-  // Below lg the rail is hidden, so the panel hides with it (mobile drawers are
-  // the documented T3.1 follow-up); the top tutorial progress bar remains.
-  const [docked, setDocked] = useState(true);
-  useEffect(() => {
-    const m = window.matchMedia('(min-width: 1024px)');
-    const sync = () => setDocked(m.matches);
-    sync();
-    m.addEventListener('change', sync);
-    return () => m.removeEventListener('change', sync);
-  }, []);
-  const wrapperClasses = docked
-    ? 'w-full space-y-2' // docked: normal flow inside the controls rail
-    : 'fixed bottom-2 sm:bottom-4 right-2 sm:right-4 z-[9998] w-72 sm:w-80 space-y-2 transition-all duration-300 max-w-[calc(100vw-1rem)] sm:max-w-none';
+  // FID-20260906-012 P2: the tutorial is a fixed OVERLAY docked against the
+  // right sidebar's inner edge — mirroring the chat panel on the left. It
+  // must NOT live inside the rail's DOM: the rail's backdrop-filter creates
+  // a containing block that turns position:fixed into rail-relative, which
+  // is what made the panel render deep inside the rail's scroll flow.
+  // Mounted as a direct child of the layout root instead (GameLayout).
+  const wrapperClasses =
+    'nn-tutorial-dock w-[19rem] max-w-[calc(100vw-2rem)] space-y-2 transition-all duration-300';
   const [currentQuest, setCurrentQuest] = useState<TutorialQuest | null>(null);
   const [currentStep, setCurrentStep] = useState<TutorialStep | null>(null);
   const [progress, setProgress] = useState<TutorialProgress | null>(null);
@@ -542,25 +534,25 @@ export default function TutorialQuestPanel({
     <>
       {/* Main Quest Panel - docked inside the controls rail on lg+, floating below lg */}
       <div className={`tutorial-quest-panel ${wrapperClasses}`}>
-      <div className={`bg-gradient-to-br from-gray-900 to-gray-800 border rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ${
-        stepJustCompleted ? 'border-green-500 shadow-green-500/50 scale-105' : 
-        questJustCompleted ? 'border-purple-500 shadow-purple-500/50 scale-105' :
-        'border-purple-500/30'
-      }`}>
+      <div className={`nn-panel overflow-hidden transition-all duration-300 ${
+        stepJustCompleted ? '!border-[color:var(--nn-green)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-green)_30%,transparent)] scale-105' : 
+        questJustCompleted ? '!border-[color:var(--nn-violet)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-violet)_30%,transparent)] scale-105' :
+        ''
+      }`} style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/30 px-4 py-2">
+        <div className="nn-panel__header px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Trophy className={`w-4 h-4 text-purple-400 ${questJustCompleted ? 'animate-bounce' : ''}`} />
-              <span className="text-xs font-bold text-purple-300">Tutorial Quest</span>
+              <Trophy className={`nn-panel__icon ${questJustCompleted ? 'animate-bounce' : ''}`} />
+              <span className="nn-panel__title">Tutorial Quest</span>
               {stepJustCompleted && (
-                <CheckCircle2 className="w-4 h-4 text-green-400 animate-pulse" />
+                <CheckCircle2 className="w-4 h-4 text-[color:var(--nn-green)] animate-pulse" />
               )}
             </div>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+                className="rounded p-1 text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-text-primary)]"
                 title={isCollapsed ? 'Expand' : 'Collapse'}
               >
                 {isCollapsed ? (
@@ -571,7 +563,7 @@ export default function TutorialQuestPanel({
               </button>
               <button
                 onClick={handleSkip}
-                className="text-gray-400 hover:text-red-400 p-1 rounded transition-colors"
+                className="rounded p-1 text-[color:var(--nn-text-tertiary)] transition-colors hover:text-[color:var(--nn-magenta)]"
                 title="Skip Tutorial"
               >
                 <X className="w-4 h-4" />
@@ -581,14 +573,14 @@ export default function TutorialQuestPanel({
           
           {/* Overall Quest Progress Bar */}
           <div className="mt-2">
-            <div className="flex items-center justify-between text-xs text-purple-300 mb-1">
-              <span>Progress</span>
-              <span className="font-bold">{questStepProgress}</span>
+            <div className="mb-1 flex items-center justify-between text-xs">
+              <span className="nn-lab">Progress</span>
+              <span className="nn-num text-[color:var(--nn-violet)]">{questStepProgress}</span>
             </div>
-            <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+            <div className="nn-meter h-2">
               <div 
-                className="bg-gradient-to-r from-purple-500 to-pink-500 h-full transition-all duration-500 ease-out"
-                style={{ width: `${questProgressPercent}%` }}
+                className="nn-meter__fill transition-all duration-500 ease-out"
+                style={{ width: `${questProgressPercent}%`, background: 'var(--nn-violet)', boxShadow: '0 0 8px color-mix(in oklab, var(--nn-violet) 50%, transparent)' }}
               />
             </div>
           </div>
@@ -599,63 +591,65 @@ export default function TutorialQuestPanel({
           <div className="p-4">
             {/* Quest Title */}
             <div className="mb-3">
-              <h3 className={`text-sm font-bold text-white mb-1 transition-all ${
-                questJustCompleted ? 'text-green-400' : ''
+              <h3 className={`mb-1 text-sm font-bold transition-all ${
+                questJustCompleted ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-text-primary)]'
               }`}>
                 {currentQuest.title}
               </h3>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-[color:var(--nn-text-secondary)]">
                 {currentQuest.description}
               </p>
             </div>
 
             {/* Current Step */}
-            <div className={`bg-gray-800/50 rounded-lg p-3 mb-3 border transition-all duration-300 ${
-              stepJustCompleted ? 'border-green-500 bg-green-900/20' : 'border-purple-500/20'
+            <div className={`nn-well mb-3 rounded-lg border p-3 transition-all duration-300 ${
+              stepJustCompleted ? 'border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-violet)_20%,transparent)]'
             }`}>
-              <div className="flex items-start gap-2 mb-2">
-                <div className={`mt-1 w-6 h-6 rounded-full text-white flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all duration-300 ${
-                  stepJustCompleted ? 'bg-green-500 scale-110' : 'bg-purple-600'
-                }`}>
+              <div className="mb-2 flex items-start gap-2">
+                <div className={`mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all duration-300 ${
+                  stepJustCompleted 
+                    ? 'scale-110 text-[color:var(--nn-green)]' 
+                    : 'text-[color:var(--nn-violet)]'
+                }`} style={stepJustCompleted ? { background: 'color-mix(in oklab, var(--nn-green) 18%, transparent)', boxShadow: '0 0 10px color-mix(in oklab, var(--nn-green) 35%, transparent)' } : { background: 'color-mix(in oklab, var(--nn-violet) 18%, transparent)' }}>
                   {stepJustCompleted ? (
                     <CheckCircle2 className="w-4 h-4" />
                   ) : (
                     <span>{progress?.currentStepIndex !== undefined ? progress.currentStepIndex + 1 : 1}</span>
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className={`text-sm font-semibold mb-1 break-words transition-colors ${
-                    stepJustCompleted ? 'text-green-400' : 'text-white'
+                <div className="min-w-0 flex-1">
+                  <h4 className={`mb-1 break-words text-sm font-semibold transition-colors ${
+                    stepJustCompleted ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-text-primary)]'
                   }`}>
                     {currentStep.title}
                   </h4>
-                  <p className="text-xs text-gray-300 break-words">
+                  <p className="break-words text-xs text-[color:var(--nn-text-secondary)]">
                     {currentStep.instruction}
                   </p>
                   
                   {/* Show target coordinates for MOVE_TO_COORDS steps */}
                   {currentStep.action === 'MOVE_TO_COORDS' && targetCoords && (
-                    <div className="mt-2 px-2 py-1 bg-purple-900/30 border border-purple-500/30 rounded text-center">
+                    <div className="mt-2 rounded border px-2 py-1 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-violet) 10%, transparent)' }}>
                       {currentStep.validationData?.locationName ? (
                         <div className="flex flex-col gap-1">
-                          <span className="text-xs text-purple-200 font-semibold">
-                            🎯 {currentStep.validationData.locationName}
+                          <span className="text-xs font-semibold text-[color:var(--nn-text-primary)]">
+                            {currentStep.validationData.locationName}
                           </span>
-                          <span className="text-xs text-purple-400 font-mono">
+                          <span className="nn-num text-xs text-[color:var(--nn-violet)]">
                             ({targetCoords.x}, {targetCoords.y})
                           </span>
                         </div>
                       ) : (
-                        <span className="text-xs text-purple-300 font-mono">
-                          🎯 Target: ({targetCoords.x}, {targetCoords.y})
+                        <span className="nn-num text-xs text-[color:var(--nn-violet)]">
+                          Target: ({targetCoords.x}, {targetCoords.y})
                         </span>
                       )}
                     </div>
                   )}
                   {currentStep.action === 'MOVE_TO_COORDS' && !targetCoords && (
-                    <div className="mt-2 px-2 py-1 bg-gray-900/30 border border-gray-500/30 rounded text-center">
-                      <span className="text-xs text-gray-400">
-                        Loading target location...
+                    <div className="mt-2 rounded border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] px-2 py-1 text-center">
+                      <span className="nn-lab">
+                        Loading target location…
                       </span>
                     </div>
                   )}
@@ -665,29 +659,29 @@ export default function TutorialQuestPanel({
               {/* Action Progress Tracker (for steps with countable actions) */}
               {actionTarget > 0 && (
                 <div className="mt-3">
-                  <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
-                    <div className="flex items-center gap-1">
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <div className="nn-lab flex items-center gap-1">
                       <Target className="w-3 h-3" />
                       <span>Progress</span>
                     </div>
-                    <span className="font-bold text-purple-300">
+                    <span className="nn-num font-bold text-[color:var(--nn-violet)]">
                       {actionProgress}/{actionTarget} {getActionLabel(currentStep.action)}
                     </span>
                   </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                  <div className="nn-meter h-2">
                     <div 
-                      className="bg-gradient-to-r from-green-500 to-emerald-500 h-full transition-all duration-300 ease-out"
-                      style={{ width: `${actionProgressPercent}%` }}
+                      className="nn-meter__fill transition-all duration-300 ease-out"
+                      style={{ width: `${actionProgressPercent}%`, background: 'var(--nn-green)', boxShadow: '0 0 8px color-mix(in oklab, var(--nn-green) 40%, transparent)' }}
                     />
                   </div>
                 </div>
               )}
 
               {/* Step Progress */}
-              <div className="flex items-center justify-between text-xs text-gray-400 mt-2">
-                <span>Step {questStepProgress}</span>
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="nn-lab">Step {questStepProgress}</span>
                 {currentStep.estimatedSeconds && (
-                  <span>~{currentStep.estimatedSeconds}s</span>
+                  <span className="nn-lab">~{currentStep.estimatedSeconds}s</span>
                 )}
               </div>
             </div>
@@ -699,32 +693,32 @@ export default function TutorialQuestPanel({
               if (!sections) {
                 // Fallback to simple display if parsing fails
                 return (
-                  <div className="mt-3 text-xs text-gray-400 border-t border-gray-700 pt-2">
-                    <p className="break-words">💡 {currentStep.detailedHelp}</p>
+                  <div className="mt-3 border-t border-[color-mix(in_oklab,var(--nn-violet)_16%,transparent)] pt-2">
+                    <p className="break-words text-xs text-[color:var(--nn-text-secondary)]">{currentStep.detailedHelp}</p>
                   </div>
                 );
               }
 
               return (
-                <div className="mt-3 border-t border-gray-700 pt-3 space-y-2">
-                  {/* WHY Section */}
+                <div className="mt-3 space-y-2 border-t border-[color-mix(in_oklab,var(--nn-violet)_16%,transparent)] pt-3">
+                  {/* WHY Section — sample `.sub` neutral well, semantic label only */}
                   {sections.why && (
-                    <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-2">
+                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
                       <div className="flex items-start gap-2">
-                        <span className="text-purple-400 font-bold text-xs">🎯 WHY:</span>
-                        <p className="text-xs text-gray-300 flex-1">{sections.why}</p>
+                        <span className="nn-lab" style={{ color: 'var(--nn-violet)' }}>WHY:</span>
+                        <p className="flex-1 text-xs text-[color:var(--nn-text-secondary)]">{sections.why}</p>
                       </div>
                     </div>
                   )}
 
                   {/* WHEN Section */}
                   {sections.when && sections.when.length > 0 && (
-                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-2">
-                      <div className="text-blue-400 font-bold text-xs mb-1">🕐 WHEN TO USE:</div>
-                      <ul className="space-y-0.5 ml-2">
+                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+                      <div className="nn-lab" style={{ color: 'var(--nn-cyan)' }}>WHEN TO USE:</div>
+                      <ul className="ml-2 space-y-0.5">
                         {sections.when.map((item, index) => (
-                          <li key={index} className="text-xs text-gray-300 flex items-start gap-1">
-                            <span className="text-blue-400">•</span>
+                          <li key={index} className="flex items-start gap-1 text-xs text-[color:var(--nn-text-secondary)]">
+                            <span className="text-[color:var(--nn-cyan)]">•</span>
                             <span className="flex-1">{item}</span>
                           </li>
                         ))}
@@ -734,12 +728,12 @@ export default function TutorialQuestPanel({
 
                   {/* HOW Section */}
                   {sections.how && sections.how.length > 0 && (
-                    <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-2">
-                      <div className="text-green-400 font-bold text-xs mb-1">⚡ HOW TO USE:</div>
-                      <ul className="space-y-0.5 ml-2">
+                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+                      <div className="nn-lab" style={{ color: 'var(--nn-green)' }}>HOW TO USE:</div>
+                      <ul className="ml-2 space-y-0.5">
                         {sections.how.map((item, index) => (
-                          <li key={index} className="text-xs text-gray-300 flex items-start gap-1">
-                            <span className="text-green-400">•</span>
+                          <li key={index} className="flex items-start gap-1 text-xs text-[color:var(--nn-text-secondary)]">
+                            <span className="text-[color:var(--nn-green)]">•</span>
                             <span className="flex-1">{item}</span>
                           </li>
                         ))}
@@ -749,10 +743,10 @@ export default function TutorialQuestPanel({
 
                   {/* PRO TIP Section */}
                   {sections.tip && (
-                    <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-2">
+                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
                       <div className="flex items-start gap-2">
-                        <span className="text-yellow-400 font-bold text-xs">💡 TIP:</span>
-                        <p className="text-xs text-gray-300 flex-1">{sections.tip}</p>
+                        <span className="nn-lab" style={{ color: 'var(--nn-amber)' }}>TIP:</span>
+                        <p className="flex-1 text-xs text-[color:var(--nn-text-secondary)]">{sections.tip}</p>
                       </div>
                     </div>
                   )}
@@ -765,7 +759,7 @@ export default function TutorialQuestPanel({
               <div className="mt-3">
                 <button
                   onClick={handleNext}
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-purple-500/50"
+                  className="nn-btn nn-btn--primary w-full px-4 py-2"
                 >
                   Next
                 </button>
@@ -777,26 +771,26 @@ export default function TutorialQuestPanel({
         {/* Collapsed State - Minimal Info Display */}
         {isCollapsed && (
           <div className="px-4 py-3">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-white truncate flex-1">
+            <div className="mb-2 flex items-center justify-between">
+              <h4 className="flex-1 truncate text-sm font-semibold text-[color:var(--nn-text-primary)]">
                 {currentStep.title}
               </h4>
             </div>
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
                 {currentStep.validationData?.locationName && (
-                  <div className="flex items-center gap-1 text-purple-300">
-                    <span className="text-purple-400">📍</span>
+                  <div className="flex items-center gap-1 text-[color:var(--nn-violet)]">
+                    <MapPin className="h-3 w-3" />
                     <span className="font-medium">{currentStep.validationData.locationName}</span>
                   </div>
                 )}
                 {targetCoords && (
-                  <span className="text-purple-400 font-mono text-xs">
+                  <span className="nn-num text-xs text-[color:var(--nn-violet)]">
                     ({targetCoords.x}, {targetCoords.y})
                   </span>
                 )}
               </div>
-              <div className="text-gray-400 flex items-center gap-2">
+              <div className="nn-lab flex items-center gap-2">
                 <span>Step {progress?.currentStepIndex !== undefined ? progress.currentStepIndex + 1 : 1}/{currentQuest.steps.length}</span>
                 {currentStep.estimatedSeconds && (
                   <span>~{currentStep.estimatedSeconds}s</span>
@@ -809,10 +803,10 @@ export default function TutorialQuestPanel({
 
       {/* Reward Boxes - Outside main panel */}
       {!isCollapsed && currentStep.reward && (
-        <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3 shadow-lg">
+        <div className="rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-green) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-green) 8%, transparent)' }}>
           <div className="flex items-center gap-2">
-            <Gift className="w-4 h-4 text-green-400 flex-shrink-0" />
-            <span className="text-xs text-green-300 break-words">
+            <Gift className="h-4 w-4 flex-shrink-0 text-[color:var(--nn-green)]" />
+            <span className="break-words text-xs text-[color:var(--nn-green)]">
               {currentStep.reward.displayMessage}
             </span>
           </div>
@@ -820,12 +814,12 @@ export default function TutorialQuestPanel({
       )}
 
       {!isCollapsed && currentQuest.completionReward && (
-        <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-3 shadow-lg">
+        <div className="rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-violet) 8%, transparent)' }}>
           <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-purple-400 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-semibold text-purple-300 mb-1">Quest Completion Reward:</div>
-              <div className="text-xs text-gray-300 break-words">{currentQuest.completionReward.displayMessage}</div>
+            <Trophy className="h-4 w-4 flex-shrink-0 text-[color:var(--nn-violet)]" />
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 text-xs font-semibold text-[color:var(--nn-violet)]">Quest Completion Reward:</div>
+              <div className="break-words text-xs text-[color:var(--nn-text-secondary)]">{currentQuest.completionReward.displayMessage}</div>
             </div>
           </div>
         </div>
@@ -833,10 +827,10 @@ export default function TutorialQuestPanel({
 
       {/* Quit Tutorial Button - Separate Box at Bottom */}
       {!isCollapsed && (
-        <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 shadow-lg">
+        <div className="rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-magenta) 8%, transparent)' }}>
           <button
             onClick={handleQuitClick}
-            className="w-full px-4 py-2 bg-red-900/40 hover:bg-red-900/60 border border-red-500/40 hover:border-red-500/60 text-red-400 hover:text-red-300 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+            className="nn-btn nn-btn--danger flex w-full items-center justify-center gap-2 px-4 py-2 text-sm font-semibold"
           >
             <X className="w-4 h-4" />
             Quit Tutorial (Forfeit All Rewards)
@@ -847,46 +841,45 @@ export default function TutorialQuestPanel({
 
     {/* Decline Confirmation Modal */}
     {showDeclineModal && (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-red-500 rounded-xl p-6 max-w-md w-full shadow-2xl shadow-red-500/20">
-          <h3 className="text-xl font-bold text-red-500 mb-4 flex items-center gap-2">
-            <span className="text-2xl">⚠️</span>
+      <div className="fixed inset-0 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm z-[9999]">
+        <div className="w-full max-w-md rounded-xl border p-6" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 55%, transparent)', background: 'oklch(0.13 0.03 265)', boxShadow: '0 0 40px color-mix(in oklab, var(--nn-magenta) 20%, transparent)' }}>
+          <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-[color:var(--nn-magenta)]">
             Warning: Permanent Action
           </h3>
           
-          <p className="text-gray-300 mb-4 text-sm">
-            Quitting the tutorial will <strong className="text-red-400">permanently forfeit</strong> all rewards:
+          <p className="mb-4 text-sm text-[color:var(--nn-text-secondary)]">
+            Quitting the tutorial will <strong className="text-[color:var(--nn-magenta)]">permanently forfeit</strong> all rewards:
           </p>
           
-          <ul className="text-xs text-gray-400 mb-4 space-y-1.5 bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+          <ul className="mb-4 space-y-1.5 rounded-lg border border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] p-3 text-xs text-[color:var(--nn-text-secondary)]">
             <li className="flex items-start gap-2">
-              <span className="text-red-400 mt-0.5">•</span>
+              <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>Welcome Package (25,000-50,000 Metal & Energy)</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-red-400 mt-0.5">•</span>
+              <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>Legendary/Rare Digger item</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-red-400 mt-0.5">•</span>
+              <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>XP Boost (15-25% for 3-7 days)</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-red-400 mt-0.5">•</span>
+              <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>VIP Trial (1-3 days)</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-red-400 mt-0.5">•</span>
+              <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>&quot;Tutorial Master&quot; Achievement</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-red-400 mt-0.5">•</span>
+              <span className="mt-0.5 text-[color:var(--nn-magenta)]">•</span>
               <span>All progress rewards (~15,000 Metal)</span>
             </li>
           </ul>
           
-          <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-6">
-            <p className="text-red-400 font-semibold text-sm text-center">
+          <div className="mb-6 rounded-lg border p-3" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-magenta) 8%, transparent)' }}>
+            <p className="text-center text-sm font-semibold text-[color:var(--nn-magenta)]">
               This decision is permanent and cannot be undone.
             </p>
           </div>
@@ -895,16 +888,16 @@ export default function TutorialQuestPanel({
             <button
               onClick={() => setShowDeclineModal(false)}
               disabled={isProcessingDecline}
-              className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="nn-btn nn-btn--ghost flex-1 px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirmDecline}
               disabled={isProcessingDecline}
-              className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="nn-btn nn-btn--danger flex-1 px-4 py-2.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isProcessingDecline ? 'Processing...' : 'I Understand - Quit Tutorial'}
+              {isProcessingDecline ? 'Processing…' : 'I Understand - Quit Tutorial'}
             </button>
           </div>
         </div>
@@ -913,16 +906,15 @@ export default function TutorialQuestPanel({
 
     {/* Final Farewell Message */}
     {showFinalMessage && (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-yellow-500 rounded-xl p-8 max-w-md w-full shadow-2xl shadow-yellow-500/20 text-center">
-          <div className="text-6xl mb-4">👋</div>
-          <h3 className="text-2xl font-bold text-yellow-500 mb-4">
+      <div className="fixed inset-0 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm z-[9999]">
+        <div className="w-full max-w-md rounded-xl border p-8 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-amber) 50%, transparent)', background: 'oklch(0.13 0.03 265)', boxShadow: '0 0 40px color-mix(in oklab, var(--nn-amber) 20%, transparent)' }}>
+          <h3 className="nn-panel__title mb-4 !text-lg !text-[color:var(--nn-amber)]">
             Tutorial Declined
           </h3>
-          <p className="text-gray-300 mb-2 text-sm">
+          <p className="mb-2 text-sm text-[color:var(--nn-text-secondary)]">
             All rewards have been forfeited.
           </p>
-          <p className="text-gray-400 text-sm">
+          <p className="text-sm text-[color:var(--nn-text-secondary)]">
             You can now explore the game on your own. Good luck!
           </p>
         </div>
