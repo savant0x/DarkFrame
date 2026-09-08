@@ -36,12 +36,30 @@ import {
   Filter,
   Lock,
   Unlock,
-  TrendingUp,
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { Clan } from '@/types/clan.types';
+
+/**
+ * Clan DTO returned by GET /api/clan/search (documented response contract):
+ * { success, clans: [{_id, name, tag, description, memberCount, maxMembers,
+ *   leaderUsername, level}], totalPages, total }.
+ *
+ * NOTE: the route does NOT return the full Clan document (members, settings,
+ * stats) and only supports the `q` search parameter — the filter UI below is
+ * decorative until the route grows those parameters (see SCOPE.md).
+ */
+interface ClanSearchResult {
+  _id: string;
+  name: string;
+  tag: string;
+  description: string;
+  memberCount: number;
+  maxMembers: number;
+  leaderUsername: string;
+  level: number;
+}
 
 interface JoinClanModalProps {
   isOpen: boolean;
@@ -62,7 +80,7 @@ const CLANS_PER_PAGE = 20;
 
 export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanModalProps) {
   const { player, refreshPlayer } = useGameContext();
-  const [clans, setClans] = useState<Clan[]>([]);
+  const [clans, setClans] = useState<ClanSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -141,11 +159,11 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
     fetchClans(1);
   };
 
-  const meetsRequirements = (clan: Clan) => {
+  const meetsRequirements = (clan: ClanSearchResult) => {
     if (!player) return { eligible: false, reason: 'Player data not loaded' };
-    const minLevel = clan.settings?.minLevelToJoin || 1;
-    if (player.level < minLevel) return { eligible: false, reason: `Requires level ${minLevel}` };
-    if (clan.members.length >= clan.maxMembers) return { eligible: false, reason: 'Clan is full' };
+    // minLevelToJoin is not part of the search DTO; the level gate is enforced
+    // server-side on join. Capacity uses the DTO's memberCount.
+    if (clan.memberCount >= clan.maxMembers) return { eligible: false, reason: 'Clan is full' };
     return { eligible: true, reason: '' };
   };
 
@@ -371,11 +389,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                             <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] truncate">
                               {clan.name}
                             </h3>
-                            {clan.settings.requiresApproval ? (
-                              <Lock className="w-4 h-4 text-[color:var(--nn-violet)] flex-shrink-0" />
-                            ) : (
-                              <Unlock className="w-4 h-4 text-[color:var(--nn-green)] flex-shrink-0" />
-                            )}
+                            <Unlock className="w-4 h-4 text-[color:var(--nn-green)] flex-shrink-0" />
                           </div>
                           <p className="text-xs text-text-secondary line-clamp-2">
                             {clan.description || 'No description'}
@@ -388,19 +402,19 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                         <div>
                           <div className="text-xs text-text-secondary">Level</div>
                           <div className="text-sm font-bold text-[color:var(--nn-cyan)]">
-                            {clan.level.currentLevel}
+                            {clan.level}
                           </div>
                         </div>
                         <div>
                           <div className="text-xs text-text-secondary">Members</div>
                           <div className="text-sm font-bold text-[color:var(--nn-violet)]">
-                            {clan.members.length}/{clan.maxMembers}
+                            {clan.memberCount}/{clan.maxMembers}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-text-secondary">Power</div>
+                          <div className="text-xs text-text-secondary">Tag</div>
                           <div className="text-sm font-bold text-[color:var(--nn-amber)]">
-                            {clan.stats.totalPower.toLocaleString()}
+                            {clan.tag}
                           </div>
                         </div>
                       </div>
@@ -409,14 +423,8 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       <div className="text-xs space-y-1">
                         <div className="flex items-center gap-2 text-text-secondary">
                           <Crown className="w-3 h-3 text-[color:var(--nn-amber)]" />
-                          <span>Leader: {clan.members.find(m => m.role === 'LEADER')?.username || 'Unknown'}</span>
+                          <span>Leader: {clan.leaderUsername}</span>
                         </div>
-                        {clan.settings.minLevelToJoin > 1 && (
-                          <div className="flex items-center gap-2 text-text-secondary">
-                            <TrendingUp className="w-3 h-3" />
-                            <span>Requires Level {clan.settings.minLevelToJoin}</span>
-                          </div>
-                        )}
                       </div>
 
                       {/* Join Button */}
@@ -432,13 +440,11 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                             variant="primary"
                             size="sm"
                             fullWidth
-                            disabled={isJoining || clan.members.length >= clan.maxMembers}
+                            disabled={isJoining || clan.memberCount >= clan.maxMembers}
                             loading={isJoining}
                           >
-                            {clan.members.length >= clan.maxMembers
+                            {clan.memberCount >= clan.maxMembers
                               ? 'Full'
-                              : clan.settings.requiresApproval
-                              ? 'Request to Join'
                               : 'Join Clan'}
                           </Button>
                         )}

@@ -62,13 +62,20 @@ type ResourceType = 'metal' | 'energy' | 'rp';
 
 /**
  * Request body for POST /api/clan/bank/distribute
+ *
+ * Route contract (app/api/clan/bank/distribute/route.ts):
+ * - PERCENTAGE requires `percentageMap`: { [username]: percentage 1-100 } —
+ *   percentages must total 100 (enforced by distributeByPercentage).
+ * - DIRECT_GRANT requires `grants`: [{ playerId: username, <resource>: amount }]
+ *   — amounts are per-resource, not a shared `amount` field.
  */
 interface DistributeRequestBody {
   clanId: string;
   method: DistributionMethod;
   resourceType: ResourceType;
   totalAmount: number;
-  recipients?: Array<{ username: string; amount: number } | { playerId: string; amount: number }>;
+  percentageMap?: Record<string, number>;
+  grants?: Array<{ playerId: string; metal?: number; energy?: number; rp?: number }>;
 }
 
 export function FundDistributionPanel({
@@ -132,7 +139,9 @@ export function FundDistributionPanel({
       setError(null);
       setSuccessMessage(null);
       
-      // Build request based on method
+      // Build request per the route contract: PERCENTAGE sends a
+      // username→percentage map; DIRECT_GRANT sends per-resource grants keyed
+      // by the recipient's username.
       const requestBody: DistributeRequestBody = {
         clanId,
         method,
@@ -140,12 +149,15 @@ export function FundDistributionPanel({
         totalAmount,
       };
 
-      if (method === 'PERCENTAGE' || method === 'DIRECT_GRANT') {
-        if (method === 'DIRECT_GRANT') {
-          requestBody.recipients = [{ username: singleRecipient.username, amount: singleRecipient.amount }];
-        } else {
-          requestBody.recipients = recipients;
-        }
+      if (method === 'PERCENTAGE') {
+        requestBody.percentageMap = Object.fromEntries(
+          recipients.map(r => [r.playerId, r.amount])
+        );
+      } else if (method === 'DIRECT_GRANT') {
+        requestBody.grants = [{
+          playerId: singleRecipient.username,
+          [resourceType]: singleRecipient.amount,
+        }];
       }
 
       const response = await fetch('/api/clan/bank/distribute', {

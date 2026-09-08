@@ -29,11 +29,19 @@ import {
   ClanActivityType,
 } from '@/types/clan.types';
 
+/**
+ * The pg row id is a numeric/uuid string, but the domain type still carries the
+ * Mongo-era `ObjectId` for `_id` (SCOPE #34: stale domain contract). The feed's
+ * only consumer (ClanActivityFeed) keys on the string form, so the row id is
+ * attached via this local view type until the domain type is migrated.
+ */
+type ClanActivityWithStringId = Omit<ClanActivity, '_id'> & { _id?: string };
+
 export async function logClanActivity(
   clanId: string,
   activityType: ClanActivityType,
   playerId?: string,
-  details?: Record<string, any>
+  details?: Record<string, unknown>
 ): Promise<ClanActivity> {
   let username: string | undefined;
   if (playerId) {
@@ -80,6 +88,37 @@ export async function logClanActivity(
   return createdActivity;
 }
 
+/**
+ * Raw shape of a `clan_activities` row as returned by db.execute() — snake_case
+ * columns, jsonb details (stringified or object depending on driver behavior).
+ */
+interface ClanActivityRow {
+  id: number | string;
+  clan_id: string;
+  activity_type: string;
+  player_id: string | null;
+  username: string | null;
+  details: string | Record<string, unknown> | null;
+  timestamp: Date | string;
+}
+
+/**
+ * Parse the jsonb `details` column — drivers may deliver it as a string or a
+ * pre-parsed object; malformed JSON yields null (logged, not swallowed).
+ */
+function parseDetails(raw: ClanActivityRow['details']): Record<string, unknown> {
+  if (typeof raw !== 'string') {
+    return raw ?? {};
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch (error) {
+    console.error('Malformed clan activity details JSON:', error);
+    return {};
+  }
+}
+
 export async function getClanActivityFeed(
   clanId: string,
   options: {
@@ -90,7 +129,7 @@ export async function getClanActivityFeed(
     startDate?: Date;
     endDate?: Date;
   } = {}
-): Promise<ClanActivity[]> {
+): Promise<ClanActivityWithStringId[]> {
   const {
     limit = 100,
     offset = 0,
@@ -124,13 +163,13 @@ export async function getClanActivityFeed(
     LIMIT ${limit} OFFSET ${offset}
   `);
 
-  return (result.rows as any[]).map((row: any) => ({
-    _id: row.id,
+  return (result.rows as unknown as ClanActivityRow[]).map((row): ClanActivityWithStringId => ({
+    _id: row.id.toString(),
     clanId: row.clan_id,
-    activityType: row.activity_type,
-    playerId: row.player_id,
-    username: row.username,
-    details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+    activityType: row.activity_type as ClanActivityType,
+    playerId: row.player_id ?? undefined,
+    username: row.username ?? undefined,
+    details: parseDetails(row.details),
     timestamp: new Date(row.timestamp),
   }));
 }
@@ -140,28 +179,18 @@ export async function getActivityStats(
   startDate?: Date,
   endDate?: Date
 ): Promise<Record<ClanActivityType, number>> {
-  const conditions = ['clan_id = ?'];
-  const values: any[] = [clanId];
-  
-  if (startDate) {
-    conditions.push('timestamp >= ?');
-    values.push(startDate);
-  }
-  if (endDate) {
-    conditions.push('timestamp <= ?');
-    values.push(endDate);
-  }
-  
   const statResult = await db.execute(sql`
     SELECT activity_type, COUNT(*) as count
     FROM clan_activities
-    WHERE ${sql.raw(conditions.join(' AND '))}
+    WHERE clan_id = ${clanId}
+      ${startDate ? sql`AND timestamp >= ${startDate}` : sql``}
+      ${endDate ? sql`AND timestamp <= ${endDate}` : sql``}
     GROUP BY activity_type
   `);
   
   const stats: Record<string, number> = {};
-  for (const row of statResult.rows as any[]) {
-    stats[row.activity_type] = row.count;
+  for (const row of statResult.rows as Array<{ activity_type: string; count: number | string }>) {
+    stats[row.activity_type] = Number(row.count);
   }
   
   return stats as Record<ClanActivityType, number>;
@@ -188,9 +217,9 @@ export async function getPlayerContributions(
       AND timestamp >= ${startDate}
   `);
   
-  const activities = (result.rows as any[]).map((row: any) => ({
+  const activities = (result.rows as unknown as ClanActivityRow[]).map((row) => ({
     activityType: row.activity_type as ClanActivityType,
-    details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
+    details: parseDetails(row.details),
   }));
   
   let researchContributions = 0;
@@ -248,9 +277,9 @@ export async function getRecentMemberActivities(
     ORDER BY activity_count DESC
   `);
   
-  return (result.rows as any[]).map((row: any) => ({
-    playerId: row.player_id,
-    username: row.username || row.player_id,
+  return (result.rows as Array<{ player_id: string | null; username: string | null; activity_count: number | string; last_activity: Date | string }>).map((row) => ({
+    playerId: row.player_id ?? '',
+    username: row.username || row.player_id || '',
     activityCount: Number(row.activity_count),
     lastActivity: new Date(row.last_activity),
   }));
@@ -294,7 +323,7 @@ export async function getActivityTimeline(
     ORDER BY date ASC
   `);
 
-  return (result.rows as any[]).map((row: any) => ({
+  return (result.rows as Array<{ date: string; count: number | string }>).map((row) => ({
     date: row.date,
     count: Number(row.count),
   }));
