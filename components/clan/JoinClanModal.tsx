@@ -47,8 +47,9 @@ import { motion, AnimatePresence } from 'framer-motion';
  *   leaderUsername, level}], totalPages, total }.
  *
  * NOTE: the route does NOT return the full Clan document (members, settings,
- * stats) and only supports the `q` search parameter — the filter UI below is
- * decorative until the route grows those parameters (see SCOPE.md).
+ * stats). Filter parameters (q, minLevel, maxLevel, minMembers, maxMembers,
+ * publicOnly) are supported by the route as of SCOPE #35; `name` is sent as
+ * `q` because that is the route's search parameter.
  */
 interface ClanSearchResult {
   _id: string;
@@ -105,7 +106,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
       const params = new URLSearchParams({
         page: page.toString(),
         limit: CLANS_PER_PAGE.toString(),
-        ...(filters.name && { name: filters.name }),
+        ...(filters.name && { q: filters.name }),
         ...(filters.publicOnly && { publicOnly: 'true' }),
         minLevel: filters.minLevel.toString(),
         maxLevel: filters.maxLevel.toString(),

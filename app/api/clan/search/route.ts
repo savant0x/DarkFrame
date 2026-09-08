@@ -4,9 +4,15 @@
  * @overview Clan search for browse/join UIs (FID-20260904-005 §5.3 dead-wire rebuild).
  *
  * GET /api/clan/search?q=<name-or-tag>&page=1&limit=20
+ *                     &minLevel=1&maxLevel=50&minMembers=0&maxMembers=100
+ *                     &publicOnly=true&recruitingOnly=true
  * Read-only (no membership required — players browse clans before joining).
  * Matches clan name or tag (case-insensitive) and reports member counts and
- * whether the clan is full. Response serves JoinClanModal's contract:
+ * whether the clan is full. Optional filters (SCOPE #35 — JoinClanModal's
+ * filter UI): level range on level_current_level, member range on the
+ * members jsonb array length, publicOnly → settings_requires_approval = 0
+ * (approval-free join), recruitingOnly → settings_is_recruiting = 1.
+ * Response serves JoinClanModal's contract:
  * { success, clans: [{_id, name, tag, description, memberCount, maxMembers,
  *   leaderUsername, level}], totalPages, total }.
  */
@@ -14,7 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
-import { and, asc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 
 const MAX_LIMIT = 50;
 
@@ -29,11 +35,37 @@ export async function GET(request: NextRequest) {
       Number.isFinite(limitRaw) && limitRaw >= 1 ? Math.min(MAX_LIMIT, Math.floor(limitRaw)) : 20;
     const offset = (page - 1) * limit;
 
-    // Base conditions: search by name/tag when provided
+    // Base conditions: search by name/tag when provided, then apply the
+    // JoinClanModal filter parameters (SCOPE #35). All bounds are clamped to
+    // sane ranges so hostile input degrades to a wide filter, not an error.
     const conditions = [];
     if (q) {
       const like = `%${q}%`;
       conditions.push(or(ilike(clans.name, like), ilike(clans.tag, like)));
+    }
+
+    const minLevelRaw = Number(searchParams.get('minLevel'));
+    const maxLevelRaw = Number(searchParams.get('maxLevel'));
+    const minMembersRaw = Number(searchParams.get('minMembers'));
+    const maxMembersRaw = Number(searchParams.get('maxMembers'));
+    const minLevel = Number.isFinite(minLevelRaw) ? Math.min(Math.max(Math.floor(minLevelRaw), 1), 50) : null;
+    const maxLevel = Number.isFinite(maxLevelRaw) ? Math.min(Math.max(Math.floor(maxLevelRaw), 1), 50) : null;
+    const minMembers = Number.isFinite(minMembersRaw) ? Math.max(Math.floor(minMembersRaw), 0) : null;
+    const maxMembers = Number.isFinite(maxMembersRaw) ? Math.max(Math.floor(maxMembersRaw), 0) : null;
+
+    if (minLevel !== null) conditions.push(gte(clans.levelCurrentLevel, minLevel));
+    if (maxLevel !== null) conditions.push(lte(clans.levelCurrentLevel, maxLevel));
+    if (minMembers !== null) {
+      conditions.push(sql`jsonb_array_length(${clans.members}) >= ${minMembers}`);
+    }
+    if (maxMembers !== null) {
+      conditions.push(sql`jsonb_array_length(${clans.members}) <= ${maxMembers}`);
+    }
+    if (searchParams.get('publicOnly') === 'true') {
+      conditions.push(eq(clans.settingsRequiresApproval, 0));
+    }
+    if (searchParams.get('recruitingOnly') === 'true') {
+      conditions.push(eq(clans.settingsIsRecruiting, 1));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
