@@ -21,8 +21,6 @@
  * - Activity logging for clan events
  */
 
-import { ObjectId } from 'mongodb';
-
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -651,7 +649,7 @@ export interface ClanTerritory {
  * Clan war declaration (enhanced)
  */
 export interface ClanWar {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   warId: string;            // Unique war identifier
   attackerClanId: string;   // Attacking clan
   defenderClanId: string;   // Defending clan
@@ -685,7 +683,7 @@ export interface ClanWar {
  * Monument instance
  */
 export interface ClanMonument {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   monumentId: string;       // Unique monument identifier
   type: MonumentType;       // Monument type
   name: string;             // Display name
@@ -711,7 +709,7 @@ export interface ClanMonument {
  * Clan chat message
  */
 export interface ClanChatMessage {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   clanId: string;           // Clan identifier
   senderId: string;         // Player username
   senderRole: ClanRole;     // Role at time of message
@@ -725,7 +723,7 @@ export interface ClanChatMessage {
  * Clan activity log entry
  */
 export interface ClanActivity {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   clanId: string;           // Clan identifier
   activityType: ClanActivityType;  // Type of activity
   playerId?: string;        // Player involved (if applicable)
@@ -754,7 +752,7 @@ export interface CreateClanParams {
  * Clan member invitation
  */
 export interface ClanInvitation {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   clanId: string;           // Inviting clan
   clanName: string;         // Clan name for display
   invitedBy: string;        // Inviting player

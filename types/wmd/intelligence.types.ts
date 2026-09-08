@@ -19,7 +19,6 @@
  * - MongoDB for data persistence
  */
 
-import { ObjectId } from 'mongodb';
 import { MissileComponent, WarheadType } from './missile.types';
 
 // ============================================================================
@@ -83,7 +82,7 @@ export enum IntelLevel {
  * Main spy mission document
  */
 export interface SpyMission {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   missionId: string;               // Unique identifier
   ownerId: string;                 // Player who ordered mission
   ownerClanId: string;             // Owner's clan ID
@@ -199,7 +198,7 @@ export interface MissionResult {
  * Intelligence report from reconnaissance
  */
 export interface IntelligenceReport {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   reportId: string;
   classification: IntelLevel;
   
@@ -247,7 +246,7 @@ export interface IntelligenceReport {
  * Sabotage damage record
  */
 export interface SabotageDamage {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   sabotageId: string;
   missionId: string;
   saboteurId: string;              // Spy who executed
@@ -282,7 +281,7 @@ export interface SabotageDamage {
  * Intelligence leak notification
  */
 export interface IntelligenceLeak {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   leakId: string;
   leakedBy: string;                // Spy who leaked
   leakedFrom: string;              // Target whose intel leaked
@@ -339,7 +338,7 @@ export interface SpyAgent {
  * Counter-intelligence installation
  */
 export interface CounterIntelligence {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   ownerId: string;
   ownerClanId: string;
   

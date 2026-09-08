@@ -19,7 +19,6 @@
  * - MongoDB for data persistence
  */
 
-import { ObjectId } from 'mongodb';
 import { WarheadType } from './missile.types';
 import { BatteryType, RadarLevel } from './defense.types';
 import { MissionType, SpyRank } from './intelligence.types';
@@ -86,7 +85,7 @@ export interface ResearchTech {
  * Player research progress
  */
 export interface PlayerResearch {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   playerId: string;
   playerUsername: string;
   clanId?: string;

@@ -16,8 +16,6 @@
  * - Notification and alert types
  */
 
-import { ObjectId } from 'mongodb';
-
 // ============================================================================
 // CORE MESSAGE TYPES
 // ============================================================================
@@ -36,8 +34,8 @@ export type MessageContentType = 'text' | 'system' | 'notification';
  * Individual message in a conversation
  */
 export interface Message {
-  _id: ObjectId | string;
-  conversationId: ObjectId | string;
+  _id: string;                         // Row id (pg); ObjectId is Mongo legacy
+  conversationId: string;              // Owning conversation row id
   senderId: string;                    // Player username or ID
   recipientId: string;                 // Player username or ID
   content: string;                     // Message text (profanity-filtered)
@@ -71,7 +69,7 @@ export interface MessageMetadata {
  * Conversation between two players
  */
 export interface Conversation {
-  _id: ObjectId | string;
+  _id: string;                         // Row id (pg); ObjectId is Mongo legacy
   participants: [string, string];      // Exactly 2 player IDs/usernames
   participantDetails?: {
     [playerId: string]: {

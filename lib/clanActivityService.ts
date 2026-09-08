@@ -29,14 +29,6 @@ import {
   ClanActivityType,
 } from '@/types/clan.types';
 
-/**
- * The pg row id is a numeric/uuid string, but the domain type still carries the
- * Mongo-era `ObjectId` for `_id` (SCOPE #34: stale domain contract). The feed's
- * only consumer (ClanActivityFeed) keys on the string form, so the row id is
- * attached via this local view type until the domain type is migrated.
- */
-type ClanActivityWithStringId = Omit<ClanActivity, '_id'> & { _id?: string };
-
 export async function logClanActivity(
   clanId: string,
   activityType: ClanActivityType,
@@ -49,7 +41,7 @@ export async function logClanActivity(
     username = playerRows[0]?.username || playerId;
   }
   
-  const activity: Omit<ClanActivity, '_id'> = {
+  const activity: ClanActivity = {
     clanId,
     activityType,
     playerId,
@@ -69,10 +61,10 @@ export async function logClanActivity(
   `);
   const insertRow = result.rows[0] as { id: number | string } | undefined;
 
-  const createdActivity = {
+  const createdActivity: ClanActivity = {
     ...activity,
     _id: insertRow?.id?.toString(),
-  } as ClanActivity;
+  };
   
   try {
     await db.execute(sql`
@@ -129,7 +121,7 @@ export async function getClanActivityFeed(
     startDate?: Date;
     endDate?: Date;
   } = {}
-): Promise<ClanActivityWithStringId[]> {
+): Promise<ClanActivity[]> {
   const {
     limit = 100,
     offset = 0,
@@ -163,7 +155,7 @@ export async function getClanActivityFeed(
     LIMIT ${limit} OFFSET ${offset}
   `);
 
-  return (result.rows as unknown as ClanActivityRow[]).map((row): ClanActivityWithStringId => ({
+  return (result.rows as unknown as ClanActivityRow[]).map((row): ClanActivity => ({
     _id: row.id.toString(),
     clanId: row.clan_id,
     activityType: row.activity_type as ClanActivityType,

@@ -14,8 +14,6 @@
  * - Admin management capabilities
  */
 
-import { ObjectId } from 'mongodb';
-
 /**
  * Referral reward package given to referrer when referral validates
  */
@@ -51,10 +49,10 @@ export interface WelcomePackage {
  * Referral tracking document in referrals collection
  */
 export interface ReferralRecord {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   referrerCode: string; // Code used by new player
   referrerUsername: string; // Who gets the reward
-  referrerPlayerId: ObjectId; // Referrer's player ID
+  referrerPlayerId: string; // Referrer's player ID (username — pg-era)
   newPlayerUsername: string; // New player username
   newPlayerEmail: string; // For duplicate checking
   newPlayerIP: string; // For abuse detection

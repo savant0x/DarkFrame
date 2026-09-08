@@ -19,8 +19,6 @@
  * - Clan system for authorization
  */
 
-import { ObjectId } from 'mongodb';
-
 // ============================================================================
 // ENUMS
 // ============================================================================
@@ -67,7 +65,7 @@ export enum MissileComponent {
  * Main missile document
  */
 export interface Missile {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   ownerId: string;                 // Player username
   ownerClanId: string;             // Owner's clan ID
   warheadType: WarheadType;

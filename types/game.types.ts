@@ -9,8 +9,6 @@
  * for type safety and data validation.
  */
 
-import { type ObjectId } from 'mongodb';
-
 /**
  * Terrain types available in the game world
  * 
@@ -397,7 +395,7 @@ export interface BotConfig {
   nestAffinity: number | null; // 0-7 for 8 nests
   bountyValue: number;
   permanentBase: boolean;
-  summonedBy?: ObjectId; // Player who summoned this bot (Bot Summoning Circle)
+  summonedBy?: string; // Username of player who summoned this bot (Bot Summoning Circle)
   summonedAt?: Date; // When this bot was summoned
 }
 

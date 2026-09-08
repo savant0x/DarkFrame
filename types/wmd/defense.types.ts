@@ -19,7 +19,6 @@
  * - MongoDB for data persistence
  */
 
-import { ObjectId } from 'mongodb';
 import { WarheadType } from './missile.types';
 
 // ============================================================================
@@ -76,7 +75,7 @@ export enum RadarLevel {
  * Main defense battery document
  */
 export interface DefenseBattery {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   ownerId: string;                 // Player username
   ownerClanId: string;             // Owner's clan ID
   batteryType: BatteryType;
@@ -142,7 +141,7 @@ export interface ClanDefenseGrid {
  * Interception attempt record
  */
 export interface InterceptionAttempt {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   missileId: string;
   targetId: string;                // Player/clan being defended
   defenderIds: string[];           // Players who contributed batteries
@@ -208,7 +207,7 @@ export interface InterceptionCalculation {
  * Radar installation
  */
 export interface RadarInstallation {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   ownerId: string;
   ownerClanId: string;
   level: RadarLevel;
@@ -235,7 +234,7 @@ export interface RadarInstallation {
  * Missile detection alert
  */
 export interface MissileDetection {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   radarId: string;
   detectorId: string;              // Player who owns radar
   missileId: string;

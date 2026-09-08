@@ -17,9 +17,6 @@
  * - Step-by-step completion tracking
  * - Reward claiming and skip functionality
  */
-
-import type { ObjectId } from 'mongodb';
-
 /**
  * Tutorial quest step action types
  * Defines what the player needs to do to complete a step
@@ -130,7 +127,7 @@ export interface TutorialReward {
  * Tracks individual player's tutorial state
  */
 export interface TutorialProgress {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   playerId: string;              // Player's unique ID
   currentQuestId?: string;       // Active quest (null if complete/skipped)
   currentStepIndex: number;      // Current step within active quest (0-indexed)
@@ -239,7 +236,7 @@ export interface PlayerGameStateValidation {
  * Tracks tutorial effectiveness metrics
  */
 export interface TutorialAnalytics {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   playerId: string;
   eventType: 'STARTED' | 'STEP_COMPLETED' | 'QUEST_COMPLETED' | 'SKIPPED' | 'ABANDONED' | 'COMPLETED';
   questId?: string;

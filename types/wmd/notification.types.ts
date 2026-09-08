@@ -19,7 +19,6 @@
  * - MongoDB for notification storage
  */
 
-import { ObjectId } from 'mongodb';
 import { WarheadType } from './missile.types';
 import { MissionType } from './intelligence.types';
 
@@ -99,7 +98,7 @@ export enum NotificationScope {
  * Main WMD notification document
  */
 export interface WMDNotification {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   notificationId: string;          // Unique identifier
   eventType: WMDEventType;
   priority: NotificationPriority;
@@ -150,7 +149,7 @@ export interface WMDNotification {
  * Notification preference settings
  */
 export interface NotificationPreferences {
-  _id?: ObjectId;
+  _id?: string; // 24-char hex row id (pg); ObjectId is Mongo legacy
   playerId: string;
   playerUsername: string;
   
