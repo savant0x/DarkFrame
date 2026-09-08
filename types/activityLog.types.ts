@@ -176,7 +176,7 @@ export interface ActivityLog {
   timestamp: Date;
   
   // Action-specific data (flexible object for various action types)
-  details: Record<string, any>;
+  details: Record<string, unknown>;
   
   // Outcome tracking
   success: boolean;
@@ -375,7 +375,7 @@ export interface LoggingContext {
   userAgent: string;
   actionType?: ActionType;
   category?: ActionCategory;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 // ============================================================================

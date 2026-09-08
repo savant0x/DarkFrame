@@ -243,9 +243,9 @@ function getClientIP(req: NextRequest): string {
  * @param body - Request body
  * @returns Sanitized body
  */
-function sanitizeBody(body: unknown): unknown {
+function sanitizeBody(body: unknown): Record<string, unknown> | null {
   if (!body || typeof body !== 'object') {
-    return body;
+    return null;
   }
   
   const sanitized = { ...(body as Record<string, unknown>) };
@@ -345,7 +345,7 @@ export function withActivityLogging(
           actionType,
           category: config?.category || getActionCategory(actionType),
           timestamp: new Date(),
-          details: sanitizeBody(requestBody) || {},
+          details: sanitizeBody(requestBody) ?? {},
           success,
           errorMessage,
           errorCode,

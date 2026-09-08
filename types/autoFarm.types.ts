@@ -114,13 +114,35 @@ export interface AutoFarmStats {
 }
 
 /**
+ * Event-specific payloads. `complete` carries the final AutoFarmSessionStats,
+ * `harvest` the terrain/gain summary, `combat` the battle outcome, `error`/`move`
+ * usually nothing. Kept open-ended because the engine evolves payloads per type.
+ */
+export interface AutoFarmEventData {
+  terrain?: string;
+  key?: string;
+  verified?: boolean;
+  metalGained?: number;
+  energyGained?: number;
+  victory?: boolean;
+  defenderName?: string;
+  metalStolen?: number;
+  energyStolen?: number;
+  xpGained?: number;
+  unitsLost?: number;
+  success?: boolean;
+  message?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Auto-farm event for logging/callbacks
  */
 export interface AutoFarmEvent {
   type: 'move' | 'harvest' | 'combat' | 'error' | 'complete';
   timestamp: number;
   position: { x: number; y: number };
-  data?: any;                          // Event-specific data
+  data?: AutoFarmEventData;            // Event-specific data
   message?: string;                    // Human-readable message
 }
 

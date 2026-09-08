@@ -64,6 +64,62 @@ export type TutorialRewardType =
   | 'UNLOCK_FEATURE';
 
 /**
+ * Step-validation payload carried on TutorialStep.validationData. The keys in
+ * play are set by quest definitions (lib/tutorialService.ts), read by the
+ * move/track-action routes and the tutorial validators, and enriched at
+ * runtime with live game state (currentCount/targetCount, metalBalance,
+ * energyBalance, hasFactory, factoryTier, unitCount). Documented subset —
+ * unknown extras survive via the index signature.
+ */
+export interface TutorialValidationData {
+  // Validation-time player position (attached by the move/track-action routes)
+  x?: number;
+  y?: number;
+  // MOVE
+  requiredMoves?: number;
+  anyDirection?: boolean;
+  direction?: string;
+  moveCount?: number;
+  // MOVE_TO_COORDS
+  targetX?: number;
+  targetY?: number;
+  targetCoordinates?: { x: number; y: number; radius?: number };
+  locationName?: string;
+  dynamicTarget?: boolean;
+  minDistance?: number;
+  maxDistance?: number;
+  requireDiagonalPath?: boolean;
+  finalX?: number;
+  finalY?: number;
+  // HARVEST / ATTACK counters
+  requiredHarvests?: number;
+  harvestCount?: number;
+  resourceType?: string;
+  requiredAttacks?: number;
+  attackCount?: number;
+  success?: boolean;
+  // OPEN_PANEL
+  panelName?: string;
+  // CUSTOM requirement payloads
+  requirementType?: 'metal_balance' | 'energy_balance' | 'factory_capture' | 'build_unit' | 'find_beer_base';
+  targetAmount?: number;
+  tier?: string;
+  unitType?: string;
+  count?: number;
+  targetType?: string;
+  // Runtime enrichment (game state + action tracking)
+  metalBalance?: number;
+  energyBalance?: number;
+  hasFactory?: boolean;
+  factoryTier?: string | null;
+  unitCount?: number;
+  currentCount?: number;
+  targetCount?: number;
+  requirementMet?: boolean;
+  [key: string]: unknown;
+}
+
+/**
  * Individual tutorial quest step
  * Represents a single action the player must complete
  */
@@ -80,7 +136,7 @@ export interface TutorialStep {
     y: number;
     radius?: number;             // Acceptable distance (default: 0 = exact match)
   };
-  validationData?: Record<string, any>; // Custom validation parameters
+  validationData?: TutorialValidationData; // Custom validation parameters
   completionMessage?: string;    // Success message on completion
   reward?: TutorialReward;       // Optional step reward
   difficulty: TutorialStepDifficulty;
@@ -210,7 +266,7 @@ export interface TutorialValidationRequest {
   playerId: string;
   questId: string;
   stepId: string;
-  validationData?: Record<string, any>; // Action-specific data (e.g., coordinates for MOVE)
+  validationData?: TutorialValidationData; // Action-specific data (e.g., coordinates for MOVE)
 }
 
 /**
@@ -244,7 +300,7 @@ export interface TutorialAnalytics {
   timestamp: Date;
   timeSpent?: number;            // Seconds spent on step/quest
   skipReason?: string;           // If skipped, optional reason
-  metadata?: Record<string, any>;
+  metadata?: TutorialValidationData;
 }
 
 /**

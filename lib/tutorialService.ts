@@ -37,6 +37,7 @@ import type {
   TutorialStepCompletionResult,
 
   TutorialValidationRequest,
+  TutorialValidationData,
   TutorialReward,
 
 
@@ -711,7 +712,7 @@ export function getNextQuest(currentQuestId: string): TutorialQuest | null {
  */
 function mapProgressRow(row: typeof tutorialProgress.$inferSelect): TutorialProgress {
   return {
-    _id: row.id as any,
+    _id: row.id,
     playerId: row.playerId,
     currentQuestId: row.currentQuestId || undefined,
     currentStepIndex: row.currentStepIndex,
@@ -802,7 +803,7 @@ export async function getTutorialProgress(playerId: string): Promise<TutorialPro
     if (afterInsert.length > 0) {
       progress = mapProgressRow(afterInsert[0]);
     } else {
-      progress = { ...newProgress, _id: id as any };
+      progress = { ...newProgress, _id: id };
     }
     
     // Initialize action tracking for first step if it has a target count
@@ -1001,7 +1002,7 @@ export async function completeStep(
     };
   }
   
-  const enrichedValidationData = validationData || {};
+  const enrichedValidationData: TutorialValidationData = validationData || {};
   
   if (step.action === 'CUSTOM') {
     const gameState = await getPlayerGameState(playerId);
@@ -1147,7 +1148,7 @@ export async function completeStep(
  */
 async function validateStepAction(
   step: TutorialStep,
-  validationData?: Record<string, any>
+  validationData?: TutorialValidationData
 ): Promise<boolean> {
   if (!validationData) {
     if (step.action === 'READ_INFO' || step.action === 'COLLECT_REWARD') {
@@ -1204,13 +1205,12 @@ async function getPlayerGameState(playerId: string): Promise<PlayerGameStateVali
   
   const ownedFactories = await db.select().from(factories).where(eq(factories.owner, playerId));
   
+  // Units live on the player row (players.units jsonb, PlayerUnit[]) — factories
+  // carry no unit inventory. Count by unitType with quantity aggregated.
   const unitCounts: Record<string, number> = {};
-  for (const f of ownedFactories) {
-    const units = (f as any).units || [];
-    for (const unit of units) {
-      const unitType = unit.type || 'Unknown';
-      unitCounts[unitType] = (unitCounts[unitType] || 0) + 1;
-    }
+  for (const unit of player.units ?? []) {
+    const unitType = unit.unitType || 'Unknown';
+    unitCounts[unitType] = (unitCounts[unitType] || 0) + (unit.quantity || 1);
   }
   
   return {
@@ -1218,10 +1218,13 @@ async function getPlayerGameState(playerId: string): Promise<PlayerGameStateVali
     energyBalance: Number(player.resourcesEnergy || 0),
     ownedFactories: ownedFactories.map(f => ({
       factoryId: `${f.x},${f.y}`,
-      tier: (f as any).tier || 'WEAK',
-      level: (f as any).level || 1,
-      x: (f as any).x || 0,
-      y: (f as any).y || 0,
+      // The factories table has no tier column; tier is the documented
+      // level band used by the tutorial's factory_capture validation
+      // (level 1 → WEAK, 2 → MEDIUM, 3+ → STRONG).
+      tier: f.level >= 3 ? 'STRONG' : f.level === 2 ? 'MEDIUM' : 'WEAK',
+      level: f.level || 1,
+      x: f.x || 0,
+      y: f.y || 0,
     })),
     unitCounts,
   };
@@ -1230,7 +1233,7 @@ async function getPlayerGameState(playerId: string): Promise<PlayerGameStateVali
 /**
  * Validate MOVE action
  */
-function validateMoveAction(step: TutorialStep, validationData: Record<string, any>): boolean {
+function validateMoveAction(step: TutorialStep, validationData: TutorialValidationData): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredMoves) {
@@ -1253,6 +1256,10 @@ function validateMoveAction(step: TutorialStep, validationData: Record<string, a
     const { x, y } = validationData;
     const { x: targetX, y: targetY, radius = 0 } = stepValidation.targetCoordinates;
     
+    if (x === undefined || y === undefined) {
+      return false; // No player position supplied — cannot validate
+    }
+    
     if (radius === 0) {
       if (x !== targetX || y !== targetY) {
         return false;
@@ -1271,7 +1278,7 @@ function validateMoveAction(step: TutorialStep, validationData: Record<string, a
 /**
  * Validate MOVE_TO_COORDS action
  */
-function validateMoveToCordsAction(step: TutorialStep, validationData: Record<string, any>): boolean {
+function validateMoveToCordsAction(step: TutorialStep, validationData: TutorialValidationData): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.targetX === undefined || stepValidation.targetY === undefined) {
@@ -1287,7 +1294,7 @@ function validateMoveToCordsAction(step: TutorialStep, validationData: Record<st
 /**
  * Validate HARVEST action
  */
-function validateHarvestAction(step: TutorialStep, validationData: Record<string, any>): boolean {
+function validateHarvestAction(step: TutorialStep, validationData: TutorialValidationData): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredHarvests) {
@@ -1300,6 +1307,10 @@ function validateHarvestAction(step: TutorialStep, validationData: Record<string
   if (stepValidation.targetCoordinates) {
     const { x, y } = validationData;
     const { x: targetX, y: targetY, radius = 0 } = stepValidation.targetCoordinates;
+    
+    if (x === undefined || y === undefined) {
+      return false; // No player position supplied — cannot validate
+    }
     
     if (radius === 0) {
       if (x !== targetX || y !== targetY) {
@@ -1328,7 +1339,7 @@ function validateHarvestAction(step: TutorialStep, validationData: Record<string
 /**
  * Validate ATTACK action
  */
-function validateAttackAction(step: TutorialStep, validationData: Record<string, any>): boolean {
+function validateAttackAction(step: TutorialStep, validationData: TutorialValidationData): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requiredAttacks) {
@@ -1360,7 +1371,7 @@ function validateAttackAction(step: TutorialStep, validationData: Record<string,
 /**
  * Validate OPEN_PANEL action
  */
-function validateOpenPanelAction(step: TutorialStep, validationData: Record<string, any>): boolean {
+function validateOpenPanelAction(step: TutorialStep, validationData: TutorialValidationData): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.panelName) {
@@ -1378,7 +1389,7 @@ function validateOpenPanelAction(step: TutorialStep, validationData: Record<stri
 /**
  * Validate CUSTOM action
  */
-function validateCustomAction(step: TutorialStep, validationData: Record<string, any>): boolean {
+function validateCustomAction(step: TutorialStep, validationData: TutorialValidationData): boolean {
   const stepValidation = step.validationData || {};
   
   if (stepValidation.requirementType) {

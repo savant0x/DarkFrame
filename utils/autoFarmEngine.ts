@@ -338,7 +338,7 @@ export class AutoFarmEngine {
       timestamp: Date.now(),
       position: this.state.currentPosition,
       message: 'Auto-farm stopped',
-      data: finalStats
+      data: { ...finalStats }
     });
 
     // Don't reset stats yet - caller should save them first

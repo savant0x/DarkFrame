@@ -2359,7 +2359,7 @@ export interface PlayerFlag {
   timestamp: Date;
   evidence: {
     description: string;
-    data: any;                    // Specific data that triggered flag
+    data: Record<string, unknown>; // Specific data that triggered flag
     actionId?: string;            // Reference to PlayerActivity record
   };
   resolved: boolean;
