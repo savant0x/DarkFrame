@@ -587,6 +587,10 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-07 (004): StatsPanel fixture gaps closed after tsc gate caught them (Law 3 self-correction: `unlockedTiers`, `progressPercent`, `lastDeposit`) | implemented (tsc 0 restored; 25/25) |
 | Session 2026-09-07 (004): component/lib batch — 10 `any` sites across 7 files → contract-verified types incl. the messaging type guard; 4 latent defects fixed en route (createdAt→proposedAt, #28 RP gate, player.id→username, JoinClanView DTO render) | implemented (touched-set eslint 0; tsc 0; vitest 354/0/1; repo lint 460→405) |
 | Session 2026-09-07 (004): Law-6 audit of the session's own changes against the re-read protocol (operator challenge) — verdict recorded in session summary | implemented |
+| Session 2026-09-07 (005): SCOPE #31 — FundDistributionPanel request building aligned to the distribute route contract (percentageMap / per-resource grants; verified against distributeByPercentage + directGrant) | implemented (operator-approved; tsc 0, file eslint 0) |
+| Session 2026-09-07 (005): SCOPE #32 — JoinClanModal retyped to the search DTO; 4 crash sites + dead gates fixed; join request aligned to the auth-based route contract | implemented (operator-directed) |
+| Session 2026-09-07 (005): SCOPE #33 — clanActivityService full sweep: 11 any sites typed (row interface + parseDetails helper); getActivityStats unbound-placeholder query rewritten with bound params | implemented (operator-directed) |
+| Session 2026-09-07 (005): repo-wide census tooling (scripts/nn-anycensus.mjs) + SCOPE #36 batch plan; findings #34/#35 recorded | implemented |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.
