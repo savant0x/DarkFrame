@@ -28,6 +28,7 @@
 import { useState, useEffect } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
 import { formatNumberAbbreviated } from '@/utils/formatting';
+import type { ClanMilestone } from '@/types/clan.types';
 
 
 interface LevelInfo {
@@ -74,7 +75,7 @@ export default function ClanLevelDisplay({
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [milestones, setMilestones] = useState<{
     completed: Milestone[];
-    upcoming: any[];
+    upcoming: ClanMilestone[];
     currentLevel: number;
   } | null>(null);
   const [estimatedHours, setEstimatedHours] = useState<number | null>(null);

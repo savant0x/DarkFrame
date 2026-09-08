@@ -28,13 +28,32 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
 
 
+/**
+ * Shape of the activity `details` payload consumed by getActivityText.
+ * All fields optional: each activity type populates a different subset.
+ */
+interface ActivityDetails {
+  targetClanName?: string;
+  side?: string;
+  totalAmount?: number;
+  resourceType?: string;
+  method?: string;
+  allianceType?: string;
+  contractType?: string;
+  newRole?: string;
+  x?: number;
+  y?: number;
+  metalCollected?: number;
+  energyCollected?: number;
+}
+
 interface Activity {
   _id: string;
   type: string;
   playerId?: string;
   username?: string;
   timestamp: string;
-  details?: any;
+  details?: ActivityDetails | null;
 }
 
 interface ClanActivityFeedProps {

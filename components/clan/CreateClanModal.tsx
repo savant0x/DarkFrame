@@ -106,9 +106,9 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
   };
 
   /**
-   * Handles form field changes
+   * Handles form field changes (keyed union: value type must match the field)
    */
-  const handleChange = (field: string, value: any) => {
+  const handleChange = <K extends keyof typeof formData>(field: K, value: (typeof formData)[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
     // Clear error for this field
@@ -121,7 +121,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
     }
 
     // Check name availability on name change
-    if (field === 'name' && value) {
+    if (field === 'name' && typeof value === 'string' && value) {
       checkNameAvailability(value);
     }
   };

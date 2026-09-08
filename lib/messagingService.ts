@@ -39,6 +39,7 @@ import type {
   MessagesResponse,
   RateLimitState,
   MessageStatus,
+  MessageMetadata,
 
 } from '@/types/messaging.types';
 
@@ -656,6 +657,17 @@ function mapConversationToType(row: typeof conversations.$inferSelect): Conversa
 /**
  * Map a Drizzle message row to the Message type
  */
+const SYSTEM_MESSAGE_TYPES = ['achievement', 'battle', 'trade', 'notification'] as const;
+
+/**
+ * Type guard for the `metadata_system_type` varchar column — the DB column is
+ * free text, so only values matching the MessageMetadata contract are copied
+ * into the domain object.
+ */
+function isSystemMessageType(value: unknown): value is MessageMetadata['systemType'] {
+  return typeof value === 'string' && (SYSTEM_MESSAGE_TYPES as readonly string[]).includes(value);
+}
+
 function mapMessageToType(row: typeof messages.$inferSelect): Message {
   const message: Message = {
     _id: row.id,
@@ -690,8 +702,8 @@ function mapMessageToType(row: typeof messages.$inferSelect): Message {
     if (row.metadataEditHistory) {
       message.metadata.editHistory = row.metadataEditHistory;
     }
-    if (row.metadataSystemType) {
-      message.metadata.systemType = row.metadataSystemType as any;
+    if (row.metadataSystemType && isSystemMessageType(row.metadataSystemType)) {
+      message.metadata.systemType = row.metadataSystemType;
     }
     if (row.metadataRelatedEntityId) {
       message.metadata.relatedEntityId = row.metadataRelatedEntityId;

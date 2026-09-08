@@ -50,6 +50,19 @@ import { toast } from 'sonner';
 import type { Clan, ClanWar } from '@/types/clan.types';
 import { ClanRole, ROLE_PERMISSIONS, ClanWarStatus } from '@/types/clan.types';
 
+/**
+ * Alliance view shape returned by GET /api/clan/alliances — the service's
+ * `Alliance` (lib/clanAllianceService.ts) serialized to JSON (dates → ISO
+ * strings) plus the API-added `allianceId` and pre-joined `terms` label.
+ */
+interface AllianceView {
+  _id: string;
+  allianceId: string;
+  clanIds: [string, string];
+  proposedAt: string;
+  terms: string;
+}
+
 
 interface ClanWarfarePanelProps {
   clan: Clan;
@@ -66,7 +79,7 @@ export default function ClanWarfarePanel({
 }: ClanWarfarePanelProps) {
   const [activeTab, setActiveTab] = useState<WarfareTab>('wars');
   const [wars, setWars] = useState<ClanWar[]>([]);
-  const [alliances, setAlliances] = useState<any[]>([]);
+  const [alliances, setAlliances] = useState<AllianceView[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showDeclareModal, setShowDeclareModal] = useState(false);
   const [showAllianceModal, setShowAllianceModal] = useState(false);
@@ -440,7 +453,7 @@ function WarCard({ war, currentClanId }: WarCardProps) {
  * Alliances Tab Component
  */
 interface AlliancesTabProps {
-  alliances: any[];
+  alliances: AllianceView[];
   clan: Clan;
   canManageWars: boolean;
   isLoading: boolean;
@@ -507,7 +520,7 @@ function AlliancesTab({ alliances, clan, canManageWars, isLoading, onCreateAllia
  * Alliance Card Component
  */
 interface AllianceCardProps {
-  alliance: any;
+  alliance: AllianceView;
   currentClanId: string;
   canManage: boolean;
   onRefresh: () => void;
@@ -516,7 +529,7 @@ interface AllianceCardProps {
 function AllianceCard({ alliance, currentClanId, canManage, onRefresh }: AllianceCardProps) {
   const alliedClanIds = alliance.clanIds?.filter((id: string) => id !== currentClanId) || [];
   const daysSinceCreation = Math.floor(
-    (Date.now() - new Date(alliance.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    (Date.now() - new Date(alliance.proposedAt).getTime()) / (1000 * 60 * 60 * 24)
   );
 
   const handleBreakAlliance = async () => {

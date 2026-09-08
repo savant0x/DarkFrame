@@ -60,6 +60,17 @@ interface FundDistributionPanelProps {
 type DistributionMethod = 'EQUAL_SPLIT' | 'PERCENTAGE' | 'MERIT' | 'DIRECT_GRANT';
 type ResourceType = 'metal' | 'energy' | 'rp';
 
+/**
+ * Request body for POST /api/clan/bank/distribute
+ */
+interface DistributeRequestBody {
+  clanId: string;
+  method: DistributionMethod;
+  resourceType: ResourceType;
+  totalAmount: number;
+  recipients?: Array<{ username: string; amount: number } | { playerId: string; amount: number }>;
+}
+
 export function FundDistributionPanel({
   clanId,
   role,
@@ -122,7 +133,7 @@ export function FundDistributionPanel({
       setSuccessMessage(null);
       
       // Build request based on method
-      const requestBody: any = {
+      const requestBody: DistributeRequestBody = {
         clanId,
         method,
         resourceType,
@@ -172,7 +183,7 @@ export function FundDistributionPanel({
     setRecipients([...recipients, { playerId: '', amount: 0 }]);
   };
 
-  const updateRecipient = (index: number, field: 'playerId' | 'amount', value: any) => {
+  const updateRecipient = (index: number, field: 'playerId' | 'amount', value: string) => {
     const updated = [...recipients];
     if (field === 'amount') {
       updated[index].amount = parseInt(value) || 0;

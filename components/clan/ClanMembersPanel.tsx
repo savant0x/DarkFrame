@@ -35,7 +35,8 @@ import {
   UserX,
   Search,
   Clock,
-  Circle
+  Circle,
+  type LucideIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
@@ -52,7 +53,7 @@ interface ClanMembersPanelProps {
  * Role display configuration
  */
 const ROLE_CONFIG: Record<ClanRole, {
-  icon: any;
+  icon: LucideIcon;
   label: string;
   color: string;
   bgColor: string;

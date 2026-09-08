@@ -62,6 +62,7 @@ import {
 import { toast } from 'sonner';
 import type { Clan } from '@/types/clan.types';
 import { ClanRole } from '@/types/clan.types';
+import type { SanitizedPlayer } from '@/types/game.types';
 
 
 import ClanMembersPanel from './ClanMembersPanel';
@@ -163,14 +164,14 @@ export default function ClanPanel({ isOpen }: ClanPanelProps) {
         icon={<Users className="w-5 h-5" />}
         className="fixed right-4 top-20 w-[600px] max-h-[calc(100vh-8rem)] overflow-y-auto z-50"
       >
-        {isLoading ? (
+        {isLoading || !player ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 text-[color:var(--nn-cyan)] animate-spin" />
           </div>
-        ) : !player?.clanId ? (
+        ) : !player.clanId ? (
           // NO CLAN STATE - Show appropriate view based on mode
           viewMode === 'create' ? (
-            <CreateClanView 
+            <CreateClanView
               player={player}
               onBack={() => setViewMode('main')}
               onSuccess={handleClanSuccess}
@@ -296,7 +297,7 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
  * Clan Management View - Full interface when player is in a clan
  */
 interface ClanManagementViewProps {
-  player: any;
+  player: SanitizedPlayer;
   clanData: Clan | null;
   onLeaveClan: () => void;
   onRefresh: () => void;
@@ -415,7 +416,7 @@ function ClanManagementView({
             playerResources={{
               metal: player.resources?.metal || 0,
               energy: player.resources?.energy || 0,
-              researchPoints: player.research?.researchPoints || 0
+              researchPoints: player.researchPoints
             }}
             onRefresh={onRefresh}
           />
@@ -437,7 +438,7 @@ function ClanManagementView({
         {activeTab === 'social' && (
           <ClanChatPanel
             clanId={clanData._id?.toString() || player.clanId || ''}
-            currentUserId={player.id}
+            currentUserId={player.username}
             currentUserRole={playerRole}
           />
         )}
@@ -655,7 +656,7 @@ function StatCard({ icon, label, value }: StatCardProps) {
  * Create Clan View - Inline form for creating a new clan
  */
 interface CreateClanViewProps {
-  player: any;
+  player: SanitizedPlayer;
   onBack: () => void;
   onSuccess: () => void;
 }
@@ -700,14 +701,14 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
     }
   };
 
-  const handleChange = (field: string, value: any) => {
+  const handleChange = <K extends keyof typeof formData>(field: K, value: (typeof formData)[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       const newErrors = { ...errors };
       delete newErrors[field];
       setErrors(newErrors);
     }
-    if (field === 'name' && value) {
+    if (field === 'name' && typeof value === 'string' && value) {
       checkNameAvailability(value);
     }
   };
@@ -932,15 +933,31 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
 /**
  * Join Clan View - Inline search and join interface
  */
+/**
+ * Clan DTO returned by GET /api/clan/search (documented response contract):
+ * { success, clans: [{_id, name, tag, description, memberCount, maxMembers,
+ *   leaderUsername, level}], totalPages, total }.
+ */
+interface ClanSearchResult {
+  _id: string;
+  name: string;
+  tag: string;
+  description: string;
+  memberCount: number;
+  maxMembers: number;
+  leaderUsername: string;
+  level: number;
+}
+
 interface JoinClanViewProps {
-  player: any;
+  player: SanitizedPlayer;
   onBack: () => void;
   onSuccess: () => void;
 }
 
 function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [clans, setClans] = useState<any[]>([]);
+  const [clans, setClans] = useState<ClanSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
 
@@ -1026,13 +1043,10 @@ function JoinClanView({ player, onBack, onSuccess }: JoinClanViewProps) {
                     <h4 className="text-[color:var(--nn-text-primary)] font-bold">{clan.name}</h4>
                     <p className="text-sm text-text-secondary">{clan.description || 'No description'}</p>
                   </div>
-                  <Badge variant={clan.settings?.requiresApproval ? 'default' : 'success'}>
-                    {clan.settings?.requiresApproval ? 'Private' : 'Public'}
-                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-text-secondary">
-                    {clan.members.length}/{clan.maxMembers} members • Level {clan.level.currentLevel}
+                    {clan.memberCount}/{clan.maxMembers} members • Level {clan.level}
                   </div>
                   <Button
                     onClick={() => handleJoin(clan._id)}

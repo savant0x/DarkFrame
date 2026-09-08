@@ -19,29 +19,68 @@ import '@testing-library/jest-dom';
 import HarvestButton from './HarvestButton';
 import { useGameContext } from '@/context/GameContext';
 import { TerrainType } from '@/types';
+import type { SanitizedPlayer, Tile } from '@/types';
 
 // Mock dependencies
 vi.mock('@/context/GameContext');
 
+/** Full GameContextState as returned by useGameContext — ReturnType keeps the
+ *  unexported interface honest without touching production code. */
+type GameState = ReturnType<typeof useGameContext>;
+
+/** Complete context value with typed no-op collaborators; each test overrides
+ *  only the fields its component actually reads. */
+const baseCtx: GameState = {
+  player: null,
+  currentTile: null,
+  isLoading: false,
+  error: null,
+  setPlayer: vi.fn(),
+  setCurrentTile: vi.fn(),
+  updateTileOnly: vi.fn(),
+  movePlayer: vi.fn(),
+  refreshGameState: vi.fn(),
+  refreshPlayer: vi.fn(),
+  logout: vi.fn(),
+};
+
+const makeCtx = (overrides: Partial<GameState>): GameState => ({ ...baseCtx, ...overrides });
+
 describe('HarvestButton', () => {
-  const mockPlayer = {
+  /** SanitizedPlayer fixture — the full client-facing shape the context
+   *  carries (private fields excluded by the type itself). */
+  const mockPlayer: SanitizedPlayer = {
     username: 'testplayer',
+    base: { x: 5, y: 10 },
+    currentPosition: { x: 10, y: 20 },
     resources: { metal: 1000, energy: 500 },
+    bank: { metal: 0, energy: 0, lastDeposit: null },
+    inventory: { items: [], capacity: 50, metalDiggerCount: 0, energyDiggerCount: 0 },
+    gatheringBonus: { metalBonus: 0, energyBonus: 0 },
+    activeBoosts: { gatheringBoost: null, expiresAt: null },
+    shrineBoosts: [],
+    units: [],
+    totalStrength: 0,
+    totalDefense: 0,
+    xp: 0,
+    level: 1,
+    researchPoints: 0,
+    unlockedTiers: [],
   };
 
-  const mockMetalTile = {
+  const mockMetalTile: Tile = {
     terrain: TerrainType.Metal,
     x: 10,
     y: 20,
   };
 
-  const mockEnergyTile = {
+  const mockEnergyTile: Tile = {
     terrain: TerrainType.Energy,
     x: 15,
     y: 25,
   };
 
-  const mockCaveTile = {
+  const mockCaveTile: Tile = {
     terrain: TerrainType.Cave,
     x: 5,
     y: 10,
@@ -58,11 +97,7 @@ describe('HarvestButton', () => {
 
   describe('Component Rendering', () => {
     it('should render harvest button for metal tile', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton />);
       
@@ -70,11 +105,7 @@ describe('HarvestButton', () => {
     });
 
     it('should render harvest button for energy tile', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockEnergyTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockEnergyTile }));
 
       render(<HarvestButton />);
       
@@ -82,11 +113,7 @@ describe('HarvestButton', () => {
     });
 
     it('should render harvest button for cave tile', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockCaveTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockCaveTile }));
 
       render(<HarvestButton />);
       
@@ -94,11 +121,7 @@ describe('HarvestButton', () => {
     });
 
     it('should not render when player is null', () => {
-      (useGameContext as any).mockReturnValue({
-        player: null,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: null, currentTile: mockMetalTile }));
 
       const { container } = render(<HarvestButton />);
       
@@ -106,11 +129,7 @@ describe('HarvestButton', () => {
     });
 
     it('should not render when current tile is null', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: null,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: null }));
 
       const { container } = render(<HarvestButton />);
       
@@ -130,11 +149,7 @@ describe('HarvestButton', () => {
         }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton />);
       
@@ -167,11 +182,7 @@ describe('HarvestButton', () => {
         json: async () => harvestData,
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton onHarvestResult={onHarvestResult} />);
       
@@ -194,11 +205,7 @@ describe('HarvestButton', () => {
         }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton onHarvestResult={onHarvestResult} />);
       
@@ -220,11 +227,7 @@ describe('HarvestButton', () => {
 
       (global.fetch as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton onHarvestResult={onHarvestResult} />);
       
@@ -253,11 +256,7 @@ describe('HarvestButton', () => {
         }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton />);
       
@@ -278,11 +277,7 @@ describe('HarvestButton', () => {
         }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockEnergyTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockEnergyTile }));
 
       render(<HarvestButton />);
       
@@ -304,11 +299,7 @@ describe('HarvestButton', () => {
         }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockCaveTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockCaveTile }));
 
       render(<HarvestButton />);
       
@@ -320,11 +311,7 @@ describe('HarvestButton', () => {
     });
 
     it('should not harvest metal tile on F key press', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton />);
       
@@ -334,11 +321,7 @@ describe('HarvestButton', () => {
     });
 
     it('should not harvest cave tile on G key press', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockCaveTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockCaveTile }));
 
       render(<HarvestButton />);
       
@@ -357,11 +340,7 @@ describe('HarvestButton', () => {
         }), 100))
       );
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton />);
       
@@ -375,11 +354,7 @@ describe('HarvestButton', () => {
     });
 
     it('should not harvest when button is clicked while loading', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: true,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile, isLoading: true }));
 
       render(<HarvestButton />);
       
@@ -390,11 +365,7 @@ describe('HarvestButton', () => {
     });
 
     it('should not harvest on keyboard press while loading', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: true,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ currentTile: mockMetalTile, isLoading: true }));
 
       render(<HarvestButton />);
       
@@ -411,11 +382,7 @@ describe('HarvestButton', () => {
         }), 100))
       );
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
 
       render(<HarvestButton />);
       
@@ -436,11 +403,7 @@ describe('HarvestButton', () => {
     it('should remove keyboard event listener on unmount', () => {
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        currentTile: mockMetalTile,
-        isLoading: false,
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer, currentTile: mockMetalTile }));
       
       const { unmount } = render(<HarvestButton />);
       unmount();

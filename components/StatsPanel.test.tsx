@@ -19,6 +19,8 @@ import '@testing-library/jest-dom';
 import StatsPanel from './StatsPanel';
 import { useGameContext } from '@/context/GameContext';
 import { useRouter } from 'next/navigation';
+import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
+import type { SanitizedPlayer } from '@/types';
 
 // Mock dependencies
 vi.mock('@/context/GameContext');
@@ -36,27 +38,63 @@ vi.mock('./BalanceIndicator', () => ({
 }));
 
 vi.mock('./XPProgressBar', () => ({
-  default: ({ level, currentLevelXP, xpForNextLevel, _totalXP }: any) => (
+  default: ({ level, currentLevelXP, xpForNextLevel, _totalXP }: {
+    level: number;
+    currentLevelXP: number;
+    xpForNextLevel: number;
+    /** Renamed to satisfy the unused-var rule while keeping the prop contract
+     *  visible; the mock stub renders only the three fields the tests assert. */
+    _totalXP: number;
+  }) => (
     <div data-testid="xp-progress-bar">
       Level {level}: {currentLevelXP}/{xpForNextLevel}
     </div>
   ),
 }));
 
-describe('StatsPanel', () => {
-  const mockRouter = {
-    push: vi.fn(),
-  };
+/** Full GameContextState as returned by useGameContext — ReturnType keeps the
+ *  unexported interface honest without touching production code. */
+type GameState = ReturnType<typeof useGameContext>;
 
-  const mockPlayer = {
+/** Complete context value with typed no-op collaborators; each test overrides
+ *  only the fields its component actually reads. */
+const baseCtx: GameState = {
+  player: null,
+  currentTile: null,
+  isLoading: false,
+  error: null,
+  setPlayer: vi.fn(),
+  setCurrentTile: vi.fn(),
+  updateTileOnly: vi.fn(),
+  movePlayer: vi.fn(),
+  refreshGameState: vi.fn(),
+  refreshPlayer: vi.fn(),
+  logout: vi.fn(),
+};
+
+const makeCtx = (overrides: Partial<GameState>): GameState => ({ ...baseCtx, ...overrides });
+
+const mockRouter: AppRouterInstance = {
+  back: vi.fn(),
+  forward: vi.fn(),
+  refresh: vi.fn(),
+  push: vi.fn(),
+  replace: vi.fn(),
+  prefetch: vi.fn(),
+};
+
+describe('StatsPanel', () => {
+  /** SanitizedPlayer fixture — the full client-facing shape the context
+   *  carries (private fields excluded by the type itself). */
+  const mockPlayer: SanitizedPlayer = {
     username: 'TestCommander',
     level: 5,
     rank: 12,
     xp: 1500,
     researchPoints: 250,
     factoryCount: 3,
-    currentPosition: { x: 10, y: 20 },
     base: { x: 5, y: 15 },
+    currentPosition: { x: 10, y: 20 },
     resources: {
       metal: 5000,
       energy: 3000,
@@ -64,17 +102,21 @@ describe('StatsPanel', () => {
     bank: {
       metal: 10000,
       energy: 8000,
+      lastDeposit: null,
     },
+    inventory: { items: [], capacity: 50, metalDiggerCount: 0, energyDiggerCount: 0 },
+    gatheringBonus: { metalBonus: 0, energyBonus: 0 },
+    activeBoosts: { gatheringBoost: null, expiresAt: null },
+    units: [],
     totalStrength: 150,
     totalDefense: 120,
-    clanId: null,
-    clanName: null,
     shrineBoosts: [],
+    unlockedTiers: [],
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useRouter as any).mockReturnValue(mockRouter);
+    vi.mocked(useRouter).mockReturnValue(mockRouter);
     global.fetch = vi.fn();
   });
 
@@ -84,11 +126,7 @@ describe('StatsPanel', () => {
 
   describe('Loading State', () => {
     it('should show loading message when player is null', () => {
-      (useGameContext as any).mockReturnValue({
-        player: null,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: null }));
 
       render(<StatsPanel />);
       
@@ -98,11 +136,7 @@ describe('StatsPanel', () => {
 
   describe('Player Information', () => {
     beforeEach(() => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
     });
 
     it('should display username correctly', () => {
@@ -129,15 +163,12 @@ describe('StatsPanel', () => {
         ...mockPlayer,
         xpProgress: {
           currentLevelXP: 500,
+          progressPercent: 50,
           xpForNextLevel: 1000,
         },
       };
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithXP,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithXP }));
 
       render(<StatsPanel />);
       
@@ -148,11 +179,7 @@ describe('StatsPanel', () => {
 
   describe('Position Display', () => {
     beforeEach(() => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
     });
 
     it('should display current position', () => {
@@ -170,11 +197,7 @@ describe('StatsPanel', () => {
 
   describe('Resource Display', () => {
     beforeEach(() => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
     });
 
     it('should display metal amount with proper formatting', () => {
@@ -205,14 +228,10 @@ describe('StatsPanel', () => {
       const playerWithNoResources = {
         ...mockPlayer,
         resources: { metal: 0, energy: 0 },
-        bank: { metal: 0, energy: 0 },
+        bank: { metal: 0, energy: 0, lastDeposit: null },
       };
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithNoResources,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithNoResources }));
 
       render(<StatsPanel />);
       
@@ -224,11 +243,7 @@ describe('StatsPanel', () => {
 
   describe('Clan Integration', () => {
     it('should show "Join / Create" button when player has no clan', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
 
       render(<StatsPanel />);
       
@@ -236,11 +251,7 @@ describe('StatsPanel', () => {
     });
 
     it('should navigate to clan page when "Join / Create" is clicked', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
 
       render(<StatsPanel />);
       
@@ -262,11 +273,7 @@ describe('StatsPanel', () => {
         json: async () => ({ tag: 'EW' }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithClan,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithClan }));
 
       render(<StatsPanel />);
       
@@ -292,11 +299,7 @@ describe('StatsPanel', () => {
         json: async () => ({ tag: 'EW' }),
       });
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithClan,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithClan }));
 
       render(<StatsPanel />);
       
@@ -308,11 +311,7 @@ describe('StatsPanel', () => {
     it('should call custom onClanClick when provided', () => {
       const onClanClick = vi.fn();
 
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
 
       render(<StatsPanel onClanClick={onClanClick} />);
       
@@ -341,18 +340,14 @@ describe('StatsPanel', () => {
         ...mockPlayer,
         shrineBoosts: [
           {
-            tier: 'speed',
-            yieldBonus: 25,
+            tier: 'spade' as const,
+            yieldBonus: 0.25, // ShrineBoost contract: fraction, +25%
             expiresAt: new Date('2025-10-23T15:30:00Z'), // 3h 30m from now
           },
         ],
       };
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithBoosts,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithBoosts }));
 
       render(<StatsPanel />);
       
@@ -370,18 +365,14 @@ describe('StatsPanel', () => {
         ...mockPlayer,
         shrineBoosts: [
           {
-            tier: 'speed',
-            yieldBonus: 25,
+            tier: 'spade' as const,
+            yieldBonus: 0.25,
             expiresAt: new Date('2025-10-23T11:00:00Z'), // Expired 1 hour ago
           },
         ],
       };
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithExpiredBoost,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithExpiredBoost }));
 
       render(<StatsPanel />);
       
@@ -397,18 +388,14 @@ describe('StatsPanel', () => {
         ...mockPlayer,
         shrineBoosts: [
           {
-            tier: 'heart',
-            yieldBonus: 50,
+            tier: 'heart' as const,
+            yieldBonus: 0.5, // +50%
             expiresAt: new Date('2025-10-23T14:00:00Z'), // 2 hours from now
           },
         ],
       };
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithBoosts,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithBoosts }));
 
       render(<StatsPanel />);
       
@@ -420,11 +407,7 @@ describe('StatsPanel', () => {
 
   describe('Military Stats', () => {
     beforeEach(() => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
     });
 
     it('should display total strength', () => {
@@ -453,15 +436,12 @@ describe('StatsPanel', () => {
         ...mockPlayer,
         xpProgress: {
           currentLevelXP: 500,
+          progressPercent: 50,
           xpForNextLevel: 1000,
         },
       };
 
-      (useGameContext as any).mockReturnValue({
-        player: playerWithXP,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithXP }));
 
       render(<StatsPanel />);
       
@@ -472,11 +452,7 @@ describe('StatsPanel', () => {
     });
 
     it('should not display XP progress bar when xpProgress is missing', () => {
-      (useGameContext as any).mockReturnValue({
-        player: mockPlayer,
-        logout: vi.fn(),
-        refreshPlayer: vi.fn(),
-      });
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
 
       render(<StatsPanel />);
       
