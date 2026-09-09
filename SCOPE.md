@@ -6,7 +6,7 @@
 > recorded in the Operator-Confirmed section below.
 
 **Protocol:** `dev/echo-v0.1.2-single-agent.md` (v0.1.2-single-agent — the sole authoritative protocol per operator decision 2026-09-01)
-**Last updated:** 2026-09-07 (session 004 — burn-down batch 1 in progress; operator additions executed: flagHolder unused imports removed, nn-*.mjs tooling committed with one dead-var repair)
+**Last updated:** 2026-09-08 (session 002 — FID-20260908-001..005 implemented + live migrations 0018/0019 applied; FID-006 Wave A next)
 
 ---
 
@@ -449,6 +449,77 @@ Explicitly NOT approved: findings in files outside the WIP-touched set (next bat
 
 **Outcome (2026-09-07):** both fixes applied and verified — `lib/__tests__/redis.test.ts` gained the `vi.hoisted` env pin (REDIS_URL='disabled', UPSTASH=''; documented rationale in-file); `__tests__/lib/flagHolderSurvival.test.ts` fake retyped `unknown`→`Table` (import + `tableName` + `from` + `update`/`delete`/`insert` + the `setTableNameResolver` setter — the first pass missed the setter and tsc caught it at (90,22)). Evidence: `vitest run lib/__tests__/redis.test.ts` = **16/16** (fallback path visibly exercised — "[RateLimiter] Redis unavailable, allowing request" in the no-fallback test); `vitest run __tests__/lib/flagHolderSurvival.test.ts` = 3/3; full `npx vitest run` = **354 passed / 0 failed / 1 skipped**; `npx tsc --noEmit` = **exit 0** (recorded clean baseline restored). Residual (pre-existing, not touched): 2 `no-unused-vars` eslint errors in flagHolderSurvival.test.ts (`players`/`flags` imported but never referenced — present in session 001's baseline lint output).
 
+### Session 2026-09-08 (001) — #36 batch 1: clanDistributionService.ts (completes the interrupted session-006 batch)
+
+Operator instruction: "read single agent echo 0-end" (boot re-read after the failed turn). Work item: the standing #36
+burn-down batch plan (operator-directed, session-005) — batch 1 is the census's worst `lib/` file,
+`lib/clanDistributionService.ts` (21 findings), whose remediation survived the failed turn uncommitted.
+
+Approved items:
+
+- [x] Read the single-agent ECHO protocol 0-EOF plus `SCOPE.md`, `protocol.config.yaml`, summaries README (boot)
+- [x] Verify the surviving uncommitted remediation against the #36 census (0-EOF read; zero `any` sites; file eslint 0)
+- [x] Complete the file: boundary-typed `ClanDistributionRow` + payload guards + shared validating jsonb parse helper
+      for `getDistributionHistory`/`getTodayDistributedByPlayer` (house pattern per session-005 clanActivityService +
+      session-004 messaging guards); `verifyDistributionPermission` role literals → `ClanRole` enum
+- [x] Census tool repair (session-004 nn-tooling delegation): `scripts/nn-anycensus.mjs` replaced counts on
+      grouping-key collision (understated totals: 294 broken vs 348 true); fixed to accumulate with full-path keys,
+      cross-validated against raw eslint (348 = 348). Corrected pre-session baseline: 369 (= 348 + this session's 21);
+      the session-006 ledger figure "322" was a broken-tool read
+- [x] Gates: `npx tsc --noEmit` 0; file eslint 0; full vitest 354/0/1
+
+No other work is approved. The file's 21 `any` sites were already remediated by the surviving edit; this session
+finished the remaining mapper typing, repaired the census tool, and ran the gates. Commits presented, not executed
+(G1 default) — pending operator approval.
+
+### Session 2026-09-08 (002) — Operator-reported defects → FIDs + Perfection Loop + implementation
+
+Operator instruction: "read single agent echo 0-end, build the fids, run perfection loop on all of them" — reporting:
+(1) tutorial stuck on step 7 (15 moves not tracked); (2) XP panel level-16 overflow (129,972/21,112, Total 144,972);
+(3) unit factory needs full NEON NOIR redesign + visual pass; (4) Military Power/power never update after building
+units; (5) factory count shows 0 while owning 1; (6) ALL internal pages need the full NEON NOIR pass (colors were
+swapped, pages not redesigned); (7) WebSocket "Max reconnection attempts reached" error.
+
+Approved items:
+
+- [x] Boot re-read of the protocol 0-EOF + FID-012 + FID template
+- [x] RED evidence pass across all defects (file:line + greps + independent arithmetic recomputation)
+- [x] FIDs written + Perfection Loop to `converged`: FID-20260908-001 (tutorial read/write contract mismatch),
+      -002 (XP progress uses retired linear curve), -003 (sanitize allowlist drops totalStrength/totalDefense +
+      shim $push does not unwrap $each), -004 (factory_count never maintained + backfill), -005 (websocket
+      reconnect gives up permanently), -006 (umbrella: full internal-pages NEON NOIR redesign amending FID-012,
+      with mechanical audit rubric + wave sequencing)
+- [x] IMPLEMENT FID-001..005 in order (001→005), each with full gates:
+      - 001 tutorial tracking: typed contract via `getCurrentActionCount`/`recordActionAttempt`, route reads
+        rerouted off the Mongo shim, MOVE_TO_COORDS folded into the JSON contract; live probe found the real
+        blocker — `action_type varchar(30)` < 35-char JSON payload → **migration 0018** (varchar(160), house
+        0014 pattern) applied live; tracking rows now persist
+      - 002 XP progress: `getXPProgress` unified on the FID-006 power curve; audited L16 → 11,663 / 21,112 (55.2%)
+      - 003 military power: `sanitizePlayer` allowlist + `totalStrength`/`totalDefense`; shim `$push` unwraps
+        `$each` (`normalizePushOperand`, 8 regression tests); bonus: xpService `any`s remediated (0 in file)
+      - 004 factory count: `recountPlayerFactoryCount` wired at capture/abandon/release (the only writer,
+        idempotent); **migration 0019** backfill applied live (probe: 1 stale row → `fame.factory_count = 5`);
+        en-route: all 7 `factoryService` `any`s removed (typed `parseInventory` + `isUnitEntry` replacing the
+        never-matching `type === 'UNIT'` filter; schema union widened to `… | Unit`); addendum: `produceUnit`
+        now maintains `totalStrength`/`totalDefense`
+      - 005 websocket: endless bounded backoff (30s cap, ±20% jitter), auth errors retry slowly (30s),
+        timer-leak + unmount-dispose fixes via `scheduleReconnect`/`disposedRef`;
+        live-verify gate pending operator drive
+- [~] FID-006 Wave A redesign — IN PROGRESS:
+      - DONE: token primitives added to neon-noir.css (`.nn-unit` family, `.nn-ptab` text tabs, `.nn-stepper`,
+        `.nn-overlay`, `.nn-range`, `nn-spin`, reduced-motion closure); **unit-factory page** rebuilt (HUD header,
+        nn-stat resource blocks, rarity-accented `.nn-unit` cards, panel modal, zero legacy classes);
+        **BackButton** → nn-btn ghost (Wave-B multiplier); **FactoryManagementPanel** rebuilt off the legacy
+        UI kit (framer-motion removed from the surface, StatCard/Badge/Card/Button replaced by nn-panel/nn-stat/
+        nn-row/nn-brief/nn-btn, magenta reserved for destructive); **stats page** ledger rows + gated loader.
+      - REMAINING Wave A: tech-tree, WMD (+5 panels), clans surfaces; then Waves B/C.
+
+**Gates at session 002 checkpoint:** tsc 0 · file eslint 0 across all touched files · full vitest **362 passed /
+0 failed / 1 skipped** (was 354 before this directive; +8 FID-003 regression tests) · Wave A rubric greps:
+framer-motion 0 and legacy utility classes 0 in all four redesigned files.
+
+No other work is approved. The #36 commit plan from session 008-001 remains presented/pending separately.
+
 ---
 
 ## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
@@ -489,7 +560,7 @@ operator decides whether each item is added to scope.
 | 33 | ~~**`lib/clanActivityService.ts:36` declares `details?: Record<string, any>`**~~ **→ RESOLVED 2026-09-07 (session 005, operator-directed):** full-file sweep — all 11 `any` sites typed: `details?: Record<string, unknown>` (matches the domain type's index signature), `ClanActivityRow` raw-row interface + `parseDetails` helper (null-safe JSON.parse with logged error — Law 14) replacing 6 untyped row mappings, typed count-row arrays. **Latent bug fixed en route:** `getActivityStats` built a `values` array it never bound (raw `?` placeholders under `sql.raw` — the query threw on any call; zero callers repo-wide, so no runtime exposure) — rewritten with bound parameters | 2026-09-07 (session 004) | Closed (resolved) |
 | 34 | ~~**Mongo-era `ObjectId` lingers in domain types**~~ **→ RESOLVED 2026-09-07 (session 006, operator-directed "migrate the Mongo-era ObjectId _id fields out of the domain types"):** all 10 types files migrated — `ObjectId` → `string` for every `_id` (18 interfaces: clan ×5 + messaging ×2 + referral + tutorial ×2 + wmd/defense ×4 + wmd/intelligence ×5 + wmd/missile + wmd/notification ×2 + wmd/research), plus `BotConfig.summonedBy` → `string` (runtime already writes a username string) and `ReferralRecord.referrerPlayerId` → `string` (runtime already writes a username); all 10 `mongodb` type imports removed. Runtime was already string-based everywhere (verified before editing: `messagingService` maps `_id: row.id`, `botSummoningService` casts `summonedBy?: string`, admin referrals page carries its own `_id: string` interface), so fallout was zero. `lib/mongodb.ts`'s local `ObjectId` shim is untouched (it is the compat layer, not a domain type). `clanActivityService`'s `ClanActivityWithStringId` bridge type — created specifically to work around this stale contract — deleted; service now uses `ClanActivity` directly | 2026-09-07 (session 005) | Closed (resolved) |
 | 35 | ~~**JoinClanModal filter UI is decorative**~~ **→ RESOLVED 2026-09-07 (session 006, operator-directed "fix the JoinClanModal filter UI by extending /api/clan/search with its filter params"):** route extended with `minLevel`/`maxLevel` (clamped 1–50, on `level_current_level`), `minMembers`/`maxMembers` (jsonb_array_length on members), `publicOnly=true` → `settings_requires_approval = 0`, plus `recruitingOnly=true` → `settings_is_recruiting = 1` (the modal's "Public Only" toggle honestly maps to approval-free join; recruiting flag added so the schema's isRecruiting setting is reachable). Modal now sends `q` (was `name`, which the route never read). Bounds clamped so hostile input degrades to a wide filter, not an error | 2026-09-07 (session 005) | Closed (resolved) |
-| 36 | **Repo-wide `no-explicit-any` census (post session-005 batch): 336 findings across 78 files** — lib/ 226 (worst: clanDistributionService 21, queryOptimization 19, beerBaseAnalytics 15, tutorialService 14, rankingService 11, botScannerService 10, clanChatService 10), __tests__/ 36 (friends suites 36), components/ 30 (map/* 8, friends-adjacent test components), app/ 12, types/ 7, hooks/ 3, scripts/ 15, vitest.setup.ts 7. `dev/` and root `scripts/*.mjs` are eslint-exempt (config override). Batch plan recorded in session-005 scope; burn-down continues on operator direction | 2026-09-07 (session 005) | Open (campaign in progress) |
+| 36 | **Repo-wide `no-explicit-any` census. Session-005 original: 336 across 78 files (lib/ 226 — worst: clanDistributionService 21, queryOptimization 19, beerBaseAnalytics 15, tutorialService 14, rankingService 11, botScannerService 10, clanChatService 10; __tests__/ 36; components/ 30; app/ 12; types/ 7; hooks/ 3; scripts/ 15; vitest.setup.ts 7). **Correction 2026-09-08 (session 008-001): the census tool replaced counts on grouping-key collision, so its totals were understatements; with the tool fixed and cross-validated (348 = raw eslint 348), the true post-006 baseline was 369, not 322.** Post batch 1 (clanDistributionService 21→0, 2026-09-08): **348 across 86 files** — next worst: queryOptimization 19, beerBaseAnalytics 15, rankingService 11, botScannerService 10, clanChatService 10, friends test suites 36. `dev/` and root `scripts/*.mjs` are eslint-exempt (config override). Burn-down continues on operator direction | 2026-09-07 (session 005); corrected 2026-09-08 (session 008-001) | Open (campaign in progress) |
 | 30 | **Gate-baseline divergence:** repo gates no longer match the ledger's 2026-09-06 "tsc 0 / eslint clean / 341 green" — live: tsc 1 error (`__tests__/lib/flagHolderSurvival.test.ts`, committed `4674b73`), eslint **460 errors / 3 warnings** (incl. re-appeared `any`s in friends suites previously burn-downed), vitest **12 failed** (all `lib/__tests__/redis.test.ts`). The tree also carries an uncommitted parallel session's WIP (20 modified files: clan panels, friends/messaging tests, messagingService, websocket handlers; untracked `scripts/nn-fixany.mjs`, `scripts/nn-lintreport.mjs`, `lib/errorMessage.ts`, `docs/llms-*`; `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` deleted). Attribution and disposition were operator decisions — session 2026-09-07 (001) touched nothing beyond its approved 2-line fix **→ RESOLVED 2026-09-07 (SESSION-2026-09-07-002): operator reviewed the WIP and chose fix+commit+gitignore — defect repaired, WIP committed as 4 path-scoped commits (`0e82eb5`, `8be0bde`, `de914fa`, `8051813`), scraped llms docs gitignored (kept local), nn-*.mjs codemod scripts left untracked pending operator call** | 2026-09-07 (sessions 001–002) | Closed (resolved) |
 
 ---
@@ -595,6 +666,8 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-07 (006): SCOPE #34 — ObjectId → string migration across 10 types files (18 `_id` interfaces + `summonedBy` + `referrerPlayerId`); 10 mongodb imports removed; runtime verified string-based before editing; clanActivityService bridge type deleted | implemented (tsc 0 with zero fallout; vitest 354/0/1) |
 | Session 2026-09-07 (006): #36 types/ batch — 7 `any` sites typed (`TutorialValidationData` documented-subset interface replacing 3 `Record<string, any>` + `ActivityLog.details`/`LoggingContext.details` → `Record<string, unknown>` + `AutoFarmEventData` interface + `PlayerFlag.evidence.data` → `Record<string, unknown>`); 7 sibling `any`s in tutorialService (validators + progress mapper + factory reads) typed in the same pass | implemented (tsc 0; touched files eslint 0; vitest 354/0/1; repo any-census 336 → 322) |
 | Session 2026-09-07 (006): latent defect fixed via typing — `getPlayerGameState` read phantom `factories.units`/`factories.tier` columns (always undefined → unitCounts always `{}`, every factory tier 'WEAK'); now counts `players.units` (real PlayerUnit[] jsonb) and derives tier from the documented level band | implemented |
+| Session 2026-09-08 (001): #36 batch 1 — clanDistributionService 21 `any` sites remediated (typed column maps + boundary helpers from the survived session-006 edit) and completed with a boundary-typed row mapper + validating jsonb parse + payload guards; role literals → `ClanRole` | implemented (tsc 0; file eslint 0; vitest 354/0/1 — see SESSION-2026-09-08-001) |
+| Session 2026-09-08 (001): nn-anycensus.mjs collision bug repaired (set → accumulate, full-path key); baseline corrected 322 → 369 (broken-tool understatement) | implemented (cross-validated: fixed tool 348 = raw eslint 348) |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.
