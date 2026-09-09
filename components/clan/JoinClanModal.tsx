@@ -24,7 +24,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
 import { useGameContext } from '@/context/GameContext';
-import { Button, Input } from '@/components/ui';
+
 import { 
   X, 
   Search, 
@@ -39,7 +39,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+
 
 /**
  * Clan DTO returned by GET /api/clan/search (documented response contract):
@@ -191,81 +191,65 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm"
-          onClick={onClose}
-        />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop — FID-013: framer motion.div → plain node with gated nn-fade */}
+      <div
+        className="nn-fade absolute inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-        {/* Modal */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-6xl h-[85vh] bg-gradient-to-br from-bg-space to-bg-nebula rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-2xl overflow-hidden flex flex-col"
-        >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] px-6 py-4 flex items-center justify-between flex-shrink-0">
+      {/* Modal — FID-013: framer motion.div → plain node with gated nn-fade; gradient slab → token void */}
+      <div
+        className="nn-fade relative w-full max-w-6xl h-[85vh] bg-[color:var(--nn-void)] rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-2xl overflow-hidden flex flex-col"
+      >
+        {/* Header — gradient strip → quiet accent tint */}
+        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_12%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] px-6 py-4 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <Users className="w-6 h-6 text-[color:var(--nn-violet)]" />
               <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Join a Clan</h2>
             </div>
             <button
               onClick={onClose}
-              className="text-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
+              className="nn-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
           </div>
 
           {/* Search & Filters Bar */}
-          <div className="border-b border-glass-border px-6 py-4 space-y-3 flex-shrink-0">
+          <div className="border-b border-[color:var(--nn-glass-border)] px-6 py-4 space-y-3 flex-shrink-0">
             {/* Search Row */}
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
-                <Input
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 nn-text-secondary" />
+                <input
                   type="text"
                   value={filters.name}
                   onChange={(e) => handleFilterChange('name', e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                   placeholder="Search clans by name..."
-                  className="pl-10 w-full"
-                />
+                  className="nn-input pl-10 w-full"
+                 />
               </div>
-              <Button
-                onClick={() => setShowFilters(!showFilters)}
-                variant="secondary"
-              >
+              <button className="nn-btn"
+                onClick={() => setShowFilters(!showFilters)} >
                 <Filter className="w-4 h-4 mr-2" />
                 Filters
-              </Button>
-              <Button
-                onClick={applyFilters}
-                variant="primary"
-                disabled={isLoading}
+              </button>
+              <button className="nn-btn nn-btn--primary"
+                onClick={applyFilters} disabled={isLoading}
               >
                 Search
-              </Button>
+              </button>
             </div>
 
             {/* Expanded Filters */}
             {showFilters && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="bg-glass-light rounded-none p-4 space-y-3"
-              >
+              <div className="nn-fade nn-surface rounded-none p-4 space-y-3">
                 <div className="grid grid-cols-3 gap-4">
                   {/* Public Only Toggle */}
                   <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-2">
+                    <label className="block text-xs font-semibold nn-text-secondary mb-2">
                       Privacy
                     </label>
                     <button
@@ -273,7 +257,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       className={`w-full px-3 py-2 rounded-none border transition-colors ${
                         filters.publicOnly
                           ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
-                          : 'bg-glass-light border-glass-border text-text-secondary'
+                          : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
                       }`}
                     >
                       {filters.publicOnly ? (
@@ -292,63 +276,63 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
                   {/* Level Range */}
                   <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-2">
+                    <label className="block text-xs font-semibold nn-text-secondary mb-2">
                       Level Range
                     </label>
                     <div className="flex gap-2 items-center">
-                      <Input
+                      <input
                         type="number"
                         value={filters.minLevel}
                         onChange={(e) => handleFilterChange('minLevel', parseInt(e.target.value) || 1)}
                         min={1}
                         max={50}
-                        className="w-full"
-                      />
-                      <span className="text-text-secondary">-</span>
-                      <Input
+                        className="nn-input w-full"
+                       />
+                      <span className="nn-text-secondary">-</span>
+                      <input
                         type="number"
                         value={filters.maxLevel}
                         onChange={(e) => handleFilterChange('maxLevel', parseInt(e.target.value) || 50)}
                         min={1}
                         max={50}
-                        className="w-full"
-                      />
+                        className="nn-input w-full"
+                       />
                     </div>
                   </div>
 
                   {/* Members Range */}
                   <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-2">
+                    <label className="block text-xs font-semibold nn-text-secondary mb-2">
                       Member Count
                     </label>
                     <div className="flex gap-2 items-center">
-                      <Input
+                      <input
                         type="number"
                         value={filters.minMembers}
                         onChange={(e) => handleFilterChange('minMembers', parseInt(e.target.value) || 0)}
                         min={0}
                         max={100}
-                        className="w-full"
-                      />
-                      <span className="text-text-secondary">-</span>
-                      <Input
+                        className="nn-input w-full"
+                       />
+                      <span className="nn-text-secondary">-</span>
+                      <input
                         type="number"
                         value={filters.maxMembers}
                         onChange={(e) => handleFilterChange('maxMembers', parseInt(e.target.value) || 100)}
                         min={0}
                         max={100}
-                        className="w-full"
-                      />
+                        className="nn-input w-full"
+                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="flex justify-end">
-                  <Button onClick={resetFilters} variant="secondary" size="sm">
+                  <button className="nn-btn" onClick={resetFilters} >
                     Reset Filters
-                  </Button>
+                  </button>
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
 
@@ -357,16 +341,16 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-3">
-                  <div className="w-12 h-12 border-4 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] border-t-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-text-secondary">Loading clans...</p>
+                  <div className="w-12 h-12 border-4 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] border-t-transparent rounded-none mx-auto" />
+                  <p className="nn-text-secondary">Loading clans...</p>
                 </div>
               </div>
             ) : clans.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center space-y-3">
-                  <Users className="w-16 h-16 text-text-tertiary mx-auto" />
-                  <p className="text-text-secondary text-lg">No clans found</p>
-                  <p className="text-text-secondary text-sm">Try adjusting your search filters</p>
+                  <Users className="w-16 h-16 nn-text-tertiary mx-auto" />
+                  <p className="nn-text-secondary text-lg">No clans found</p>
+                  <p className="nn-text-secondary text-sm">Try adjusting your search filters</p>
                 </div>
               </div>
             ) : (
@@ -377,11 +361,9 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                   const isJoining = joiningClanId === clanIdStr;
 
                   return (
-                    <motion.div
+                    <div
                       key={clanIdStr}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-glass-light rounded-none border border-glass-border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition-all p-4 space-y-3"
+                      className="nn-fade nn-surface rounded-none border border-[color:var(--nn-glass-border)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition-all p-4 space-y-3"
                     >
                       {/* Clan Header */}
                       <div className="flex items-start justify-between">
@@ -392,7 +374,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                             </h3>
                             <Unlock className="w-4 h-4 text-[color:var(--nn-green)] flex-shrink-0" />
                           </div>
-                          <p className="text-xs text-text-secondary line-clamp-2">
+                          <p className="text-xs nn-text-secondary line-clamp-2">
                             {clan.description || 'No description'}
                           </p>
                         </div>
@@ -401,19 +383,19 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                       {/* Stats Grid */}
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
-                          <div className="text-xs text-text-secondary">Level</div>
+                          <div className="text-xs nn-text-secondary">Level</div>
                           <div className="text-sm font-bold text-[color:var(--nn-cyan)]">
                             {clan.level}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-text-secondary">Members</div>
+                          <div className="text-xs nn-text-secondary">Members</div>
                           <div className="text-sm font-bold text-[color:var(--nn-violet)]">
                             {clan.memberCount}/{clan.maxMembers}
                           </div>
                         </div>
                         <div>
-                          <div className="text-xs text-text-secondary">Tag</div>
+                          <div className="text-xs nn-text-secondary">Tag</div>
                           <div className="text-sm font-bold text-[color:var(--nn-amber)]">
                             {clan.tag}
                           </div>
@@ -422,7 +404,7 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
                       {/* Leader & Requirements */}
                       <div className="text-xs space-y-1">
-                        <div className="flex items-center gap-2 text-text-secondary">
+                        <div className="flex items-center gap-2 nn-text-secondary">
                           <Crown className="w-3 h-3 text-[color:var(--nn-amber)]" />
                           <span>Leader: {clan.leaderUsername}</span>
                         </div>
@@ -436,21 +418,15 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
                             <span className="text-xs text-[color:var(--nn-magenta)]">{eligibility.reason}</span>
                           </div>
                         ) : (
-                          <Button
-                            onClick={() => handleJoinClan(clanIdStr, clan.name)}
-                            variant="primary"
-                            size="sm"
-                            fullWidth
-                            disabled={isJoining || clan.memberCount >= clan.maxMembers}
-                            loading={isJoining}
-                          >
+                          <button className="nn-btn nn-btn--primary"
+                            onClick={() => handleJoinClan(clanIdStr, clan.name)} disabled={isJoining || clan.memberCount >= clan.maxMembers} >
                             {clan.memberCount >= clan.maxMembers
                               ? 'Full'
                               : 'Join Clan'}
-                          </Button>
+                          </button>
                         )}
                       </div>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
@@ -459,32 +435,25 @@ export default function JoinClanModal({ isOpen, onClose, onSuccess }: JoinClanMo
 
           {/* Pagination */}
           {!isLoading && clans.length > 0 && (
-            <div className="border-t border-glass-border px-6 py-4 flex items-center justify-between flex-shrink-0">
-              <div className="text-sm text-text-secondary">
+            <div className="border-t border-[color:var(--nn-glass-border)] px-6 py-4 flex items-center justify-between flex-shrink-0">
+              <div className="text-sm nn-text-secondary">
                 Page {currentPage} of {totalPages}
               </div>
               <div className="flex gap-2">
-                <Button
-                  onClick={() => fetchClans(currentPage - 1)}
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage === 1 || isLoading}
+                <button className="nn-btn"
+                  onClick={() => fetchClans(currentPage - 1)} disabled={currentPage === 1 || isLoading}
                 >
                   <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button
-                  onClick={() => fetchClans(currentPage + 1)}
-                  variant="secondary"
-                  size="sm"
-                  disabled={currentPage === totalPages || isLoading}
+                </button>
+                <button className="nn-btn"
+                  onClick={() => fetchClans(currentPage + 1)} disabled={currentPage === totalPages || isLoading}
                 >
                   <ChevronRight className="w-4 h-4" />
-                </Button>
+                </button>
               </div>
             </div>
           )}
-        </motion.div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }

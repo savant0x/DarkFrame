@@ -6,7 +6,6 @@
  * OVERVIEW: Shows wins, losses, draws, win rate, and recent battles. Integrates with useBattleStats hook and StatsPanel.
  */
 import React from 'react';
-import type { BattleRecord } from '@/lib';
 import { useBattleStats } from '@/hooks/useBattleStats';
 
 export const BattleStatsPanel: React.FC<{ username: string }> = ({ username }) => {
@@ -23,7 +22,7 @@ export const BattleStatsPanel: React.FC<{ username: string }> = ({ username }) =
       <div className="mb-4">Total Battles: {stats.totalBattles}</div>
       <h3 className="text-lg font-semibold mb-2">Recent Battles</h3>
       <ul className="space-y-1">
-        {recent.map((battle: BattleRecord, i: number) => (
+        {recent.map((battle, i) => (
           <li key={i} className="text-sm">
             {battle.attacker} vs {battle.defender} - Winner: {battle.winner || 'Draw'}
           </li>

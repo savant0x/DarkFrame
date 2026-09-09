@@ -1,19 +1,13 @@
 /**
  * @file app/wmd/page.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: gated nn-spin loader, token void shell)
  * @overview WMD System Main Page
- * 
+ *
  * OVERVIEW:
  * Main route for the Weapons of Mass Destruction system.
  * Protected by authentication middleware.
- * 
- * Features:
- * - Full-screen WMD Hub interface
- * - Authentication requirement
- * - Error boundary protection
- * - Loading states
- * - Metadata for SEO
- * 
+ *
  * Dependencies: /components/WMDHub, authentication
  */
 
@@ -36,22 +30,26 @@ export default function WMDPage() {
       return;
     }
 
-    // Check minimum level requirement (optional - adjust as needed)
-    // if (player.level < 10) {
-    //   alert('You must be level 10 or higher to access WMD systems');
-    //   router.push('/game');
-    //   return;
-    // }
-
     setLoading(false);
   }, [player, router]);
 
   if (loading) {
     return (
-      <div className="nn-panel flex h-full items-center justify-center overflow-hidden p-8">
+      <div className="flex h-full items-center justify-center p-8" style={{ background: 'var(--nn-void)' }}>
         <div className="text-center">
-          <div className="animate-spin mx-auto mb-4 h-14 w-14 rounded-none border-2 border-t-0 border-[color-mix(in_oklab,var(--nn-magenta)_45%,transparent)]"></div>
-          <p className="nn-lab">Loading WMD Systems...</p>
+          <span
+            className="nn-spin mx-auto mb-4"
+            style={{
+              width: 28,
+              height: 28,
+              border: '2px solid color-mix(in oklab, var(--nn-magenta) 40%, transparent)',
+              borderBottomColor: 'transparent',
+              animation: 'nn-spin 0.9s linear infinite',
+              display: 'inline-block',
+            }}
+            aria-hidden
+          />
+          <p className="nn-lab">Loading WMD Systems…</p>
         </div>
       </div>
     );

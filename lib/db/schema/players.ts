@@ -1,5 +1,5 @@
 import { pgTable, varchar, integer, smallint, timestamp, numeric, jsonb, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
-import type { InventoryItem, TutorialInventoryItem, ShrineBoost, PlayerUnit, BalanceEffects, BotConfig, ResearchPointHistory, Discovery, AchievementRecord, PlayerStats } from '@/types/game.types';
+import type { InventoryItem, TutorialInventoryItem, Unit, ShrineBoost, PlayerUnit, BalanceEffects, BotConfig, ResearchPointHistory, Discovery, AchievementRecord, PlayerStats } from '@/types/game.types';
 import type { PlayerBounties } from '@/lib/bountyBoardService';
 import type { Specialization } from '@/lib/specializationService';
 
@@ -18,7 +18,10 @@ export const players = pgTable('players', {
 	bankEnergy: integer('bank_energy', ).notNull().default(0),
 	bankLastDeposit: timestamp('bank_last_deposit'),
 	rank: integer('rank').default(1),
-	inventoryItems: jsonb('inventory_items').notNull().$type<Array<InventoryItem | TutorialInventoryItem>>().default([]),
+	// Physical reality: holds harvested/found InventoryItem, tutorial-granted
+	// TutorialInventoryItem, and (Mongo-era) full Unit objects from produceUnit.
+	// Narrow with `isUnitEntry`-style checks ('producedAt' in item) when reading.
+	inventoryItems: jsonb('inventory_items').notNull().$type<Array<InventoryItem | TutorialInventoryItem | Unit>>().default([]),
 	inventoryCapacity: integer('inventory_capacity').notNull().default(2000),
 	inventoryMetalDiggerCount: integer('inventory_metal_digger_count').notNull().default(0),
 	inventoryEnergyDiggerCount: integer('inventory_energy_digger_count').notNull().default(0),

@@ -47,7 +47,7 @@ type ServerEventHandler<E extends ServerEventNames> = ServerToClientEvents[E] ex
   ? (...args: P) => void
   : never;
 
-type _ClientEventData<E extends ClientEventNames> = ClientToServerEvents[E] extends (data: infer D, ...args: any[]) => void
+type _ClientEventData<E extends ClientEventNames> = ClientToServerEvents[E] extends (data: infer D, ...args: unknown[]) => void
   ? D
   : never;
 

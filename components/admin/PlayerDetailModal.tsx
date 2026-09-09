@@ -17,6 +17,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { formatDateTime } from '@/utils/formatting';
 import { showSuccess, showError } from '@/lib/toastService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
@@ -309,7 +310,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="text-center py-12">
-              <div className="mx-auto mb-3 h-10 w-10 animate-spin border border-[color-mix(in_oklab,var(--nn-violet)_40%,transparent)] border-t-[color:var(--nn-violet)]"></div>
+              <Loader2 className="nn-spin-icon w-10 h-10 text-[color:var(--nn-violet)] mx-auto mb-3" aria-label="Loading player details" />
               <p className="text-[color:var(--nn-text-secondary)]">Loading player data...</p>
             </div>
           ) : error ? (

@@ -17,6 +17,7 @@
 'use client';
 
 
+import { Loader2 } from 'lucide-react';
 
 interface BotStats {
   total: number;
@@ -59,8 +60,16 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
     }
   ];
 
-  // Custom tooltip
-  const _CustomTooltip = ({ active, payload }: any) => {
+  // Custom tooltip — chart render is currently disabled; typed for when it returns
+  interface TooltipEntry {
+    name?: string;
+    color?: string;
+    value?: number;
+    payload: {
+      Total: number;
+    };
+  }
+  const _CustomTooltip = ({ active, payload }: { active?: boolean; payload?: TooltipEntry[] }) => {
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0].payload;
@@ -71,10 +80,10 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
           Current Bot Population
         </p>
         <div className="space-y-1">
-          {payload.map((entry: any) => (
+          {payload.map((entry: { name?: string; color?: string; value?: number }) => (
             <div key={entry.name} className="flex items-center gap-2">
               <div 
-                className="w-3 h-3 rounded-full" 
+                className="w-3 h-3 " 
                 style={{ backgroundColor: entry.color }}
               />
               <span className="text-[color:var(--nn-text-secondary)] text-sm">{entry.name}:</span>
@@ -95,7 +104,7 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
     return (
       <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-3"></div>
+          <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-violet)] mx-auto mb-3" aria-label="Loading bot population trends" />
           <p className="text-[color:var(--nn-text-secondary)]">Loading bot data...</p>
         </div>
       </div>
@@ -136,7 +145,7 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
         {Object.entries(currentStats.bySpecialization).map(([spec, count]) => (
           <div key={spec} className="text-center p-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none">
             <div 
-              className="w-2 h-2 rounded-full mx-auto mb-1"
+              className="w-2 h-2 mx-auto mb-1"
               style={{ backgroundColor: SPEC_COLORS[spec as keyof typeof SPEC_COLORS] }}
             />
             <div className="text-xs text-[color:var(--nn-text-secondary)]">{spec}</div>
@@ -156,23 +165,23 @@ export default function BotPopulationTrends({ currentStats, loading, error }: Bo
       {/* Specialization legend */}
       <div className="mt-3 flex flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Hoarder: Resource focus</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Fortress: Defense focus</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Raider: Attack focus</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Balanced: Mixed strategy</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Ghost: Stealth focus</span>
         </div>
       </div>

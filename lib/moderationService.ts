@@ -834,14 +834,14 @@ async function logAction(
     messageId?: string;
     word?: string;
     reason: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
   }
 ): Promise<void> {
   try {
     await db.insert(modLog).values({
       id: `ml-${Date.now()}`,
       moderatorId: action.moderatorId,
-      action: action.actionType as any,
+      action: action.actionType,
       targetId: action.targetUserId || '',
       reason: action.reason,
       details: action.metadata ? JSON.stringify(action.metadata) : null,
@@ -859,19 +859,18 @@ export async function getModerationHistory(filters?: {
   limit?: number;
 }): Promise<ModActionLogEntry[]> {
   try {
-    let query: any = db.select().from(modLog);
+    const condition = filters?.moderatorId
+      ? eq(modLog.moderatorId, filters.moderatorId)
+      : filters?.targetUserId
+        ? eq(modLog.targetId, filters.targetUserId)
+        : undefined;
 
-    if (filters?.moderatorId) {
-      query = query.where(eq(modLog.moderatorId, filters.moderatorId));
-    } else if (filters?.targetUserId) {
-      query = query.where(eq(modLog.targetId, filters.targetUserId));
-    }
-
-    const logs = await query
+    const logs = await db.select().from(modLog)
+      .where(condition)
       .orderBy(desc(modLog.createdAt))
       .limit(filters?.limit || 100);
 
-    return logs.map((l: any) => ({
+    return logs.map((l) => ({
       id: l.id,
       moderatorId: l.moderatorId,
       action: l.action,

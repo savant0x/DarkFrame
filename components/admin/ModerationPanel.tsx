@@ -41,10 +41,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Panel } from '@/components/ui/Panel';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
 import { ChannelType } from '@/lib/channelService';
 import {
   Shield,
@@ -522,7 +518,7 @@ export default function ModerationPanel() {
    */
   if (!isAdmin) {
     return (
-      <Panel className="max-w-2xl mx-auto mt-8">
+      <div className="nn-panel"><div className="nn-panel__body">
         <div className="text-center py-12">
           <Shield className="w-16 h-16 text-[color:var(--nn-magenta)] mx-auto mb-4" />
           <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-2">Access Denied</h2>
@@ -530,7 +526,7 @@ export default function ModerationPanel() {
             You do not have permission to access the moderation panel.
           </p>
         </div>
-      </Panel>
+      </div></div>
     );
   }
 
@@ -539,12 +535,12 @@ export default function ModerationPanel() {
    */
   if (isLoading) {
     return (
-      <Panel className="max-w-6xl mx-auto mt-8">
+      <div className="nn-panel"><div className="nn-panel__body">
         <div className="text-center py-12">
-          <RefreshCw className="w-16 h-16 text-[color:var(--nn-cyan)] mx-auto mb-4 animate-spin" />
+          <RefreshCw className="w-16 h-16 text-[color:var(--nn-cyan)] mx-auto mb-4 nn-spin-icon" />
           <p className="text-[color:var(--nn-text-secondary)]">Loading moderation data...</p>
         </div>
-      </Panel>
+      </div></div>
     );
   }
 
@@ -553,21 +549,17 @@ export default function ModerationPanel() {
   // ============================================================================
 
   return (
-    <Panel className="max-w-6xl mx-auto mt-8">
+    <div className="nn-panel"><div className="nn-panel__body">
       {/* HEADER */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Shield className="w-6 h-6 text-[color:var(--nn-cyan)]" />
           <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)]">Moderation Dashboard</h2>
         </div>
-        <Button
-          onClick={loadModerationData}
-          variant="secondary"
-          className="flex items-center gap-2"
-        >
+        <button onClick={loadModerationData} className="nn-btn nn-btn--ghost flex items-center gap-2">
           <RefreshCw className="w-4 h-4" />
           Refresh
-        </Button>
+        </button>
       </div>
 
       {/* TABS */}
@@ -579,7 +571,7 @@ export default function ModerationPanel() {
             className={`px-4 py-2 rounded-none font-medium text-sm transition-colors whitespace-nowrap ${
               activeTab === tab
                 ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'
+                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)]'
             }`}
           >
             {tab === 'mutes' && `Mutes (${mutedUsers.length})`}
@@ -596,12 +588,7 @@ export default function ModerationPanel() {
         <div className="flex-1 min-w-[200px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--nn-text-secondary)]" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users or words..."
-              className="pl-10"
-            />
+            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search users or words..." className="nn-input pl-10" />
           </div>
         </div>
 
@@ -651,9 +638,9 @@ export default function ModerationPanel() {
                 <span className="text-[color:var(--nn-cyan)] text-sm">
                   {selectedMutes.size} user(s) selected
                 </span>
-                <Button onClick={handleBulkUnmute} variant="primary" size="sm">
+                <button onClick={handleBulkUnmute} className="nn-btn nn-btn--primary">
                   Unmute Selected
-                </Button>
+                </button>
               </div>
             )}
 
@@ -695,9 +682,9 @@ export default function ModerationPanel() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[color:var(--nn-text-primary)] font-medium">{mute.username}</span>
-                          <Badge variant="error" size="sm">
+                          <span className="nn-chip nn-chip--magenta">
                             {mute.channelId}
-                          </Badge>
+                          </span>
                         </div>
                         <p className="text-[color:var(--nn-text-secondary)] text-sm">
                           Reason: {mute.reason}
@@ -717,14 +704,9 @@ export default function ModerationPanel() {
                     </div>
 
                     {/* Actions */}
-                    <Button
-                      onClick={() => handleUnmute(mute.userId, mute.channelId)}
-                      variant="success"
-                      size="sm"
-                      className="ml-4"
-                    >
+                    <button onClick={() => handleUnmute(mute.userId, mute.channelId)} className="nn-btn nn-btn--green ml-4">
                       Unmute
-                    </Button>
+                    </button>
                   </div>
                 );
               })
@@ -741,9 +723,9 @@ export default function ModerationPanel() {
                 <span className="text-[color:var(--nn-cyan)] text-sm">
                   {selectedBans.size} user(s) selected
                 </span>
-                <Button onClick={handleBulkUnban} variant="primary" size="sm">
+                <button onClick={handleBulkUnban} className="nn-btn nn-btn--primary">
                   Unban Selected
-                </Button>
+                </button>
               </div>
             )}
 
@@ -785,13 +767,13 @@ export default function ModerationPanel() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[color:var(--nn-text-primary)] font-medium">{ban.username}</span>
-                          <Badge variant="error" size="sm">
+                          <span className="nn-chip nn-chip--magenta">
                             {ban.channelId}
-                          </Badge>
+                          </span>
                           {!ban.expiresAt && (
-                            <Badge variant="warning" size="sm">
+                            <span className="nn-chip nn-chip--amber">
                               Permanent
-                            </Badge>
+                            </span>
                           )}
                         </div>
                         <p className="text-[color:var(--nn-text-secondary)] text-sm">
@@ -814,14 +796,9 @@ export default function ModerationPanel() {
                     </div>
 
                     {/* Actions */}
-                    <Button
-                      onClick={() => handleUnban(ban.userId, ban.channelId)}
-                      variant="success"
-                      size="sm"
-                      className="ml-4"
-                    >
+                    <button onClick={() => handleUnban(ban.userId, ban.channelId)} className="nn-btn nn-btn--green ml-4">
                       Unban
-                    </Button>
+                    </button>
                   </div>
                 );
               })
@@ -839,15 +816,9 @@ export default function ModerationPanel() {
                 Add Blacklisted Word
               </h3>
               <div className="flex gap-3">
-                <Input
-                  value={newWord}
-                  onChange={(e) => setNewWord(e.target.value)}
-                  placeholder="Enter word to blacklist..."
-                  className="flex-1"
-                  onKeyPress={(e) => {
+                <input value={newWord} onChange={(e) => setNewWord(e.target.value)} placeholder="Enter word to blacklist..." onKeyPress={(e) => {
                     if (e.key === 'Enter') handleAddBlacklistWord();
-                  }}
-                />
+                  }} className="nn-input flex-1" />
                 <select
                   value={newWordSeverity}
                   onChange={(e) => setNewWordSeverity(e.target.value as 'low' | 'medium' | 'high')}
@@ -857,9 +828,9 @@ export default function ModerationPanel() {
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
-                <Button onClick={handleAddBlacklistWord} variant="primary">
+                <button onClick={handleAddBlacklistWord} className="nn-btn nn-btn--primary">
                   Add
-                </Button>
+                </button>
               </div>
             </div>
 
@@ -878,17 +849,13 @@ export default function ModerationPanel() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-[color:var(--nn-text-primary)] font-medium">{word.word}</span>
-                        <Badge
-                          variant={
-                            word.severity === 'high' ? 'error' :
-                            word.severity === 'medium' ? 'warning' :
-                            'info'
-                          }
-                          size="sm"
-                        >
+                        <span className={`nn-chip ${
+                          word.severity === 'high' ? 'nn-chip--magenta' :
+                          word.severity === 'medium' ? 'nn-chip--amber' :
+                          'nn-chip--cyan'
+                        }`}>
                           {word.severity}
-                        </Badge>
-                      </div>
+                        </span>                      </div>
                       <p className="text-[color:var(--nn-text-secondary)] text-xs">
                         Added by {word.addedBy} • {formatTimeAgo(word.addedAt)}
                       </p>
@@ -923,12 +890,19 @@ export default function ModerationPanel() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <Badge variant={getActionBadgeVariant(log.action)} size="sm">
+                        <span className={`nn-chip ${
+                          getActionBadgeVariant(log.action) === 'error' ? 'nn-chip--magenta' :
+                          getActionBadgeVariant(log.action) === 'success' ? 'nn-chip--green' :
+                          getActionBadgeVariant(log.action) === 'warning' ? 'nn-chip--amber' :
+                          getActionBadgeVariant(log.action) === 'info' ? 'nn-chip--cyan' :
+                          getActionBadgeVariant(log.action) === 'primary' ? 'nn-chip--amber' :
+                          'nn-chip'
+                        }`}>
                           {log.action}
-                        </Badge>
-                        <Badge variant="info" size="sm">
+                        </span>
+                        <span className="nn-chip nn-chip--cyan">
                           {log.channelId}
-                        </Badge>
+                        </span>
                         <span className="text-[color:var(--nn-text-secondary)] text-xs">
                           {formatTimeAgo(log.timestamp)}
                         </span>
@@ -949,7 +923,7 @@ export default function ModerationPanel() {
           </>
         )}
       </div>
-    </Panel>
+    </div></div>
   );
 }
 

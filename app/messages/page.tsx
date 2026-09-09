@@ -35,6 +35,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { MessageInbox, MessageThread } from '@/components/messaging';
 import { useGameContext } from '@/context/GameContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -45,6 +46,19 @@ import type {
   MessagingTypingPayload,
   MessagingReadReceiptPayload,
 } from '@/types/websocket';
+
+/**
+ * FID-20260908-015: narrow the wire payload to the client Conversation contract.
+ * The only structural difference is participants: the payload ships string[], the
+ * client type is the game's fixed [string, string] tuple — length-2 arrays satisfy
+ * the tuple, anything else fails loudly instead of corrupting the inbox state.
+ */
+function toConversation(payload: MessagingConversationPayload): Conversation {
+  return {
+    ...payload,
+    participants: [payload.participants[0], payload.participants[1]],
+  };
+}
 
 /**
  * Page state interface
@@ -199,10 +213,10 @@ export default function MessagesPage() {
 
       if (convIndex !== -1) {
         // Update existing conversation
-        conversations[convIndex] = payload as any;
+        conversations[convIndex] = toConversation(payload);
       } else {
         // New conversation - add to top
-        conversations.unshift(payload as any);
+        conversations.unshift(toConversation(payload));
       }
 
       // Recalculate total unread
@@ -352,10 +366,16 @@ export default function MessagesPage() {
 
   if (playerLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-space via-bg-nebula to-bg-space flex items-center justify-center">
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: 'var(--nn-void)' }}
+      >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading player data...</p>
+          <Loader2
+            className="nn-spin-icon w-10 h-10 text-[color:var(--nn-cyan)] mx-auto mb-4"
+            aria-label="Loading player data"
+          />
+          <p className="nn-text-secondary">Loading player data...</p>
         </div>
       </div>
     );
@@ -370,15 +390,18 @@ export default function MessagesPage() {
   // ============================================================================
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-bg-space via-bg-nebula to-bg-space">
+    <div
+      className="min-h-screen text-[color:var(--nn-text-primary)]"
+      style={{ background: 'var(--nn-void)' }}
+    >
       {/* Header */}
-      <div className="bg-glass-light border-b border-glass-border backdrop-blur-sm sticky top-0 z-10">
+      <div className="nn-surface border-b border-[color:var(--nn-glass-border)] sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {/* Title */}
             <div>
               <h1 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Messages</h1>
-              <p className="text-sm text-text-secondary mt-1">
+              <p className="nn-text-secondary mt-1">
                 Private conversations and real-time chat
               </p>
             </div>
@@ -387,26 +410,26 @@ export default function MessagesPage() {
             <div className="flex items-center gap-3">
               {/* Unread Counter */}
               {state.totalUnreadCount > 0 && (
-                <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                <div className="nn-chip nn-chip--magenta px-3 py-1.5 font-bold">
                   {state.totalUnreadCount > 99 ? '99+' : state.totalUnreadCount} unread
                 </div>
               )}
               
               {/* Connection Status */}
-              <div className="flex items-center gap-2 bg-glass-light px-3 py-1.5 rounded-full">
+              <div className="flex items-center gap-2 nn-surface px-3 py-1.5">
                 <div
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-2 h-2 ${
                     state.connectionStatus === 'connected'
-                      ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]'
+                      ? 'bg-[color:var(--nn-green)]'
                       : state.connectionStatus === 'connecting'
-                      ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] animate-pulse'
+                      ? 'bg-[color:var(--nn-amber)] nn-pulse'
                       : state.connectionStatus === 'error'
-                      ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
-                      : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
+                      ? 'bg-[color:var(--nn-magenta)]'
+                      : 'bg-[color:var(--nn-magenta)]'
                   }`}
                   title={`Connection: ${state.connectionStatus}`}
                 />
-                <span className="text-xs text-text-primary capitalize">
+                <span className="nn-text-primary text-xs capitalize">
                   {state.connectionStatus}
                 </span>
                 
@@ -414,7 +437,7 @@ export default function MessagesPage() {
                 {state.connectionStatus === 'disconnected' && (
                   <button
                     onClick={reconnect}
-                    className="ml-2 text-xs text-[color:var(--nn-cyan)] underline"
+                    className="nn-link ml-2 text-xs"
                   >
                     Reconnect
                   </button>
@@ -427,12 +450,12 @@ export default function MessagesPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="bg-glass-light border border-glass-border rounded-none overflow-hidden backdrop-blur-sm">
+        <div className="nn-surface overflow-hidden">
           {/* Desktop: Split Pane Layout */}
           {!state.isMobileView && (
             <div className="flex h-[calc(100vh-200px)]">
               {/* Inbox Pane */}
-              <div className="w-1/3 border-r border-glass-border overflow-hidden">
+              <div className="w-1/3 border-r border-[color:var(--nn-glass-border)] overflow-hidden">
                 <MessageInbox
                   playerId={currentPlayerId}
                   onConversationSelect={handleConversationSelect}
@@ -455,10 +478,10 @@ export default function MessagesPage() {
                   <div className="flex items-center justify-center h-full">
                     <div className="text-center">
                       <div className="text-6xl mb-4">💬</div>
-                      <h3 className="text-xl font-semibold text-text-primary mb-2">
+                      <h3 className="nn-num text-xl font-semibold nn-text-cyan mb-2">
                         Select a Conversation
                       </h3>
-                      <p className="text-text-secondary">
+                      <p className="nn-text-secondary">
                         Choose a conversation from the left to start messaging
                       </p>
                     </div>
@@ -481,10 +504,10 @@ export default function MessagesPage() {
               ) : (
                 <div className="h-full flex flex-col">
                   {/* Back Button */}
-                  <div className="bg-glass-light p-3 border-b border-glass-border flex-shrink-0">
+                  <div className="nn-surface p-3 border-b border-[color:var(--nn-glass-border)] flex-shrink-0">
                     <button
                       onClick={handleBackToInbox}
-                      className="flex items-center gap-2 text-text-primary hover:text-[color:var(--nn-text-primary)] transition-colors"
+                      className="nn-btn nn-btn--ghost"
                     >
                       <span className="text-lg">←</span>
                       <span className="font-medium">Back to Conversations</span>
@@ -512,16 +535,16 @@ export default function MessagesPage() {
 
       {/* Connection Lost Warning (Fixed Position) */}
       {state.connectionStatus === 'disconnected' && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-3 rounded-none shadow-2xl z-50 animate-pulse">
+        <div className="nn-brief nn-brief--magenta fixed bottom-4 left-1/2 transform -translate-x-1/2 px-6 py-3 shadow-2xl z-50">
           <div className="flex items-center gap-3">
             <span className="text-xl">⚠️</span>
             <div>
-              <p className="font-bold">Connection Lost</p>
-              <p className="text-sm opacity-90">Attempting to reconnect...</p>
+              <p className="font-bold nn-text-magenta">Connection Lost</p>
+              <p className="nn-footnote">Attempting to reconnect...</p>
             </div>
             <button
               onClick={reconnect}
-              className="ml-4 px-3 py-1 bg-[color:var(--nn-text-primary)] text-[color:var(--nn-magenta)] rounded-none font-medium hover:bg-bg-nebula transition-colors"
+              className="nn-btn nn-btn--danger ml-4 px-3 py-1"
             >
               Retry Now
             </button>

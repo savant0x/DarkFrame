@@ -17,6 +17,7 @@
 'use client';
 
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Loader2 } from 'lucide-react';
 import { formatNumberAbbreviated } from '@/utils/formatting';
 
 interface ResourceGainsProps {
@@ -43,8 +44,17 @@ export default function ResourceGains({ data, period, loading, error }: Resource
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
+  // Custom tooltip — recharts hands each entry the chart datum via `payload`
+  interface TooltipEntry {
+    payload: {
+      timestamp: number;
+      metal: number;
+      energy: number;
+      total: number;
+      sessions: number;
+    };
+  }
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: TooltipEntry[] }) => {
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0].payload;
@@ -60,12 +70,12 @@ export default function ResourceGains({ data, period, loading, error }: Resource
         </p>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
+            <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
             <span className="text-[color:var(--nn-text-secondary)] text-sm">Metal:</span>
             <span className="text-[color:var(--nn-text-primary)] font-semibold">{formatNumberAbbreviated(data.metal)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+            <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
             <span className="text-[color:var(--nn-text-secondary)] text-sm">Energy:</span>
             <span className="text-[color:var(--nn-text-primary)] font-semibold">{formatNumberAbbreviated(data.energy)}</span>
           </div>
@@ -87,7 +97,7 @@ export default function ResourceGains({ data, period, loading, error }: Resource
     return (
       <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] mx-auto mb-3"></div>
+          <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-amber)] mx-auto mb-3" aria-label="Loading resource gains" />
           <p className="text-[color:var(--nn-text-secondary)]">Loading resource data...</p>
         </div>
       </div>

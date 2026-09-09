@@ -6,7 +6,19 @@ export async function getTestDb() {
   return db;
 }
 
-export function createMockUser(overrides?: Partial<any>) {
+/** Minimal structural shape of the mock user; callers may override any field. */
+interface MockUser {
+  username: string;
+  email: string;
+  password: string;
+  position: { x: number; y: number };
+  resources: { metal: number; energy: number; rp: number };
+  stats: { level: number; experience: number; health: number; maxHealth: number };
+  createdAt: Date;
+  lastActive: Date;
+}
+
+export function createMockUser(overrides?: Partial<MockUser>) {
   return {
     username: 'testuser',
     email: 'test@example.com',
@@ -29,7 +41,17 @@ export function createMockUser(overrides?: Partial<any>) {
   };
 }
 
-export function createMockBattleResult(overrides?: Partial<any>) {
+/** Minimal structural shape of the mock battle result; callers may override any field. */
+interface MockBattleResult {
+  attackerId: string;
+  defenderId: string;
+  winner: string;
+  attackerDamage: number;
+  defenderDamage: number;
+  resourcesStolen: { metal: number; energy: number };
+}
+
+export function createMockBattleResult(overrides?: Partial<MockBattleResult>) {
   return {
     attackerId: 'attacker123',
     defenderId: 'defender456',

@@ -35,8 +35,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Input, Badge, Divider } from '@/components/ui';
-import { StaggerChildren, StaggerItem } from '@/components/transitions';
 import { 
   Trophy, 
   TrendingUp, 
@@ -141,14 +139,14 @@ export default function ClanLeaderboardView() {
   };
 
   return (
-    <div className="bg-gradient-to-b from-gray-950 via-gray-900 to-black rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
+    <div        className="bg-[color:var(--nn-void)] rounded-none shadow-[0_0_40px_color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] h-full overflow-hidden flex flex-col">
       {/* Header Section */}
       <div className="bg-[color:var(--nn-void)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-6 flex-shrink-0">
         {/* Title */}
         <div className="flex items-center gap-3 mb-6">
           <Trophy className="w-10 h-10 text-[color:var(--nn-amber)]" />
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] bg-clip-text text-transparent">
+            <h1 className="text-4xl font-bold text-[color:var(--nn-text-primary)]" style={{ fontFamily: 'var(--nn-font-display)' }}>
               Clan Leaderboards
             </h1>
             <p className="text-[color:var(--nn-text-secondary)] text-lg">
@@ -209,23 +207,18 @@ export default function ClanLeaderboardView() {
         <div className="mb-4">
           <div className="relative max-w-md mx-auto">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[color:var(--nn-text-secondary)]" />
-            <Input
-              placeholder="Search clan by name..."
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="pl-12 text-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-primary)]"
-            />
+            <input placeholder="Search clan by name..." value={searchQuery} onChange={(e) => handleSearch(e.target.value)} className="nn-input pl-12 text-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-primary)]" />
           </div>
         </div>
 
-        <Divider />
+        <div className="nn-divider" />
       </div>
 
       {/* Leaderboard Content - Scrollable */}
       <div className="flex-1 overflow-y-auto p-6">
         {isLoading ? (
           <div className="text-center py-20">
-            <Loader2 className="w-16 h-16 mx-auto mb-4 text-[color:var(--nn-cyan)] animate-spin" />
+            <Loader2 className="nn-spin-icon w-16 h-16 mx-auto mb-4 text-[color:var(--nn-cyan)]" />
             <p className="text-[color:var(--nn-text-secondary)] text-lg">Loading leaderboard...</p>
           </div>
         ) : leaderboard.length === 0 ? (
@@ -239,17 +232,17 @@ export default function ClanLeaderboardView() {
             </p>
           </div>
         ) : (
-          <StaggerChildren className="space-y-3">
+          <div className="space-y-3">
             {leaderboard.map((entry) => (
-              <StaggerItem key={entry.clan._id?.toString()}>
+              <div key={entry.clan._id?.toString()}>
                 <LeaderboardCard
                   entry={entry}
                   category={category}
                   onView={() => handleViewClan(entry.clan._id!.toString())}
                 />
-              </StaggerItem>
+              </div>
             ))}
-          </StaggerChildren>
+          </div>
         )}
       </div>
 
@@ -257,15 +250,10 @@ export default function ClanLeaderboardView() {
       <div className="bg-[color:var(--nn-void)] border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-4 flex-shrink-0">
         {totalPages > 1 && (
           <div className="mb-4 flex items-center justify-center gap-4">
-            <Button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1 || isLoading}
-              variant="ghost"
-              className="gap-2"
-            >
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1 || isLoading} className="nn-btn nn-btn--ghost gap-2">
               <ChevronLeft className="w-4 h-4" />
               Previous
-            </Button>
+            </button>
 
             <div className="flex items-center gap-2">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -281,28 +269,17 @@ export default function ClanLeaderboardView() {
                 }
 
                 return (
-                  <Button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    variant={currentPage === pageNum ? 'primary' : 'ghost'}
-                    className="w-10 h-10 p-0"
-                    disabled={isLoading}
-                  >
+                  <button key={pageNum} onClick={() => setCurrentPage(pageNum)} disabled={isLoading} className={`nn-btn w-10 h-10 p-0 ${currentPage === pageNum ? 'nn-btn--primary' : 'nn-btn--ghost'}`}>
                     {pageNum}
-                  </Button>
+                  </button>
                 );
               })}
             </div>
 
-            <Button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages || isLoading}
-              variant="ghost"
-              className="gap-2"
-            >
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || isLoading} className="nn-btn nn-btn--ghost gap-2">
               Next
               <ChevronRight className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         )}
 
@@ -333,8 +310,8 @@ function CategoryButton({ icon, label, active, onClick }: CategoryButtonProps) {
       className={`
         flex items-center justify-center gap-2 px-4 py-3 rounded-none border transition-all
         ${active 
-          ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)] shadow-lg shadow-cyan-500/20' 
-          : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]'
+          ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)] shadow-[0_0_14px_color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' 
+          : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-secondary)]'
         }
       `}
     >
@@ -410,18 +387,18 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     
     if (change > 0) {
       return (
-        <Badge variant="success" className="text-xs gap-1">
+        <span className="nn-chip nn-chip--green text-xs gap-1">
           <TrendingUp className="w-3 h-3" />
           +{change}
-        </Badge>
+        </span>
       );
     }
     
     return (
-      <Badge variant="error" className="text-xs gap-1">
+      <span className="nn-chip nn-chip--magenta text-xs gap-1">
         <TrendingUp className="w-3 h-3 rotate-180" />
         {change}
-      </Badge>
+      </span>
     );
   };
 
@@ -457,7 +434,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
             </h3>
             {getRankChange()}
             {clan.settings?.requiresApproval && (
-              <Badge variant="default" className="text-xs">Private</Badge>
+              <span className="nn-chip text-xs">Private</span>
             )}
           </div>
 
@@ -480,15 +457,10 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
 
         {/* Actions */}
         <div>
-          <Button
-            onClick={onView}
-            variant="ghost"
-            size="sm"
-            className="gap-2"
-          >
+          <button onClick={onView} className="nn-btn nn-btn--ghost gap-2">
             <Eye className="w-4 h-4" />
             View
-          </Button>
+          </button>
         </div>
       </div>
     </div>

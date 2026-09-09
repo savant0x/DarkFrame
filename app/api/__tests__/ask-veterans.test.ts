@@ -18,6 +18,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/chat/ask-veterans/route';
+import type { AuthResult, PlayerRow } from '@/lib/authMiddleware';
+
+/** Auth fixture builder — sparse player views are contract-checked via the Partial cast. */
+function authFixture(username: string, playerId: string, player: Partial<PlayerRow>): AuthResult {
+  return { username, playerId, isAdmin: false, player: player as PlayerRow };
+}
 
 // Mock dependencies
 vi.mock('@/lib/mongodb', () => ({
@@ -73,14 +79,9 @@ describe('POST /api/chat/ask-veterans', () => {
   it('should return 403 if player level > 10', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
 
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      username: 'highLevelPlayer',
-      playerId: 'player_high',
-      isAdmin: false,
-      player: {
-        level: 25,
-      },
-    } as any);
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      authFixture('highLevelPlayer', 'player_high', { level: 25 })
+    );
 
     const request = new NextRequest('http://localhost:3000/api/chat/ask-veterans', {
       method: 'POST',
@@ -97,14 +98,9 @@ describe('POST /api/chat/ask-veterans', () => {
   it('should return 429 if rate limited', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
 
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      username: 'newbiePlayer',
-      playerId: 'player_newbie',
-      isAdmin: false,
-      player: {
-        level: 5,
-      },
-    } as any);
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      authFixture('newbiePlayer', 'player_newbie', { level: 5 })
+    );
 
     mockCheck.mockResolvedValueOnce(false);
     mockGetRemainingTime.mockResolvedValueOnce(180);
@@ -125,14 +121,9 @@ describe('POST /api/chat/ask-veterans', () => {
   it('should return 400 if question is too short', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
 
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      username: 'newbiePlayer',
-      playerId: 'player_newbie',
-      isAdmin: false,
-      player: {
-        level: 3,
-      },
-    } as any);
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      authFixture('newbiePlayer', 'player_newbie', { level: 3 })
+    );
 
     const request = new NextRequest('http://localhost:3000/api/chat/ask-veterans', {
       method: 'POST',
@@ -149,14 +140,9 @@ describe('POST /api/chat/ask-veterans', () => {
   it('should return 400 if question is too long', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
 
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      username: 'newbiePlayer',
-      playerId: 'player_newbie',
-      isAdmin: false,
-      player: {
-        level: 3,
-      },
-    } as any);
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      authFixture('newbiePlayer', 'player_newbie', { level: 3 })
+    );
 
     const longQuestion = 'a'.repeat(201); // 201 characters
 
@@ -175,14 +161,9 @@ describe('POST /api/chat/ask-veterans', () => {
   it('should successfully send veteran help request', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
 
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      username: 'newbiePlayer',
-      playerId: 'player_newbie',
-      isAdmin: false,
-      player: {
-        level: 5,
-      },
-    } as any);
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      authFixture('newbiePlayer', 'player_newbie', { level: 5 })
+    );
 
     mockCheck.mockResolvedValueOnce(true);
     mockGetRemainingTime.mockResolvedValueOnce(0);
@@ -207,14 +188,9 @@ describe('POST /api/chat/ask-veterans', () => {
   it('should return 400 for invalid category', async () => {
     const { requireAuth } = await import('@/lib/authMiddleware');
 
-    vi.mocked(requireAuth).mockResolvedValueOnce({
-      username: 'newbiePlayer',
-      playerId: 'player_newbie',
-      isAdmin: false,
-      player: {
-        level: 5,
-      },
-    } as any);
+    vi.mocked(requireAuth).mockResolvedValueOnce(
+      authFixture('newbiePlayer', 'player_newbie', { level: 5 })
+    );
 
     const request = new NextRequest('http://localhost:3000/api/chat/ask-veterans', {
       method: 'POST',

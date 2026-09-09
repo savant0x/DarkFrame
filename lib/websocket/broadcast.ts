@@ -22,8 +22,9 @@
  * - Automatic logging and error handling
  */
 
-import type { Server } from 'socket.io';
+import type { Server as SocketIOServer } from 'socket.io';
 import { WebSocketRooms } from '@/types/websocket';
+import type { ClientToServerEvents } from '@/types/websocket';
 import type {
   ServerToClientEvents,
 
@@ -70,14 +71,38 @@ import { getNearbyLocationRooms } from './rooms';
  *   estimatedDuration: 1800000
  * });
  */
+/** Socket.io server parameterized with the app's event maps (FID-20260908-021:
+ *  the raw `Server` type made typed emits impossible, forcing `payload as any`). */
+type TypedIOServer = SocketIOServer<ClientToServerEvents, ServerToClientEvents>;
+
+/**
+ * Typed emit into a room.
+ *
+ * socket.io's overloaded `emit` cannot resolve a *generic* event key's payload
+ * type (`Ev` is constrained to its decorated event maps, which erases the
+ * K→payload link), which is why every broadcast here carried `payload as any`.
+ * This helper pins the exact contract being invoked — event K with the payload
+ * `Parameters<ServerToClientEvents[K]>[0]` — in one place, so the call sites
+ * stay fully typed with no suppression.
+ */
+function emitTyped<K extends keyof ServerToClientEvents>(
+  io: TypedIOServer,
+  room: string,
+  event: K,
+  payload: Parameters<ServerToClientEvents[K]>[0]
+): void {
+  const emit = io.to(room).emit as (ev: K, payload: Parameters<ServerToClientEvents[K]>[0]) => void;
+  emit(event, payload);
+}
+
 export async function broadcastToAll<K extends keyof ServerToClientEvents>(
-  io: Server,
+  io: TypedIOServer,
   event: K,
   payload: Parameters<ServerToClientEvents[K]>[0]
 ): Promise<void> {
   try {
     const roomName = WebSocketRooms.global();
-    io.to(roomName).emit(event, payload as any);
+    emitTyped(io, roomName, event, payload);
     console.log(`[Broadcast] Global event '${event}' sent to all users`);
   } catch (error) {
     console.error(`[Broadcast] Failed to broadcast global event '${event}':`, error);
@@ -91,7 +116,7 @@ export async function broadcastToAll<K extends keyof ServerToClientEvents>(
  * @param payload - Maintenance alert data
  */
 export async function broadcastMaintenanceAlert(
-  io: Server,
+  io: TypedIOServer,
   payload: SystemMaintenanceAlertPayload
 ): Promise<void> {
   await broadcastToAll(io, 'system:maintenance_alert', payload);
@@ -120,14 +145,14 @@ export async function broadcastMaintenanceAlert(
  * });
  */
 export async function broadcastToUser<K extends keyof ServerToClientEvents>(
-  io: Server,
+  io: TypedIOServer,
   userId: string,
   event: K,
   payload: Parameters<ServerToClientEvents[K]>[0]
 ): Promise<void> {
   try {
     const roomName = WebSocketRooms.user(userId);
-    io.to(roomName).emit(event, payload as any);
+    emitTyped(io, roomName, event, payload);
     console.log(`[Broadcast] Event '${event}' sent to user ${userId}`);
   } catch (error) {
     console.error(`[Broadcast] Failed to broadcast to user ${userId}:`, error);
@@ -142,7 +167,7 @@ export async function broadcastToUser<K extends keyof ServerToClientEvents>(
  * @param payload - Notification data
  */
 export async function notifyUser(
-  io: Server,
+  io: TypedIOServer,
   userId: string,
   payload: SystemNotificationPayload
 ): Promise<void> {
@@ -157,7 +182,7 @@ export async function notifyUser(
  * @param payload - Achievement data
  */
 export async function notifyAchievement(
-  io: Server,
+  io: TypedIOServer,
   userId: string,
   payload: SystemAchievementUnlockedPayload
 ): Promise<void> {
@@ -172,7 +197,7 @@ export async function notifyAchievement(
  * @param payload - Defense alert data
  */
 export async function notifyDefenseAlert(
-  io: Server,
+  io: TypedIOServer,
   defenderId: string,
   payload: CombatDefenseAlertPayload
 ): Promise<void> {
@@ -204,14 +229,14 @@ export async function notifyDefenseAlert(
  * });
  */
 export async function broadcastToClan<K extends keyof ServerToClientEvents>(
-  io: Server,
+  io: TypedIOServer,
   clanId: string,
   event: K,
   payload: Parameters<ServerToClientEvents[K]>[0]
 ): Promise<void> {
   try {
     const roomName = WebSocketRooms.clan(clanId);
-    io.to(roomName).emit(event, payload as any);
+    emitTyped(io, roomName, event, payload);
     console.log(`[Broadcast] Event '${event}' sent to clan ${clanId}`);
   } catch (error) {
     console.error(`[Broadcast] Failed to broadcast to clan ${clanId}:`, error);
@@ -227,7 +252,7 @@ export async function broadcastToClan<K extends keyof ServerToClientEvents>(
  * @param payload - Event payload
  */
 export async function broadcastToClans<K extends keyof ServerToClientEvents>(
-  io: Server,
+  io: TypedIOServer,
   clanIds: string[],
   event: K,
   payload: Parameters<ServerToClientEvents[K]>[0]
@@ -244,7 +269,7 @@ export async function broadcastToClans<K extends keyof ServerToClientEvents>(
  * @param payload - Member joined data
  */
 export async function broadcastClanMemberJoined(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanMemberJoinedPayload
 ): Promise<void> {
   await broadcastToClan(io, payload.clanId, 'clan:member_joined', payload);
@@ -257,7 +282,7 @@ export async function broadcastClanMemberJoined(
  * @param payload - Member left data
  */
 export async function broadcastClanMemberLeft(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanMemberLeftPayload
 ): Promise<void> {
   await broadcastToClan(io, payload.clanId, 'clan:member_left', payload);
@@ -270,7 +295,7 @@ export async function broadcastClanMemberLeft(
  * @param payload - Territory update data
  */
 export async function broadcastClanTerritoryUpdate(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanTerritoryUpdatePayload
 ): Promise<void> {
   await broadcastToClan(io, payload.clanId, 'clan:territory_update', payload);
@@ -283,7 +308,7 @@ export async function broadcastClanTerritoryUpdate(
  * @param payload - War declaration data
  */
 export async function broadcastWarDeclaration(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanWarDeclaredPayload
 ): Promise<void> {
   // Send to both attacker and defender clans
@@ -302,7 +327,7 @@ export async function broadcastWarDeclaration(
  * @param payload - War ended data
  */
 export async function broadcastWarEnded(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanWarEndedPayload
 ): Promise<void> {
   await broadcastToClans(
@@ -320,7 +345,7 @@ export async function broadcastWarEnded(
  * @param payload - Treasury update data
  */
 export async function broadcastClanTreasuryUpdate(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanTreasuryUpdatePayload
 ): Promise<void> {
   await broadcastToClan(io, payload.clanId, 'clan:treasury_update', payload);
@@ -333,7 +358,7 @@ export async function broadcastClanTreasuryUpdate(
  * @param payload - Activity event data
  */
 export async function broadcastClanActivity(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanActivityPayload
 ): Promise<void> {
   await broadcastToClan(io, payload.clanId, 'clan:activity', payload);
@@ -346,7 +371,7 @@ export async function broadcastClanActivity(
  * @param payload - Leaderboard update data
  */
 export async function broadcastClanLeaderboardUpdate(
-  io: Server,
+  io: TypedIOServer,
   payload: ClanLeaderboardUpdatePayload
 ): Promise<void> {
   await broadcastToClan(io, payload.clanId, 'clan:leaderboard_update', payload);
@@ -363,7 +388,7 @@ export async function broadcastClanLeaderboardUpdate(
  * @param payload - Chat message data
  */
 export async function broadcastChatMessage(
-  io: Server,
+  io: TypedIOServer,
   payload: ChatMessagePayload
 ): Promise<void> {
   try {
@@ -382,7 +407,7 @@ export async function broadcastChatMessage(
  * @param payload - Typing indicator data
  */
 export async function broadcastTypingIndicator(
-  io: Server,
+  io: TypedIOServer,
   payload: ChatTypingPayload
 ): Promise<void> {
   try {
@@ -400,7 +425,7 @@ export async function broadcastTypingIndicator(
  * @param payload - Member online status data
  */
 export async function broadcastMemberOnlineStatus(
-  io: Server,
+  io: TypedIOServer,
   payload: ChatMemberOnlinePayload
 ): Promise<void> {
   try {
@@ -422,7 +447,7 @@ export async function broadcastMemberOnlineStatus(
  * @param payload - Attack started data
  */
 export async function broadcastAttackStarted(
-  io: Server,
+  io: TypedIOServer,
   payload: CombatAttackStartedPayload
 ): Promise<void> {
   try {
@@ -448,7 +473,7 @@ export async function broadcastAttackStarted(
  * @param payload - Battle result data
  */
 export async function broadcastBattleResult(
-  io: Server,
+  io: TypedIOServer,
   payload: CombatBattleResultPayload
 ): Promise<void> {
   try {
@@ -494,7 +519,7 @@ export async function broadcastBattleResult(
  * });
  */
 export async function broadcastToLocation<K extends keyof ServerToClientEvents>(
-  io: Server,
+  io: TypedIOServer,
   x: number,
   y: number,
   event: K,
@@ -502,7 +527,7 @@ export async function broadcastToLocation<K extends keyof ServerToClientEvents>(
 ): Promise<void> {
   try {
     const roomName = WebSocketRooms.location(x, y);
-    io.to(roomName).emit(event, payload as any);
+    emitTyped(io, roomName, event, payload);
     console.log(`[Broadcast] Event '${event}' sent to location (${x},${y})`);
   } catch (error) {
     console.error(`[Broadcast] Failed to broadcast to location (${x},${y}):`, error);
@@ -524,7 +549,7 @@ export async function broadcastToLocation<K extends keyof ServerToClientEvents>(
  * await broadcastToArea(io, 50, 75, 5, 'game:explosion', explosionData);
  */
 export async function broadcastToArea<K extends keyof ServerToClientEvents>(
-  io: Server,
+  io: TypedIOServer,
   centerX: number,
   centerY: number,
   radius: number,
@@ -536,7 +561,7 @@ export async function broadcastToArea<K extends keyof ServerToClientEvents>(
     
     // Broadcast to all rooms in area
     for (const room of rooms) {
-      io.to(room).emit(event, payload as any);
+      emitTyped(io, room, event, payload);
     }
     
     console.log(`[Broadcast] Event '${event}' sent to area (${centerX},${centerY}) radius ${radius} (${rooms.length} rooms)`);
@@ -552,7 +577,7 @@ export async function broadcastToArea<K extends keyof ServerToClientEvents>(
  * @param payload - Tile update data
  */
 export async function broadcastTileUpdate(
-  io: Server,
+  io: TypedIOServer,
   payload: GameTileUpdatePayload
 ): Promise<void> {
   await broadcastToLocation(io, payload.x, payload.y, 'game:tile_update', payload);

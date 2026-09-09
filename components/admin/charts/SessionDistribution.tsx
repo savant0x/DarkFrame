@@ -17,6 +17,7 @@
 'use client';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { Loader2 } from 'lucide-react';
 
 interface SessionDistributionProps {
   buckets: Array<{
@@ -41,8 +42,16 @@ export default function SessionDistribution({ buckets, loading, error }: Session
     return `${minutes}m`;
   };
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
+  // Custom tooltip — recharts hands each entry the chart datum via `payload`
+  interface TooltipEntry {
+    payload: {
+      label: string;
+      count: number;
+      uniquePlayers: number;
+      avgDuration: number;
+    };
+  }
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: TooltipEntry[] }) => {
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0].payload;
@@ -75,7 +84,7 @@ export default function SessionDistribution({ buckets, loading, error }: Session
     return (
       <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] mx-auto mb-3"></div>
+          <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-green)] mx-auto mb-3" aria-label="Loading session distribution" />
           <p className="text-[color:var(--nn-text-secondary)]">Loading session data...</p>
         </div>
       </div>

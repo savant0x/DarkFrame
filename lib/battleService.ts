@@ -853,7 +853,7 @@ async function applyBattleResults(battleLog: BattleLog): Promise<void> {
   // Update databases with PlayerUnit arrays
   await db.update(players)
     .set({
-      units: attackerFinalPlayerUnits as any,
+      units: attackerFinalPlayerUnits,
       totalStrength: attackerNewStats.totalSTR,
       totalDefense: attackerNewStats.totalDEF
     })
@@ -861,7 +861,7 @@ async function applyBattleResults(battleLog: BattleLog): Promise<void> {
 
   await db.update(players)
     .set({
-      units: defenderFinalPlayerUnits as any,
+      units: defenderFinalPlayerUnits,
       totalStrength: defenderNewStats.totalSTR,
       totalDefense: defenderNewStats.totalDEF
     })

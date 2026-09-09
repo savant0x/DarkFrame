@@ -306,11 +306,7 @@ export * from './cacheWarming';
 // Re-export harvest messages utilities
 export * from './harvestMessages';
 
-// Re-export micro-interactions utilities
-export * from './microInteractions';
-
 // Re-export query optimization utilities
-export * from './queryOptimization';
 
 // Re-export Redis utilities
 export * from './redis';

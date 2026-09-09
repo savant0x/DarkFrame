@@ -14,10 +14,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import clientPromise from '@/lib/mongodb';
 import {
   
   getCurrentQuestAndStep,
+  getActionTracking,
   updateActionTracking,
 } from '@/lib/tutorialService';
 
@@ -63,11 +63,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize MongoDB connection
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
-    
-
     // Get current tutorial step
     const { step } = await getCurrentQuestAndStep(playerId);
     
@@ -85,12 +80,9 @@ export async function POST(request: NextRequest) {
       const { requiredMoves, anyDirection, direction } = step.validationData;
       
       if (requiredMoves) {
-        // Get current tracking
-        const trackingCollection = db.collection<{ currentCount?: number }>('tutorial_action_tracking');
-        const tracking = await trackingCollection.findOne({ 
-          playerId, 
-          stepId: step.id 
-        });
+        // Canonical contract read — count lives inside the actionType JSON
+        // (FID-20260908-001). A raw findOne + row.currentCount is always undefined.
+        const tracking = await getActionTracking(playerId, step.id);
         
         const currentCount = (tracking?.currentCount ?? 0) + 1;
         
@@ -116,11 +108,7 @@ export async function POST(request: NextRequest) {
       const { requiredHarvests } = step.validationData;
       
       if (requiredHarvests) {
-        const trackingCollection = db.collection<{ currentCount?: number }>('tutorial_action_tracking');
-        const tracking = await trackingCollection.findOne({ 
-          playerId, 
-          stepId: step.id 
-        });
+        const tracking = await getActionTracking(playerId, step.id);
         
         const currentCount = (tracking?.currentCount ?? 0) + 1;
         await updateActionTracking(playerId, step.id, currentCount, requiredHarvests);
@@ -130,11 +118,7 @@ export async function POST(request: NextRequest) {
       const { requiredAttacks } = step.validationData;
       
       if (requiredAttacks) {
-        const trackingCollection = db.collection<{ currentCount?: number }>('tutorial_action_tracking');
-        const tracking = await trackingCollection.findOne({ 
-          playerId, 
-          stepId: step.id 
-        });
+        const tracking = await getActionTracking(playerId, step.id);
         
         const currentCount = (tracking?.currentCount ?? 0) + 1;
         await updateActionTracking(playerId, step.id, currentCount, requiredAttacks);

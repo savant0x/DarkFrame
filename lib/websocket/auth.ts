@@ -33,6 +33,7 @@ export interface AuthenticatedUser {
   userId: string;
   username: string;
   level: number;
+  isVIP: boolean;
   clanId?: string;
   clanName?: string;
   role?: string;
@@ -111,6 +112,7 @@ async function fetchUserData(userId: string): Promise<AuthenticatedUser | null> 
       columns: {
         username: true,
         level: true,
+        vip: true,
         clanId: true,
         clanRole: true,
       }
@@ -133,6 +135,7 @@ async function fetchUserData(userId: string): Promise<AuthenticatedUser | null> 
       userId: user.username,
       username: user.username,
       level: user.level || 1,
+      isVIP: Boolean(user.vip),
       clanId: user.clanId || undefined,
       clanName,
       role: user.clanRole || undefined,

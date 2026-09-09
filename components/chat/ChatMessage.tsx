@@ -41,7 +41,6 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Badge } from '@/components/ui/Badge';
 import { ChannelType } from '@/lib/channelService';
 import {
   Crown,
@@ -392,16 +391,18 @@ export default function ChatMessage({
 
           {/* VIP Badge */}
           {message.senderIsVIP && (
-            <Badge variant="warning" size="sm" icon={<Crown className="w-3 h-3" />}>
+            <span className="nn-chip nn-chip--amber">
+              <Crown className="w-3 h-3" />
               VIP
-            </Badge>
+            </span>
           )}
 
           {/* Newbie Badge */}
           {isNewbie && (
-            <Badge variant="success" size="sm" icon={<Sprout className="w-3 h-3" />}>
+            <span className="nn-chip nn-chip--green">
+              <Sprout className="w-3 h-3" />
               Newbie
-            </Badge>
+            </span>
           )}
 
           {/* Level */}
@@ -409,9 +410,9 @@ export default function ChatMessage({
 
           {/* Admin Badge (if applicable) */}
           {isAdmin && message.senderId === currentUserId && (
-            <Badge variant="error" size="sm">
+            <span className="nn-chip nn-chip--magenta">
               Admin
-            </Badge>
+            </span>
           )}
         </div>
 

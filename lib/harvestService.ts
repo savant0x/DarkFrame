@@ -29,7 +29,7 @@ export interface HarvestResult {
   message: string;
   metalGained?: number;
   energyGained?: number;
-  itemFound?: any; // Will be defined in CaveItemService
+  itemFound?: { name: string; rarity?: string }; // Cave drop as surfaced by CaveItemService
   updatedPlayer?: Player;
 }
 

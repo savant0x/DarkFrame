@@ -40,49 +40,18 @@ import {
 const DEFAULT_QUERY_LIMIT = 50;
 const MAX_QUERY_LIMIT = 500;
 
+/** Structural shape of a combatant row accumulated from attacker/defender SQL aggregates. */
+interface CombatantAggregates {
+  playerId: string;
+  username: string;
+  battlesParticipated: number;
+  wins: number;
+  losses: number;
+}
+
 // ============================================================================
 // CORE LOGGING FUNCTIONS
 // ============================================================================
-
-/**
- * Log a battle engagement
- */
-export async function logBattle(battleLog: Omit<BattleLog, '_id'>): Promise<string> {
-  try {
-    const entry: BattleLog = {
-      ...battleLog,
-      timestamp: battleLog.timestamp || new Date()
-    };
-    
-    await db.insert(battleLogs).values(entry as any);
-    
-    return (entry as any).battleId || '';
-  } catch (error) {
-    console.error('[BattleLog] Error logging battle:', error);
-    throw new Error('Failed to log battle');
-  }
-}
-
-/**
- * Log multiple battles in bulk
- */
-export async function logBattlesBulk(battleLogsData: Omit<BattleLog, '_id'>[]): Promise<string[]> {
-  try {
-    const entries: BattleLog[] = battleLogsData.map(log => ({
-      ...log,
-      timestamp: log.timestamp || new Date()
-    }));
-    
-    if (entries.length === 0) return [];
-    
-    await db.insert(battleLogs).values(entries as any);
-    
-    return entries.map(e => (e as any).battleId || '');
-  } catch (error) {
-    console.error('[BattleLog] Error bulk logging battles:', error);
-    return [];
-  }
-}
 
 // ============================================================================
 // QUERY FUNCTIONS
@@ -234,7 +203,11 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
       .where(whereClause)
       .groupBy(battleLogs.battleType);
     
-    const battlesByType: Record<BattleType, number> = {} as any;
+    const battlesByType: Record<BattleType, number> = {
+      [BattleType.PLAYER_VS_PLAYER]: 0,
+      [BattleType.PLAYER_VS_FACTORY]: 0,
+      [BattleType.CLAN_WAR]: 0,
+    };
     typeStats.forEach(stat => {
       battlesByType[stat.battleType as BattleType] = stat.count;
     });
@@ -298,9 +271,9 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
       .where(whereClause)
       .groupBy(battleLogs.defenderUsername);
     
-    const playerMap = new Map<string, any>();
+    const playerMap = new Map<string, CombatantAggregates>();
     
-    attackerStats.forEach((stat: any) => {
+    attackerStats.forEach((stat) => {
       playerMap.set(stat.playerId, {
         playerId: stat.playerId,
         username: stat.username,
@@ -310,7 +283,7 @@ export async function getBattleLogStats(query?: BattleLogQuery): Promise<BattleL
       });
     });
     
-    defenderStats.forEach((stat: any) => {
+    defenderStats.forEach((stat) => {
       const existing = playerMap.get(stat.playerId);
       if (existing) {
         existing.battlesParticipated += stat.battlesAsDefender;

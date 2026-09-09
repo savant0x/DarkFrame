@@ -27,6 +27,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
 /**
  * Factory data structure
@@ -218,7 +219,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
       <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
         <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md w-full">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-4"></div>
+            <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-violet)] mx-auto mb-4" aria-label="Loading factory data" />
             <p className="text-[color:var(--nn-text-secondary)]">Loading factories...</p>
           </div>
         </div>
@@ -279,7 +280,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                 value={searchOwner}
                 onChange={(e) => setSearchOwner(e.target.value)}
                 placeholder="Username..."
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               />
             </div>
 
@@ -291,7 +292,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                 value={searchX}
                 onChange={(e) => setSearchX(e.target.value)}
                 placeholder="X..."
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               />
             </div>
 
@@ -303,7 +304,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                 value={searchY}
                 onChange={(e) => setSearchY(e.target.value)}
                 placeholder="Y..."
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               />
             </div>
 
@@ -313,7 +314,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
               <select
                 value={filterTier}
                 onChange={(e) => setFilterTier(e.target.value)}
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               >
                 <option value="all">All Tiers</option>
                 <option value="tier1">Tier 1</option>
@@ -328,7 +329,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
               <select
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>

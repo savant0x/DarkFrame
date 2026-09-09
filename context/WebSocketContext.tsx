@@ -82,23 +82,47 @@ export function WebSocketProvider({
   
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
+  const disposedRef = useRef(false); // true once the provider unmounts — cancels pending retries
   const baseReconnectDelay = 1000; // 1 second
+  const maxReconnectDelay = 30000; // 30 seconds
+  const authRetryDelay = 30000; // Auth failures: retry slowly (only login state can change them)
 
   /**
-   * Calculate exponential backoff delay
+   * Calculate exponential backoff delay with ±20% jitter (FID-20260908-005).
+   * Reconnection is endless but well-behaved: delay is capped at maxReconnectDelay
+   * and jitter prevents a reconnect storm when many clients return after a
+   * server restart.
    */
-  const getReconnectDelay = useCallback(() => {
-    return Math.min(
-      baseReconnectDelay * Math.pow(2, reconnectAttemptsRef.current),
-      30000 // Max 30 seconds
-    );
+  const getReconnectDelay = useCallback((attempt: number) => {
+    const backoff = Math.min(baseReconnectDelay * Math.pow(2, attempt), maxReconnectDelay);
+    const jitter = backoff * 0.2 * (Math.random() * 2 - 1); // ±20%
+    return Math.max(250, Math.round(backoff + jitter));
+  }, []);
+
+  /**
+   * Schedule the next reconnect attempt on an existing socket.
+   * Fixes the timer-leak: any previously pending timer is cleared first, and
+   * retries are cancelled once the provider is disposed (unmounted).
+   */
+  const scheduleReconnect = useCallback((target: Socket, delayMs: number) => {
+    if (disposedRef.current) return;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    reconnectTimeoutRef.current = setTimeout(() => {
+      reconnectTimeoutRef.current = null;
+      if (disposedRef.current) return;
+      reconnectAttemptsRef.current += 1;
+      setConnectionState('connecting');
+      target.connect();
+    }, delayMs);
   }, []);
 
   /**
    * Initialize socket connection
    */
   const connect = useCallback(() => {
+    disposedRef.current = false;
     if (socket?.connected) {
       console.log('[WebSocket] Already connected');
       return;
@@ -153,25 +177,21 @@ export function WebSocketProvider({
       setConnectionState('error');
       setError(err.message);
 
-      // Don't retry authentication errors UNLESS it's an initial connection timing issue
+      // Auth errors (post-initial): only a fresh login can change them, so don't
+      // hammer the server — retry slowly at a fixed interval. A successful login
+      // elsewhere in the app recovers the session without a page refresh.
       if (isAuthError && !shouldRetryAuthError) {
-        console.warn('[WebSocket] Skipping reconnection attempts - authentication required');
+        console.warn('[WebSocket] Authentication required - retrying slowly (30s)');
+        scheduleReconnect(newSocket, authRetryDelay);
         return;
       }
 
-      // Attempt reconnection with exponential backoff
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const delay = getReconnectDelay();
-        console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttemptsRef.current += 1;
-          newSocket.connect();
-        }, delay);
-      } else {
-        console.error('[WebSocket] Max reconnection attempts reached');
-        setError('Failed to connect after multiple attempts. Please refresh the page.');
-      }
+      // Transport/unknown errors: reconnect ENDLESSLY with bounded backoff +
+      // jitter (FID-20260908-005). No hard ceiling — dev-server restarts and
+      // network blips recover automatically once the server returns.
+      const delay = getReconnectDelay(reconnectAttemptsRef.current);
+      console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
+      scheduleReconnect(newSocket, delay);
     });
 
     // Disconnection
@@ -185,19 +205,15 @@ export function WebSocketProvider({
         reconnectAttemptsRef.current = 0;
         newSocket.connect();
       } else if (reason === 'transport close' || reason === 'ping timeout') {
-        // Network issue, attempt reconnect
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          const delay = getReconnectDelay();
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttemptsRef.current += 1;
-            newSocket.connect();
-          }, delay);
-        }
+        // Network issue — reconnect endlessly with bounded backoff (no ceiling)
+        const delay = getReconnectDelay(reconnectAttemptsRef.current);
+        console.log(`[WebSocket] Network drop - reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
+        scheduleReconnect(newSocket, delay);
       }
     });
 
     setSocket(newSocket);
-  }, [serverUrl, getReconnectDelay]); // Removed 'socket' to prevent infinite loop
+  }, [serverUrl, getReconnectDelay, scheduleReconnect]); // 'socket' omitted: read via ref-stable optional chain, re-adding loops (setSocket → re-render → connect)
 
   /**
    * Manually trigger reconnection
@@ -242,10 +258,12 @@ export function WebSocketProvider({
       connect();
     }
 
-    // Cleanup on unmount
+    // Cleanup on unmount — dispose cancels any pending reconnect timer
     return () => {
+      disposedRef.current = true;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (socket) {
         console.log('[WebSocket] Cleaning up connection');
@@ -308,8 +326,9 @@ export function useWebSocketContext(): WebSocketContextValue {
  * 1. Connection Management:
  *    - Auto-connects on mount by default
  *    - Uses HTTP-only cookies for authentication (no manual token needed)
- *    - Exponential backoff for reconnection (1s → 2s → 4s → 8s → 16s → 30s max)
- *    - Max 5 reconnection attempts before giving up
+ *    - Endless reconnection: exponential backoff (1s → 2s → 4s → … → 30s max)
+ *      with ±20% jitter — never gives up while the provider is mounted
+ *    - Auth failures retry slowly at a fixed 30s (only login state changes them)
  * 
  * 2. State Tracking:
  *    - connecting: Initial connection attempt

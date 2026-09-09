@@ -448,6 +448,7 @@ export interface Player {
   stats?: PlayerStats; // Gameplay statistics for achievement tracking (Phase 3+)
   factoryCount?: number; // Number of factories owned
   lastXPAward?: Date; // Last time XP was awarded
+  lastBotScan?: Date; // Last bot-scan timestamp (drives scanner cooldown)
   lastLevelUp?: Date; // Last time player leveled up
   rpHistory?: ResearchPointHistory[]; // History of RP spending
   baseGreeting?: string; // Custom base greeting message (max 500 chars)

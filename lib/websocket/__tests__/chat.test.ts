@@ -201,7 +201,7 @@ describe('WebSocket Chat Integration', () => {
       ]);
 
       // Client2 listens for messages
-      const messageReceived = new Promise<any>((resolve) => {
+      const messageReceived = new Promise<{ id: string; channelId: string; sender: string; content: string; timestamp: string }>((resolve) => {
         client2.on('chat:new_message', resolve);
       });
 
@@ -235,7 +235,7 @@ describe('WebSocket Chat Integration', () => {
 
       await new Promise<void>((resolve) => client1.on('connect', resolve));
 
-      const result = await new Promise<any>((resolve) => {
+      const result = await new Promise<{ success: boolean; channelId?: string; error?: string }>((resolve) => {
         client1.emit('chat:join_channel', { channelId: 'trade' }, resolve);
       });
 
@@ -257,7 +257,7 @@ describe('WebSocket Chat Integration', () => {
 
       await new Promise<void>((resolve) => client1.on('connect', resolve));
 
-      const leftChannel = new Promise<any>((resolve) => {
+      const leftChannel = new Promise<{ channelId: string }>((resolve) => {
         client1.on('chat:left_channel', resolve);
       });
 
@@ -304,7 +304,7 @@ describe('WebSocket Chat Integration', () => {
         new Promise<void>((resolve) => client2.on('connect', resolve)),
       ]);
 
-      const typingEvent = new Promise<any>((resolve) => {
+      const typingEvent = new Promise<{ username: string; channelId: string }>((resolve) => {
         client2.on('chat:user_typing', resolve);
       });
 
@@ -360,7 +360,7 @@ describe('WebSocket Chat Integration', () => {
         new Promise<void>((resolve) => newbieClient.on('connect', resolve)),
       ]);
 
-      const veteranRequest = new Promise<any>((resolve) => {
+      const veteranRequest = new Promise<{ requester: string; requesterLevel: number; question: string }>((resolve) => {
         veteranClient.on('chat:veteran_request', resolve);
       });
 

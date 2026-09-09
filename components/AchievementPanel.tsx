@@ -1,28 +1,22 @@
 // ============================================================
 // FILE: AchievementPanel.tsx
 // CREATED: 2025-01-17
-// LAST MODIFIED: 2025-01-17
+// LAST MODIFIED: 2026-09-08 (FID-20260908-011 neon-noir structural pass)
 // ============================================================
 // OVERVIEW:
 // Achievement progress UI component displaying 10 achievements across 4 categories.
 // Features category filtering (Combat, Economic, Exploration, Progression),
 // progress bars, rarity-based styling, and prestige unit unlocks.
-// Uses keyboard shortcut (A key) for toggle. Integrates design system components
-// (Card, Badge, ProgressBar, Button, StaggerChildren, LoadingSpinner).
+// Uses keyboard shortcut (A key) for toggle.
+// Styling: token primitives only (nn-panel / nn-chip / nn-meter / nn-tab /
+// nn-num); no legacy UI-kit or transitions imports. Logic byte-preserved.
 // ============================================================
 
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { Loader2, X, Trophy } from 'lucide-react';
 import { Achievement, AchievementCategory, AchievementRarity } from '@/types/game.types';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-
-import { StaggerChildren, StaggerItem } from '@/components/transitions/StaggerChildren';
-import { LoadingSpinner } from '@/components/transitions/LoadingSpinner';
 
 // ============================================================
 // TYPE DEFINITIONS
@@ -49,48 +43,62 @@ interface AchievementProgressData {
 // ============================================================
 
 /**
- * Get border and background classes for achievement rarity
+ * Get border/background classes for achievement rarity (FID-011: legendary
+ * two-stop gradient → flat amber accent; decorative gradient removed)
  * @param rarity - Achievement rarity level
- * @returns Tailwind classes for styling
+ * @returns Token classes for styling
  */
 function getRarityClasses(rarity: AchievementRarity): string {
   const map: Record<AchievementRarity, string> = {
     [AchievementRarity.Common]: 'border-[color-mix(in_oklab,var(--nn-cyan)_30%,transparent)] bg-[color:var(--nn-void)]',
     [AchievementRarity.Rare]: 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]',
     [AchievementRarity.Epic]: 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]',
-    [AchievementRarity.Legendary]: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-magenta)]'
+    [AchievementRarity.Legendary]: 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
   };
   return map[rarity] || map[AchievementRarity.Common];
 }
 
 /**
- * Get text color class for achievement category
- * @param category - Achievement category
- * @returns Tailwind text color class
+ * Get rarity chip class (FID-011: rarity renders as a semantic chip)
  */
-function getCategoryColor(category: AchievementCategory): string {
-  const map: Record<AchievementCategory, string> = {
-    [AchievementCategory.Combat]: 'text-[color:var(--nn-magenta)]',
-    [AchievementCategory.Economic]: 'text-[color:var(--nn-amber)]',
-    [AchievementCategory.Exploration]: 'text-[color:var(--nn-green)]',
-    [AchievementCategory.Progression]: 'text-[color:var(--nn-violet)]'
+function getRarityChip(rarity: AchievementRarity): string {
+  const map: Record<AchievementRarity, string> = {
+    [AchievementRarity.Common]: 'nn-chip--cyan',
+    [AchievementRarity.Rare]: 'nn-chip--cyan',
+    [AchievementRarity.Epic]: 'nn-chip--violet',
+    [AchievementRarity.Legendary]: 'nn-chip--amber'
   };
-  return map[category] || 'text-[color:var(--nn-text-secondary)]';
+  return map[rarity] || 'nn-chip--cyan';
 }
 
 /**
- * Get icon emoji for achievement category
+ * Get text color class for achievement category
  * @param category - Achievement category
- * @returns Icon emoji string
+ * @returns Token text color class
  */
-function getCategoryIcon(category: AchievementCategory): string {
+function getCategoryColor(category: AchievementCategory): string {
   const map: Record<AchievementCategory, string> = {
-    [AchievementCategory.Combat]: '⚔️',
-    [AchievementCategory.Economic]: '💰',
-    [AchievementCategory.Exploration]: '🗺️',
-    [AchievementCategory.Progression]: '📈'
+    [AchievementCategory.Combat]: 'nn-text-magenta',
+    [AchievementCategory.Economic]: 'nn-text-amber',
+    [AchievementCategory.Exploration]: 'nn-text-green',
+    [AchievementCategory.Progression]: 'nn-text-violet'
   };
-  return map[category] || '❓';
+  return map[category] || 'nn-text-secondary';
+}
+
+/**
+ * Get icon glyph for achievement category
+ * @param category - Achievement category
+ * @returns Token label for the category
+ */
+function getCategoryLabel(category: AchievementCategory): string {
+  const map: Record<AchievementCategory, string> = {
+    [AchievementCategory.Combat]: 'Combat',
+    [AchievementCategory.Economic]: 'Economic',
+    [AchievementCategory.Exploration]: 'Exploration',
+    [AchievementCategory.Progression]: 'Progression'
+  };
+  return map[category] || 'Unknown';
 }
 
 // ============================================================
@@ -99,16 +107,15 @@ function getCategoryIcon(category: AchievementCategory): string {
 
 /**
  * Comprehensive achievement progress panel (A key shortcut)
- * 
+ *
  * Features:
- * - Grid layout with 10 achievement cards
+ * - Grid layout with achievement cards
  * - Category filtering (All, Combat, Economic, Exploration, Progression)
- * - Progress bars showing current/required values
- * - Locked vs unlocked styling with checkmarks
+ * - Progress meters showing current/required values
+ * - Locked vs unlocked styling with semantic chips
  * - Prestige unit preview for each achievement
- * - Completion celebration when 10/10 reached
+ * - Completion celebration when all achievements reached
  * - Real-time progress updates from API
- * - Design system integration with animations
  */
 export const AchievementPanel: React.FC<AchievementPanelProps> = ({
   isOpen,
@@ -130,7 +137,7 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
     try {
       const response = await fetch(`/api/achievements/progress?username=${username}`);
       const result = await response.json();
-      
+
       if (result.success) {
         setProgressData(result.data);
       } else {
@@ -174,55 +181,50 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
 
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] p-4 flex items-center justify-between rounded-t-lg">
-          <div className="flex items-center gap-3">
-            <span className="text-4xl">🏆</span>
-            <div>
-              <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Achievements</h2>
-              {progressData && (
-                <div className="text-sm text-[color:var(--nn-text-primary)]">
-                  {progressData.totalUnlocked} / {progressData.totalAvailable} Unlocked ({progressData.progressPercent}%)
-                </div>
-              )}
-            </div>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
+      <div
+        className="nn-panel w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+        style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}
+        role="dialog"
+        aria-label="Achievements"
+      >
+        {/* Header — scanline instrument strip */}
+        <div className="nn-panel__header nn-panel__header--bleed">
+          <span className="nn-panel__icon"><Trophy className="h-4 w-4" /></span>
+          <span className="nn-panel__title">Achievements</span>
+          {progressData && (
+            <span className="nn-panel__meta">
+              <span className="nn-num nn-text-amber">{progressData.totalUnlocked}</span>
+              {' '}/ {progressData.totalAvailable} unlocked · {progressData.progressPercent}%
+            </span>
+          )}
+          <button
             onClick={onClose}
-            className="text-[color:var(--nn-text-primary)]"
+            className="ml-auto nn-abtn nn-abtn--ghost px-3"
+            aria-label="Close achievements"
           >
             <X className="h-5 w-5" />
-          </Button>
+          </button>
         </div>
 
-        {/* Category Filter */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 flex gap-2 overflow-x-auto">
-          <Button
-            variant={selectedCategory === 'all' ? 'primary' : 'ghost'}
-            size="sm"
+        {/* Category Filter — text-rule tabs */}
+        <div className="flex border-b border-[color-mix(in_oklab,var(--nn-glass-border))] overflow-x-auto">
+          <button
+            className={`nn-tab px-5 ${selectedCategory === 'all' ? 'nn-tab--on' : ''}`}
             onClick={() => setSelectedCategory('all')}
           >
             All ({progressData?.totalAvailable || 0})
-          </Button>
+          </button>
           {Object.values(AchievementCategory).map(category => {
             const count = progressData?.byCategory[category] || { unlocked: 0, total: 0 };
-            const icon = getCategoryIcon(category);
-            
+
             return (
-              <Button
+              <button
                 key={category}
-                variant={selectedCategory === category ? 'primary' : 'ghost'}
-                size="sm"
+                className={`nn-tab px-5 ${selectedCategory === category ? 'nn-tab--on' : ''}`}
                 onClick={() => setSelectedCategory(category)}
-                className="flex items-center gap-2"
               >
-                <span>{icon}</span>
-                <span className="capitalize">{category}</span>
-                <span className="text-xs">({count.unlocked}/{count.total})</span>
-              </Button>
+                {getCategoryLabel(category)} ({count.unlocked}/{count.total})
+              </button>
             );
           })}
         </div>
@@ -231,156 +233,144 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <LoadingSpinner size="lg" />
+              <Loader2 className="nn-spin-icon w-7 h-7 text-[color:var(--nn-cyan)]" aria-label="Loading achievements" />
             </div>
           ) : error ? (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-4">⚠️</div>
-              <p className="text-[color:var(--nn-magenta)] font-semibold mb-2">Failed to load achievements</p>
-              <p className="text-sm text-[color:var(--nn-text-secondary)]">{error}</p>
+            <div className="nn-note" role="alert">
+              <p className="nn-text-magenta text-sm font-semibold">Failed to load achievements</p>
+              <p className="nn-text-dim text-sm">{error}</p>
             </div>
           ) : progressData ? (
             <>
               {/* Completion Celebration */}
               {progressData.completionStatus === 'COMPLETE' && (
-                <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] rounded-none p-6 mb-6 text-center">
-                  <div className="text-5xl mb-2">🎉</div>
-                  <div className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">
-                    All Achievements Unlocked!
+                <div className="nn-brief nn-brief--amber mb-6 text-center">
+                  <div className="text-2xl font-bold nn-text-amber mb-1 nn-num">
+                    ALL ACHIEVEMENTS UNLOCKED
                   </div>
-                  <div className="text-[color:var(--nn-text-primary)]">
+                  <div className="text-sm text-[color:var(--nn-text-secondary)]">
                     You{"'"}ve earned all {progressData.totalAvailable} achievements and unlocked every prestige unit!
                   </div>
                 </div>
               )}
 
               {/* Achievement Grid */}
-              <StaggerChildren staggerDelay={0.06}>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                  {filteredAchievements.map(achievement => {
-                    const isUnlocked = !!achievement.unlockedAt;
-                    const progressPercent = achievement.progress || 0;
-                    const rarityClass = getRarityClasses(achievement.rarity);
-                    const categoryColor = getCategoryColor(achievement.category);
-                    const categoryIcon = getCategoryIcon(achievement.category);
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                {filteredAchievements.map(achievement => {
+                  const isUnlocked = !!achievement.unlockedAt;
+                  const progressPercent = achievement.progress || 0;
+                  const rarityClass = getRarityClasses(achievement.rarity);
+                  const categoryColor = getCategoryColor(achievement.category);
+                  const rarityChip = getRarityChip(achievement.rarity);
 
-                    return (
-                      <StaggerItem key={achievement.id}>
-                        <Card
-                          className={`
-                            border-2 ${rarityClass}
-                            ${isUnlocked ? '' : 'opacity-60'}
-                            transition-all hover:scale-[1.02] hover:shadow-lg
-                          `}
-                        >
-                          <div className="p-4">
-                            {/* Header */}
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <span className="text-2xl">{categoryIcon}</span>
-                                <div>
-                                  <div className="font-bold text-[color:var(--nn-text-primary)] text-lg">
-                                    {achievement.name}
-                                  </div>
-                                  <Badge variant="default" className={`${categoryColor} bg-transparent`}>
-                                    {achievement.rarity}
-                                  </Badge>
-                                </div>
+                  return (
+                    <div key={achievement.id} className="nn-fade">
+                      <div
+                        className={`
+                          nn-panel border ${rarityClass}
+                          ${isUnlocked ? '' : 'opacity-60'}
+                        `}
+                      >
+                        <div className="p-4">
+                          {/* Header */}
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="font-bold text-[color:var(--nn-text-primary)] text-base">
+                                {achievement.name}
                               </div>
-                              {isUnlocked && (
-                                <span className="text-2xl">✅</span>
-                              )}
-                            </div>
-
-                            {/* Description */}
-                            <p className="text-[color:var(--nn-text-secondary)] text-sm mb-3 leading-relaxed">
-                              {achievement.description}
-                            </p>
-
-                            {/* Progress Bar */}
-                            <div className="mb-3">
-                              <div className="flex justify-between text-xs text-[color:var(--nn-text-secondary)] mb-1">
-                                <span>Progress</span>
-                                <span>{progressPercent}%</span>
-                              </div>
-                              <ProgressBar
-                                value={Math.min(progressPercent, 100)}
-                                max={100}
-                                size="base"
-                                className={isUnlocked ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : ''}
-                              />
-                            </div>
-
-                            {/* Requirement */}
-                            <div className="bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] rounded-none p-2 mb-3">
-                              <div className="text-[color:var(--nn-text-secondary)] mb-1 text-xs">Requirement:</div>
-                              <div className="text-[color:var(--nn-text-primary)] font-semibold text-sm">
-                                {achievement.requirement.type}: {achievement.requirement.value.toLocaleString()}
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className={`nn-chip ${rarityChip}`}>{achievement.rarity}</span>
+                                <span className={`nn-lab ${categoryColor}`}>{getCategoryLabel(achievement.category)}</span>
                               </div>
                             </div>
-
-                            {/* Rewards */}
-                            <div className="bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] rounded-none p-2">
-                              <div className="text-[color:var(--nn-text-secondary)] mb-1 text-xs">Rewards:</div>
-                              <div className="space-y-1">
-                                <div className="text-[color:var(--nn-amber)] text-sm flex items-center gap-1">
-                                  <span>⚔️</span>
-                                  <span className="font-semibold">{achievement.reward.unitUnlock}</span>
-                                </div>
-                                {achievement.reward.rpBonus && (
-                                  <div className="text-[color:var(--nn-violet)] text-sm flex items-center gap-1">
-                                    <span>💎</span>
-                                    <span>+{achievement.reward.rpBonus} RP</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Unlocked Date */}
-                            {isUnlocked && achievement.unlockedAt && (
-                              <div className="mt-2 text-xs text-[color:var(--nn-text-secondary)] text-center">
-                                Unlocked: {new Date(achievement.unlockedAt).toLocaleDateString()}
-                              </div>
+                            {isUnlocked && (
+                              <span className="nn-chip nn-chip--green">Done</span>
                             )}
                           </div>
-                        </Card>
-                      </StaggerItem>
-                    );
-                  })}
-                </div>
-              </StaggerChildren>
+
+                          {/* Description */}
+                          <p className="nn-text-dim text-sm mb-3 leading-relaxed">
+                            {achievement.description}
+                          </p>
+
+                          {/* Progress Meter */}
+                          <div className="mb-3">
+                            <div className="flex justify-between nn-lab mb-1">
+                              <span>Progress</span>
+                              <span className="nn-num">{progressPercent}%</span>
+                            </div>
+                            <div className="nn-meter">
+                              <div
+                                className="nn-meter__seg"
+                                style={{
+                                  width: `${Math.min(progressPercent, 100)}%`,
+                                  '--nn-accent': isUnlocked
+                                    ? 'var(--nn-green)'
+                                    : 'var(--nn-amber)',
+                                } as React.CSSProperties}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Requirement */}
+                          <div className="nn-well mb-2 py-1.5">
+                            <span className="nn-lab">Requirement</span>
+                            <span className="nn-num text-sm text-[color:var(--nn-text-primary)]">
+                              {achievement.requirement.type}: {achievement.requirement.value.toLocaleString()}
+                            </span>
+                          </div>
+
+                          {/* Rewards */}
+                          <div className="nn-well py-1.5">
+                            <span className="nn-lab">Rewards</span>
+                            <span className="nn-num text-sm nn-text-amber">
+                              {achievement.reward.unitUnlock}
+                              {achievement.reward.rpBonus ? ` · +${achievement.reward.rpBonus} RP` : ''}
+                            </span>
+                          </div>
+
+                          {/* Unlocked Date */}
+                          {isUnlocked && achievement.unlockedAt && (
+                            <div className="mt-2 nn-lab text-center">
+                              Unlocked: {new Date(achievement.unlockedAt).toLocaleDateString()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
 
               {/* Unlocked Prestige Units Summary */}
               {progressData.unlockedPrestigeUnits.length > 0 && (
-                <Card className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
-                  <div className="p-4">
-                    <div className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
-                      <span>⚔️</span>
-                      Unlocked Prestige Units ({progressData.unlockedPrestigeUnits.length})
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+                  <div className="nn-panel__header">
+                    <span className="nn-panel__title">Unlocked Prestige Units ({progressData.unlockedPrestigeUnits.length})</span>
+                  </div>
+                  <div className="nn-panel__body">
+                    <div className="flex flex-wrap gap-2">
                       {progressData.unlockedPrestigeUnits.map(unit => (
-                        <Badge
+                        <span
                           key={unit}
-                          variant="default"
-                          className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] text-[color:var(--nn-amber)] text-center py-2"
+                          className="nn-chip nn-chip--amber"
                         >
                           {unit}
-                        </Badge>
+                        </span>
                       ))}
                     </div>
                   </div>
-                </Card>
+                </div>
               )}
             </>
           ) : null}
         </div>
 
         {/* Footer */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] p-3 text-center text-[color:var(--nn-text-secondary)] text-sm border-t border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]">
-          Press <kbd className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-mono">A</kbd> to toggle this panel
+        <div className="px-4 py-2 text-center nn-lab border-t border-[color-mix(in_oklab,var(--nn-glass-border))]">
+          Press <kbd className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] font-mono">A</kbd> to toggle this panel
         </div>
-      </Card>
+      </div>
     </div>
   );
 };
@@ -389,18 +379,16 @@ export const AchievementPanel: React.FC<AchievementPanelProps> = ({
 // IMPLEMENTATION NOTES:
 // ============================================================
 // - Keyboard shortcut: A key (handled in parent component)
-// - Category filtering: All, Combat, Economic, Exploration, Progression
-// - Progress bars show completion percentage with color coding
+// - Category filtering: All, Combat, Economic, Exploration, Progression (text-rule tabs)
+// - Progress meters show completion percentage with accent coding
 // - Locked achievements shown with reduced opacity (60%)
-// - Unlocked achievements show checkmark and unlock date
-// - Rarity-based border colors (gray/blue/purple/orange gradient)
-// - Category-specific text colors and icons
-// - Completion celebration banner when all achievements unlocked
+// - Unlocked achievements show semantic chip and unlock date
+// - Rarity-based borders (cyan/violet/amber) with flat token fills
+// - Completion celebration as amber brief block
 // - Grid layout responsive (1/2/3 columns based on screen size)
-// - Scrollable content area with animations (0.06s stagger)
+// - Scrollable content area with nn-fade entry
 // - Real-time progress fetching from API
-// - Design system integration: Card, Badge, Button, ProgressBar, StaggerChildren, LoadingSpinner
-// - Hover effects on achievement cards (scale + shadow)
+// - Token primitives only: nn-panel / nn-tab / nn-chip / nn-meter / nn-well
 // ============================================================
 // END OF FILE
 // ============================================================

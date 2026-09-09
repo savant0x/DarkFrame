@@ -24,12 +24,12 @@ function getDbName() {
   return process.env.MONGODB_DB || 'darkframe-test';
 }
 
-async function signToken(payload: Record<string, any>) {
+async function signToken(payload: Record<string, unknown>) {
   const secret = process.env.JWT_SECRET || 'test-secret';
   const now = Math.floor(Date.now() / 1000);
   const claims = { ...payload, iat: now, exp: now + 3600 };
   const header = { alg: 'HS256', typ: 'JWT' };
-  const enc = (obj: any) => Buffer.from(JSON.stringify(obj), 'utf8').toString('base64url');
+  const enc = (obj: unknown) => Buffer.from(JSON.stringify(obj), 'utf8').toString('base64url');
   const headerB64 = enc(header);
   const payloadB64 = enc(claims);
   const data = `${headerB64}.${payloadB64}`;
@@ -44,11 +44,14 @@ function withAuth(req: NextRequest, token: string) {
   const cookie = `token=${token}`;
   headers.set('cookie', existing ? `${existing}; ${cookie}` : cookie);
   headers.set('x-test-user', 'testuser');
+  // Next.js stores the original body on a non-public field; read it through a
+  // precise structural view rather than `any` so the shape stays pinned.
+  const originalBody = (req as unknown as { _bodyInit?: BodyInit })._bodyInit ?? undefined;
   return new NextRequest(req.url, {
     method: req.method,
     headers,
-    body: (req as any)._bodyInit ?? undefined,
-  } as any);
+    body: originalBody,
+  });
 }
 
 // Skip by default: without this gate the suite targets whatever DATABASE_URL points

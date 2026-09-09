@@ -45,6 +45,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { connectToDatabase } from '@/lib/mongodb';
 import { getFactoryStats, FACTORY_UPGRADE } from '@/lib/factoryUpgradeService';
+import { recountPlayerFactoryCount } from '@/lib/factoryService';
 import { Factory, Unit, Player } from '@/types/game.types';
 
 export async function POST(request: NextRequest) {
@@ -175,10 +176,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Count remaining factories owned by player
-    const factoriesOwned = await factoriesCollection.countDocuments({
-      owner: username
-    });
+    // Count remaining factories owned by player — and persist the count to
+    // players.factory_count, which no ownership transition used to maintain
+    // (FID-20260908-004). The recount helper is the single writer of the column.
+    const factoriesOwned = await recountPlayerFactoryCount(username);
 
     // Fetch the reset factory
     const resetFactory = await factoriesCollection.findOne({

@@ -4,12 +4,14 @@
  * @overview Component tests for AddFriendModal
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AddFriendModal from '@/components/friends/AddFriendModal';
 
 global.fetch = vi.fn();
+/** Typed handle for the mocked fetch — replaces scattered `as any` casts. */
+const mockFetch = global.fetch as Mock;
 
 describe('AddFriendModal Component', () => {
   // user-event must share vitest's fake-clock: raw userEvent.type/click await internal
@@ -27,7 +29,7 @@ describe('AddFriendModal Component', () => {
     vi.useRealTimers();
   });
 
-  function createMockPlayer(overrides: Record<string, any> = {}) {
+  function createMockPlayer(overrides: Record<string, unknown> = {}) {
     return {
       _id: `player-${Math.random()}`,
       username: 'player1',
@@ -40,7 +42,7 @@ describe('AddFriendModal Component', () => {
     };
   }
 
-  function createMockFetchResponse(data: any) {
+  function createMockFetchResponse(data: unknown) {
     return {
       ok: true,
       json: vi.fn().mockResolvedValue(data),
@@ -82,7 +84,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p2', username: 'player2', level: 15, vip: true }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -98,7 +100,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'vipPlayer', level: 20, vip: true }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -116,7 +118,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p2', username: 'pending1', level: 12, hasPendingRequest: true }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -129,7 +131,7 @@ describe('AddFriendModal Component', () => {
     });
 
     it('should show empty state when no results found', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: [] }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: [] }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -146,7 +148,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'player1', level: 10 }),
       ];
 
-      (global.fetch as any)
+      mockFetch
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, results: mockResults }))
         .mockResolvedValue(createMockFetchResponse({ success: true, request: { requestId: 'req-123' } }));
 
@@ -179,7 +181,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'player1', level: 10 }),
       ];
 
-      (global.fetch as any)
+      mockFetch
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, results: mockResults }))
         .mockResolvedValue(createMockFetchResponse({ success: true, request: { requestId: 'req-123' } }));
 
@@ -219,7 +221,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'player1', level: 10 }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -248,7 +250,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'friend1', level: 10, friendStatus: 'accepted' }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -264,7 +266,7 @@ describe('AddFriendModal Component', () => {
 
   describe('Error Handling', () => {
     it('should display error when search fails', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: false, error: 'Search failed' }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: false, error: 'Search failed' }));
 
       render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 
@@ -279,7 +281,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'player1', level: 10 }),
       ];
 
-      (global.fetch as any)
+      mockFetch
         .mockResolvedValueOnce(createMockFetchResponse({ success: true, results: mockResults }))
         .mockResolvedValue(createMockFetchResponse({ success: false, error: 'Request already exists' }));
 
@@ -323,7 +325,7 @@ describe('AddFriendModal Component', () => {
         createMockPlayer({ _id: 'p1', username: 'player1', level: 10 }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, results: mockResults }));
 
       const { rerender } = render(<AddFriendModal isOpen={true} onClose={() => {}} />);
 

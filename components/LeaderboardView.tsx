@@ -23,6 +23,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Loader2 } from 'lucide-react';
 import { RankedPlayer } from '@/lib/rankingService';
 import { formatNumber } from '@/utils/formatting';
 
@@ -135,7 +136,7 @@ export default function LeaderboardView() {
       <div className="flex items-center justify-center h-full">
         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl p-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
+            <Loader2 className="nn-spin-icon w-16 h-16 text-[color:var(--nn-cyan)] mx-auto mb-4" aria-label="Loading leaderboard" />
             <p className="text-xl text-[color:var(--nn-text-primary)]">Loading leaderboard...</p>
           </div>
         </div>
@@ -186,7 +187,7 @@ export default function LeaderboardView() {
             disabled={refreshing}
             className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none transition-colors flex items-center gap-2 text-[color:var(--nn-text-primary)]"
           >
-            <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
+            <Loader2 className={`w-4 h-4 ${refreshing ? 'nn-spin-icon' : ''}`} aria-hidden="true" />
             Refresh
           </button>
         </div>
@@ -198,7 +199,7 @@ export default function LeaderboardView() {
             placeholder="Search players..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none focus:outline-none focus:border-blue-500 transition-colors text-[color:var(--nn-text-primary)]"
+            className="nn-input w-full"
           />
           {searchQuery && (
             <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">

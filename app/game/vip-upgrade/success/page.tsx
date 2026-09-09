@@ -130,8 +130,12 @@ function SuccessPageContent() {
     // 🎵 PLAY SUCCESS SOUND! 🎵
     const playSuccessSound = () => {
       try {
-        // Create audio context for web audio API
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // Create audio context for web audio API — `webkitAudioContext` is the
+        // legacy Safari prefix, absent from the TS DOM lib
+        const AudioContextCtor = window.AudioContext
+          ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioContextCtor) return;
+        const audioContext = new AudioContextCtor();
         
         // Fanfare sound using oscillators
         const playNote = (frequency: number, startTime: number, duration: number, type: OscillatorType = 'sine') => {
@@ -218,11 +222,11 @@ function SuccessPageContent() {
   }, [sessionId, router, refreshPlayer]);
   
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-[color:var(--nn-cyan)] to-gray-900 p-4">
-      <div className="max-w-2xl w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none shadow-2xl p-8 animate-fade-in">
+    <div className="min-h-screen flex items-center justify-center bg-[color:var(--nn-void)] p-4">
+      <div className="max-w-2xl w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-2 border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none shadow-[0_0_32px_color-mix(in_oklab,var(--nn-green)_20%,transparent)] p-8 nn-fade">
         {/* Success Icon with Pulse Animation */}
         <div className="flex justify-center mb-6">
-          <div className="w-20 h-20 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-full flex items-center justify-center animate-pulse-scale shadow-lg shadow-green-500/50">
+          <div className="w-20 h-20 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-full flex items-center justify-center animate-pulse-scale shadow-[0_0_18px_color-mix(in_oklab,var(--nn-green)_35%,transparent)]">
             <svg
               className="w-12 h-12 text-[color:var(--nn-text-primary)] animate-draw-check"
               fill="none"

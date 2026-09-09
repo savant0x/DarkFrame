@@ -283,7 +283,7 @@ export default function TopNavBar({
           {/* VIP — violet (research/VIP signal) */}
           <NavItem
             label={player.vip ? 'VIP ⚡' : 'Get VIP'}
-            icon={<Sparkles className={`h-3.5 w-3.5 ${player.vip ? 'animate-pulse' : ''}`} />}
+            icon={<Sparkles className={`h-3.5 w-3.5 ${player.vip ? 'nn-pulse' : ''}`} />}
             onClick={() => router.push('/game/vip-upgrade')}
             title={player.vip ? 'VIP Member - View Benefits' : 'Upgrade to VIP for 2x Speed'}
             accent="vip"
@@ -346,7 +346,7 @@ export default function TopNavBar({
               title={`${clanData.name} - Click to view Clan page`}
             >
               {hasNewActivity && (
-                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full bg-[color:var(--nn-magenta)] shadow-[0_0_8px_color-mix(in_oklab,var(--nn-magenta)_80%,transparent)]" />
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 nn-pulse rounded-full bg-[color:var(--nn-magenta)] shadow-[0_0_8px_color-mix(in_oklab,var(--nn-magenta)_80%,transparent)]" />
               )}
               <Shield className="h-4 w-4 text-[color:var(--nn-violet)]" />
               <div className="flex flex-col items-start leading-tight">

@@ -18,6 +18,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface TileInspectorModalProps {
   onClose: () => void;
@@ -215,7 +216,7 @@ export default function TileInspectorModal({ onClose }: TileInspectorModalProps)
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-3"></div>
+              <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-cyan)] mx-auto mb-3" aria-label="Loading tile data" />
               <p className="text-[color:var(--nn-text-secondary)]">Loading tiles...</p>
             </div>
           ) : error ? (

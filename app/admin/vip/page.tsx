@@ -165,24 +165,24 @@ export default function VIPSubscriptionPage() {
 
   if (!player || !isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-[color:var(--nn-text-primary)] flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <p>Access Denied - Admin Only</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-[color:var(--nn-text-primary)] p-8">
+    <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-8">
       <div className="max-w-7xl mx-auto">
         <BackButton />
 
         <div className="flex items-center justify-between mb-8 mt-4">
           <div>
-            <h1 className="text-4xl font-bold text-[color:var(--nn-violet)]">💎 VIP Subscription Management</h1>
+            <h1 className="nn-num nn-text-violet text-4xl font-bold tracking-wider">💎 VIP Subscription Management</h1>
             <p className="text-[color:var(--nn-text-secondary)] mt-2">Manage subscription packages, pricing, and revenue analytics</p>
           </div>
-          <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-            <p className="text-sm text-[color:var(--nn-violet)]">Admin: {player.username}</p>
+          <div className="nn-chip nn-chip--violet px-4 py-2">
+            <p className="text-sm">Admin: {player.username}</p>
           </div>
         </div>
 
@@ -196,30 +196,30 @@ export default function VIPSubscriptionPage() {
             <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
               <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">📊 Revenue Analytics</h2>
               <div className="grid grid-cols-5 gap-4">
-                <div className="bg-gradient-to-br from-[color:var(--nn-green)] to-[color:var(--nn-green)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
-                  <p className="text-xs opacity-80 mb-1">Monthly Recurring Revenue</p>
-                  <p className="text-3xl font-bold">${mrr.toFixed(2)}</p>
-                  <p className="text-xs opacity-80 mt-1">MRR</p>
+                <div className="nn-stat">
+                  <p className="nn-stat__lab mb-1">Monthly Recurring Revenue</p>
+                  <p className="nn-stat__num nn-stat__num--glow-green">${mrr.toFixed(2)}</p>
+                  <p className="nn-stat__sub mt-1">MRR</p>
                 </div>
-                <div className="bg-gradient-to-br from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
-                  <p className="text-xs opacity-80 mb-1">Annual Recurring Revenue</p>
-                  <p className="text-3xl font-bold">${arr.toFixed(2)}</p>
-                  <p className="text-xs opacity-80 mt-1">ARR</p>
+                <div className="nn-stat">
+                  <p className="nn-stat__lab mb-1">Annual Recurring Revenue</p>
+                  <p className="nn-stat__num nn-stat__num--glow-cyan">${arr.toFixed(2)}</p>
+                  <p className="nn-stat__sub mt-1">ARR</p>
                 </div>
-                <div className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
-                  <p className="text-xs opacity-80 mb-1">Active Subscribers</p>
-                  <p className="text-3xl font-bold">{activeVipCount}</p>
-                  <p className="text-xs opacity-80 mt-1">Current VIPs</p>
+                <div className="nn-stat">
+                  <p className="nn-stat__lab mb-1">Active Subscribers</p>
+                  <p className="nn-stat__num nn-stat__num--glow-violet">{activeVipCount}</p>
+                  <p className="nn-stat__sub mt-1">Current VIPs</p>
                 </div>
-                <div className="bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
-                  <p className="text-xs opacity-80 mb-1">Total Revenue</p>
-                  <p className="text-3xl font-bold">${totalRevenue.toFixed(2)}</p>
-                  <p className="text-xs opacity-80 mt-1">All Time</p>
+                <div className="nn-stat">
+                  <p className="nn-stat__lab mb-1">Total Revenue</p>
+                  <p className="nn-stat__num nn-stat__num--glow-amber">${totalRevenue.toFixed(2)}</p>
+                  <p className="nn-stat__sub mt-1">All Time</p>
                 </div>
-                <div className="bg-gradient-to-br from-[color:var(--nn-magenta)] to-[color:var(--nn-magenta)] rounded-none p-4 text-[color:var(--nn-text-primary)]">
-                  <p className="text-xs opacity-80 mb-1">Churn Rate</p>
-                  <p className="text-3xl font-bold">{(churnRate * 100).toFixed(1)}%</p>
-                  <p className="text-xs opacity-80 mt-1">Last 30 Days</p>
+                <div className="nn-stat">
+                  <p className="nn-stat__lab mb-1">Churn Rate</p>
+                  <p className="nn-stat__num nn-stat__num--glow-magenta">{(churnRate * 100).toFixed(1)}%</p>
+                  <p className="nn-stat__sub mt-1">Last 30 Days</p>
                 </div>
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function VIPSubscriptionPage() {
                   
                   <button
                     onClick={handleStripeConnect}
-                    className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-3 rounded-none font-semibold transition-colors"
+                    className="nn-btn nn-btn--primary px-6 py-3 font-semibold"
                   >
                     🔗 Connect Stripe Account
                   </button>
@@ -277,13 +277,13 @@ export default function VIPSubscriptionPage() {
                   <div className="flex gap-4">
                     <button
                       onClick={() => window.open('https://dashboard.stripe.com', '_blank')}
-                      className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold transition-colors"
+                      className="nn-btn px-4 py-2 font-semibold"
                     >
                       📊 View Stripe Dashboard
                     </button>
                     <button
                       onClick={() => setStripeConnected(false)}
-                      className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold transition-colors"
+                      className="nn-btn nn-btn--danger px-4 py-2 font-semibold"
                     >
                       🔌 Disconnect
                     </button>
@@ -310,10 +310,10 @@ export default function VIPSubscriptionPage() {
                       <h3 className="text-xl font-bold text-[color:var(--nn-violet)]">{pkg.name}</h3>
                       <button
                         onClick={() => handlePackageToggle(pkg.id)}
-                        className={`px-3 py-1 rounded-none text-xs font-semibold transition-colors ${
+                        className={`px-3 py-1 text-xs font-semibold transition-colors rounded-none ${
                           pkg.enabled
-                            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-secondary)]'
+                            ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] nn-text-secondary'
                         }`}
                       >
                         {pkg.enabled ? '✓ Enabled' : '✗ Disabled'}
@@ -427,7 +427,7 @@ export default function VIPSubscriptionPage() {
                         navigator.clipboard.writeText('https://yourdomain.com/api/webhooks/stripe');
                         showInfo('Webhook URL copied to clipboard!');
                       }}
-                      className="bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold transition-colors"
+                      className="nn-btn px-4 py-2 font-semibold"
                     >
                       📋 Copy
                     </button>

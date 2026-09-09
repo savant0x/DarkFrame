@@ -175,7 +175,7 @@ export async function proposeAlliance(
   const proposingClan = proposingClanRows[0];
   const targetClan = targetClanRows[0];
   
-  const proposerMember = proposingClan.members.find((m: any) => m.playerId === proposedBy);
+  const proposerMember = proposingClan.members.find((m) => m.playerId === proposedBy);
   if (!proposerMember || (proposerMember.role !== 'LEADER' && proposerMember.role !== 'CO_LEADER')) {
     throw new Error('Only Leaders or Co-Leaders can propose alliances');
   }
@@ -311,7 +311,7 @@ export async function acceptAlliance(
   }
   
   const acceptingClan = acceptingClanRows[0];
-  const accepterMember = acceptingClan.members.find((m: any) => m.playerId === acceptedBy);
+  const accepterMember = acceptingClan.members.find((m) => m.playerId === acceptedBy);
   if (!accepterMember || (accepterMember.role !== 'LEADER' && accepterMember.role !== 'CO_LEADER')) {
     throw new Error('Only Leaders or Co-Leaders can accept alliances');
   }
@@ -402,7 +402,7 @@ export async function breakAlliance(
   }
   
   const breakingClan = breakingClanRows[0];
-  const breakerMember = breakingClan.members.find((m: any) => m.playerId === brokenBy);
+  const breakerMember = breakingClan.members.find((m) => m.playerId === brokenBy);
   if (!breakerMember || breakerMember.role !== 'LEADER') {
     throw new Error('Only clan leaders can break alliances');
   }
@@ -481,7 +481,7 @@ export async function addContract(
   }
   
   const clan = clanRows[0];
-  const member = clan.members.find((m: any) => m.playerId === playerId);
+  const member = clan.members.find((m) => m.playerId === playerId);
   if (!member || member.role !== 'LEADER') {
     throw new Error('Only clan leaders can add contracts');
   }
@@ -551,7 +551,7 @@ export async function removeContract(
   }
   
   const clan = clanRows[0];
-  const member = clan.members.find((m: any) => m.playerId === playerId);
+  const member = clan.members.find((m) => m.playerId === playerId);
   if (!member || member.role !== 'LEADER') {
     throw new Error('Only clan leaders can remove contracts');
   }

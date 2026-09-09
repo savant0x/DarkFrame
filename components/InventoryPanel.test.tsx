@@ -98,7 +98,7 @@ describe('InventoryPanel', () => {
         expect(global.fetch).toHaveBeenCalled();
       });
       
-      expect(screen.queryByText('INVENTORY')).not.toBeInTheDocument();
+      expect(screen.queryByText('Inventory')).not.toBeInTheDocument();
     });
 
     it('should open modal on I key press', async () => {
@@ -114,7 +114,7 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
     });
 
@@ -131,7 +131,7 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       // Close modal
@@ -140,7 +140,7 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.queryByText('INVENTORY')).not.toBeInTheDocument();
+        expect(screen.queryByText('Inventory')).not.toBeInTheDocument();
       });
     });
 
@@ -156,16 +156,16 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
-      const closeButton = screen.getByText('✕');
+      const closeButton = screen.getByRole('button', { name: 'Close inventory' });
       act(() => {
         fireEvent.click(closeButton);
       });
       
       await waitFor(() => {
-        expect(screen.queryByText('INVENTORY')).not.toBeInTheDocument();
+        expect(screen.queryByText('Inventory')).not.toBeInTheDocument();
       });
     });
   });
@@ -214,7 +214,7 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       // Component should still render even if fetch fails
@@ -238,7 +238,7 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       expect(screen.queryByText('Metal Digger')).not.toBeInTheDocument();
@@ -365,7 +365,7 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       // Metal bonus label should be present
@@ -422,13 +422,13 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       // Timer should show some time remaining format
       await waitFor(() => {
         // Just verify inventory is open since timer updates in real-time
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
     });
 
@@ -457,12 +457,12 @@ describe('InventoryPanel', () => {
       });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       // Component should render even with expired boost (timer won't show EXPIRED immediately)
       // This is expected behavior - timer updates every second
-      expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+      expect(screen.getByText('Inventory')).toBeInTheDocument();
     });
   });
 
@@ -554,7 +554,7 @@ describe('InventoryPanel', () => {
       fireEvent.keyDown(window, { key: 'i' });
       
       await waitFor(() => {
-        expect(screen.getByText('INVENTORY')).toBeInTheDocument();
+        expect(screen.getByText('Inventory')).toBeInTheDocument();
       });
       
       // Should not display any items

@@ -23,7 +23,7 @@
 
 import React, { useState } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
-import { Button, Input } from '@/components/ui';
+
 import {
   Coins,
   Zap,
@@ -231,10 +231,10 @@ export default function ClanBankPanel({
         
         <div className="grid grid-cols-3 gap-3">
           {/* Metal */}
-          <div className="bg-glass-light rounded-none p-4 border border-glass-border">
+          <div className="nn-surface rounded-none p-4 border border-[color:var(--nn-glass-border)]">
             <div className="flex items-center gap-2 mb-2">
-              <Coins className="w-4 h-4 text-text-secondary" />
-              <span className="text-xs text-text-secondary">Metal</span>
+              <Coins className="w-4 h-4 nn-text-secondary" />
+              <span className="text-xs nn-text-secondary">Metal</span>
             </div>
             <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
               {clan.bank.treasury.metal.toLocaleString()}
@@ -242,10 +242,10 @@ export default function ClanBankPanel({
           </div>
 
           {/* Energy */}
-          <div className="bg-glass-light rounded-none p-4 border border-glass-border">
+          <div className="nn-surface rounded-none p-4 border border-[color:var(--nn-glass-border)]">
             <div className="flex items-center gap-2 mb-2">
               <Zap className="w-4 h-4 text-[color:var(--nn-cyan)]" />
-              <span className="text-xs text-text-secondary">Energy</span>
+              <span className="text-xs nn-text-secondary">Energy</span>
             </div>
             <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
               {clan.bank.treasury.energy.toLocaleString()}
@@ -253,10 +253,10 @@ export default function ClanBankPanel({
           </div>
 
           {/* Research Points */}
-          <div className="bg-glass-light rounded-none p-4 border border-glass-border">
+          <div className="nn-surface rounded-none p-4 border border-[color:var(--nn-glass-border)]">
             <div className="flex items-center gap-2 mb-2">
               <Beaker className="w-4 h-4 text-[color:var(--nn-violet)]" />
-              <span className="text-xs text-text-secondary">RP</span>
+              <span className="text-xs nn-text-secondary">RP</span>
             </div>
             <div className="text-2xl font-bold text-[color:var(--nn-text-primary)]">
               {clan.research.researchPoints.toLocaleString()}
@@ -265,7 +265,7 @@ export default function ClanBankPanel({
         </div>
 
         {/* Bank Info */}
-        <div className="mt-3 text-xs text-text-secondary">
+        <div className="mt-3 text-xs nn-text-secondary">
           Bank Level: {clan.bank.upgradeLevel} | Capacity: {clan.bank.capacity.toLocaleString()}
         </div>
       </div>
@@ -280,80 +280,66 @@ export default function ClanBankPanel({
         <div className="space-y-3">
           {/* Metal Deposit */}
           <div className="flex items-center gap-2">
-            <Coins className="w-4 h-4 text-text-secondary flex-shrink-0" />
-            <Input
+            <Coins className="w-4 h-4 nn-text-secondary flex-shrink-0" />
+            <input
               type="number"
               value={depositMetal || ''}
               onChange={(e) => setDepositMetal(parseInt(e.target.value) || 0)}
               placeholder="Metal"
               min={0}
               max={playerResources.metal}
-              className="flex-1"
-            />
-            <Button
-              onClick={() => setDepositMax('metal')}
-              variant="secondary"
-              size="sm"
-            >
+              className="nn-input flex-1"
+             />
+            <button className="nn-btn"
+              onClick={() => setDepositMax('metal')} >
               Max
-            </Button>
+            </button>
           </div>
 
           {/* Energy Deposit */}
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-[color:var(--nn-cyan)] flex-shrink-0" />
-            <Input
+            <input
               type="number"
               value={depositEnergy || ''}
               onChange={(e) => setDepositEnergy(parseInt(e.target.value) || 0)}
               placeholder="Energy"
               min={0}
               max={playerResources.energy}
-              className="flex-1"
-            />
-            <Button
-              onClick={() => setDepositMax('energy')}
-              variant="secondary"
-              size="sm"
-            >
+              className="nn-input flex-1"
+             />
+            <button className="nn-btn"
+              onClick={() => setDepositMax('energy')} >
               Max
-            </Button>
+            </button>
           </div>
 
           {/* RP Deposit */}
           <div className="flex items-center gap-2">
             <Beaker className="w-4 h-4 text-[color:var(--nn-violet)] flex-shrink-0" />
-            <Input
+            <input
               type="number"
               value={depositRP || ''}
               onChange={(e) => setDepositRP(parseInt(e.target.value) || 0)}
               placeholder="Research Points"
               min={0}
               max={playerResources.researchPoints}
-              className="flex-1"
-            />
-            <Button
-              onClick={() => setDepositMax('rp')}
-              variant="secondary"
-              size="sm"
-            >
+              className="nn-input flex-1"
+             />
+            <button className="nn-btn"
+              onClick={() => setDepositMax('rp')} >
               Max
-            </Button>
+            </button>
           </div>
 
           {/* Deposit Button */}
-          <Button
-            onClick={handleDeposit}
-            variant="primary"
-            fullWidth
-            disabled={isDepositing || (depositMetal <= 0 && depositEnergy <= 0 && depositRP <= 0)}
-            loading={isDepositing}
-          >
+          <button className="nn-btn nn-btn--primary"
+            onClick={handleDeposit} disabled={isDepositing || (depositMetal <= 0 && depositEnergy <= 0 && depositRP <= 0)} >
             Deposit to Clan Bank
-          </Button>
+          </button>
         </div>
 
-        <div className="mt-2 text-xs text-text-secondary">
+        <div className="mt-2 text-xs nn-text-secondary">
           Your Balance: {playerResources.metal.toLocaleString()} Metal | {playerResources.energy.toLocaleString()} Energy | {playerResources.researchPoints} RP
         </div>
       </div>
@@ -365,15 +351,15 @@ export default function ClanBankPanel({
           Withdraw Resources
           {!permissions.canWithdrawFromBank && (
             <span title="Requires permission">
-              <Lock className="w-3 h-3 text-text-secondary" />
+              <Lock className="w-3 h-3 nn-text-secondary" />
             </span>
           )}
         </h4>
 
         {!permissions.canWithdrawFromBank ? (
-          <div className="bg-glass-light rounded-none p-3 flex items-start gap-2">
+          <div className="nn-surface rounded-none p-3 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-text-secondary">
+            <p className="text-xs nn-text-secondary">
               You do not have permission to withdraw from the clan bank. Only Leaders and Officers can withdraw resources.
             </p>
           </div>
@@ -381,77 +367,63 @@ export default function ClanBankPanel({
           <div className="space-y-3">
             {/* Metal Withdraw */}
             <div className="flex items-center gap-2">
-              <Coins className="w-4 h-4 text-text-secondary flex-shrink-0" />
-              <Input
+              <Coins className="w-4 h-4 nn-text-secondary flex-shrink-0" />
+              <input
                 type="number"
                 value={withdrawMetal || ''}
                 onChange={(e) => setWithdrawMetal(parseInt(e.target.value) || 0)}
                 placeholder="Metal"
                 min={0}
                 max={clan.bank.treasury.metal}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => setWithdrawMax('metal')}
-                variant="secondary"
-                size="sm"
-              >
+                className="nn-input flex-1"
+               />
+              <button className="nn-btn"
+                onClick={() => setWithdrawMax('metal')} >
                 Max
-              </Button>
+              </button>
             </div>
 
             {/* Energy Withdraw */}
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-[color:var(--nn-cyan)] flex-shrink-0" />
-              <Input
+              <input
                 type="number"
                 value={withdrawEnergy || ''}
                 onChange={(e) => setWithdrawEnergy(parseInt(e.target.value) || 0)}
                 placeholder="Energy"
                 min={0}
                 max={clan.bank.treasury.energy}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => setWithdrawMax('energy')}
-                variant="secondary"
-                size="sm"
-              >
+                className="nn-input flex-1"
+               />
+              <button className="nn-btn"
+                onClick={() => setWithdrawMax('energy')} >
                 Max
-              </Button>
+              </button>
             </div>
 
             {/* RP Withdraw */}
             <div className="flex items-center gap-2">
               <Beaker className="w-4 h-4 text-[color:var(--nn-violet)] flex-shrink-0" />
-              <Input
+              <input
                 type="number"
                 value={withdrawRP || ''}
                 onChange={(e) => setWithdrawRP(parseInt(e.target.value) || 0)}
                 placeholder="Research Points"
                 min={0}
                 max={clan.research.researchPoints}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => setWithdrawMax('rp')}
-                variant="secondary"
-                size="sm"
-              >
+                className="nn-input flex-1"
+               />
+              <button className="nn-btn"
+                onClick={() => setWithdrawMax('rp')} >
                 Max
-              </Button>
+              </button>
             </div>
 
             {/* Withdraw Button */}
-            <Button
-              onClick={handleWithdraw}
-              variant="danger"
-              fullWidth
-              disabled={isWithdrawing || (withdrawMetal <= 0 && withdrawEnergy <= 0 && withdrawRP <= 0)}
-              loading={isWithdrawing}
-            >
+            <button className="nn-btn nn-btn--danger"
+              onClick={handleWithdraw} disabled={isWithdrawing || (withdrawMetal <= 0 && withdrawEnergy <= 0 && withdrawRP <= 0)} >
               Withdraw from Clan Bank
-            </Button>
+            </button>
           </div>
         )}
       </div>

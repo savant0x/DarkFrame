@@ -30,6 +30,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import type { PlayerSearchResult } from '@/types/friend';
 
 // ============================================================================
@@ -286,7 +287,7 @@ export default function AddFriendModal({
                 />
                 {searching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-5 h-5 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent rounded-full animate-spin" />
+                    <Loader2 className="nn-spin-icon w-5 h-5 text-[color:var(--nn-cyan)]" aria-label="Sending request" />
                   </div>
                 )}
               </div>

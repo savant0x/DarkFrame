@@ -128,10 +128,10 @@ export async function setConcentrationZones(
 
   // Update player document
   const result = await db.update(players).set({
-    concentrationZones: zones as any
-  }).where(eq(players.username, playerId));
+    concentrationZones: zones
+  }).where(eq(players.username, playerId)).returning({ username: players.username });
 
-  if ((result as any).affectedRows === 0) {
+  if (result.length === 0) {
     return {
       success: false,
       message: 'Failed to update zones',

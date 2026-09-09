@@ -1,6 +1,8 @@
 /**
  * @file app/register/page.tsx
  * @created 2025-10-16
+ * @updated 2026-09-08 (FID-20260908-007: NEON NOIR redesign — nn-panel Enlistment
+ * console, nn-input fields, nn-meter strength gauge; logic byte-preserved)
  * @overview Registration page with email/password authentication
  */
 
@@ -9,6 +11,16 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { User, Mail, Lock, ShieldCheck, KeyRound } from 'lucide-react';
+
+// Strength tiers — semantic signal mapping (weak=magenta … strong=green).
+// glow only on strong per the glow discipline.
+const STRENGTH_TIERS = [
+  { label: 'Weak', color: 'var(--nn-magenta)', glow: false },
+  { label: 'Fair', color: 'var(--nn-amber)', glow: false },
+  { label: 'Good', color: 'var(--nn-cyan)', glow: false },
+  { label: 'Strong', color: 'var(--nn-green)', glow: true },
+] as const;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -19,17 +31,17 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Password strength indicator
+  // Password strength indicator (1-4; logic unchanged)
   const getPasswordStrength = (pwd: string) => {
     if (pwd.length === 0) return { strength: 0, label: '', color: '' };
     if (pwd.length < 8) return { strength: 1, label: 'Weak', color: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' };
-    
+
     let strength = 1;
     if (/[A-Z]/.test(pwd)) strength++;
     if (/[a-z]/.test(pwd)) strength++;
     if (/[0-9]/.test(pwd)) strength++;
     if (/[^A-Za-z0-9]/.test(pwd)) strength++;
-    
+
     if (strength <= 2) return { strength: 1, label: 'Weak', color: 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' };
     if (strength === 3) return { strength: 2, label: 'Fair', color: 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]' };
     if (strength === 4) return { strength: 3, label: 'Good', color: 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' };
@@ -37,6 +49,7 @@ export default function RegisterPage() {
   };
 
   const passwordStrength = getPasswordStrength(password);
+  const tier = STRENGTH_TIERS[Math.max(0, passwordStrength.strength - 1)];
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -86,8 +99,8 @@ export default function RegisterPage() {
         router.push('/game');
       } else {
         // Extract message from error object (API returns {code, message, timestamp, stack})
-        const errorMessage = typeof data.error === 'object' && data.error?.message 
-          ? data.error.message 
+        const errorMessage = typeof data.error === 'object' && data.error?.message
+          ? data.error.message
           : (typeof data.error === 'string' ? data.error : 'Registration failed');
         setError(errorMessage);
       }
@@ -100,156 +113,198 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] mb-2">
-            DARKFRAME
+    <div className="flex min-h-screen items-center justify-center px-4 py-10" style={{ background: 'var(--nn-void)' }}>
+      <div className="w-full max-w-md">
+        {/* Header — section instrument (parity with login §9.5) */}
+        <div className="mb-8 text-center">
+          <h1 className="nn-sec__title" style={{ fontSize: 26, letterSpacing: '0.3em' }}>
+            DARK<span style={{ color: 'var(--nn-violet)' }}>FRAME</span>
           </h1>
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">
+          <p className="nn-lab" style={{ marginTop: 8, fontSize: 11 }}>
             Create Your Commander Account
           </p>
         </div>
 
-        {/* Registration Form */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-8 shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username Input */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
+        {/* Registration Form — HUD panel with scanline header */}
+        <div
+          className="nn-panel nn-panel--x-pad"
+          style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}
+        >
+          <div className="nn-panel__header nn-panel__header--bleed">
+            <span className="nn-panel__icon"><ShieldCheck /></span>
+            <h2 className="nn-panel__title">Enlistment</h2>
+            <span className="nn-panel__meta">New Commander ▸ Encrypted</span>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ paddingTop: 18 }}>
+            {/* Username */}
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="username" className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>
                 Username
               </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                minLength={3}
-                maxLength={20}
-                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
-                placeholder="commander_name"
-                disabled={isLoading}
-              />
-              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
-                3-20 characters, letters, numbers, hyphens, underscores
+              <div className="relative">
+                <User
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: 'var(--nn-text-tertiary)' }}
+                />
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  minLength={3}
+                  maxLength={20}
+                  autoComplete="username"
+                  className="nn-input w-full"
+                  style={{ paddingLeft: '2.25rem', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+                  placeholder="commander_name"
+                  disabled={isLoading}
+                />
+              </div>
+              <p className="nn-lab" style={{ marginTop: 4, fontSize: 10 }}>
+                3-20 characters · letters, numbers, hyphens, underscores
               </p>
             </div>
 
-            {/* Email Input */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
+            {/* Email */}
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="email" className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>
                 Email Address
               </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
-                placeholder="your.email@example.com"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: 'var(--nn-text-tertiary)' }}
+                />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="nn-input w-full"
+                  style={{ paddingLeft: '2.25rem', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+                  placeholder="your.email@example.com"
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
-            {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
+            {/* Password */}
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="password" className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
-                placeholder="••••••••"
-                disabled={isLoading}
-              />
-              {/* Password Strength Indicator */}
+              <div className="relative">
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: 'var(--nn-text-tertiary)' }}
+                />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  className="nn-input w-full"
+                  style={{ paddingLeft: '2.25rem', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+              </div>
+
+              {/* Strength — HUD meter (semantic signal, glow on strong only) */}
               {password && (
-                <div className="mt-2">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2 overflow-hidden">
-                      <div
-                        className={`h-full ${passwordStrength.color} transition-all`}
-                        style={{ width: `${(passwordStrength.strength / 4) * 100}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-[color:var(--nn-text-secondary)]">{passwordStrength.label}</span>
+                <div style={{ marginTop: 8 }}>
+                  <div className="nn-meter" style={{ height: 6 }}>
+                    <div
+                      style={{
+                        width: `${(passwordStrength.strength / 4) * 100}%`,
+                        height: '100%',
+                        background: tier.color,
+                        boxShadow: tier.glow ? '0 0 8px color-mix(in oklab, var(--nn-green) 60%, transparent)' : 'none',
+                        transition: 'width var(--nn-time-fast, 120ms) linear',
+                      }}
+                    />
                   </div>
-                  <p className="text-xs text-[color:var(--nn-text-secondary)]">
-                    Min 8 chars, 1 uppercase, 1 lowercase, 1 number
-                  </p>
+                  <div className="flex items-center justify-between" style={{ marginTop: 4 }}>
+                    <span className="nn-lab" style={{ color: tier.color }}>{passwordStrength.label}</span>
+                    <span className="nn-lab" style={{ fontSize: 10 }}>Min 8 · Aa · 0-9</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Confirm Password Input */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
+            {/* Confirm Password */}
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="confirmPassword" className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>
                 Confirm Password
               </label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
-                placeholder="••••••••"
-                disabled={isLoading}
-              />
-              {/* Password Match Indicator */}
+              <div className="relative">
+                <KeyRound
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: 'var(--nn-text-tertiary)' }}
+                />
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  className="nn-input w-full"
+                  style={{ paddingLeft: '2.25rem', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+              </div>
+              {/* Match indicator — semantic green/magenta */}
               {confirmPassword && (
-                <p className={`text-xs mt-1 ${
-                  password === confirmPassword ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'
-                }`}>
+                <p
+                  className="nn-lab"
+                  style={{
+                    marginTop: 4,
+                    color: password === confirmPassword ? 'var(--nn-green)' : 'var(--nn-magenta)',
+                  }}
+                >
                   {password === confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
                 </p>
               )}
             </div>
 
-            {/* Error Message */}
+            {/* Error — semantic advisory strip */}
             {error && (
-              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 text-[color:var(--nn-magenta)] text-sm">
+              <div className="nn-note" style={{ marginBottom: 16 }} role="alert">
                 {error}
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit — outline instrument per sample §02 */}
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-none font-semibold text-[color:var(--nn-text-primary)] transition-all ${
-                isLoading
-                  ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] hover:from-[color:var(--nn-cyan)] hover:to-[color:var(--nn-violet)] shadow-lg hover:shadow-[0_0_20px_color-mix(in_oklab,var(--nn-cyan)_40%,transparent)]'
-              }`}
+              className="nn-btn nn-btn--primary"
+              style={{ width: '100%', padding: '13px 20px' }}
             >
               {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Creating Account...
-                </span>
+                <>
+                  <span
+                    className="nn-spin"
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: '2px solid color-mix(in oklab, var(--nn-cyan) 40%, transparent)',
+                      borderBottomColor: 'transparent',
+                      animation: 'nn-spin 0.9s linear infinite',
+                      display: 'inline-block',
+                    }}
+                    aria-hidden
+                  />
+                  Enlisting…
+                </>
               ) : (
                 'CREATE ACCOUNT'
               )}
@@ -257,35 +312,32 @@ export default function RegisterPage() {
           </form>
 
           {/* Login Link */}
-          <div className="mt-6 text-center">
-            <p className="text-[color:var(--nn-text-secondary)] text-sm">
+          <div className="nn-row" style={{ justifyContent: 'center', paddingTop: 12 }}>
+            <span className="nn-row__label">
               Already have an account?{' '}
-              <Link
-                href="/login"
-                className="text-[color:var(--nn-cyan)] font-semibold transition-colors"
-              >
+              <Link href="/login" className="nn-link" style={{ marginLeft: 4 }}>
                 Login here
               </Link>
-            </p>
+            </span>
           </div>
         </div>
 
-        {/* Game Info */}
-        <div className="mt-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
-          <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2 text-sm">🎮 What is DarkFrame?</h3>
-          <ul className="space-y-1 text-xs text-[color:var(--nn-text-secondary)]">
-            <li>• Navigate a persistent 150×150 tile world</li>
-            <li>• Gather Metal ⚙️ and Energy ⚡ resources</li>
-            <li>• Explore caves for rare items and diggers</li>
-            <li>• Build factories and automate production</li>
+        {/* Game Info — brief block (emoji slab removed) */}
+        <div className="nn-brief" style={{ marginTop: 20 }}>
+          <div className="nn-brief__head">
+            <strong>What is DarkFrame?</strong>
+          </div>
+          <ul style={{ margin: '6px 0 0', padding: 0, listStyle: 'none' }}>
+            <li className="nn-lab" style={{ marginBottom: 3 }}>▸ Navigate a persistent 150×150 tile world</li>
+            <li className="nn-lab" style={{ marginBottom: 3 }}>▸ Gather Metal and Energy resources</li>
+            <li className="nn-lab" style={{ marginBottom: 3 }}>▸ Explore caves for rare items and diggers</li>
+            <li className="nn-lab">▸ Build factories and automate production</li>
           </ul>
         </div>
 
         {/* Footer */}
         <div className="mt-4 text-center">
-          <p className="text-[color:var(--nn-text-secondary)] text-xs">
-            Secure registration with encrypted credentials
-          </p>
+          <p className="nn-lab">Secure registration with encrypted credentials</p>
         </div>
       </div>
     </div>

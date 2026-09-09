@@ -22,7 +22,7 @@ import { pgTable, varchar, timestamp, jsonb } from 'drizzle-orm/pg-core';
 export const migrations = pgTable('migrations', {
   id: varchar('id', { length: 100 }).primaryKey(),
   appliedAt: timestamp('applied_at').notNull(),
-  details: jsonb('details').$type<any>(),
+  details: jsonb('details').$type<Record<string, unknown>>(),
 });
 
 const MIGRATION_ID = '2025-11-04-factory-slots-v1';
@@ -97,10 +97,10 @@ export async function runFactorySlotsMigration(): Promise<{
     await db.insert(migrations).values({
       id: MIGRATION_ID,
       appliedAt: new Date(),
-      details: JSON.stringify({
+      details: {
         baseSlots: FACTORY_UPGRADE.BASE_SLOTS,
         slotsPerLevel: FACTORY_UPGRADE.SLOTS_PER_LEVEL,
-      }),
+      },
     });
   }
 

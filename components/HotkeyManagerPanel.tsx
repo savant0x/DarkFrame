@@ -12,7 +12,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Keyboard, Save, RotateCcw, AlertCircle, CheckCircle } from 'lucide-react';
+import { Keyboard, Save, RotateCcw, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { HotkeyConfig, HotkeyCategory } from '@/types/hotkey.types';
 import { findHotkeyConflicts } from '@/lib/hotkeyRegistry';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
@@ -181,7 +181,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {loading ? (
             <div className="text-center text-[color:var(--nn-text-primary)]/70 py-12">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent"></div>
+              <Loader2 className="nn-spin-icon inline-block w-12 h-12 text-[color:var(--nn-cyan)]" aria-label="Loading hotkeys" />
               <p className="mt-4">Loading hotkey configuration...</p>
             </div>
           ) : (

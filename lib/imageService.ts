@@ -137,7 +137,7 @@ export async function getTerrainImage(
   const normalizedType = terrainType.toLowerCase();
   
   // Get available images for this terrain
-  const availableImages = (manifest as any)[normalizedType] || [];
+  const availableImages: string[] = manifest[normalizedType as keyof ImageManifest] ?? [];
   
   if (availableImages.length === 0) {
     console.log(`⚠️ No images found for terrain: ${terrainType}`);

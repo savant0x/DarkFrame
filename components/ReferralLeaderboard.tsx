@@ -1,27 +1,31 @@
 /**
  * @file components/ReferralLeaderboard.tsx
  * @created 2025-10-24
+ * @updated 2026-09-08 (FID-20260908-014: NEON NOIR redesign — nn-panel--violet header,
+ *   nn-table ledger, nn-chip badges, nn-well milestone grid, gated nn-spin-icon; doubled
+ *   bg-[color-mix(...)] in the current-player row ternary fixed to a single tint; rank/medal
+ *   emoji retained (game imagery); fetch/pagination logic byte-preserved)
  * @overview Referral leaderboard component showing top recruiters
- * 
+ *
  * OVERVIEW:
  * Displays ranked list of top recruiters with their referral counts,
  * badges, titles, and achievements. Shows current player's rank and
  * provides filtering/pagination options.
- * 
+ *
  * Features:
  * - Top recruiters ranked by validated referrals
  * - Badge and title display for each player
- * - Current player's rank highlighted
- * - Pagination support
- * - Real-time updates
+ * - Current player's rank highlighted (token violet tint)
+ * - Pagination support (Load More)
  * - Medal icons for top 3
- * 
+ *
  * Dependencies: /api/referral/leaderboard, GameContext
  */
 
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import { showError } from '@/lib/toastService';
 
@@ -41,6 +45,19 @@ interface LeaderboardData {
   totalPlayers: number;
 }
 
+/**
+ * Wire shape of a GET /api/referral/leaderboard row: the route maps projected player
+ * rows into ranked entries (rank computed server-side; badges/titles copied through).
+ */
+interface LeaderboardRowPayload {
+  rank: number;
+  username: string;
+  totalReferrals: number;
+  pendingReferrals?: number;
+  badges?: string[];
+  titles?: string[];
+}
+
 export default function ReferralLeaderboard() {
   const { player } = useGameContext();
   const [data, setData] = useState<LeaderboardData | null>(null);
@@ -57,7 +74,7 @@ export default function ReferralLeaderboard() {
         // Map the API response to component state
         const apiData = result.data;
         setData({
-          leaderboard: apiData.leaderboard.map((entry: any) => ({
+          leaderboard: apiData.leaderboard.map((entry: LeaderboardRowPayload) => ({
             rank: entry.rank,
             username: entry.username,
             totalReferrals: entry.totalReferrals,
@@ -108,15 +125,17 @@ export default function ReferralLeaderboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]"></div>
+        <Loader2 className="nn-spin-icon w-8 h-8 text-[color:var(--nn-cyan)]" aria-label="Loading leaderboard" />
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center p-8 text-[color:var(--nn-magenta)]">
-        Failed to load leaderboard. Please try again.
+      <div className="nn-note" role="alert">
+        <p className="nn-text-magenta text-sm font-semibold">
+          Failed to load leaderboard. Please try again.
+        </p>
       </div>
     );
   }
@@ -124,37 +143,48 @@ export default function ReferralLeaderboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
-        <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-2">Top Recruiters</h2>
-        <p className="text-text-primary">
-          Hall of fame for the most successful recruiters in DarkFrame
-        </p>
-        {data.currentPlayerRank && (
-          <div className="mt-4 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] rounded-none p-3 inline-block">
-            <span className="text-[color:var(--nn-violet)]">Your Rank: </span>
-            <span className="text-2xl font-bold text-[color:var(--nn-violet)]">#{data.currentPlayerRank}</span>
-            <span className="text-text-secondary ml-2">of {data.totalPlayers}</span>
-          </div>
-        )}
+      <div className="nn-panel nn-panel--violet">
+        <div className="nn-panel__header">
+          <span className="nn-panel__title">Top Recruiters</span>
+          <span className="nn-panel__meta">Hall of Fame</span>
+        </div>
+        <div className="nn-panel__body nn-panel__body--padded">
+          <p className="nn-text-secondary mb-4">
+            Hall of fame for the most successful recruiters in DarkFrame
+          </p>
+          {data.currentPlayerRank && (
+            <div className="nn-row inline-flex nn-well">
+              <span className="nn-text-violet text-sm">Your Rank:</span>
+              <span className="nn-num text-2xl font-bold nn-text-violet">
+                #{data.currentPlayerRank}
+              </span>
+              <span className="nn-text-secondary text-sm">of {data.totalPlayers}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Leaderboard Table */}
-      <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none overflow-hidden">
+      <div className="nn-panel">
+        <div className="nn-panel__header">
+          <span className="nn-panel__title">Rankings</span>
+          <span className="nn-panel__meta">{data.totalPlayers} Recruiters</span>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="nn-table">
             <thead>
-              <tr className="bg-glass-dark border-b border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[color:var(--nn-cyan)]">Rank</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[color:var(--nn-cyan)]">Player</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[color:var(--nn-cyan)]">Referrals</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[color:var(--nn-cyan)]">Validated</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[color:var(--nn-cyan)]">Achievements</th>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Referrals</th>
+                <th>Validated</th>
+                <th>Achievements</th>
               </tr>
             </thead>
             <tbody>
               {!data?.leaderboard || data.leaderboard.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-text-secondary">
+                  <td colSpan={5} className="text-center nn-table__dim">
                     No recruiters yet. Be the first!
                   </td>
                 </tr>
@@ -162,21 +192,21 @@ export default function ReferralLeaderboard() {
                 data.leaderboard.map((entry) => (
                   <tr
                     key={entry.username}
-                    className={`border-b border-glass-border transition-colors ${
+                    style={
                       entry.isCurrentPlayer
-                        ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]'
-                        : 'hover:bg-glass-light'
-                    }`}
+                        ? { background: 'color-mix(in oklab, var(--nn-violet) 14%, transparent)' }
+                        : undefined
+                    }
                   >
                     {/* Rank */}
-                    <td className="px-4 py-4">
+                    <td>
                       <div className="flex items-center gap-2">
                         {getRankMedal(entry.rank) && (
                           <span className="text-2xl">{getRankMedal(entry.rank)}</span>
                         )}
                         <span
-                          className={`text-lg font-bold ${
-                            entry.rank <= 3 ? 'text-[color:var(--nn-amber)]' : 'text-text-secondary'
+                          className={`nn-num text-lg font-bold ${
+                            entry.rank <= 3 ? 'nn-text-amber' : 'nn-table__dim'
                           }`}
                         >
                           #{entry.rank}
@@ -185,18 +215,16 @@ export default function ReferralLeaderboard() {
                     </td>
 
                     {/* Player */}
-                    <td className="px-4 py-4">
+                    <td>
                       <div>
                         <div className="font-semibold text-[color:var(--nn-text-primary)] flex items-center gap-2">
                           {entry.username}
                           {entry.isCurrentPlayer && (
-                            <span className="text-xs bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-0.5 rounded-none">
-                              YOU
-                            </span>
+                            <span className="nn-chip nn-chip--violet text-xs">YOU</span>
                           )}
                         </div>
                         {entry.titles.length > 0 && (
-                          <div className="text-sm text-[color:var(--nn-violet)] mt-1">
+                          <div className="nn-footnote nn-text-violet mt-1">
                             {entry.titles[entry.titles.length - 1]}
                           </div>
                         )}
@@ -204,31 +232,31 @@ export default function ReferralLeaderboard() {
                     </td>
 
                     {/* Total Referrals */}
-                    <td className="px-4 py-4">
-                      <div className="text-lg font-bold text-[color:var(--nn-cyan)]">
+                    <td>
+                      <div className="nn-num text-lg font-bold nn-text-cyan">
                         {entry.totalReferrals}
                       </div>
-                      <div className="text-xs text-text-secondary">total</div>
+                      <div className="nn-footnote">total</div>
                     </td>
 
                     {/* Validated */}
-                    <td className="px-4 py-4">
-                      <div className="text-lg font-bold text-[color:var(--nn-green)]">
+                    <td>
+                      <div className="nn-num text-lg font-bold nn-text-green">
                         {entry.validatedReferrals}
                       </div>
-                      <div className="text-xs text-text-secondary">validated</div>
+                      <div className="nn-footnote">validated</div>
                     </td>
 
                     {/* Badges */}
-                    <td className="px-4 py-4">
+                    <td>
                       <div className="flex flex-wrap gap-2">
                         {entry.badges.length === 0 ? (
-                          <span className="text-sm text-text-secondary">No badges yet</span>
+                          <span className="nn-footnote">No badges yet</span>
                         ) : (
                           entry.badges.map((badge, index) => (
                             <span
                               key={index}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold"
+                              className="nn-chip nn-chip--amber"
                               title={badge}
                             >
                               {getBadgeIcon(badge)}
@@ -249,42 +277,44 @@ export default function ReferralLeaderboard() {
       {/* Load More */}
       {data.leaderboard.length >= limit && (
         <div className="text-center">
-          <button
-            onClick={() => setLimit(limit + 50)}
-            className="px-6 py-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition-colors font-semibold"
-          >
+          <button onClick={() => setLimit(limit + 50)} className="nn-btn nn-btn--primary px-6 py-3">
             Load More
           </button>
         </div>
       )}
 
       {/* Milestone Reference */}
-      <div className="bg-glass-light border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6">
-        <h3 className="text-lg font-bold text-[color:var(--nn-cyan)] mb-4">Milestone Achievements</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-glass-dark rounded-none p-3">
-            <div className="text-sm text-text-secondary">1 Referral</div>
-            <div className="text-[color:var(--nn-text-primary)] font-semibold">🎖️ Recruiter</div>
-          </div>
-          <div className="bg-glass-dark rounded-none p-3">
-            <div className="text-sm text-text-secondary">5 Referrals</div>
-            <div className="text-[color:var(--nn-text-primary)] font-semibold">🥉 Talent Scout</div>
-          </div>
-          <div className="bg-glass-dark rounded-none p-3">
-            <div className="text-sm text-text-secondary">15 Referrals</div>
-            <div className="text-[color:var(--nn-text-primary)] font-semibold">🥈 Elite Recruiter</div>
-          </div>
-          <div className="bg-glass-dark rounded-none p-3">
-            <div className="text-sm text-text-secondary">25 Referrals</div>
-            <div className="text-[color:var(--nn-text-primary)] font-semibold">👑 Ambassador</div>
-          </div>
-          <div className="bg-glass-dark rounded-none p-3">
-            <div className="text-sm text-text-secondary">50 Referrals</div>
-            <div className="text-[color:var(--nn-text-primary)] font-semibold">🥇 Legendary Recruiter</div>
-          </div>
-          <div className="bg-glass-dark rounded-none p-3">
-            <div className="text-sm text-text-secondary">100 Referrals</div>
-            <div className="text-[color:var(--nn-text-primary)] font-semibold">💎 Empire Builder</div>
+      <div className="nn-panel">
+        <div className="nn-panel__header">
+          <span className="nn-panel__title">Milestone Achievements</span>
+          <span className="nn-panel__meta">Badge Track</span>
+        </div>
+        <div className="nn-panel__body nn-panel__body--padded">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="nn-well flex-col items-stretch">
+              <div className="nn-footnote">1 Referral</div>
+              <div className="text-[color:var(--nn-text-primary)] font-semibold">🎖️ Recruiter</div>
+            </div>
+            <div className="nn-well flex-col items-stretch">
+              <div className="nn-footnote">5 Referrals</div>
+              <div className="text-[color:var(--nn-text-primary)] font-semibold">🥉 Talent Scout</div>
+            </div>
+            <div className="nn-well flex-col items-stretch">
+              <div className="nn-footnote">15 Referrals</div>
+              <div className="text-[color:var(--nn-text-primary)] font-semibold">🥈 Elite Recruiter</div>
+            </div>
+            <div className="nn-well flex-col items-stretch">
+              <div className="nn-footnote">25 Referrals</div>
+              <div className="text-[color:var(--nn-text-primary)] font-semibold">👑 Ambassador</div>
+            </div>
+            <div className="nn-well flex-col items-stretch">
+              <div className="nn-footnote">50 Referrals</div>
+              <div className="text-[color:var(--nn-text-primary)] font-semibold">🥇 Legendary Recruiter</div>
+            </div>
+            <div className="nn-well flex-col items-stretch">
+              <div className="nn-footnote">100 Referrals</div>
+              <div className="text-[color:var(--nn-text-primary)] font-semibold">💎 Empire Builder</div>
+            </div>
           </div>
         </div>
       </div>

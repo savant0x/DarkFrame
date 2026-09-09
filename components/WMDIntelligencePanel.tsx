@@ -1,32 +1,25 @@
 /**
  * @file components/WMDIntelligencePanel.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-tabchip/
+ * nn-chip/nn-row token structure; spy/mission flow logic byte-preserved)
  * @overview WMD Spy Network & Intelligence Operations Panel
- * 
+ *
  * OVERVIEW:
  * Manage spy network, launch intelligence missions, execute sabotage,
  * and track mission results. Includes spy recruitment, training, and
  * counter-intelligence operations.
- * 
- * Features:
- * - Spy roster with rank and specialization
- * - Mission launcher with 10 mission types
- * - Sabotage targeting interface
- * - Counter-intelligence sweeps
- * - Mission history and results
- * 
+ *
  * Dependencies: /api/wmd/intelligence, /types/wmd/intelligence.types
  */
 
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Input } from '@/components/ui/Input';
+import { Eye } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import type { WMDSpyMissionCompletePayload } from '@/types/websocket';
 
 interface Spy {
   spyId: string;
@@ -82,8 +75,8 @@ export default function WMDIntelligencePanel() {
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    const handleMissionComplete = (payload: any) => {
-      showInfo(`Mission complete: ${payload.missionType}`);
+    const handleMissionComplete = (payload: WMDSpyMissionCompletePayload) => {
+      showInfo(`Mission ${payload.success ? 'complete' : 'failed'}: ${payload.missionType}`);
       fetchData();
     };
 
@@ -128,11 +121,11 @@ export default function WMDIntelligencePanel() {
       const res = await fetch('/api/wmd/intelligence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          action: 'mission', 
-          spyId, 
+        body: JSON.stringify({
+          action: 'mission',
+          spyId,
           missionType,
-          targetId: targetId.trim() 
+          targetId: targetId.trim()
         }),
       });
       const data = await res.json();
@@ -173,20 +166,20 @@ export default function WMDIntelligencePanel() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusChip = (status: string) => {
     switch (status) {
-      case 'AVAILABLE': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
-      case 'ON_MISSION': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
-      case 'COMPROMISED': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
-      case 'RETIRED': return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
-      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      case 'AVAILABLE': return 'nn-chip nn-chip--green';
+      case 'ON_MISSION': return 'nn-chip nn-chip--cyan';
+      case 'COMPROMISED': return 'nn-chip nn-chip--magenta';
+      case 'RETIRED': return 'nn-chip';
+      default: return 'nn-chip';
     }
   };
 
   if (loading) {
     return (
-      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-        <p className="text-[color:var(--nn-text-secondary)]">Loading intelligence data...</p>
+      <div style={{ background: 'color-mix(in oklab, var(--nn-void) 65%, transparent)' }} className="p-6 rounded-none">
+        <p className="nn-lab">Loading intelligence data…</p>
       </div>
     );
   }
@@ -194,138 +187,129 @@ export default function WMDIntelligencePanel() {
   const availableSpies = spies.filter(s => s.status === 'AVAILABLE').length;
 
   return (
-    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">Intelligence Network</h2>
-          <p className="text-sm text-[color:var(--nn-text-secondary)]">
-            {spies.length} spies | {availableSpies} available
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button
+    <div className="space-y-6">
+      {/* Header — scanline section instrument */}
+      <div className="nn-sec nn-sec--magenta">
+        <span className="nn-panel__icon"><Eye className="h-4 w-4" /></span>
+        <span className="nn-sec__title">Intelligence Network</span>
+        <span className="nn-sec__note nn-num">{spies.length} spies · {availableSpies} available</span>
+        <div className="ml-auto flex gap-0">
+          <button
             onClick={() => setView('spies')}
-            variant={view === 'spies' ? 'primary' : 'secondary'}
-            size="sm"
+            data-selected={view === 'spies'}
+            className={`nn-ptab ${view === 'spies' ? 'on' : ''}`}
           >
             Spies
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={() => setView('missions')}
-            variant={view === 'missions' ? 'primary' : 'secondary'}
-            size="sm"
+            data-selected={view === 'missions'}
+            className={`nn-ptab ${view === 'missions' ? 'on' : ''}`}
           >
             Missions
-          </Button>
-          <Button
-            onClick={runCounterIntel}
-            className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"
-            size="sm"
-          >
-            Counter-Intel
-          </Button>
+          </button>
         </div>
+        <button onClick={runCounterIntel} className="nn-abtn nn-abtn--amber">
+          Counter-Intel
+        </button>
       </div>
 
       {/* Spies View */}
       {view === 'spies' && (
         <>
-          {/* Recruitment */}
-          <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2">Recruit Spy</h3>
-                <div className="flex gap-2">
-                  {['SURVEILLANCE', 'SABOTAGE', 'INFILTRATION', 'CYBER'].map(spec => (
-                    <Button
-                      key={spec}
-                      onClick={() => setSelectedSpec(spec)}
-                      variant={selectedSpec === spec ? 'primary' : 'secondary'}
-                      size="sm"
-                    >
-                      {spec}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <Button onClick={recruitSpy} className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]">
-                + Recruit
-              </Button>
+          {/* Recruitment — panel with spec tabchips */}
+          <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+            <div className="nn-panel__header">
+              <span className="nn-panel__title">Recruit Spy</span>
+              <span className="nn-panel__meta">{selectedSpec}</span>
+              <button onClick={recruitSpy} className="nn-abtn nn-abtn--violet ml-auto">+ Recruit</button>
             </div>
-          </Card>
+            <div className="nn-panel__body flex flex-wrap gap-2">
+              {['SURVEILLANCE', 'SABOTAGE', 'INFILTRATION', 'CYBER'].map(spec => (
+                <button
+                  key={spec}
+                  onClick={() => setSelectedSpec(spec)}
+                  data-selected={selectedSpec === spec}
+                  className={`nn-tabchip ${selectedSpec === spec ? 'nn-tabchip--on' : ''}`}
+                >
+                  {spec}
+                </button>
+              ))}
+            </div>
+          </div>
 
-          {/* Spy Roster */}
+          {/* Spy Roster — HUD panels with ledger rows */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {spies.map((spy) => (
-              <Card key={spy.spyId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] space-y-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-[color:var(--nn-text-primary)]">{spy.codename}</h3>
-                    <p className="text-xs text-[color:var(--nn-text-secondary)]">{spy.rank}</p>
-                  </div>
-                  <Badge className={getStatusColor(spy.status)}>
-                    {spy.status}
-                  </Badge>
+              <div
+                key={spy.spyId}
+                className="nn-panel"
+                style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}
+              >
+                <div className="nn-panel__header">
+                  <span className="nn-panel__title">{spy.codename}</span>
+                  <span className="nn-panel__meta">{spy.rank}</span>
+                  <span className={`nn-chip ${getStatusChip(spy.status)} nn-panel__meta`}>{spy.status}</span>
                 </div>
 
-                <div className="space-y-1 text-sm">
+                <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div className="flex justify-between">
-                    <span className="text-[color:var(--nn-text-secondary)]">Specialization:</span>
-                    <span className="text-[color:var(--nn-violet)]">{spy.specialization}</span>
+                    <span className="nn-lab">Specialization</span>
+                    <span className="nn-text-violet" style={{ fontSize: 12 }}>{spy.specialization}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[color:var(--nn-text-secondary)]">Experience:</span>
-                    <span className="text-[color:var(--nn-green)]">{spy.experience} XP</span>
+                    <span className="nn-lab">Experience</span>
+                    <span className="nn-num nn-text-green" style={{ fontSize: 12 }}>{spy.experience} XP</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-[color:var(--nn-text-secondary)]">Missions:</span>
-                    <span className="text-[color:var(--nn-cyan)]">{spy.missionHistory.length}</span>
+                    <span className="nn-lab">Missions</span>
+                    <span className="nn-num nn-text-cyan" style={{ fontSize: 12 }}>{spy.missionHistory.length}</span>
                   </div>
-                </div>
 
-                {spy.status === 'AVAILABLE' && (
-                  <div className="space-y-2">
-                    <Input
-                      placeholder="Target username..."
-                      value={targetId}
-                      onChange={(e) => setTargetId(e.target.value)}
-                      className="bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] text-sm"
-                    />
-                    <Button
-                      onClick={() => startMission(spy.spyId, 'RECONNAISSANCE')}
-                      className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
-                      size="sm"
-                    >
-                      Start Mission
-                    </Button>
-                  </div>
-                )}
-              </Card>
+                  {spy.status === 'AVAILABLE' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                      <input
+                        placeholder="Target username…"
+                        value={targetId}
+                        onChange={(e) => setTargetId(e.target.value)}
+                        className="nn-input w-full"
+                      />
+                      <button
+                        onClick={() => startMission(spy.spyId, 'RECONNAISSANCE')}
+                        className="nn-abtn nn-abtn--violet w-full"
+                      >
+                        Start Mission
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         </>
       )}
 
-      {/* Missions View */}
+      {/* Missions View — ledger panels */}
       {view === 'missions' && (
         <div className="space-y-4">
           {missions.map((mission) => (
-            <Card key={mission.missionId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{mission.missionType}</h3>
-                  <p className="text-sm text-[color:var(--nn-text-secondary)]">Target: {mission.targetId}</p>
-                </div>
-                <Badge className={mission.status === 'ACTIVE' ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'}>
+            <div
+              key={mission.missionId}
+              className="nn-panel"
+              style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}
+            >
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">{mission.missionType}</span>
+                <span className="nn-panel__meta">Target ▸ {mission.targetId}</span>
+                <span className={`nn-chip ${mission.status === 'ACTIVE' ? 'nn-chip--cyan' : ''} nn-panel__meta`}>
                   {mission.status}
-                </Badge>
+                </span>
               </div>
-            </Card>
+            </div>
           ))}
           {missions.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-[color:var(--nn-text-secondary)]">No active missions</p>
+              <p className="nn-lab">No active missions</p>
             </div>
           )}
         </div>
@@ -334,8 +318,8 @@ export default function WMDIntelligencePanel() {
       {/* Empty State */}
       {view === 'spies' && spies.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">No spies in network</p>
-          <p className="text-[color:var(--nn-text-secondary)] text-sm">Recruit your first spy to begin operations</p>
+          <p className="nn-lab">No spies in network</p>
+          <p className="nn-footnote" style={{ marginTop: 4 }}>Recruit your first spy to begin operations</p>
         </div>
       )}
     </div>

@@ -29,8 +29,10 @@ import { logger } from './logger';
 /**
  * Optimized player snapshot (~32 bytes)
  */
+import type { ObjectId } from 'mongodb';
+
 export interface PlayerSnapshot {
-  _id?: any;
+  _id?: ObjectId;
   u: string;      // user ID
   l: number;      // level
   t: Date;        // timestamp
@@ -169,7 +171,7 @@ export async function predictPlayerLevels(
       t: { $gte: sevenDaysAgo }
     }).toArray();
 
-    const userIds: string[] = [...new Set<string>(recentSnapshots.map((s: any) => s.u as string))];
+    const userIds: string[] = [...new Set<string>(recentSnapshots.map((s) => s.u))];
 
     const predictions: { userId: string; currentLevel: number; projectedLevel: number }[] = [];
 

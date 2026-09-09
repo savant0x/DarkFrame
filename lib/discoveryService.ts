@@ -284,7 +284,7 @@ export async function checkDiscoveryDrop(
   // Add to player's discoveries
   await playersCollection.updateOne(
     { username: playerId },
-    { $push: { discoveries: newDiscovery } as any }
+    { $push: { discoveries: newDiscovery } }
   );
 
   logger.success('Ancient technology discovered!', {

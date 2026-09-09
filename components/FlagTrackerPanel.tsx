@@ -24,7 +24,6 @@ import {
   type FlagBearer,
   type FlagDetailPayload,
   type FlagTrackerData,
-  CompassDirection,
   FLAG_CONFIG
 } from '@/types/flag.types';
 import {
@@ -184,7 +183,7 @@ export default function FlagTrackerPanel({
           className="nn-panel__header nn-panel__header--amber cursor-pointer"
           onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
         >
-          <Crown className="nn-panel__icon animate-pulse" />
+          <Crown className="nn-panel__icon nn-pulse" />
           <h3 className="nn-panel__title">You hold the Flag</h3>
           <span className="nn-panel__meta">
             BEARER · TARGET {isPanelCollapsed ? '▶' : '▼'}
@@ -196,7 +195,7 @@ export default function FlagTrackerPanel({
             {/* Active challenge warning (bearer side) — magenta danger banner */}
             {challenge && (
               <div
-                className="nn-note animate-pulse"
+                className="nn-note nn-pulse"
                 style={{ margin: '12px 12px 8px', flexDirection: 'column', alignItems: 'stretch', gap: '0.375rem' }}
               >
                 <span style={{ fontWeight: 700, fontSize: 12 }}>
@@ -350,7 +349,7 @@ export default function FlagTrackerPanel({
         className="nn-panel__header nn-panel__header--amber cursor-pointer"
         onClick={() => setIsPanelCollapsed(!isPanelCollapsed)}
       >
-        <Flag className="nn-panel__icon animate-pulse" />
+        <Flag className="nn-panel__icon nn-pulse" />
         <h3 className="nn-panel__title">Flag Bearer</h3>
         <span className="nn-panel__meta">
           STEAL · 30S CHANNEL {isPanelCollapsed ? '▶' : '▼'}

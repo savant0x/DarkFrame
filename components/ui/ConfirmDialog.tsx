@@ -89,8 +89,8 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
   if (!options) return null;
 
   const btnBg = options.danger
-    ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]'
-    : 'bg-primary-600 hover:bg-primary-500';
+    ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] hover:bg-[color-mix(in_oklab,var(--nn-magenta)_32%,transparent)]'
+    : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] hover:bg-[color-mix(in_oklab,var(--nn-cyan)_32%,transparent)]';
 
   return (
     <div
@@ -99,7 +99,7 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
       onClick={() => settle(false)}
     >
       <div
-        className="w-full max-w-md rounded-none border border-glass-border bg-glass-darker shadow-glow-cyan-sm p-5 space-y-4"
+        className="w-full max-w-md rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_20%,transparent)] bg-[color:var(--nn-glass-dark)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-5 space-y-4"
         role="alertdialog"
         aria-modal="true"
         aria-label={options.title || 'Confirm'}
@@ -109,15 +109,15 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
           {options.danger ? (
             <AlertTriangle className="w-5 h-5 text-[color:var(--nn-magenta)] mt-0.5 flex-shrink-0" aria-hidden="true" />
           ) : (
-            <Info className="w-5 h-5 text-primary-400 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <Info className="w-5 h-5 text-[color:var(--nn-cyan)] mt-0.5 flex-shrink-0" aria-hidden="true" />
           )}
           <div className="min-w-0 flex-1">
             {options.title && (
-              <h2 className={`text-sm font-bold mb-1 ${options.danger ? 'text-[color:var(--nn-magenta)]' : 'text-primary-300'}`}>
+              <h2 className={`text-sm font-bold mb-1 ${options.danger ? 'text-[color:var(--nn-magenta)]' : 'text-[color:var(--nn-cyan)]'}`}>
                 {options.title}
               </h2>
             )}
-            <p className="text-sm text-text-primary whitespace-pre-wrap break-words">{options.message}</p>
+            <p className="text-sm text-[color:var(--nn-text-primary)] whitespace-pre-wrap break-words">{options.message}</p>
           </div>
         </div>
 
@@ -126,7 +126,7 @@ export function ConfirmDialogHost(): React.JSX.Element | null {
             <button
               type="button"
               onClick={() => settle(false)}
-              className="px-4 py-2 rounded-none text-sm font-medium text-text-secondary hover:text-text-primary border border-glass-border hover:border-glass-border/60 transition-colors"
+              className="px-4 py-2 rounded-none text-sm font-medium text-[color:var(--nn-text-secondary)] hover:text-[color:var(--nn-text-primary)] border border-[color-mix(in_oklab,var(--nn-cyan)_20%,transparent)] hover:border-[color-mix(in_oklab,var(--nn-cyan)_35%,transparent)] transition-colors"
             >
               {options.cancelLabel || 'Cancel'}
             </button>

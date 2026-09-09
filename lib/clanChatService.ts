@@ -56,7 +56,7 @@ export interface ChatMessage {
   deletedBy?: string;
   
   eventType?: string;
-  eventData?: any;
+  eventData?: unknown;
 }
 
 export interface ChatMessageWithAuthor extends ChatMessage {
@@ -116,8 +116,7 @@ export async function sendClanChatMessage(
     throw new Error('Clan not found');
   }
   
-  const members = clan.members as any[];
-  const member = members.find((m: any) => m.playerId === playerId);
+  const member = clan.members.find((m) => m.playerId === playerId);
   if (!member) {
     throw new Error('Player is not a member of this clan');
   }
@@ -185,7 +184,7 @@ export async function sendSystemMessage(
   clanId: string,
   message: string,
   eventType?: string,
-  eventData?: any
+  eventData?: unknown
 ): Promise<ChatMessage> {
   const messageId = crypto.randomUUID().slice(0, 24);
   const chatMessage: ChatMessage = {
@@ -279,8 +278,7 @@ export async function editClanChatMessage(
   }
   
   const messageResult = await db.execute(sql`SELECT * FROM clan_chat_messages WHERE id = ${messageId} LIMIT 1`);
-  const messages = (messageResult as any) as any[];
-  const message = messages[0];
+  const message = messageResult.rows[0];
   
   if (!message) {
     throw new Error('Message not found');
@@ -294,7 +292,7 @@ export async function editClanChatMessage(
     throw new Error('Can only edit your own messages');
   }
   
-  const minutesSincePost = (Date.now() - new Date(message.timestamp).getTime()) / (1000 * 60);
+  const minutesSincePost = (Date.now() - new Date(message.timestamp as string).getTime()) / (1000 * 60);
   if (minutesSincePost > CHAT_LIMITS.EDIT_WINDOW_MINUTES) {
     throw new Error(`Can only edit messages within ${CHAT_LIMITS.EDIT_WINDOW_MINUTES} minutes`);
   }
@@ -306,18 +304,18 @@ export async function editClanChatMessage(
   `);
   
   const updatedResult = await db.execute(sql`SELECT * FROM clan_chat_messages WHERE id = ${messageId} LIMIT 1`);
-  const updated = ((updatedResult as any) as any[])[0];
+  const updated = updatedResult.rows[0];
   
   return {
-    id: updated.id,
-    clanId: updated.clan_id,
-    type: updated.type,
-    playerId: updated.player_id,
-    username: updated.username,
-    role: updated.role,
-    message: updated.message,
-    timestamp: new Date(updated.timestamp),
-    editedAt: updated.edited_at ? new Date(updated.edited_at) : undefined,
+    id: String(updated.id),
+    clanId: String(updated.clan_id),
+    type: String(updated.type) as MessageType,
+    playerId: updated.player_id != null ? String(updated.player_id) : undefined,
+    username: updated.username != null ? String(updated.username) : undefined,
+    role: updated.role != null ? String(updated.role) : undefined,
+    message: String(updated.message),
+    timestamp: new Date(updated.timestamp as string),
+    editedAt: updated.edited_at ? new Date(updated.edited_at as string) : undefined,
   };
 }
 
@@ -359,8 +357,7 @@ export async function deleteClanChatMessage(
     throw new Error('Clan not found');
   }
   
-  const members = clan.members as any[];
-  const member = members.find((m: any) => m.playerId === playerId);
+  const member = clan.members.find((m) => m.playerId === playerId);
   if (!member) {
     throw new Error('Player is not a member of this clan');
   }

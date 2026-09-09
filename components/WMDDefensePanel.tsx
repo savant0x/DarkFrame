@@ -1,29 +1,21 @@
-
 /**
  * @file components/WMDDefensePanel.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-ptab/
+ * nn-chip/nn-meter token structure; defense flow logic byte-preserved)
  * @overview WMD Defense Battery Management Panel
- * 
+ *
  * OVERVIEW:
  * Defense system management for missile interception. Deploy batteries,
  * monitor health, repair damaged units, and track interception success rates.
- * 
- * Features:
- * - Battery inventory with status display
- * - 5 battery tiers (Basic → AEGIS)
- * - Health and repair management
- * - Interception statistics
- * - Battery deployment interface
- * 
+ *
  * Dependencies: /api/wmd/defense, /types/wmd/defense.types
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
+import { Shield } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError } from '@/lib/toastService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
@@ -149,28 +141,28 @@ export default function WMDDefensePanel() {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusChip = (status: string) => {
     switch (status) {
-      case 'IDLE': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
-      case 'ACTIVE': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
-      case 'COOLDOWN': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
-      case 'DAMAGED': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
-      case 'UPGRADING': return 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]';
-      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      case 'IDLE': return 'nn-chip nn-chip--green';
+      case 'ACTIVE': return 'nn-chip nn-chip--cyan';
+      case 'COOLDOWN': return 'nn-chip nn-chip--amber';
+      case 'DAMAGED': return 'nn-chip nn-chip--magenta';
+      case 'UPGRADING': return 'nn-chip nn-chip--violet';
+      default: return 'nn-chip';
     }
   };
 
   const getHealthColor = (health: number) => {
-    if (health >= 80) return 'text-[color:var(--nn-green)]';
-    if (health >= 50) return 'text-[color:var(--nn-amber)]';
-    if (health >= 25) return 'text-[color:var(--nn-amber)]';
-    return 'text-[color:var(--nn-magenta)]';
+    if (health >= 80) return 'var(--nn-green)';
+    if (health >= 50) return 'var(--nn-amber)';
+    if (health >= 25) return 'var(--nn-amber)';
+    return 'var(--nn-magenta)';
   };
 
   if (loading) {
     return (
-      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-        <p className="text-[color:var(--nn-text-secondary)]">Loading defense systems...</p>
+      <div style={{ background: 'color-mix(in oklab, var(--nn-void) 65%, transparent)' }} className="p-6 rounded-none">
+        <p className="nn-lab">Loading defense systems…</p>
       </div>
     );
   }
@@ -179,119 +171,117 @@ export default function WMDDefensePanel() {
   const totalIntercepts = batteries.reduce((sum, b) => sum + b.successfulIntercepts, 0);
 
   return (
-    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)]">Defense Systems</h2>
-          <p className="text-sm text-[color:var(--nn-text-secondary)]">
-            {activeBatteries}/{batteries.length} batteries active | {totalIntercepts} total intercepts
-          </p>
-        </div>
-        <Button
+    <div className="space-y-6">
+      {/* Header — scanline section instrument */}
+      <div className="nn-sec">
+        <span className="nn-panel__icon"><Shield className="h-4 w-4" /></span>
+        <span className="nn-sec__title">Defense Systems</span>
+        <span className="nn-sec__note nn-num">{activeBatteries}/{batteries.length} active · {totalIntercepts} intercepts</span>
+        <button
           onClick={deployBattery}
           disabled={deploying}
-          className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
+          className="nn-abtn nn-abtn--cyan ml-auto"
         >
-          {deploying ? 'Deploying...' : '+ Deploy Battery'}
-        </Button>
+          {deploying ? 'Deploying…' : '+ Deploy Battery'}
+        </button>
       </div>
 
-      {/* Battery Type Selection */}
-      <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
-        <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2">Battery Type</h3>
-        <div className="grid grid-cols-5 gap-2">
+      {/* Battery Type Selection — text-rule tabs */}
+      <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+        <div className="nn-panel__header">
+          <span className="nn-panel__title">Battery Type</span>
+          <span className="nn-panel__meta">{selectedType}</span>
+        </div>
+        <div className="nn-panel__body grid grid-cols-5 gap-0">
           {['BASIC', 'ADVANCED', 'ELITE', 'FORTRESS', 'AEGIS'].map(type => (
-            <Button
+            <button
               key={type}
               onClick={() => setSelectedType(type)}
-              variant={selectedType === type ? 'primary' : 'secondary'}
-              size="sm"
-              className={selectedType === type ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : ''}
+              data-selected={selectedType === type}
+              className={`nn-ptab ${selectedType === type ? 'on' : ''}`}
             >
               {type}
-            </Button>
+            </button>
           ))}
         </div>
-      </Card>
+      </div>
 
-      {/* Battery Grid */}
+      {/* Battery Grid — HUD panels with health meters */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {batteries.map((battery) => (
-          <Card key={battery.batteryId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] space-y-3">
-            {/* Header */}
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-[color:var(--nn-text-primary)]">{battery.batteryType}</h3>
-                <p className="text-xs text-[color:var(--nn-text-secondary)]">Tier {battery.tier}</p>
-              </div>
-              <Badge className={getStatusColor(battery.status)}>
-                {battery.status}
-              </Badge>
+          <div
+            key={battery.batteryId}
+            className="nn-panel"
+            style={{ '--nn-accent': battery.status === 'DAMAGED' ? 'var(--nn-magenta)' : 'var(--nn-cyan)' } as React.CSSProperties}
+          >
+            <div className="nn-panel__header">
+              <span className="nn-panel__title">{battery.batteryType}</span>
+              <span className="nn-panel__meta nn-num">TIER {battery.tier}</span>
+              <span className={`nn-chip ${getStatusChip(battery.status)} nn-panel__meta`}>{battery.status}</span>
             </div>
 
-            {/* Stats */}
-            <div className="space-y-1 text-sm">
+            <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {/* Health — meter with semantic fill */}
+              <div className="nn-meter" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+                <div style={{ width: `${battery.health}%`, height: '100%', background: getHealthColor(battery.health) }} />
+              </div>
+
+              {/* Stats — ledger rows with HUD numerals */}
               <div className="flex justify-between">
-                <span className="text-[color:var(--nn-text-secondary)]">Intercept Chance:</span>
-                <span className="text-[color:var(--nn-green)] font-bold">
-                  {(battery.interceptChance * 100).toFixed(0)}%
-                </span>
+                <span className="nn-lab">Intercept Chance</span>
+                <span className="nn-num nn-text-green" style={{ fontSize: 12 }}>{(battery.interceptChance * 100).toFixed(0)}%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[color:var(--nn-text-secondary)]">Health:</span>
-                <span className={`font-bold ${getHealthColor(battery.health)}`}>
-                  {battery.health}%
-                </span>
+                <span className="nn-lab">Health</span>
+                <span className="nn-num" style={{ fontSize: 12, color: getHealthColor(battery.health) }}>{battery.health}%</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[color:var(--nn-text-secondary)]">Success Rate:</span>
-                <span className="text-[color:var(--nn-cyan)]">
+                <span className="nn-lab">Success Rate</span>
+                <span className="nn-num nn-text-cyan" style={{ fontSize: 12 }}>
                   {battery.totalAttempts > 0
                     ? `${Math.round((battery.successfulIntercepts / battery.totalAttempts) * 100)}%`
                     : 'N/A'}
                 </span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-[color:var(--nn-text-secondary)]">
+              <div className="flex justify-between">
+                <span className="nn-lab" style={{ fontSize: 9.5 }}>Record</span>
+                <span className="nn-num nn-text-dim" style={{ fontSize: 10 }}>
                   ✓ {battery.successfulIntercepts} / ✗ {battery.failedIntercepts}
                 </span>
               </div>
-            </div>
 
-            {/* Actions */}
-            <div className="flex gap-2">
-              {battery.health < 100 && !battery.repairing && (
-                <Button
-                  onClick={() => repairBattery(battery.batteryId)}
-                  className="flex-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"
-                  size="sm"
+              {/* Actions — destructive path magenta only */}
+              <div className="flex gap-2" style={{ marginTop: 4 }}>
+                {battery.health < 100 && !battery.repairing && (
+                  <button
+                    onClick={() => repairBattery(battery.batteryId)}
+                    className="nn-abtn nn-abtn--green flex-1"
+                  >
+                    Repair
+                  </button>
+                )}
+                {battery.repairing && (
+                  <div className="flex-1 text-center">
+                    <span className="nn-lab nn-text-amber">Repairing…</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => dismantleBattery(battery.batteryId)}
+                  className="nn-abtn nn-abtn--magenta"
                 >
-                  Repair
-                </Button>
-              )}
-              {battery.repairing && (
-                <div className="flex-1 text-center text-sm text-[color:var(--nn-amber)]">
-                  Repairing...
-                </div>
-              )}
-              <Button
-                onClick={() => dismantleBattery(battery.batteryId)}
-                variant="danger"
-                size="sm"
-              >
-                Dismantle
-              </Button>
+                  Dismantle
+                </button>
+              </div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
       {/* Empty State */}
       {batteries.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">No defense batteries deployed</p>
-          <p className="text-[color:var(--nn-text-secondary)] text-sm">Deploy your first battery for protection</p>
+          <p className="nn-lab">No defense batteries deployed</p>
+          <p className="nn-footnote" style={{ marginTop: 4 }}>Deploy your first battery for protection</p>
         </div>
       )}
     </div>

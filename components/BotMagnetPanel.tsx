@@ -154,7 +154,7 @@ export default function BotMagnetPanel() {
 
   if (!hasTech) {
     return (
-      <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+      <div className="nn-panel rounded-none p-6" style={{ ['--nn-accent' as string]: 'var(--nn-violet)' }}>
         <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">🧲 Bot Magnet</h2>
         <p className="text-[color:var(--nn-text-secondary)]">
           Research <span className="text-[color:var(--nn-violet)] font-semibold">Bot Magnet</span> technology to unlock beacon deployment.
@@ -170,7 +170,7 @@ export default function BotMagnetPanel() {
   }
 
   return (
-    <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+    <div className="nn-panel rounded-none p-6" style={{ ['--nn-accent' as string]: 'var(--nn-violet)' }}>
       <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">🧲 Bot Magnet</h2>
 
       {message && (
@@ -253,8 +253,7 @@ export default function BotMagnetPanel() {
                 type="number"
                 value={deployX}
                 onChange={(e) => setDeployX(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] focus:outline-none focus:border-purple-500"
-                placeholder="X"
+                className="nn-input w-full"
               />
             </div>
             <div>
@@ -263,8 +262,7 @@ export default function BotMagnetPanel() {
                 type="number"
                 value={deployY}
                 onChange={(e) => setDeployY(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-700 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none text-[color:var(--nn-text-primary)] focus:outline-none focus:border-purple-500"
-                placeholder="Y"
+                className="nn-input w-full"
               />
             </div>
           </div>
@@ -279,7 +277,7 @@ export default function BotMagnetPanel() {
       )}
 
       {/* Info Section */}
-      <div className="mt-6 p-4 bg-slate-700/30 rounded-none border border-slate-600/30">
+      <div className="mt-6 p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)]">
         <h4 className="text-sm font-semibold text-[color:var(--nn-violet)] mb-2">Beacon Mechanics</h4>
         <ul className="text-xs text-[color:var(--nn-text-secondary)] space-y-1">
           <li>• Attracts 30% of bots spawning within 100-tile radius</li>

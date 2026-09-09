@@ -32,7 +32,7 @@
  * - types/game.types.ts: Player, BotConfig, BotReputation types
  */
 
-import { connectToDatabase } from './mongodb';
+import { connectToDatabase, type DocumentValue } from './mongodb';
 import type { Player } from '@/types/game.types';
 import { BotReputation } from '@/types/game.types';
 import { removeBeerBase } from './beerBaseService';
@@ -272,11 +272,11 @@ export async function processBotAttack(bot: Player, target: Player): Promise<{
     const combat = calculateCombat(bot, target);
     
     // Prepare updates
-    const botUpdates: Record<string, any> = {
+    const botUpdates: Record<string, DocumentValue> = {
       'botConfig.attackCooldown': calculateCooldown(bot.botConfig?.specialization || 'balanced'),
     };
     
-    const targetUpdates: Record<string, any> = {
+    const targetUpdates: Record<string, DocumentValue> = {
       xp: (target.xp || 0) + combat.xpAwarded,
     };
     
@@ -483,7 +483,15 @@ export async function runBotAttackCycle(): Promise<{
 /**
  * Get bot attack history for a player (for UI display)
  */
-export async function getBotAttackHistory(username: string, _limit: number = 10): Promise<any[]> {
+/** One recorded attack against a player (shape pending the combat_log collection). */
+export interface BotAttackHistoryEntry {
+  attacker: string;
+  timestamp: Date;
+  outcome: 'win' | 'loss';
+  resourcesLost: { metal: number; energy: number };
+}
+
+export async function getBotAttackHistory(username: string, _limit: number = 10): Promise<BotAttackHistoryEntry[]> {
   const _db = await connectToDatabase();
   
   try {

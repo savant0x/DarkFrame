@@ -1,32 +1,25 @@
 /**
  * @file components/WMDMissilePanel.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-ptab/
+ * nn-chip/nn-abtn token structure; launch flow logic byte-preserved)
  * @overview WMD Missile Arsenal Management Panel
- * 
+ *
  * OVERVIEW:
  * Missile creation, assembly, and launch interface. Shows player's missile
  * inventory with assembly progress, allows component installation, and
  * provides targeting interface for launches.
- * 
- * Features:
- * - Missile inventory display with status indicators
- * - Component assembly interface (5 components per missile)
- * - Launch targeting with player/clan selection
- * - Warhead type selection (Tactical → Clan Buster)
- * - Flight time and impact estimation
- * 
+ *
  * Dependencies: /api/wmd/missiles, /types/wmd/missile.types
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Input } from '@/components/ui/Input';
+import { Rocket } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import type { WMDMissileLaunchedPayload, WMDMissileInterceptedPayload } from '@/types/websocket';
 
 interface Missile {
   missileId: string;
@@ -60,16 +53,20 @@ export default function WMDMissilePanel() {
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    const handleMissileLaunched = (payload: any) => {
-      showInfo(`Missile launched by ${payload.launcherUsername} targeting ${payload.targetUsername}`);
+    // Typed server payloads (types/websocket.ts): launch carries targetName;
+    // the server distinguishes launcher vs target rooms at emit time and sends
+    // a pre-composed message — the interceptor's own success event arrives via
+    // wmd:interception_success, so here we relay the server's message verbatim.
+    const handleMissileLaunched = (payload: WMDMissileLaunchedPayload) => {
+      showInfo(`Missile launched targeting ${payload.targetName}`);
       fetchMissiles();
     };
 
-    const handleMissileIntercepted = (payload: any) => {
-      if (payload.isYourMissile) {
-        showError(`Your missile was intercepted by ${payload.defenderUsername}!`);
+    const handleMissileIntercepted = (payload: WMDMissileInterceptedPayload) => {
+      if (payload.message) {
+        showInfo(payload.message);
       } else {
-        showSuccess(`Successfully intercepted incoming missile!`);
+        showSuccess('Missile interception event');
       }
       fetchMissiles();
     };
@@ -199,19 +196,19 @@ export default function WMDMissilePanel() {
     return `${completed}/5`;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusChip = (status: string) => {
     switch (status) {
-      case 'ASSEMBLING': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
-      case 'READY': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
-      case 'LAUNCHED': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
-      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      case 'ASSEMBLING': return 'nn-chip nn-chip--amber';
+      case 'READY': return 'nn-chip nn-chip--green';
+      case 'LAUNCHED': return 'nn-chip nn-chip--cyan';
+      default: return 'nn-chip';
     }
   };
 
   if (loading) {
     return (
-      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-        <p className="text-[color:var(--nn-text-secondary)]">Loading missiles...</p>
+      <div style={{ background: 'color-mix(in oklab, var(--nn-void) 65%, transparent)' }} className="p-6 rounded-none">
+        <p className="nn-lab">Loading missiles…</p>
       </div>
     );
   }
@@ -219,149 +216,144 @@ export default function WMDMissilePanel() {
   const selectedMissileData = missiles.find(m => m.missileId === selectedMissile);
 
   return (
-    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[color:var(--nn-magenta)]">Missile Arsenal</h2>
-          <p className="text-sm text-[color:var(--nn-text-secondary)]">
-            {missiles.length} missile{missiles.length !== 1 ? 's' : ''} in inventory
-          </p>
-        </div>
-        <Button
+    <div className="space-y-6">
+      {/* Header — scanline section instrument */}
+      <div className="nn-sec nn-sec--magenta">
+        <span className="nn-panel__icon"><Rocket className="h-4 w-4" /></span>
+        <span className="nn-sec__title">Missile Arsenal</span>
+        <span className="nn-sec__note">{missiles.length} missile{missiles.length !== 1 ? 's' : ''} in inventory</span>
+        <button
           onClick={createMissile}
           disabled={creatingMissile}
-          className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
+          className="nn-abtn nn-abtn--magenta ml-auto"
         >
-          {creatingMissile ? 'Creating...' : '+ New Missile'}
-        </Button>
+          {creatingMissile ? 'Creating…' : '+ New Missile'}
+        </button>
       </div>
 
-      {/* Warhead Selection for New Missiles */}
-      <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
-        <h3 className="font-bold text-[color:var(--nn-text-primary)] mb-2">Warhead Type</h3>
-        <div className="grid grid-cols-5 gap-2">
+      {/* Warhead Selection — text-rule tabs */}
+      <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+        <div className="nn-panel__header">
+          <span className="nn-panel__title">Warhead Type</span>
+          <span className="nn-panel__meta">{selectedWarhead.replace('_', ' ')}</span>
+        </div>
+        <div className="nn-panel__body grid grid-cols-5 gap-0">
           {['TACTICAL', 'STRATEGIC', 'BUNKER_BUSTER', 'EMP', 'CLAN_BUSTER'].map(type => (
-            <Button
+            <button
               key={type}
               onClick={() => setSelectedWarhead(type)}
-              variant={selectedWarhead === type ? 'primary' : 'secondary'}
-              size="sm"
-              className={selectedWarhead === type ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' : ''}
+              data-selected={selectedWarhead === type}
+              className={`nn-ptab ${selectedWarhead === type ? 'on' : ''}`}
             >
               {type.replace('_', ' ')}
-            </Button>
+            </button>
           ))}
         </div>
-      </Card>
+      </div>
 
-      {/* Missile Inventory */}
+      {/* Missile Inventory — HUD unit cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {missiles.map((missile) => (
-          <Card key={missile.missileId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
-            <div className="space-y-3">
-              {/* Header */}
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{missile.warheadType}</h3>
-                  <p className="text-xs text-[color:var(--nn-text-secondary)]">
-                    ID: {missile.missileId.slice(-8)}
-                  </p>
-                </div>
-                <Badge className={getStatusColor(missile.status)}>
-                  {missile.status}
-                </Badge>
-              </div>
+          <div
+            key={missile.missileId}
+            className="nn-panel"
+            style={{ '--nn-accent': missile.status === 'READY' ? 'var(--nn-green)' : missile.status === 'LAUNCHED' ? 'var(--nn-cyan)' : 'var(--nn-amber)' } as React.CSSProperties}
+          >
+            <div className="nn-panel__header">
+              <span className="nn-panel__title">{missile.warheadType.replace('_', ' ')}</span>
+              <span className="nn-panel__meta nn-num">ID ▸ {missile.missileId.slice(-8)}</span>
+              <span className={`nn-chip ${getStatusChip(missile.status)} nn-panel__meta`}>{missile.status}</span>
+            </div>
 
-              {/* Component Progress */}
+            <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Component Progress — meter + install buttons */}
               {missile.status === 'ASSEMBLING' && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[color:var(--nn-text-secondary)]">Assembly Progress</span>
-                    <span className="text-[color:var(--nn-amber)] font-bold">
-                      {getComponentProgress(missile)}
-                    </span>
+                <div>
+                  <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+                    <span className="nn-lab">Assembly Progress</span>
+                    <span className="nn-num nn-text-amber" style={{ fontSize: 12 }}>{getComponentProgress(missile)}</span>
+                  </div>
+                  <div className="nn-meter" style={{ marginBottom: 8, '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+                    <div style={{ width: `${(Object.values(missile.components).filter(Boolean).length / 5) * 100}%`, height: '100%', background: 'var(--nn-amber)' }} />
                   </div>
                   <div className="grid grid-cols-5 gap-1">
                     {Object.entries(missile.components).map(([comp, installed]) => (
-                      <Button
+                      <button
                         key={comp}
                         onClick={() => assembleComponent(missile.missileId, comp)}
                         disabled={installed}
-                        size="sm"
-                        className={`text-xs ${installed ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'}`}
+                        className={installed ? 'nn-chip nn-chip--green' : 'nn-chip'}
+                        style={{ cursor: installed ? 'default' : 'pointer', textAlign: 'center' }}
                       >
-                        {comp.slice(0, 3).toUpperCase()}
-                        {installed && ' ✓'}
-                      </Button>
+                        {comp.slice(0, 3).toUpperCase()}{installed ? ' ✓' : ''}
+                      </button>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Actions */}
+              {/* Actions — destructive path magenta only */}
               <div className="flex gap-2">
                 {missile.status === 'READY' && (
-                  <Button
+                  <button
                     onClick={() => setSelectedMissile(missile.missileId)}
-                    className="flex-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
-                    size="sm"
+                    className="nn-abtn nn-abtn--cyan flex-1"
                   >
                     Launch
-                  </Button>
+                  </button>
                 )}
-                <Button
+                <button
                   onClick={() => dismantleMissile(missile.missileId)}
-                  variant="danger"
-                  size="sm"
-                  className="text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
+                  className="nn-abtn nn-abtn--magenta"
                 >
                   Dismantle
-                </Button>
+                </button>
               </div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
-      {/* Launch Interface */}
+      {/* Launch Interface — panel, void-glass wells, magenta destructive action */}
       {selectedMissileData && (
-        <Card className="p-6 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] space-y-4">
-          <h3 className="text-xl font-bold text-[color:var(--nn-cyan)]">Launch Missile</h3>
-          <div className="space-y-3">
+        <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
+          <div className="nn-panel__header nn-panel__header--magenta">
+            <span className="nn-panel__title">Launch Missile</span>
+            <span className="nn-panel__meta">{selectedMissileData.warheadType.replace('_', ' ')}</span>
+          </div>
+          <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label className="text-sm text-[color:var(--nn-cyan)] block mb-1">Target Player Username</label>
-              <Input
+              <label className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>Target Player Username</label>
+              <input
                 value={targetId}
                 onChange={(e) => setTargetId(e.target.value)}
-                placeholder="Enter target username..."
-                className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-text-primary)]"
+                placeholder="Enter target username…"
+                className="nn-input w-full"
               />
             </div>
             <div className="flex gap-2">
-              <Button
+              <button
                 onClick={() => launchMissile(selectedMissileData.missileId)}
-                className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
+                className="nn-abtn nn-abtn--magenta flex-1"
               >
-                🚀 LAUNCH MISSILE
-              </Button>
-              <Button
+                Launch Missile
+              </button>
+              <button
                 onClick={() => setSelectedMissile(null)}
-                variant="secondary"
-                className="border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]"
+                className="nn-abtn nn-abtn--ghost"
               >
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
-        </Card>
+        </div>
       )}
 
       {/* Empty State */}
       {missiles.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">No missiles in arsenal</p>
-          <p className="text-[color:var(--nn-text-secondary)] text-sm">Create your first missile to begin</p>
+          <p className="nn-lab">No missiles in arsenal</p>
+          <p className="nn-footnote" style={{ marginTop: 4 }}>Create your first missile to begin</p>
         </div>
       )}
     </div>

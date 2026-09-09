@@ -30,7 +30,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
-import { Button, Input, Badge, Divider } from '@/components/ui';
+
 import { 
   Swords, 
   Shield, 
@@ -138,31 +138,29 @@ export default function ClanWarfarePanel({
     <div className="space-y-4">
       {/* Tab Navigation */}
       <div className="flex gap-2">
-        <Button
+        <button
           onClick={() => setActiveTab('wars')}
-          variant={activeTab === 'wars' ? 'secondary' : 'ghost'}
-          className={`flex-1 gap-2 ${activeTab === 'wars' ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]' : ''}`}
+          className={`nn-btn flex-1 gap-2 ${activeTab === 'wars' ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]' : ''}`}
         >
           <Swords className="w-4 h-4" />
           Wars
           {wars.length > 0 && (
-            <Badge variant="error" className="text-xs">{wars.length}</Badge>
+            <span className="nn-chip nn-chip--magenta text-xs">{wars.length}</span>
           )}
-        </Button>
-        <Button
+        </button>
+        <button
           onClick={() => setActiveTab('alliances')}
-          variant={activeTab === 'alliances' ? 'secondary' : 'ghost'}
-          className={`flex-1 gap-2 ${activeTab === 'alliances' ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]' : ''}`}
+          className={`nn-btn flex-1 gap-2 ${activeTab === 'alliances' ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]' : ''}`}
         >
           <Handshake className="w-4 h-4" />
           Alliances
           {alliances.length > 0 && (
-            <Badge variant="success" className="text-xs">{alliances.length}</Badge>
+            <span className="nn-chip nn-chip--green text-xs">{alliances.length}</span>
           )}
-        </Button>
+        </button>
       </div>
 
-      <Divider />
+      <div className="nn-divider"  />
 
       {/* Permission Notice */}
       {!canManageWars && (
@@ -170,7 +168,7 @@ export default function ClanWarfarePanel({
           <AlertTriangle className="w-5 h-5 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
           <div className="text-sm">
             <p className="text-[color:var(--nn-amber)] font-medium">Leadership Required</p>
-            <p className="text-text-secondary mt-1">
+            <p className="nn-text-secondary mt-1">
               Only Leaders and Co-Leaders can declare wars or create alliances.
             </p>
           </div>
@@ -246,16 +244,16 @@ function WarsTab({ wars, clan, canManageWars, isLoading, onDeclareWar, onRefresh
     <div className="space-y-4">
       {/* Action Button */}
       {canManageWars && (
-        <Button onClick={onDeclareWar} className="w-full gap-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]">
+        <button onClick={onDeclareWar} className="nn-btn w-full gap-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]">
           <Swords className="w-4 h-4" />
           Declare War
-        </Button>
+        </button>
       )}
 
       {/* War Costs Info */}
       <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
         <p className="text-sm text-[color:var(--nn-magenta)] mb-2 font-medium">War Declaration Cost:</p>
-        <div className="flex items-center gap-4 text-sm text-text-secondary">
+        <div className="flex items-center gap-4 text-sm nn-text-secondary">
           <span>2,000 Metal</span>
           <span>•</span>
           <span>2,000 Energy</span>
@@ -264,16 +262,16 @@ function WarsTab({ wars, clan, canManageWars, isLoading, onDeclareWar, onRefresh
 
       {/* Wars List */}
       {isLoading ? (
-        <div className="text-center py-12 text-text-secondary">
-          <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin" />
+        <div className="text-center py-12 nn-text-secondary">
+          <Loader2 className="nn-spin-icon w-12 h-12 mx-auto mb-3" />
           <p>Loading wars...</p>
         </div>
       ) : wars.length === 0 ? (
         <div className="text-center py-12">
-          <Shield className="w-12 h-12 mx-auto mb-3 text-text-tertiary" />
-          <p className="text-text-secondary mb-2">No wars declared</p>
+          <Shield className="w-12 h-12 mx-auto mb-3 nn-text-tertiary" />
+          <p className="nn-text-secondary mb-2">No wars declared</p>
           {canManageWars && (
-            <p className="text-sm text-text-secondary">
+            <p className="text-sm nn-text-secondary">
               Your clan is at peace. Declare war to expand your territory.
             </p>
           )}
@@ -323,7 +321,7 @@ function WarsTab({ wars, clan, canManageWars, isLoading, onDeclareWar, onRefresh
           {/* Ended Wars */}
           {endedWars.length > 0 && (
             <div>
-              <h3 className="text-sm font-semibold text-text-secondary mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold nn-text-secondary mb-3 flex items-center gap-2">
                 <Trophy className="w-4 h-4" />
                 War History ({endedWars.length})
               </h3>
@@ -361,13 +359,13 @@ function WarCard({ war, currentClanId }: WarCardProps) {
   const getStatusBadge = () => {
     switch (war.status) {
       case ClanWarStatus.ACTIVE:
-        return <Badge variant="error">Active</Badge>;
+        return <span className="nn-chip nn-chip--magenta" >Active</span>;
       case ClanWarStatus.DECLARED:
-        return <Badge variant="warning">Declared</Badge>;
+        return <span className="nn-chip nn-chip--amber" >Declared</span>;
       case ClanWarStatus.ENDED:
-        return <Badge variant="default">Ended</Badge>;
+        return <span className="nn-chip" >Ended</span>;
       case ClanWarStatus.TRUCE:
-        return <Badge variant="info">Truce</Badge>;
+        return <span className="nn-chip nn-chip--cyan" >Truce</span>;
       default:
         return null;
     }
@@ -381,7 +379,7 @@ function WarCard({ war, currentClanId }: WarCardProps) {
     <div className={`border rounded-none p-4 ${
       war.status === ClanWarStatus.ACTIVE 
         ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]' 
-        : 'bg-glass-light border-glass-border'
+        : 'nn-surface border-[color:var(--nn-glass-border)]'
     }`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -396,25 +394,25 @@ function WarCard({ war, currentClanId }: WarCardProps) {
       {/* War Stats */}
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
-          <span className="text-text-secondary">Your Wins:</span>
+          <span className="nn-text-secondary">Your Wins:</span>
           <span className="text-[color:var(--nn-green)] ml-2 font-semibold">
             {isAttacker ? war.stats.attackerBattlesWon : war.stats.defenderBattlesWon}
           </span>
         </div>
         <div>
-          <span className="text-text-secondary">Their Wins:</span>
+          <span className="nn-text-secondary">Their Wins:</span>
           <span className="text-[color:var(--nn-magenta)] ml-2 font-semibold">
             {isAttacker ? war.stats.defenderBattlesWon : war.stats.attackerBattlesWon}
           </span>
         </div>
         <div>
-          <span className="text-text-secondary">Territory Gained:</span>
+          <span className="nn-text-secondary">Territory Gained:</span>
           <span className="text-[color:var(--nn-cyan)] ml-2 font-semibold">
             +{isAttacker ? war.stats.attackerTerritoryGained : war.stats.defenderTerritoryGained}
           </span>
         </div>
         <div>
-          <span className="text-text-secondary">Territory Lost:</span>
+          <span className="nn-text-secondary">Territory Lost:</span>
           <span className="text-[color:var(--nn-amber)] ml-2 font-semibold">
             -{isAttacker ? war.stats.defenderTerritoryGained : war.stats.attackerTerritoryGained}
           </span>
@@ -423,7 +421,7 @@ function WarCard({ war, currentClanId }: WarCardProps) {
 
       {/* War Duration */}
       {war.status === ClanWarStatus.ACTIVE && (
-        <div className="mt-3 pt-3 border-t border-glass-border flex items-center gap-2 text-sm text-text-secondary">
+        <div className="mt-3 pt-3 border-t border-[color:var(--nn-glass-border)] flex items-center gap-2 text-sm nn-text-secondary">
           <Clock className="w-4 h-4" />
           <span>Duration: {timeSinceStart}h</span>
         </div>
@@ -431,7 +429,7 @@ function WarCard({ war, currentClanId }: WarCardProps) {
 
       {/* Winner Display */}
       {war.status === ClanWarStatus.ENDED && war.winner && (
-        <div className="mt-3 pt-3 border-t border-glass-border">
+        <div className="mt-3 pt-3 border-t border-[color:var(--nn-glass-border)]">
           {war.winner === currentClanId ? (
             <div className="flex items-center gap-2 text-[color:var(--nn-green)]">
               <CheckCircle2 className="w-4 h-4" />
@@ -466,16 +464,16 @@ function AlliancesTab({ alliances, clan, canManageWars, isLoading, onCreateAllia
     <div className="space-y-4">
       {/* Action Button */}
       {canManageWars && (
-        <Button onClick={onCreateAlliance} className="w-full gap-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]">
+        <button onClick={onCreateAlliance} className="nn-btn w-full gap-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]">
           <Handshake className="w-4 h-4" />
           Propose Alliance
-        </Button>
+        </button>
       )}
 
       {/* Alliance Benefits */}
       <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-3">
         <p className="text-sm text-[color:var(--nn-green)] mb-2 font-medium">Alliance Benefits:</p>
-        <ul className="text-xs text-text-secondary space-y-1">
+        <ul className="text-xs nn-text-secondary space-y-1">
           <li>• Cannot declare war on allied clans</li>
           <li>• Shared intelligence on enemy movements</li>
           <li>• Coordinated warfare strategies</li>
@@ -485,16 +483,16 @@ function AlliancesTab({ alliances, clan, canManageWars, isLoading, onCreateAllia
 
       {/* Alliances List */}
       {isLoading ? (
-        <div className="text-center py-12 text-text-secondary">
-          <Loader2 className="w-12 h-12 mx-auto mb-3 animate-spin" />
+        <div className="text-center py-12 nn-text-secondary">
+          <Loader2 className="nn-spin-icon w-12 h-12 mx-auto mb-3" />
           <p>Loading alliances...</p>
         </div>
       ) : alliances.length === 0 ? (
         <div className="text-center py-12">
-          <Users className="w-12 h-12 mx-auto mb-3 text-text-tertiary" />
-          <p className="text-text-secondary mb-2">No active alliances</p>
+          <Users className="w-12 h-12 mx-auto mb-3 nn-text-tertiary" />
+          <p className="nn-text-secondary mb-2">No active alliances</p>
           {canManageWars && (
-            <p className="text-sm text-text-secondary">
+            <p className="text-sm nn-text-secondary">
               Form alliances to strengthen your clan{"'"}s position
             </p>
           )}
@@ -569,42 +567,40 @@ function AllianceCard({ alliance, currentClanId, canManage, onRefresh }: Allianc
             Alliance with {alliedClanIds.length} clan{alliedClanIds.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <Badge variant="success">Active</Badge>
+        <span className="nn-chip nn-chip--green" >Active</span>
       </div>
 
       <div className="space-y-2 text-sm">
         <div>
-          <span className="text-text-secondary">Allied Clans:</span>
+          <span className="nn-text-secondary">Allied Clans:</span>
           <div className="mt-1 flex flex-wrap gap-2">
             {alliedClanIds.map((clanId: string) => (
-              <Badge key={clanId} variant="info" className="text-xs">
+              <span key={clanId} className="nn-chip nn-chip--cyan text-xs">
                 {clanId.slice(0, 8)}
-              </Badge>
+              </span>
             ))}
           </div>
         </div>
         <div>
-          <span className="text-text-secondary">Duration:</span>
-          <span className="text-text-primary ml-2">{daysSinceCreation}d</span>
+          <span className="nn-text-secondary">Duration:</span>
+          <span className="nn-text-primary ml-2">{daysSinceCreation}d</span>
         </div>
         {alliance.terms && (
           <div>
-            <span className="text-text-secondary">Terms:</span>
-            <p className="text-text-secondary mt-1 text-xs">{alliance.terms}</p>
+            <span className="nn-text-secondary">Terms:</span>
+            <p className="nn-text-secondary mt-1 text-xs">{alliance.terms}</p>
           </div>
         )}
       </div>
 
       {canManage && (
         <div className="mt-3 pt-3 border-t border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]">
-          <Button
-            onClick={handleBreakAlliance}
-            variant="ghost"
-            className="w-full text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
+          <button
+            onClick={handleBreakAlliance} className="nn-btn nn-btn--ghost w-full text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
           >
             <X className="w-4 h-4 mr-2" />
             Break Alliance
-          </Button>
+          </button>
         </div>
       )}
     </div>
@@ -663,7 +659,7 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
 
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
-      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6 w-full max-w-md">
+      <div className="nn-surface nn-surface--dark border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-6 w-full max-w-md">
         <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
           <Swords className="w-5 h-5 text-[color:var(--nn-magenta)]" />
           Declare War
@@ -671,21 +667,21 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
 
         <form onSubmit={handleDeclare} className="space-y-4">
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label className="block text-sm nn-text-secondary mb-2">
               Target Clan ID
             </label>
-            <Input
+            <input className="nn-input"
               placeholder="Enter clan ID to attack..."
               value={targetClanId}
               onChange={(e) => setTargetClanId(e.target.value)}
               required
-            />
+             />
           </div>
 
           {/* War Costs */}
           <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3">
             <p className="text-sm text-[color:var(--nn-magenta)] mb-2 font-medium">Declaration Cost:</p>
-            <div className="space-y-1 text-sm text-text-secondary">
+            <div className="space-y-1 text-sm nn-text-secondary">
               <div>• 2,000 Metal</div>
               <div>• 2,000 Energy</div>
             </div>
@@ -695,7 +691,7 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
           <div className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-3">
             <div className="flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
-              <div className="text-xs text-text-secondary">
+              <div className="text-xs nn-text-secondary">
                 <p className="text-[color:var(--nn-amber)] font-medium mb-1">Warning:</p>
                 <p>War is costly and risky. Ensure your clan is prepared for battle.</p>
               </div>
@@ -704,18 +700,16 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
+            <button
               type="button"
-              onClick={onClose}
-              variant="ghost"
-              className="flex-1"
+              onClick={onClose} className="nn-btn nn-btn--ghost flex-1"
               disabled={isDeclaring}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              className="flex-1 gap-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]"
+              className="nn-btn flex-1 gap-2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]"
               disabled={isDeclaring}
             >
               {isDeclaring ? (
@@ -726,7 +720,7 @@ function DeclareWarModal({ clanId, onClose, onSuccess }: DeclareWarModalProps) {
                   Declare War
                 </>
               )}
-            </Button>
+            </button>
           </div>
         </form>
       </div>
@@ -787,7 +781,7 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
 
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
-      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-6 w-full max-w-md">
+      <div className="nn-surface nn-surface--dark border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-6 w-full max-w-md">
         <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
           <Handshake className="w-5 h-5 text-[color:var(--nn-green)]" />
           Propose Alliance
@@ -795,19 +789,19 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
 
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label className="block text-sm nn-text-secondary mb-2">
               Ally Clan ID
             </label>
-            <Input
+            <input className="nn-input"
               placeholder="Enter clan ID to ally with..."
               value={allyClanId}
               onChange={(e) => setAllyClanId(e.target.value)}
               required
-            />
+             />
           </div>
 
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label className="block text-sm nn-text-secondary mb-2">
               Alliance Terms (Optional)
             </label>
             <textarea
@@ -815,14 +809,14 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
               value={terms}
               onChange={(e) => setTerms(e.target.value)}
               rows={3}
-              className="w-full bg-glass-light border border-glass-border rounded-none px-3 py-2 text-[color:var(--nn-text-primary)] text-sm focus:outline-none focus:border-cyan-500"
+              className="w-full nn-surface border border-[color:var(--nn-glass-border)] rounded-none px-3 py-2 text-[color:var(--nn-text-primary)] text-sm focus:outline-none focus:border-cyan-500"
             />
           </div>
 
           {/* Benefits */}
           <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-3">
             <p className="text-sm text-[color:var(--nn-green)] mb-2 font-medium">Alliance Benefits:</p>
-            <ul className="text-xs text-text-secondary space-y-1">
+            <ul className="text-xs nn-text-secondary space-y-1">
               <li>• Cannot declare war on each other</li>
               <li>• Coordinated military strategies</li>
               <li>• Shared intelligence network</li>
@@ -831,18 +825,16 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
+            <button
               type="button"
-              onClick={onClose}
-              variant="ghost"
-              className="flex-1"
+              onClick={onClose} className="nn-btn nn-btn--ghost flex-1"
               disabled={isCreating}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              className="flex-1 gap-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]"
+              className="nn-btn flex-1 gap-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]"
               disabled={isCreating}
             >
               {isCreating ? (
@@ -853,7 +845,7 @@ function CreateAllianceModal({ clanId, onClose, onSuccess }: CreateAllianceModal
                   Propose Alliance
                 </>
               )}
-            </Button>
+            </button>
           </div>
         </form>
       </div>

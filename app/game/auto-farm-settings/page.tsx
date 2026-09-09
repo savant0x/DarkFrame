@@ -180,7 +180,7 @@ export default function AutoFarmSettingsPage() {
                   <select
                     value={config.rankFilter}
                     onChange={(e) => setConfig({ ...config, rankFilter: e.target.value as RankFilter })}
-                    className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-4 py-2 text-[color:var(--nn-text-primary)] focus:border-purple-500 focus:outline-none"
+                    className="nn-input w-full"
                   >
                     <option value={RankFilter.ALL}>All Ranks - Attack any player</option>
                     <option value={RankFilter.LOWER}>Lower Ranks Only - Easier targets</option>
@@ -199,7 +199,7 @@ export default function AutoFarmSettingsPage() {
                   <select
                     value={config.resourceTarget}
                     onChange={(e) => setConfig({ ...config, resourceTarget: e.target.value as ResourceTarget })}
-                    className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none px-4 py-2 text-[color:var(--nn-text-primary)] focus:border-purple-500 focus:outline-none"
+                    className="nn-input w-full"
                   >
                     <option value={ResourceTarget.METAL}>🔩 Metal - Attack when I need metal</option>
                     <option value={ResourceTarget.ENERGY}>⚡ Energy - Attack when I need energy</option>

@@ -35,7 +35,7 @@
 
 import { db } from '@/lib/db';
 import { conversations, messages, players } from '@/lib/db/schema';
-import { eq, and,  like, desc,  gt, lt, inArray, sql } from 'drizzle-orm';
+import { eq, and,  like, desc,  gt, lt, inArray, sql, isNull, type SQL } from 'drizzle-orm';
 import {
   DirectMessage,
   DMConversation,
@@ -309,7 +309,7 @@ export async function getConversationMessages(
       throw new PermissionError('You are not a participant in this conversation');
     }
     
-    const conditions: any[] = [
+    const conditions: SQL<unknown>[] = [
       eq(messages.conversationId, conversationId),
       isNull(messages.deletedAt),
     ];
@@ -574,7 +574,7 @@ export async function markMessageRead(
       throw new PermissionError('You are not a participant in this conversation');
     }
     
-    const conditions: any[] = [
+    const conditions: SQL<unknown>[] = [
       eq(messages.conversationId, request.conversationId),
       eq(messages.recipientId, userId),
       inArray(messages.status, [statusToDb(DMMessageStatus.SENT), statusToDb(DMMessageStatus.DELIVERED)]),
@@ -683,8 +683,8 @@ export async function deleteConversation(
     const deletedBy: Record<string, boolean> = conv.isArchived ? { ...(conv.isArchived as Record<string, boolean>) } : {};
     deletedBy[userId] = true;
     
-    const deletedAt = conv.isPinned ? { ...(conv.isPinned as Record<string, any>) } : {};
-    deletedAt[userId] = new Date().toISOString();
+    const deletedAt: Record<string, boolean> = conv.isPinned ? { ...(conv.isPinned as Record<string, boolean>) } : {};
+    deletedAt[userId] = true;
     
     await db.update(conversations)
       .set({
@@ -811,13 +811,6 @@ export async function searchConversations(
     console.error('Error searching conversations:', error);
     throw new Error('Failed to search conversations');
   }
-}
-
-/**
- * Helper function to check for null values in Drizzle queries
- */
-function isNull(column: any) {
-  return sql`${column} IS NULL`;
 }
 
 /**

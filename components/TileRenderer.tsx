@@ -40,28 +40,34 @@ interface TileRendererProps {
 }
 
 /**
- * Get terrain color for fallback display
+ * Get terrain color for fallback display (FID-20260908-011 §5.5).
+ * Same-color gradient no-ops collapsed to flat token fills; the three true
+ * two-stop terrains keep `bg-gradient-to-br` as TERRAIN ART (imagery of the
+ * world's material, not UI chrome) — documented census exception.
  */
 function getTerrainColor(terrain: TerrainType): string {
   switch (terrain) {
     case TerrainType.Metal:
-      return 'bg-gradient-to-br from-gray-400 to-gray-600';
+      // two-stop: ore sheen (steel ridge → dark substrate)
+      return 'bg-gradient-to-br from-[color:var(--nn-text-tertiary)] to-[color:var(--nn-void)]';
     case TerrainType.Energy:
-      return 'bg-gradient-to-br from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]';
+      return 'bg-[color:var(--nn-cyan)]';
     case TerrainType.Cave:
+      // two-stop: violet surface → black depth
       return 'bg-gradient-to-br from-[color:var(--nn-violet)] to-black';
     case TerrainType.Forest:
-      return 'bg-gradient-to-br from-[color:var(--nn-green)] to-[color:var(--nn-green)]';
+      return 'bg-[color:var(--nn-green)]';
     case TerrainType.Factory:
+      // two-stop: magenta machinery → amber warnings
       return 'bg-gradient-to-br from-[color:var(--nn-magenta)] to-[color:var(--nn-amber)]';
     case TerrainType.Wasteland:
-      return 'bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]';
+      return 'bg-[color:var(--nn-amber)]';
     case TerrainType.Bank:
-      return 'bg-gradient-to-br from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]';
+      return 'bg-[color:var(--nn-amber)]';
     case TerrainType.Shrine:
-      return 'bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-violet)]';
+      return 'bg-[color:var(--nn-violet)]';
     case TerrainType.AuctionHouse:
-      return 'bg-gradient-to-br from-[color:var(--nn-green)] to-[color:var(--nn-green)]';
+      return 'bg-[color:var(--nn-green)]';
     default:
       return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
   }
@@ -426,14 +432,14 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
         {/* Base Indicator Badge */}
         {tile.occupiedByBase && (
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_14%,transparent)] px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider text-[color:var(--nn-green)] shadow-[0_0_14px_color-mix(in_oklab,var(--nn-green)_25%,transparent)]">
+          <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_14%,transparent)] px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider text-[color:var(--nn-green)] shadow-[0_0_14px_color-mix(in_oklab,var(--nn-green)_25%,transparent)]">
             <Home className="h-3.5 w-3.5" /> Base {isPlayerBase && playerRank > 1 ? `(Rank ${playerRank})` : !isPlayerBase && tile.baseOwner ? `(${tile.baseOwner})` : ''}
           </div>
         )}
 
         {/* Bank Type Indicator Badge */}
         {tile.terrain === TerrainType.Bank && tile.bankType && (
-          <div className="absolute top-4 right-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-1 rounded-full text-sm font-bold shadow-lg z-20">
+          <div className="absolute top-4 right-4 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-1 rounded-none text-sm font-bold shadow-[0_0_14px_color-mix(in_oklab,var(--nn-amber)_25%,transparent)] z-20">
             {tile.bankType === 'metal' && '⚙️ Metal'}
             {tile.bankType === 'energy' && '⚡ Energy'}
             {tile.bankType === 'exchange' && '🔄 Exchange'}
@@ -462,7 +468,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 <>
                   {/* Full effects when viewing another bearer */}
                   <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at center, color-mix(in oklab, var(--nn-amber) 40%, transparent) 0%, color-mix(in oklab, var(--nn-amber) 18%, transparent) 55%, transparent 75%)' }}></div>
-                  <div className="absolute inset-0 nn-bearer__edge animate-pulse"></div>
+                  <div className="absolute inset-0 nn-bearer__edge nn-pulse"></div>
                 </>
               )}
             </div>
@@ -475,7 +481,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(10)].map((_, i) => (
                     <div
                       key={`subtle-${i}`}
-                      className="absolute w-1.5 h-1.5 rounded-full animate-float nn-bearer__ember"
+                      className="absolute w-1.5 h-1.5 nn-fx-dot animate-float nn-bearer__ember"
                       style={{
                         left: `${(i * 10) % 100}%`,
                         bottom: `${(i * 10) % 100}%`,
@@ -491,7 +497,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(40)].map((_, i) => (
                     <div
                       key={`bottom-${i}`}
-                      className="absolute w-3 h-3 rounded-full animate-float nn-bearer__ember"
+                      className="absolute w-3 h-3 nn-fx-dot animate-float nn-bearer__ember"
                       style={{
                         left: `${(i * 2.5) % 100}%`,
                         bottom: `${(i % 4) * 8}%`,
@@ -504,7 +510,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(40)].map((_, i) => (
                     <div
                       key={`middle-${i}`}
-                      className="absolute w-2.5 h-2.5 rounded-full animate-float nn-bearer__ember"
+                      className="absolute w-2.5 h-2.5 nn-fx-dot animate-float nn-bearer__ember"
                       style={{
                         left: `${((i * 2.5) + 1.25) % 100}%`,
                         bottom: `${((i % 4) * 8) + 35}%`,
@@ -517,7 +523,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(40)].map((_, i) => (
                     <div
                       key={`top-${i}`}
-                      className="absolute w-2 h-2 rounded-full animate-float nn-bearer__ember"
+                      className="absolute w-2 h-2 nn-fx-dot animate-float nn-bearer__ember"
                       style={{
                         left: `${((i * 2.5) + 0.5) % 100}%`,
                         bottom: `${((i % 4) * 8) + 70}%`,
@@ -538,7 +544,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(30)].map((_, i) => (
                     <div
                       key={`sparkle-${i}`}
-                      className="absolute w-1.5 h-1.5 bg-[color:var(--nn-text-primary)] rounded-full animate-float nn-bearer__spark"
+                      className="absolute w-1.5 h-1.5 bg-[color:var(--nn-text-primary)] nn-fx-dot animate-float nn-bearer__spark"
                       style={{
                         left: `${Math.random() * 100}%`,
                         bottom: `${Math.random() * 100}%`,
@@ -552,7 +558,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                   {[...Array(15)].map((_, i) => (
                     <div
                       key={`orb-${i}`}
-                      className="absolute w-6 h-6 rounded-full animate-float nn-bearer__orb"
+                      className="absolute w-6 h-6 nn-fx-dot animate-float nn-bearer__orb"
                       style={{
                         left: `${(i * 7) % 100}%`,
                         bottom: `${(i * 11) % 100}%`,
@@ -565,8 +571,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
                 {/* Rotating Ring Effect */}
                 <div className="absolute inset-0 z-30 pointer-events-none">
-                  <div className="absolute inset-4 rounded-full nn-bearer__ring animate-spin" style={{ animationDuration: '8s' }}></div>
-                  <div className="absolute inset-8 rounded-full nn-bearer__ring animate-spin" style={{ animationDuration: '6s', animationDirection: 'reverse' }}></div>
+                  <div className="absolute inset-4 nn-fx-dot nn-bearer__ring nn-spin-slow" style={{ animationDuration: '8s' }}></div>
+                  <div className="absolute inset-8 nn-fx-dot nn-bearer__ring nn-spin-slow-reverse" style={{ animationDuration: '6s', animationDirection: 'reverse' }}></div>
                 </div>
               </>
             )}
@@ -574,13 +580,12 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             {/* Giant Flag Overlay - Smaller for bearer, huge for others */}
             <div className="absolute inset-0 z-35 pointer-events-none flex items-center justify-center">
               <div 
-                className={`animate-pulse drop-shadow-[0_0_40px_rgba(250,204,21,1)] ${
+                className={`nn-fx-flag drop-shadow-[0_0_40px_rgba(250,204,21,1)] ${
                   isCurrentPlayerBearer 
                     ? 'text-[4rem] opacity-25' 
                     : 'text-[20rem] opacity-60'
                 }`}
                 style={{
-                  animation: 'pulse 2s ease-in-out infinite, float 4s ease-in-out infinite',
                   filter: isCurrentPlayerBearer
                     ? 'drop-shadow(0 0 10px rgba(250,204,21,0.3))'
                     : 'drop-shadow(0 0 40px rgba(250,204,21,1)) drop-shadow(0 0 80px rgba(251,191,36,0.8))'
@@ -651,7 +656,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 return (
                   <div
                     key={i}
-                    className="absolute w-1.5 h-1.5 rounded-full animate-float nn-bearer__ember"
+                    className="absolute w-1.5 h-1.5 nn-fx-dot animate-float nn-bearer__ember"
                     style={{
                       left: `${particleX}%`,
                       top: `${particleY}%`,
@@ -683,7 +688,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               style={{ opacity: trailOpacity }}
             >
               <div 
-                className="absolute inset-0 nn-trail__edge animate-pulse"
+                className="absolute inset-0 nn-trail__edge nn-pulse"
                 style={{
                   backgroundColor: `color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 30)}%, transparent)`,
                   boxShadow: `
@@ -700,7 +705,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               className="absolute inset-0 z-24 pointer-events-none"
               style={{ opacity: trailOpacity }}
             >
-              <div className="absolute inset-0 nn-trail__glow animate-pulse"></div>
+              <div className="absolute inset-0 nn-trail__glow nn-pulse"></div>
             </div>
             
             {/* LAYER 3: GIGANTIC Animated Particles - FILL THE TILE */}
@@ -708,7 +713,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {[...Array(Math.ceil(120 * trailOpacity))].map((_, i) => (
                 <div
                   key={`trail-${i}`}
-                  className="absolute rounded-full animate-float nn-trail__ember"
+                  className="absolute nn-fx-dot animate-float nn-trail__ember"
                   style={{
                     width: `${4 + (i % 5) * 2}px`,
                     height: `${4 + (i % 5) * 2}px`,
@@ -732,7 +737,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {[...Array(16)].map((_, i) => (
                 <div
                   key={`swirl-${i}`}
-                  className="absolute w-16 h-16 rounded-full nn-trail__ring"
+                  className="absolute w-16 h-16 nn-fx-dot nn-trail__ring"
                   style={{
                     left: '50%',
                     top: '50%',
@@ -773,7 +778,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               style={{ opacity: trailOpacity }}
             >
               <div 
-                className="nn-trail__mark animate-pulse"
+                className="nn-trail__mark nn-pulse"
                 style={{
                   textShadow: `
                     0 0 20px color-mix(in oklab, var(--nn-amber) ${Math.round(trailOpacity * 100)}%, transparent),
@@ -793,8 +798,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           <>
             {/* Explosive Flash Effect */}
             <div className="absolute inset-0 z-35 pointer-events-none">
-              <div className="absolute inset-0 animate-pulse" style={{ background: 'linear-gradient(135deg, color-mix(in oklab, var(--nn-magenta) 40%, transparent), transparent 70%)' }}></div>
-              <div className="absolute inset-0 nn-attack__edge animate-pulse"></div>
+              <div className="absolute inset-0 nn-pulse" style={{ background: 'linear-gradient(135deg, color-mix(in oklab, var(--nn-magenta) 40%, transparent), transparent 70%)' }}></div>
+              <div className="absolute inset-0 nn-attack__edge nn-pulse"></div>
             </div>
 
             {/* Combat Sparks - Radiating Outward */}
@@ -810,7 +815,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 return (
                   <div
                     key={i}
-                    className="absolute w-1 h-6 rounded-full opacity-80 nn-attack__spark"
+                    className="absolute w-1 h-6 nn-fx-dot nn-attack__spark"
                     style={{
                       left: `${startX}%`,
                       top: `${startY}%`,
@@ -830,7 +835,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 return (
                   <div
                     key={i}
-                    className="absolute w-3 h-3 rounded-full opacity-70 nn-attack__impact"
+                    className="absolute w-3 h-3 nn-fx-dot nn-attack__impact"
                     style={{
                       left: '50%',
                       top: '50%',
@@ -848,7 +853,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               {[...Array(5)].map((_, i) => (
                 <div
                   key={i}
-                  className="absolute w-20 h-20 bg-[color:var(--nn-void)] rounded-full blur-xl"
+                  className="absolute w-20 h-20 bg-[color:var(--nn-void)] nn-fx-dot blur-xl"
                   style={{
                     left: `${30 + (i * 10)}%`,
                     top: `${40 + (i % 2) * 20}%`,
@@ -864,7 +869,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
                 {attackResult?.success ? '⚔️' : isAttacking ? '💥' : ''}
               </div>
               {attackResult?.damageDealt && (
-                <div className="nn-attack__dmg animate-pulse">-{attackResult.damageDealt}</div>
+                <div className="nn-attack__dmg nn-pulse">-{attackResult.damageDealt}</div>
               )}
             </div>
           </>
@@ -886,7 +891,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* NEON NOIR action deck — §5.1 result/info surface under the viewport.
           Layout: scanline header (title + meta) → body of wells and gains. */}
-      <div className="nn-deck animate-fade-in">
+      <div className="nn-deck nn-fade">
         <div className="nn-deck__head">
           <h3 className="nn-deck__title">{isAnyBase ? `Base — ${isPlayerBase ? 'Yours' : tile.baseOwner ?? 'Player'}` : tile.terrain}</h3>
           <span className="nn-deck__meta">SEC {String(tile.x).padStart(3, '0')} · {String(tile.y).padStart(3, '0')} · {tile.terrain.toUpperCase()}</span>
@@ -966,7 +971,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* Factory Info (if factory tile) — §5.1 magenta module */}
       {tile.terrain === TerrainType.Factory && factoryData && (
-        <div className="nn-deck animate-fade-in">
+        <div className="nn-deck nn-fade">
           <div className="nn-deck__head">
             <h4 className="nn-deck__title nn-deck__title--magenta">Factory Status</h4>
             {factoryData.owner && (
@@ -1020,7 +1025,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* Harvest Result Display (below tile image) — §5.1 deck */}
       {harvestResult && (
-        <div className="nn-deck mt-4 animate-fade-in">
+        <div className="nn-deck mt-4 nn-fade">
           <div className="nn-deck__head">
             <h4 className={`nn-deck__title ${harvestResult.success ? 'nn-deck__title--green' : 'nn-deck__title--magenta'}`}>
               {harvestResult.success ? 'HARVEST COMPLETE' : 'HARVEST FAILED'}
@@ -1078,7 +1083,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
       {/* Attack Result Display (below tile image) — §5.1 magenta deck */}
       {attackResult && (
-        <div className="nn-deck mt-4 animate-fade-in">
+        <div className="nn-deck mt-4 nn-fade">
           <div className="nn-deck__head">
             <h4 className={`nn-deck__title ${attackResult.captured ? 'nn-deck__title--green' : attackResult.success ? '' : 'nn-deck__title--magenta'}`}>
               {attackResult.captured ? 'FACTORY CAPTURED' : attackResult.success ? 'ATTACK LANDED' : 'ATTACK FAILED'}

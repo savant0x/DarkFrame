@@ -118,7 +118,7 @@ export default function ClanLevelDisplay({
     if (level >= 25) return 'text-[color:var(--nn-amber)]'; // Gold
     if (level >= 15) return 'text-[color:var(--nn-cyan)]';   // Silver
     if (level >= 5) return 'text-[color:var(--nn-amber)]';  // Bronze
-    return 'text-text-secondary'; // Starting
+    return 'nn-text-secondary'; // Starting
   };
 
   // Get level tier name
@@ -140,11 +140,11 @@ export default function ClanLevelDisplay({
 
   if (loading) {
     return (
-      <div className="bg-glass-light rounded-none p-6 border border-glass-border">
-        <div className="animate-pulse">
-          <div className="h-8 bg-glass-light rounded-none w-1/3 mb-4"></div>
-          <div className="h-4 bg-glass-light rounded-none w-full mb-2"></div>
-          <div className="h-20 bg-glass-light rounded-none w-full"></div>
+      <div className="nn-surface rounded-none p-6 border border-[color:var(--nn-glass-border)]">
+        <div className="nn-pulse">
+          <div className="h-8 nn-surface rounded-none w-1/3 mb-4"></div>
+          <div className="h-4 nn-surface rounded-none w-full mb-2"></div>
+          <div className="h-20 nn-surface rounded-none w-full"></div>
         </div>
       </div>
     );
@@ -167,7 +167,7 @@ export default function ClanLevelDisplay({
   if (!levelInfo) return null;
 
   return (
-    <div className="bg-glass-light rounded-none p-6 border border-glass-border space-y-6">
+    <div className="nn-surface rounded-none p-6 border border-[color:var(--nn-glass-border)] space-y-6">
       {/* Header with Level Badge */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -193,7 +193,7 @@ export default function ClanLevelDisplay({
       {!levelInfo.maxLevel && (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">
+            <span className="nn-text-secondary">
               XP: {formatNumberAbbreviated(levelInfo.currentLevelXP)} / {formatNumberAbbreviated(levelInfo.currentLevelXP + levelInfo.xpToNextLevel)}
             </span>
             <span className="text-[color:var(--nn-cyan)] font-bold">
@@ -201,14 +201,14 @@ export default function ClanLevelDisplay({
             </span>
           </div>
 
-          <div className="h-6 bg-glass-light rounded-full overflow-hidden">
+          <div className="h-6 nn-surface rounded-none overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)] transition-all duration-1000 ease-out"
               style={{ width: `${levelInfo.progressPercentage}%` }}
             />
           </div>
 
-          <div className="flex justify-between text-xs text-text-secondary">
+          <div className="flex justify-between text-xs nn-text-secondary">
             <span>{formatNumberAbbreviated(levelInfo.xpToNextLevel)} XP to next level</span>
             {estimatedHours !== null && estimatedHours > 0 && (
               <span>
@@ -221,31 +221,31 @@ export default function ClanLevelDisplay({
 
       {/* Next Milestone */}
       {levelInfo.nextMilestone && (
-        <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
+        <div className="nn-surface nn-surface--dark border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-[color:var(--nn-amber)] text-lg">🏆</span>
             <h3 className="text-[color:var(--nn-amber)] font-bold">
               Next Milestone: Level {levelInfo.nextMilestone.level}
             </h3>
           </div>
-          <p className="text-text-primary text-sm mb-3">
+          <p className="nn-text-primary text-sm mb-3">
             {levelInfo.nextMilestone.description}
           </p>
           <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="bg-glass-light rounded-none p-2 text-center">
-              <div className="text-text-secondary">Metal</div>
+            <div className="nn-surface rounded-none p-2 text-center">
+              <div className="nn-text-secondary">Metal</div>
               <div className="text-[color:var(--nn-amber)] font-bold">
                 {formatNumberAbbreviated(levelInfo.nextMilestone.rewards.metal)}
               </div>
             </div>
-            <div className="bg-glass-light rounded-none p-2 text-center">
-              <div className="text-text-secondary">Energy</div>
+            <div className="nn-surface rounded-none p-2 text-center">
+              <div className="nn-text-secondary">Energy</div>
               <div className="text-[color:var(--nn-cyan)] font-bold">
                 {formatNumberAbbreviated(levelInfo.nextMilestone.rewards.energy)}
               </div>
             </div>
-            <div className="bg-glass-light rounded-none p-2 text-center">
-              <div className="text-text-secondary">RP</div>
+            <div className="nn-surface rounded-none p-2 text-center">
+              <div className="nn-text-secondary">RP</div>
               <div className="text-[color:var(--nn-violet)] font-bold">
                 {formatNumberAbbreviated(levelInfo.nextMilestone.rewards.researchPoints)}
               </div>
@@ -294,11 +294,11 @@ export default function ClanLevelDisplay({
               .map((milestone) => (
                 <div
                   key={milestone.level}
-                  className="bg-glass-dark border border-glass-border rounded-none p-3 flex items-center justify-between"
+                  className="nn-surface nn-surface--dark border border-[color:var(--nn-glass-border)] rounded-none p-3 flex items-center justify-between"
                 >
                   <div>
                     <div className="text-[color:var(--nn-text-primary)] font-semibold">Level {milestone.level}</div>
-                    <div className="text-xs text-text-secondary">
+                    <div className="text-xs nn-text-secondary">
                       {new Date(milestone.completedAt).toLocaleDateString()}
                     </div>
                   </div>
@@ -320,15 +320,15 @@ export default function ClanLevelDisplay({
       )}
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-glass-border">
+      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[color:var(--nn-glass-border)]">
         <div className="text-center">
-          <div className="text-text-secondary text-sm">Total XP</div>
+          <div className="nn-text-secondary text-sm">Total XP</div>
           <div className="text-[color:var(--nn-text-primary)] font-bold text-lg">
             {formatNumberAbbreviated(levelInfo.totalXP)}
           </div>
         </div>
         <div className="text-center">
-          <div className="text-text-secondary text-sm">Milestones</div>
+          <div className="nn-text-secondary text-sm">Milestones</div>
           <div className="text-[color:var(--nn-amber)] font-bold text-lg">
             {levelInfo.milestonesCompleted} / 8
           </div>

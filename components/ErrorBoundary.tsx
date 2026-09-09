@@ -12,9 +12,6 @@
 'use client';
 
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { Panel } from '@/components/ui/Panel';
 
 // ============================================================
 // TYPE DEFINITIONS
@@ -131,7 +128,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       // Default fallback UI
       return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-[color:var(--nn-void)]">
-          <Card className="max-w-2xl w-full border-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
+          <div className="nn-panel nn-panel--magenta max-w-2xl w-full">
             <div className="p-6">
               {/* Error Icon */}
               <div className="text-center mb-4">
@@ -150,7 +147,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
               {/* Error Details (Development Mode) */}
               {process.env.NODE_ENV === 'development' && error && (
-                <Panel className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mb-6">
+                <div className="nn-panel"><div className="nn-panel__body">
                   <div className="mb-3">
                     <h3 className="font-bold text-[color:var(--nn-magenta)] mb-2">Error Details:</h3>
                     <pre className="text-xs text-[color:var(--nn-magenta)] overflow-x-auto bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] p-3 rounded-none">
@@ -166,27 +163,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                       </pre>
                     </div>
                   )}
-                </Panel>
+                </div></div>
               )}
 
               {/* Action Buttons */}
               <div className="flex gap-3">
-                <Button
-                  variant="ghost"
-                  size="base"
-                  onClick={this.handleReset}
-                  className="flex-1"
-                >
+                <button onClick={this.handleReset} className="nn-btn nn-btn--ghost flex-1">
                   Try Again
-                </Button>
-                <Button
-                  variant="primary"
-                  size="base"
-                  onClick={this.handleReload}
-                  className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
-                >
+                </button>
+                <button onClick={this.handleReload} className="nn-btn nn-btn--primary flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]">
                   Reload Page
-                </Button>
+                </button>
               </div>
 
               {/* Help Text */}
@@ -194,7 +181,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 If this problem persists, please contact support or check the console for details.
               </p>
             </div>
-          </Card>
+          </div>
         </div>
       );
     }

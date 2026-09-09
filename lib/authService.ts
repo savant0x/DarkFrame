@@ -13,8 +13,17 @@ const SALT_ROUNDS = 10;
 
 // Cookie configuration (FID-20260904-005 §5.0: single source of truth in lib/jwt)
 const COOKIE_NAME = SESSION_COOKIE_NAME;
-const SESSION_DURATION = 60 * 60; // 1 hour in seconds
+// PERSISTENCE FIX (2026-09-08): the plain (non-remember) session was 1 hour —
+// players were logged out mid-play and read it as "remember-me doesn't work".
+// A browser-session length of 12 hours matches conventional gaming-session
+// persistence; remember-me stays 30 days as labeled.
+const SESSION_DURATION = 12 * 60 * 60; // 12 hours in seconds
 const REMEMBER_ME_DURATION = 30 * 24 * 60 * 60; // 30 days in seconds
+
+/** Public accessors — login route aligns its auxiliary cookies to the same policy. */
+export function getSessionDuration(rememberMe: boolean): number {
+  return rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION;
+}
 
 export interface TokenPayload {
   username: string;
@@ -55,9 +64,13 @@ export function generateToken(
   email: string,
   rememberMe: boolean = false,
   isAdmin: boolean = false,
-  rank?: number
+  rank?: number,
+  /** Explicit expiry override in seconds (PERSISTENCE FIX 2026-09-08): lets a
+   * caller align the JWT lifetime with its cookie duration exactly — used by
+   * the register route so the 7-day cookie can never outlive a 1-hour token. */
+  expiresInSeconds?: number
 ): string {
-  const expiresIn = rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION;
+  const expiresIn = expiresInSeconds ?? (rememberMe ? REMEMBER_ME_DURATION : SESSION_DURATION);
 
   return jwt.sign(
     { username, email, isAdmin, rank },

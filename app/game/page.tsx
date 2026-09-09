@@ -147,6 +147,27 @@ export default function GamePage() {
     }
   }, [player, isLoading, router]);
 
+  // Operator rule (2026-09-08): factory surfaces are location-bound. If the
+  // player moves while a factory panel is open, dismiss it so the view shows
+  // the actual tile they moved to — building UI must never float free of the
+  // map position. Coordinates are primitives, so this only fires on a real
+  // move (data refreshes keep the same position and no-op). Auto-farm moves
+  // count: they are real moves.
+  const prevFactoryPosRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const pos = player?.currentPosition;
+    if (!pos) {
+      prevFactoryPosRef.current = null;
+      return;
+    }
+    const prev = prevFactoryPosRef.current;
+    prevFactoryPosRef.current = { x: pos.x, y: pos.y };
+    if (prev && (prev.x !== pos.x || prev.y !== pos.y)) {
+      setShowUnitBuildPanel(false);
+      setShowFactoryManagement(false);
+    }
+  }, [player?.currentPosition]);
+
   // Initialize AutoFarmEngine
   useEffect(() => {
     if (!player) return;
@@ -851,17 +872,6 @@ export default function GamePage() {
           isOpen={showFactoryManagement}
           onClose={() => setShowFactoryManagement(false)}
           username={player.username}
-          onNavigate={async (x, y) => {
-            // Navigate to factory coordinates
-            // Calculate movement from current position to target
-            if (!player.currentPosition) return;
-            
-            // This is a placeholder - actual implementation would need pathfinding
-            // For now, just refresh state to show the player we received the command
-            await refreshGameState();
-            setPanelMessage(`📍 Factory at (${x}, ${y}) - Use movement controls to navigate there`);
-            setTimeout(() => setPanelMessage(''), 3000);
-          }}
         />
       )}
 
@@ -887,7 +897,7 @@ export default function GamePage() {
 
       {/* Panel Error Message Toast */}
       {panelMessage && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-3 rounded-none shadow-lg z-50 animate-fade-in">
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-3 rounded-none shadow-[0_0_18px_color-mix(in_oklab,var(--nn-magenta)_28%,transparent)] z-50 nn-fade">
           {panelMessage}
         </div>
       )}

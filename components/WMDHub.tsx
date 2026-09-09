@@ -1,26 +1,21 @@
 /**
  * @file components/WMDHub.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-sec header,
+ * nn-tab text-rule navigation, token void shell; tab wiring byte-preserved)
  * @overview WMD System Hub Container
- * 
+ *
  * OVERVIEW:
  * Main wrapper component for the WMD system. Provides tab navigation between
  * all WMD panels and displays system-wide status indicators.
- * 
- * Features:
- * - Tab navigation (Research, Missiles, Defense, Intelligence, Voting, Notifications)
- * - Active tab state management
- * - WMD status header with quick stats
- * - Responsive layout
- * - Real-time WebSocket notifications
- * 
+ *
  * Dependencies: All WMD panel components, useWMDNotifications hook
  */
 
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/Button';
+import { Crosshair } from 'lucide-react';
 import { useWMDNotifications } from '@/hooks';
 import WMDResearchPanel from './WMDResearchPanel';
 import WMDMissilePanel from './WMDMissilePanel';
@@ -47,39 +42,50 @@ export default function WMDHub() {
     },
   });
 
-  const tabs: { id: TabType; label: string; icon: string }[] = [
-    { id: 'research', label: 'Research', icon: '🔬' },
-    { id: 'missiles', label: 'Missiles', icon: '🚀' },
-    { id: 'defense', label: 'Defense', icon: '🛡️' },
-    { id: 'intelligence', label: 'Intelligence', icon: '🕵️' },
-    { id: 'voting', label: 'Voting', icon: '🗳️' },
-    { id: 'notifications', label: 'Notifications', icon: '📢' },
+  // Text-rule tabs: section label + count-style meta; no emoji slabs
+  const tabs: { id: TabType; label: string }[] = [
+    { id: 'research', label: 'Research' },
+    { id: 'missiles', label: 'Missiles' },
+    { id: 'defense', label: 'Defense' },
+    { id: 'intelligence', label: 'Intel' },
+    { id: 'voting', label: 'Voting' },
+    { id: 'notifications', label: 'Alerts' },
   ];
 
   return (
-    <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
-      {/* Header */}
-      <div className="bg-[color:var(--nn-void)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] p-6 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-[color:var(--nn-text-primary)] mb-2">
-          ⚔️ Weapons of Mass Destruction
-        </h1>
-        <p className="text-[color:var(--nn-text-secondary)]">
-          Research, build, and deploy advanced warfare systems
-        </p>
+    <div className="h-full overflow-hidden flex flex-col" style={{ background: 'var(--nn-void)' }}>
+      {/* Header — scanline section instrument */}
+      <div
+        className="flex-shrink-0 border-b px-6 pt-5 pb-4"
+        style={{
+          borderColor: 'color-mix(in oklab, var(--nn-magenta) 16%, transparent)',
+          background: 'color-mix(in oklab, var(--nn-void) 88%, transparent)',
+        }}
+      >
+        <div className="nn-sec nn-sec--magenta">
+          <span className="nn-panel__icon"><Crosshair className="h-4 w-4" /></span>
+          <span className="nn-sec__title">Weapons of Mass Destruction</span>
+          <span className="nn-sec__note">Strategic Systems ▸ Research · Arsenal · Defense · Intel · Council</span>
+        </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-2 p-4 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] flex-shrink-0">
+      {/* Tab Navigation — text-rule tabs (never filled slabs) */}
+      <div
+        className="flex flex-wrap gap-0 px-6 border-b flex-shrink-0"
+        style={{
+          borderColor: 'color-mix(in oklab, var(--nn-magenta) 16%, transparent)',
+          background: 'color-mix(in oklab, var(--nn-void) 88%, transparent)',
+        }}
+      >
         {tabs.map((tab) => (
-          <Button
+          <button
             key={tab.id}
-            variant={activeTab === tab.id ? 'primary' : 'secondary'}
             onClick={() => setActiveTab(tab.id)}
-            className="flex items-center gap-2"
+            data-selected={activeTab === tab.id}
+            className={`nn-tab px-5 ${activeTab === tab.id ? 'nn-tab--on' : ''}`}
           >
-            <span>{tab.icon}</span>
-            <span className="hidden sm:inline">{tab.label}</span>
-          </Button>
+            {tab.label}
+          </button>
         ))}
       </div>
 

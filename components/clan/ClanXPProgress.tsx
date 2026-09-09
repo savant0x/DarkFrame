@@ -36,7 +36,7 @@ interface ClanXPProgressProps {
   totalXP: number;
   level: number;
   onLevelUp?: (newLevel: number) => void;
-  onMilestone?: (milestone: any) => void;
+  onMilestone?: (milestone: Record<string, unknown>) => void;
   showAnimations?: boolean;
 }
 
@@ -102,20 +102,20 @@ export default function ClanXPProgress({
       {/* Progress Bar */}
       <div className="space-y-1">
         <div className="flex justify-between text-sm">
-          <span className="text-text-secondary">
+          <span className="nn-text-secondary">
             {formatNumberAbbreviated(currentXP)} / {formatNumberAbbreviated(totalXP)} XP
           </span>
           <span className="text-[color:var(--nn-cyan)] font-bold">{progress.toFixed(1)}%</span>
         </div>
 
-        <div className="relative h-8 bg-glass-light rounded-full overflow-hidden shadow-inner">
+        <div className="relative h-8 nn-surface rounded-none overflow-hidden shadow-inner">
           {/* Animated progress fill */}
           <div
             className="absolute inset-y-0 left-0 bg-gradient-to-r from-[color:var(--nn-cyan)] via-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] transition-all duration-500 ease-out"
             style={{ width: `${progress}%` }}
           >
             {/* Shine effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent nn-pulse" />
           </div>
 
           {/* Progress text */}
@@ -152,7 +152,7 @@ export default function ClanXPProgress({
 
       {/* Milestone Achievement */}
       {showMilestone && (
-        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50 animate-fade-in">
+        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] flex items-center justify-center z-50 nn-fade">
           <div className="bg-gradient-to-b from-[color:var(--nn-violet)] to-bg-space border-4 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md shadow-2xl animate-scale-in">
             <div className="text-center space-y-4">
               <div className="text-6xl">🏆</div>
@@ -160,7 +160,7 @@ export default function ClanXPProgress({
                 MILESTONE REACHED!
               </div>
               <div className="text-2xl text-[color:var(--nn-text-primary)]">Level {level}</div>
-              <div className="text-text-primary">
+              <div className="nn-text-primary">
                 Your clan has reached a major milestone!
               </div>
               <button
@@ -228,7 +228,7 @@ export default function ClanXPProgress({
           animation: bounce-in 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
         }
 
-        .animate-fade-in {
+        .nn-fade {
           animation: fade-in 0.3s ease-out;
         }
 

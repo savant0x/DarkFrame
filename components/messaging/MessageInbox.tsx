@@ -20,7 +20,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search,  Pin, Archive, MessageCircle, Clock } from 'lucide-react';
+import { Search,  Pin, Archive, MessageCircle, Clock, Loader2 } from 'lucide-react';
 import type { Conversation, MessageInboxState } from '@/types/messaging.types';
 
 interface MessageInboxProps {
@@ -201,23 +201,23 @@ export default function MessageInbox({
   // ========================================================================
 
   return (
-    <div className={`flex flex-col h-full bg-glass-dark border-r border-glass-border ${className}`}>
+    <div className={`flex flex-col h-full nn-surface--dark border-r border-[color:var(--nn-glass-border)] ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-glass-border">
-        <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
+      <div className="p-4 border-b border-[color:var(--nn-glass-border)]">
+        <h2 className="nn-num text-xl font-bold nn-text-cyan mb-3 flex items-center gap-2">
           <MessageCircle className="w-6 h-6 text-[color:var(--nn-cyan)]" />
           Messages
         </h2>
 
         {/* Search Bar */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 nn-text-secondary" />
           <input
             type="text"
             placeholder="Search conversations..."
             value={state.searchQuery}
             onChange={handleSearchChange}
-            className="w-full pl-10 pr-4 py-2 bg-glass-light border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-blue-500"
+            className="nn-input pl-10 w-full"
           />
         </div>
 
@@ -225,42 +225,26 @@ export default function MessageInbox({
         <div className="flex gap-2 mt-3 overflow-x-auto">
           <button
             onClick={() => handleFilterChange('all')}
-            className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              state.filter === 'all'
-                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-glass-light text-text-primary hover:bg-glass-light'
-            }`}
+            className={`nn-tabchip ${state.filter === 'all' ? 'nn-tabchip--on' : ''}`}
           >
             All
           </button>
           <button
             onClick={() => handleFilterChange('unread')}
-            className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-              state.filter === 'unread'
-                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-glass-light text-text-primary hover:bg-glass-light'
-            }`}
+            className={`nn-tabchip ${state.filter === 'unread' ? 'nn-tabchip--on' : ''}`}
           >
             Unread
           </button>
           <button
             onClick={() => handleFilterChange('pinned')}
-            className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
-              state.filter === 'pinned'
-                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-glass-light text-text-primary hover:bg-glass-light'
-            }`}
+            className={`nn-tabchip flex items-center gap-1 ${state.filter === 'pinned' ? 'nn-tabchip--on' : ''}`}
           >
             <Pin className="w-3 h-3" />
             Pinned
           </button>
           <button
             onClick={() => handleFilterChange('archived')}
-            className={`px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
-              state.filter === 'archived'
-                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-glass-light text-text-primary hover:bg-glass-light'
-            }`}
+            className={`nn-tabchip flex items-center gap-1 ${state.filter === 'archived' ? 'nn-tabchip--on' : ''}`}
           >
             <Archive className="w-3 h-3" />
             Archived
@@ -272,23 +256,20 @@ export default function MessageInbox({
       <div className="flex-1 overflow-y-auto">
         {state.isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]"></div>
+            <Loader2 className="nn-spin-icon w-8 h-8 text-[color:var(--nn-cyan)]" aria-label="Loading conversations" />
           </div>
         ) : state.error ? (
           <div className="p-4 text-center">
-            <p className="text-[color:var(--nn-magenta)]">{state.error}</p>
-            <button
-              onClick={loadConversations}
-              className="mt-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none"
-            >
+            <p className="nn-text-magenta">{state.error}</p>
+            <button onClick={loadConversations} className="nn-btn mt-2 px-4 py-2">
               Retry
             </button>
           </div>
         ) : state.conversations.length === 0 ? (
           <div className="p-8 text-center">
-            <MessageCircle className="w-12 h-12 text-text-tertiary mx-auto mb-3" />
-            <p className="text-text-secondary">No conversations yet</p>
-            <p className="text-sm text-text-secondary mt-1">
+            <MessageCircle className="w-12 h-12 nn-text-tertiary mx-auto mb-3" />
+            <p className="nn-text-secondary">No conversations yet</p>
+            <p className="nn-text-secondary mt-1 text-sm">
               Start chatting with other players!
             </p>
           </div>
@@ -304,15 +285,16 @@ export default function MessageInbox({
                 <div
                   key={String(conversation._id)}
                   onClick={() => handleSelectConversation(String(conversation._id))}
-                  className={`p-4 border-b border-glass-border cursor-pointer transition-colors ${
+                  style={isSelected ? { boxShadow: 'inset 2px 0 0 var(--nn-cyan)' } : undefined}
+                  className={`p-4 border-b border-[color:var(--nn-glass-border)] cursor-pointer transition-colors ${
                     isSelected
-                      ? 'bg-glass-light border-l-4 border-l-blue-500'
-                      : 'hover:bg-glass-light'
+                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)]'
+                      : 'hover:bg-[color-mix(in_oklab,var(--nn-cyan)_5%,transparent)]'
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     {/* Avatar */}
-                    <div className="flex h-12 w-12 flex-none items-center justify-center rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] text-lg font-bold text-[color:var(--nn-cyan)]">
+                    <div className="flex h-12 w-12 flex-none items-center justify-center border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] nn-num text-lg font-bold text-[color:var(--nn-cyan)]">
                       {otherParticipant.charAt(0).toUpperCase()}
                     </div>
 
@@ -328,7 +310,7 @@ export default function MessageInbox({
                           )}
                         </div>
                         {conversation.lastMessage && (
-                          <span className="text-xs text-text-secondary flex items-center gap-1">
+                          <span className="nn-footnote flex items-center gap-1">
                             <Clock className="w-3 h-3" />
                             {formatTimestamp(conversation.lastMessage.createdAt)}
                           </span>
@@ -338,15 +320,15 @@ export default function MessageInbox({
                       {conversation.lastMessage && (
                         <div className="flex items-center justify-between">
                           <p className={`text-sm truncate ${
-                            unreadCount > 0 ? 'text-[color:var(--nn-text-primary)] font-medium' : 'text-text-secondary'
+                            unreadCount > 0 ? 'text-[color:var(--nn-text-primary)] font-medium' : 'nn-text-secondary'
                           }`}>
                             {conversation.lastMessage.senderId === playerId && (
-                              <span className="text-text-secondary">You: </span>
+                              <span className="nn-text-secondary">You: </span>
                             )}
                             {truncateMessage(conversation.lastMessage.content)}
                           </p>
                           {unreadCount > 0 && (
-                            <span className="ml-2 px-2 py-0.5 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] text-xs font-bold rounded-full min-w-[20px] text-center">
+                            <span className="nn-chip nn-chip--cyan ml-2 font-bold min-w-[20px] justify-center">
                               {unreadCount > 99 ? '99+' : unreadCount}
                             </span>
                           )}

@@ -33,8 +33,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Input, Badge, Divider } from '@/components/ui';
-import { StaggerChildren, StaggerItem } from '@/components/transitions';
+
 import { 
   Trophy, 
   TrendingUp, 
@@ -139,14 +138,12 @@ export default function ClansLeaderboard() {
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         {/* Back Button */}
         <div className="mb-6">
-          <Button 
-            onClick={() => router.push('/game')} 
-            variant="ghost" 
-            className="gap-2 text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
+          <button 
+            onClick={() => router.push('/game')} className="nn-btn nn-btn--ghost gap-2 text-[color:var(--nn-cyan)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Game
-          </Button>
+          </button>
         </div>
 
         {/* Header */}
@@ -157,7 +154,7 @@ export default function ClansLeaderboard() {
               Clan Leaderboards
             </h1>
           </div>
-          <p className="text-text-secondary text-lg">
+          <p className="nn-text-secondary text-lg">
             Compete for supremacy across {totalClans} clans
           </p>
         </div>
@@ -213,60 +210,58 @@ export default function ClansLeaderboard() {
         {/* Search Bar */}
         <div className="mb-6">
           <div className="relative max-w-md mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
-            <Input
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 nn-text-secondary" />
+            <input
               placeholder="Search clan by name..."
               value={searchQuery}
               onChange={(e) => handleSearch(e.target.value)}
-              className="pl-12 text-center"
-            />
+              className="nn-input pl-12 text-center"
+             />
           </div>
         </div>
 
-        <Divider />
+        <div className="nn-divider"  />
 
         {/* Leaderboard Content */}
         {isLoading ? (
           <div className="text-center py-20">
-            <Loader2 className="w-16 h-16 mx-auto mb-4 text-[color:var(--nn-cyan)] animate-spin" />
-            <p className="text-text-secondary text-lg">Loading leaderboard...</p>
+            <Loader2 className="w-16 h-16 mx-auto mb-4 text-[color:var(--nn-cyan)]" />
+            <p className="nn-text-secondary text-lg">Loading leaderboard...</p>
           </div>
         ) : leaderboard.length === 0 ? (
           <div className="text-center py-20">
-            <Trophy className="w-16 h-16 mx-auto mb-4 text-text-tertiary" />
-            <p className="text-text-secondary text-lg mb-2">
+            <Trophy className="w-16 h-16 mx-auto mb-4 nn-text-tertiary" />
+            <p className="nn-text-secondary text-lg mb-2">
               {searchQuery ? 'No clans found matching your search' : 'No clans in this category yet'}
             </p>
-            <p className="text-text-secondary text-sm">
+            <p className="nn-text-secondary text-sm">
               {searchQuery ? 'Try a different search term' : 'Be the first to create a clan!'}
             </p>
           </div>
         ) : (
-          <StaggerChildren className="space-y-3">
+          <div className="space-y-3">
             {leaderboard.map((entry) => (
-              <StaggerItem key={entry.clan._id?.toString()}>
+              <div key={entry.clan._id?.toString()}>
                 <LeaderboardCard
                   entry={entry}
                   category={category}
                   onView={() => handleViewClan(entry.clan._id!.toString())}
                 />
-              </StaggerItem>
+              </div>
             ))}
-          </StaggerChildren>
+          </div>
         )}
 
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="mt-8 flex items-center justify-center gap-4">
-            <Button
+            <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1 || isLoading}
-              variant="ghost"
-              className="gap-2"
+              disabled={currentPage === 1 || isLoading} className="nn-btn nn-btn--ghost gap-2"
             >
               <ChevronLeft className="w-4 h-4" />
               Previous
-            </Button>
+            </button>
 
             <div className="flex items-center gap-2">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -282,33 +277,30 @@ export default function ClansLeaderboard() {
                 }
 
                 return (
-                  <Button
+                  <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    variant={currentPage === pageNum ? 'primary' : 'ghost'}
-                    className="w-10 h-10 p-0"
+                    className={`nn-btn w-10 h-10 p-0 ${currentPage === pageNum ? 'nn-btn--primary' : ''}`}
                     disabled={isLoading}
                   >
                     {pageNum}
-                  </Button>
+                  </button>
                 );
               })}
             </div>
 
-            <Button
+            <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages || isLoading}
-              variant="ghost"
-              className="gap-2"
+              disabled={currentPage === totalPages || isLoading} className="nn-btn nn-btn--ghost gap-2"
             >
               Next
               <ChevronRight className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
         )}
 
         {/* Footer Info */}
-        <div className="mt-8 text-center text-sm text-text-secondary">
+        <div className="mt-8 text-center text-sm nn-text-secondary">
           <p>Showing {((currentPage - 1) * clansPerPage) + 1} - {Math.min(currentPage * clansPerPage, totalClans)} of {totalClans} clans</p>
           <p className="mt-2">Rankings update every 5 minutes</p>
         </div>
@@ -335,7 +327,7 @@ function CategoryButton({ icon, label, active, onClick }: CategoryButtonProps) {
         flex items-center justify-center gap-2 px-4 py-3 rounded-none border transition-all
         ${active 
           ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)] shadow-lg shadow-cyan-500/20' 
-          : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]'
+          : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary hover:nn-surface border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]'
         }
       `}
     >
@@ -371,7 +363,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     }
     if (rank === 2) {
       return (
-        <div className="flex items-center gap-2 text-text-primary">
+        <div className="flex items-center gap-2 nn-text-primary">
           <Medal className="w-6 h-6" />
           <span className="text-2xl font-bold">2</span>
         </div>
@@ -386,7 +378,7 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
       );
     }
     return (
-      <span className="text-2xl font-bold text-text-secondary">#{rank}</span>
+      <span className="text-2xl font-bold nn-text-secondary">#{rank}</span>
     );
   };
 
@@ -422,36 +414,36 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
     
     if (change > 0) {
       return (
-        <Badge variant="success" className="text-xs gap-1">
+        <span className="nn-chip nn-chip--green text-xs gap-1">
           <TrendingUp className="w-3 h-3" />
           +{change}
-        </Badge>
+        </span>
       );
     }
     
     return (
-      <Badge variant="error" className="text-xs gap-1">
+      <span className="nn-chip nn-chip--magenta text-xs gap-1">
         <TrendingUp className="w-3 h-3 rotate-180" />
         {change}
-      </Badge>
+      </span>
     );
   };
 
   const borderColor = rank === 1 
     ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]' 
     : rank === 2 
-    ? 'border-glass-border' 
+    ? 'border-[color:var(--nn-glass-border)]' 
     : rank === 3 
     ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]'
-    : 'border-glass-border';
+    : 'border-[color:var(--nn-glass-border)]';
 
   const bgColor = rank === 1
     ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
     : rank === 2
-    ? 'bg-glass-light/40'
+    ? 'nn-surface/40'
     : rank === 3
     ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]'
-    : 'bg-glass-light';
+    : 'nn-surface';
 
   return (
     <div className={`${bgColor} border ${borderColor} rounded-none p-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all`}>
@@ -469,29 +461,29 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
             </h3>
             {getRankChange()}
             {clan.settings?.requiresApproval ? (
-              <Badge variant="default" className="text-xs">Private</Badge>
+              <span className="nn-chip text-xs">Private</span>
             ) : (
-              <Badge variant="success" className="text-xs">Public</Badge>
+              <span className="nn-chip nn-chip--green text-xs">Public</span>
             )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 text-sm">
             <div>
-              <span className="text-text-secondary">Level:</span>
+              <span className="nn-text-secondary">Level:</span>
               <span className="text-[color:var(--nn-cyan)] ml-2 font-semibold">{clan.level.currentLevel}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Members:</span>
+              <span className="nn-text-secondary">Members:</span>
               <span className="text-[color:var(--nn-violet)] ml-2 font-semibold">
                 {clan.members.length}/{clan.maxMembers}
               </span>
             </div>
             <div>
-              <span className="text-text-secondary">Territories:</span>
+              <span className="nn-text-secondary">Territories:</span>
               <span className="text-[color:var(--nn-green)] ml-2 font-semibold">{clan.territories?.length || 0}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Leader:</span>
+              <span className="nn-text-secondary">Leader:</span>
               <span className="text-[color:var(--nn-amber)] ml-2 font-semibold truncate">
                 {clan.members.find(m => m.role === 'LEADER')?.username || 'Unknown'}
               </span>
@@ -504,14 +496,12 @@ function LeaderboardCard({ entry, category, onView }: LeaderboardCardProps) {
           <div className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-1">
             {getValueDisplay()}
           </div>
-          <Button
-            onClick={onView}
-            variant="ghost"
-            className="gap-2 text-[color:var(--nn-cyan)]"
+          <button
+            onClick={onView} className="nn-btn nn-btn--ghost gap-2 text-[color:var(--nn-cyan)]"
           >
             <Eye className="w-4 h-4" />
             View
-          </Button>
+          </button>
         </div>
       </div>
     </div>

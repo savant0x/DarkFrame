@@ -49,7 +49,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Button, Input, Badge } from '@/components/ui';
+
 import { 
   MessageCircle, 
   Activity, 
@@ -106,7 +106,7 @@ interface ActivityEvent {
   description: string;
   actorUsername: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 type ActivityFilter = 'ALL' | 'MEMBERS' | 'BANK' | 'WARFARE' | 'TERRITORY';
@@ -161,7 +161,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       if (!response.ok) throw new Error('Failed to fetch messages');
       
       const data = await response.json();
-      setMessages(data.messages.map((m: any) => ({
+      setMessages((data.messages as Array<ChatMessage & { timestamp: string | Date }>).map((m) => ({
         ...m,
         timestamp: new Date(m.timestamp)
       })));
@@ -182,7 +182,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       if (!response.ok) throw new Error('Failed to fetch activities');
       
       const data = await response.json();
-      const newActivities = data.activities.map((a: any) => ({
+      const newActivities = (data.activities as Array<ActivityEvent & { timestamp: string | Date }>).map((a) => ({
         ...a,
         timestamp: new Date(a.timestamp)
       }));
@@ -318,10 +318,10 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
   const getActivityIcon = (type: ActivityEventType) => {
     const iconMap: Record<ActivityEventType, React.ReactNode> = {
       MEMBER_JOIN: <UserPlus className="w-4 h-4 text-[color:var(--nn-green)]" />,
-      MEMBER_LEAVE: <UserMinus className="w-4 h-4 text-text-secondary" />,
+      MEMBER_LEAVE: <UserMinus className="w-4 h-4 nn-text-secondary" />,
       MEMBER_KICKED: <UserMinus className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
       PROMOTION: <ArrowUp className="w-4 h-4 text-[color:var(--nn-amber)]" />,
-      DEMOTION: <ArrowDown className="w-4 h-4 text-text-secondary" />,
+      DEMOTION: <ArrowDown className="w-4 h-4 nn-text-secondary" />,
       BANK_DEPOSIT: <Coins className="w-4 h-4 text-[color:var(--nn-green)]" />,
       BANK_WITHDRAW: <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />,
       WAR_DECLARED: <Swords className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
@@ -330,28 +330,12 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       TERRITORY_CLAIMED: <Map className="w-4 h-4 text-[color:var(--nn-cyan)]" />,
       TERRITORY_LOST: <Map className="w-4 h-4 text-[color:var(--nn-magenta)]" />,
       ALLIANCE_FORMED: <Handshake className="w-4 h-4 text-[color:var(--nn-violet)]" />,
-      ALLIANCE_BROKEN: <Handshake className="w-4 h-4 text-text-secondary" />,
+      ALLIANCE_BROKEN: <Handshake className="w-4 h-4 nn-text-secondary" />,
       PERK_ACTIVATED: <Sparkles className="w-4 h-4 text-[color:var(--nn-amber)]" />,
       RESEARCH_COMPLETED: <Beaker className="w-4 h-4 text-[color:var(--nn-violet)]" />
     };
 
-    return iconMap[type] || <Activity className="w-4 h-4 text-text-secondary" />;
-  };
-
-  /**
-   * Gets badge variant for activity event type
-   */
-  const getActivityBadgeVariant = (type: ActivityEventType): 'success' | 'error' | 'warning' | 'info' => {
-    if (['MEMBER_JOIN', 'BANK_DEPOSIT', 'WAR_VICTORY', 'TERRITORY_CLAIMED', 'ALLIANCE_FORMED', 'PERK_ACTIVATED', 'RESEARCH_COMPLETED'].includes(type)) {
-      return 'success';
-    }
-    if (['MEMBER_KICKED', 'WAR_DEFEAT', 'TERRITORY_LOST', 'ALLIANCE_BROKEN'].includes(type)) {
-      return 'error';
-    }
-    if (['PROMOTION', 'WAR_DECLARED', 'BANK_WITHDRAW'].includes(type)) {
-      return 'warning';
-    }
-    return 'info';
+    return iconMap[type] || <Activity className="w-4 h-4 nn-text-secondary" />;
   };
 
   const filteredActivities = getFilteredActivities();
@@ -366,35 +350,35 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
             <MessageCircle className="w-5 h-5 text-[color:var(--nn-cyan)]" />
             Clan Chat
           </h3>
-          <Button onClick={fetchMessages} variant="ghost" className="gap-2" disabled={isLoadingMessages}>
-            <RefreshCw className={`w-4 h-4 ${isLoadingMessages ? 'animate-spin' : ''}`} />
-          </Button>
+          <button onClick={fetchMessages} className="nn-btn nn-btn--ghost gap-2" disabled={isLoadingMessages}>
+            <RefreshCw className={`w-4 h-4 ${isLoadingMessages ? 'nn-spin-icon' : ''}`} />
+          </button>
         </div>
 
         {/* Message List */}
-        <div className="bg-glass-dark border border-glass-border rounded-none h-[500px] flex flex-col">
+        <div className="nn-surface nn-surface--dark border border-[color:var(--nn-glass-border)] rounded-none h-[500px] flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {isLoadingMessages && messages.length === 0 ? (
               <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-[color:var(--nn-cyan)] animate-spin" />
+                <Loader2 className="nn-spin-icon w-8 h-8 text-[color:var(--nn-cyan)]" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="text-center py-20 text-text-secondary">
+              <div className="text-center py-20 nn-text-secondary">
                 <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No messages yet. Start the conversation!</p>
               </div>
             ) : (
               messages.map(message => (
-                <div key={message.id} className="bg-glass-light border border-glass-border rounded-none p-3">
+                <div key={message.id} className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-3">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[color:var(--nn-cyan)] font-semibold text-sm">{message.senderUsername}</span>
-                      <Badge variant={message.senderRole === 'LEADER' ? 'warning' : 'info'} className="text-xs">
+                      <span className={`nn-chip text-xs ${message.senderRole === 'LEADER' ? 'nn-chip--amber' : 'nn-chip--cyan'}`}>
                         {message.senderRole}
-                      </Badge>
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-text-secondary text-xs">{formatTimeAgo(message.timestamp)}</span>
+                      <span className="nn-text-secondary text-xs">{formatTimeAgo(message.timestamp)}</span>
                       {canDeleteMessages && message.senderId !== currentUserId && (
                         <button
                           onClick={() => handleDeleteMessage(message.id)}
@@ -405,7 +389,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
                       )}
                     </div>
                   </div>
-                  <p className="text-text-primary text-sm">{message.content}</p>
+                  <p className="nn-text-primary text-sm">{message.content}</p>
                 </div>
               ))
             )}
@@ -413,22 +397,22 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
           </div>
 
           {/* Message Input */}
-          <div className="border-t border-glass-border p-3">
+          <div className="border-t border-[color:var(--nn-glass-border)] p-3">
             <div className="flex gap-2">
-              <Input
+              <input
                 placeholder="Type your message..."
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value.slice(0, maxMessageLength))}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                 disabled={isSending}
-                className="flex-1"
-              />
-              <Button onClick={handleSendMessage} disabled={isSending || !messageInput.trim()} className="gap-2">
+                className="nn-input flex-1"
+               />
+              <button onClick={handleSendMessage} disabled={isSending || !messageInput.trim()} className="nn-btn gap-2">
                 <Send className="w-4 h-4" />
                 Send
-              </Button>
+              </button>
             </div>
-            <div className="flex items-center justify-between mt-2 text-xs text-text-secondary">
+            <div className="flex items-center justify-between mt-2 text-xs nn-text-secondary">
               <span>{messageInput.length} / {maxMessageLength}</span>
               {messageInput.length > maxMessageLength * 0.9 && (
                 <span className="text-[color:var(--nn-amber)]">Character limit approaching</span>
@@ -445,9 +429,9 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
             <Activity className="w-5 h-5 text-[color:var(--nn-violet)]" />
             Activity Feed
           </h3>
-          <Button onClick={fetchActivities} variant="ghost" className="gap-2" disabled={isLoadingActivities}>
-            <RefreshCw className={`w-4 h-4 ${isLoadingActivities ? 'animate-spin' : ''}`} />
-          </Button>
+          <button onClick={fetchActivities} className="nn-btn nn-btn--ghost gap-2" disabled={isLoadingActivities}>
+            <RefreshCw className={`w-4 h-4 ${isLoadingActivities ? 'nn-spin-icon' : ''}`} />
+          </button>
         </div>
 
         {/* Activity Filters */}
@@ -485,29 +469,29 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
         </div>
 
         {/* Activity List */}
-        <div className="bg-glass-dark border border-glass-border rounded-none h-[500px] overflow-y-auto p-4 space-y-2">
+        <div className="nn-surface nn-surface--dark border border-[color:var(--nn-glass-border)] rounded-none h-[500px] overflow-y-auto p-4 space-y-2">
           {isLoadingActivities && activities.length === 0 ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 text-[color:var(--nn-violet)] animate-spin" />
+              <Loader2 className="nn-spin-icon w-8 h-8 text-[color:var(--nn-violet)]" />
             </div>
           ) : filteredActivities.length === 0 ? (
-            <div className="text-center py-20 text-text-secondary">
+            <div className="text-center py-20 nn-text-secondary">
               <Filter className="w-12 h-12 mx-auto mb-3 opacity-50" />
               <p>No activities in this category</p>
             </div>
           ) : (
             filteredActivities.map(activity => (
-              <div key={activity.id} className="bg-glass-light border border-glass-border rounded-none p-3">
+              <div key={activity.id} className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-3">
                 <div className="flex items-start gap-3">
                   <div className="mt-0.5">{getActivityIcon(activity.type)}</div>
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-1">
                       <p className="text-sm text-[color:var(--nn-text-primary)] leading-relaxed">{activity.description}</p>
-                      <Badge variant={getActivityBadgeVariant(activity.type)} className="text-xs ml-2">
+                      <span className="nn-chip text-xs ml-2">
                         {activity.type.replace(/_/g, ' ')}
-                      </Badge>
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-text-secondary">
+                    <div className="flex items-center gap-2 text-xs nn-text-secondary">
                       <span className="text-[color:var(--nn-cyan)]">{activity.actorUsername}</span>
                       <span>•</span>
                       <Clock className="w-3 h-3" />
@@ -523,24 +507,24 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
 
         {/* Activity Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
-            <div className="text-text-secondary mb-1">Total Events</div>
+          <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-2 text-center">
+            <div className="nn-text-secondary mb-1">Total Events</div>
             <div className="text-[color:var(--nn-text-primary)] font-bold">{activities.length}</div>
           </div>
-          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
-            <div className="text-text-secondary mb-1">Last 24h</div>
+          <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-2 text-center">
+            <div className="nn-text-secondary mb-1">Last 24h</div>
             <div className="text-[color:var(--nn-cyan)] font-bold">
               {activities.filter(a => new Date().getTime() - a.timestamp.getTime() < 86400000).length}
             </div>
           </div>
-          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
-            <div className="text-text-secondary mb-1">Member Actions</div>
+          <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-2 text-center">
+            <div className="nn-text-secondary mb-1">Member Actions</div>
             <div className="text-[color:var(--nn-green)] font-bold">
               {activities.filter(a => ['MEMBER_JOIN', 'MEMBER_LEAVE', 'PROMOTION', 'DEMOTION'].includes(a.type)).length}
             </div>
           </div>
-          <div className="bg-glass-light border border-glass-border rounded-none p-2 text-center">
-            <div className="text-text-secondary mb-1">Warfare</div>
+          <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-2 text-center">
+            <div className="nn-text-secondary mb-1">Warfare</div>
             <div className="text-[color:var(--nn-magenta)] font-bold">
               {activities.filter(a => ['WAR_DECLARED', 'WAR_VICTORY', 'WAR_DEFEAT'].includes(a.type)).length}
             </div>
@@ -568,7 +552,7 @@ function FilterButton({ label, active, onClick, count }: FilterButtonProps) {
       className={`px-3 py-1.5 rounded-none border text-sm font-medium transition-all ${
         active
           ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]'
-          : 'bg-glass-light border-glass-border text-text-secondary hover:bg-glass-light'
+          : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary hover:nn-surface'
       }`}
     >
       {label} {count > 0 && <span className="ml-1 opacity-70">({count})</span>}

@@ -150,7 +150,11 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
       }));
 
       const endpoint = attackType === 'infantry' ? '/api/combat/infantry' : '/api/combat/base';
-      const body: any = {
+      const body: {
+        targetUsername: string;
+        units: { unitType: string; quantity: number }[];
+        resourceToSteal?: ResourceType;
+      } = {
         targetUsername,
         units: unitsToSend
       };

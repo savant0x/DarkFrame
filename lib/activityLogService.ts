@@ -218,12 +218,16 @@ export async function getActivityLogStats(query?: ActivityLogQuery): Promise<Act
       .where(whereClause)
       .groupBy(playerActivity.action);
     
-    const actionsByType: Record<ActionType, number> = {} as any;
+    const actionsByType: Record<ActionType, number> = Object.fromEntries(
+      Object.values(ActionType).map((t) => [t, 0])
+    ) as Record<ActionType, number>;
     actionStats.forEach(stat => {
       actionsByType[stat.action as ActionType] = stat.count;
     });
     
-    const actionsByCategory: Record<ActionCategory, number> = {} as any;
+    const actionsByCategory: Record<ActionCategory, number> = Object.fromEntries(
+      Object.values(ActionCategory).map((c) => [c, 0])
+    ) as Record<ActionCategory, number>;
     
     const uniquePlayersResult = await db
       .select({ playerId: playerActivity.playerId })

@@ -17,6 +17,7 @@
 'use client';
 
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Loader2 } from 'lucide-react';
 
 interface FlagBreakdownProps {
   data: Array<{
@@ -36,14 +37,24 @@ const COLORS = {
 };
 
 export default function FlagBreakdown({ data, totalFlagged, loading, error }: FlagBreakdownProps) {
-  // Custom label for pie segments
-  const renderLabel = (entry: any) => {
-    const percent = ((entry.count / totalFlagged) * 100).toFixed(1);
+  // Custom label for pie segments — recharts' PieLabel contract supplies the
+  // segment datum on `payload`, while `value` mirrors `payload.count`
+  const renderLabel = (entry: { count?: number; value?: number | string; payload?: { count: number } }) => {
+    const count = entry.count ?? (typeof entry.value === 'number' ? entry.value : undefined) ?? entry.payload?.count ?? 0;
+    const percent = ((count / totalFlagged) * 100).toFixed(1);
     return `${percent}%`;
   };
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
+  // Custom tooltip — pie entries carry name/value with the datum under `payload`
+  interface TooltipEntry {
+    name?: string;
+    value: number;
+    payload: {
+      severity: string;
+      count: number;
+    };
+  }
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: TooltipEntry[] }) => {
     if (!active || !payload || !payload.length) return null;
 
     const data = payload[0];
@@ -73,7 +84,7 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
     return (
       <div className="w-full h-[300px] flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mx-auto mb-3"></div>
+          <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-magenta)] mx-auto mb-3" aria-label="Loading flag breakdown" />
           <p className="text-[color:var(--nn-text-secondary)]">Loading flag data...</p>
         </div>
       </div>
@@ -148,19 +159,19 @@ export default function FlagBreakdown({ data, totalFlagged, loading, error }: Fl
       {/* Severity explanation */}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Critical: Confirmed cheating</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">High: Suspicious patterns</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Medium: Anomalies detected</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded-full bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
+          <div className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"></div>
           <span className="text-[color:var(--nn-text-secondary)]">Low: Minor irregularities</span>
         </div>
       </div>

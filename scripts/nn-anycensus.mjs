@@ -34,13 +34,14 @@ for (const f of data) {
   delete f.source;
   const anys = f.messages.filter((m) => m.ruleId === '@typescript-eslint/no-explicit-any');
   if (anys.length > 0) {
-    // Trim to a repo-relative path: drop everything up to and including the
-  // project root segment (DarkFrame), keeping at most the first two segments
-  // below it for grouping.
-  const segs = f.filePath.split(/[\\/]/);
-  const rootIdx = segs.lastIndexOf('DarkFrame');
-  const rel = (rootIdx >= 0 ? segs.slice(rootIdx + 1, rootIdx + 3) : segs.slice(-2)).join('/');
-    byFile.set(rel, anys.length);
+    // Full repo-relative path as the grouping key: a shorter key (e.g. first two
+    // segments) would merge sibling files (app/api/a.ts + app/api/b.ts) and the
+    // counts must ACCUMULATE, not replace — the old set() replaced on collision
+    // and silently understated totals.
+    const segs = f.filePath.split(/[\\/]/);
+    const rootIdx = segs.lastIndexOf('DarkFrame');
+    const rel = (rootIdx >= 0 ? segs.slice(rootIdx + 1) : segs).join('/');
+    byFile.set(rel, (byFile.get(rel) ?? 0) + anys.length);
   }
 }
 const entries = [...byFile.entries()].sort((a, b) => b[1] - a[1]);

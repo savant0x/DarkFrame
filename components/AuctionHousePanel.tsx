@@ -1,30 +1,24 @@
 /**
- * AuctionHousePanel Component (Refactored)
- * 
- * Modern auction marketplace with animated listings
- * 
+ * AuctionHousePanel Component
+ *
  * Created: 2025-01-17
  * Refactored: 2025-10-18 (FID-20251018-044 Phase 4)
- * 
+ * Neon-noir structural pass: 2026-09-08 (FID-20260908-011)
+ *
  * OVERVIEW:
  * Comprehensive auction marketplace interface featuring:
  * - Three view modes (Marketplace, My Listings, My Bids)
- * - Animated listing grid with StaggerChildren
+ * - Listing grid (AuctionListingCard)
  * - Advanced filters (category, price, sort, seller)
  * - Pagination with page controls
  * - Real-time loading and error states
  * - Create listing modal integration
  * - Responsive grid layout (1/2/3/4 columns)
- * 
- * Design System Integration:
- * - Panel component for filter sections
- * - Button component for tabs and actions
- * - Badge component for auction counts and status
- * - Card component for individual listings (via AuctionListingCard)
- * - StaggerChildren for grid animations
- * - Input component for filters
- * - useIsMobile hook for responsive layout
- * - LoadingSpinner for loading states
+ *
+ * Styling: token primitives only (nn-panel / nn-tab / nn-input / nn-chip /
+ * nn-btn); legacy bg-bg, border-border, and text-text utility families and
+ * kit imports removed. Listing cards, the create-listing modal, and all
+ * fetch/action logic are byte-preserved.
  */
 
 'use client';
@@ -34,12 +28,6 @@ import { AuctionListing, MyBidAuctionView, MyBidEntry } from '@/types/auction.ty
 
 import { AuctionListingCard } from './AuctionListingCard';
 import { CreateListingModal } from './CreateListingModal';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { Panel } from './ui/Panel';
-
-import { StaggerChildren, StaggerItem } from './transitions/StaggerChildren';
-import { LoadingSpinner } from './transitions/LoadingSpinner';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
   Store,
@@ -54,7 +42,8 @@ import {
   Swords,
   Wrench,
   Gift,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 
 // ============================================================
@@ -269,281 +258,268 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   return (
     <>
       {/* Modal Overlay */}
-      <div className="fixed inset-0 bg-[color:var(--nn-void)] bg-opacity-80 flex items-center justify-center z-50 p-4">
-        <div className="bg-bg-primary border-2 border-accent-secondary rounded-none w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
-          
-          {/* Header */}
-          <div className="bg-gradient-to-r from-accent-secondary to-[color:var(--nn-amber)] p-4 border-b-2 border-accent-secondary">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-[color:var(--nn-amber)] flex items-center gap-2">
-                <Store className="w-6 h-6" />
-                Auction House
-              </h2>
-              <Button
-                onClick={onClose}
-                variant="danger"
-                size="sm"
-              >
-                ×
-              </Button>
-            </div>
+      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
+        <div
+          className="nn-panel w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col"
+          style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}
+          role="dialog"
+          aria-label="Auction house"
+        >
+          {/* Header — scanline instrument strip */}
+          <div className="nn-panel__header nn-panel__header--amber">
+            <span className="nn-panel__icon"><Store className="h-4 w-4" /></span>
+            <span className="nn-panel__title">Auction House</span>
+            <span className="nn-panel__meta">Player marketplace</span>
+            <button
+              onClick={onClose}
+              className="ml-auto nn-abtn nn-abtn--ghost px-3"
+              aria-label="Close auction house"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
-            {/* View Mode Tabs */}
-            <div className="flex flex-wrap gap-2 mt-3">
-              <Button
-                onClick={() => handleViewChange('marketplace')}
-                variant={viewMode === 'marketplace' ? 'primary' : 'secondary'}
-                size="sm"
-              >
-                <Store className="w-4 h-4 mr-1" />
-                {!isMobile && 'Marketplace'}
-              </Button>
-              <Button
-                onClick={() => handleViewChange('myListings')}
-                variant={viewMode === 'myListings' ? 'primary' : 'secondary'}
-                size="sm"
-              >
-                <Package className="w-4 h-4 mr-1" />
-                {!isMobile && 'My Listings'}
-              </Button>
-              <Button
-                onClick={() => handleViewChange('myBids')}
-                variant={viewMode === 'myBids' ? 'primary' : 'secondary'}
-                size="sm"
-              >
-                <Target className="w-4 h-4 mr-1" />
-                {!isMobile && 'My Bids'}
-              </Button>
-              <Button
-                onClick={() => setShowCreateModal(true)}
-                variant="success"
-                size="sm"
-                className="ml-auto"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Create Listing
-              </Button>
-            </div>
+          {/* View Mode Tabs — text-rule navigation */}
+          <div className="flex border-b border-[color-mix(in_oklab,var(--nn-glass-border))] flex-wrap">
+            <button
+              onClick={() => handleViewChange('marketplace')}
+              className={`nn-tab px-5 ${viewMode === 'marketplace' ? 'nn-tab--on' : ''}`}
+            >
+              <Store className="w-3.5 h-3.5 mr-1 inline-block align-[-2px]" />
+              {!isMobile && 'Marketplace'}
+            </button>
+            <button
+              onClick={() => handleViewChange('myListings')}
+              className={`nn-tab px-5 ${viewMode === 'myListings' ? 'nn-tab--on' : ''}`}
+            >
+              <Package className="w-3.5 h-3.5 mr-1 inline-block align-[-2px]" />
+              {!isMobile && 'My Listings'}
+            </button>
+            <button
+              onClick={() => handleViewChange('myBids')}
+              className={`nn-tab px-5 ${viewMode === 'myBids' ? 'nn-tab--on' : ''}`}
+            >
+              <Target className="w-3.5 h-3.5 mr-1 inline-block align-[-2px]" />
+              {!isMobile && 'My Bids'}
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="ml-auto nn-btn nn-btn--green self-center mr-3"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Create Listing
+            </button>
           </div>
 
           {/* Filters Panel (Marketplace only) */}
           {viewMode === 'marketplace' && (
-            <div className="bg-bg-secondary p-4 border-b border-border-main">
-              <Panel icon={<Filter className="w-5 h-5" />} title="Filters & Search">
-                {/* Category Tabs */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <Button
-                    onClick={() => handleTabChange('all')}
-                    variant={activeTab === 'all' ? 'primary' : 'secondary'}
-                    size="sm"
-                  >
-                    All Items
-                  </Button>
-                  <Button
-                    onClick={() => handleTabChange('units')}
-                    variant={activeTab === 'units' ? 'primary' : 'secondary'}
-                    size="sm"
-                  >
-                    <Swords className="w-4 h-4 mr-1" />
-                    Units
-                  </Button>
-                  <Button
-                    onClick={() => handleTabChange('resources')}
-                    variant={activeTab === 'resources' ? 'primary' : 'secondary'}
-                    size="sm"
-                  >
-                    <Wrench className="w-4 h-4 mr-1" />
-                    Resources
-                  </Button>
-                  <Button
-                    onClick={() => handleTabChange('items')}
-                    variant={activeTab === 'items' ? 'primary' : 'secondary'}
-                    size="sm"
-                  >
-                    <Gift className="w-4 h-4 mr-1" />
-                    Items
-                  </Button>
+            <div className="nn-surface--dark p-4 border-b border-[color-mix(in_oklab,var(--nn-glass-border))]">
+              {/* Category Tabs */}
+              <div className="flex items-center gap-2 mb-4 flex-wrap">
+                <span className="nn-panel__icon"><Filter className="w-4 h-4" /></span>
+                <span className="nn-lab uppercase mr-2">Filter</span>
+                <button
+                  onClick={() => handleTabChange('all')}
+                  className={`nn-tabchip px-3 ${activeTab === 'all' ? 'nn-tabchip--on' : ''}`}
+                >
+                  All Items
+                </button>
+                <button
+                  onClick={() => handleTabChange('units')}
+                  className={`nn-tabchip px-3 ${activeTab === 'units' ? 'nn-tabchip--on' : ''}`}
+                >
+                  <Swords className="w-3.5 h-3.5 mr-1 inline-block align-[-2px]" />
+                  Units
+                </button>
+                <button
+                  onClick={() => handleTabChange('resources')}
+                  className={`nn-tabchip px-3 ${activeTab === 'resources' ? 'nn-tabchip--on' : ''}`}
+                >
+                  <Wrench className="w-3.5 h-3.5 mr-1 inline-block align-[-2px]" />
+                  Resources
+                </button>
+                <button
+                  onClick={() => handleTabChange('items')}
+                  className={`nn-tabchip px-3 ${activeTab === 'items' ? 'nn-tabchip--on' : ''}`}
+                >
+                  <Gift className="w-3.5 h-3.5 mr-1 inline-block align-[-2px]" />
+                  Items
+                </button>
+              </div>
+
+              {/* Filter Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                {/* Min Price */}
+                <div>
+                  <label className="nn-lab block mb-1">Min Price</label>
+                  <input
+                    type="number"
+                    value={priceMin}
+                    onChange={(e) => setPriceMin(e.target.value)}
+                    placeholder="0"
+                    className="nn-input w-full"
+                  />
                 </div>
 
-                {/* Filter Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-                  {/* Min Price */}
-                  <div>
-                    <label className="block text-sm text-text-secondary mb-1">Min Price</label>
-                    <input
-                      type="number"
-                      value={priceMin}
-                      onChange={(e) => setPriceMin(e.target.value)}
-                      placeholder="0"
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                    />
-                  </div>
-
-                  {/* Max Price */}
-                  <div>
-                    <label className="block text-sm text-text-secondary mb-1">Max Price</label>
-                    <input
-                      type="number"
-                      value={priceMax}
-                      onChange={(e) => setPriceMax(e.target.value)}
-                      placeholder="No limit"
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                    />
-                  </div>
-
-                  {/* Sort By */}
-                  <div>
-                    <label className="text-sm text-text-secondary mb-1 flex items-center gap-1">
-                      <ArrowUpDown className="w-4 h-4" />
-                      Sort By
-                    </label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value as SortOption)}
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                    >
-                      <option value="newly_listed">Newly Listed</option>
-                      <option value="ending_soon">Ending Soon</option>
-                      <option value="price_asc">Price: Low to High</option>
-                      <option value="price_desc">Price: High to Low</option>
-                    </select>
-                  </div>
-
-                  {/* Buyout Filter */}
-                  <div>
-                    <label className="block text-sm text-text-secondary mb-1">Buyout Filter</label>
-                    <select
-                      value={hasBuyout === undefined ? 'all' : hasBuyout.toString()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setHasBuyout(val === 'all' ? undefined : val === 'true');
-                      }}
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                    >
-                      <option value="all">All Auctions</option>
-                      <option value="true">Buyout Available</option>
-                      <option value="false">Bid Only</option>
-                    </select>
-                  </div>
+                {/* Max Price */}
+                <div>
+                  <label className="nn-lab block mb-1">Max Price</label>
+                  <input
+                    type="number"
+                    value={priceMax}
+                    onChange={(e) => setPriceMax(e.target.value)}
+                    placeholder="No limit"
+                    className="nn-input w-full"
+                  />
                 </div>
 
-                {/* Seller Filter */}
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-sm text-text-secondary mb-1 flex items-center gap-1">
-                      <Users className="w-4 h-4" />
-                      Seller Username
-                    </label>
-                    <input
-                      type="text"
-                      value={sellerFilter}
-                      onChange={(e) => setSellerFilter(e.target.value)}
-                      placeholder="Filter by seller..."
-                      className="w-full bg-bg-tertiary text-text-primary border border-border-main rounded-none px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-primary"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <Button
-                      onClick={applyFilters}
-                      variant="primary"
-                    >
-                      <Search className="w-4 h-4 mr-1" />
-                      Apply
-                    </Button>
-                  </div>
+                {/* Sort By */}
+                <div>
+                  <label className="nn-lab mb-1 flex items-center gap-1">
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                    Sort By
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortOption)}
+                    className="nn-input w-full"
+                  >
+                    <option value="newly_listed">Newly Listed</option>
+                    <option value="ending_soon">Ending Soon</option>
+                    <option value="price_asc">Price: Low to High</option>
+                    <option value="price_desc">Price: High to Low</option>
+                  </select>
                 </div>
-              </Panel>
+
+                {/* Buyout Filter */}
+                <div>
+                  <label className="nn-lab block mb-1">Buyout Filter</label>
+                  <select
+                    value={hasBuyout === undefined ? 'all' : hasBuyout.toString()}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setHasBuyout(val === 'all' ? undefined : val === 'true');
+                    }}
+                    className="nn-input w-full"
+                  >
+                    <option value="all">All Auctions</option>
+                    <option value="true">Buyout Available</option>
+                    <option value="false">Bid Only</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Seller Filter */}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="nn-lab mb-1 flex items-center gap-1">
+                    <Users className="w-3.5 h-3.5" />
+                    Seller Username
+                  </label>
+                  <input
+                    type="text"
+                    value={sellerFilter}
+                    onChange={(e) => setSellerFilter(e.target.value)}
+                    placeholder="Filter by seller…"
+                    className="nn-input w-full"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={applyFilters}
+                    className="nn-btn nn-btn--primary"
+                  >
+                    <Search className="w-4 h-4 mr-1" />
+                    Apply
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Results Info Bar */}
-          <div className="bg-bg-secondary px-4 py-2 border-b border-border-main flex items-center justify-between">
-            <div className="text-sm text-text-secondary">
+          <div className="nn-surface px-4 py-2 border-b border-[color-mix(in_oklab,var(--nn-glass-border))] flex items-center justify-between">
+            <div className="nn-lab">
               {loading ? (
-                <span>Loading...</span>
+                <span>Loading…</span>
               ) : (
                 <span className="flex items-center gap-2">
-                  Showing <Badge variant="primary">{auctions.length}</Badge> of <Badge variant="default">{totalCount}</Badge> auctions
-                  {viewMode === 'myListings' && <Badge variant="info">Your Listings</Badge>}
-                  {viewMode === 'myBids' && <Badge variant="warning">Your Bids</Badge>}
+                  Showing <span className="nn-chip nn-chip--amber nn-num">{auctions.length}</span> of <span className="nn-chip nn-num">{totalCount}</span> auctions
+                  {viewMode === 'myListings' && <span className="nn-chip nn-chip--cyan">Your Listings</span>}
+                  {viewMode === 'myBids' && <span className="nn-chip nn-chip--violet">Your Bids</span>}
                 </span>
               )}
             </div>
           </div>
 
           {/* Auction Grid */}
-          <div className="flex-1 overflow-y-auto p-4 bg-bg-primary">
+          <div className="flex-1 overflow-y-auto p-4">
             {/* Error State */}
             {error && (
-              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] text-[color:var(--nn-magenta)] p-4 rounded-none mb-4">
-                {error}
+              <div className="nn-note" role="alert">
+                <p className="nn-text-magenta text-sm">{error}</p>
               </div>
             )}
 
             {/* Loading State */}
             {loading && (
               <div className="text-center py-12">
-                <LoadingSpinner size="lg" variant="spin" />
-                <p className="text-text-secondary mt-4">Loading auctions...</p>
+                <span className="nn-spin-icon h-7 w-7 mx-auto block" aria-label="Loading auctions" />
+                <p className="nn-lab mt-4">Loading auctions…</p>
               </div>
             )}
 
             {/* Empty State */}
             {!loading && auctions.length === 0 && (
-              <div className="text-center text-text-secondary py-12">
-                <Store className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="text-xl mb-2">No auctions found</p>
-                <p className="text-sm">Try adjusting your filters or create a new listing</p>
+              <div className="text-center py-12">
+                <Store className="w-14 h-14 mx-auto mb-4 opacity-40 nn-text-dim" />
+                <p className="text-lg nn-text-primary mb-2">No auctions found</p>
+                <p className="nn-lab">Try adjusting your filters or create a new listing</p>
               </div>
             )}
 
             {/* Auction Listings Grid */}
             {!loading && auctions.length > 0 && (
-              <StaggerChildren
-                staggerDelay={0.05}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-              >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {auctions.map((auction) => (
-                  <StaggerItem key={auction.auctionId}>
+                  <div key={auction.auctionId} className="nn-fade">
                     <AuctionListingCard
                       auction={auction}
                       onUpdate={handleAuctionUpdate}
                       showMyBidStatus={viewMode === 'myBids'}
                     />
-                  </StaggerItem>
+                  </div>
                 ))}
-              </StaggerChildren>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {!loading && auctions.length > 0 && (
+              <div className="flex items-center justify-between mt-6">
+                <button
+                  onClick={goToPreviousPage}
+                  disabled={currentPage === 1}
+                  className="nn-btn nn-btn--ghost"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Previous
+                </button>
+
+                <span className="nn-lab">
+                  Page <span className="nn-chip nn-chip--amber nn-num">{currentPage}</span> of <span className="nn-chip nn-num">{totalPages}</span>
+                </span>
+
+                <button
+                  onClick={goToNextPage}
+                  disabled={currentPage === totalPages}
+                  className="nn-btn nn-btn--ghost"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+              </div>
             )}
           </div>
-
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="bg-bg-secondary p-4 border-t border-border-main flex justify-center items-center gap-4">
-              <Button
-                onClick={goToPreviousPage}
-                disabled={currentPage === 1}
-                variant="secondary"
-                size="sm"
-              >
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                Previous
-              </Button>
-              
-              <span className="text-text-secondary text-sm">
-                Page <Badge variant="primary">{currentPage}</Badge> of <Badge variant="default">{totalPages}</Badge>
-              </span>
-              
-              <Button
-                onClick={goToNextPage}
-                disabled={currentPage === totalPages}
-                variant="secondary"
-                size="sm"
-              >
-                Next
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </div>
-          )}
         </div>
       </div>
 
@@ -562,46 +538,27 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
 }
 
 // ============================================================
-// USAGE EXAMPLE:
-// ============================================================
-// import { AuctionHousePanel } from '@/components/AuctionHousePanel';
-// 
-// <AuctionHousePanel onClose={() => setShowAuction(false)} />
-// ============================================================
-
-// ============================================================
 // IMPLEMENTATION NOTES:
 // ============================================================
-// DESIGN SYSTEM INTEGRATION:
-// - Button: View mode tabs, category filters, pagination with variants
-// - Badge: Auction counts, status indicators, page numbers
-// - Panel: Filters section with icon and collapsible structure
-// - StaggerChildren: Animated auction grid with 50ms stagger
-// - LoadingSpinner: Centered loading state with spin variant
-// - useIsMobile: Hide text labels on mobile for compact tabs
-// 
-// ANIMATIONS:
-// - Stagger animation on auction grid (0.05s delay per card)
-// - Smooth view mode transitions
-// - Loading spinner with spin animation
-// - Hover effects on cards (via AuctionListingCard)
-// 
+// STYLING (FID-20260908-011):
+// - Token primitives only: nn-panel / nn-tab / nn-tabchip / nn-input /
+//   nn-chip / nn-btn / nn-surface / nn-lab / nn-num
+// - Gradient header strip replaced with scanline panel header
+// - Legacy bg-bg-*/border-border-*/text-text-* classes removed
+//
 // FEATURES:
-// - Three view modes: Marketplace, My Listings, My Bids
+// - Three view modes: Marketplace, My Listings, My Bids (text-rule tabs)
 // - Category filtering: All, Units, Resources, Items
 // - Advanced filters: price range, sort, buyout, seller
-// - Real-time loading and error states
+// - Real-time loading and error states (gated nn-spin-icon)
 // - Pagination with prev/next controls
 // - Responsive grid (1/2/3/4 columns)
-// - Create listing modal integration
-// - Empty state with helpful message
-// - Results count with badges
-// 
+// - Create listing modal integration (byte-preserved)
+// - Listing cards via AuctionListingCard (byte-preserved)
+//
 // PERFORMANCE:
 // - Pagination limits to 12 items per page
 // - Efficient re-fetching on filter/page changes
-// - Debounce could be added to filter inputs
-// - React Query would improve caching/state management
 // ============================================================
 // END OF FILE
 // ============================================================

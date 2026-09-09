@@ -21,6 +21,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import { useRouter } from 'next/navigation';
 import { showError, showSuccess } from '@/lib/toastService';
@@ -178,18 +179,18 @@ export default function AdminReferralsPage() {
 
   const getStatusBadge = (status: string, flagged?: boolean) => {
     if (flagged) {
-      return <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold">🚩 FLAGGED</span>;
+      return <span className="nn-chip nn-chip--magenta">🚩 FLAGGED</span>;
     }
 
     switch (status) {
       case 'validated':
-        return <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold">✅ VALIDATED</span>;
+        return <span className="nn-chip nn-chip--green">✅ VALIDATED</span>;
       case 'pending':
-        return <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold">⏳ PENDING</span>;
+        return <span className="nn-chip nn-chip--amber">⏳ PENDING</span>;
       case 'invalid':
-        return <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold">❌ INVALID</span>;
+        return <span className="nn-chip">❌ INVALID</span>;
       default:
-        return <span className="px-2 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold">{status}</span>;
+        return <span className="nn-chip">{status}</span>;
     }
   };
 
@@ -205,20 +206,20 @@ export default function AdminReferralsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center p-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]"></div>
+        <Loader2 className="nn-spin-icon w-10 h-10 text-[color:var(--nn-cyan)]" aria-label="Loading referrals" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-[color:var(--nn-violet)] to-gray-900 text-[color:var(--nn-text-primary)] p-4 sm:p-6">
+    <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Header — FID-017: gradient bg-clip-text hero → flat Orbitron title */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-[color:var(--nn-magenta)] via-[color:var(--nn-amber)] to-[color:var(--nn-amber)] bg-clip-text text-transparent mb-2">
+          <h1 className="nn-num nn-text-magenta text-4xl font-bold tracking-wider mb-2">
             🛡️ Referral System Admin
           </h1>
-          <p className="text-[color:var(--nn-text-secondary)]">
+          <p className="nn-text-secondary">
             Manage referrals, flag abuse, and manually validate rewards
           </p>
         </div>
@@ -226,25 +227,25 @@ export default function AdminReferralsPage() {
         {/* Stats Cards */}
         {data && (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-4">
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Total</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">{data.stats.totalReferrals}</div>
+            <div className="nn-stat">
+              <div className="nn-stat__lab">Total</div>
+              <div className="nn-stat__num nn-stat__num--glow-cyan">{data.stats.totalReferrals}</div>
             </div>
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none p-4">
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Pending</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-amber)]">{data.stats.pendingReferrals}</div>
+            <div className="nn-stat">
+              <div className="nn-stat__lab">Pending</div>
+              <div className="nn-stat__num nn-stat__num--glow-amber">{data.stats.pendingReferrals}</div>
             </div>
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4">
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Validated</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-green)]">{data.stats.validatedReferrals}</div>
+            <div className="nn-stat">
+              <div className="nn-stat__lab">Validated</div>
+              <div className="nn-stat__num nn-stat__num--glow-green">{data.stats.validatedReferrals}</div>
             </div>
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none p-4">
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Invalid</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-text-secondary)]">{data.stats.invalidReferrals}</div>
+            <div className="nn-stat">
+              <div className="nn-stat__lab">Invalid</div>
+              <div className="nn-stat__num nn-table__dim">{data.stats.invalidReferrals}</div>
             </div>
-            <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4">
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Flagged</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">{data.stats.flaggedReferrals}</div>
+            <div className="nn-stat">
+              <div className="nn-stat__lab">Flagged</div>
+              <div className="nn-stat__num nn-stat__num--glow-magenta">{data.stats.flaggedReferrals}</div>
             </div>
           </div>
         )}
@@ -259,7 +260,7 @@ export default function AdminReferralsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && fetchReferrals()}
-              className="flex-1 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-2 text-[color:var(--nn-text-primary)] focus:outline-none focus:border-cyan-500"
+              className="nn-input flex-1"
             />
 
             {/* Filter Buttons */}
@@ -268,10 +269,8 @@ export default function AdminReferralsPage() {
                 <button
                   key={status}
                   onClick={() => setFilterStatus(status)}
-                  className={`px-4 py-2 rounded-none font-semibold transition-colors ${
-                    filterStatus === status
-                      ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                      : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
+                  className={`nn-tabchip px-4 py-2 font-semibold ${
+                    filterStatus === status ? 'nn-tabchip--on' : ''
                   }`}
                 >
                   {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -337,7 +336,7 @@ export default function AdminReferralsPage() {
                               setSelectedReferral(ref);
                               setShowDetailsModal(true);
                             }}
-                            className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                            className="nn-btn px-3 py-1 text-xs font-semibold"
                           >
                             Details
                           </button>
@@ -345,7 +344,7 @@ export default function AdminReferralsPage() {
                           {ref.status === 'pending' && !ref.flagged && (
                             <button
                               onClick={() => handleManualValidation(ref._id)}
-                              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                              className="nn-btn nn-btn--primary px-3 py-1 text-xs font-semibold"
                             >
                               Validate
                             </button>
@@ -357,14 +356,14 @@ export default function AdminReferralsPage() {
                                 const reason = prompt('Reason for flagging:');
                                 if (reason) handleFlagToggle(ref._id, true, reason);
                               }}
-                              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                              className="nn-btn nn-btn--danger px-3 py-1 text-xs font-semibold"
                             >
                               Flag
                             </button>
                           ) : (
                             <button
                               onClick={() => handleFlagToggle(ref._id, false)}
-                              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                              className="nn-btn nn-btn--ghost px-3 py-1 text-xs font-semibold"
                             >
                               Unflag
                             </button>
@@ -373,7 +372,7 @@ export default function AdminReferralsPage() {
                           {ref.status === 'pending' && (
                             <button
                               onClick={() => handleInvalidate(ref._id)}
-                              className="px-3 py-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none text-xs font-semibold transition-colors"
+                              className="nn-btn nn-btn--ghost px-3 py-1 text-xs font-semibold"
                             >
                               Invalidate
                             </button>
@@ -480,7 +479,7 @@ export default function AdminReferralsPage() {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setShowDetailsModal(false)}
-                className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] rounded-none font-semibold transition-colors"
+                className="nn-btn nn-btn--ghost px-6 py-2 font-semibold"
               >
                 Close
               </button>

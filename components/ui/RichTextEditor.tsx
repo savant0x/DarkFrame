@@ -141,15 +141,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const isNearLimit = charPercentage > 90;
 
   return (
-    <div className={`border border-slate-600 rounded-none bg-slate-800 ${className}`}>
+    <div className={`border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none bg-[color-mix(in_oklab,var(--nn-void)_60%,transparent)] ${className}`}>
       {/* Toolbar */}
-      <div className="border-b border-slate-700 p-2 flex flex-wrap gap-1 bg-slate-900/50">
+      <div className="border-b border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] p-2 flex flex-wrap gap-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
         {/* Text Formatting */}
-        <div className="flex gap-1 border-r border-slate-700 pr-2">
+        <div className="flex gap-1 border-r border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pr-2">
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('bold') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Bold"
@@ -159,7 +159,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleItalic().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('italic') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Italic"
@@ -169,7 +169,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleUnderline().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('underline') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Underline"
@@ -179,7 +179,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleStrike().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('strike') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Strikethrough"
@@ -189,11 +189,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         {/* Headings */}
-        <div className="flex gap-1 border-r border-slate-700 pr-2">
+        <div className="flex gap-1 border-r border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pr-2">
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('heading', { level: 1 }) ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Heading 1"
@@ -203,7 +203,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('heading', { level: 2 }) ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Heading 2"
@@ -213,7 +213,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('heading', { level: 3 }) ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Heading 3"
@@ -223,11 +223,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         {/* Lists & Quote */}
-        <div className="flex gap-1 border-r border-slate-700 pr-2">
+        <div className="flex gap-1 border-r border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pr-2">
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('bulletList') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Bullet List"
@@ -237,7 +237,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('orderedList') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Numbered List"
@@ -247,7 +247,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive('blockquote') ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Quote"
@@ -257,11 +257,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         {/* Alignment */}
-        <div className="flex gap-1 border-r border-slate-700 pr-2">
+        <div className="flex gap-1 border-r border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pr-2">
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign('left').run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive({ textAlign: 'left' }) ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Align Left"
@@ -271,7 +271,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign('center').run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive({ textAlign: 'center' }) ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Align Center"
@@ -281,7 +281,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().setTextAlign('right').run()}
-            className={`p-2 rounded-none hover:bg-slate-700 transition-colors ${
+            className={`p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors ${
               editor.isActive({ textAlign: 'right' }) ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-cyan)]' : 'text-[color:var(--nn-text-secondary)]'
             }`}
             title="Align Right"
@@ -291,14 +291,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         {/* Color Picker */}
-        <div className="flex gap-1 border-r border-slate-700 pr-2">
+        <div className="flex gap-1 border-r border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pr-2">
           <div className="flex flex-wrap gap-1 max-w-[200px]">
             {PRESET_COLORS.map((color) => (
               <button
                 key={color.value}
                 type="button"
                 onClick={() => editor.chain().focus().setColor(color.value).run()}
-                className="w-6 h-6 rounded-none border-2 border-slate-600 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-colors"
+                className="w-6 h-6 rounded-none border-2 border-[color-mix(in_oklab,var(--nn-cyan)_28%,transparent)] transition-colors"
                 style={{ backgroundColor: color.value }}
                 title={color.name}
               />
@@ -307,11 +307,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         {/* Font Family */}
-        <div className="flex gap-1 border-r border-slate-700 pr-2">
+        <div className="flex gap-1 border-r border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] pr-2">
           <select
             value={editor.getAttributes('textStyle').fontFamily || 'Inter, sans-serif'}
             onChange={(e) => editor.chain().focus().setFontFamily(e.target.value).run()}
-            className="px-2 py-1 rounded-none bg-slate-700 text-[color:var(--nn-text-secondary)] text-sm border border-slate-600 focus:border-cyan-500 focus:outline-none"
+            className="px-2 py-1 rounded-none bg-[color-mix(in_oklab,var(--nn-void)_60%,transparent)] text-[color:var(--nn-text-secondary)] text-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] focus:border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:outline-none"
           >
             {FONT_FAMILIES.map((font) => (
               <option key={font.value} value={font.value}>
@@ -327,7 +327,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             type="button"
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
-            className="p-2 rounded-none hover:bg-slate-700 transition-colors text-[color:var(--nn-text-secondary)] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors text-[color:var(--nn-text-secondary)] disabled:opacity-30 disabled:cursor-not-allowed"
             title="Undo"
           >
             <Undo size={18} />
@@ -336,7 +336,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             type="button"
             onClick={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
-            className="p-2 rounded-none hover:bg-slate-700 transition-colors text-[color:var(--nn-text-secondary)] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors text-[color:var(--nn-text-secondary)] disabled:opacity-30 disabled:cursor-not-allowed"
             title="Redo"
           >
             <Redo size={18} />
@@ -344,7 +344,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <button
             type="button"
             onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-            className="p-2 rounded-none hover:bg-slate-700 transition-colors text-[color:var(--nn-text-secondary)]"
+            className="p-2 rounded-none hover:bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] transition-colors text-[color:var(--nn-text-secondary)]"
             title="Clear Formatting"
           >
             <Eraser size={18} />
@@ -358,7 +358,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       </div>
 
       {/* Character Counter */}
-      <div className="border-t border-slate-700 px-3 py-2 flex justify-between items-center bg-slate-900/50">
+      <div className="border-t border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] px-3 py-2 flex justify-between items-center bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]">
         <span className="text-xs text-[color:var(--nn-text-secondary)]">
           {charCount} / {maxLength} characters
         </span>

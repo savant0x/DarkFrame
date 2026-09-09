@@ -36,6 +36,7 @@ import { CanvasMapRenderer } from '@/components/map/CanvasMapRenderer';
 import { MapLegend } from '@/components/map/MapLegend';
 import { ZoomControls } from '@/components/map/ZoomControls';
 import BackButton from '@/components/BackButton';
+import { Loader2 } from 'lucide-react';
 import {
   type ZoomLevel,
   type PlayerMarker,
@@ -320,15 +321,15 @@ export default function MapPage() {
   };
   
   const renderMapContent = () => (
-    <div className="h-full w-full flex flex-col bg-gradient-to-b from-bg-space to-black text-[color:var(--nn-text-primary)] overflow-hidden">
+    <div className="h-full w-full flex flex-col bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] overflow-hidden">
       {/* Header */}
-      <header className="bg-glass-light border-b border-glass-border p-4 flex-shrink-0">
+      <header className="nn-panel__header border-b border-[color-mix(in_oklab,var(--nn-cyan)_18%,transparent)] p-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <BackButton />
             <div>
-              <h1 className="text-2xl font-bold">🗺️ DarkFrame Map</h1>
-              <p className="text-sm text-text-secondary">
+              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--nn-font-display)' }}>DarkFrame Map</h1>
+              <p className="text-sm text-[color:var(--nn-text-secondary)]">
                 150x150 Interactive Grid • {zoomLevel} View
               </p>
             </div>
@@ -337,14 +338,14 @@ export default function MapPage() {
           {/* Player position indicator */}
           <div className="hidden md:flex items-center gap-4 text-sm">
             <div>
-              <span className="text-text-secondary">Position:</span>{' '}
+              <span className="text-[color:var(--nn-text-secondary)]">Position:</span>{' '}
               <span className="font-mono text-[color:var(--nn-cyan)]">
                 ({playerPosition.x}, {playerPosition.y})
               </span>
             </div>
             {selectedTile && (
               <div>
-                <span className="text-text-secondary">Selected:</span>{' '}
+                <span className="text-[color:var(--nn-text-secondary)]">Selected:</span>{' '}
                 <span className="font-mono text-[color:var(--nn-green)]">
                   ({selectedTile.x}, {selectedTile.y})
                 </span>
@@ -357,11 +358,11 @@ export default function MapPage() {
       {/* Main Layout */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-80px)]">
         {/* Left Sidebar (Desktop) */}
-        <aside className="hidden lg:block w-64 bg-glass-light border-r border-glass-border p-4 overflow-y-auto">
+        <aside className="hidden lg:block w-64 nn-panel border-r border-[color-mix(in_oklab,var(--nn-cyan)_18%,transparent)] p-4 overflow-y-auto rounded-none">
           <div className="space-y-6">
             {/* Zoom Controls */}
             <div>
-              <h2 className="text-lg font-semibold mb-3">🔍 Zoom Level</h2>
+              <h2 className="nn-panel__title text-base mb-3">Zoom Level</h2>
               <ZoomControls
                 currentZoom={zoomLevel}
                 onZoomChange={handleZoomChange}
@@ -370,22 +371,22 @@ export default function MapPage() {
             
             {/* Map Legend */}
             <div>
-              <h2 className="text-lg font-semibold mb-3">🎨 Legend</h2>
+              <h2 className="nn-panel__title text-base mb-3">Legend</h2>
               {/* FID-20260906-005 R5: compact 2-col grid — the w-64 sidebar
                   previously forced the 7-col desktop grid into a run-on line */}
               <MapLegend compact />
             </div>
             
             {/* Map Info */}
-            <div className="bg-glass-light rounded-none p-4">
-              <h3 className="font-semibold mb-2">📍 Your Position</h3>
+            <div className="nn-panel rounded-none p-4">
+              <h3 className="nn-panel__title text-sm mb-2">Your Position</h3>
               <div className="text-sm space-y-1">
                 <p>
-                  <span className="text-text-secondary">X:</span>{' '}
+                  <span className="text-[color:var(--nn-text-secondary)]">X:</span>{' '}
                   <span className="font-mono">{playerPosition.x}</span>
                 </p>
                 <p>
-                  <span className="text-text-secondary">Y:</span>{' '}
+                  <span className="text-[color:var(--nn-text-secondary)]">Y:</span>{' '}
                   <span className="font-mono">{playerPosition.y}</span>
                 </p>
               </div>
@@ -393,16 +394,16 @@ export default function MapPage() {
             
             {/* Selected Tile Info */}
             {selectedTile && (
-              <div className="bg-glass-light rounded-none p-4">
-                <h3 className="font-semibold mb-2">🎯 Selected Tile</h3>
+              <div className="nn-panel rounded-none p-4">
+                <h3 className="nn-panel__title text-sm mb-2">Selected Tile</h3>
                 <div className="text-sm space-y-1">
                   <p>
-                    <span className="text-text-secondary">Coords:</span>{' '}
+                    <span className="text-[color:var(--nn-text-secondary)]">Coords:</span>{' '}
                     <span className="font-mono">({selectedTile.x}, {selectedTile.y})</span>
                   </p>
                   {mapData && mapData[selectedTile.y - 1] && mapData[selectedTile.y - 1][selectedTile.x - 1] && (
                     <p>
-                      <span className="text-text-secondary">Terrain:</span>{' '}
+                      <span className="text-[color:var(--nn-text-secondary)]">Terrain:</span>{' '}
                       <span className="capitalize">
                         {mapData[selectedTile.y - 1][selectedTile.x - 1].terrain}
                       </span>
@@ -413,9 +414,9 @@ export default function MapPage() {
             )}
             
             {/* Keyboard Shortcuts */}
-            <div className="bg-glass-light rounded-none p-4 text-xs">
-              <h3 className="font-semibold mb-2">⌨️ Shortcuts</h3>
-              <ul className="space-y-1 text-text-primary">
+            <div className="nn-panel rounded-none p-4 text-xs">
+              <h3 className="nn-panel__title text-sm mb-2">Shortcuts</h3>
+              <ul className="space-y-1 text-[color:var(--nn-text-primary)]">
                 <li>Arrow Keys / WASD: Pan</li>
                 <li>+/- Keys: Zoom</li>
                 <li>Home / H: Center on player</li>
@@ -426,11 +427,11 @@ export default function MapPage() {
         </aside>
         
         {/* Map Canvas - Full Map View */}
-        <main className="flex-1 bg-glass-dark relative overflow-auto">
+        <main className="flex-1 bg-[color:var(--nn-glass-dark)] relative overflow-auto">
           {mapData ? (
             <>
               {/* Map Container - Shows entire 150×150 grid */}
-              <div className="relative bg-bg-void m-6 border-2 border-glass-border inline-block" 
+              <div className="relative bg-[color:var(--nn-void)] m-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_20%,transparent)] inline-block" 
                    style={{ 
                      width: `${MAP_CONFIG.WIDTH * MAP_CONFIG.TILE_SIZE}px`, // 4800px (150 tiles × 32px)
                      height: `${MAP_CONFIG.HEIGHT * MAP_CONFIG.TILE_SIZE}px`, // 4800px
@@ -454,13 +455,13 @@ export default function MapPage() {
                 </div>
                 
                 {/* Map Info Overlay */}
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none text-sm shadow-lg">
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none text-sm shadow-[0_0_18px_color-mix(in_oklab,var(--nn-cyan)_14%,transparent)]">
                   <p className="text-center">
-                    <span className="font-bold">🗺️ Full Map View:</span> 150×150 tiles visible • 
+                    <span className="font-bold">Full Map View:</span> 150×150 tiles visible • 
                     <span className="font-bold ml-2">Click:</span> Select Tile • 
                     <span className="font-bold ml-2">Scroll:</span> Navigate
                   </p>
-                  <p className="text-center text-xs text-text-primary mt-1">
+                  <p className="text-center text-xs text-[color:var(--nn-text-secondary)] mt-1">
                     Your position: ({playerPosition.x}, {playerPosition.y}) • Total tiles: 22,500
                   </p>
                 </div>
@@ -469,15 +470,15 @@ export default function MapPage() {
           ) : (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
-                <p className="text-text-secondary">Loading map data...</p>
+                <Loader2 className="nn-spin-icon w-16 h-16 text-[color:var(--nn-cyan)] mx-auto mb-4" aria-label="Loading map data" />
+                <p className="text-[color:var(--nn-text-secondary)]">Loading map data...</p>
               </div>
             </div>
           )}
           
           {/* Mobile Zoom Controls (Overlay) */}
           <div className="lg:hidden absolute bottom-4 left-4 right-4">
-            <div className="bg-glass-light bg-opacity-90 rounded-none p-3 shadow-lg">
+            <div className="nn-panel rounded-none p-3 shadow-[0_0_18px_color-mix(in_oklab,var(--nn-cyan)_14%,transparent)]">
               <ZoomControls
                 currentZoom={zoomLevel}
                 onZoomChange={handleZoomChange}
@@ -487,19 +488,18 @@ export default function MapPage() {
           
           {/* Mobile Position Indicator */}
           <div className="lg:hidden absolute top-4 left-4 right-4">
-            <div className="bg-glass-light bg-opacity-90 rounded-none p-3 shadow-lg text-sm">
+            <div className="nn-panel rounded-none p-3 shadow-[0_0_18px_color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] text-sm">
               <div className="flex justify-between items-center">
-                <span className="text-text-secondary">Position:</span>
+                <span className="text-[color:var(--nn-text-secondary)]">Position:</span>
                 <span className="font-mono text-[color:var(--nn-cyan)]">
                   ({playerPosition.x}, {playerPosition.y})
                 </span>
               </div>
               {selectedTile && (
-                <div className="flex justify-between items-center mt-1 pt-1 border-t border-glass-border">
-                  <span className="text-text-secondary">Selected:</span>
-                  <span className="font-mono text-[color:var(--nn-green)]">
-                    ({selectedTile.x}, {selectedTile.y})
-                  </span>
+                <div className="flex justify-between items-center mt-1 pt-1 border-t border-[color-mix(in_oklab,var(--nn-cyan)_20%,transparent)]">                    <span className="text-[color:var(--nn-text-secondary)]">Selected:</span>
+                    <span className="font-mono text-[color:var(--nn-green)]">
+                      ({selectedTile.x}, {selectedTile.y})
+                    </span>
                 </div>
               )}
             </div>
@@ -508,10 +508,10 @@ export default function MapPage() {
       </div>
       
       {/* Mobile Legend (Bottom Sheet) */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-glass-light border-t border-glass-border p-4">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 nn-panel border-t border-[color-mix(in_oklab,var(--nn-cyan)_18%,transparent)] p-4 rounded-none">
         <details className="group">
           <summary className="cursor-pointer font-semibold text-center">
-            🎨 Map Legend <span className="text-text-secondary text-sm">(tap to expand)</span>
+            Map Legend <span className="text-[color:var(--nn-text-secondary)] text-sm">(tap to expand)</span>
           </summary>
           <div className="mt-3">
             <MapLegend />

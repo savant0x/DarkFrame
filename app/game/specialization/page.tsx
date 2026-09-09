@@ -23,7 +23,7 @@ export default function SpecializationPage() {
   if (!player) {
     return (
       <div className="min-h-screen bg-space-darker flex items-center justify-center">
-        <p className="text-text-secondary">Loading...</p>
+        <p className="text-[color:var(--nn-text-secondary)]">Loading...</p>
       </div>
     );
   }
@@ -33,7 +33,7 @@ export default function SpecializationPage() {
       <div className="min-h-screen bg-space-darker flex items-center justify-center p-6">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-2xl font-bold text-neon-cyan font-display">Level 15 Required</h1>
-          <p className="text-text-secondary">
+          <p className="text-[color:var(--nn-text-secondary)]">
             You must reach level 15 to access the Specialization system.
           </p>
           <button
@@ -62,7 +62,7 @@ export default function SpecializationPage() {
         <h1 className="text-3xl font-bold text-neon-cyan font-display">
           Specialization Doctrine
         </h1>
-        <p className="text-text-secondary mt-2">
+        <p className="text-[color:var(--nn-text-secondary)] mt-2">
           Choose your path and master your doctrine to unlock powerful bonuses.
         </p>
       </div>

@@ -40,6 +40,7 @@
  * - API routes: GET level info, POST award XP (admin/system only)
  */
 
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
@@ -121,12 +122,11 @@ export async function awardClanXP(
     milestoneRewards = checkForMilestoneReward(newLevel);
   }
 
-  const updates: any = {
+  const updates: PgUpdateSetSource<typeof clans> = {
     levelCurrentLevel: newLevel,
     levelTotalXP: newTotalXP,
     levelCurrentLevelXP: currentLevelXP,
     levelXpToNextLevel: xpToNextLevel,
-    lastXPGain: new Date(),
   };
 
   if (leveledUp) {
@@ -354,7 +354,7 @@ export async function estimateTimeToNextLevel(
       AND timestamp >= ${cutoffDate}
   `);
 
-  const activities = result.rows as any[];
+  const activities = result.rows as Array<{ details?: string | { xpAwarded?: number } }>;
   if (activities.length === 0) {
     return null;
   }

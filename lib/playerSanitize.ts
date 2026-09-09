@@ -13,7 +13,7 @@
  *   aggregates), never the identity of who referred whom.
  */
 
-import type { Player, SanitizedPlayer } from '@/types/game.types';
+import type { SanitizedPlayer } from '@/types/game.types';
 
 export type { SanitizedPlayer };
 
@@ -67,6 +67,10 @@ const PUBLIC_FIELDS = [
   'inventory',
   'units',
   'factoryCount',
+  // combat power (columns are non-sensitive aggregates; StatsPanel's power
+  // meters and the military readouts consume them — FID-20260908-003)
+  'totalStrength',
+  'totalDefense',
   // presentation / social
   'baseGreeting',
   'achievements',

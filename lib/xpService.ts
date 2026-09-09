@@ -36,6 +36,7 @@ import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { triggerAchievementCheck } from '@/lib/statTrackingService';
+import type { ResearchPointHistory } from '@/types/game.types';
 
 /**
  * XP action types for logging and tracking
@@ -226,24 +227,22 @@ export function getXPProgress(totalXP: number): {
   progressPercent: number;
   xpForNextLevel: number;
 } {
-  const level = calculateLevel(totalXP);
+  // Clamp hostile/negative input so the returned progress can never go negative.
+  const safeTotal = Math.max(0, Math.floor(totalXP));
+  const level = calculateLevel(safeTotal);
   
-  // Calculate XP at the start of current level
+  // XP at the start of the current level = the sum of the REAL per-level costs
+  // below it — the exact accumulation calculateLevel performs to find the level.
+  // Deriving it from the same single source of truth (getXPForNextLevel) makes
+  // the two functions mathematically incapable of disagreeing.
+  // (FID-20260908-002: the retired linear branch ((level−1)×1000) and the retired
+  // 30,000/×1.10 exponential branch produced the impossible 129,972/21,112 bar.)
   let xpAtLevelStart = 0;
-  if (level <= 30) {
-    xpAtLevelStart = (level - 1) * 1000;
-  } else {
-    // For exponential levels, calculate cumulative XP up to current level
-    xpAtLevelStart = 30000; // XP at Level 30
-    let xpRequired = 3300; // Base XP for Level 30→31
-    
-    for (let lv = 31; lv < level; lv++) {
-      xpAtLevelStart += xpRequired;
-      xpRequired = Math.floor(xpRequired * 1.1); // 10% increase
-    }
+  for (let lv = 1; lv < level; lv++) {
+    xpAtLevelStart += getXPForNextLevel(lv);
   }
   
-  const currentLevelXP = totalXP - xpAtLevelStart;
+  const currentLevelXP = safeTotal - xpAtLevelStart;
   const xpForNextLevel = getXPForNextLevel(level);
   const progressPercent = (currentLevelXP / xpForNextLevel) * 100;
   
@@ -317,8 +316,9 @@ export async function awardXP(
   const newLevel = calculateLevel(newTotalXP);
   const levelUp = newLevel > currentLevel;
   
-  // Prepare update
-  const updateData: any = {
+  // Prepare update — typed against the players table's set() payload (columns used
+  // here: xp, level, lastXPAward, and optionally researchPoints/lastLevelUp on level-up)
+  const updateData: Partial<typeof players.$inferInsert> = {
     xp: newTotalXP,
     level: newLevel,
     lastXPAward: new Date()
@@ -514,7 +514,7 @@ export async function spendResearchPoints(
   const newBalance = currentRP - amount;
   
   // Read current rpHistory JSON array, push new entry, stringify, then update
-  const rpHistory = player.rpHistory ? (player.rpHistory as any) : [];
+  const rpHistory: ResearchPointHistory[] = player.rpHistory ?? [];
   rpHistory.push({
     amount: -amount,
     reason,
@@ -524,7 +524,7 @@ export async function spendResearchPoints(
   
   await db.update(players).set({
     researchPoints: newBalance,
-    rpHistory: rpHistory as any
+    rpHistory
   }).where(eq(players.username, playerId));
   
   return {

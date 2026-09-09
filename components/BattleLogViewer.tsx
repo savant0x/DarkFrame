@@ -27,6 +27,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import { formatDate } from '@/utils/formatting';
 import { BattleLog, BattleOutcome, BattleType } from '@/types/game.types';
@@ -165,7 +166,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                 <select
                   value={filterRole}
                   onChange={(e) => setFilterRole(e.target.value as FilterRole)}
-                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-purple-500 focus:outline-none"
+                  className="nn-input w-full"
                 >
                   <option value="all">All Battles</option>
                   <option value="attacker">⚔️ Attacks</option>
@@ -179,7 +180,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                 <select
                   value={filterOutcome}
                   onChange={(e) => setFilterOutcome(e.target.value as FilterOutcome)}
-                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-purple-500 focus:outline-none"
+                  className="nn-input w-full"
                 >
                   <option value="all">All Outcomes</option>
                   <option value="victory">✅ Victories</option>
@@ -194,7 +195,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value as FilterType)}
-                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-3 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-purple-500 focus:outline-none"
+                  className="nn-input w-full"
                 >
                   <option value="all">All Types</option>
                   <option value="INFANTRY">⚔️ Infantry</option>
@@ -207,7 +208,7 @@ export default function BattleLogViewer({ isOpen = true, onClose, limit = 20 }: 
           {/* Loading State */}
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]"></div>
+              <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-violet)]" aria-label="Loading battle logs" />
             </div>
           )}
 

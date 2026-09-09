@@ -21,7 +21,7 @@ interface LogEntry {
   type: 'info' | 'success' | 'warning' | 'error' | 'event';
   event?: string;
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 interface WebSocketConsoleModalProps {
@@ -40,7 +40,7 @@ export default function WebSocketConsoleModal({ onClose }: WebSocketConsoleModal
   /**
    * Add log entry
    */
-  const addLog = useCallback((type: LogEntry['type'], message: string, event?: string, data?: any) => {
+  const addLog = useCallback((type: LogEntry['type'], message: string, event?: string, data?: unknown) => {
     const entry: LogEntry = {
       id: `${Date.now()}-${Math.random()}`,
       timestamp: new Date(),
@@ -273,7 +273,7 @@ export default function WebSocketConsoleModal({ onClose }: WebSocketConsoleModal
                           <div className="text-xs font-mono text-[color:var(--nn-cyan)] mb-1">{log.event}</div>
                         )}
                         <div className="text-[color:var(--nn-text-primary)]">{log.message}</div>
-                        {log.data && (
+                        {log.data !== undefined && log.data !== null && (
                           <pre className="text-xs text-[color:var(--nn-text-secondary)] mt-2 overflow-x-auto">
                             {JSON.stringify(log.data, null, 2)}
                           </pre>

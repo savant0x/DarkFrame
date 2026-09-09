@@ -23,7 +23,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Application, Container, Graphics } from 'pixi.js';
+import { Application, Container, Graphics, type Ticker } from 'pixi.js';
+
+/** PixiJS Graphics carrying its ticker animation for cleanup (FID-20260908-018: replaces `as any`). */
+type AnimatedMarkerGraphics = Graphics & { animationFn?: (ticker: Ticker) => void };
 import {
   type MapViewport,
   type MapTile,
@@ -460,7 +463,7 @@ export default function MapContainer({
       },
       gridContainerVisible: gridContainerRef.current.visible,
       gridContainerAlpha: gridContainerRef.current.alpha,
-      stageChildren: appRef.current.stage.children.map((c: any) => ({
+      stageChildren: appRef.current.stage.children.map((c: Container) => ({
         label: c.label,
         children: c.children?.length || 0,
         visible: c.visible,
@@ -479,7 +482,7 @@ export default function MapContainer({
     // Remove old markers - CRITICAL: Remove ticker listeners first!
     markerGraphicsRef.current.forEach((graphics, _playerId) => {
       // Remove ticker animation if it exists
-      const animationFn = (graphics as any).animationFn;
+      const animationFn = (graphics as AnimatedMarkerGraphics).animationFn;
       if (animationFn && appRef.current) {
         appRef.current.ticker.remove(animationFn);
       }
@@ -501,13 +504,13 @@ export default function MapContainer({
       
       // Start animation for current player and Flag Bearer
       if (marker.isCurrentPlayer || marker.isFlagBearer) {
-        const animationFn = (ticker: any) => {
+        const animationFn = (ticker: Ticker) => {
           animatePlayerMarker(graphics, ticker.deltaTime);
         };
         appRef.current!.ticker.add(animationFn);
         
         // Store animation function for cleanup
-        (graphics as any).animationFn = animationFn;
+        (graphics as AnimatedMarkerGraphics).animationFn = animationFn;
       }
     });
     

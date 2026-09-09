@@ -18,17 +18,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Factory } from '@/types/game.types';
 import { formatFactoryLevel } from '@/lib/factoryUpgradeService';
 
-import { StatCard } from './ui/StatCard';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { Card } from './ui/Card';
-import { Divider } from './ui/Divider';
-
-import { StaggerChildren, StaggerItem } from './transitions/StaggerChildren';
-import { LoadingSpinner } from './transitions/LoadingSpinner';
 import { toast } from '@/lib/toast';
-import { useCountUp } from '@/hooks/useCountUp';
-import { Factory as FactoryIcon, MapPin, TrendingUp, Trash2, AlertTriangle, Info, Filter } from 'lucide-react';
+import { Factory as FactoryIcon, TrendingUp, Trash2, AlertTriangle, Info, Filter } from 'lucide-react';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface FactoryData {
@@ -50,12 +41,11 @@ interface FactoryManagementPanelProps {
   isOpen: boolean;
   onClose: () => void;
   username: string;
-  onNavigate: (x: number, y: number) => void;
 }
 
 type SortOption = 'level' | 'slots' | 'location';
 
-export default function FactoryManagementPanel({ isOpen, onClose, username, onNavigate }: FactoryManagementPanelProps) {
+export default function FactoryManagementPanel({ isOpen, onClose, username }: FactoryManagementPanelProps) {
   const [factories, setFactories] = useState<FactoryData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,9 +57,6 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
   const [batchReleaseMode, setBatchReleaseMode] = useState(false);
   const [slotThreshold, setSlotThreshold] = useState(20);
   const [sortBy, setSortBy] = useState<SortOption>('level');
-
-  const investmentMetal = useCountUp(totalInvestment.metal, { duration: 1000 });
-  const investmentEnergy = useCountUp(totalInvestment.energy, { duration: 1000 });
 
   const fetchFactories = useCallback(async () => {
     setLoading(true);
@@ -193,47 +180,70 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
 
   return (
     <>
-      <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
-        <div className="bg-bg-primary border-2 border-border-main rounded-none w-full max-w-6xl max-h-[90vh] flex flex-col">
-          <div className="bg-bg-secondary p-4 border-b border-border-main">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-                <FactoryIcon className="w-6 h-6" />
-                Factory Management
-              </h2>
-              <Button onClick={onClose} variant="secondary" size="sm">×</Button>
-            </div>
+      <div className="nn-overlay" style={{ zIndex: 60 }}>
+        <div className="nn-panel w-full max-w-6xl max-h-[90vh] flex flex-col" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+          <div className="nn-panel__header nn-panel__header--bleed" style={{ margin: 0, borderBottomWidth: 1 }}>
+            <span className="nn-panel__icon"><FactoryIcon /></span>
+            <h2 className="nn-panel__title" style={{ fontSize: 12 }}>Factory Management</h2>
+            <span className="nn-panel__meta">{factoryCount}/{maxFactories} Owned</span>
+            <button
+              onClick={onClose}
+              aria-label="Close factory management"
+              className="nn-btn"
+              style={{
+                width: 'auto',
+                flex: 'none',
+                padding: '4px 12px',
+                '--nn-accent': 'var(--nn-magenta)',
+                color: 'var(--nn-magenta)',
+                borderColor: 'color-mix(in oklab, var(--nn-magenta) 45%, transparent)',
+              } as React.CSSProperties}
+            >
+              ×
+            </button>
+          </div>
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)' }}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <StatCard label="Owned Factories" value={`${factoryCount}/${maxFactories}`} icon={<FactoryIcon className="w-5 h-5" />} color="primary" />
-              <StatCard label="Total Investment (Metal)" value={Math.round(investmentMetal).toLocaleString()} icon={<TrendingUp className="w-5 h-5" />} color="metal" />
-              <StatCard label="Total Investment (Energy)" value={Math.round(investmentEnergy).toLocaleString()} icon={<TrendingUp className="w-5 h-5" />} color="energy" />
+              <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+                <p className="nn-stat__lab">Owned Factories</p>
+                <p className="nn-stat__num">{factoryCount}<span style={{ fontSize: 13, color: 'var(--nn-text-tertiary)' }}> / {maxFactories}</span></p>
+              </div>
+              <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+                <p className="nn-stat__lab">Invested Metal</p>
+                <p className="nn-stat__num nn-stat__num--glow-amber">{Math.round(totalInvestment.metal).toLocaleString()}</p>
+              </div>
+              <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+                <p className="nn-stat__lab">Invested Energy</p>
+                <p className="nn-stat__num nn-stat__num--glow-cyan">{Math.round(totalInvestment.energy).toLocaleString()}</p>
+              </div>
             </div>
-            <div className="mt-2 text-sm text-text-tertiary flex items-center gap-2">
-              <Info className="w-4 h-4" />
-              Current Resources: {playerResources.metal.toLocaleString()} M + {playerResources.energy.toLocaleString()} E
+            <div className="nn-row !px-0" style={{ marginTop: 8 }}>
+              <span className="nn-row__label"><Info />Current resources</span>
+              <span className="nn-row__value nn-num">
+                <span className="nn-text-amber">{playerResources.metal.toLocaleString()} M</span>
+                <span style={{ color: 'var(--nn-text-tertiary)' }}> + </span>
+                <span className="nn-text-cyan">{playerResources.energy.toLocaleString()} E</span>
+              </span>
             </div>
             
             {/* Batch Release Controls */}
             {factoryCount > 0 && (
-              <div className="mt-3 p-3 bg-bg-primary border border-border-light rounded-none">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    Batch Management
-                  </h3>
-                  <Button 
-                    onClick={() => setBatchReleaseMode(!batchReleaseMode)} 
-                    variant={batchReleaseMode ? "danger" : "secondary"} 
-                    size="sm"
+              <div className="nn-brief nn-brief--cyan" style={{ marginTop: 10 }}>
+                <div className="nn-brief__head">
+                  <span className="nn-brief__title"><Filter style={{ display: 'inline', width: 12, height: 12, marginRight: 6 }} />Batch Management</span>
+                  <button
+                    onClick={() => setBatchReleaseMode(!batchReleaseMode)}
+                    className={`nn-ptab ${batchReleaseMode ? 'nn-ptab--def on' : 'nn-ptab--def'}`}
+                    style={{ padding: '2px 0', width: 'auto', flex: 'none' }}
                   >
                     {batchReleaseMode ? 'Cancel' : 'Batch Release'}
-                  </Button>
+                  </button>
                 </div>
                 
                 {batchReleaseMode && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                      <label className="text-xs text-text-secondary whitespace-nowrap">Max Slots:</label>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <label className="nn-lab" style={{ whiteSpace: 'nowrap' }}>Max Slots</label>
                       <input
                         type="range"
                         min="10"
@@ -241,33 +251,35 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
                         step="2"
                         value={slotThreshold}
                         onChange={(e) => setSlotThreshold(parseInt(e.target.value))}
-                        className="flex-1"
+                        className="nn-range"
+                        aria-label="Slot threshold"
                       />
-                      <Badge variant="warning">{slotThreshold}</Badge>
+                      <span className="nn-chip nn-chip--amber nn-num">{slotThreshold}</span>
                     </div>
-                    <div className="text-xs text-text-tertiary mb-2">
+                    <div className="nn-lab">
                       {factories.filter(f => f.stats.maxSlots <= slotThreshold).length} factories will be released
                     </div>
-                    <Button 
-                      onClick={handleBatchRelease} 
-                      variant="danger" 
-                      size="sm" 
-                      className="w-full"
+                    <button
+                      onClick={handleBatchRelease}
+                      className="nn-btn"
+                      style={{ width: 'auto', '--nn-accent': 'var(--nn-magenta)', color: 'var(--nn-magenta)', borderColor: 'color-mix(in oklab, var(--nn-magenta) 55%, transparent)' } as React.CSSProperties}
                       disabled={factories.filter(f => f.stats.maxSlots <= slotThreshold).length === 0}
                     >
-                      <Trash2 className="w-4 h-4 mr-1" />
+                      <Trash2 />
                       Release All ≤ {slotThreshold} Slots
-                    </Button>
+                    </button>
                   </div>
                 )}
                 
                 {!batchReleaseMode && (
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-text-secondary">Sort by:</label>
+                  <div className="nn-row !px-0">
+                    <span className="nn-row__label">Sort by</span>
                     <select 
                       value={sortBy} 
                       onChange={(e) => setSortBy(e.target.value as SortOption)}
-                      className="flex-1 bg-bg-secondary border border-border-light rounded-none px-2 py-1 text-xs text-text-primary"
+                      className="nn-input"
+                      style={{ padding: '4px 8px', width: 'auto' }}
+                      aria-label="Sort factories"
                     >
                       <option value="level">Level (High to Low)</option>
                       <option value="slots">Max Slots (High to Low)</option>
@@ -279,80 +291,102 @@ export default function FactoryManagementPanel({ isOpen, onClose, username, onNa
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 bg-bg-primary">
-            {loading && <div className="text-center py-12"><LoadingSpinner size="lg" /><p className="text-text-secondary mt-4">Loading factories...</p></div>}
-            {error && <div className="text-center text-[color:var(--nn-magenta)] py-8">{error}</div>}
+          <div className="flex-1 overflow-y-auto p-5">
+            {loading && <div className="text-center py-12"><div className="nn-lab">Loading factories…</div></div>}
+            {error && <div className="nn-note" style={{ margin: '12px 0' }}>{error}</div>}
             {!loading && !error && factoryCount === 0 && (
-              <div className="text-center text-text-secondary py-12">
-                <FactoryIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p className="mb-2">You don{"'"}t own any factories yet.</p>
-                <p className="text-sm">Capture factories by moving to factory tiles and attacking them.</p>
+              <div className="text-center py-12">
+                <FactoryIcon style={{ width: 40, height: 40, margin: '0 auto 12px', color: 'var(--nn-text-tertiary)' }} />
+                <p className="nn-lab" style={{ marginBottom: 6 }}>No factories in inventory</p>
+                <p style={{ fontSize: 11.5, color: 'var(--nn-text-secondary)' }}>Capture factories by moving to factory tiles and attacking them.</p>
               </div>
             )}
             {!loading && !error && factories.length > 0 && (
-              <StaggerChildren staggerDelay={0.05} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {getSortedFactories().map(({ factory, stats, upgradeCost, canUpgrade, upgradeProgress, availableSlots, timeUntilNextSlot }) => (
-                  <StaggerItem key={`${factory.x},${factory.y}`}>
-                    <Card className="h-full hover:border-accent-primary/50 transition-colors">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h3 className="text-lg font-bold text-text-primary">Factory ({factory.x}, {factory.y})</h3>
-                          <Badge variant="primary">{formatFactoryLevel(factory.level || 1)}</Badge>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-text-tertiary">Progress</div>
-                          <Badge variant="warning">{upgradeProgress.percentage}%</Badge>
-                        </div>
+                  <div key={`${factory.x},${factory.y}`} className="nn-panel" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+                    <div className="nn-panel__header">
+                      <span className="nn-panel__icon"><FactoryIcon /></span>
+                      <span className="nn-panel__title">Factory ({factory.x}, {factory.y})</span>
+                      <span className="nn-panel__meta">{formatFactoryLevel(factory.level || 1)}</span>
+                    </div>
+                    <div className="nn-panel__body">
+                      <div className="nn-row">
+                        <span className="nn-row__label">Lifetime investment</span>
+                        <span className="nn-row__value nn-num nn-text-amber">{upgradeProgress.percentage}%<span className="nn-lab" style={{ marginLeft: 5 }}>TO MAX</span></span>
                       </div>
-                      <Divider className="my-3" />
-                      <div className="space-y-2 text-sm mb-3">
-                        <div className="flex justify-between"><span className="text-text-secondary">Max Slots:</span><Badge variant="default">{stats.maxSlots}</Badge></div>
-                        <div className="flex justify-between"><span className="text-text-secondary">Available:</span><Badge variant="success">{availableSlots}</Badge></div>
-                        <div className="flex justify-between"><span className="text-text-secondary">Regen Rate:</span><Badge variant="info">{stats.regenRate.toFixed(1)}/hour</Badge></div>
-                        {timeUntilNextSlot.totalMs > 0 && availableSlots < stats.maxSlots && (
-                          <div className="text-xs text-text-tertiary">Next slot: {timeUntilNextSlot.hours}h {timeUntilNextSlot.minutes}m</div>
-                        )}
+                      <div className="nn-row">
+                        <span className="nn-row__label">Max Slots</span>
+                        <span className="nn-row__value nn-num">{stats.maxSlots}</span>
                       </div>
+                      <div className="nn-row">
+                        <span className="nn-row__label">Available</span>
+                        <span className="nn-row__value nn-num nn-text-green">{availableSlots}</span>
+                      </div>
+                      <div className="nn-row">
+                        <span className="nn-row__label">Regen Rate</span>
+                        <span className="nn-row__value nn-num nn-text-cyan">{stats.regenRate.toFixed(1)}/hour</span>
+                      </div>
+                      {timeUntilNextSlot.totalMs > 0 && availableSlots < stats.maxSlots && (
+                        <div className="nn-row">
+                          <span className="nn-row__label">Next slot in</span>
+                          <span className="nn-row__value nn-num">{timeUntilNextSlot.hours}h {timeUntilNextSlot.minutes}m</span>
+                        </div>
+                      )}
                       {upgradeCost && (
-                        <Card className="bg-bg-secondary border-border-light mb-3 p-3">
-                          <div className="text-xs text-text-tertiary mb-1">Upgrade to Level {upgradeCost.level}:</div>
-                          <div className={`text-sm font-semibold ${canUpgrade ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
+                        <div className="nn-brief nn-brief--cyan" style={{ margin: '8px 12px 4px' }}>
+                          <div className="nn-lab" style={{ marginBottom: 4 }}>Upgrade to Level {upgradeCost.level}</div>
+                          <div className={`nn-num ${canUpgrade ? 'nn-text-green' : 'nn-text-magenta'}`} style={{ fontSize: 12, fontWeight: 600 }}>
                             {upgradeCost.metal.toLocaleString()} M + {upgradeCost.energy.toLocaleString()} E
                           </div>
-                          <div className="text-xs text-text-tertiary mt-1">Next: {stats.maxSlots + 2} slots, {(stats.regenRate + 0.1).toFixed(1)}/hour</div>
-                        </Card>
+                          <div className="nn-lab" style={{ marginTop: 3 }}>Next: {stats.maxSlots + 2} slots · {(stats.regenRate + 0.1).toFixed(1)}/hour</div>
+                        </div>
                       )}
-                      {factory.level === 10 && <div className="mb-3 p-2 bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none text-center"><Badge variant="warning">⭐ MAX LEVEL ⭐</Badge></div>}
-                      <div className="flex gap-2">
-                        <Button onClick={() => { onNavigate(factory.x, factory.y); onClose(); }} variant="primary" size="sm" className="flex-1"><MapPin className="w-4 h-4 mr-1" />Jump</Button>
-                        {upgradeCost && <Button onClick={() => handleUpgrade(factory.x, factory.y)} disabled={!canUpgrade} variant="success" size="sm" className="flex-1"><TrendingUp className="w-4 h-4 mr-1" />Upgrade</Button>}
-                        <Button onClick={() => setAbandonConfirm({ x: factory.x, y: factory.y })} variant="danger" size="sm"><Trash2 className="w-4 h-4" /></Button>
+                      {factory.level === 10 && (
+                        <div className="nn-note nn-note--caution" style={{ margin: '8px 12px 4px', justifyContent: 'center' }}>
+                          MAX LEVEL
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, padding: '8px 12px 4px' }}>
+                        {upgradeCost && <button onClick={() => handleUpgrade(factory.x, factory.y)} disabled={!canUpgrade} className="nn-btn nn-btn--primary" style={{ flex: 1, '--nn-accent': 'var(--nn-green)', color: 'var(--nn-green)', borderColor: 'color-mix(in oklab, var(--nn-green) 55%, transparent)' } as React.CSSProperties}><TrendingUp />Upgrade</button>}
+                        <button onClick={() => setAbandonConfirm({ x: factory.x, y: factory.y })} className="nn-btn" style={{ width: 'auto', flex: upgradeCost ? 'none' : 1, '--nn-accent': 'var(--nn-magenta)', color: 'var(--nn-magenta)', borderColor: 'color-mix(in oklab, var(--nn-magenta) 55%, transparent)' } as React.CSSProperties} aria-label={`Abandon factory at ${factory.x}, ${factory.y}`}><Trash2 /></button>
                       </div>
-                    </Card>
-                  </StaggerItem>
+                    </div>
+                  </div>
                 ))}
-              </StaggerChildren>
+              </div>
             )}
           </div>
 
-          <div className="bg-bg-secondary p-3 border-t border-border-main text-xs text-text-tertiary flex items-start gap-2">
-            <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <p><strong>Tips:</strong> Upgrade factories to increase production capacity and regeneration rate. Abandoning a factory resets it to Level 1 and deletes all units.</p>
+          <div style={{ padding: '10px 20px', borderTop: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)' }}>
+            <div className="nn-lab" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <Info style={{ width: 12, height: 12, flex: 'none', marginTop: 1 }} />
+              <span>Upgrade factories to increase production capacity and regeneration rate. Abandoning a factory resets it to Level 1 and deletes all units.</span>
+            </div>
           </div>
         </div>
       </div>
 
       {abandonConfirm && (
-        <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_90%,transparent)] flex items-center justify-center z-[60] p-4">
-          <Card className="max-w-md border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)]">
-            <h3 className="text-xl font-bold text-[color:var(--nn-magenta)] mb-4 flex items-center gap-2"><AlertTriangle className="w-6 h-6" />Abandon Factory?</h3>
-            <p className="text-text-secondary mb-2">Are you sure you want to abandon the factory at ({abandonConfirm.x}, {abandonConfirm.y})?</p>
-            <p className="text-[color:var(--nn-magenta)] text-sm mb-4">This will reset the factory to Level 1, make it unclaimed, and <strong>DELETE ALL UNITS</strong>. This cannot be undone!</p>
-            <div className="flex gap-3">
-              <Button onClick={() => setAbandonConfirm(null)} variant="secondary" className="flex-1">Cancel</Button>
-              <Button onClick={() => handleAbandon(abandonConfirm.x, abandonConfirm.y)} variant="danger" className="flex-1">Abandon Factory</Button>
+        <div className="nn-overlay" style={{ zIndex: 70, background: 'color-mix(in oklab, var(--nn-void) 90%, transparent)' }}>
+          <div className="nn-panel nn-panel--x-pad w-full max-w-md" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
+            <div className="nn-panel__header nn-panel__header--bleed nn-panel__header--magenta">
+              <span className="nn-panel__icon"><AlertTriangle /></span>
+              <h3 className="nn-panel__title">Abandon Factory?</h3>
             </div>
-          </Card>
+            <div className="nn-panel__body" style={{ paddingTop: 12 }}>
+              <p style={{ fontSize: 12.5, color: 'var(--nn-text-secondary)', marginBottom: 8 }}>
+                Are you sure you want to abandon the factory at ({abandonConfirm.x}, {abandonConfirm.y})?
+              </p>
+              <p style={{ fontSize: 11.5, color: 'var(--nn-magenta)', marginBottom: 14 }}>
+                This will reset the factory to Level 1, make it unclaimed, and <strong>DELETE ALL UNITS</strong>. This cannot be undone!
+              </p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setAbandonConfirm(null)} className="nn-btn nn-btn--ghost">Cancel</button>
+                <button onClick={() => handleAbandon(abandonConfirm.x, abandonConfirm.y)} className="nn-btn" style={{ '--nn-accent': 'var(--nn-magenta)', color: 'var(--nn-magenta)', borderColor: 'color-mix(in oklab, var(--nn-magenta) 55%, transparent)' } as React.CSSProperties}>Abandon Factory</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </>

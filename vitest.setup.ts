@@ -12,7 +12,7 @@ import { vi, afterAll } from 'vitest';
 import { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
 
 // Set test environment
-(process.env as any).NODE_ENV = 'test';
+(process.env as Record<string, string>).NODE_ENV = 'test';
 
 // Fail-fast DB guard (FID-20260902-001): connection.ts throws at import when
 // DATABASE_URL is missing. Tests mock the DB layer, so provide a stub URL.
@@ -43,11 +43,12 @@ Object.assign(globalThis, {
 });
 
 // Polyfill TextEncoder/TextDecoder for jsdom environment
-if (!(globalThis as any).TextEncoder) {
-  (globalThis as any).TextEncoder = NodeTextEncoder as any;
+const globalWithEncoders = globalThis as Record<string, unknown>;
+if (!globalWithEncoders.TextEncoder) {
+  globalWithEncoders.TextEncoder = NodeTextEncoder;
 }
-if (!(globalThis as any).TextDecoder) {
-  (globalThis as any).TextDecoder = NodeTextDecoder as any;
+if (!globalWithEncoders.TextDecoder) {
+  globalWithEncoders.TextDecoder = NodeTextDecoder;
 }
 
 // In-memory MongoDB is OPT-IN (TEST_MONGO_MEMORY=1).

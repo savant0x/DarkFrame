@@ -17,6 +17,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import MovementControls from './MovementControls';
 import { useGameContext } from '@/context/GameContext';
+import type { GameContextState } from '@/context/GameContext';
 import { MovementDirection } from '@/types';
 
 // Mock dependencies
@@ -27,10 +28,10 @@ describe('MovementControls', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (useGameContext as any).mockReturnValue({
+    vi.mocked(useGameContext).mockReturnValue({
       movePlayer: mockMovePlayer,
       isLoading: false,
-    });
+    } as unknown as GameContextState);
   });
 
   afterEach(() => {
@@ -252,10 +253,10 @@ describe('MovementControls', () => {
 
   describe('Loading State', () => {
     it('should disable all buttons when loading', () => {
-      (useGameContext as any).mockReturnValue({
+      vi.mocked(useGameContext).mockReturnValue({
         movePlayer: mockMovePlayer,
         isLoading: true,
-      });
+      } as unknown as GameContextState);
 
       render(<MovementControls />);
       
@@ -266,10 +267,10 @@ describe('MovementControls', () => {
     });
 
     it('should not move on button click when loading', () => {
-      (useGameContext as any).mockReturnValue({
+      vi.mocked(useGameContext).mockReturnValue({
         movePlayer: mockMovePlayer,
         isLoading: true,
-      });
+      } as unknown as GameContextState);
 
       render(<MovementControls />);
       
@@ -280,10 +281,10 @@ describe('MovementControls', () => {
     });
 
     it('should not move on keyboard press when loading', () => {
-      (useGameContext as any).mockReturnValue({
+      vi.mocked(useGameContext).mockReturnValue({
         movePlayer: mockMovePlayer,
         isLoading: true,
-      });
+      } as unknown as GameContextState);
 
       render(<MovementControls />);
       
@@ -324,10 +325,10 @@ describe('MovementControls', () => {
     });
 
     it('should not refresh when loading', () => {
-      (useGameContext as any).mockReturnValue({
+      vi.mocked(useGameContext).mockReturnValue({
         movePlayer: mockMovePlayer,
         isLoading: true,
-      });
+      } as unknown as GameContextState);
 
       render(<MovementControls />);
       

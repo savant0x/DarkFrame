@@ -176,7 +176,7 @@ export async function detectSpeedHack(
     // Calculate movement rate
     const oldestMove = recentMoves[recentMoves.length - 1];
     const timeDiff = (timestamp - oldestMove.timestamp) / 1000; // seconds
-    const totalDistance = recentMoves.reduce((sum: number, move: any) => {
+    const totalDistance = recentMoves.reduce((sum, move) => {
       const metadata = move.metadata;
       if (!metadata?.from || !metadata?.to) return sum;
       return sum + Math.abs(metadata.to.x - metadata.from.x) + Math.abs(metadata.to.y - metadata.from.y);
@@ -271,9 +271,9 @@ export async function detectResourceHack(
     if (player.shrineBoosts && Array.isArray(player.shrineBoosts)) {
       const now = new Date();
       const activeShrineBoosts = player.shrineBoosts.filter(
-        (boost: any) => new Date(boost.expiresAt) > now
+        (boost) => new Date(boost.expiresAt) > now
       );
-      const shrineBonus = activeShrineBoosts.reduce((sum: number, boost: any) => {
+      const shrineBonus = activeShrineBoosts.reduce((sum, boost) => {
         return sum + ((boost.yieldBonus || 0) * 100); // Convert 0.25 to 25%
       }, 0);
       totalBonusPercent += shrineBonus;
@@ -593,9 +593,17 @@ export async function detectSessionAbuse(
  * @param playerData - Player's current stats
  * @returns Detection result with evidence
  */
+/** Player snapshot consumed by the theoretical-max detector (detected fields only). */
+interface TheoreticalMaxPlayerData {
+  tier: number;
+  rank: number;
+  createdAt?: Date | string;
+  resources?: { metal?: number; energy?: number };
+}
+
 export async function detectTheoreticalMaxViolation(
   username: string,
-  playerData: any
+  playerData: TheoreticalMaxPlayerData
 ): Promise<DetectionResult> {
   try {
     const violations: string[] = [];
@@ -711,14 +719,26 @@ export async function createFlag(flag: Omit<PlayerFlag, 'createdAt' | 'resolved'
  * 
  * @returns Array of players with flag summaries
  */
-export async function getSuspiciousPlayers(): Promise<any[]> {
+/** Aggregated suspicious-player row produced by the flags $group pipeline. */
+export interface SuspiciousPlayerSummary {
+  _id: string;
+  flagCount: number;
+  criticalFlags: number;
+  highFlags: number;
+  mediumFlags: number;
+  lowFlags: number;
+  flags: PlayerFlagDoc[];
+  latestFlag: Date;
+}
+
+export async function getSuspiciousPlayers(): Promise<SuspiciousPlayerSummary[]> {
   try {
     const client = await clientPromise;
     const db = client.db('game');
     const flags = db.collection<PlayerFlagDoc>('playerFlags');
 
     // Aggregate flags by player
-    const suspiciousPlayers = await flags.aggregate([
+    const suspiciousPlayers = await flags.aggregate<SuspiciousPlayerSummary>([
       { $match: { resolved: false } },
       { 
         $group: {

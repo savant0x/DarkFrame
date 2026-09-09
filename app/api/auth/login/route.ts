@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getPlayerByEmail } from '@/lib/playerService';
 import { sanitizePlayer } from '@/lib/playerSanitize';
 import { getTileAt } from '@/lib/movementService';
-import { verifyPassword, generateToken, setAuthCookie } from '@/lib/authService';
+import { verifyPassword, generateToken, setAuthCookie, getSessionDuration } from '@/lib/authService';
 import { 
   withRequestLogging, 
   createRouteLogger, 
@@ -123,12 +123,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       log.debug('Failed to update lastActive', { error: String(err) });
     }
     
+    // Auxiliary cookies — PERSISTENCE FIX (2026-09-08): these now share the
+    // exact duration of the auth cookie (getSessionDuration) instead of their
+    // own 24h/30d policy, so no cookie outlives the session that matters.
+    const auxiliaryMaxAge = getSessionDuration(rememberMe || false);
+    
     // Set session ID cookie for activity tracking
     response.cookies.set('sessionId', sessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60 // 30 days or 24 hours
+      maxAge: auxiliaryMaxAge
     });
     
     // Set playerId cookie for inventory and other endpoints
@@ -136,7 +141,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60 // 30 days or 24 hours
+      maxAge: auxiliaryMaxAge
     });
     
     return response;

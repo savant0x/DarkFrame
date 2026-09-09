@@ -113,9 +113,9 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
   };
 
   return (
-    <div className="fixed top-4 right-4 z-40 animate-fade-in">
+    <div className="fixed top-4 right-4 z-40 nn-fade">
       <div
-        className={`px-4 py-2 rounded-none border-2 backdrop-blur-sm shadow-lg flex items-center gap-2 transition-all ${
+        className={`px-4 py-2 rounded-none border-2 backdrop-blur-sm shadow-[0_0_18px_color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] flex items-center gap-2 transition-all ${
           isReady
             ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
             : 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] text-[color:var(--nn-amber)]'
@@ -128,7 +128,7 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
           </>
         ) : (
           <>
-            <Clock className="w-4 h-4 animate-pulse" />
+            <Clock className="w-4 h-4 nn-pulse" />
             <div className="flex flex-col">
               <span className="text-xs font-semibold">Harvest Cooldown</span>
               <span className="text-sm font-mono font-bold">

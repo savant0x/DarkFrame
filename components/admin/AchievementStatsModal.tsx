@@ -29,6 +29,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 
 
 /**
@@ -177,7 +178,7 @@ export default function AchievementStatsModal({ onClose }: AchievementStatsModal
       <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
         <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md w-full">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-4"></div>
+            <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-violet)] mx-auto mb-4" aria-label="Loading achievement stats" />
             <p className="text-[color:var(--nn-text-secondary)]">Loading achievement stats...</p>
           </div>
         </div>

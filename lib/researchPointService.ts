@@ -63,6 +63,29 @@ export interface RPTransaction {
   metadata?: Record<string, unknown>; // Optional extra data (e.g., milestone threshold, level number)
 }
 
+/** Row shape of the dailyHarvestProgress table as returned by raw SELECT * (lower-case folded). */
+interface DailyHarvestProgressRow {
+  harvestCount?: number;
+  totalRPEarned?: number;
+  milestonesCompleted?: string | number[];
+}
+
+/** Row shape of the rpTransactions table as returned by raw SELECT * — keys are
+ *  defensively read from both Postgres-folded (lower-case) and original spellings. */
+interface RPTransactionRow {
+  playerusername?: string;
+  playerUsername?: string;
+  amount?: number | string;
+  source?: string;
+  description?: string;
+  timestamp?: string | Date;
+  vipbonus?: boolean;
+  vipBonus?: boolean;
+  balanceafter?: number | string | null;
+  balanceAfter?: number | string | null;
+  metadata?: string | Record<string, unknown>;
+}
+
 /**
  * RP source types for transaction categorization
  */
@@ -307,7 +330,7 @@ export async function checkDailyHarvestMilestone(
       LIMIT 1
     `);
 
-    const existingProgress = (existingRows.rows as any[]).length > 0 ? (existingRows.rows as any[])[0] : null;
+    const existingProgress: DailyHarvestProgressRow | null = existingRows.rows[0] ?? null;
 
     const currentHarvestCount = (existingProgress?.harvestCount || 0) + 1;
     const completedMilestones: number[] = existingProgress?.milestonesCompleted
@@ -543,7 +566,7 @@ export async function getPlayerRPStats(playerUsername: string): Promise<{
       LIMIT 1
     `);
 
-    const todayProgress = (todayProgressRows.rows as any[]).length > 0 ? (todayProgressRows.rows as any[])[0] : null;
+    const todayProgress: DailyHarvestProgressRow | null = todayProgressRows.rows[0] ?? null;
 
     const dailyEarnings = todayProgress?.totalRPEarned || 0;
     const harvestCount = todayProgress?.harvestCount || 0;
@@ -569,16 +592,16 @@ export async function getPlayerRPStats(playerUsername: string): Promise<{
       LIMIT 20
     `);
 
-    const recentTransactions: RPTransaction[] = ((recentTxRows.rows as any[]) || []).map((row: any) => ({
+    const recentTransactions: RPTransaction[] = (recentTxRows.rows as RPTransactionRow[]).map((row) => ({
       // FID-20260904-005 §5.2a: lower-case folded keys (see note above).
-      playerUsername: row.playerusername ?? row.playerUsername,
-      amount: Number(row.amount),
-      source: row.source as RPSource,
-      description: row.description,
-      timestamp: new Date(row.timestamp),
+      playerUsername: row.playerusername ?? row.playerUsername ?? '',
+      amount: Number(row.amount ?? 0),
+      source: (row.source ?? 'other') as RPSource,
+      description: row.description ?? '',
+      timestamp: new Date(row.timestamp ?? Date.now()),
       vipBonus: Boolean(row.vipbonus ?? row.vipBonus),
       balanceAfter: row.balanceafter === null || row.balanceafter === undefined ? Number(row.balanceAfter ?? 0) : Number(row.balanceafter),
-      metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+      metadata: row.metadata ? (typeof row.metadata === 'string' ? (JSON.parse(row.metadata) as Record<string, unknown>) : row.metadata) : undefined,
     }));
 
     return {
@@ -831,17 +854,17 @@ export async function getRPTransactionHistory(
       LIMIT ${limit} OFFSET ${skip}
     `);
 
-    const transactions: RPTransaction[] = ((transactionsRows.rows as any[]) || []).map((row: any) => ({
+    const transactions: RPTransaction[] = (transactionsRows.rows as RPTransactionRow[]).map((row) => ({
       // FID-20260904-005 §5.2a: Postgres folds the raw SQL's unquoted identifiers to
       // lower-case, so SELECT * returns lower-case keys. Map defensively from both shapes.
-      playerUsername: row.playerusername ?? row.playerUsername,
-      amount: Number(row.amount),
-      source: row.source as RPSource,
-      description: row.description,
-      timestamp: new Date(row.timestamp),
+      playerUsername: row.playerusername ?? row.playerUsername ?? '',
+      amount: Number(row.amount ?? 0),
+      source: (row.source ?? 'other') as RPSource,
+      description: row.description ?? '',
+      timestamp: new Date(row.timestamp ?? Date.now()),
       vipBonus: Boolean(row.vipbonus ?? row.vipBonus),
       balanceAfter: row.balanceafter === null || row.balanceafter === undefined ? Number(row.balanceAfter ?? 0) : Number(row.balanceafter),
-      metadata: row.metadata ? (typeof row.metadata === 'string' ? JSON.parse(row.metadata) : row.metadata) : undefined,
+      metadata: row.metadata ? (typeof row.metadata === 'string' ? (JSON.parse(row.metadata) as Record<string, unknown>) : row.metadata) : undefined,
     }));
 
     // Get total count for pagination using raw SQL
@@ -849,7 +872,7 @@ export async function getRPTransactionHistory(
       SELECT COUNT(*) as total FROM rpTransactions ${sql.raw(whereClause)}
     `);
 
-    const totalCount = Number(((countRows.rows as any[])[0])?.total || 0);
+    const totalCount = Number((countRows.rows[0] as { total?: number | string } | undefined)?.total || 0);
 
     return {
       success: true,

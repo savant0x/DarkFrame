@@ -112,7 +112,7 @@ export async function setWaypoint(
 
   // Update player document
   await db.update(players).set({
-    fastTravelWaypoints: updatedWaypoints as any
+    fastTravelWaypoints: updatedWaypoints
   }).where(eq(players.username, playerId));
 
   return {
@@ -156,7 +156,7 @@ export async function deleteWaypoint(
   }
 
   await db.update(players).set({
-    fastTravelWaypoints: updatedWaypoints as any
+    fastTravelWaypoints: updatedWaypoints
   }).where(eq(players.username, playerId));
 
   return {

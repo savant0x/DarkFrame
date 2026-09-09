@@ -32,7 +32,8 @@
 
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, type SQL } from 'drizzle-orm';
+import { ClanRole, type ClanMember } from '@/types/clan.types';
 
 
 export enum DistributionMethod {
@@ -96,10 +97,188 @@ export const CO_LEADER_DAILY_LIMITS: DistributionLimits = {
   dailyRP: 50000,
 };
 
+/** Resource types distributable from the clan bank. */
+type DistributionResourceType = 'metal' | 'energy' | 'rp';
+
+/** Treasury row key per resource — single source of truth for balance reads. */
+const TREASURY_KEYS = {
+  metal: 'bankTreasuryMetal',
+  energy: 'bankTreasuryEnergy',
+  rp: 'bankTreasuryResearchPoints',
+} as const;
+
+/** Treasury column per resource — single source of truth for SQL writes. */
+const TREASURY_COLUMNS = {
+  metal: clans.bankTreasuryMetal,
+  energy: clans.bankTreasuryEnergy,
+  rp: clans.bankTreasuryResearchPoints,
+} as const;
+
+/** Player resource column per resource — single source of truth for SQL writes. */
+const PLAYER_RESOURCE_COLUMNS = {
+  metal: players.resourcesMetal,
+  energy: players.resourcesEnergy,
+  rp: players.researchPoints,
+} as const;
+
+function getTreasuryBalance(
+  clan: typeof clans.$inferSelect,
+  resourceType: DistributionResourceType
+): number {
+  return Number(clan[TREASURY_KEYS[resourceType]] || 0);
+}
+
+/** Typed increment of a player's resource column (drizzle set() payload). */
+function playerResourceIncrement(
+  resourceType: DistributionResourceType,
+  amount: number
+): { resourcesMetal: SQL } | { resourcesEnergy: SQL } | { researchPoints: SQL } {
+  const gain = sql`${PLAYER_RESOURCE_COLUMNS[resourceType]} + ${amount}`;
+  if (resourceType === 'metal') return { resourcesMetal: gain };
+  if (resourceType === 'energy') return { resourcesEnergy: gain };
+  return { researchPoints: gain };
+}
+
+/** Typed decrement of a clan treasury column (drizzle set() payload). */
+function clanTreasuryDecrement(
+  resourceType: DistributionResourceType,
+  amount: number
+): { bankTreasuryMetal: SQL } | { bankTreasuryEnergy: SQL } | { bankTreasuryResearchPoints: SQL } {
+  const spend = sql`${TREASURY_COLUMNS[resourceType]} - ${amount}`;
+  if (resourceType === 'metal') return { bankTreasuryMetal: spend };
+  if (resourceType === 'energy') return { bankTreasuryEnergy: spend };
+  return { bankTreasuryResearchPoints: spend };
+}
+
+/**
+ * Raw shape of a `clan_distributions` row as returned by db.execute(). The table
+ * has no drizzle definition (raw-SQL only, pre-dating the repo's migration files);
+ * columns are snake_case and the jsonb payloads may arrive stringified or as
+ * pre-parsed objects depending on driver behavior.
+ */
+interface ClanDistributionRow {
+  id: string | number;
+  clan_id: string | number;
+  method: string;
+  distributed_by: string;
+  distributed_by_username: string | null;
+  timestamp: Date | string;
+  resources: string | DistributionRecord['resources'] | null;
+  recipients: string | DistributionRecord['recipients'] | null;
+  total_distributed: string | DistributionRecord['totalDistributed'] | null;
+  notes: string | null;
+}
+
+/** All four distribution methods, for enum validation at the raw-SQL boundary. */
+const DISTRIBUTION_METHODS = new Set<string>(Object.values(DistributionMethod));
+
+function isDistributionMethod(value: unknown): value is DistributionMethod {
+  return typeof value === 'string' && DISTRIBUTION_METHODS.has(value);
+}
+
+/** Guard for the per-resource amount payloads (resources / recipient.amount). */
+function isResourceAmount(value: unknown): value is DistributionRecord['resources'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    (record.metal === undefined || typeof record.metal === 'number') &&
+    (record.energy === undefined || typeof record.energy === 'number') &&
+    (record.rp === undefined || typeof record.rp === 'number')
+  );
+}
+
+/** Guard for the totalDistributed payload (all three keys required numbers). */
+function isTotalDistributed(value: unknown): value is DistributionRecord['totalDistributed'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.metal === 'number' &&
+    typeof record.energy === 'number' &&
+    typeof record.rp === 'number'
+  );
+}
+
+/** Guard for one recipient entry (playerId + username + resource amounts). */
+function isDistributionRecipient(value: unknown): value is DistributionRecord['recipients'][number] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.playerId === 'string' &&
+    typeof record.username === 'string' &&
+    isResourceAmount(record.amount)
+  );
+}
+
+function isRecipients(value: unknown): value is DistributionRecord['recipients'] {
+  return Array.isArray(value) && value.every(isDistributionRecipient);
+}
+
+/**
+ * Parse a jsonb payload from a `clan_distributions` row — drivers may deliver
+ * it as a string or a pre-parsed object. Validated against the payload guard
+ * so untrusted jsonb content can never masquerade as a domain shape. Malformed
+ * JSON or shape mismatches are logged (Law 14) and yield the caller's fallback.
+ */
+function parseDistributionPayload<T>(
+  raw: string | T | null,
+  guard: (value: unknown) => value is T,
+  fallback: T,
+  column: string
+): T {
+  if (raw === null) {
+    return fallback;
+  }
+  let parsed: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      console.error(`Malformed ${column} JSON in clan_distributions row:`, error);
+      return fallback;
+    }
+  }
+  return guard(parsed) ? parsed : fallback;
+}
+
+/** Legacy per-member contribution shape optionally carried in the jsonb row. */
+interface LegacyContributions {
+  resourcesDonated: number;
+  territoriesClaimed: number;
+  warsParticipated: number;
+}
+
+/**
+ * The members jsonb column is schemaless: legacy rows may carry a
+ * contribution-tracking object beyond the typed ClanMember fields. No writer
+ * for it exists in the current codebase (verified), so merit scoring treats
+ * absent/invalid data as zero — which yields an equal split. This guard reads
+ * the legacy shape without scattering `any` through the scoring code.
+ */
+function readLegacyContributions(member: ClanMember): LegacyContributions {
+  const candidate = (member as { contributions?: unknown }).contributions;
+  const num = (value: unknown): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  if (!candidate || typeof candidate !== 'object') {
+    return { resourcesDonated: 0, territoriesClaimed: 0, warsParticipated: 0 };
+  }
+  const record = candidate as Record<string, unknown>;
+  return {
+    resourcesDonated: num(record.resourcesDonated),
+    territoriesClaimed: num(record.territoriesClaimed),
+    warsParticipated: num(record.warsParticipated),
+  };
+}
+
 export async function distributeEqualSplit(
   clanId: string,
   distributorId: string,
-  resourceType: 'metal' | 'energy' | 'rp',
+  resourceType: DistributionResourceType,
   totalAmount: number
 ): Promise<DistributionRecord> {
   const clanRows = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
@@ -110,8 +289,7 @@ export async function distributeEqualSplit(
   const clan = clanRows[0];
   await verifyDistributionPermission(clan, distributorId, DistributionMethod.EQUAL_SPLIT, totalAmount, resourceType);
   
-  const treasuryKey = resourceType === 'rp' ? 'researchPoints' : resourceType;
-  const currentBalance = Number((clan as any)[`bankTreasury${treasuryKey.charAt(0).toUpperCase() + treasuryKey.slice(1)}`] || 0);
+  const currentBalance = getTreasuryBalance(clan, resourceType);
   if (currentBalance < totalAmount) {
     throw new Error(`Insufficient ${resourceType} in clan bank (have ${currentBalance}, need ${totalAmount})`);
   }
@@ -136,16 +314,10 @@ export async function distributeEqualSplit(
       },
     });
     
-    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
-    await db.update(players).set({
-      [playerField]: sql`${(players as any)[playerField]} + ${amount}`,
-    }).where(eq(players.username, member.playerId));
+    await db.update(players).set(playerResourceIncrement(resourceType, amount)).where(eq(players.username, member.playerId));
   }
   
-  const clanField = resourceType === 'metal' ? 'bankTreasuryMetal' : resourceType === 'energy' ? 'bankTreasuryEnergy' : 'bankTreasuryResearchPoints';
-  await db.update(clans).set({
-    [clanField]: sql`${(clans as any)[clanField]} - ${totalAmount}`,
-  }).where(eq(clans.id, clanId));
+  await db.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
   
   const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributor = distributorRows[0];
@@ -198,7 +370,7 @@ export async function distributeEqualSplit(
 export async function distributeByPercentage(
   clanId: string,
   distributorId: string,
-  resourceType: 'metal' | 'energy' | 'rp',
+  resourceType: DistributionResourceType,
   percentageMap: Record<string, number>,
   totalAmount: number
 ): Promise<DistributionRecord> {
@@ -215,8 +387,7 @@ export async function distributeByPercentage(
   const clan = clanRows[0];
   await verifyDistributionPermission(clan, distributorId, DistributionMethod.PERCENTAGE, totalAmount, resourceType);
   
-  const treasuryKey = resourceType === 'rp' ? 'researchPoints' : resourceType;
-  const currentBalance = Number((clan as any)[`bankTreasury${treasuryKey.charAt(0).toUpperCase() + treasuryKey.slice(1)}`] || 0);
+  const currentBalance = getTreasuryBalance(clan, resourceType);
   if (currentBalance < totalAmount) {
     throw new Error(`Insufficient ${resourceType} in clan bank`);
   }
@@ -240,25 +411,16 @@ export async function distributeByPercentage(
       percentage,
     });
     
-    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
-    await db.update(players).set({
-      [playerField]: sql`${(players as any)[playerField]} + ${amount}`,
-    }).where(eq(players.username, playerId));
+    await db.update(players).set(playerResourceIncrement(resourceType, amount)).where(eq(players.username, playerId));
   }
   
   if (distributed < totalAmount && recipients.length > 0) {
     const remainder = totalAmount - distributed;
     recipients[0].amount[resourceType]! += remainder;
-    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
-    await db.update(players).set({
-      [playerField]: sql`${(players as any)[playerField]} + ${remainder}`,
-    }).where(eq(players.username, recipients[0].playerId));
+    await db.update(players).set(playerResourceIncrement(resourceType, remainder)).where(eq(players.username, recipients[0].playerId));
   }
   
-  const clanField = resourceType === 'metal' ? 'bankTreasuryMetal' : resourceType === 'energy' ? 'bankTreasuryEnergy' : 'bankTreasuryResearchPoints';
-  await db.update(clans).set({
-    [clanField]: sql`${(clans as any)[clanField]} - ${totalAmount}`,
-  }).where(eq(clans.id, clanId));
+  await db.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
   
   const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributor = distributorRows[0];
@@ -310,7 +472,7 @@ export async function distributeByPercentage(
 export async function distributeByMerit(
   clanId: string,
   distributorId: string,
-  resourceType: 'metal' | 'energy' | 'rp',
+  resourceType: DistributionResourceType,
   totalAmount: number,
   weights: MeritWeights = DEFAULT_MERIT_WEIGHTS
 ): Promise<DistributionRecord> {
@@ -320,13 +482,12 @@ export async function distributeByMerit(
   }
   
   const clan = clanRows[0];
-  const distributor = clan.members.find((m: any) => m.playerId === distributorId);
-  if (!distributor || distributor.role !== 'LEADER') {
+  const distributor = clan.members.find((m) => m.playerId === distributorId);
+  if (!distributor || distributor.role !== ClanRole.LEADER) {
     throw new Error('Only clan leaders can use merit-based distribution');
   }
   
-  const treasuryKey = resourceType === 'rp' ? 'researchPoints' : resourceType;
-  const currentBalance = Number((clan as any)[`bankTreasury${treasuryKey.charAt(0).toUpperCase() + treasuryKey.slice(1)}`] || 0);
+  const currentBalance = getTreasuryBalance(clan, resourceType);
   if (currentBalance < totalAmount) {
     throw new Error(`Insufficient ${resourceType} in clan bank`);
   }
@@ -334,16 +495,12 @@ export async function distributeByMerit(
   const meritScores: Array<{ playerId: string; username: string; score: number }> = [];
   
   for (const member of clan.members) {
-    const contributions = (member as any).contributions || {
-      resourcesDonated: 0,
-      territoriesClaimed: 0,
-      warsParticipated: 0,
-    };
+    const contributions = readLegacyContributions(member);
     
     const score =
-      (contributions.territoriesClaimed || 0) * weights.territoriesClaimed +
-      (contributions.warsParticipated || 0) * weights.warsParticipated +
-      ((contributions.resourcesDonated || 0) / 1000) * weights.resourcesDonated;
+      contributions.territoriesClaimed * weights.territoriesClaimed +
+      contributions.warsParticipated * weights.warsParticipated +
+      (contributions.resourcesDonated / 1000) * weights.resourcesDonated;
     
     const playerRows = await db.select().from(players).where(eq(players.username, member.playerId)).limit(1);
     const player = playerRows[0];
@@ -375,25 +532,16 @@ export async function distributeByMerit(
       percentage,
     });
     
-    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
-    await db.update(players).set({
-      [playerField]: sql`${(players as any)[playerField]} + ${amount}`,
-    }).where(eq(players.username, merit.playerId));
+    await db.update(players).set(playerResourceIncrement(resourceType, amount)).where(eq(players.username, merit.playerId));
   }
   
   if (distributed < totalAmount && recipients.length > 0) {
     const remainder = totalAmount - distributed;
     recipients[0].amount[resourceType]! += remainder;
-    const playerField = resourceType === 'metal' ? 'resourcesMetal' : resourceType === 'energy' ? 'resourcesEnergy' : 'researchPoints';
-    await db.update(players).set({
-      [playerField]: sql`${(players as any)[playerField]} + ${remainder}`,
-    }).where(eq(players.username, recipients[0].playerId));
+    await db.update(players).set(playerResourceIncrement(resourceType, remainder)).where(eq(players.username, recipients[0].playerId));
   }
   
-  const clanField = resourceType === 'metal' ? 'bankTreasuryMetal' : resourceType === 'energy' ? 'bankTreasuryEnergy' : 'bankTreasuryResearchPoints';
-  await db.update(clans).set({
-    [clanField]: sql`${(clans as any)[clanField]} - ${totalAmount}`,
-  }).where(eq(clans.id, clanId));
+  await db.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
   
   const distributorPlayerRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributorPlayer = distributorPlayerRows[0];
@@ -499,7 +647,7 @@ export async function directGrant(
       },
     });
     
-    const updates: any = {};
+    const updates: Partial<{ resourcesMetal: SQL; resourcesEnergy: SQL; researchPoints: SQL }> = {};
     if (grant.metal) updates.resourcesMetal = sql`${players.resourcesMetal} + ${grant.metal}`;
     if (grant.energy) updates.resourcesEnergy = sql`${players.resourcesEnergy} + ${grant.energy}`;
     if (grant.rp) updates.researchPoints = sql`${players.researchPoints} + ${grant.rp}`;
@@ -509,7 +657,7 @@ export async function directGrant(
     }
   }
   
-  const clanUpdates: any = {};
+  const clanUpdates: Partial<{ bankTreasuryMetal: SQL; bankTreasuryEnergy: SQL; bankTreasuryResearchPoints: SQL }> = {};
   if (totalMetal > 0) clanUpdates.bankTreasuryMetal = sql`${clans.bankTreasuryMetal} - ${totalMetal}`;
   if (totalEnergy > 0) clanUpdates.bankTreasuryEnergy = sql`${clans.bankTreasuryEnergy} - ${totalEnergy}`;
   if (totalRP > 0) clanUpdates.bankTreasuryResearchPoints = sql`${clans.bankTreasuryResearchPoints} - ${totalRP}`;
@@ -567,24 +715,24 @@ export async function directGrant(
 }
 
 async function verifyDistributionPermission(
-  clan: any,
+  clan: typeof clans.$inferSelect,
   distributorId: string,
   method: DistributionMethod,
   amount: number,
-  resourceType: 'metal' | 'energy' | 'rp'
+  resourceType: DistributionResourceType
 ): Promise<void> {
-  const member = clan.members.find((m: any) => m.playerId === distributorId);
+  const member = clan.members.find((m) => m.playerId === distributorId);
   if (!member) {
     throw new Error('Player is not a member of this clan');
   }
   
-  const role = member.role as string;
+  const role = member.role;
   
-  if (role === 'LEADER') {
+  if (role === ClanRole.LEADER) {
     return;
   }
-  
-  if (role === 'CO_LEADER') {
+
+  if (role === ClanRole.CO_LEADER) {
     if (method !== DistributionMethod.EQUAL_SPLIT && method !== DistributionMethod.DIRECT_GRANT) {
       throw new Error('Co-Leaders can only use Equal Split or Direct Grant methods');
     }
@@ -605,7 +753,7 @@ async function verifyDistributionPermission(
 async function getTodayDistributedByPlayer(
   clanId: string,
   playerId: string,
-  resourceType: 'metal' | 'energy' | 'rp'
+  resourceType: DistributionResourceType
 ): Promise<number> {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -618,8 +766,14 @@ async function getTodayDistributedByPlayer(
   `);
   
   let total = 0;
-  for (const row of (result as any) as any[]) {
-    const dist = JSON.parse(row.recipients);
+  const rows = result.rows as unknown as Array<{ recipients: string | DistributionRecord['recipients'] | null }>;
+  for (const row of rows) {
+    const dist = parseDistributionPayload(
+      row.recipients,
+      isRecipients,
+      [],
+      'recipients'
+    );
     for (const recipient of dist) {
       total += recipient.amount[resourceType] || 0;
     }
@@ -639,16 +793,28 @@ export async function getDistributionHistory(
     LIMIT ${limit}
   `);
   
-  return (result.rows as any[]).map((row: any) => ({
-    _id: row.id,
-    clanId: row.clan_id,
-    method: row.method,
-    distributedBy: row.distributed_by,
-    distributedByUsername: row.distributed_by_username,
-    timestamp: new Date(row.timestamp),
-    resources: typeof row.resources === 'string' ? JSON.parse(row.resources) : row.resources,
-    recipients: typeof row.recipients === 'string' ? JSON.parse(row.recipients) : row.recipients,
-    totalDistributed: typeof row.total_distributed === 'string' ? JSON.parse(row.total_distributed) : row.total_distributed,
-    notes: row.notes,
-  }));
+  const rows = result.rows as unknown as ClanDistributionRow[];
+  return rows.map((row): DistributionRecord => {
+    if (!isDistributionMethod(row.method)) {
+      throw new Error(`Invalid distribution method in clan_distributions row: ${String(row.method)}`);
+    }
+    const method: DistributionMethod = row.method;
+    return {
+      _id: String(row.id),
+      clanId: String(row.clan_id),
+      method,
+      distributedBy: row.distributed_by,
+      distributedByUsername: row.distributed_by_username ?? 'Unknown',
+      timestamp: new Date(row.timestamp),
+      resources: parseDistributionPayload(row.resources, isResourceAmount, {}, 'resources'),
+      recipients: parseDistributionPayload(row.recipients, isRecipients, [], 'recipients'),
+      totalDistributed: parseDistributionPayload(
+        row.total_distributed,
+        isTotalDistributed,
+        { metal: 0, energy: 0, rp: 0 },
+        'total_distributed'
+      ),
+      notes: row.notes ?? undefined,
+    };
+  });
 }

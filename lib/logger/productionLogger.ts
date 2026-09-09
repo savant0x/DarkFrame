@@ -182,7 +182,7 @@ export function createLogger(config: LoggerConfig = {}): Logger {
       entry.error = {
         message: error.message,
         stack: error.stack,
-        code: (error as any).code,
+        code: (error as { code?: string }).code,
       };
     }
 

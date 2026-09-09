@@ -1,8 +1,13 @@
 /**
- * @file app/profile/page.tsx
+ * @file app/profile/ProfileView.tsx
  * @created 2025-10-18
+ * @updated 2026-09-08 (FID-20260908-015: NEON NOIR redesign — nn-surface shell + nn-panel
+ *   scanline sections, nn-stat instruments, nn-well cells, nn-chip pills, nn-btn actions,
+ *   nn-note status banners; gradient slabs + pills removed; chrome emoji dropped from headers.
+ *   SUBSTANTIVE FIX: Base Defenses "breached" rendered baseDefenses.won — now reads .lost,
+ *   matching the BattleStatistics contract. Profile/greeting fetch+save logic byte-preserved.)
  * @overview Private player profile page with stats, base greeting editor, and achievements
- * 
+ *
  * OVERVIEW:
  * Personal profile page (not public) for viewing own stats and editing base description.
  * Includes WYSIWYG-style editor for base greeting with formatting but no raw HTML.
@@ -14,6 +19,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { RichTextEditor } from '@/components/ui';
 import { SafeHtmlRenderer } from '@/components/SafeHtmlRenderer';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface ProfilePageProps {
@@ -122,271 +128,290 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
 
   if (!player) {
     return (
-      <div className="bg-glass-light rounded-none shadow-2xl h-full overflow-hidden flex items-center justify-center p-8">
-        <p className="text-[color:var(--nn-text-primary)]">Loading...</p>
+      <div className="nn-surface h-full overflow-hidden flex items-center justify-center p-8">
+        <Loader2 className="nn-spin-icon w-7 h-7 text-[color:var(--nn-cyan)]" aria-label="Loading profile" />
+        <p className="nn-text-secondary ml-3">Loading profile…</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-glass-light rounded-none shadow-2xl h-full overflow-hidden flex flex-col">
+    <div className="nn-surface h-full overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="bg-glass-dark border-b border-glass-border p-6 flex-shrink-0">
-        <h1 className="text-4xl font-bold text-[color:var(--nn-cyan)]">👤 Your Profile</h1>
+      <div className="nn-panel__header flex-shrink-0">
+        <span className="nn-panel__title">Your Profile</span>
+        <span className="nn-panel__meta">Commander Record</span>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         {error && (
-          <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 mb-6">
-            <p className="text-[color:var(--nn-magenta)]">{error}</p>
+          <div className="nn-note mb-6" role="alert">
+            <p className="nn-text-magenta">{error}</p>
           </div>
         )}
 
         {successMessage && (
-          <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4 mb-6">
-            <p className="text-[color:var(--nn-green)]">{successMessage}</p>
+          <div className="nn-note mb-6" role="status">
+            <p className="nn-text-green">{successMessage}</p>
           </div>
         )}
 
         {profileData && (
           <div className="space-y-6 max-w-5xl mx-auto">
             {/* Basic Info */}
-            <div className="bg-glass-light rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-              <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)] mb-4">Commander Info</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-text-secondary">Username</p>
-                  <p className="text-xl font-bold text-[color:var(--nn-text-primary)]">{profileData.username}</p>
-                </div>
-                <div>
-                  <p className="text-text-secondary">Level</p>
-                  <p className="text-xl font-bold text-[color:var(--nn-amber)]">{profileData.level}</p>
-                </div>
-                <div>
-                  <p className="text-text-secondary">Base Location</p>
-                  <p className="text-xl font-bold text-[color:var(--nn-green)]">({profileData.base.x}, {profileData.base.y})</p>
-                </div>
-                <div>
-                  <p className="text-text-secondary">Rank</p>
-                  <p className="text-xl font-bold text-[color:var(--nn-violet)]">{profileData.rank}</p>
+            <div className="nn-panel">
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">Commander Info</span>
+                <span className="nn-panel__meta">{profileData.username}</span>
+              </div>
+              <div className="nn-panel__body nn-panel__body--padded">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="nn-stat">
+                    <div className="nn-stat__lab">Username</div>
+                    <div className="nn-stat__num">{profileData.username}</div>
+                  </div>
+                  <div className="nn-stat">
+                    <div className="nn-stat__lab">Level</div>
+                    <div className="nn-stat__num nn-stat__num--glow-amber">{profileData.level}</div>
+                  </div>
+                  <div className="nn-stat">
+                    <div className="nn-stat__lab">Base Location</div>
+                    <div className="nn-stat__num nn-stat__num--glow-green">
+                      ({profileData.base.x}, {profileData.base.y})
+                    </div>
+                  </div>
+                  <div className="nn-stat">
+                    <div className="nn-stat__lab">Rank</div>
+                    <div className="nn-stat__num nn-stat__num--glow-violet">{profileData.rank}</div>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Referral Stats */}
             {profileData.referralStats && (
-              <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">🎁 Referral Program</h2>
-                  <Link 
-                    href="/referrals"
-                    className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold transition-colors text-sm"
-                  >
+              <div className="nn-panel nn-panel--violet">
+                <div className="nn-panel__header">
+                  <span className="nn-panel__title">Referral Program</span>
+                  <Link href="/referrals" className="nn-btn nn-btn--primary ml-auto text-sm">
                     View Dashboard →
                   </Link>
                 </div>
+                <div className="nn-panel__body nn-panel__body--padded">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    <div className="nn-well flex-col">
+                      <div className="nn-num nn-stat__num--glow-cyan text-2xl font-bold">
+                        {profileData.referralStats.totalReferrals}
+                      </div>
+                      <div className="nn-stat__lab mt-1">Total Referrals</div>
+                    </div>
+                    <div className="nn-well flex-col">
+                      <div className="nn-num nn-stat__num--glow-green text-2xl font-bold">
+                        {profileData.referralStats.validatedReferrals}
+                      </div>
+                      <div className="nn-stat__lab mt-1">Validated</div>
+                    </div>
+                    <div className="nn-well flex-col">
+                      <div className="nn-num nn-stat__num--glow-amber text-2xl font-bold">
+                        {profileData.referralStats.badges.length}
+                      </div>
+                      <div className="nn-stat__lab mt-1">Badges</div>
+                    </div>
+                    <div className="nn-well flex-col">
+                      <div className="nn-num nn-stat__num--glow-violet text-2xl font-bold">
+                        {profileData.referralStats.nextMilestone ?? '—'}
+                      </div>
+                      <div className="nn-stat__lab mt-1">Next Milestone</div>
+                    </div>
+                  </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Total Referrals</p>
-                    <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{profileData.referralStats.totalReferrals}</p>
-                  </div>
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Validated</p>
-                    <p className="text-2xl font-bold text-[color:var(--nn-green)]">{profileData.referralStats.validatedReferrals}</p>
-                  </div>
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Badges</p>
-                    <p className="text-2xl font-bold text-[color:var(--nn-amber)]">{profileData.referralStats.badges.length}</p>
-                  </div>
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Next Milestone</p>
-                    <p className="text-2xl font-bold text-[color:var(--nn-violet)]">
-                      {profileData.referralStats.nextMilestone ?? '—'}
-                    </p>
-                  </div>
+                  {/* Badges & Titles */}
+                  {(profileData.referralStats.badges.length > 0 || profileData.referralStats.titles.length > 0) && (
+                    <div className="nn-well flex-col items-stretch mb-4">
+                      {profileData.referralStats.titles.length > 0 && (
+                        <div className="mb-3">
+                          <p className="nn-footnote mb-2">Titles:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {profileData.referralStats.titles.map((title, index) => (
+                              <span key={index} className="nn-chip nn-chip--violet">
+                                {title}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {profileData.referralStats.badges.length > 0 && (
+                        <div>
+                          <p className="nn-footnote mb-2">Badges:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {profileData.referralStats.badges.map((badge, index) => (
+                              <span key={index} className="nn-chip nn-chip--amber">
+                                {badge.replace('_recruiter', '').toUpperCase()}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* CTA if no referrals yet */}
+                  {profileData.referralStats.totalReferrals === 0 && (
+                    <div className="nn-brief nn-brief--violet text-center">
+                      <div className="flex-1">
+                        <p className="nn-text-violet mb-2">
+                          Start inviting friends to earn exclusive rewards, resources, and prestige!
+                        </p>
+                        <Link href="/referrals" className="nn-btn nn-btn--primary px-6">
+                          Get Started →
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {/* Badges & Titles */}
-                {(profileData.referralStats.badges.length > 0 || profileData.referralStats.titles.length > 0) && (
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    {profileData.referralStats.titles.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-sm text-text-secondary mb-2">Titles:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {profileData.referralStats.titles.map((title, index) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] text-[color:var(--nn-text-primary)] rounded-full text-sm font-semibold"
-                            >
-                              {title}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {profileData.referralStats.badges.length > 0 && (
-                      <div>
-                        <p className="text-sm text-text-secondary mb-2">Badges:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {profileData.referralStats.badges.map((badge, index) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)] rounded-full text-sm font-semibold"
-                            >
-                              {badge.replace('_recruiter', '').toUpperCase()}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* CTA if no referrals yet */}
-                {profileData.referralStats.totalReferrals === 0 && (
-                  <div className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-4 text-center">
-                    <p className="text-[color:var(--nn-violet)] mb-2">
-                      Start inviting friends to earn exclusive rewards, resources, and prestige!
-                    </p>
-                    <Link 
-                      href="/referrals"
-                      className="inline-block bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-6 py-2 rounded-none font-semibold transition-colors"
-                    >
-                      Get Started →
-                    </Link>
-                  </div>
-                )}
               </div>
             )}
 
             {/* Resources */}
-            <div className="bg-glass-light rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-              <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)] mb-4">Resources</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-glass-dark p-4 rounded-none">
-                  <p className="text-text-secondary">⚙️ Metal</p>
-                  <p className="text-2xl font-bold text-[color:var(--nn-cyan)]">{profileData.resources.metal.toLocaleString()}</p>
-                </div>
-                <div className="bg-glass-dark p-4 rounded-none">
-                  <p className="text-text-secondary">⚡ Energy</p>
-                  <p className="text-2xl font-bold text-[color:var(--nn-amber)]">{profileData.resources.energy.toLocaleString()}</p>
+            <div className="nn-panel">
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">Resources</span>
+                <span className="nn-panel__meta">Current Stockpile</span>
+              </div>
+              <div className="nn-panel__body nn-panel__body--padded">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="nn-well flex-col">
+                    <div className="nn-footnote">⚙️ Metal</div>
+                    <div className="nn-num nn-stat__num--glow-cyan text-2xl font-bold">
+                      {profileData.resources.metal.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="nn-well flex-col">
+                    <div className="nn-footnote">⚡ Energy</div>
+                    <div className="nn-num nn-stat__num--glow-amber text-2xl font-bold">
+                      {profileData.resources.energy.toLocaleString()}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Base Greeting Editor */}
-            <div className="bg-glass-light rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)]">🏠 Base Greeting</h2>
+            <div className="nn-panel">
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">Base Greeting</span>
                 {!isEditing && (
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none font-semibold transition-colors"
-                  >
-                    ✏️ Edit
+                  <button onClick={() => setIsEditing(true)} className="nn-btn ml-auto text-sm">
+                    Edit
                   </button>
                 )}
               </div>
+              <div className="nn-panel__body nn-panel__body--padded">
+                <p className="nn-footnote mb-4">
+                  This message will be shown to other players when they visit your base.
+                </p>
 
-              <p className="text-sm text-text-secondary mb-4">
-                This message will be shown to other players when they visit your base.
-              </p>
+                {isEditing ? (
+                  <div className="space-y-4">
+                    {/* Rich Text Editor */}
+                    <RichTextEditor
+                      value={baseGreeting}
+                      onChange={setBaseGreeting}
+                      maxLength={500}
+                      placeholder="Welcome to my base! Describe your headquarters..."
+                      minHeight="200px"
+                    />
 
-              {isEditing ? (
-                <div className="space-y-4">
-                  {/* Rich Text Editor */}
-                  <RichTextEditor
-                    value={baseGreeting}
-                    onChange={setBaseGreeting}
-                    maxLength={500}
-                    placeholder="Welcome to my base! Describe your headquarters..."
-                    minHeight="200px"
-                  />
+                    {/* Preview */}
+                    <div className="nn-well flex-col items-stretch">
+                      <p className="nn-footnote mb-2">Preview:</p>
+                      <SafeHtmlRenderer
+                        html={baseGreeting}
+                        fallback="Your greeting will appear here..."
+                      />
+                    </div>
 
-                  {/* Preview */}
-                  <div className="bg-glass-dark border border-glass-border rounded-none p-4">
-                    <p className="text-sm text-text-secondary mb-2">Preview:</p>
-                    <SafeHtmlRenderer 
-                      html={baseGreeting}
-                      fallback="Your greeting will appear here..."
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleSaveGreeting}
+                        disabled={isSaving}
+                        className="nn-btn nn-btn--primary"
+                      >
+                        {isSaving ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditing(false);
+                          setBaseGreeting(profileData.base.greeting || '');
+                        }}
+                        disabled={isSaving}
+                        className="nn-btn nn-btn--ghost"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="nn-well flex-col items-stretch">
+                    <SafeHtmlRenderer
+                      html={profileData.base.greeting || ''}
+                      fallback="No base greeting set. Click Edit to add one!"
+                      className="text-[color:var(--nn-text-primary)]"
                     />
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleSaveGreeting}
-                      disabled={isSaving}
-                      className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] disabled:bg-glass-light text-[color:var(--nn-text-primary)] px-6 py-2 rounded-none font-semibold transition-colors"
-                    >
-                      {isSaving ? 'Saving...' : '💾 Save'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsEditing(false);
-                        setBaseGreeting(profileData.base.greeting || '');
-                      }}
-                      disabled={isSaving}
-                      className="bg-glass-light hover:bg-bg-nebula disabled:bg-glass-light text-[color:var(--nn-text-primary)] px-6 py-2 rounded-none font-semibold transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-glass-dark border border-glass-border rounded-none p-4">
-                  <SafeHtmlRenderer 
-                    html={profileData.base.greeting || ''}
-                    fallback="No base greeting set. Click Edit to add one!"
-                    className="text-[color:var(--nn-text-primary)]"
-                  />
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Battle Stats */}
             {profileData.battleStats && (
-              <div className="bg-glass-light rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-                <h2 className="text-2xl font-bold text-[color:var(--nn-cyan)] mb-4">⚔️ Battle Statistics</h2>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Infantry Battles</p>
-                    <p className="text-lg font-bold text-[color:var(--nn-text-primary)]">
-                      {profileData.battleStats.infantryAttacks.initiated} initiated
-                    </p>
-                    <p className="text-sm text-[color:var(--nn-green)]">
-                      {profileData.battleStats.infantryAttacks.won} won
-                    </p>
-                    <p className="text-sm text-[color:var(--nn-magenta)]">
-                      {profileData.battleStats.infantryAttacks.lost} lost
-                    </p>
-                  </div>
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Base Attacks</p>
-                    <p className="text-lg font-bold text-[color:var(--nn-text-primary)]">
-                      {profileData.battleStats.baseAttacks.initiated} initiated
-                    </p>
-                    <p className="text-sm text-[color:var(--nn-green)]">
-                      {profileData.battleStats.baseAttacks.won} won
-                    </p>
-                    <p className="text-sm text-[color:var(--nn-magenta)]">
-                      {profileData.battleStats.baseAttacks.lost} lost
-                    </p>
-                  </div>
-                  <div className="bg-glass-dark p-4 rounded-none">
-                    <p className="text-text-secondary text-sm">Base Defenses</p>
-                    <p className="text-lg font-bold text-[color:var(--nn-text-primary)]">
-                      {profileData.battleStats.baseDefenses.total} total
-                    </p>
-                    <p className="text-sm text-[color:var(--nn-green)]">
-                      {profileData.battleStats.baseDefenses.won} defended
-                    </p>
-                    <p className="text-sm text-[color:var(--nn-magenta)]">
-                      {profileData.battleStats.baseDefenses.won} breached
-                    </p>
+              <div className="nn-panel">
+                <div className="nn-panel__header">
+                  <span className="nn-panel__title">Battle Statistics</span>
+                  <span className="nn-panel__meta">Lifetime Combat Record</span>
+                </div>
+                <div className="nn-panel__body nn-panel__body--padded">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="nn-well flex-col items-stretch">
+                      <div className="nn-stat__lab mb-2">Infantry Battles</div>
+                      <p className="nn-num font-bold text-[color:var(--nn-text-primary)]">
+                        {profileData.battleStats.infantryAttacks.initiated} initiated
+                      </p>
+                      <p className="nn-footnote nn-text-green">
+                        {profileData.battleStats.infantryAttacks.won} won
+                      </p>
+                      <p className="nn-footnote nn-text-magenta">
+                        {profileData.battleStats.infantryAttacks.lost} lost
+                      </p>
+                    </div>
+                    <div className="nn-well flex-col items-stretch">
+                      <div className="nn-stat__lab mb-2">Base Attacks</div>
+                      <p className="nn-num font-bold text-[color:var(--nn-text-primary)]">
+                        {profileData.battleStats.baseAttacks.initiated} initiated
+                      </p>
+                      <p className="nn-footnote nn-text-green">
+                        {profileData.battleStats.baseAttacks.won} won
+                      </p>
+                      <p className="nn-footnote nn-text-magenta">
+                        {profileData.battleStats.baseAttacks.lost} lost
+                      </p>
+                    </div>
+                    <div className="nn-well flex-col items-stretch">
+                      <div className="nn-stat__lab mb-2">Base Defenses</div>
+                      <p className="nn-num font-bold text-[color:var(--nn-text-primary)]">
+                        {profileData.battleStats.baseDefenses.total} total
+                      </p>
+                      <p className="nn-footnote nn-text-green">
+                        {profileData.battleStats.baseDefenses.won} defended
+                      </p>
+                      {/* FID-20260908-015 FIX: was .won (both rows identical) — breached is .lost */}
+                      <p className="nn-footnote nn-text-magenta">
+                        {profileData.battleStats.baseDefenses.lost} breached
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>

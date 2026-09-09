@@ -564,7 +564,7 @@ export default function UnitBuildPanelEnhanced({
                           const clampedValue = Math.min(Math.max(1, value), maxBuildable);
                           setQuantities({ ...quantities, [unitType]: clampedValue.toString() });
                         }}
-                        className="flex-1 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none text-xs border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-blue-500 focus:outline-none"
+                        className="nn-input flex-1 text-xs"
                         min="1"
                         max={calculateMaxBuildable(unitType)}
                         placeholder="Custom"

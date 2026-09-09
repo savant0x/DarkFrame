@@ -38,7 +38,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Input, Badge, Divider } from '@/components/ui';
+
 import { 
   X, 
   Download, 
@@ -164,14 +164,14 @@ export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInsp
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4 overflow-y-auto">
       <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] p-6">
+        {/* Header — FID-017: gradient strip → quiet cyan tint */}
+        <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <Shield className="w-8 h-8 text-[color:var(--nn-cyan)]" />
                 <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Clan Inspector</h2>
-                <Badge variant="error" className="text-xs">ADMIN ONLY</Badge>
+                <span className="nn-chip nn-chip--magenta text-xs">ADMIN ONLY</span>
               </div>
               {clanData && (
                 <div className="flex items-center gap-4 text-sm">
@@ -185,21 +185,21 @@ export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInsp
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={fetchClanAnalytics} variant="ghost" className="gap-2" disabled={isLoading}>
-                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <button onClick={fetchClanAnalytics} className="nn-btn nn-btn--ghost gap-2" disabled={isLoading}>
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'nn-spin-icon' : ''}`} />
                 Refresh
-              </Button>
-              <Button onClick={exportToCSV} variant="ghost" className="gap-2">
+              </button>
+              <button onClick={exportToCSV} className="nn-btn nn-btn--ghost gap-2">
                 <Download className="w-4 h-4" />
                 CSV
-              </Button>
-              <Button onClick={exportToJSON} variant="ghost" className="gap-2">
+              </button>
+              <button onClick={exportToJSON} className="nn-btn nn-btn--ghost gap-2">
                 <Download className="w-4 h-4" />
                 JSON
-              </Button>
-              <Button onClick={onClose} variant="ghost" className="text-[color:var(--nn-magenta)]">
+              </button>
+              <button onClick={onClose} className="nn-btn nn-btn--ghost text-[color:var(--nn-magenta)]">
                 <X className="w-5 h-5" />
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -221,7 +221,7 @@ export default function ClanInspectorModal({ isOpen, onClose, clanId }: ClanInsp
         <div className="flex-1 overflow-y-auto p-6">
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-12 h-12 text-[color:var(--nn-cyan)] animate-spin" />
+              <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-cyan)]" />
             </div>
           ) : (
             <>
@@ -259,7 +259,7 @@ function TabButton({ icon, label, active, onClick }: TabButtonProps) {
       className={`flex flex-col items-center gap-1 p-2 rounded-none border transition-all ${
         active 
           ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] text-[color:var(--nn-cyan)]' 
-          : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]'
+          : 'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-secondary)]'
       }`}
     >
       <div className="w-5 h-5">{icon}</div>
@@ -334,7 +334,7 @@ function OverviewTab({ clan, analytics }: { clan: Clan | null; analytics: ClanAn
             <div><span className="text-[color:var(--nn-text-secondary)]">Wars Won:</span> <span className="text-[color:var(--nn-green)] ml-2">{clan.stats?.warsWon || 0}</span></div>
             <div><span className="text-[color:var(--nn-text-secondary)]">Wars Lost:</span> <span className="text-[color:var(--nn-magenta)] ml-2">{clan.stats?.warsLost || 0}</span></div>
           </div>
-          <Divider />
+          <div className="nn-divider my-6" />
           <div><span className="text-[color:var(--nn-text-secondary)]">Description:</span> <p className="text-[color:var(--nn-text-secondary)] mt-1">{clan.description || 'No description'}</p></div>
           <div><span className="text-[color:var(--nn-text-secondary)]">Message of the Day:</span> <p className="text-[color:var(--nn-text-secondary)] mt-1">{clan.settings?.messageOfTheDay || 'None'}</p></div>
         </div>
@@ -358,14 +358,15 @@ function MembersTab({ clan, searchQuery, setSearchQuery }: { clan: Clan | null; 
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--nn-text-secondary)]" />
-          <Input
+          <input
+            type="text"
             placeholder="Search members..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="nn-input pl-10"
           />
         </div>
-        <Badge variant="info">{filteredMembers.length} Members</Badge>
+        <span className="nn-chip nn-chip--cyan">{filteredMembers.length} Members</span>
       </div>
 
       <div className="space-y-2">
@@ -375,9 +376,9 @@ function MembersTab({ clan, searchQuery, setSearchQuery }: { clan: Clan | null; 
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg font-semibold text-[color:var(--nn-text-primary)]">{member.username}</span>
-                  <Badge variant={member.role === 'LEADER' ? 'warning' : 'info'}>{member.role}</Badge>
+                  <span className={`nn-chip ${member.role === 'LEADER' ? 'nn-chip--amber' : 'nn-chip--cyan'}`}>{member.role}</span>
                   {new Date().getTime() - new Date(member.lastActive).getTime() < 300000 && (
-                    <Badge variant="success" className="text-xs">Online</Badge>
+                    <span className="nn-chip nn-chip--green text-xs">Online</span>
                   )}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -442,7 +443,7 @@ function TerritoryTab({ clan }: { clan: Clan | null }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-[color:var(--nn-text-primary)]">Controlled Territories</h3>
-        <Badge variant="info">{territories.length} Tiles</Badge>
+        <span className="nn-chip nn-chip--cyan">{territories.length} Tiles</span>
       </div>
 
       {territories.length === 0 ? (
@@ -453,7 +454,7 @@ function TerritoryTab({ clan }: { clan: Clan | null }) {
             <div key={i} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-3">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[color:var(--nn-text-primary)] font-semibold">({territory.tileX}, {territory.tileY})</span>
-                <Badge variant="success" className="text-xs">+{territory.defenseBonus}% Defense</Badge>
+                <span className="nn-chip nn-chip--green text-xs">+{territory.defenseBonus}% Defense</span>
               </div>
               <div className="text-sm space-y-1">
                 <div><span className="text-[color:var(--nn-text-secondary)]">Claimed by:</span> <span className="text-[color:var(--nn-cyan)] ml-2">{territory.claimedBy}</span></div>
@@ -492,7 +493,7 @@ function WarfareTab({ clan }: { clan: Clan | null }) {
               <div key={i} className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4">
                 <div className="text-[color:var(--nn-text-primary)] font-semibold mb-2">War vs Clan {war.defenderClanId?.slice(0, 8)}</div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-[color:var(--nn-text-secondary)]">Status:</span> <Badge variant="error" className="ml-2">{war.status}</Badge></div>
+                  <div><span className="text-[color:var(--nn-text-secondary)]">Status:</span> <span className="nn-chip nn-chip--magenta ml-2">{war.status}</span></div>
                   <div><span className="text-[color:var(--nn-text-secondary)]">Started:</span> <span className="text-[color:var(--nn-text-secondary)] ml-2">{new Date(war.startedAt || war.declaredAt).toLocaleDateString()}</span></div>
                 </div>
               </div>
@@ -514,7 +515,7 @@ function ActivityTab({ analytics }: { analytics: ClanAnalytics | null }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-[color:var(--nn-text-primary)]">Activity Log</h3>
-        <Badge variant="info">{activities.length} Events</Badge>
+        <span className="nn-chip nn-chip--cyan">{activities.length} Events</span>
       </div>
 
       <div className="space-y-2 max-h-[600px] overflow-y-auto">
@@ -529,7 +530,7 @@ function ActivityTab({ analytics }: { analytics: ClanAnalytics | null }) {
                   <div className="text-sm text-[color:var(--nn-text-primary)] mb-1">{activity.description}</div>
                   <div className="text-xs text-[color:var(--nn-text-secondary)]">{new Date(activity.timestamp).toLocaleString()}</div>
                 </div>
-                <Badge variant="info" className="text-xs">{activity.type}</Badge>
+                <span className="nn-chip nn-chip--cyan text-xs">{activity.type}</span>
               </div>
             </div>
           ))
@@ -588,7 +589,7 @@ function AlliancesTab({ analytics }: { analytics: ClanAnalytics | null }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-[color:var(--nn-text-primary)]">Alliance Network</h3>
-        <Badge variant="success">{alliances.length} Active</Badge>
+        <span className="nn-chip nn-chip--green">{alliances.length} Active</span>
       </div>
 
       {alliances.length === 0 ? (
@@ -599,7 +600,7 @@ function AlliancesTab({ analytics }: { analytics: ClanAnalytics | null }) {
             <div key={i} className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[color:var(--nn-text-primary)] font-semibold">Alliance #{i + 1}</span>
-                <Badge variant="success">Active</Badge>
+                <span className="nn-chip nn-chip--green">Active</span>
               </div>
               <div className="text-sm space-y-1">
                 <div><span className="text-[color:var(--nn-text-secondary)]">Allied Clans:</span> <span className="text-[color:var(--nn-cyan)] ml-2">{alliance.clanIds?.length || 0}</span></div>
@@ -637,37 +638,37 @@ function HealthTab({ analytics }: { analytics: ClanAnalytics | null }) {
         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
           <h4 className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Member Activity</h4>
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2">
-              <div className="bg-[color-mix(in_oklab,var(--nn-green)_12%,transparent)] h-2 rounded-full" style={{ width: '80%' }}></div>
+            <div className="nn-meter flex-1">
+              <div className="nn-meter__seg nn-meter__seg--green" style={{ width: '80%' }}></div>
             </div>
-            <span className="text-[color:var(--nn-green)] font-semibold">80%</span>
+            <span className="nn-num nn-text-green font-semibold">80%</span>
           </div>
         </div>
         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
           <h4 className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Financial Stability</h4>
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2">
-              <div className="bg-[color-mix(in_oklab,var(--nn-amber)_12%,transparent)] h-2 rounded-full" style={{ width: '65%' }}></div>
+            <div className="nn-meter flex-1">
+              <div className="nn-meter__seg nn-meter__seg--amber" style={{ width: '65%' }}></div>
             </div>
-            <span className="text-[color:var(--nn-amber)] font-semibold">65%</span>
+            <span className="nn-num nn-text-amber font-semibold">65%</span>
           </div>
         </div>
         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
           <h4 className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Territory Security</h4>
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2">
-              <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] h-2 rounded-full" style={{ width: '90%' }}></div>
+            <div className="nn-meter flex-1">
+              <div className="nn-meter__seg nn-meter__seg--str" style={{ width: '90%' }}></div>
             </div>
-            <span className="text-[color:var(--nn-cyan)] font-semibold">90%</span>
+            <span className="nn-num nn-text-cyan font-semibold">90%</span>
           </div>
         </div>
         <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-4">
           <h4 className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Growth Rate</h4>
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-full h-2">
-              <div className="bg-[color-mix(in_oklab,var(--nn-violet)_12%,transparent)] h-2 rounded-full" style={{ width: '70%' }}></div>
+            <div className="nn-meter flex-1">
+              <div className="nn-meter__seg nn-meter__seg--vio" style={{ width: '70%' }}></div>
             </div>
-            <span className="text-[color:var(--nn-violet)] font-semibold">70%</span>
+            <span className="nn-num nn-text-violet font-semibold">70%</span>
           </div>
         </div>
       </div>

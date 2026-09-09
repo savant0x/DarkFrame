@@ -30,6 +30,14 @@ import {
 } from '@/types';
 import { getVisibleTiles } from '@/lib/mapService';
 
+/** PixiJS Graphics carrying the map tile it renders (FID-20260908-018: replaces `as any`). */
+type TileGraphics = Graphics & { tileData: MapTile };
+/** PixiJS Graphics carrying tile-highlight state. */
+type HighlightGraphics = Graphics & {
+  isHighlight: boolean;
+  highlightPosition: { x: number; y: number };
+};
+
 /**
  * Create the grid renderer container
  * 
@@ -182,7 +190,7 @@ function createTileGraphics(
   graphics.cursor = 'pointer';
   
   // Store tile data for click events
-  (graphics as any).tileData = tile;
+  (graphics as TileGraphics).tileData = tile;
   
   // Add click handler
   if (onTileClick) {
@@ -268,7 +276,7 @@ export function updateTile(
 ): void {
   // Find existing tile graphics
   const existingTile = gridContainer.children.find((child) => {
-    const tileData = (child as any).tileData as MapTile | undefined;
+    const tileData = (child as Graphics as TileGraphics).tileData;
     return tileData && tileData.x === tile.x && tileData.y === tile.y;
   });
   
@@ -315,8 +323,8 @@ export function highlightTile(
     .rect(worldPos.x, worldPos.y, MAP_CONFIG.TILE_SIZE, MAP_CONFIG.TILE_SIZE)
     .stroke({ width: 3, color, alpha: 1.0 });
   
-  (highlight as any).isHighlight = true;
-  (highlight as any).highlightPosition = position;
+  (highlight as HighlightGraphics).isHighlight = true;
+  (highlight as HighlightGraphics).highlightPosition = position;
   
   gridContainer.addChild(highlight);
   
@@ -336,7 +344,7 @@ export function highlightTile(
  */
 export function clearHighlights(gridContainer: Container): void {
   const highlights = gridContainer.children.filter(
-    (child) => (child as any).isHighlight === true
+    (child) => (child as Graphics as HighlightGraphics).isHighlight === true
   );
   
   highlights.forEach((highlight) => {

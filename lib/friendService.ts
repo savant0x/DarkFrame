@@ -125,7 +125,7 @@ export async function sendFriendRequest(
   });
 
   return {
-    _id: requestId as any,
+    _id: requestId,
     from: userId,
     to: toUserId,
     status: FriendRequestStatus.PENDING,
@@ -200,7 +200,7 @@ export async function acceptRequest(
   }).where(eq(friendRequests.id, requestId));
 
   return {
-    _id: friendshipId as any,
+    _id: friendshipId,
     userId: request.from,
     friendId: request.to,
     status: FriendStatus.ACCEPTED,
@@ -242,7 +242,7 @@ export async function declineRequest(
   }).where(eq(friendRequests.id, requestId));
 
   return {
-    _id: requestId as any,
+    _id: requestId,
     from: request.from,
     to: request.to,
     status: FriendRequestStatus.DECLINED,
@@ -322,7 +322,7 @@ export async function getFriends(userId: string): Promise<FriendWithPlayer[]> {
     const playerData = playerMap.get(friendUserId);
 
     return {
-      _id: f.id as any,
+      _id: f.id,
       userId: f.userId,
       friendId: f.friendId,
       status: f.status as FriendStatus,
@@ -378,7 +378,7 @@ export async function getPendingRequests(
     const senderData = senderMap.get(r.from);
 
     return {
-      _id: r.id as any,
+      _id: r.id,
       from: r.from,
       to: r.to,
       status: r.status as FriendRequestStatus,
@@ -435,7 +435,7 @@ export async function getSentRequests(
     const recipientData = recipientMap.get(r.to);
 
     return {
-      _id: r.id as any,
+      _id: r.id,
       from: r.from,
       to: r.to,
       status: r.status as FriendRequestStatus,
@@ -573,15 +573,9 @@ export async function searchUsers(
   );
 
   const searchPattern = `%${query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}%`;
-  const searchConditions = [like(players.username, searchPattern)];
-
-  if (blockedIds.length > 0) {
-    const conditions = [ne(players.username, userId), ...blockedIds.map(id => ne(players.username, id))];
-    searchConditions.push(
-      and(...conditions) as any
-    );
-  } else {
-    searchConditions.push(ne(players.username, userId));
+  const searchConditions = [like(players.username, searchPattern), ne(players.username, userId)];
+  for (const blockedId of blockedIds) {
+    searchConditions.push(ne(players.username, blockedId));
   }
 
   const playerData = await db.select({
@@ -636,7 +630,7 @@ export async function searchUsers(
     const hasPendingRequest = requestIdSet.has(playerId);
 
     return {
-      _id: playerId as any,
+      _id: playerId,
       username: p.username,
       level: p.level || 1,
       vip: !!p.vip,

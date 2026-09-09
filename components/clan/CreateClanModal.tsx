@@ -25,7 +25,7 @@
 import React, { useState } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
 import { useGameContext } from '@/context/GameContext';
-import { Button, Input } from '@/components/ui';
+
 import { 
   X, 
   Crown, 
@@ -38,7 +38,6 @@ import {
   Check
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
 
 
 interface CreateClanModalProps {
@@ -215,33 +214,26 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm"
-          onClick={onClose}
-        />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop — FID-013: framer motion.div → plain node with gated nn-fade */}
+      <div
+        className="nn-fade absolute inset-0 bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] backdrop-blur-sm"
+        onClick={onClose}
+      />
 
-        {/* Modal */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          className="relative w-full max-w-2xl bg-gradient-to-br from-bg-space to-bg-nebula rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-2xl overflow-hidden"
-        >
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] px-6 py-4 flex items-center justify-between">
+      {/* Modal — FID-013: framer motion.div → plain node with gated nn-fade; gradient slab → token void */}
+      <div
+        className="nn-fade relative w-full max-w-2xl bg-[color:var(--nn-void)] rounded-none border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] shadow-2xl overflow-hidden"
+      >
+        {/* Header — gradient strip → quiet accent tint */}
+        <div className="bg-[color-mix(in_oklab,var(--nn-violet)_12%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Crown className="w-6 h-6 text-[color:var(--nn-amber)]" />
               <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">Create New Clan</h2>
             </div>
             <button
               onClick={onClose}
-              className="text-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
+              className="nn-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
@@ -250,41 +242,41 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
           {/* Content */}
           <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
             {/* Cost Display */}
-            <div className="bg-glass-light rounded-none p-4 border border-glass-border">
+            <div className="nn-surface rounded-none p-4 border border-[color:var(--nn-glass-border)]">
               <h3 className="text-sm font-semibold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
                 <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />
                 Creation Cost
               </h3>
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center">
-                  <div className="text-xs text-text-secondary mb-1">Metal</div>
+                  <div className="text-xs nn-text-secondary mb-1">Metal</div>
                   <div className={`text-lg font-bold ${player && player.resources.metal >= CREATION_COSTS.metal ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                     {CREATION_COSTS.metal.toLocaleString()}
                   </div>
                   {player && (
-                    <div className="text-xs text-text-secondary">
+                    <div className="text-xs nn-text-secondary">
                       Have: {player.resources.metal.toLocaleString()}
                     </div>
                   )}
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-text-secondary mb-1">Energy</div>
+                  <div className="text-xs nn-text-secondary mb-1">Energy</div>
                   <div className={`text-lg font-bold ${player && player.resources.energy >= CREATION_COSTS.energy ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                     {CREATION_COSTS.energy.toLocaleString()}
                   </div>
                   {player && (
-                    <div className="text-xs text-text-secondary">
+                    <div className="text-xs nn-text-secondary">
                       Have: {player.resources.energy.toLocaleString()}
                     </div>
                   )}
                 </div>
                 <div className="text-center">
-                  <div className="text-xs text-text-secondary mb-1">RP</div>
+                  <div className="text-xs nn-text-secondary mb-1">RP</div>
                   <div className={`text-lg font-bold ${player && player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
                     {CREATION_COSTS.researchPoints}
                   </div>
                   {player && (
-                    <div className="text-xs text-text-secondary">
+                    <div className="text-xs nn-text-secondary">
                       Have: {player.researchPoints}
                     </div>
                   )}
@@ -298,18 +290,18 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 Clan Name <span className="text-[color:var(--nn-magenta)]">*</span>
               </label>
               <div className="relative">
-                <Input
+                <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   placeholder="Enter clan name (3-30 characters)"
-                  className="w-full"
+                  className="nn-input w-full"
                   maxLength={30}
-                />
+                 />
                 {formData.name.length >= 3 && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {isCheckingName ? (
-                      <div className="w-5 h-5 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] border-t-transparent rounded-none" />
                     ) : nameAvailable === true ? (
                       <Check className="w-5 h-5 text-[color:var(--nn-green)]" />
                     ) : nameAvailable === false ? (
@@ -324,7 +316,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                   {errors.name}
                 </p>
               )}
-              <p className="text-text-secondary text-xs mt-1">
+              <p className="nn-text-secondary text-xs mt-1">
                 {formData.name.length}/30 characters
               </p>
             </div>
@@ -338,14 +330,14 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 placeholder="Describe your clan's purpose and goals..."
-                className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors resize-none"
+                className="w-full px-4 py-2 nn-surface border border-[color:var(--nn-glass-border)] rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors resize-none"
                 rows={4}
                 maxLength={500}
               />
               {errors.description && (
                 <p className="text-[color:var(--nn-magenta)] text-xs mt-1">{errors.description}</p>
               )}
-              <p className="text-text-secondary text-xs mt-1">
+              <p className="nn-text-secondary text-xs mt-1">
                 {formData.description.length}/500 characters
               </p>
             </div>
@@ -364,7 +356,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                     className={`flex-1 px-4 py-2 rounded-none border transition-colors ${
                       formData.isPublic
                         ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
-                        : 'bg-glass-light border-glass-border text-text-secondary'
+                        : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
                     }`}
                   >
                     Public
@@ -375,13 +367,13 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                     className={`flex-1 px-4 py-2 rounded-none border transition-colors ${
                       !formData.isPublic
                         ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]'
-                        : 'bg-glass-light border-glass-border text-text-secondary'
+                        : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
                     }`}
                   >
                     Private
                   </button>
                 </div>
-                <p className="text-xs text-text-secondary mt-1">
+                <p className="text-xs nn-text-secondary mt-1">
                   {formData.isPublic ? 'Anyone can join' : 'Requires approval'}
                 </p>
               </div>
@@ -391,14 +383,14 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
                   Minimum Level
                 </label>
-                <Input
+                <input
                   type="number"
                   value={formData.minLevel}
                   onChange={(e) => handleChange('minLevel', parseInt(e.target.value) || 1)}
                   min={1}
                   max={50}
-                  className="w-full"
-                />
+                  className="nn-input w-full"
+                 />
               </div>
             </div>
 
@@ -412,28 +404,19 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
 
             {/* Action Buttons */}
             <div className="flex gap-3">
-              <Button
+              <button className="nn-btn"
                 type="button"
-                onClick={onClose}
-                variant="secondary"
-                fullWidth
-                disabled={isSubmitting}
+                onClick={onClose} disabled={isSubmitting}
               >
                 Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                fullWidth
-                disabled={isSubmitting || !canAfford || nameAvailable === false || formData.name.length < 3}
-                loading={isSubmitting}
-              >
+              </button>
+              <button className="nn-btn nn-btn--primary"
+                type="submit" disabled={isSubmitting || !canAfford || nameAvailable === false || formData.name.length < 3} >
                 {isSubmitting ? 'Creating...' : 'Create Clan'}
-              </Button>
+              </button>
             </div>
           </form>
-        </motion.div>
       </div>
-    </AnimatePresence>
+    </div>
   );
 }

@@ -27,6 +27,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import type { Step, EventData } from 'react-joyride';
 import type { TutorialQuest, TutorialStep, TutorialProgress, TutorialUIState } from '@/types/tutorial.types';
+import { parseDetailedHelp } from '@/lib/tutorialHelpParser';
 
 interface TutorialOverlayProps {
   playerId: string;
@@ -34,6 +35,62 @@ interface TutorialOverlayProps {
   onComplete?: () => void;
   onSkip?: () => void;
 }
+
+/**
+ * FID-20260909-022: render parsed help sections compactly inside the joyride
+ * window. Sectioned bullets instead of the raw template (whose newlines
+ * collapse into one wall of text in HTML), styled with the quest panel's
+ * neutral-well tokens.
+ */
+const renderHelpSections = (sections: ReturnType<typeof parseDetailedHelp>) => {
+  if (!sections) return null;
+
+  const wellClass =
+    'mt-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_60%,transparent)] p-2';
+
+  return (
+    <div className="mb-1 space-y-1.5 text-left">
+      {sections.why && (
+        <div className={wellClass}>
+          <span className="nn-lab" style={{ color: 'var(--nn-violet)' }}>WHY:</span>{' '}
+          <span className="text-xs text-[color:var(--nn-text-secondary)]">{sections.why}</span>
+        </div>
+      )}
+      {sections.when && sections.when.length > 0 && (
+        <div className={wellClass}>
+          <div className="nn-lab mb-1" style={{ color: 'var(--nn-cyan)' }}>WHEN TO USE:</div>
+          <ul className="ml-2 space-y-0.5">
+            {sections.when.map((item, index) => (
+              <li key={index} className="flex items-start gap-1 text-xs text-[color:var(--nn-text-secondary)]">
+                <span className="text-[color:var(--nn-cyan)]">•</span>
+                <span className="flex-1">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {sections.how && sections.how.length > 0 && (
+        <div className={wellClass}>
+          <div className="nn-lab mb-1" style={{ color: 'var(--nn-green)' }}>HOW TO USE:</div>
+          <ul className="ml-2 space-y-0.5">
+            {sections.how.map((item, index) => (
+              <li key={index} className="flex items-start gap-1 text-xs text-[color:var(--nn-text-secondary)]">
+                <span className="text-[color:var(--nn-green)]">•</span>
+                <span className="flex-1">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {sections.tip && (
+        <div className={wellClass}>
+          <span className="nn-lab" style={{ color: 'var(--nn-amber)' }}>TIP:</span>{' '}
+          <span className="text-xs text-[color:var(--nn-text-secondary)]">{sections.tip}</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 /**
  * Main tutorial overlay component
@@ -153,17 +210,16 @@ export default function TutorialOverlay({
     return {
       target: step.targetElement || 'body',
       content: (
-        <div className="tutorial-step-content">
+        <div className="tutorial-step-content text-left">
           <div className="quest-title text-sm font-bold text-[color:var(--nn-violet)] mb-1">
             {quest.title}
           </div>
           <h3 className="step-title text-lg font-bold mb-2">{step.title}</h3>
           <p className="step-instruction text-sm mb-3">{step.instruction}</p>
-          {step.detailedHelp && (
-            <div className="detailed-help text-xs text-[color:var(--nn-text-secondary)] mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-              💡 Tip: {step.detailedHelp}
-            </div>
-          )}
+          {/* FID-20260909-022: structured help renders as compact sections.
+              The raw template printed here collapsed every newline into a
+              single unbroken wall of text (the reported "breaks out" bug). */}
+          {step.detailedHelp && renderHelpSections(parseDetailedHelp(step.detailedHelp))}
           {step.reward && (
             <div className="step-reward text-xs text-[color:var(--nn-green)] mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none">
               🎁 Reward: {step.reward.displayMessage}
@@ -319,6 +375,7 @@ export default function TutorialOverlay({
           primaryColor: '#a855f7', /* --nn-violet */
           textColor: '#eceaf4', /* --nn-text-primary */
           zIndex: 10000,
+          width: 420, /* default 380 + sectioned help needs the room */
           showProgress: true,
           buttons: ['back', 'skip', 'primary'],
         }}

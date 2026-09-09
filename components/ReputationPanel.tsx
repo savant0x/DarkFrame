@@ -12,7 +12,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, Star, Skull, Eye, Crown } from 'lucide-react';
+import { Trophy, Star, Skull, Eye, Crown, Loader2 } from 'lucide-react';
 
 // ============================================================================
 // TYPES
@@ -280,7 +280,7 @@ export default function ReputationPanel() {
     return (
       <div className="bg-[color:var(--nn-void)] rounded-none p-6 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
         <div className="flex items-center justify-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]" />
+          <Loader2 className="nn-spin-icon w-8 h-8 text-[color:var(--nn-violet)]" aria-label="Loading reputation" />
           <span className="text-[color:var(--nn-text-secondary)]">Loading reputation data...</span>
         </div>
       </div>

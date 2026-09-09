@@ -23,7 +23,7 @@
 
 import React, { useState } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
-import { Button, Badge, Input } from '@/components/ui';
+
 import {
   Users,
   Crown,
@@ -90,16 +90,16 @@ const ROLE_CONFIG: Record<ClanRole, {
   [ClanRole.MEMBER]: {
     icon: User,
     label: 'Member',
-    color: 'text-text-secondary',
-    bgColor: 'bg-glass-light',
-    borderColor: 'border-glass-border'
+    color: 'nn-text-secondary',
+    bgColor: 'nn-surface',
+    borderColor: 'border-[color:var(--nn-glass-border)]'
   },
   [ClanRole.RECRUIT]: {
     icon: User,
     label: 'Recruit',
-    color: 'text-text-secondary',
-    bgColor: 'bg-glass-light',
-    borderColor: 'border-glass-border'
+    color: 'nn-text-secondary',
+    bgColor: 'nn-surface',
+    borderColor: 'border-[color:var(--nn-glass-border)]'
   }
 };
 
@@ -307,7 +307,7 @@ export default function ClanMembersPanel({
             <Users className="w-5 h-5 text-[color:var(--nn-violet)]" />
             Clan Members
           </h3>
-          <p className="text-sm text-text-secondary">
+          <p className="text-sm nn-text-secondary">
             {clan.members.length} / {clan.maxMembers} members
           </p>
         </div>
@@ -315,20 +315,20 @@ export default function ClanMembersPanel({
 
       {/* Search Bar */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-        <Input
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 nn-text-secondary" />
+        <input
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           placeholder="Search members..."
-          className="pl-10"
-        />
+          className="nn-input pl-10"
+         />
       </div>
 
       {/* Member List */}
       <div className="space-y-2 max-h-[500px] overflow-y-auto">
         {sortedMembers.length === 0 ? (
-          <div className="text-center py-8 text-text-secondary">
+          <div className="text-center py-8 nn-text-secondary">
             No members found
           </div>
         ) : (
@@ -341,7 +341,7 @@ export default function ClanMembersPanel({
             return (
               <div
                 key={member.playerId}
-                className={`bg-glass-light rounded-none p-3 border ${roleConfig.borderColor} hover:bg-glass-light transition-colors`}
+                className={`nn-surface rounded-none p-3 border ${roleConfig.borderColor} hover:nn-surface transition-colors`}
               >
                 <div className="flex items-center justify-between gap-3">
                   {/* Member Info */}
@@ -351,7 +351,7 @@ export default function ClanMembersPanel({
                       <RoleIcon className={`w-5 h-5 ${roleConfig.color}`} />
                       <Circle
                         className={`absolute -bottom-1 -right-1 w-2.5 h-2.5 ${
-                          online ? 'fill-green-400 text-[color:var(--nn-green)]' : 'fill-text-secondary text-text-tertiary'
+                          online ? 'fill-green-400 text-[color:var(--nn-green)]' : 'fill-text-secondary nn-text-tertiary'
                         }`}
                       />
                     </div>
@@ -366,10 +366,10 @@ export default function ClanMembersPanel({
                           )}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-text-secondary">
-                        <Badge variant="default" className={`${roleConfig.bgColor} ${roleConfig.color} text-xs`}>
+                      <div className="flex items-center gap-2 text-xs nn-text-secondary">
+                        <span className={`nn-chip ${roleConfig.bgColor} ${roleConfig.color} text-xs`}>
                           {roleConfig.label}
-                        </Badge>
+                        </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatLastActive(member.lastActive)}
@@ -383,41 +383,32 @@ export default function ClanMembersPanel({
                     <div className="flex items-center gap-1">
                       {/* Promote Button */}
                       {canPromote(member.role) && member.role !== ClanRole.CO_LEADER && (
-                        <Button
-                          onClick={() => handlePromote(member.username, member.role)}
-                          variant="secondary"
-                          size="sm"
-                          disabled={isActionLoading}
+                        <button className="nn-btn"
+                          onClick={() => handlePromote(member.username, member.role)} disabled={isActionLoading}
                           title="Promote"
                         >
                           <ChevronUp className="w-4 h-4" />
-                        </Button>
+                        </button>
                       )}
 
                       {/* Demote Button */}
                       {canDemote(member.role) && (
-                        <Button
-                          onClick={() => handleDemote(member.username, member.role)}
-                          variant="secondary"
-                          size="sm"
-                          disabled={isActionLoading}
+                        <button className="nn-btn"
+                          onClick={() => handleDemote(member.username, member.role)} disabled={isActionLoading}
                           title="Demote"
                         >
                           <ChevronDown className="w-4 h-4" />
-                        </Button>
+                        </button>
                       )}
 
                       {/* Kick Button */}
                       {permissions.canKick && member.role !== ClanRole.LEADER && (
-                        <Button
-                          onClick={() => handleKick(member.username)}
-                          variant="danger"
-                          size="sm"
-                          disabled={isActionLoading}
+                        <button className="nn-btn nn-btn--danger"
+                          onClick={() => handleKick(member.username)} disabled={isActionLoading}
                           title="Kick from clan"
                         >
                           <UserX className="w-4 h-4" />
-                        </Button>
+                        </button>
                       )}
                     </div>
                   )}

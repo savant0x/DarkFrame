@@ -149,8 +149,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     
     log.info('Registration successful', { username, email, referredBy: referrerUsername });
     
-    // Generate JWT token (new players are not admins by default)
-    const token = generateToken(player.username, player.email, false, false);
+    // JWT minting moved to the cookie-set site below (PERSISTENCE FIX:
+    // single mint with matched 7-day JWT + cookie durations).
     
     // Get current tile
     const currentTile = await getTileAt(
@@ -172,7 +172,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       data: {
         player: playerWithoutPassword,
         currentTile,
-        token,
         welcomePackagePending: referralCode ? 'FULL_WELCOME' : 'STARTER',
         welcomePackageMessage: referralCode 
           ? 'Complete the tutorial to claim your full Welcome Package (50k Metal + 50k Energy + Legendary Digger + VIP Trial)!'
@@ -182,11 +181,24 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     
     // Set secure session cookie — MUST be 'darkframe_session': that is the name middleware.ts,
     // the WebSocket auth, and lib/authService.setAuthCookie all read.
-    response.cookies.set('darkframe_session', token, {
+    // PERSISTENCE FIX (2026-09-08): the token was minted via generateToken(…, rememberMe=false)
+    // whose JWT expires in ONE HOUR while this cookie claimed 7 days — every fresh account was
+    // silently logged out after an hour with a stale cookie still present. Register now uses
+    // the same 7-day duration for BOTH the JWT and the cookie.
+    const REGISTERED_SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days, in seconds
+    const registeredToken = generateToken(
+      player.username,
+      player.email,
+      true, // rememberMe → generateToken mints a 30-day JWT; we cap the cookie at 7 days below
+      false,
+      player.rank ?? 1,
+      REGISTERED_SESSION_MAX_AGE // explicit expiry override (see generateToken signature)
+    );
+    response.cookies.set('darkframe_session', registeredToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7 // 7 days
+      maxAge: REGISTERED_SESSION_MAX_AGE
     });
     
     // Set playerId cookie for inventory and other endpoints
@@ -194,7 +206,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7 // 7 days
+      maxAge: REGISTERED_SESSION_MAX_AGE
     });
     
     return response;

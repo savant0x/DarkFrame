@@ -240,7 +240,7 @@ export async function contributeRP(
     throw new Error('Clan not found');
   }
 
-  const isMember = (clan.members as any[]).some((m: any) => m.playerId === playerId);
+  const isMember = clan.members.some((m) => m.playerId === playerId);
   if (!isMember) {
     throw new Error('Player is not a member of this clan');
   }
@@ -304,7 +304,7 @@ export async function unlockResearch(
     throw new Error('Clan not found');
   }
 
-  const member = (clan.members as any[]).find((m: any) => m.playerId === playerId);
+  const member = clan.members.find((m) => m.playerId === playerId);
   if (!member) {
     throw new Error('Player is not a member of this clan');
   }
@@ -470,7 +470,7 @@ export async function getRecommendedResearch(clanId: string): Promise<
   ].filter((r) => r.available && !r.unlocked);
 
   const warsActive = (clan.statsTotalTerritories || 0) > 0;
-  const memberCount = (clan.members as any[]).length;
+  const memberCount = clan.members.length;
   const nearCapacity = memberCount >= clan.maxMembers * 0.8;
 
   for (const research of availableResearch) {
@@ -516,7 +516,8 @@ export async function getResearchProgress(clanId: string): Promise<{
 }> {
   const tree = await getResearchTree(clanId);
 
-  const calculateBranch = (branch: any[]) => {
+  type ResearchBranchNode = ResearchNode & { unlocked: boolean; available: boolean };
+  const calculateBranch = (branch: ResearchBranchNode[]) => {
     const unlocked = branch.filter((r) => r.unlocked).length;
     const total = branch.length;
     return {

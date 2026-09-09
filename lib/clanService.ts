@@ -24,6 +24,7 @@
  */
 
 import { eq,   inArray, sql } from 'drizzle-orm';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { generateId } from '@/lib/utils';
@@ -592,7 +593,7 @@ export async function leaveClan(clanId: string, playerId: string): Promise<{ suc
   // Remove member from clan - read JSON array, filter, then update
   const updatedMembers = clan.members.filter(m => m.playerId !== playerId);
   await db.update(clans).set({
-    members: updatedMembers as any,
+    members: updatedMembers,
   }).where(eq(clans.id, clanId));
   
   // Update player (REMOVE all clan fields including clanName)
@@ -676,7 +677,7 @@ export async function kickMember(
   // Remove member - read JSON array, filter, then update
   const updatedMembers = clan.members.filter(m => m.playerId !== targetId);
   await db.update(clans).set({
-    members: updatedMembers as any,
+    members: updatedMembers,
   }).where(eq(clans.id, clanId));
   
   // Update player (REMOVE all clan fields including clanName)
@@ -786,7 +787,7 @@ export async function promoteMember(
     m.playerId === targetId ? { ...m, role: newRole } : m
   );
   await db.update(clans).set({
-    members: updatedMembers as any,
+    members: updatedMembers,
   }).where(eq(clans.id, clanId));
   
   // Update player role
@@ -867,7 +868,7 @@ export async function transferLeadership(
   
   await db.update(clans).set({
     leaderId: newLeaderId,
-    members: updatedMembers as any,
+    members: updatedMembers,
   }).where(eq(clans.id, clanId));
   
   // Update player roles
@@ -933,7 +934,7 @@ export async function updateClanSettings(
   }
   
   // Build update object with flat column names
-  const updateFields: Record<string, any> = {};
+  const updateFields: PgUpdateSetSource<typeof clans> = {};
   if (settings.messageOfTheDay !== undefined) updateFields.settingsMessageOfTheDay = settings.messageOfTheDay;
   if (settings.isRecruiting !== undefined) updateFields.settingsIsRecruiting = settings.isRecruiting ? 1 : 0;
   if (settings.minLevelToJoin !== undefined) updateFields.settingsMinLevelToJoin = settings.minLevelToJoin;
@@ -1046,7 +1047,7 @@ async function logClanActivity(
   clanId: string,
   activityType: ClanActivityType,
   playerId: string,
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 ): Promise<void> {
   try {
     // TODO: clan_activities table schema not yet created - using raw SQL

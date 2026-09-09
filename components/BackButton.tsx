@@ -26,7 +26,8 @@ export default function BackButton({ label = '← Back to Game', destination = '
   return (
     <button
       onClick={() => router.push(destination)}
-      className="px-6 py-2 bg-glass-light hover:bg-glass-light text-[color:var(--nn-text-primary)] rounded-none transition-colors duration-200 font-semibold"
+      className="nn-btn nn-btn--ghost"
+      style={{ width: 'auto' }}
     >
       {label}
     </button>

@@ -99,12 +99,11 @@ export function MapLegend({ compact = false }: { compact?: boolean }): React.JSX
 
   return (
     <div 
-      className="bg-glass-light rounded-none p-4 shadow-lg border border-glass-border"
+      className="nn-panel rounded-none p-4"
       role="region"
       aria-label="Map legend"
     >
-      <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)] mb-3 flex items-center gap-2">
-        <span>🗺️</span>
+      <h3 className="nn-panel__title text-lg mb-3 flex items-center gap-2">
         <span>Map Legend</span>
       </h3>
 
@@ -123,8 +122,8 @@ export function MapLegend({ compact = false }: { compact?: boolean }): React.JSX
       </div>
 
       {/* Additional info */}
-      <div className="mt-4 pt-4 border-t border-glass-border text-xs text-text-secondary">
-        <p>💡 Tip: Click any tile to view its coordinates and terrain type</p>
+      <div className="mt-4 pt-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_18%,transparent)] text-xs text-[color:var(--nn-text-secondary)]">
+        <p>Tip: Click any tile to view its coordinates and terrain type</p>
       </div>
     </div>
   );
@@ -147,7 +146,7 @@ function LegendItem({
     <div
       className={`
         flex items-center gap-2
-        ${mobile ? 'p-2 bg-glass-light rounded-none' : 'flex-col text-center'}
+        ${mobile ? 'p-2 bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] rounded-none' : 'flex-col text-center'}
       `}
       title={item.description}
     >
@@ -169,13 +168,13 @@ function LegendItem({
       )}
 
       {/* Label */}
-      <span className={`${mobile ? 'text-sm flex-1' : 'text-xs'} text-text-primary`}>
+      <span className={`${mobile ? 'text-sm flex-1' : 'text-xs'} text-[color:var(--nn-text-primary)]`}>
         {item.label}
       </span>
 
       {/* Description (mobile only) */}
       {mobile && (
-        <span className="text-xs text-text-secondary hidden sm:block">
+        <span className="text-xs text-[color:var(--nn-text-secondary)] hidden sm:block">
           {item.description}
         </span>
       )}

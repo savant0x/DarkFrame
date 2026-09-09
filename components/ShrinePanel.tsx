@@ -492,7 +492,7 @@ export default function ShrinePanel({
                       type="number"
                       value={itemAmounts[config.tier]}
                       onChange={(e) => handleItemAmountChange(config.tier, e.target.value)}
-                      className="w-full bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-text-primary)] px-2 py-1 rounded-none border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] focus:border-purple-400 focus:outline-none text-sm"
+                      className="nn-input w-full text-sm"
                       placeholder="0"
                       min="1"
                     />

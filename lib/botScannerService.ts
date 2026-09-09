@@ -130,7 +130,7 @@ function getScannerCooldown(player: Player): number {
 function isOnCooldown(player: Player): { onCooldown: boolean; cooldownUntil: Date | null } {
   // Cooldown tracking would be stored in player document
   // For now, we'll use a simple timestamp check
-  const lastScan = (player as any).lastBotScan as Date | undefined;
+  const lastScan = player.lastBotScan;
   
   if (!lastScan) {
     return { onCooldown: false, cooldownUntil: null };
@@ -209,7 +209,7 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
     
     // Filter bots within radius and map to ScannedBot format
     const scannedBots: ScannedBot[] = allBots
-      .map((bot: any) => {
+      .map((bot) => {
         const botX = bot.currentPosition.x;
         const botY = bot.currentPosition.y;
         const distance = calculateDistance(playerX, playerY, botX, botY);
@@ -234,12 +234,12 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
           armySize: bot.units?.length || 0,
         };
       })
-      .filter((bot: any): bot is ScannedBot => bot !== null)
-      .sort((a: any, b: any) => a.distance - b.distance); // Sort by distance (closest first)
+      .filter((bot): bot is ScannedBot => bot !== null)
+      .sort((a, b) => a.distance - b.distance); // Sort by distance (closest first)
     
     // Find nests within radius
     const nestsInRange = BOT_NESTS
-      .map((nest: any) => {
+      .map((nest) => {
         const distance = calculateDistance(playerX, playerY, nest.position.x, nest.position.y);
         
         if (distance > radius) return null;
@@ -251,8 +251,8 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
           distance: Math.round(distance * 10) / 10,
         };
       })
-      .filter((nest: any) => nest !== null)
-      .sort((a: any, b: any) => a!.distance - b!.distance);
+      .filter((nest) => nest !== null)
+      .sort((a, b) => a!.distance - b!.distance);
     
     // Update last scan timestamp and set cooldown
     const cooldownEnd = new Date(Date.now() + getScannerCooldown(player));
@@ -265,7 +265,7 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
       success: true,
       message: `Scanner detected ${scannedBots.length} bots within ${radius} tiles`,
       bots: scannedBots,
-      nests: nestsInRange as any,
+      nests: nestsInRange,
       radius,
       cooldownUntil: cooldownEnd,
       botsFound: scannedBots.length,

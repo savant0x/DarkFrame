@@ -22,6 +22,7 @@
 
 import { connectToDatabase } from './mongodb';
 import { logger } from './logger';
+import type { ObjectId } from 'mongodb';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -31,7 +32,7 @@ import { logger } from './logger';
  * Optimized spawn event (~59 bytes)
  */
 export interface SpawnEvent {
-  _id?: any;
+  _id?: ObjectId;
   t: Date;           // timestamp
   tier: number;      // 0-5 (WEAK to GOD)
   x: number;         // position x
@@ -44,7 +45,7 @@ export interface SpawnEvent {
  * Optimized defeat event (~36 bytes)
  */
 export interface DefeatEvent {
-  _id?: any;
+  _id?: ObjectId;
   t: Date;           // timestamp
   tier: number;      // tier defeated
   by: string;        // username
@@ -201,7 +202,7 @@ export async function getSpawnStats(
 
   // Daily spawn counts
   const dailyMap = new Map<string, number>();
-  spawns.forEach((spawn: any) => {
+  spawns.forEach((spawn) => {
     const date = spawn.t.toISOString().split('T')[0];
     dailyMap.set(date, (dailyMap.get(date) || 0) + 1);
   });
@@ -212,7 +213,7 @@ export async function getSpawnStats(
 
   // Tier distribution
   const tierCounts = [0, 0, 0, 0, 0, 0];
-  spawns.forEach((spawn: any) => {
+  spawns.forEach((spawn) => {
     if (spawn.tier >= 0 && spawn.tier <= 5) {
       tierCounts[spawn.tier]++;
     }
@@ -227,7 +228,7 @@ export async function getSpawnStats(
 
   // Spawn sources
   const sourceMap = new Map<string, number>();
-  spawns.forEach((spawn: any) => {
+  spawns.forEach((spawn) => {
     const source = spawn.by.startsWith('schedule-') ? 'schedule' : spawn.by;
     sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
   });
@@ -277,7 +278,7 @@ export async function getDefeatStats(
 
   // Daily defeat counts
   const dailyMap = new Map<string, number>();
-  defeats.forEach((defeat: any) => {
+  defeats.forEach((defeat) => {
     const date = defeat.t.toISOString().split('T')[0];
     dailyMap.set(date, (dailyMap.get(date) || 0) + 1);
   });
@@ -288,7 +289,7 @@ export async function getDefeatStats(
 
   // Defeats by tier
   const tierCounts = [0, 0, 0, 0, 0, 0];
-  defeats.forEach((defeat: any) => {
+  defeats.forEach((defeat) => {
     if (defeat.tier >= 0 && defeat.tier <= 5) {
       tierCounts[defeat.tier]++;
     }
@@ -303,7 +304,7 @@ export async function getDefeatStats(
 
   // Top players
   const playerMap = new Map<string, { defeats: number; metal: number; energy: number }>();
-  defeats.forEach((defeat: any) => {
+  defeats.forEach((defeat) => {
     const existing = playerMap.get(defeat.by) || { defeats: 0, metal: 0, energy: 0 };
     playerMap.set(defeat.by, {
       defeats: existing.defeats + 1,
@@ -364,7 +365,7 @@ export async function getEffectivenessMetrics(
     0: [], 1: [], 2: [], 3: [], 4: [], 5: []
   };
 
-  defeats.forEach((defeat: any) => {
+  defeats.forEach((defeat) => {
     if (defeat.tier >= 0 && defeat.tier <= 5) {
       tierLifespans[defeat.tier].push(defeat.alive);
     }
@@ -383,14 +384,14 @@ export async function getEffectivenessMetrics(
   });
 
   // Engagement score (defeats per active player per week)
-  const uniquePlayers = new Set(defeats.map((d: any) => d.by)).size;
+  const uniquePlayers = new Set(defeats.map((d) => d.by)).size;
   const daysDiff = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
   const weeks = daysDiff / 7;
   const engagementScore = uniquePlayers > 0 ? defeats.length / uniquePlayers / weeks : 0;
 
   // Peak activity hours
   const hourCounts = new Array(24).fill(0);
-  defeats.forEach((defeat: any) => {
+  defeats.forEach((defeat) => {
     const hour = defeat.t.getUTCHours();
     hourCounts[hour]++;
   });
@@ -439,14 +440,14 @@ export async function exportAnalytics(
     return JSON.stringify({
       exportDate: new Date().toISOString(),
       dateRange: { start: start.toISOString(), end: end.toISOString() },
-      spawns: spawns.map((s: any) => ({
+      spawns: spawns.map((s) => ({
         timestamp: s.t.toISOString(),
         tier: TIER_NAMES[s.tier],
         position: { x: s.x, y: s.y },
         spawnedBy: s.by,
         scheduleId: s.sid
       })),
-      defeats: defeats.map((d: any) => ({
+      defeats: defeats.map((d) => ({
         timestamp: d.t.toISOString(),
         tier: TIER_NAMES[d.tier],
         defeatedBy: d.by,
@@ -458,11 +459,11 @@ export async function exportAnalytics(
     // CSV format
     let csv = 'Event Type,Timestamp,Tier,Details\n';
     
-    spawns.forEach((s: any) => {
+    spawns.forEach((s) => {
       csv += `Spawn,${s.t.toISOString()},${TIER_NAMES[s.tier]},"x:${s.x} y:${s.y} by:${s.by}"\n`;
     });
     
-    defeats.forEach((d: any) => {
+    defeats.forEach((d) => {
       csv += `Defeat,${d.t.toISOString()},${TIER_NAMES[d.tier]},"by:${d.by} metal:${d.r.m} energy:${d.r.e} hours:${(d.alive / 3600).toFixed(2)}"\n`;
     });
     

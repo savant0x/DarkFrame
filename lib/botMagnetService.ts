@@ -138,7 +138,7 @@ export async function shouldAttractToBeacon(x: number, y: number): Promise<{ att
 
 export async function incrementAttractedCount(beaconId: string): Promise<void> {
   await db.update(botMagnetBeacons)
-    .set({ botsAttracted: sql`bots_attracted + 1` } as any)
+    .set({ botsAttracted: sql`bots_attracted + 1` })
     .where(eq(botMagnetBeacons.id, beaconId));
 }
 
@@ -153,8 +153,9 @@ export async function cleanupExpiredBeacons(): Promise<number> {
 export async function deactivateBeacon(playerId: string): Promise<{ success: boolean; message: string }> {
   const result = await db.update(botMagnetBeacons)
     .set({ active: 0 })
-    .where(and(eq(botMagnetBeacons.playerId, playerId), eq(botMagnetBeacons.active, 1))) as any;
-  if ((result as any)?.affectedRows === 0) {
+    .where(and(eq(botMagnetBeacons.playerId, playerId), eq(botMagnetBeacons.active, 1)))
+    .returning({ id: botMagnetBeacons.id });
+  if (result.length === 0) {
     return { success: false, message: 'No active beacon found.' };
   }
   return { success: true, message: 'Beacon deactivated successfully.' };
@@ -164,7 +165,7 @@ export async function getBeaconStats(): Promise<{ totalBeacons: number; activeBe
   const all = await db.select().from(botMagnetBeacons).orderBy(desc(botMagnetBeacons.botsAttracted)).limit(10);
   const active = await db.select({ count: sql`count(*)` }).from(botMagnetBeacons).where(eq(botMagnetBeacons.active, 1));
   const total = all.length;
-  const activeCount = Number((active[0] as any)?.count || 0);
+  const activeCount = Number(active[0]?.count ?? 0);
   const totalAttracted = all.reduce((sum, b) => sum + b.botsAttracted, 0);
   return {
     totalBeacons: total,

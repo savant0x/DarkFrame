@@ -123,10 +123,10 @@ export async function grantVIP(params: {
       .where(eq(players.mongoId, params.userId));
     
     console.log('VIP grant update result:', {
-      affectedRows: (result as any).affectedRows ?? 0
+      affectedRows: result.rowCount ?? 0
     });
     
-    if ((result as any).affectedRows === 0) {
+    if ((result.rowCount ?? 0) === 0) {
       console.error('Player not matched in update query');
       return false;
     }
@@ -172,7 +172,7 @@ export async function revokeVIP(userId: string): Promise<boolean> {
       })
       .where(eq(players.mongoId, userId));
     
-    if (((result as any).affectedRows ?? 0) === 0) {
+    if ((result.rowCount ?? 0) === 0) {
       console.error('Player not found for VIP revocation:', userId);
       return false;
     }
@@ -238,7 +238,7 @@ export async function extendVIP(params: {
       newExpiration,
     });
     
-    return ((result as any).affectedRows ?? 0) > 0;
+    return (result.rowCount ?? 0) > 0;
   } catch (error) {
     console.error('Failed to extend VIP:', error);
     return false;
@@ -385,7 +385,8 @@ export async function getUserByStripeCustomerId(
       return null;
     }
     
-    const row = result[0]; return { id: (row as any).mongoId || row.id || row.username, username: row.username, email: row.email };
+    // `id` is aliased from players.mongoId at the select — the projection key IS the mongo id.
+    const row = result[0]; return { id: row.id || row.username, username: row.username, email: row.email };
   } catch (error) {
     console.error('Failed to get user by Stripe customer ID:', error);
     return null;

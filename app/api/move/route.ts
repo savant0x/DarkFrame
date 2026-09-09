@@ -12,17 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { movePlayer } from '@/lib/movementService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { ApiResponse, MoveResponse, MovementDirection } from '@/types';
-
-/** Tutorial move-tracking doc as read/written by this route. */
-interface TutorialMoveTracking {
-  playerId: string;
-  stepId: string;
-  actionType?: string;
-  currentCount?: number;
-  targetX?: number;
-  targetY?: number;
-}
+import { ApiResponse, MoveResponse } from '@/types';
 import { logMovement } from '@/lib/activityLogger';
 import { updateSession } from '@/lib/sessionTracker';
 import { getCollection } from '@/lib/mongodb';
@@ -37,10 +27,10 @@ import {  withRequestLogging,
   ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
-import clientPromise from '@/lib/mongodb';
 import {
   
   getCurrentQuestAndStep,
+  getActionTracking,
   updateActionTracking,
 } from '@/lib/tutorialService';
 
@@ -142,9 +132,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     try {
       log.info('🎓 Tutorial tracking START', { username: player.username, direction });
       
-      const mongoClient = await clientPromise;
-      const db = mongoClient.db('darkframe');
-      
       const { step, progress } = await getCurrentQuestAndStep(player.username);
       log.info('🎓 Tutorial step retrieved', { 
         hasStep: !!step, 
@@ -164,12 +151,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         });
         
         if (requiredMoves) {
-          // Get current tracking
-          const trackingCollection = db.collection<TutorialMoveTracking>('tutorial_action_tracking');
-          const tracking = await trackingCollection.findOne({ 
-            playerId: player.username, 
-            stepId: step.id 
-          });
+          // Read the count through the canonical contract — the count lives inside
+          // the row's actionType JSON, not as a bare column (FID-20260908-001).
+          // A raw findOne + row.currentCount read returns undefined here and reset
+          // progress on every move.
+          const tracking = await getActionTracking(player.username, step.id);
           
           const currentCount = (tracking?.currentCount ?? 0) + 1;
           
@@ -283,14 +269,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
             distance: Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2)).toFixed(1)
           });
         } else {
-          // Dynamic target - generate on first move
-          const trackingCollection = db.collection<TutorialMoveTracking>('tutorial_action_tracking');
-          const tracking = await trackingCollection.findOne({ 
-            playerId: player.username, 
-            stepId: step.id 
-          });
+          // Dynamic target - generate on first move, then persist through the ONE
+          // tracking writer (the actionType JSON contract). The shim silently DROPPED
+          // targetX/Y $set keys on this table — targets re-randomized every move
+          // (FID-20260908-001).
+          const tracking = await getActionTracking(player.username, step.id);
           
-          if (!tracking || !tracking.targetX || !tracking.targetY) {
+          if (!tracking || tracking.targetX === undefined || tracking.targetY === undefined) {
             // Generate target coordinates on first move
             const offsetX = Math.floor(Math.random() * ((maxDistance || 15) - (minDistance || 8)) + (minDistance || 8));
             const offsetY = Math.floor(Math.random() * ((maxDistance || 15) - (minDistance || 8)) + (minDistance || 8));
@@ -329,22 +314,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
                 targetY = clampedAltY;
               }
             }
-          
-            // Store target in tracking
-            await trackingCollection.updateOne(
-              { playerId: player.username, stepId: step.id },
-              { 
-                $set: { 
-                  targetX, 
-                  targetY,
-                  startX: currentX,
-                  startY: currentY,
-                  moveCount: 0,
-                  createdAt: new Date()
-                } 
-              },
-              { upsert: true }
-            );
+            // Store target in tracking (single writer, JSON contract)
+            await updateActionTracking(player.username, step.id, 0, 0, {
+              targetX,
+              targetY,
+              startX: currentX,
+              startY: currentY,
+            });
             
             log.info('🎯 Target coordinates GENERATED', {
               stepId: step.id,
@@ -356,10 +332,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
             targetX = tracking.targetX;
             targetY = tracking.targetY;
             
-            // Increment move count
-            await trackingCollection.updateOne(
-              { playerId: player.username, stepId: step.id },
-              { $inc: { moveCount: 1 } }
+            // Increment move count (persisted inside the JSON contract)
+            await updateActionTracking(
+              player.username,
+              step.id,
+              tracking.currentCount + 1,
+              tracking.targetCount
             );
           }
         }

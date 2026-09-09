@@ -18,7 +18,7 @@ export interface BattleRecord {
   defenderPower: number;
   factoryCaptured: boolean;
   timestamp: Date;
-  details: any;
+  details: Record<string, unknown>;
 }
 
 export interface PlayerBattleStats {

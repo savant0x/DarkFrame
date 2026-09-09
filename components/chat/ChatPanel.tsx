@@ -57,9 +57,6 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
 import { usePolling } from '@/hooks/usePolling';
 import { useChatPanelSize } from '@/context/ChatPanelContext';
 import { Mention, MentionsInput } from 'react-mentions';
@@ -1144,7 +1141,7 @@ export default function ChatPanel({
     isPollingMessages ? (
       <Wifi className="w-4 h-4 text-[color:var(--nn-green)]" />
     ) : (
-      <Loader2 className="w-4 h-4 text-[color:var(--nn-amber)] animate-spin" />
+      <Loader2 className="nn-spin-icon w-4 h-4 text-[color:var(--nn-amber)]" />
     );
 
   const connectionText = isPollingMessages ? 'Connected' : 'Connecting...';
@@ -1320,7 +1317,7 @@ export default function ChatPanel({
                 {/* Unread indicator if there are multiple messages */}
                 {currentMessages.length > 1 && (
                   <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[color:var(--nn-cyan)]">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[color:var(--nn-cyan)] animate-pulse" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-[color:var(--nn-cyan)] nn-pulse" />
                     <span className="font-medium">+{currentMessages.length - 1} more messages</span>
                   </div>
                 )}
@@ -1442,7 +1439,7 @@ export default function ChatPanel({
             >
               {isLoadingMessages && currentMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="nn-panel__icon animate-spin" />
+                  <Loader2 className="nn-panel__icon nn-spin-icon" />
                 </div>
               ) : currentMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-[color:var(--nn-text-tertiary)]">
@@ -1779,7 +1776,7 @@ export default function ChatPanel({
             <div className="flex-1 overflow-y-auto">
               {isLoadingConversations && conversations.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="nn-panel__icon animate-spin" />
+                  <Loader2 className="nn-panel__icon nn-spin-icon" />
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full p-4 text-center">
@@ -1804,9 +1801,9 @@ export default function ChatPanel({
                     <div className="flex items-start justify-between mb-1">
                       <span className="text-sm font-semibold text-[color:var(--nn-cyan)]">{conv.otherUsername}</span>
                       {conv.unreadCount > 0 && (
-                        <Badge variant="error" className="min-w-[18px] h-4 text-[10px] px-1">
+                        <span className="nn-chip nn-chip--magenta min-w-[18px] h-4 text-[10px] px-1">
                           {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
-                        </Badge>
+                        </span>
                       )}
                     </div>
                     {conv.lastMessage && (
@@ -1851,7 +1848,7 @@ export default function ChatPanel({
                 <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)]">
                   {isLoadingDMMessages && dmMessages.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
-                      <Loader2 className="nn-panel__icon animate-spin" />
+                      <Loader2 className="nn-panel__icon nn-spin-icon" />
                     </div>
                   ) : dmMessages.length === 0 ? (
                     <div className="flex h-full flex-col items-center justify-center text-[color:var(--nn-text-secondary)]">
@@ -1895,19 +1892,12 @@ export default function ChatPanel({
                 {/* Message Input */}
                 <div className="space-y-2 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] px-4 py-3">
                   <div className="flex gap-2">
-                    <Input
-                      value={dmInput}
-                      onChange={(e) => setDmInput(e.target.value.slice(0, MAX_DM_MESSAGE_LENGTH))}
-                      onKeyDown={(e) => {
+                    <input value={dmInput} onChange={(e) => setDmInput(e.target.value.slice(0, MAX_DM_MESSAGE_LENGTH))} onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
                           handleSendDM();
                         }
-                      }}
-                      placeholder="Type your message..."
-                      disabled={isSendingDM}
-                      className="flex-1"
-                    />
+                      }} placeholder="Type your message..." disabled={isSendingDM} className="nn-input flex-1" />
                     <button
                       onClick={handleSendDM}
                       disabled={isSendingDM || !dmInput.trim()}
@@ -1961,20 +1951,14 @@ export default function ChatPanel({
             {/* Search Input */}
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[color:var(--nn-text-tertiary)]" />
-              <Input
-                value={playerSearchQuery}
-                onChange={(e) => handlePlayerSearch(e.target.value)}
-                placeholder="Search by username..."
-                className="pl-10 rounded-none border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] text-[color:var(--nn-text-primary)]"
-                autoFocus
-              />
+              <input value={playerSearchQuery} onChange={(e) => handlePlayerSearch(e.target.value)} placeholder="Search by username..." autoFocus className="nn-input pl-10 rounded-none border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_70%,transparent)] text-[color:var(--nn-text-primary)]" />
             </div>
 
             {/* Search Results */}
             <div className="flex-1 overflow-y-auto">
               {isSearching ? (
                 <div className="flex items-center justify-center py-8">
-                  <Loader2 className="nn-panel__icon animate-spin" />
+                  <Loader2 className="nn-panel__icon nn-spin-icon" />
                 </div>
               ) : playerSearchResults.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -2039,15 +2023,12 @@ export default function ChatPanel({
             </p>
 
             <div className="flex gap-2">
-              <Button onClick={() => setDeleteConversationConfirmId(null)} variant="secondary" className="flex-1">
+              <button onClick={() => setDeleteConversationConfirmId(null)} className="nn-btn nn-btn--ghost flex-1">
                 Cancel
-              </Button>
-              <Button
-                onClick={() => handleDeleteConversation(deleteConversationConfirmId)}
-                className="nn-btn nn-btn--danger flex-1"
-              >
+              </button>
+              <button onClick={() => handleDeleteConversation(deleteConversationConfirmId)} className="nn-btn nn-btn--danger flex-1">
                 Delete
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -2075,15 +2056,12 @@ export default function ChatPanel({
             </p>
 
             <div className="flex gap-2">
-              <Button onClick={() => setDeleteConfirmId(null)} variant="secondary" className="flex-1">
+              <button onClick={() => setDeleteConfirmId(null)} className="nn-btn nn-btn--ghost flex-1">
                 Cancel
-              </Button>
-              <Button
-                onClick={() => deleteMessage(deleteConfirmId)}
-                className="nn-btn nn-btn--danger flex-1"
-              >
+              </button>
+              <button onClick={() => deleteMessage(deleteConfirmId)} className="nn-btn nn-btn--danger flex-1">
                 Delete
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -2131,20 +2109,12 @@ export default function ChatPanel({
             </div>
 
             <div className="flex gap-2">
-              <Button
-                onClick={() => setAskVeteransModal({ isOpen: false, question: '' })}
-                variant="secondary"
-                className="flex-1"
-              >
+              <button onClick={() => setAskVeteransModal({ isOpen: false, question: '' })} className="nn-btn nn-btn--ghost flex-1">
                 Cancel
-              </Button>
-              <Button
-                onClick={submitVeteranQuestion}
-                disabled={!askVeteransModal.question.trim()}
-                className="nn-btn nn-btn--primary flex-1"
-              >
+              </button>
+              <button onClick={submitVeteranQuestion} disabled={!askVeteransModal.question.trim()} className="nn-btn nn-btn--primary flex-1">
                 Send to Veterans
-              </Button>
+              </button>
             </div>
           </div>
         </div>

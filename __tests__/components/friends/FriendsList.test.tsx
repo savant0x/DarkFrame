@@ -4,12 +4,14 @@
  * @overview Component tests for FriendsList
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import FriendsList from '@/components/friends/FriendsList';
 
 global.fetch = vi.fn();
+/** Typed handle for the mocked fetch — replaces scattered `as any` casts. */
+const mockFetch = global.fetch as Mock;
 
 describe('FriendsList Component', () => {
   beforeEach(() => {
@@ -20,7 +22,7 @@ describe('FriendsList Component', () => {
     vi.restoreAllMocks();
   });
 
-  function createMockFriend(overrides: Record<string, any> = {}) {
+  function createMockFriend(overrides: Record<string, unknown> = {}) {
     return {
       _id: 'f1',
       userId: 'u1',
@@ -38,7 +40,7 @@ describe('FriendsList Component', () => {
     };
   }
 
-  function createMockFetchResponse(data: any) {
+  function createMockFetchResponse(data: unknown) {
     return {
       ok: true,
       json: vi.fn().mockResolvedValue(data),
@@ -52,7 +54,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f2', userId: 'u2', username: 'friend2', onlineStatus: { status: 'offline', lastSeen: new Date(), userId: 'u2' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online', u2: 'offline' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online', u2: 'offline' } }));
 
       render(<FriendsList />);
 
@@ -68,7 +70,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f2', userId: 'u2', username: 'offlineFriend', onlineStatus: { status: 'offline', lastSeen: new Date(), userId: 'u2' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online', u2: 'offline' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online', u2: 'offline' } }));
 
       const { container } = render(<FriendsList />);
 
@@ -83,7 +85,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f1', userId: 'u1', username: 'vipFriend', vip: true, onlineStatus: { status: 'online', lastSeen: new Date(), userId: 'u1' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
 
       render(<FriendsList />);
 
@@ -95,7 +97,7 @@ describe('FriendsList Component', () => {
     });
 
     it('should render empty state when no friends', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: [] }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: [] }));
 
       render(<FriendsList />);
 
@@ -105,7 +107,7 @@ describe('FriendsList Component', () => {
     });
 
     it('should display loading state while fetching', async () => {
-      (global.fetch as any).mockImplementation(
+      mockFetch.mockImplementation(
         () => new Promise((resolve) => setTimeout(() => resolve(createMockFetchResponse({ success: true, friends: [] })), 1000))
       );
 
@@ -121,7 +123,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f1', userId: 'u1', username: 'friend1', onlineStatus: { status: 'online', lastSeen: new Date(), userId: 'u1' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
 
       const onMessageFriend = vi.fn();
       render(<FriendsList onMessageFriend={onMessageFriend} />);
@@ -143,7 +145,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f1', userId: 'u1', username: 'friend1', onlineStatus: { status: 'online', lastSeen: new Date(), userId: 'u1' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
 
       const onFriendRemoved = vi.fn();
       render(<FriendsList onFriendRemoved={onFriendRemoved} />);
@@ -168,7 +170,7 @@ describe('FriendsList Component', () => {
 
   describe('Error Handling', () => {
     it('should display error message when fetch fails', async () => {
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: false, error: 'Failed to load friends' }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: false, error: 'Failed to load friends' }));
 
       render(<FriendsList />);
 
@@ -178,7 +180,7 @@ describe('FriendsList Component', () => {
     });
 
     it('should handle network errors gracefully', async () => {
-      (global.fetch as any).mockRejectedValue(new Error('Network error'));
+      mockFetch.mockRejectedValue(new Error('Network error'));
 
       render(<FriendsList />);
 
@@ -194,7 +196,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f1', userId: 'u1', username: 'friend1', onlineStatus: { status: 'online', lastSeen: new Date(), userId: 'u1' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'online' } }));
 
       const { rerender } = render(<FriendsList key={1} />);
 
@@ -205,7 +207,7 @@ describe('FriendsList Component', () => {
       // Assert on the friends-list fetch by URL: the component also fires one
       // online-status fetch on mount (documented behavior), so a bare call count
       // races against that poll. (SESSION-2026-09-02-006)
-      const listCalls = (global.fetch as any).mock.calls.filter(
+      const listCalls = mockFetch.mock.calls.filter(
         (c: unknown[]) => typeof c[0] === 'string' && String(c[0]).startsWith('/api/friends') && !String(c[0]).includes('/online'),
       );
       expect(listCalls).toHaveLength(1);
@@ -213,7 +215,7 @@ describe('FriendsList Component', () => {
       rerender(<FriendsList key={2} />);
 
       await waitFor(() => {
-        const listCallsAfter = (global.fetch as any).mock.calls.filter(
+        const listCallsAfter = mockFetch.mock.calls.filter(
           (c: unknown[]) => typeof c[0] === 'string' && String(c[0]).startsWith('/api/friends') && !String(c[0]).includes('/online'),
         );
         expect(listCallsAfter).toHaveLength(2);
@@ -228,7 +230,7 @@ describe('FriendsList Component', () => {
         createMockFriend({ _id: 'f2', userId: 'u2', username: 'onlineFriend', onlineStatus: { status: 'online', lastSeen: new Date('2025-01-02'), userId: 'u2' } }),
       ];
 
-      (global.fetch as any).mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'offline', u2: 'online' } }));
+      mockFetch.mockResolvedValue(createMockFetchResponse({ success: true, friends: mockFriends, statuses: { u1: 'offline', u2: 'online' } }));
 
       const { container } = render(<FriendsList />);
 

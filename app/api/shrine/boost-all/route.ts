@@ -13,7 +13,7 @@ import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { tradeableItems } from '@/lib/inventoryUtils';
 import { getCollection } from '@/lib/mongodb';
-import type { Player, InventoryItem, ShrineBoost, ShrineBoostTier } from '@/types';
+import type { Player, ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
 import {
   withRequestLogging,

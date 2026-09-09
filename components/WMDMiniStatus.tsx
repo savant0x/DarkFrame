@@ -68,7 +68,7 @@ export default function WMDMiniStatus({ onClick }: WMDMiniStatusProps) {
         {status?.hasAlerts && (
           <span
             aria-label="Alerts pending"
-            className="ml-2 h-2 w-2 animate-pulse rounded-full"
+            className="ml-2 h-2 w-2 nn-pulse rounded-none"
             style={{ background: 'var(--nn-magenta)', boxShadow: '0 0 8px var(--nn-magenta)' }}
           />
         )}

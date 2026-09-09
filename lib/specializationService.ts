@@ -235,7 +235,7 @@ export async function chooseSpecialization(
   // Update player with specialization and deduct RP
   const updateResult = await db.update(players).set({
     researchPoints: sql`${players.researchPoints} - ${config.unlockCost}`,
-    specialization: newSpecialization as any
+    specialization: newSpecialization
   }).where(
     and(
       eq(players.username, playerId),
@@ -518,7 +518,7 @@ export async function awardMasteryXP(
       ...spec,
       masteryXP: currentMasteryXP,
       masteryLevel: newMasteryLevel
-    } as any
+    }
   }).where(eq(players.username, playerId));
 
   // Check achievements if mastery level changed or hit 100%

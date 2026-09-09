@@ -22,7 +22,7 @@
  * - Button component for tabs and actions
  * - Badge component for fees and status
  * - Input component for amount entry
- * - Card component for transaction preview
+ * - Token nn-panel surfaces for modal + transaction preview
  * - Divider for section separation
  * - toast utility for feedback messages
  */
@@ -31,12 +31,7 @@
 
 import { useState } from 'react';
 import { BankStorage, Resources } from '@/types';
-import { Panel } from './ui/Panel';
 
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { Card } from './ui/Card';
-import { Divider } from './ui/Divider';
 import { toast } from '@/lib/toast';
 import { 
   Building2, 
@@ -305,95 +300,80 @@ export default function BankPanel({
 
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="nn-panel w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-accent-secondary flex items-center gap-2">
             <Building2 className="w-6 h-6" />
             {BANK_TITLES[bankType]}
           </h2>
-          <Button
-            onClick={onClose}
-            variant="secondary"
-            size="sm"
-          >
+          <button onClick={onClose} className="nn-btn nn-btn--ghost">
             ×
-          </Button>
+          </button>
         </div>
 
         {/* Balance Overview */}
-        <Panel icon={<Coins className="w-5 h-5" />} title="Account Overview" className="mb-6">
+        <div className="nn-panel"><div className="nn-panel__header"><span className="nn-panel__icon"><Coins className="w-5 h-5" /></span><span className="nn-panel__title">Account Overview</span></div>
+        <div className="nn-panel__body">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-text-tertiary text-sm mb-2">Inventory</p>
+              <p className="text-[color:var(--nn-text-tertiary)] text-sm mb-2">Inventory</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1">
                     <Wrench className="w-4 h-4 text-metal" />
                     Metal
                   </span>
-                  <Badge variant="default">{playerResources.metal.toLocaleString()}</Badge>
+                  <span className="nn-chip">{playerResources.metal.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1">
                     <Zap className="w-4 h-4 text-energy" />
                     Energy
                   </span>
-                  <Badge variant="default">{playerResources.energy.toLocaleString()}</Badge>
+                  <span className="nn-chip">{playerResources.energy.toLocaleString()}</span>
                 </div>
               </div>
             </div>
             <div>
-              <p className="text-text-tertiary text-sm mb-2">Bank Storage</p>
+              <p className="text-[color:var(--nn-text-tertiary)] text-sm mb-2">Bank Storage</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1">
                     <Wrench className="w-4 h-4 text-metal" />
                     Metal
                   </span>
-                  <Badge variant="success">{bankStorage.metal.toLocaleString()}</Badge>
+                  <span className="nn-chip nn-chip--green">{bankStorage.metal.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-1">
                     <Zap className="w-4 h-4 text-energy" />
                     Energy
                   </span>
-                  <Badge variant="success">{bankStorage.energy.toLocaleString()}</Badge>
+                  <span className="nn-chip nn-chip--green">{bankStorage.energy.toLocaleString()}</span>
                 </div>
               </div>
             </div>
           </div>
-        </Panel>
+        </div></div>
 
-        <Divider />
+        <div className="nn-divider" />
 
         {/* Transaction Tabs */}
         <div className="flex gap-2 mb-6">
-          <Button
-            onClick={() => setActiveTab('deposit')}
-            variant={activeTab === 'deposit' ? 'primary' : 'secondary'}
-            className="flex-1"
-          >
+          <button onClick={() => setActiveTab('deposit')} className={`nn-btn flex-1 ${activeTab === 'deposit' ? 'nn-btn--primary' : 'nn-btn--ghost'}`}>
             <ArrowDownToLine className="w-4 h-4 mr-1" />
             Deposit
-          </Button>
-          <Button
-            onClick={() => setActiveTab('withdraw')}
-            variant={activeTab === 'withdraw' ? 'primary' : 'secondary'}
-            className="flex-1"
-          >
+          </button>
+          <button onClick={() => setActiveTab('withdraw')} className={`nn-btn flex-1 ${activeTab === 'withdraw' ? 'nn-btn--primary' : 'nn-btn--ghost'}`}>
             <ArrowUpFromLine className="w-4 h-4 mr-1" />
             Withdraw
-          </Button>
+          </button>
           {bankType === 'exchange' && (
-            <Button
-              onClick={() => setActiveTab('exchange')}
-              variant={activeTab === 'exchange' ? 'primary' : 'secondary'}
-              className="flex-1"
-            >
+            <button onClick={() => setActiveTab('exchange')} className={`nn-btn flex-1 ${activeTab === 'exchange' ? 'nn-btn--primary' : 'nn-btn--ghost'}`}>
               <ArrowLeftRight className="w-4 h-4 mr-1" />
               Exchange
-            </Button>
+            </button>
           )}
         </div>
 
@@ -401,45 +381,34 @@ export default function BankPanel({
         <div className="space-y-4 mb-6">
           {/* Resource Type Selector */}
           <div>
-            <label className="block text-text-secondary text-sm mb-2">Resource Type</label>
+            <label className="block text-[color:var(--nn-text-secondary)] text-sm mb-2">Resource Type</label>
             <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={() => setResourceType('metal')}
-                variant={resourceType === 'metal' ? 'primary' : 'secondary'}
-                className="justify-center"
-              >
+              <button onClick={() => setResourceType('metal')} className={`nn-btn justify-center ${resourceType === 'metal' ? 'nn-btn--primary' : 'nn-btn--ghost'}`}>
                 <Wrench className="w-4 h-4 mr-1" />
                 Metal
-              </Button>
-              <Button
-                onClick={() => setResourceType('energy')}
-                variant={resourceType === 'energy' ? 'primary' : 'secondary'}
-                className="justify-center"
-              >
+              </button>
+              <button onClick={() => setResourceType('energy')} className={`nn-btn justify-center ${resourceType === 'energy' ? 'nn-btn--primary' : 'nn-btn--ghost'}`}>
                 <Zap className="w-4 h-4 mr-1" />
                 Energy
-              </Button>
+              </button>
             </div>
           </div>
 
           {/* Amount Input */}
           <div>
-            <label className="block text-text-secondary text-sm mb-2">Amount</label>
+            <label className="block text-[color:var(--nn-text-secondary)] text-sm mb-2">Amount</label>
             <div className="flex gap-2">
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 bg-bg-tertiary text-text-primary px-4 py-2 rounded-none border border-border-main focus:border-accent-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+                className="nn-input flex-1"
                 placeholder="Enter amount"
                 min="0"
               />
-              <Button
-                onClick={handleMaxAmount}
-                variant="primary"
-              >
+              <button onClick={handleMaxAmount} className="nn-btn nn-btn--primary">
                 MAX
-              </Button>
+              </button>
             </div>
             {!validation.valid && inputAmount > 0 && (
               <p className="text-[color:var(--nn-magenta)] text-sm mt-1 flex items-center gap-1">
@@ -451,8 +420,8 @@ export default function BankPanel({
 
           {/* Transaction Preview */}
           {inputAmount > 0 && isValid && (
-            <Card className="bg-bg-secondary border-accent-primary/20">
-              <h4 className="text-text-secondary text-sm font-semibold mb-3 flex items-center gap-1">
+            <div className="nn-panel nn-surface--dark border border-[color-mix(in_oklab,var(--nn-glass-border))] mt-4">
+              <h4 className="nn-lab text-sm font-semibold mb-3 flex items-center gap-1">
                 <Info className="w-4 h-4" />
                 Transaction Preview
               </h4>
@@ -460,8 +429,8 @@ export default function BankPanel({
               {activeTab === 'deposit' && (
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-text-tertiary">Amount to deposit:</span>
-                    <span className="text-text-primary font-semibold">{inputAmount.toLocaleString()}</span>
+                    <span className="text-[color:var(--nn-text-tertiary)]">Amount to deposit:</span>
+                    <span className="text-[color:var(--nn-text-primary)] font-semibold">{inputAmount.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-[color:var(--nn-amber)]">
                     <span className="flex items-center gap-1">
@@ -470,7 +439,7 @@ export default function BankPanel({
                     </span>
                     <span className="font-semibold">{DEPOSIT_FEE.toLocaleString()}</span>
                   </div>
-                  <Divider className="my-2" />
+                  <div className="nn-divider" />
                   <div className="flex justify-between text-[color:var(--nn-green)]">
                     <span className="flex items-center gap-1">
                       <TrendingUp className="w-4 h-4" />
@@ -484,12 +453,12 @@ export default function BankPanel({
               {activeTab === 'withdraw' && (
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-text-tertiary">Amount to withdraw:</span>
-                    <span className="text-text-primary font-semibold">{inputAmount.toLocaleString()}</span>
+                    <span className="text-[color:var(--nn-text-tertiary)]">Amount to withdraw:</span>
+                    <span className="text-[color:var(--nn-text-primary)] font-semibold">{inputAmount.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-[color:var(--nn-green)]">
                     <span className="font-semibold">No fee charged</span>
-                    <Badge variant="success">Free</Badge>
+                    <span className="nn-chip nn-chip--green">Free</span>
                   </div>
                 </div>
               )}
@@ -497,8 +466,8 @@ export default function BankPanel({
               {activeTab === 'exchange' && (
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-text-tertiary">You give:</span>
-                    <span className="text-text-primary font-semibold">
+                    <span className="text-[color:var(--nn-text-tertiary)]">You give:</span>
+                    <span className="text-[color:var(--nn-text-primary)] font-semibold">
                       {inputAmount.toLocaleString()} {resourceType}
                     </span>
                   </div>
@@ -511,7 +480,7 @@ export default function BankPanel({
                       {Math.floor(inputAmount * EXCHANGE_FEE).toLocaleString()}
                     </span>
                   </div>
-                  <Divider className="my-2" />
+                  <div className="nn-divider" />
                   <div className="flex justify-between text-[color:var(--nn-green)]">
                     <span className="flex items-center gap-1">
                       <TrendingUp className="w-4 h-4" />
@@ -523,17 +492,12 @@ export default function BankPanel({
                   </div>
                 </div>
               )}
-            </Card>
+            </div>
           )}
         </div>
 
         {/* Action Button */}
-        <Button
-          onClick={handleSubmit}
-          disabled={loading || !isValid}
-          variant="success"
-          className="w-full"
-        >
+        <button onClick={handleSubmit} disabled={loading || !isValid} className="nn-btn nn-btn--green w-full">
           {loading
             ? 'Processing...'
             : activeTab === 'deposit'
@@ -541,10 +505,10 @@ export default function BankPanel({
             : activeTab === 'withdraw'
             ? 'Withdraw (Free)'
             : `Exchange (${Math.floor(EXCHANGE_FEE * 100)}% fee)`}
-        </Button>
+        </button>
 
         {/* Help Text */}
-        <div className="mt-4 text-text-tertiary text-sm flex items-start gap-2">
+        <div className="mt-4 text-[color:var(--nn-text-tertiary)] text-sm flex items-start gap-2">
           <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
           <p>
             {activeTab === 'deposit' && `Deposits charge a ${DEPOSIT_FEE.toLocaleString()} ${resourceType} fee. Stored resources are safe.`}
@@ -552,7 +516,7 @@ export default function BankPanel({
             {activeTab === 'exchange' && `Exchange rate: 1:${1 - EXCHANGE_FEE} (${Math.floor(EXCHANGE_FEE * 100)}% fee). Only available at Exchange Banks.`}
           </p>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }

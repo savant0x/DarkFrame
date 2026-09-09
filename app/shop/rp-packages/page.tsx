@@ -35,7 +35,7 @@ interface RPPackage {
   popular?: boolean;
   icon: string;
   daysEquivalent: number; // How many days of active play this equals
-  color: string;
+  color: string; // accent CSS color (var(--nn-*)) for the card header band
 }
 
 // ============================================================================
@@ -50,7 +50,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 2.99,
     icon: '🌱',
     daysEquivalent: 0.15, // ~3-4 hours of play
-    color: 'from-[color:var(--nn-green)] to-[color:var(--nn-green)]'
+    color: 'var(--nn-green)'
   },
   {
     id: 'boost',
@@ -60,7 +60,7 @@ const RP_PACKAGES: RPPackage[] = [
     popular: true,
     icon: '⚡',
     daysEquivalent: 0.7, // ~17 hours of play
-    color: 'from-[color:var(--nn-cyan)] to-[color:var(--nn-cyan)]'
+    color: 'var(--nn-cyan)'
   },
   {
     id: 'power',
@@ -69,7 +69,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 24.99,
     icon: '💪',
     daysEquivalent: 2, // 2 days of active play
-    color: 'from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)]'
+    color: 'var(--nn-violet)'
   },
   {
     id: 'mega',
@@ -78,7 +78,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 59.99,
     icon: '🚀',
     daysEquivalent: 7, // 1 week of active play
-    color: 'from-[color:var(--nn-amber)] to-[color:var(--nn-magenta)]'
+    color: 'var(--nn-magenta)'
   },
   {
     id: 'legendary',
@@ -87,7 +87,7 @@ const RP_PACKAGES: RPPackage[] = [
     price: 99.99,
     icon: '👑',
     daysEquivalent: 14, // 2 weeks of active play
-    color: 'from-[color:var(--nn-amber)] to-[color:var(--nn-amber)]'
+    color: 'var(--nn-amber)'
   }
 ];
 
@@ -146,32 +146,32 @@ export default function RPPackagesPage() {
 
   if (!player) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] flex items-center justify-center">
         <div className="text-[color:var(--nn-text-primary)] text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-bg-space to-bg-nebula text-[color:var(--nn-text-primary)] p-6">
+    <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <BackButton destination="/game" />
         
         <div className="mt-6 text-center">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-[color:var(--nn-amber)] via-[color:var(--nn-amber)] to-[color:var(--nn-magenta)] bg-clip-text text-transparent mb-4">
-            💎 Research Point Shop
+          <h1 className="text-5xl font-bold text-[color:var(--nn-text-primary)] mb-4" style={{ fontFamily: 'var(--nn-font-display)' }}>
+            Research Point Shop
           </h1>
-          <p className="text-xl text-text-primary mb-2">
+          <p className="text-xl text-[color:var(--nn-text-primary)] mb-2">
             Optional packages to accelerate your progression
           </p>
-          <p className="text-sm text-text-secondary mb-6">
-            🌟 <strong>Free-to-play is fully viable!</strong> Active players earn 6,000-12,000 RP/day through normal play.
+          <p className="text-sm text-[color:var(--nn-text-secondary)] mb-6">
+            <strong>Free-to-play is fully viable!</strong> Active players earn 6,000-12,000 RP/day through normal play.
           </p>
           
           {/* Current RP Balance */}
-          <div className="inline-block bg-glass-light border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none px-8 py-4 mb-8">
-            <div className="text-sm text-text-secondary mb-1">Your Current Balance</div>
+          <div className="inline-block nn-panel rounded-none px-8 py-4 mb-8" style={{ ['--nn-accent' as string]: 'var(--nn-amber)' }}>
+            <div className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Your Current Balance</div>
             <div className="text-4xl font-bold text-[color:var(--nn-amber)]">
               {player.researchPoints?.toLocaleString() || 0} RP
             </div>
@@ -184,9 +184,8 @@ export default function RPPackagesPage() {
         </div>
 
         {/* Free RP Sources Info */}
-        <div className="bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6 mb-8">
-          <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <span>🎁</span>
+        <div className="nn-panel rounded-none p-6 mb-8">
+          <h3 className="nn-panel__title text-2xl mb-4 flex items-center gap-2">
             <span>Free RP Sources (No Purchase Required)</span>
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -242,19 +241,22 @@ export default function RPPackagesPage() {
               return (
                 <div
                   key={pkg.id}
-                  className={`relative bg-glass-light rounded-none overflow-hidden transition-all duration-300 ${
+                  className={`relative nn-surface--dark rounded-none overflow-hidden transition-all duration-300 ${
                     pkg.popular 
-                      ? 'border-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] shadow-lg shadow-yellow-500/50 scale-105' 
-                      : 'border-2 border-glass-border hover:border-glass-border'
+                      ? 'border-4 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] shadow-[0_0_24px_color-mix(in_oklab,var(--nn-amber)_28%,transparent)] scale-105' 
+                      : 'border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] hover:border-[color-mix(in_oklab,var(--nn-cyan)_32%,transparent)]'
                   }`}
                 >
                   {pkg.popular && (
-                    <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] text-center py-1 text-xs font-bold">
-                      ⭐ MOST POPULAR ⭐
+                    <div className="absolute top-0 left-0 right-0 bg-[color:var(--nn-amber)] text-[color:var(--nn-void)] text-center py-1 text-xs font-bold" style={{ fontFamily: 'var(--nn-font-display)' }}>
+                      MOST POPULAR
                     </div>
                   )}
                   
-                  <div className={`bg-gradient-to-br ${pkg.color} p-6 ${pkg.popular ? 'pt-8' : ''}`}>
+                  <div
+                    className="p-6 border-b border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)]"
+                    style={{ background: `color-mix(in oklab, ${pkg.color} 16%, transparent)` }}
+                  >
                     <div className="text-6xl text-center mb-2">{pkg.icon}</div>
                     <h3 className="text-xl font-bold text-center text-[color:var(--nn-text-primary)]">{pkg.name}</h3>
                   </div>
@@ -274,7 +276,7 @@ export default function RPPackagesPage() {
                       </div>
                     </div>
 
-                    <div className="text-center text-sm text-text-secondary mb-4">
+                    <div className="text-center text-sm text-[color:var(--nn-text-secondary)] mb-4">
                       <div className="mb-1">⏱️ Time Saved</div>
                       <div className="text-[color:var(--nn-green)] font-semibold">
                         {pkg.daysEquivalent < 1 
@@ -289,8 +291,8 @@ export default function RPPackagesPage() {
                       disabled={loading && isSelected}
                       className={`w-full py-3 rounded-none font-bold transition-all duration-200 ${
                         pkg.popular
-                          ? 'bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] hover:from-[color:var(--nn-amber)] hover:to-[color:var(--nn-amber)] text-[color:var(--nn-text-primary)]'
-                          : 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
+                          ? 'nn-btn nn-btn--amber'
+                          : 'nn-btn nn-btn--primary'
                       } disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       {loading && isSelected ? '⏳ Processing...' : '💳 Purchase'}
@@ -316,8 +318,8 @@ export default function RPPackagesPage() {
         )}
 
         {/* FAQ / Transparency Section */}
-        <div className="bg-glass-light border border-glass-border rounded-none p-6 mt-8">
-          <h3 className="text-2xl font-bold mb-4">❓ Frequently Asked Questions</h3>
+        <div className="nn-panel rounded-none p-6 mt-8">
+          <h3 className="nn-panel__title text-2xl mb-4">Frequently Asked Questions</h3>
           <div className="space-y-4">
             <FAQItem
               question="Is buying RP required to progress?"
@@ -343,28 +345,28 @@ export default function RPPackagesPage() {
         </div>
 
         {/* Call to Action - VIP Subscription */}
-        <div className="bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 mt-8 text-center">
-          <h3 className="text-3xl font-bold mb-4">
-            👑 Want Better Long-Term Value?
+        <div className="nn-panel nn-panel--violet rounded-none p-8 mt-8 text-center">
+          <h3 className="nn-panel__title text-3xl mb-4">
+            Want Better Long-Term Value?
           </h3>
-          <p className="text-xl text-text-primary mb-6">
+          <p className="text-xl text-[color:var(--nn-text-primary)] mb-6">
             VIP subscription gives you <strong>+50% RP on everything</strong> you earn, plus 2x auto-farm speed!
           </p>
           <div className="flex justify-center gap-4">
-            <div className="bg-glass-light rounded-none p-4">
-              <div className="text-sm text-text-secondary">VIP Monthly</div>
+            <div className="nn-surface--dark rounded-none p-4">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">VIP Monthly</div>
               <div className="text-2xl font-bold text-[color:var(--nn-violet)]">$9.99/mo</div>
               <div className="text-xs text-[color:var(--nn-green)] mt-1">+50% all RP sources</div>
             </div>
-            <div className="bg-glass-light rounded-none p-4">
-              <div className="text-sm text-text-secondary">VIP Yearly</div>
+            <div className="nn-surface--dark rounded-none p-4">
+              <div className="text-sm text-[color:var(--nn-text-secondary)]">VIP Yearly</div>
               <div className="text-2xl font-bold text-[color:var(--nn-violet)]">$99.99/yr</div>
               <div className="text-xs text-[color:var(--nn-green)] mt-1">2 months free!</div>
             </div>
           </div>
           <button
             onClick={() => router.push('/shop/vip')}
-            className="mt-6 px-8 py-3 bg-gradient-to-r from-[color:var(--nn-violet)] to-[color:var(--nn-magenta)] hover:from-[color:var(--nn-violet)] hover:to-[color:var(--nn-magenta)] rounded-none font-bold text-lg transition-all"
+            className="nn-btn nn-btn--amber w-auto mt-6 px-8 py-3 font-bold text-lg"
           >
             Learn More About VIP
           </button>
@@ -387,11 +389,11 @@ interface FreeSourceCardProps {
 
 function FreeSourceCard({ icon, title, amount, description }: FreeSourceCardProps) {
   return (
-    <div className="bg-glass-light rounded-none p-4 border border-glass-border">
+    <div className="nn-surface--dark rounded-none p-4">
       <div className="text-3xl mb-2">{icon}</div>
       <div className="font-bold text-lg mb-1">{title}</div>
       <div className="text-2xl text-[color:var(--nn-amber)] font-bold mb-2">{amount}</div>
-      <div className="text-sm text-text-secondary">{description}</div>
+      <div className="text-sm text-[color:var(--nn-text-secondary)]">{description}</div>
     </div>
   );
 }
@@ -405,7 +407,7 @@ function FAQItem({ question, answer }: FAQItemProps) {
   return (
     <div className="border-l-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] pl-4">
       <div className="font-bold text-lg mb-2">{question}</div>
-      <div className="text-text-primary">{answer}</div>
+      <div className="text-[color:var(--nn-text-primary)]">{answer}</div>
     </div>
   );
 }

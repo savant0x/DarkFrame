@@ -28,6 +28,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 import { formatNumber } from '@/utils/formatting';
 import { RankedPlayer } from '@/lib/rankingService';
 
@@ -130,7 +131,7 @@ export default function LeaderboardPage() {
       case 'CRITICAL':
         return 'text-[color:var(--nn-magenta)]';
       default:
-        return 'text-text-secondary';
+        return 'text-[color:var(--nn-text-secondary)]';
     }
   };
   
@@ -139,9 +140,9 @@ export default function LeaderboardPage() {
    */
   if (loading) {
     return (
-      <div className="min-h-screen bg-glass-dark text-[color:var(--nn-text-primary)] flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] mx-auto mb-4"></div>
+          <Loader2 className="nn-spin-icon w-16 h-16 text-[color:var(--nn-cyan)] mx-auto mb-4" aria-label="Loading leaderboard" />
           <p className="text-xl">Loading leaderboard...</p>
         </div>
       </div>
@@ -153,24 +154,25 @@ export default function LeaderboardPage() {
    */
   if (error) {
     return (
-      <div className="min-h-screen bg-glass-dark text-[color:var(--nn-text-primary)] flex items-center justify-center">
+      <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] flex items-center justify-center">
         <div className="text-center max-w-md">
-          <div className="text-[color:var(--nn-magenta)] text-6xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-bold mb-2">Error Loading Leaderboard</h1>
-          <p className="text-text-secondary mb-6">{error}</p>
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={fetchLeaderboard}
-              className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none transition-colors"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={() => router.push('/game')}
-              className="px-6 py-2 bg-glass-light hover:bg-glass-light rounded-none transition-colors"
-            >
-              Back to Game
-            </button>
+          <div className="nn-panel rounded-none p-8">
+            <h1 className="text-2xl font-bold mb-2 text-[color:var(--nn-magenta)]">Error Loading Leaderboard</h1>
+            <p className="text-[color:var(--nn-text-secondary)] mb-6">{error}</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={fetchLeaderboard}
+                className="nn-btn nn-btn--primary w-auto px-6 py-2"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => router.push('/game')}
+                className="nn-btn nn-btn--ghost w-auto px-6 py-2"
+              >
+                Back to Game
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -181,13 +183,13 @@ export default function LeaderboardPage() {
    * Main leaderboard view
    */
   return (
-    <div className="min-h-screen bg-glass-dark text-[color:var(--nn-text-primary)] p-4">
+    <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-4">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-4xl font-bold mb-2">🏆 Player Rankings</h1>
-            <p className="text-text-secondary">
+            <h1 className="text-4xl font-bold mb-2" style={{ fontFamily: 'var(--nn-font-display)' }}>Player Rankings</h1>
+            <p className="text-[color:var(--nn-text-secondary)]">
               {leaderboardData?.totalPlayers.toLocaleString()} players | 
               Last updated: {leaderboardData ? new Date(leaderboardData.lastUpdated).toLocaleTimeString() : ''}
             </p>
@@ -196,14 +198,14 @@ export default function LeaderboardPage() {
             <button
               onClick={fetchLeaderboard}
               disabled={refreshing}
-              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] disabled:bg-glass-light rounded-none transition-colors flex items-center gap-2"
+              className="nn-btn nn-btn--primary w-auto px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
+              <Loader2 className={`w-4 h-4 ${refreshing ? 'nn-spin-icon' : ''}`} aria-hidden="true" />
               Refresh
             </button>
             <button
               onClick={() => router.push('/game')}
-              className="px-4 py-2 bg-glass-light hover:bg-glass-light rounded-none transition-colors"
+              className="nn-btn nn-btn--ghost w-auto px-4 py-2"
             >
               ← Back to Game
             </button>
@@ -217,10 +219,10 @@ export default function LeaderboardPage() {
             placeholder="Search players..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 bg-glass-light border border-glass-border rounded-none focus:outline-none focus:border-blue-500 transition-colors"
+            className="nn-input w-full"
           />
           {searchQuery && (
-            <p className="text-sm text-text-secondary mt-2">
+            <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">
               Found {filteredLeaderboard.length} player(s) matching &quot;{searchQuery}&quot;
             </p>
           )}
@@ -231,7 +233,7 @@ export default function LeaderboardPage() {
           <div className="nn-panel nn-panel--violet mb-6 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-text-secondary mb-1">Your Rank</p>
+                <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Your Rank</p>
                 <p className="text-3xl font-bold">
                   {getRankDisplay(leaderboardData.currentPlayerRank || 0)} 
                   {leaderboardData.currentPlayerRank && leaderboardData.currentPlayerRank > 3 && 
@@ -241,7 +243,7 @@ export default function LeaderboardPage() {
                 <p className="text-xl mt-1">{leaderboardData.currentPlayerData.username}</p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-text-secondary mb-1">Effective Power</p>
+                <p className="text-sm text-[color:var(--nn-text-secondary)] mb-1">Effective Power</p>
                 <p className="text-2xl font-bold text-[color:var(--nn-amber)]">
                   {formatNumber(leaderboardData.currentPlayerData.effectivePower)}
                 </p>
@@ -250,7 +252,7 @@ export default function LeaderboardPage() {
                     <span className="text-[color:var(--nn-violet)]">⭐ Level {leaderboardData.currentPlayerData.level || 1}</span>
                   </div>
                   <div>
-                    <span className="text-text-secondary">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
+                    <span className="text-[color:var(--nn-text-secondary)]">🏭 {formatNumber(leaderboardData.currentPlayerData.factoriesOwned)}</span>
                   </div>
                 </div>
                 <p className={`text-sm mt-1 ${getBalanceColor(leaderboardData.currentPlayerData.balanceStatus)}`}>
@@ -265,32 +267,22 @@ export default function LeaderboardPage() {
       
       {/* Leaderboard Table */}
       <div className="max-w-7xl mx-auto">
-        <div className="bg-glass-light rounded-none overflow-hidden">
+        <div className="nn-panel rounded-none overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-glass-light">
+            <table className="nn-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-primary uppercase tracking-wider">
-                    Rank
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-text-primary uppercase tracking-wider">
-                    Player
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-text-primary uppercase tracking-wider">
-                    Effective Power
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-text-primary uppercase tracking-wider">
-                    Level
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-text-primary uppercase tracking-wider">
-                    Balance
-                  </th>
+                  <th>Rank</th>
+                  <th>Player</th>
+                  <th className="text-right">Effective Power</th>
+                  <th className="text-center">Level</th>
+                  <th className="text-center">Balance</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-glass-border">
+              <tbody>
                 {filteredLeaderboard.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-text-secondary">
+                    <td colSpan={5} className="px-6 py-8 text-center nn-table__dim">
                       {searchQuery ? 'No players found matching your search' : 'No players yet'}
                     </td>
                   </tr>
@@ -302,7 +294,7 @@ export default function LeaderboardPage() {
                       <tr 
                         key={`${player.rank}-${player.username}`}
                         className={`
-                          ${isCurrentPlayer ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'hover:bg-glass-light'}
+                          ${isCurrentPlayer ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]' : 'hover:bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)]'}
                           transition-colors
                         `}
                       >
@@ -335,7 +327,7 @@ export default function LeaderboardPage() {
                           <div className={`text-sm ${getBalanceColor(player.balanceStatus)}`}>
                             {player.balanceStatus}
                           </div>
-                          <div className="text-xs text-text-secondary">
+                          <div className="text-xs text-[color:var(--nn-text-secondary)]">
                             {(player.balanceMultiplier * 100).toFixed(0)}%
                           </div>
                         </td>
@@ -349,7 +341,7 @@ export default function LeaderboardPage() {
         </div>
         
         {/* Footer Info */}
-        <div className="mt-6 text-center text-text-secondary text-sm">
+        <div className="mt-6 text-center text-[color:var(--nn-text-secondary)] text-sm">
           <p>Rankings based on Effective Power: (Strength + Defense) × Balance Multiplier</p>
           <p className="mt-1">Maintain balanced armies for optimal ranking position</p>
         </div>

@@ -28,6 +28,8 @@
 
 import { randomUUID } from 'node:crypto';
 import { eq,        sql } from 'drizzle-orm';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
+import type { clans as clansTable } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import {
@@ -44,14 +46,14 @@ import {
 /**
  * Helper: Convert flat DB row to nested Clan object
  */
-function rowToClan(row: any): Clan {
+function rowToClan(row: typeof clansTable.$inferSelect): Clan {
   return {
     _id: row.id,
     name: row.name,
     tag: row.tag,
     description: row.description,
     leaderId: row.leaderId,
-    members: (row.members as any[]) || [],
+    members: row.members ?? [],
     maxMembers: row.maxMembers,
     level: {
       currentLevel: row.levelCurrentLevel,
@@ -60,9 +62,9 @@ function rowToClan(row: any): Clan {
       xpToNextLevel: row.levelXpToNextLevel,
       featuresUnlocked: row.levelFeaturesUnlocked || [],
       milestonesCompleted: row.levelMilestonesCompleted || [],
-      lastLevelUp: row.levelLastLevelUp ? new Date(row.levelLastLevelUp as string) : new Date(),
+      lastLevelUp: row.levelLastLevelUp ? new Date(row.levelLastLevelUp) : new Date(),
     },
-    createdAt: row.createdAt ? new Date(row.createdAt as string) : new Date(),
+    createdAt: row.createdAt ? new Date(row.createdAt) : new Date(),
     settings: {
       messageOfTheDay: row.settingsMessageOfTheDay,
       isRecruiting: Boolean(row.settingsIsRecruiting),
@@ -72,12 +74,13 @@ function rowToClan(row: any): Clan {
       allowWarDeclarations: Boolean(row.settingsAllowWarDeclarations),
     },
     stats: {
-      totalPower: row.statsTotalPower,
-      totalTerritories: row.statsTotalTerritories,
-      totalMonuments: row.statsTotalMonuments,
+      // numeric() columns surface as strings from the driver — convert at the boundary.
+      totalPower: Number(row.statsTotalPower),
+      totalTerritories: Number(row.statsTotalTerritories),
+      totalMonuments: Number(row.statsTotalMonuments),
       warsWon: row.statsWarsWon,
       warsLost: row.statsWarsLost,
-      totalRP: row.statsTotalRP,
+      totalRP: Number(row.statsTotalRP),
     },
     research: {
       researchPoints: row.researchResearchPoints,
@@ -91,9 +94,9 @@ function rowToClan(row: any): Clan {
         researchPoints: row.bankTreasuryResearchPoints,
       },
       taxRates: {
-        metal: row.bankTaxRatesMetal,
-        energy: row.bankTaxRatesEnergy,
-        researchPoints: row.bankTaxRatesResearchPoints,
+        metal: Number(row.bankTaxRatesMetal),
+        energy: Number(row.bankTaxRatesEnergy),
+        researchPoints: Number(row.bankTaxRatesResearchPoints),
       },
       upgradeLevel: row.bankUpgradeLevel,
       capacity: Number(row.bankCapacity),
@@ -133,7 +136,7 @@ async function logClanActivity(
   clanId: string,
   activityType: ClanActivityType,
   playerId: string,
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 ): Promise<void> {
   try {
     await db.execute(sql`
@@ -399,7 +402,7 @@ export async function setTaxRates(
   validateRate(taxRates.energy, 'Energy');
   validateRate(taxRates.researchPoints, 'Research Points');
   
-  const updateFields: Record<string, any> = {};
+  const updateFields: PgUpdateSetSource<typeof clans> = {};
   if (taxRates.metal !== undefined) updateFields.bankTaxRatesMetal = String(taxRates.metal);
   if (taxRates.energy !== undefined) updateFields.bankTaxRatesEnergy = String(taxRates.energy);
   if (taxRates.researchPoints !== undefined) updateFields.bankTaxRatesResearchPoints = String(taxRates.researchPoints);
@@ -475,7 +478,7 @@ export async function collectTax(
   
   const updatedTransactions = [...(clan.bank.transactions || []), transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
   
-  const updateFields: Record<string, any> = {
+  const updateFields: PgUpdateSetSource<typeof clans> = {
     bankTransactions: updatedTransactions,
   };
   updateFields[`bankTreasury${resourceType === 'metal' ? 'Metal' : 'Energy'}`] = currentAmount + taxAmount;

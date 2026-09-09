@@ -1,6 +1,8 @@
 /**
  * @file app/login/page.tsx
  * @created 2025-10-16
+ * @updated 2026-09-08 (FID-20260908-006 §9.5: NEON NOIR redesign — HUD panel,
+ * nn-input fields, nn-switch remember toggle; see rubric evidence in the FID)
  * @overview Login page with email/password authentication
  */
 
@@ -8,6 +10,7 @@
 
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
+import { Mail, Lock, ShieldCheck } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -33,19 +36,17 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (data.success) {
-        console.log('✅ Login successful, redirecting to game...');
-        
         // Cookie handles authentication persistence
         // No need to save to localStorage - GameContext reads from JWT cookie
-        
+
         // Hard navigation, not router.push: GameContext (mounted in the root layout)
         // runs its session check exactly once per mount. A soft push would reuse the
         // pre-login "no session" state and bounce straight back to /login.
         window.location.href = '/game';
       } else {
         // Extract message from error object (API returns {code, message, timestamp, stack})
-        const errorMessage = typeof data.error === 'object' && data.error?.message 
-          ? data.error.message 
+        const errorMessage = typeof data.error === 'object' && data.error?.message
+          ? data.error.message
           : (typeof data.error === 'string' ? data.error : 'Login failed');
         setError(errorMessage);
       }
@@ -58,108 +59,126 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] mb-2">
-            DARKFRAME
+    <div className="flex min-h-screen items-center justify-center px-4" style={{ background: 'var(--nn-void)' }}>
+      <div className="w-full max-w-md">
+        {/* Header — section instrument */}
+        <div className="mb-8 text-center">
+          <h1 className="nn-sec__title" style={{ fontSize: 26, letterSpacing: '0.3em' }}>
+            DARK<span style={{ color: 'var(--nn-violet)' }}>FRAME</span>
           </h1>
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">
+          <p className="nn-lab" style={{ marginTop: 8, fontSize: 11 }}>
             Login to Continue Your Journey
           </p>
         </div>
 
-        {/* Login Form */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-8 shadow-2xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Login Form — HUD panel with scanline header */}
+        <div
+          className="nn-panel nn-panel--x-pad"
+          style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}
+        >
+          <div className="nn-panel__header nn-panel__header--bleed">
+            <span className="nn-panel__icon"><ShieldCheck /></span>
+            <h2 className="nn-panel__title">Authentication</h2>
+            <span className="nn-panel__meta">Secure ▸ Encrypted</span>
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ paddingTop: 18 }}>
             {/* Email Input */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="email" className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>
                 Email Address
               </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
-                placeholder="your.email@example.com"
-                disabled={isLoading}
-              />
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: 'var(--nn-text-tertiary)' }}
+                />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="nn-input w-full"
+                  style={{ paddingLeft: '2.25rem', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+                  placeholder="your.email@example.com"
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
             {/* Password Input */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[color:var(--nn-text-secondary)] mb-2">
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="password" className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full px-4 py-3 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:border-transparent transition-all"
-                placeholder="••••••••"
+              <div className="relative">
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+                  style={{ color: 'var(--nn-text-tertiary)' }}
+                />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="nn-input w-full"
+                  style={{ paddingLeft: '2.25rem', paddingTop: '0.625rem', paddingBottom: '0.625rem' }}
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            {/* Remember Me — square HUD switch (token component) */}
+            <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+              <span className="nn-lab">Stay logged in for 30 days</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={rememberMe}
+                aria-label="Stay logged in for 30 days"
+                onClick={() => setRememberMe(!rememberMe)}
+                className={`nn-switch ${rememberMe ? 'nn-switch--on' : ''}`}
                 disabled={isLoading}
-              />
+              >
+                <span className="nn-switch__knob" />
+              </button>
             </div>
 
-            {/* Remember Me Checkbox */}
-            <div className="flex items-center">
-              <input
-                id="rememberMe"
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-[color:var(--nn-cyan)] bg-[color:var(--nn-void)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] focus:ring-2"
-              />
-              <label htmlFor="rememberMe" className="ml-2 text-sm text-[color:var(--nn-text-secondary)]">
-                Remember me for 30 days
-              </label>
-            </div>
-
-            {/* Error Message */}
+            {/* Error Message — semantic advisory strip */}
             {error && (
-              <div className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-3 text-[color:var(--nn-magenta)] text-sm">
+              <div className="nn-note" style={{ marginBottom: 16 }} role="alert">
                 {error}
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit Button — outline instrument per sample §02 */}
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full py-3 px-4 rounded-none font-semibold text-[color:var(--nn-text-primary)] transition-all ${
-                isLoading
-                  ? 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] cursor-not-allowed'
-                  : 'bg-gradient-to-r from-[color:var(--nn-cyan)] to-[color:var(--nn-violet)] hover:from-[color:var(--nn-cyan)] hover:to-[color:var(--nn-violet)] shadow-lg hover:shadow-[0_0_20px_color-mix(in_oklab,var(--nn-cyan)_40%,transparent)]'
-              }`}
+              className="nn-btn nn-btn--primary"
+              style={{ width: '100%', padding: '13px 20px' }}
             >
               {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Logging in...
-                </span>
+                <>
+                  <span
+                    className="nn-spin"
+                    style={{
+                      width: 14,
+                      height: 14,
+                      border: '2px solid color-mix(in oklab, var(--nn-cyan) 40%, transparent)',
+                      borderBottomColor: 'transparent',
+                      animation: 'nn-spin 0.9s linear infinite',
+                      display: 'inline-block',
+                    }}
+                    aria-hidden
+                  />
+                  Authenticating…
+                </>
               ) : (
                 'LOGIN'
               )}
@@ -167,30 +186,21 @@ export default function LoginPage() {
           </form>
 
           {/* Register Link */}
-          <div className="mt-6 text-center">
-            <p className="text-[color:var(--nn-text-secondary)] text-sm">
+          <div className="nn-row" style={{ justifyContent: 'center', paddingTop: 12 }}>
+            <span className="nn-row__label">
               Don&apos;t have an account?{' '}
-              <Link
-                href="/register"
-                className="text-[color:var(--nn-cyan)] font-semibold transition-colors"
-              >
+              <Link href="/register" className="nn-link" style={{ marginLeft: 4 }}>
                 Register here
               </Link>
-            </p>
+            </span>
           </div>
         </div>
 
         {/* Footer */}
         <div className="mt-6 text-center">
-          <p className="text-[color:var(--nn-text-secondary)] text-xs">
-            Secure authentication with encrypted credentials
-          </p>
+          <p className="nn-lab">Secure authentication with encrypted credentials</p>
         </div>
       </div>
     </div>
   );
 }
-
-// ============================================================
-// END OF FILE
-// ============================================================

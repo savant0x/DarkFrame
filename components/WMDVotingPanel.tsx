@@ -1,30 +1,24 @@
 /**
  * @file components/WMDVotingPanel.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-chip/
+ * nn-meter/nn-abtn token structure; voting flow logic byte-preserved)
  * @overview WMD Clan Voting System Panel
- * 
+ *
  * OVERVIEW:
  * Clan voting interface for WMD launches and critical decisions.
  * Shows active votes, allows voting, and displays results.
- * 
- * Features:
- * - Active clan votes display
- * - Vote creation interface
- * - Ballot casting (Yes/No)
- * - Vote results and progress
- * - Authorization checking
- * 
+ *
  * Dependencies: /api/wmd/voting, /types/wmd
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
+import { Vote } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import type { WMDVoteUpdatePayload } from '@/types/websocket';
 
 interface ClanVote {
   voteId: string;
@@ -56,7 +50,7 @@ export default function WMDVotingPanel() {
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    const handleVoteUpdate = (payload: any) => {
+    const handleVoteUpdate = (payload: WMDVoteUpdatePayload) => {
       if (payload.status === 'PASSED') {
         showSuccess(`Vote passed: ${payload.voteType}`);
       } else if (payload.status === 'FAILED') {
@@ -113,36 +107,13 @@ export default function WMDVotingPanel() {
     }
   };
 
-  const _vetoVote = async (voteId: string, reason?: string) => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/wmd/voting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'veto', voteId, reason }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showSuccess('Vote vetoed successfully');
-        await fetchVotes();
-      } else {
-        showError(data.error || 'Failed to veto vote');
-      }
-    } catch (error) {
-      showError('Error vetoing vote');
-      console.error('Error vetoing vote:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
+  const getStatusChip = (status: string) => {
     switch (status) {
-      case 'ACTIVE': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
-      case 'PASSED': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]';
-      case 'FAILED': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
-      case 'EXPIRED': return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
-      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      case 'ACTIVE': return 'nn-chip nn-chip--cyan';
+      case 'PASSED': return 'nn-chip nn-chip--green';
+      case 'FAILED': return 'nn-chip nn-chip--magenta';
+      case 'EXPIRED': return 'nn-chip';
+      default: return 'nn-chip';
     }
   };
 
@@ -156,8 +127,8 @@ export default function WMDVotingPanel() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-        <p className="text-[color:var(--nn-text-secondary)]">Loading clan votes...</p>
+      <div style={{ background: 'color-mix(in oklab, var(--nn-void) 65%, transparent)' }} className="p-6 rounded-none">
+        <p className="nn-lab">Loading clan votes…</p>
       </div>
     );
   }
@@ -165,98 +136,88 @@ export default function WMDVotingPanel() {
   const activeVotes = votes.filter(v => v.status === 'ACTIVE');
 
   return (
-    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">Clan Voting</h2>
-          <p className="text-sm text-[color:var(--nn-text-secondary)]">
-            {activeVotes.length} active vote{activeVotes.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Header — scanline section instrument */}
+      <div className="nn-sec">
+        <span className="nn-panel__icon"><Vote className="h-4 w-4" /></span>
+        <span className="nn-sec__title">Clan Voting</span>
+        <span className="nn-sec__note nn-num">{activeVotes.length} active vote{activeVotes.length !== 1 ? 's' : ''}</span>
       </div>
 
-      {/* Active Votes */}
+      {/* Active Votes — HUD panels with meters */}
       <div className="space-y-4">
         {votes.map((vote) => {
           const progress = ((vote.votesFor.length / vote.requiredVotes) * 100).toFixed(0);
           const totalVotes = vote.votesFor.length + vote.votesAgainst.length;
 
           return (
-            <Card key={vote.voteId} className="p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] space-y-4">
-              {/* Header */}
-              <div className="flex justify-between items-start">
+            <div
+              key={vote.voteId}
+              className="nn-panel"
+              style={{ '--nn-accent': vote.status === 'PASSED' ? 'var(--nn-green)' : vote.status === 'FAILED' ? 'var(--nn-magenta)' : 'var(--nn-cyan)' } as React.CSSProperties}
+            >
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">{vote.voteType}</span>
+                <span className="nn-panel__meta">Proposed by {vote.proposerUsername}</span>
+                <span className={`nn-chip ${getStatusChip(vote.status)} nn-panel__meta`} style={{ marginLeft: 'auto' }}>
+                  {vote.status}
+                </span>
+                {vote.status === 'ACTIVE' && (
+                  <span className="nn-panel__meta nn-num">{getTimeRemaining(vote.expiresAt)}</span>
+                )}
+              </div>
+
+              <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {vote.targetUsername && (
+                  <div className="flex justify-between">
+                    <span className="nn-lab">Target</span>
+                    <span className="nn-text-violet" style={{ fontSize: 12 }}>{vote.targetUsername}</span>
+                  </div>
+                )}
+                {vote.warheadType && (
+                  <div className="flex justify-between">
+                    <span className="nn-lab">Warhead</span>
+                    <span className="nn-chip nn-chip--magenta">{vote.warheadType}</span>
+                  </div>
+                )}
+
+                {/* Progress — HUD meter with green approval fill */}
                 <div>
-                  <h3 className="font-bold text-[color:var(--nn-text-primary)] text-lg">{vote.voteType}</h3>
-                  <p className="text-sm text-[color:var(--nn-text-secondary)]">Proposed by {vote.proposerUsername}</p>
-                  {vote.targetUsername && (
-                    <p className="text-sm text-[color:var(--nn-violet)]">Target: {vote.targetUsername}</p>
-                  )}
-                  {vote.warheadType && (
-                    <Badge className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] mt-1">{vote.warheadType}</Badge>
-                  )}
+                  <div className="flex justify-between" style={{ marginBottom: 4 }}>
+                    <span className="nn-lab">{vote.votesFor.length}/{vote.requiredVotes} votes needed</span>
+                    <span className="nn-num" style={{ fontSize: 11 }}>{progress}%</span>
+                  </div>
+                  <div className="nn-meter" style={{ '--nn-accent': 'var(--nn-green)' } as React.CSSProperties}>
+                    <div style={{ width: `${Math.min(100, parseFloat(progress))}%`, height: '100%', background: 'var(--nn-green)' }} />
+                  </div>
                 </div>
-                <div className="text-right">
-                  <Badge className={getStatusColor(vote.status)}>
-                    {vote.status}
-                  </Badge>
-                  {vote.status === 'ACTIVE' && (
-                    <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
-                      {getTimeRemaining(vote.expiresAt)}
-                    </p>
-                  )}
-                </div>
-              </div>
 
-              {/* Progress Bar */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-[color:var(--nn-text-secondary)]">
-                    {vote.votesFor.length}/{vote.requiredVotes} votes needed
-                  </span>
-                  <span className="text-[color:var(--nn-text-secondary)]">{progress}%</span>
+                {/* Tally — semantic ledger */}
+                <div className="flex gap-4">
+                  <span className="nn-num nn-text-green" style={{ fontSize: 12 }}>✓ {vote.votesFor.length}</span>
+                  <span className="nn-num nn-text-magenta" style={{ fontSize: 12 }}>✗ {vote.votesAgainst.length}</span>
+                  <span className="nn-lab">Total ▸ {totalVotes}</span>
                 </div>
-                <div className="w-full bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-full h-2">
-                  <div
-                    className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] h-2 rounded-full transition-all"
-                    style={{ width: `${Math.min(100, parseFloat(progress))}%` }}
-                  />
-                </div>
-              </div>
 
-              {/* Vote Stats */}
-              <div className="flex gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-[color:var(--nn-green)] text-lg">✓</span>
-                  <span className="text-[color:var(--nn-text-secondary)]">Yes: {vote.votesFor.length}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[color:var(--nn-magenta)] text-lg">✗</span>
-                  <span className="text-[color:var(--nn-text-secondary)]">No: {vote.votesAgainst.length}</span>
-                </div>
-                <div className="text-[color:var(--nn-text-secondary)]">
-                  Total: {totalVotes}
-                </div>
+                {/* Voting — approve green / reject magenta (destructive) */}
+                {vote.status === 'ACTIVE' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => castVote(vote.voteId, true)}
+                      className="nn-abtn nn-abtn--green flex-1"
+                    >
+                      Vote Yes
+                    </button>
+                    <button
+                      onClick={() => castVote(vote.voteId, false)}
+                      className="nn-abtn nn-abtn--magenta flex-1"
+                    >
+                      Vote No
+                    </button>
+                  </div>
+                )}
               </div>
-
-              {/* Voting Buttons */}
-              {vote.status === 'ACTIVE' && (
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => castVote(vote.voteId, true)}
-                    className="flex-1 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]"
-                  >
-                    Vote Yes
-                  </Button>
-                  <Button
-                    onClick={() => castVote(vote.voteId, false)}
-                    className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
-                  >
-                    Vote No
-                  </Button>
-                </div>
-              )}
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -264,8 +225,8 @@ export default function WMDVotingPanel() {
       {/* Empty State */}
       {votes.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">No clan votes</p>
-          <p className="text-[color:var(--nn-text-secondary)] text-sm">Votes will appear here when created</p>
+          <p className="nn-lab">No clan votes</p>
+          <p className="nn-footnote" style={{ marginTop: 4 }}>Votes will appear here when created</p>
         </div>
       )}
     </div>

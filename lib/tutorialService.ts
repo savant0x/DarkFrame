@@ -876,19 +876,30 @@ export async function getCurrentQuestAndStep(playerId: string): Promise<{
 
 /**
  * Tutorial action tracking (for real-time progress)
+ *
+ * THE canonical read contract for a tutorial_action_tracking row: the count
+ * lives INSIDE the actionType JSON string (see updateActionTracking). Every
+ * consumer must read counts through getActionTracking — reading raw row fields
+ * (`row.currentCount`) silently resets progress (FID-20260908-001).
  */
-interface ActionTracking {
+export interface ActionTracking {
   playerId: string;
   stepId: string;
   currentCount: number;
   targetCount: number;
+  /** MOVE_TO_COORDS extras (target persistence through the one writer). */
+  targetX?: number;
+  targetY?: number;
+  startX?: number;
+  startY?: number;
   lastUpdated: Date;
 }
 
 /**
- * Get action tracking for a step
+ * Get action tracking for a step (exported for route-layer reads —
+ * FID-20260908-001: the single reader of the actionType JSON contract)
  */
-async function getActionTracking(playerId: string, stepId: string): Promise<ActionTracking | null> {
+export async function getActionTracking(playerId: string, stepId: string): Promise<ActionTracking | null> {
   const rows = await db.select().from(tutorialActionTracking).where(
     and(
       eq(tutorialActionTracking.playerId, playerId),
@@ -899,13 +910,30 @@ async function getActionTracking(playerId: string, stepId: string): Promise<Acti
   if (rows.length === 0) return null;
   
   const row = rows[0];
-  const trackingData = row.actionType ? JSON.parse(row.actionType) : {};
+  let trackingData: Record<string, unknown> = {};
+  if (row.actionType) {
+    try {
+      const parsed: unknown = JSON.parse(row.actionType);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        trackingData = parsed as Record<string, unknown>;
+      }
+    } catch (error) {
+      // Corrupt payload counts as no progress, but is logged — never silently swallowed (Law 14).
+      console.error('[Tutorial] Malformed action-tracking JSON:', error);
+    }
+  }
+  const num = (value: unknown): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) ? value : undefined;
   
   return {
     playerId: row.playerId,
     stepId: row.stepId,
-    currentCount: trackingData.currentCount ?? 0,
-    targetCount: trackingData.targetCount ?? 0,
+    currentCount: num(trackingData.currentCount) ?? 0,
+    targetCount: num(trackingData.targetCount) ?? 0,
+    targetX: num(trackingData.targetX),
+    targetY: num(trackingData.targetY),
+    startX: num(trackingData.startX),
+    startY: num(trackingData.startY),
     lastUpdated: row.lastUpdated,
   };
 }
@@ -918,9 +946,10 @@ export async function updateActionTracking(
   playerId: string,
   stepId: string,
   currentCount: number,
-  targetCount: number
+  targetCount: number,
+  extraData: Record<string, number> = {}
 ): Promise<void> {
-  const trackingData = JSON.stringify({ currentCount, targetCount });
+  const trackingData = JSON.stringify({ currentCount, targetCount, ...extraData });
   
   const existing = await db.select().from(tutorialActionTracking).where(
     and(

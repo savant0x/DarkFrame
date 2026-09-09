@@ -30,6 +30,14 @@
   --nn-text-secondary: oklch(0.72 0.02 255);
   --nn-text-tertiary: oklch(0.55 0.02 255);
 
+  /* FID-20260908-010: legacy utility aliases (tailwind.config.ts maps the old
+     glass and text utility families here). Component classes are being
+     migrated to token structure; these aliases keep the resolved values
+     honest in one place instead of re-declaring rgba literals per-file. */
+  --nn-glass-light: color-mix(in oklab, oklch(0.13 0.03 265) 50%, transparent);
+  --nn-glass-dark: color-mix(in oklab, oklch(0.13 0.03 265) 60%, transparent);
+  --nn-glass-border: color-mix(in oklab, var(--nn-cyan) 20%, transparent);
+
   /* ---- Glow architecture (function-driven; zero decorative glows) ---- */
   --nn-glow-ambient: 0 0 0 1px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 22%, transparent),
     0 0 18px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 7%, transparent);
@@ -358,6 +366,57 @@ span.nn-panel__icon > svg {
 .nn-text-green { color: var(--nn-green); }
 .nn-text-violet { color: var(--nn-violet); }
 .nn-text-dim { color: var(--nn-text-tertiary); }
+.nn-text-primary { color: var(--nn-text-primary); }
+.nn-text-secondary { color: var(--nn-text-secondary); }
+.nn-text-tertiary { color: var(--nn-text-tertiary); }
+
+/* FID-20260908-010 surface tokens: void-glass wells (panel-adjacent fills) */
+.nn-surface {
+  background: var(--nn-glass-light);
+  border: 1px solid var(--nn-glass-border);
+  border-radius: 0;
+}
+.nn-surface--dark { background: var(--nn-glass-dark); }
+
+/* FID-20260908-010: fade entry for panels emitted by the class-migration pass
+   (replaces the banned tailwind animate-fade-in); gated per the motion rule. */
+@keyframes nn-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.nn-fade {
+  animation: nn-fade var(--nn-dur-state, 160ms) var(--nn-ease, ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nn-fade {
+    animation: none !important;
+  }
+}
+
+/* FID-20260908-011: particle-FX dot (TileRenderer embers/orbs/sparks/rings).
+   These are sub-6px FX geometry inside the tile effect layer — circular by
+   physics, not UI chrome. Component classes stay square; FX keeps round. */
+.nn-fx-dot {
+  border-radius: 9999px;
+}
+
+/* FID-20260908-011: slow FX rotations (flag-bearer rings 6–8s), gated. */
+@keyframes nn-rot {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.nn-spin-slow {
+  animation: nn-rot 8s linear infinite;
+}
+.nn-spin-slow-reverse {
+  animation: nn-rot 6s linear infinite reverse;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nn-spin-slow,
+  .nn-spin-slow-reverse {
+    animation: none !important;
+  }
+}
 
 /* Sample §02 power meters: taller track, STR/DEF as two labeled meters */
 .nn-meter {
@@ -393,6 +452,11 @@ span.nn-panel__icon > svg {
 .nn-meter__seg--green {
   background: linear-gradient(90deg, color-mix(in oklab, var(--nn-green) 40%, transparent), var(--nn-green));
   box-shadow: 0 0 10px color-mix(in oklab, var(--nn-green) 50%, transparent);
+}
+/* amber fill variant (FID-20260908-017: admin health meters) */
+.nn-meter__seg--amber {
+  background: linear-gradient(90deg, color-mix(in oklab, var(--nn-amber) 40%, transparent), var(--nn-amber));
+  box-shadow: 0 0 10px color-mix(in oklab, var(--nn-amber) 50%, transparent);
 }
 
 /* 8-segment divider overlay (sample `.segs`) */
@@ -1062,6 +1126,36 @@ span.nn-panel__icon > svg {
 }
 @media (prefers-reduced-motion: reduce) { .nn-threat--armed { animation: none; } }
 
+/* FID-20260908-015: gated attention pulse for connection/live indicators (messages
+   connection dot). Opacity-only so it composes with any token background. */
+.nn-pulse {
+  animation: nn-pulse 1.6s ease-in-out infinite;
+}
+@keyframes nn-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nn-pulse {
+    animation: none !important;
+  }
+}
+
+/* FID-20260908-018: gated float+pulse composite for the flag-bearer glyph.
+   The previous inline `animation:` shorthand bypassed reduced-motion gating
+   entirely (inline beats class); the composite lives here so one media query
+   stops both motions. `float` keyframes are Tailwind-config owned. */
+.nn-fx-flag {
+  animation:
+    nn-pulse 1.6s ease-in-out infinite,
+    float 4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nn-fx-flag {
+    animation: none !important;
+  }
+}
+
 /* panel rail (left/right columns) */
 .nn-rail {
   background: color-mix(in oklab, var(--nn-void) 55%, transparent);
@@ -1329,6 +1423,22 @@ span.nn-panel__icon > svg {
 }
 .nn-panel--tut .nn-panel__meta {
   display: none; /* meta tag duplicated by the Progress readout inside */
+}
+
+/* FID-20260909-022 — joyride step windows: joyride 3.x renders the arrow as a
+   SIBLING of .react-joyride__tooltip, so height containment on the tooltip
+   box cannot clip it. Long structured-help steps (Free Exploration) otherwise
+   overflow the viewport vertically. */
+.react-joyride__tooltip {
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* The quest dock scrolls its own overflow; keep the inner panel from blowing
+   past the dock's max-height when the collapsible content is long. */
+.nn-tutorial-dock .nn-panel--tut {
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 /* ===================================================================== */
@@ -2011,4 +2121,283 @@ span.nn-panel__icon > svg {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--nn-rail, var(--nn-cyan));
+}
+
+/* ====================================================================== */
+/* PHASE 3 — WAVE A COMMAND SURFACES (FID-20260908-006 §9)                */
+/* Unit-factory + factory management: unit cards, production tabs,        */
+/* rarity signals. Every glow semantic; motion gated at the file footer.  */
+/* ====================================================================== */
+
+/* Unit card — button-shaped panel; rarity sets --nn-accent so the corner
+   brackets, hairline, and ambient glow all speak the rarity's signal.   */
+.nn-unit {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 12px 14px 10px;
+  background: var(--nn-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 22%, transparent);
+  border-radius: 2px;
+  box-shadow: var(--nn-glow-ambient);
+  cursor: pointer;
+  transition:
+    border-color var(--nn-dur-state) var(--nn-ease),
+    box-shadow var(--nn-dur-panel) var(--nn-ease),
+    transform var(--nn-dur-state) var(--nn-ease);
+}
+.nn-unit:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 48%, transparent);
+  box-shadow:
+    0 0 20px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 16%, transparent),
+    inset 0 0 18px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 6%, transparent);
+  transform: translateY(-1px);
+}
+.nn-unit:focus-visible {
+  outline: none;
+  box-shadow: var(--nn-glow-focus);
+}
+.nn-unit:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: none;
+}
+/* corner brackets — same HUD signature as .nn-panel::before/::after */
+.nn-unit::before,
+.nn-unit::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  border-color: color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 70%, transparent);
+  border-style: solid;
+  border-width: 0;
+}
+.nn-unit::before { top: 0; left: 0; border-top-width: 1px; border-left-width: 1px; }
+.nn-unit::after { bottom: 0; right: 0; border-bottom-width: 1px; border-right-width: 1px; }
+
+/* rarity accent variants — signal mapping per FID-012 §3.3:
+   common=tertiary(text), uncommon=green, rare=cyan, epic=violet, legendary=amber */
+.nn-unit--common    { --nn-accent: var(--nn-text-secondary); }
+.nn-unit--uncommon  { --nn-accent: var(--nn-green); }
+.nn-unit--rare      { --nn-accent: var(--nn-cyan); }
+.nn-unit--epic      { --nn-accent: var(--nn-violet); }
+.nn-unit--legendary { --nn-accent: var(--nn-amber); }
+
+.nn-unit__stars {
+  font-family: var(--nn-font-body);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--nn-accent, var(--nn-cyan));
+  margin-bottom: 6px;
+}
+.nn-unit__name {
+  font-family: var(--nn-font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nn-text-primary);
+  margin-bottom: 4px;
+}
+.nn-unit__stat {
+  font-family: var(--nn-font-display);
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--nn-accent, var(--nn-cyan));
+  text-shadow: 0 0 12px color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 45%, transparent);
+  margin-bottom: 8px;
+}
+.nn-unit__costs {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 6px 0;
+  border-top: 1px solid color-mix(in oklab, var(--nn-accent, var(--nn-cyan)) 14%, transparent);
+  font-size: 11px;
+  color: var(--nn-text-secondary);
+}
+.nn-unit__costs .nn-num { font-size: 12px; font-weight: 600; }
+.nn-unit__owned {
+  margin-top: 6px;
+  font-family: var(--nn-font-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nn-green);
+}
+.nn-unit__lock {
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--nn-magenta);
+}
+.nn-unit__desc {
+  margin-top: 6px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--nn-text-tertiary);
+}
+
+/* Production tabs — text-rule tabs (same law as .nn-tab: NEVER filled slabs);
+   active tab carries the category's signal as underline + text color.      */
+.nn-ptab {
+  position: relative;
+  padding: 10px 2px 9px;
+  font-family: var(--nn-font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--nn-text-tertiary);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color var(--nn-dur-state) var(--nn-ease), border-color var(--nn-dur-state) var(--nn-ease);
+}
+.nn-ptab:hover { color: var(--nn-text-secondary); }
+.nn-ptab--str.on,
+.nn-ptab--str[data-selected='true'] { color: var(--nn-magenta); border-bottom-color: var(--nn-magenta); text-shadow: 0 0 12px color-mix(in oklab, var(--nn-magenta) 40%, transparent); }
+.nn-ptab--def.on,
+.nn-ptab--def[data-selected='true'] { color: var(--nn-cyan); border-bottom-color: var(--nn-cyan); text-shadow: 0 0 12px color-mix(in oklab, var(--nn-cyan) 40%, transparent); }
+
+/* quantity stepper — compact numeric field beside the Max action */
+.nn-stepper {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.nn-stepper .nn-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--nn-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+.nn-stepper__max {
+  padding: 0 18px;
+  font-family: var(--nn-font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nn-cyan);
+  background: color-mix(in oklab, var(--nn-cyan) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 40%, transparent);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background var(--nn-dur-state) var(--nn-ease), box-shadow var(--nn-dur-state) var(--nn-ease);
+}
+.nn-stepper__max:hover {
+  background: color-mix(in oklab, var(--nn-cyan) 18%, transparent);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--nn-cyan) 30%, transparent);
+}
+.nn-stepper__max:focus-visible { outline: none; box-shadow: var(--nn-glow-focus); }
+
+/* modal overlay — void at depth-3, matching the depth ladder (§3 rubric 3) */
+.nn-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: color-mix(in oklab, var(--nn-void) 78%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* range input — square HUD slider for batch-release threshold */
+.nn-range {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 4px;
+  background: oklch(0.13 0.03 265 / 0.9);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--nn-cyan) 18%, transparent);
+  outline: none;
+  cursor: pointer;
+}
+.nn-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 16px;
+  border-radius: 0;
+  background: var(--nn-cyan);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--nn-cyan) 55%, transparent);
+  cursor: pointer;
+}
+.nn-range::-moz-range-thumb {
+  width: 12px;
+  height: 16px;
+  border-radius: 0;
+  border: 0;
+  background: var(--nn-cyan);
+  box-shadow: 0 0 10px color-mix(in oklab, var(--nn-cyan) 55%, transparent);
+  cursor: pointer;
+}
+
+/* Wave A reduced-motion closure: the new primitives obey the same gate */
+@media (prefers-reduced-motion: reduce) {
+  .nn-unit,
+  .nn-unit:hover:not(:disabled),
+  .nn-ptab,
+  .nn-stepper__max,
+  .nn-range::-webkit-slider-thumb {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Machine-precise loader spin (replaces tailwind animate-spin on HUD pages;
+   disabled under reduced motion) */
+@keyframes nn-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*='nn-spin'], .nn-spin {
+    animation: none !important;
+  }
+}
+
+/* FID-20260908-010: icon-glyph spin (Loader2/RefreshCw) — gated like the
+   inline nn-spin pattern so loading indicators respect reduced motion. */
+.nn-spin-icon {
+  animation: nn-spin 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nn-spin-icon {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   nn-kbd — square token keycap (FID-20260908-012 help reference)
+   Void fill, glass border, display font; used for keyboard glyphs.
+   ============================================================ */
+.nn-kbd {
+  display: inline-block;
+  min-width: 1.9em;
+  padding: 0.15em 0.5em 0.1em;
+  text-align: center;
+  font-family: var(--nn-font-display);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--nn-text-primary);
+  background: color-mix(in oklab, var(--nn-void) 82%, transparent);
+  border: 1px solid var(--nn-glass-border);
+  border-bottom-width: 2px;
 }

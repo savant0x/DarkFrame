@@ -29,7 +29,10 @@ export const tutorialActionTracking = pgTable('tutorial_action_tracking', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	playerId: varchar('player_id', { length: 20 }).notNull(),
 	stepId: varchar('step_id', { length: 50 }).notNull(),
-	actionType: varchar('action_type', { length: 30 }).notNull(),
+	// JSON count-state payload ({currentCount,targetCount[,targetX,targetY,startX,startY,moveCount]}) —
+	// widened from 30: the 35-char minimum exceeded varchar(30) so every write failed
+	// (FID-20260908-001, migration 0018)
+	actionType: varchar('action_type', { length: 160 }).notNull(),
 	completed: smallint('completed').notNull().default(0),
 	lastUpdated: timestamp('last_updated').notNull(),
 }, (table) => [

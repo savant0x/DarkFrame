@@ -461,8 +461,18 @@ function GameStatsTab({ data, sortBy, onSort }: GameStatsTabProps) {
 // HARVEST CALCULATOR TAB COMPONENT
 // ============================================================
 
+/** Player fields the harvest calculator reads from /api/player (FID-20260908-020). */
+interface HarvestPlayerData {
+  totalStrength?: number;
+  totalDefense?: number;
+  inventory?: { items?: Array<{ name?: string; equipped?: boolean; yieldBonus?: number }> };
+  shrineBoosts?: Array<{ expiresAt: string | Date; yieldBonus: number }>;
+  vip?: boolean;
+  vipExpiration?: string | Date | null;
+}
+
 function HarvestCalculatorTab() {
-  const [playerData, setPlayerData] = useState<any>(null);
+  const [playerData, setPlayerData] = useState<HarvestPlayerData | null>(null);
   const [loading, setLoading] = useState(true);
   const [baseAmount, setBaseAmount] = useState<number>(1000);
   const [diggerBonus, setDiggerBonus] = useState<number>(0);
@@ -477,14 +487,14 @@ function HarvestCalculatorTab() {
         setLoading(true);
         const response = await fetch('/api/player');
         if (response.ok) {
-          const data = await response.json();
+          const data = (await response.json()) as HarvestPlayerData;
           setPlayerData(data);
           
           // Auto-populate with player's actual bonuses
           // Calculate digger bonus from inventory
           let totalDiggerBonus = 0;
           if (data.inventory) {
-            data.inventory.forEach((item: any) => {
+            data.inventory.items?.forEach((item) => {
               if (item.name?.toLowerCase().includes('digger') && item.equipped) {
                 totalDiggerBonus += item.yieldBonus || 0;
               }
@@ -496,7 +506,7 @@ function HarvestCalculatorTab() {
           let totalShrineBonus = 0;
           if (data.shrineBoosts && data.shrineBoosts.length > 0) {
             const now = new Date();
-            data.shrineBoosts.forEach((boost: any) => {
+            data.shrineBoosts.forEach((boost) => {
               if (new Date(boost.expiresAt) > now) {
                 totalShrineBonus += (boost.yieldBonus * 100); // Convert to percentage
               }
@@ -526,7 +536,7 @@ function HarvestCalculatorTab() {
           }
 
           // Set VIP status
-          const hasActiveVIP = data.vip && data.vipExpiration && new Date(data.vipExpiration) > new Date();
+          const hasActiveVIP = Boolean(data.vip && data.vipExpiration && new Date(data.vipExpiration) > new Date());
           setIsVIP(hasActiveVIP);
         }
       } catch (error) {
@@ -633,7 +643,7 @@ function HarvestCalculatorTab() {
               max="1500"
               value={baseAmount}
               onChange={(e) => setBaseAmount(parseInt(e.target.value) || 0)}
-              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-blue-500 focus:outline-none"
+              className="nn-input w-full"
             />
             <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Normal range: 800-1500</p>
           </div>
@@ -650,7 +660,7 @@ function HarvestCalculatorTab() {
               max="30"
               value={diggerBonus}
               onChange={(e) => setDiggerBonus(parseInt(e.target.value) || 0)}
-              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] focus:border-blue-500 focus:outline-none"
+              className="nn-input w-full"
             />
             <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">From equipped diggers (0-30%)</p>
           </div>
@@ -667,7 +677,7 @@ function HarvestCalculatorTab() {
               max="100"
               value={shrineBonus}
               onChange={(e) => setShrineBonus(parseInt(e.target.value) || 0)}
-              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] focus:border-blue-500 focus:outline-none"
+              className="nn-input w-full"
             />
             <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">Active shrine boosts</p>
           </div>
@@ -684,7 +694,7 @@ function HarvestCalculatorTab() {
               max="20"
               value={balanceBonus}
               onChange={(e) => setBalanceBonus(parseInt(e.target.value) || 0)}
-              className="w-full bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] focus:border-blue-500 focus:outline-none"
+              className="nn-input w-full"
             />
             <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">STR/DEF balance (-20% to +20%)</p>
           </div>

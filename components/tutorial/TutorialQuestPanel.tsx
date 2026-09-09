@@ -31,6 +31,7 @@ import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { X, ChevronDown, ChevronUp, Trophy, Gift, CheckCircle2, Target, MapPin } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { TutorialQuest, TutorialStep, TutorialProgress } from '@/types/tutorial.types';
+import { parseDetailedHelp } from '@/lib/tutorialHelpParser';
 import { logger } from '@/lib/logger';
 
 interface TutorialQuestPanelProps {
@@ -488,47 +489,8 @@ export default function TutorialQuestPanel({
     return labels[action] || 'actions';
   };
 
-  /**
-   * Parse structured help text into sections (WHY, WHEN, HOW)
-   * Returns organized sections for clean display
-   */
-  const parseDetailedHelp = (detailedHelp: string): { why?: string; when?: string[]; how?: string[]; tip?: string } | null => {
-    if (!detailedHelp) return null;
-
-    const sections: { why?: string; when?: string[]; how?: string[]; tip?: string } = {};
-    
-    // Extract WHY section
-    const whyMatch = detailedHelp.match(/🎯 WHY:\s*([^\n]+)/);
-    if (whyMatch) {
-      sections.why = whyMatch[1].trim();
-    }
-
-    // Extract WHEN section (bullet points)
-    const whenMatch = detailedHelp.match(/🕐 WHEN TO USE:\s*((?:•[^\n]+\n?)+)/);
-    if (whenMatch) {
-      sections.when = whenMatch[1]
-        .split('\n')
-        .filter(line => line.trim().startsWith('•'))
-        .map(line => line.replace('•', '').trim());
-    }
-
-    // Extract HOW section (bullet points)
-    const howMatch = detailedHelp.match(/⚡ HOW TO (?:USE|EXPLORE):\s*((?:•[^\n]+\n?)+)/);
-    if (howMatch) {
-      sections.how = howMatch[1]
-        .split('\n')
-        .filter(line => line.trim().startsWith('•'))
-        .map(line => line.replace('•', '').trim());
-    }
-
-    // Extract PRO TIP
-    const tipMatch = detailedHelp.match(/💡 PRO TIP:\s*([^\n]+)/);
-    if (tipMatch) {
-      sections.tip = tipMatch[1].trim();
-    }
-
-    return Object.keys(sections).length > 0 ? sections : null;
-  };
+  /* FID-20260909-022: structured-help parsing moved to lib/tutorialHelpParser.ts —
+     the same sections render in the quest panel and the joyride step windows. */
 
   return (
     <>
@@ -568,7 +530,7 @@ export default function TutorialQuestPanel({
               <Trophy className={`nn-panel__icon ${questJustCompleted ? 'animate-bounce' : ''}`} />
               <span className="nn-panel__title">Tutorial Quest</span>
               {stepJustCompleted && (
-                <CheckCircle2 className="w-4 h-4 text-[color:var(--nn-green)] animate-pulse" />
+                <CheckCircle2 className="w-4 h-4 text-[color:var(--nn-green)] nn-pulse" />
               )}
             </div>
           
@@ -603,8 +565,13 @@ export default function TutorialQuestPanel({
               </p>
             </div>
 
-            {/* Current Step */}
-            <div className={`nn-well mb-3 rounded-none border p-3 transition-all duration-300 ${
+            {/* Current Step — FID-20260909-022: a vertical stack (step header →
+                action-progress meter → deck footer). `.nn-well` is the HUD's
+                flex-ROW primitive (label/value + side margins); stacking its
+                three children as row siblings crushed them side-by-side and
+                pushed the 13/15 progress span out of the panel. Plain tokens
+                instead of the well + three inline flex-direction overrides. */}
+            <div className={`mb-3 rounded-none border bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] p-3 transition-all duration-300 ${
               stepJustCompleted ? 'border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)]' : 'border-[color-mix(in_oklab,var(--nn-violet)_20%,transparent)]'
             }`}>
               <div className="mb-2 flex items-start gap-2">
@@ -717,9 +684,9 @@ export default function TutorialQuestPanel({
 
               return (
                 <div className="mt-3 space-y-2 border-t border-[color-mix(in_oklab,var(--nn-violet)_16%,transparent)] pt-3">
-                  {/* WHY Section — sample `.sub` neutral well, semantic label only */}
+                  {/* WHY Section — neutral well tokens, semantic label */}
                   {sections.why && (
-                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+                    <div className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] p-2.5">
                       <div className="flex items-start gap-2">
                         <span className="nn-lab" style={{ color: 'var(--nn-violet)' }}>WHY:</span>
                         <p className="flex-1 text-xs text-[color:var(--nn-text-secondary)]">{sections.why}</p>
@@ -729,8 +696,8 @@ export default function TutorialQuestPanel({
 
                   {/* WHEN Section */}
                   {sections.when && sections.when.length > 0 && (
-                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
-                      <div className="nn-lab" style={{ color: 'var(--nn-cyan)' }}>WHEN TO USE:</div>
+                    <div className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] p-2.5">
+                      <div className="nn-lab mb-1" style={{ color: 'var(--nn-cyan)' }}>WHEN TO USE:</div>
                       <ul className="ml-2 space-y-0.5">
                         {sections.when.map((item, index) => (
                           <li key={index} className="flex items-start gap-1 text-xs text-[color:var(--nn-text-secondary)]">
@@ -744,8 +711,8 @@ export default function TutorialQuestPanel({
 
                   {/* HOW Section */}
                   {sections.how && sections.how.length > 0 && (
-                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
-                      <div className="nn-lab" style={{ color: 'var(--nn-green)' }}>HOW TO USE:</div>
+                    <div className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] p-2.5">
+                      <div className="nn-lab mb-1" style={{ color: 'var(--nn-green)' }}>HOW TO USE:</div>
                       <ul className="ml-2 space-y-0.5">
                         {sections.how.map((item, index) => (
                           <li key={index} className="flex items-start gap-1 text-xs text-[color:var(--nn-text-secondary)]">
@@ -759,7 +726,7 @@ export default function TutorialQuestPanel({
 
                   {/* PRO TIP Section */}
                   {sections.tip && (
-                    <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+                    <div className="rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] p-2.5">
                       <div className="flex items-start gap-2">
                         <span className="nn-lab" style={{ color: 'var(--nn-amber)' }}>TIP:</span>
                         <p className="flex-1 text-xs text-[color:var(--nn-text-secondary)]">{sections.tip}</p>

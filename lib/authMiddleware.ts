@@ -109,10 +109,13 @@ import { db } from '@/lib/db';
 import { players, clans } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 
+/** Full player row as attached to successful auth results. */
+export type PlayerRow = typeof players.$inferSelect;
+
 export interface AuthResult {
   username: string;
   playerId: string;
-  player: any;
+  player: PlayerRow;
   isAdmin: boolean;
 }
 
@@ -260,7 +263,7 @@ export async function requireAdmin(
  */
 export async function requireClanMembership(
   request: NextRequest
-): Promise<{ auth: AuthResult; clan: any; clanId: string } | NextResponse> {
+): Promise<{ auth: AuthResult; clan: typeof clans.$inferSelect; clanId: string } | NextResponse> {
   const auth = await requireAuth(request);
   
   if (auth instanceof NextResponse) {

@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
       clanId,
       clanName: clan.name,
       clanTag: clan.tag,
-      clanLevel: clan.level.currentLevel,
+      clanLevel: clan.levelCurrentLevel,
       perks: {
         unlocked: unlockedPerks,
         locked: lockedPerks,

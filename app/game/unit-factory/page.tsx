@@ -80,13 +80,14 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
-import { BackButton, StatsPanel, ControlsPanel } from '@/components';
+import { BackButton, StatsPanel, ControlsPanel, BattleLogLinks } from '@/components';
 import GameLayout from '@/components/GameLayout';
 import TopNavBar from '@/components/TopNavBar';
 import {  UnitBlueprint, UnitCategory, UnitRarity } from '@/types/units.types';
+import { Swords, Shield, Cpu, Zap, Lock, Package } from 'lucide-react';
 
 interface UnitWithStatus extends UnitBlueprint {
   isUnlocked: boolean;
@@ -115,6 +116,8 @@ export default function UnitFactoryPage() {
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [message, setMessage] = useState('');
+  const [chatTab, setChatTab] = useState<'CHAT' | 'DM'>('CHAT');
+  const [dmUnreadCount, setDmUnreadCount] = useState(0);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -122,6 +125,25 @@ export default function UnitFactoryPage() {
       router.push('/login');
     }
   }, [player, router]);
+
+  // Operator rule (2026-09-08): the unit-factory is location-bound. If the
+  // player moves while this page is open, return to the map so the view
+  // shows the actual tile they moved to. Coordinates are primitives, so
+  // this only fires on a real move — player data refreshes keep the same
+  // position and no-op. Auto-farm moves count: they are real moves.
+  const prevPosRef = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const pos = player?.currentPosition;
+    if (!pos) {
+      prevPosRef.current = null;
+      return;
+    }
+    const prev = prevPosRef.current;
+    prevPosRef.current = { x: pos.x, y: pos.y };
+    if (prev && (prev.x !== pos.x || prev.y !== pos.y)) {
+      router.push('/game');
+    }
+  }, [player?.currentPosition, router]);
 
   // Fetch available units and player stats
   useEffect(() => {
@@ -162,32 +184,20 @@ export default function UnitFactoryPage() {
       : unit.category === UnitCategory.Defense
   );
 
-  // Get rarity stars
-  const getRarityStars = (rarity: UnitRarity): string => {
-    return '⭐'.repeat(rarity);
-  };
-
-  // Get rarity color
-  const getRarityColor = (rarity: UnitRarity): string => {
+  // Get rarity accent class (signal mapping per FID-012 §3.3:
+  // common=tertiary, uncommon=green(success), rare=cyan, epic=violet, legendary=amber)
+  const getRarityAccent = (rarity: UnitRarity): string => {
     switch (rarity) {
-      case UnitRarity.Common: return 'text-[color:var(--nn-text-secondary)]';
-      case UnitRarity.Uncommon: return 'text-[color:var(--nn-green)]';
-      case UnitRarity.Rare: return 'text-[color:var(--nn-cyan)]';
-      case UnitRarity.Epic: return 'text-[color:var(--nn-violet)]';
-      case UnitRarity.Legendary: return 'text-[color:var(--nn-amber)]';
+      case UnitRarity.Common: return 'nn-unit--common';
+      case UnitRarity.Uncommon: return 'nn-unit--uncommon';
+      case UnitRarity.Rare: return 'nn-unit--rare';
+      case UnitRarity.Epic: return 'nn-unit--epic';
+      case UnitRarity.Legendary: return 'nn-unit--legendary';
     }
   };
 
-  // Get rarity border
-  const getRarityBorder = (rarity: UnitRarity): string => {
-    switch (rarity) {
-      case UnitRarity.Common: return 'border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]';
-      case UnitRarity.Uncommon: return 'border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]';
-      case UnitRarity.Rare: return 'border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
-      case UnitRarity.Epic: return 'border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]';
-      case UnitRarity.Legendary: return 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]';
-    }
-  };
+  // Rarity stars — dim dot for unearned tiers, lit glyph for earned
+  const getRarityStars = (rarity: UnitRarity): string => '★'.repeat(rarity) + '·'.repeat(5 - rarity);
 
   // Handle unit card click
   const handleUnitClick = (unit: UnitWithStatus) => {
@@ -244,16 +254,16 @@ export default function UnitFactoryPage() {
 
   if (!player || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
-        <div className="text-[color:var(--nn-text-primary)] text-2xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--nn-void)' }}>
+        <div className="nn-lab">Establishing uplink…</div>
       </div>
     );
   }
 
   if (!playerStats) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
-        <div className="text-[color:var(--nn-text-primary)] text-2xl">Failed to load unit factory</div>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--nn-void)' }}>
+        <div className="nn-note">Uplink failed — unit factory telemetry unavailable</div>
       </div>
     );
   }
@@ -265,29 +275,51 @@ export default function UnitFactoryPage() {
 
   return (
     <>
-      <TopNavBar />
+      <TopNavBar
+        onDMClick={() => setChatTab('DM')}
+        dmUnreadCount={dmUnreadCount}
+        metal={player?.resources.metal ?? 0}
+        energy={player?.resources.energy ?? 0}
+      />
       <GameLayout
         statsPanel={<StatsPanel />}
         controlsPanel={<ControlsPanel />}
+        battleLogs={<BattleLogLinks />}
+        chatUser={player ? {
+          userId: player.username,
+          username: player.username,
+          level: player.level,
+          isVIP: player.vip || false,
+          clanId: player.clanId,
+          clanName: player.clanName,
+        } : undefined}
+        initialChatTab={chatTab}
+        onChatTabChange={setChatTab}
+        onDMUnreadCountChange={setDmUnreadCount}
         tileView={
-          <div className="h-full w-full overflow-auto bg-gradient-to-b from-gray-900 to-black">
-            {/* Header */}
-            <header className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-b border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] px-6 py-4">
-            <div className="flex items-center justify-between w-full">
-              <div>
-                <h1 className="text-3xl font-bold text-[color:var(--nn-cyan)]">Unit Factory</h1>
-                <p className="text-sm text-[color:var(--nn-text-secondary)]">Build and manage your military forces</p>
+          <div className="flex h-full w-full flex-col overflow-auto" style={{ background: 'var(--nn-void)' }}>
+            {/* Header — full-bleed instrument strip, pinned below the TopNav.
+                Sticky within this scroll container so page content never slides
+                under the fixed TopNav or the strip itself (operator: overlap). */}
+            <header
+              className="sticky top-0 z-20 border-b border-[color-mix(in_oklab,var(--nn-cyan)_14%,transparent)] px-6 py-4"
+              style={{ background: 'color-mix(in oklab, var(--nn-void) 92%, transparent)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+            >
+            <div className="flex items-center justify-between w-full max-w-7xl mx-auto">
+              <div className="nn-sec">
+                <span className="nn-sec__title">Unit Factory</span>
+                <span className="nn-sec__note">Production ▸ Military Forces</span>
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-right">
-                  <div className="text-sm text-[color:var(--nn-text-secondary)]">Army Tier</div>
-                  <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
+                  <div className="nn-lab">Combat Rating</div>
+                  <div className="nn-num text-xl font-bold nn-text-magenta">
                     {Math.max(playerStats.totalStrength, playerStats.totalDefense).toLocaleString()}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-[color:var(--nn-text-secondary)]">Factory Build Slots</div>
-                  <div className="text-2xl font-bold text-[color:var(--nn-green)]">
+                  <div className="nn-lab">Build Slots</div>
+                  <div className="nn-num text-xl font-bold nn-text-green">
                     {playerStats.factoryBuildSlots.toLocaleString()}
                   </div>
                 </div>
@@ -295,131 +327,111 @@ export default function UnitFactoryPage() {
             </div>
           </header>
 
-          {/* Main Content */}
-          <main className="w-full px-6 py-8">
-        {/* Resources Display */}
-        <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-6 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div>
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Metal</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-amber)]">
-                {playerStats.resources.metal.toLocaleString()}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Energy</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
-                {playerStats.resources.energy.toLocaleString()}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Total Strength</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-magenta)]">
-                {playerStats.totalStrength.toLocaleString()}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-[color:var(--nn-text-secondary)]">Total Defense</div>
-              <div className="text-2xl font-bold text-[color:var(--nn-cyan)]">
-                {playerStats.totalDefense.toLocaleString()}
-              </div>
-            </div>
+          {/* Main Content — SAME max-w container as the header so the strip and
+              the body share one centered column (operator: left-hugging layout) */}
+          <main className="w-full max-w-7xl flex-none mx-auto px-6 py-6">
+        {/* Resources — semantic stat blocks (amber=metal, cyan=energy, magenta=STR, cyan=DEF) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+            <p className="nn-stat__lab flex items-center gap-2"><Cpu className="h-3 w-3" />Metal</p>
+            <p className="nn-stat__num nn-stat__num--glow-amber">{playerStats.resources.metal.toLocaleString()}</p>
+          </div>
+          <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+            <p className="nn-stat__lab flex items-center gap-2"><Zap className="h-3 w-3" />Energy</p>
+            <p className="nn-stat__num nn-stat__num--glow-cyan">{playerStats.resources.energy.toLocaleString()}</p>
+          </div>
+          <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
+            <p className="nn-stat__lab flex items-center gap-2"><Swords className="h-3 w-3" />Total Strength</p>
+            <p className="nn-stat__num nn-stat__num--glow-magenta">{playerStats.totalStrength.toLocaleString()}</p>
+          </div>
+          <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+            <p className="nn-stat__lab flex items-center gap-2"><Shield className="h-3 w-3" />Total Defense</p>
+            <p className="nn-stat__num">{playerStats.totalDefense.toLocaleString()}</p>
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="flex gap-4 mb-6">
+        {/* Production tabs — text-rule tabs (never filled slabs) */}
+        <div className="flex gap-6 mb-4 border-b border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)]">
           <button
             onClick={() => setActiveTab('strength')}
-            className={`px-8 py-3 rounded-none font-semibold transition-colors ${
-              activeTab === 'strength'
-                ? 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-            }`}
+            data-selected={activeTab === 'strength'}
+            className={`nn-ptab nn-ptab--str ${activeTab === 'strength' ? 'on' : ''}`}
           >
-            ⚔️ Strength Units
+            ⚔ Strength Units
           </button>
           <button
             onClick={() => setActiveTab('defense')}
-            className={`px-8 py-3 rounded-none font-semibold transition-colors ${
-              activeTab === 'defense'
-                ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]'
-            }`}
+            data-selected={activeTab === 'defense'}
+            className={`nn-ptab nn-ptab--def ${activeTab === 'defense' ? 'on' : ''}`}
           >
-            🛡️ Defense Units
+            🛡 Defense Units
           </button>
         </div>
 
-        {/* Message Display */}
+        {/* Message Display — semantic advisory strip */}
         {message && (
-          <div className={`mb-6 p-4 rounded-none ${
-            message.startsWith('✅') ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]' : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
-          }`}>
-            {message}
+          <div className="mb-6">
+            <div
+              className={message.startsWith('✅') ? 'nn-note' : 'nn-note'}
+              style={
+                message.startsWith('✅')
+                  ? { borderColor: 'color-mix(in oklab, var(--nn-green) 50%, transparent)', background: 'color-mix(in oklab, var(--nn-green) 8%, transparent)', color: 'var(--nn-green)' }
+                  : undefined
+              }
+            >
+              {message.replace(/^✅ |^❌ /, '')}
+            </div>
           </div>
         )}
 
-        {/* Unit Grid */}
+        {/* Unit Grid — HUD unit cards; rarity = accent signal */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {filteredUnits.map(unit => {
             const statValue = unit.category === UnitCategory.Strength ? unit.strength : unit.defense;
+            const statLabel = unit.category === UnitCategory.Strength ? 'STR' : 'DEF';
             
             return (
               <button
                 key={unit.id}
                 onClick={() => handleUnitClick(unit)}
                 disabled={!unit.isUnlocked}
-                className={`
-                  relative bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 border-2 transition-all
-                  ${unit.isUnlocked ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] cursor-pointer' : 'opacity-50 cursor-not-allowed'}
-                  ${getRarityBorder(unit.rarity)}
-                `}
+                className={`nn-unit ${getRarityAccent(unit.rarity)}`}
               >
-                {/* Rarity Stars */}
-                <div className={`text-xs mb-2 ${getRarityColor(unit.rarity)}`}>
-                  {getRarityStars(unit.rarity)}
-                </div>
+                {/* Rarity signal */}
+                <div className="nn-unit__stars">{getRarityStars(unit.rarity)}</div>
 
                 {/* Unit Name */}
-                <div className="font-bold text-lg mb-2">{unit.name}</div>
+                <div className="nn-unit__name">{unit.name}</div>
 
-                {/* Stat Value */}
-                <div className="text-3xl font-bold mb-2 text-[color:var(--nn-amber)]">
+                {/* Stat Value — semantic: magenta STR / cyan DEF */}
+                <div className={`nn-unit__stat ${unit.category === UnitCategory.Strength ? 'nn-text-magenta' : 'nn-text-cyan'}`}>
                   {statValue.toLocaleString()}
+                  <span className="nn-lab" style={{ marginLeft: 6 }}>{statLabel}</span>
                 </div>
 
-                {/* Costs */}
-                <div className="flex justify-between items-center mb-2">
-                  <div className="text-sm">
-                    <span className="text-[color:var(--nn-amber)]">{unit.metalCost.toLocaleString()}</span>
-                    <span className="text-[color:var(--nn-text-secondary)]"> metal</span>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-[color:var(--nn-cyan)]">{unit.energyCost.toLocaleString()}</span>
-                    <span className="text-[color:var(--nn-text-secondary)]"> energy</span>
-                  </div>
+                {/* Costs — amber=metal, cyan=energy (function-driven) */}
+                <div className="nn-unit__costs">
+                  <span>
+                    <span className="nn-num nn-text-amber">{unit.metalCost.toLocaleString()}</span>
+                    <span style={{ color: 'var(--nn-text-tertiary)' }}> METAL</span>
+                  </span>
+                  <span>
+                    <span className="nn-num nn-text-cyan">{unit.energyCost.toLocaleString()}</span>
+                    <span style={{ color: 'var(--nn-text-tertiary)' }}> ENERGY</span>
+                  </span>
                 </div>
 
                 {/* Owned Count */}
                 {unit.playerOwned > 0 && (
-                  <div className="text-xs text-[color:var(--nn-green)] mb-2">
-                    Owned: {unit.playerOwned}
-                  </div>
+                  <div className="nn-unit__owned"><Package className="inline h-3 w-3" style={{ marginRight: 4 }} />Owned ▸ {unit.playerOwned}</div>
                 )}
 
                 {/* Lock Status */}
                 {!unit.isUnlocked && unit.unlockRequirement && (
-                  <div className="text-xs text-[color:var(--nn-magenta)] mt-2">
-                    🔒 Requires {unit.unlockRequirement.researchPoints} RP
-                    {unit.unlockRequirement.level && ` & Lvl ${unit.unlockRequirement.level}`}
-                  </div>
+                  <div className="nn-unit__lock"><Lock className="inline h-3 w-3" style={{ marginRight: 4 }} />Requires {unit.unlockRequirement.researchPoints} RP{unit.unlockRequirement.level && ` · LVL ${unit.unlockRequirement.level}`}</div>
                 )}
 
                 {/* Description */}
-                <div className="text-xs text-[color:var(--nn-text-secondary)] mt-2">
-                  {unit.description}
-                </div>
+                <div className="nn-unit__desc">{unit.description}</div>
               </button>
             );
           })}
@@ -431,20 +443,24 @@ export default function UnitFactoryPage() {
         </div>
       </main>
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal — overlay(depth 3) > raised panel */}
       {selectedUnit && (
-        <div className="fixed inset-0 bg-[color:var(--nn-void)] bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-8 max-w-md w-full border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-            <h2 className="text-2xl font-bold mb-4 text-[color:var(--nn-cyan)]">Confirm Build</h2>
+        <div className="nn-overlay">
+          <div className="nn-panel nn-panel--x-pad w-full max-w-md" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+            <div className="nn-panel__header nn-panel__header--bleed">
+              <span className="nn-panel__icon"><Cpu /></span>
+              <h2 className="nn-panel__title">Production Order</h2>
+              <span className="nn-panel__meta">{selectedUnit.name}</span>
+            </div>
             
-            <div className="mb-6">
-              <div className="text-xl font-bold mb-2">{selectedUnit.name}</div>
-              <div className="text-sm text-[color:var(--nn-text-secondary)] mb-4">{selectedUnit.description}</div>
+            <div className="mb-5">
+              <div className="nn-unit__name" style={{ fontSize: 15 }}>{selectedUnit.name}</div>
+              <div className="nn-unit__desc" style={{ marginTop: 2, marginBottom: 12 }}>{selectedUnit.description}</div>
               
               {/* Quantity Selector */}
               <div className="mb-4">
-                <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-2">Quantity</label>
-                <div className="flex gap-2">
+                <label className="nn-lab" style={{ display: 'block', marginBottom: 6 }}>Quantity</label>
+                <div className="nn-stepper">
                   <input
                     type="number"
                     min="1"
@@ -453,7 +469,8 @@ export default function UnitFactoryPage() {
                       const value = parseInt(e.target.value) || 1;
                       setBuildQuantity(Math.max(1, value));
                     }}
-                    className="flex-1 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] rounded-none text-[color:var(--nn-text-primary)]"
+                    className="nn-input"
+                    aria-label="Build quantity"
                   />
                   <button
                     onClick={() => {
@@ -482,58 +499,55 @@ export default function UnitFactoryPage() {
                       // Set quantity to calculated max
                       setBuildQuantity(maxAffordable);
                     }}
-                    className="px-6 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none font-semibold transition-colors"
+                    className="nn-stepper__max"
                   >
                     Max
                   </button>
                 </div>
               </div>
 
-              {/* Total Cost */}
+              {/* Total Cost — inset wells (void glass, NOT accent-tinted) */}
               {totalCost && (
-                <div className="bg-[color:var(--nn-void)] rounded-none p-4 mb-4">
-                  <div className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Total Cost</div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-[color:var(--nn-amber)]">Metal:</span>
-                    <span className="font-bold">{totalCost.metal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[color:var(--nn-cyan)]">Energy:</span>
-                    <span className="font-bold">{totalCost.energy.toLocaleString()}</span>
-                  </div>
+                <div className="nn-well !mx-0 mb-2">
+                  <span className="nn-lab">Total Cost</span>
+                  <span className="nn-num" style={{ fontSize: 12 }}>
+                    <span className="nn-text-amber">{totalCost.metal.toLocaleString()} M</span>
+                    <span style={{ color: 'var(--nn-text-tertiary)' }}> + </span>
+                    <span className="nn-text-cyan">{totalCost.energy.toLocaleString()} E</span>
+                  </span>
                 </div>
               )}
 
-              {/* Stats Gained */}
-              <div className="bg-[color:var(--nn-void)] rounded-none p-4">
-                <div className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Stats Gained</div>
+              {/* Stats Gained — the glow answers "what do I gain?" */}
+              <div className="nn-well !mx-0">
+                <span className="nn-lab">Output</span>
                 {selectedUnit.category === UnitCategory.Strength ? (
-                  <div className="text-[color:var(--nn-magenta)] font-bold">
-                    +{(selectedUnit.strength * buildQuantity).toLocaleString()} Strength
-                  </div>
+                  <span className="nn-num nn-text-magenta" style={{ fontSize: 13, fontWeight: 700 }}>
+                    +{(selectedUnit.strength * buildQuantity).toLocaleString()} STR
+                  </span>
                 ) : (
-                  <div className="text-[color:var(--nn-cyan)] font-bold">
-                    +{(selectedUnit.defense * buildQuantity).toLocaleString()} Defense
-                  </div>
+                  <span className="nn-num nn-text-cyan" style={{ fontSize: 13, fontWeight: 700 }}>
+                    +{(selectedUnit.defense * buildQuantity).toLocaleString()} DEF
+                  </span>
                 )}
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-4">
+            {/* Action Buttons — outline style per sample §02 */}
+            <div className="flex gap-3">
               <button
                 onClick={() => setSelectedUnit(null)}
                 disabled={building}
-                className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none font-semibold transition-colors disabled:opacity-50"
+                className="nn-btn nn-btn--ghost"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBuild}
                 disabled={building}
-                className="flex-1 px-6 py-3 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] rounded-none font-semibold transition-colors disabled:opacity-50"
+                className="nn-btn nn-btn--primary"
               >
-                {building ? 'Building...' : 'Confirm Build'}
+                {building ? 'Building…' : 'Confirm Build'}
               </button>
             </div>
           </div>

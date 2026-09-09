@@ -21,7 +21,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Smile, Loader, Check, CheckCheck, Clock } from 'lucide-react';
+import { Send, Smile, Loader2, Check, CheckCheck, Clock } from 'lucide-react';
 import type { Message, MessageThreadState } from '@/types/messaging.types';
 
 interface MessageThreadProps {
@@ -277,10 +277,10 @@ export default function MessageThread({
 
     switch (message.status) {
       case 'sending':
-        return <Clock className="w-3 h-3 text-text-secondary" />;
+        return <Clock className="w-3 h-3 nn-text-secondary" />;
       case 'sent':
       case 'delivered':
-        return <Check className="w-3 h-3 text-text-secondary" />;
+        return <Check className="w-3 h-3 nn-text-secondary" />;
       case 'read':
         return <CheckCheck className="w-3 h-3 text-[color:var(--nn-cyan)]" />;
       case 'failed':
@@ -295,9 +295,9 @@ export default function MessageThread({
   // ========================================================================
 
   return (
-    <div className={`flex flex-col h-full bg-glass-dark ${className}`}>
+    <div className={`flex flex-col h-full nn-surface--dark ${className}`}>
       {/* Header */}
-      <div className="p-4 border-b border-glass-border bg-glass-light">
+      <div className="p-4 border-b border-[color:var(--nn-glass-border)] nn-surface">
         <div className="flex items-center gap-3">
           {/* Recipient Avatar */}
           <div className="flex h-10 w-10 flex-none items-center justify-center rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] font-bold text-[color:var(--nn-cyan)]">
@@ -321,15 +321,12 @@ export default function MessageThread({
       >
         {state.isLoading && state.messages.length === 0 ? (
           <div className="flex items-center justify-center h-32">
-            <Loader className="w-8 h-8 animate-spin text-[color:var(--nn-cyan)]" />
+            <Loader2 className="nn-spin-icon w-8 h-8 text-[color:var(--nn-cyan)]" aria-label="Loading messages" />
           </div>
         ) : state.error ? (
           <div className="text-center">
-            <p className="text-[color:var(--nn-magenta)]">{state.error}</p>
-            <button
-              onClick={() => loadMessages()}
-              className="mt-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none"
-            >
+            <p className="nn-text-magenta">{state.error}</p>
+            <button onClick={() => loadMessages()} className="nn-btn mt-2 px-4 py-2">
               Retry
             </button>
           </div>
@@ -345,7 +342,7 @@ export default function MessageThread({
                       loadMessages(new Date(oldestMessage.createdAt));
                     }
                   }}
-                  className="px-4 py-2 text-sm text-[color:var(--nn-cyan)]"
+                  className="nn-link text-sm"
                 >
                   Load older messages
                 </button>
@@ -362,17 +359,15 @@ export default function MessageThread({
                   className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[70%] rounded-none px-4 py-2 ${
-                      isOwn
-                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'
-                        : 'bg-glass-light text-text-primary'
+                    className={`max-w-[70%] px-4 py-2 ${
+                      isOwn ? 'nn-msg--own' : 'nn-msg'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap break-words">
+                    <p className="text-sm whitespace-pre-wrap break-words text-[color:var(--nn-text-primary)]">
                       {message.content}
                     </p>
                     <div className={`flex items-center gap-2 mt-1 text-xs ${
-                      isOwn ? 'text-[color:var(--nn-cyan)]' : 'text-text-secondary'
+                      isOwn ? 'nn-text-cyan' : 'nn-text-secondary'
                     }`}>
                       <span>{formatTimestamp(message.createdAt)}</span>
                       {getStatusIcon(message)}
@@ -389,10 +384,10 @@ export default function MessageThread({
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-glass-border bg-glass-light">
+      <div className="p-4 border-t border-[color:var(--nn-glass-border)] nn-surface">
         {/* Emoji quick-insert (FID-20260906-012 P0 — replaces removed @emoji-mart picker) */}
         {showEmojiPicker && (
-          <div className="absolute bottom-20 right-4 z-50 flex flex-wrap gap-1 p-3 max-w-64 bg-glass-darker border border-glass-border rounded-none shadow-2xl">
+          <div className="absolute bottom-20 right-4 z-50 flex flex-wrap gap-1 p-3 max-w-64 nn-surface--dark border border-[color:var(--nn-glass-border)] shadow-2xl">
             {QUICK_EMOJIS.map(e => (
               <button key={e} onClick={() => insertEmoji(e)} className="p-1.5 text-lg hover:bg-[color-mix(in_oklab,var(--nn-text-primary)_10%,transparent)] rounded-none transition-colors">{e}</button>
             ))}
@@ -404,7 +399,7 @@ export default function MessageThread({
           {/* Emoji Button */}
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+            className="p-2 nn-text-secondary hover:text-[color:var(--nn-text-primary)] transition-colors"
             title="Add emoji"
           >
             <Smile className="w-5 h-5" />
@@ -418,18 +413,18 @@ export default function MessageThread({
             onKeyPress={handleKeyPress}
             placeholder={`Message ${recipientUsername}...`}
             rows={1}
-            className="flex-1 px-4 py-2 bg-glass-dark border border-glass-border rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-blue-500 resize-none max-h-32"
+            className="nn-chatinput px-4 py-2 bg-[color:var(--nn-glass-dark)] border border-[color:var(--nn-glass-border)] text-[color:var(--nn-text-primary)] placeholder-[color:var(--nn-text-tertiary)] focus:border-[color:var(--nn-cyan)] focus:outline-none resize-none max-h-32"
           />
 
           {/* Send Button */}
           <button
             onClick={sendMessage}
             disabled={!state.draftMessage.trim() || isSending}
-            className="p-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="nn-btn nn-btn--primary p-2 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Send message"
           >
             {isSending ? (
-              <Loader className="w-5 h-5 animate-spin" />
+              <Loader2 className="w-5 h-5 nn-spin-icon" />
             ) : (
               <Send className="w-5 h-5" />
             )}
@@ -438,10 +433,10 @@ export default function MessageThread({
 
         {/* Character Count */}
         <div className="mt-1 text-right">
-          <span className={`text-xs ${
+          <span className={`nn-num text-xs ${
             state.draftMessage.length > 900
-              ? 'text-[color:var(--nn-magenta)]'
-              : 'text-text-secondary'
+              ? 'nn-text-magenta'
+              : 'nn-text-secondary'
           }`}>
             {state.draftMessage.length} / 1000
           </span>

@@ -47,7 +47,7 @@
  * - types/game.types.ts: Player, PlayerUnit, BotConfig types
  */
 
-import { connectToDatabase } from './mongodb';
+import { connectToDatabase, type DocumentValue } from './mongodb';
 import { getNestById } from './botNestService';
 import type { Player, PlayerUnit,  UnitType } from '@/types/game.types';
 
@@ -403,7 +403,7 @@ export async function runGrowthCycle(): Promise<{
     // Process each bot
     for (const bot of bots) {
       try {
-        const updates: Record<string, any> = {};
+        const updates: Record<string, DocumentValue> = {};
         
         // 1. Resource Regeneration (Full Permanence)
         const regeneratedResources = regenerateBotResources(bot);

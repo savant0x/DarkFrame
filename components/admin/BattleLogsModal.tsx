@@ -30,6 +30,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { formatDateTime } from '@/utils/formatting';
 
 /**
@@ -226,7 +227,7 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
       <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] flex items-center justify-center z-50">
         <div className="bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 max-w-md w-full">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] mx-auto mb-4"></div>
+            <Loader2 className="nn-spin-icon w-12 h-12 text-[color:var(--nn-violet)] mx-auto mb-4" aria-label="Loading battle logs" />
             <p className="text-[color:var(--nn-text-secondary)]">Loading battle logs...</p>
           </div>
         </div>
@@ -295,7 +296,7 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
                 value={searchPlayer}
                 onChange={(e) => setSearchPlayer(e.target.value)}
                 placeholder="Username..."
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               />
             </div>
 
@@ -305,7 +306,7 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
               <select
                 value={filterOutcome}
                 onChange={(e) => setFilterOutcome(e.target.value)}
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               >
                 <option value="all">All Outcomes</option>
                 <option value="attacker_win">Attacker Victory</option>
@@ -321,7 +322,7 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
                 type="date"
                 value={filterDateFrom}
                 onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               />
             </div>
 
@@ -332,7 +333,7 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
                 type="date"
                 value={filterDateTo}
                 onChange={(e) => setFilterDateTo(e.target.value)}
-                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none text-[color:var(--nn-text-primary)] text-sm focus:border-purple-500 outline-none"
+                className="nn-input w-full text-sm"
               />
             </div>
           </div>

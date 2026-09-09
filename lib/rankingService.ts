@@ -162,20 +162,20 @@ export async function getTopPlayers(limit: number = 100): Promise<RankedPlayer[]
   });
   
   // Get factory counts for top players
-  const topPlayerUsernames = rankedPlayers.slice(0, limit).map((p: any) => p.username);
-  const factoryCounts = await factoriesCollection.aggregate([
+  const topPlayerUsernames = rankedPlayers.slice(0, limit).map((p) => p.username);
+  const factoryCounts = await factoriesCollection.aggregate<{ _id: string; count: number }>([
     { $match: { owner: { $in: topPlayerUsernames } } },
     { $group: { _id: '$owner', count: { $sum: 1 } } }
   ]).toArray();
   
   const factoryCountMap = new Map<string, number>(
-    factoryCounts.map((fc: any) => [fc._id as string, fc.count as number])
+    factoryCounts.map((fc) => [fc._id as string, fc.count as number])
   );
   
   // Add ranks and factory counts to top N players
   const topRanked: RankedPlayer[] = rankedPlayers
     .slice(0, limit)
-    .map((player: any, index: number) => ({
+    .map((player, index) => ({
       rank: index + 1,
       username: player.username,
       effectivePower: player.effectivePower,
@@ -219,7 +219,7 @@ export async function getPlayerRank(username: string): Promise<number | null> {
     .toArray();
   
   // Calculate effective power for each player
-  const rankedPlayers = players.map((player: any) => {
+  const rankedPlayers = players.map((player) => {
     const totalStrength = player.totalStrength || 0;
     const totalDefense = player.totalDefense || 0;
     const totalPower = totalStrength + totalDefense;
@@ -233,7 +233,7 @@ export async function getPlayerRank(username: string): Promise<number | null> {
   });
   
   // Sort by effective power descending
-  rankedPlayers.sort((a: any, b: any) => {
+  rankedPlayers.sort((a, b) => {
     if (b.effectivePower !== a.effectivePower) {
       return b.effectivePower - a.effectivePower;
     }
@@ -241,7 +241,7 @@ export async function getPlayerRank(username: string): Promise<number | null> {
   });
   
   // Find player's rank
-  const rank = rankedPlayers.findIndex((p: any) => p.username === username);
+  const rank = rankedPlayers.findIndex((p) => p.username === username);
   return rank === -1 ? null : rank + 1;
 }
 
@@ -286,7 +286,7 @@ export async function getPlayerRankData(username: string): Promise<{
     .toArray();
   
   // Calculate effective power for all players
-  const rankedPlayers = allPlayers.map((p: any) => {
+  const rankedPlayers = allPlayers.map((p) => {
     const totalStrength = p.totalStrength || 0;
     const totalDefense = p.totalDefense || 0;
     const totalPower = totalStrength + totalDefense;
@@ -306,7 +306,7 @@ export async function getPlayerRankData(username: string): Promise<{
   });
   
   // Sort by effective power
-  rankedPlayers.sort((a: any, b: any) => {
+  rankedPlayers.sort((a, b) => {
     if (b.effectivePower !== a.effectivePower) {
       return b.effectivePower - a.effectivePower;
     }
@@ -314,7 +314,7 @@ export async function getPlayerRankData(username: string): Promise<{
   });
   
   // Find player's rank
-  const playerIndex = rankedPlayers.findIndex((p: any) => p.username === username);
+  const playerIndex = rankedPlayers.findIndex((p) => p.username === username);
   if (playerIndex === -1) return null;
   
   const rank = playerIndex + 1;

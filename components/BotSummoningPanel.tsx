@@ -154,9 +154,9 @@ export default function BotSummoningPanel() {
 
   if (!hasTech) {
     return (
-      <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
-        <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">⭕ Bot Summoning Circle</h2>
-        <p className="text-[color:var(--nn-text-secondary)]">
+    <div className="nn-panel rounded-none p-6" style={{ ['--nn-accent' as string]: 'var(--nn-violet)' }}>
+      <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">⭕ Bot Summoning Circle</h2>
+      <p className="text-[color:var(--nn-text-secondary)]">
           Research <span className="text-[color:var(--nn-violet)] font-semibold">Bot Summoning Circle</span> technology to unlock this feature.
         </p>
         <div className="mt-4 text-sm text-[color:var(--nn-text-secondary)]">
@@ -170,7 +170,7 @@ export default function BotSummoningPanel() {
   }
 
   return (
-    <div className="bg-slate-800/40 backdrop-blur-sm border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-6">
+    <div className="nn-panel rounded-none p-6" style={{ ['--nn-accent' as string]: 'var(--nn-violet)' }}>
       <h2 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4">⭕ Bot Summoning Circle</h2>
 
       {message && (
@@ -227,7 +227,7 @@ export default function BotSummoningPanel() {
                 className={`p-4 rounded-none border-2 transition text-left ${
                   selectedSpec === spec
                     ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]'
-                    : 'bg-slate-700/30 border-slate-600/30 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]'
+                    : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_20%,transparent)]'
                 }`}
                 disabled={spec === BotSpecialization.Boss}
               >
@@ -251,7 +251,7 @@ export default function BotSummoningPanel() {
       )}
 
       {/* Info Section */}
-      <div className="mt-6 p-4 bg-slate-700/30 rounded-none border border-slate-600/30">
+      <div className="mt-6 p-4 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)]">
         <h4 className="text-sm font-semibold text-[color:var(--nn-violet)] mb-2">Summoning Details</h4>
         <ul className="text-xs text-[color:var(--nn-text-secondary)] space-y-1">
           <li>• Spawns 5 bots of chosen specialization</li>

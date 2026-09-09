@@ -47,7 +47,7 @@ export const SafeHtmlRenderer: React.FC<SafeHtmlRendererProps> = ({
 
   if (!sanitizedHtml) {
     return (
-      <div className={`text-text-secondary italic ${className}`}>
+      <div className={`text-[color:var(--nn-text-secondary)] italic ${className}`}>
         {fallback}
       </div>
     );

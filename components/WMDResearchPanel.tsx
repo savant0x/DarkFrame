@@ -1,32 +1,27 @@
 /**
  * @file components/WMDResearchPanel.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-ptab/
+ * nn-chip/nn-num token structure; research flow logic byte-preserved)
  * @overview WMD Research Tech Tree Panel
- * 
+ *
  * OVERVIEW:
  * Interactive research panel for WMD tech progression. Displays 3 parallel
- * research tracks (Missile, Defense, Intelligence) with 10 tiers each.
- * Shows available techs, current research, and RP spending options.
- * 
- * Features:
- * - 30 tech cards organized by track and tier
- * - Research progress tracking with completion timers
- * - RP balance display and spending interface
- * - Tech prerequisites and unlock indicators
- * - Clan research bonus display
- * 
+ * research tracks (Missile, Defense, Intelligence). Shows available techs,
+ * current research, and RP spending options.
+ *
  * Dependencies: /api/wmd/research, /types/wmd, researchPointService
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
+import { FlaskConical } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useGameContext } from '@/context/GameContext';
 import { showSuccess, showError } from '@/lib/toastService';
+import type { WMDResearchCompletePayload } from '@/types/websocket';
+import type { ResearchTech } from '@/types/wmd';
 
 interface Tech {
   id: string;
@@ -76,7 +71,7 @@ export default function WMDResearchPanel() {
     if (!socket || !isConnected) return;
 
     // Listen for research completion
-    const handleResearchComplete = (payload: any) => {
+    const handleResearchComplete = (payload: WMDResearchCompletePayload) => {
       showSuccess(`Research complete: ${payload.techName}!`);
       fetchResearchData();
       fetchTechTree(); // Refresh for new unlocks
@@ -108,20 +103,22 @@ export default function WMDResearchPanel() {
       const res = await fetch('/api/wmd/research?view=tree');
       const data = await res.json();
       if (data.success) {
-        // Flatten tech tree into array
+        // Flatten tech tree into array — ResearchTech is the declared tree-node
+        // shape (types/wmd/research.types.ts); category maps onto the panel's
+        // track union and `unlocks` is carried as-is.
         const allTechs: Tech[] = [];
-        Object.values(data.tree).forEach((categoryTechs: any) => {
-          categoryTechs.forEach((tech: any) => {
+        Object.values(data.tree as Record<string, ResearchTech[]>).forEach((categoryTechs) => {
+          categoryTechs.forEach((tech) => {
             allTechs.push({
               id: tech.techId,
               name: tech.name,
               description: tech.description,
-              track: tech.category,
-              tier: 1, // Calculate from prerequisites
+              track: tech.category as Tech['track'],
+              tier: tech.tier || 1,
               rpCost: tech.rpCost,
-              researchTime: tech.researchTime || 0,
+              researchTime: 0,
               prerequisites: tech.prerequisites || [],
-              unlocks: tech.unlocks || [],
+              unlocks: [],
             });
           });
         });
@@ -189,137 +186,114 @@ export default function WMDResearchPanel() {
     return `${hours}h ${minutes}m`;
   };
 
-  const _filteredTechs = selectedTrack === 'ALL' 
-    ? techs 
-    : techs.filter(t => t.track === selectedTrack);
-
   if (loading) {
     return (
-      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-        <p className="text-[color:var(--nn-text-secondary)]">Loading research data...</p>
+      <div style={{ background: 'color-mix(in oklab, var(--nn-void) 65%, transparent)' }} className="p-6 rounded-none">
+        <p className="nn-lab">Loading research data…</p>
       </div>
     );
   }
 
+  const trackAccent = (track: 'MISSILE' | 'DEFENSE' | 'INTELLIGENCE') =>
+    track === 'MISSILE' ? 'var(--nn-amber)' : track === 'DEFENSE' ? 'var(--nn-cyan)' : 'var(--nn-violet)';
+
   return (
-    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[color:var(--nn-amber)]">WMD Research</h2>
-          <p className="text-sm text-[color:var(--nn-text-secondary)]">Unlock advanced warfare technologies</p>
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold text-[color:var(--nn-green)]">
-            {player?.researchPoints?.toLocaleString() || 0} RP
-          </div>
+    <div className="space-y-6">
+      {/* Header — scanline section instrument with RP readout */}
+      <div className="nn-sec">
+        <span className="nn-panel__icon"><FlaskConical className="h-4 w-4" /></span>
+        <span className="nn-sec__title">WMD Research</span>
+        <span className="nn-sec__note">Unlock advanced warfare technologies</span>
+        <div className="ml-auto text-right">
+          <div className="nn-num nn-text-green text-xl font-bold">{player?.researchPoints?.toLocaleString() || 0} RP</div>
           {research && research.clanResearchBonus > 0 && (
-            <Badge className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] mt-1">
-              +{research.clanResearchBonus}% Clan Bonus
-            </Badge>
+            <span className="nn-chip nn-chip--cyan" style={{ marginTop: 2 }}>+{research.clanResearchBonus}% Clan Bonus</span>
           )}
         </div>
       </div>
 
-      {/* Current Research */}
+      {/* Current Research — panel with countdown */}
       {research?.currentResearch && (
-        <Card className="p-4 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="font-bold text-[color:var(--nn-cyan)]">Research In Progress</h3>
-              <p className="text-sm text-[color:var(--nn-cyan)]">{research.currentResearch.techId}</p>
-            </div>
-            <div className="text-right">
-              <div className="text-xl font-bold text-[color:var(--nn-cyan)]">{getTimeRemaining()}</div>
-              <p className="text-xs text-[color:var(--nn-cyan)]">remaining</p>
-            </div>
+        <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
+          <div className="nn-panel__header">
+            <span className="nn-panel__title">Research In Progress</span>
+            <span className="nn-panel__meta nn-num">{research.currentResearch.techId}</span>
+            <span className="nn-panel__meta nn-num nn-text-cyan" style={{ marginLeft: 'auto' }}>{getTimeRemaining()}</span>
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Track Filter */}
-      <div className="flex gap-2">
-        <Button
-          onClick={() => setSelectedTrack('ALL')}
-          variant={selectedTrack === 'ALL' ? 'primary' : 'secondary'}
-          size="sm"
-        >
-          All Tracks
-        </Button>
-        <Button
-          onClick={() => setSelectedTrack('MISSILE')}
-          variant={selectedTrack === 'MISSILE' ? 'primary' : 'secondary'}
-          size="sm"
-          className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
-        >
-          Missiles (Tier {research?.missileTier || 0})
-        </Button>
-        <Button
-          onClick={() => setSelectedTrack('DEFENSE')}
-          variant={selectedTrack === 'DEFENSE' ? 'primary' : 'secondary'}
-          size="sm"
-          className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
-        >
-          Defense (Tier {research?.defenseTier || 0})
-        </Button>
-        <Button
-          onClick={() => setSelectedTrack('INTELLIGENCE')}
-          variant={selectedTrack === 'INTELLIGENCE' ? 'primary' : 'secondary'}
-          size="sm"
-          className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
-        >
-          Intelligence (Tier {research?.intelligenceTier || 0})
-        </Button>
+      {/* Track Filter — text-rule tabs (never filled slabs) */}
+      <div className="flex gap-0 border-b" style={{ borderColor: 'color-mix(in oklab, var(--nn-cyan) 12%, transparent)' }}>
+        {([
+          ['ALL', 'All Tracks'],
+          ['MISSILE', `Missiles (${research?.missileTier || 0})`],
+          ['DEFENSE', `Defense (${research?.defenseTier || 0})`],
+          ['INTELLIGENCE', `Intel (${research?.intelligenceTier || 0})`],
+        ] as const).map(([track, label]) => (
+          <button
+            key={track}
+            onClick={() => setSelectedTrack(track)}
+            data-selected={selectedTrack === track}
+            className={`nn-tab px-5 ${selectedTrack === track ? 'nn-tab--on' : ''}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Tech Tree Grid */}
+      {/* Tech Grid — HUD panels, status via accent signal */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {research?.availableTechs?.slice(0, 9).map((techId) => {
           const isCompleted = research.completedTechs.includes(techId);
           const isAvailable = research.availableTechs.includes(techId);
           const isResearching = research.currentResearch?.techId === techId;
+          const tech = techs.find(t => t.id === techId);
+          const accent = isCompleted
+            ? 'var(--nn-green)'
+            : isResearching
+            ? 'var(--nn-cyan)'
+            : tech
+            ? trackAccent(tech.track)
+            : 'var(--nn-cyan)';
 
           return (
-            <Card 
+            <div
               key={techId}
-              className={`p-4 ${
-                isCompleted ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]' :
-                isResearching ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]' :
-                isAvailable ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]' :
-                'bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] opacity-50'
-              }`}
+              className={`nn-panel ${!isCompleted && !isResearching && !isAvailable ? 'opacity-50' : ''}`}
+              style={{ '--nn-accent': accent } as React.CSSProperties}
             >
-              <div className="space-y-2">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{techId}</h3>
-                  {isCompleted && (
-                    <Badge className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)]">✓ Complete</Badge>
-                  )}
-                </div>
-                <p className="text-sm text-[color:var(--nn-text-secondary)]">Advanced technology unlock</p>
-                <div className="flex justify-between items-center pt-2">
-                  <span className="text-[color:var(--nn-amber)] font-bold">Cost varies</span>
+              <div className="nn-panel__header">
+                <span className="nn-panel__title nn-num" style={{ fontSize: 10 }}>{techId}</span>
+                {isCompleted && (
+                  <span className="nn-chip nn-chip--green nn-panel__meta">✓ Complete</span>
+                )}
+              </div>
+              <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <p style={{ fontSize: 12.5, color: 'var(--nn-text-secondary)', margin: 0 }}>
+                  {tech?.description || 'Advanced technology unlock'}
+                </p>
+                <div className="flex justify-between items-center">
+                  <span className="nn-lab">Cost ▸ {tech ? `${tech.rpCost.toLocaleString()} RP` : 'varies'}</span>
                   {isAvailable && !isCompleted && !isResearching && (
                     <div className="flex gap-1">
-                      <Button
+                      <button
                         onClick={() => startResearch(techId)}
-                        size="sm"
-                        className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]"
+                        className="nn-abtn nn-abtn--cyan"
                       >
                         Research
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         onClick={() => spendRP(techId)}
-                        size="sm"
-                        className="bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]"
+                        className="nn-abtn nn-abtn--amber"
                       >
                         Instant RP
-                      </Button>
+                      </button>
                     </div>
                   )}
                 </div>
               </div>
-            </Card>
+            </div>
           );
         })}
       </div>
@@ -327,8 +301,8 @@ export default function WMDResearchPanel() {
       {/* Empty State */}
       {research && research.availableTechs?.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">All research complete!</p>
-          <p className="text-[color:var(--nn-text-secondary)] text-sm">You{"'"}ve unlocked all WMD technologies</p>
+          <p className="nn-lab">All research complete!</p>
+          <p className="nn-footnote" style={{ marginTop: 4 }}>You&apos;ve unlocked all WMD technologies</p>
         </div>
       )}
     </div>

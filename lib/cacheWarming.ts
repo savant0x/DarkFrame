@@ -119,8 +119,8 @@ async function warmTopPlayers(): Promise<number> {
       .limit(100)
       .toArray();
 
-    const cacheEntries = topPlayers.map((player: any) => ({
-      key: PlayerKeys.profile(player._id.toString()),
+    const cacheEntries = topPlayers.map((player) => ({
+      key: PlayerKeys.profile((player as { _id?: { toString(): string } })._id!.toString()),
       value: {
         _id: player._id,
         username: player.username,
@@ -161,8 +161,8 @@ async function warmTopClans(): Promise<number> {
       .limit(50)
       .toArray();
 
-    const cacheEntries = topClans.map((clan: any) => ({
-      key: ClanKeys.stats(clan._id.toString()),
+    const cacheEntries = topClans.map((clan) => ({
+      key: ClanKeys.stats((clan as { _id?: { toString(): string } })._id!.toString()),
       value: {
         _id: clan._id,
         name: clan.name,

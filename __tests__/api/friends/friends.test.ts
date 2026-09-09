@@ -14,6 +14,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { FriendStatus, FriendRequestStatus } from '@/types/friend';
 import { GET as getFriends, POST as sendRequest } from '@/app/api/friends/route';
 import { PATCH as updateRequest, DELETE as removeFriend } from '@/app/api/friends/[id]/route';
 import { GET as getRequests } from '@/app/api/friends/requests/route';
@@ -68,21 +69,22 @@ describe('Friend API Routes', () => {
     it('should return list of friends successfully', async () => {
       const mockFriends = [
         {
-          friendshipId: 'friendship-1',
-          player: {
-            username: 'friend1',
-            level: 10,
-            vip: false,
-            clanTag: 'CLAN1'
-          },
-          status: 'accepted',
+          _id: 'friendship-1',
+          userId: 'test-user-123',
+          friendId: 'friend-1',
+          status: FriendStatus.ACCEPTED,
+          initiatedBy: 'test-user-123',
           createdAt: new Date(),
-          onlineStatus: 'online'
+          updatedAt: new Date(),
+          username: 'friend1',
+          level: 10,
+          vip: false,
+          clanTag: 'CLAN1'
         }
       ];
 
       const { getFriends: getFriendsMock } = await import('@/lib/friendService');
-      (getFriendsMock as any).mockResolvedValue(mockFriends);
+      vi.mocked(getFriendsMock).mockResolvedValue(mockFriends);
 
       const request = new NextRequest('http://localhost/api/friends');
       const response = await getFriends(request);
@@ -91,12 +93,12 @@ describe('Friend API Routes', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
       expect(data.friends).toHaveLength(1);
-      expect(data.friends[0].player.username).toBe('friend1');
+      expect(data.friends[0].username).toBe('friend1');
     });
 
     it('should return empty array when no friends', async () => {
       const { getFriends: getFriendsMock } = await import('@/lib/friendService');
-      (getFriendsMock as any).mockResolvedValue([]);
+      vi.mocked(getFriendsMock).mockResolvedValue([]);
 
       const request = new NextRequest('http://localhost/api/friends');
       const response = await getFriends(request);
@@ -108,7 +110,7 @@ describe('Friend API Routes', () => {
 
     it('should handle service errors gracefully', async () => {
       const { getFriends: getFriendsMock } = await import('@/lib/friendService');
-      (getFriendsMock as any).mockRejectedValue(new Error('Database error'));
+      vi.mocked(getFriendsMock).mockRejectedValue(new Error('Database error'));
 
       const request = new NextRequest('http://localhost/api/friends');
       const response = await getFriends(request);
@@ -125,10 +127,12 @@ describe('Friend API Routes', () => {
   describe('POST /api/friends', () => {
     it('should send friend request successfully', async () => {
       const { sendFriendRequest: sendRequestMock } = await import('@/lib/friendService');
-      (sendRequestMock as any).mockResolvedValue({
-        requestId: 'request-123',
-        recipientUsername: 'friend2',
-        status: 'pending'
+      vi.mocked(sendRequestMock).mockResolvedValue({
+        _id: 'request-123',
+        from: 'test-user-123',
+        to: 'friend2',
+        status: FriendRequestStatus.PENDING,
+        createdAt: new Date()
       });
 
       const request = new NextRequest('http://localhost/api/friends', {
@@ -144,7 +148,7 @@ describe('Friend API Routes', () => {
 
       expect(response.status).toBe(201);
       expect(data.success).toBe(true);
-      expect(data.request.recipientUsername).toBe('friend2');
+      expect(data.request.to).toBe('friend2');
     });
 
     it('should reject request with missing recipient', async () => {
@@ -181,7 +185,7 @@ describe('Friend API Routes', () => {
     it('should handle ValidationError from service', async () => {
   const { sendFriendRequest: sendRequestMock } = await import('@/lib/friendService');
   const { ValidationError } = await import('@/lib/common/errors');
-  (sendRequestMock as any).mockRejectedValue(new ValidationError('Cannot send request to yourself'));
+  vi.mocked(sendRequestMock).mockRejectedValue(new ValidationError('Cannot send request to yourself'));
 
       const request = new NextRequest('http://localhost/api/friends', {
         method: 'POST',
@@ -204,9 +208,14 @@ describe('Friend API Routes', () => {
   describe('PATCH /api/friends/[id]', () => {
     it('should accept friend request successfully', async () => {
       const { acceptRequest: acceptRequestMock } = await import('@/lib/friendService');
-      (acceptRequestMock as any).mockResolvedValue({
-        friendshipId: 'friendship-123',
-        status: 'accepted'
+      vi.mocked(acceptRequestMock).mockResolvedValue({
+        _id: 'friendship-123',
+        userId: 'sender-1',
+        friendId: 'test-user-123',
+        status: FriendStatus.ACCEPTED,
+        initiatedBy: 'sender-1',
+        createdAt: new Date(),
+        updatedAt: new Date()
       });
 
       const request = new NextRequest('http://localhost/api/friends/request-123', {
@@ -224,7 +233,14 @@ describe('Friend API Routes', () => {
 
     it('should decline friend request successfully', async () => {
       const { declineRequest: declineRequestMock } = await import('@/lib/friendService');
-      (declineRequestMock as any).mockResolvedValue({ success: true });
+      vi.mocked(declineRequestMock).mockResolvedValue({
+        _id: 'request-123',
+        from: 'sender-1',
+        to: 'test-user-123',
+        status: FriendRequestStatus.DECLINED,
+        createdAt: new Date(),
+        respondedAt: new Date()
+      });
 
       const request = new NextRequest('http://localhost/api/friends/request-123', {
         method: 'PATCH',
@@ -254,7 +270,7 @@ describe('Friend API Routes', () => {
     it('should handle NotFoundError', async () => {
   const { acceptRequest: acceptRequestMock } = await import('@/lib/friendService');
   const { NotFoundError } = await import('@/lib/common/errors');
-  (acceptRequestMock as any).mockRejectedValue(new NotFoundError('Request not found'));
+  vi.mocked(acceptRequestMock).mockRejectedValue(new NotFoundError('Request not found'));
 
       const request = new NextRequest('http://localhost/api/friends/request-123', {
         method: 'PATCH',
@@ -275,7 +291,7 @@ describe('Friend API Routes', () => {
   describe('DELETE /api/friends/[id]', () => {
     it('should remove friend successfully', async () => {
       const { removeFriend: removeFriendMock } = await import('@/lib/friendService');
-      (removeFriendMock as any).mockResolvedValue({ success: true });
+      vi.mocked(removeFriendMock).mockResolvedValue(true);
 
       const request = new NextRequest('http://localhost/api/friends/friendship-123', {
         method: 'DELETE'
@@ -291,7 +307,7 @@ describe('Friend API Routes', () => {
     it('should handle NotFoundError when removing non-existent friend', async () => {
   const { removeFriend: removeFriendMock } = await import('@/lib/friendService');
   const { NotFoundError } = await import('@/lib/common/errors');
-  (removeFriendMock as any).mockRejectedValue(new NotFoundError('Friendship not found'));
+  vi.mocked(removeFriendMock).mockRejectedValue(new NotFoundError('Friendship not found'));
 
       const request = new NextRequest('http://localhost/api/friends/friendship-123', {
         method: 'DELETE'
@@ -312,20 +328,28 @@ describe('Friend API Routes', () => {
     it('should return received and sent requests', async () => {
       const { getPendingRequests: getPendingMock, getSentRequests: getSentMock } = await import('@/lib/friendService');
       
-      (getPendingMock as any).mockResolvedValue([
+      vi.mocked(getPendingMock).mockResolvedValue([
         {
-          requestId: 'req-1',
-          senderUsername: 'sender1',
+          _id: 'req-1',
+          from: 'sender-1',
+          to: 'test-user-123',
+          status: FriendRequestStatus.PENDING,
           message: 'Hello!',
-          createdAt: new Date()
+          createdAt: new Date(),
+          fromUsername: 'sender1',
+          fromLevel: 12
         }
       ]);
 
-      (getSentMock as any).mockResolvedValue([
+      vi.mocked(getSentMock).mockResolvedValue([
         {
-          requestId: 'req-2',
-          recipientUsername: 'recipient1',
-          createdAt: new Date()
+          _id: 'req-2',
+          from: 'test-user-123',
+          to: 'recipient-1',
+          status: FriendRequestStatus.PENDING,
+          createdAt: new Date(),
+          fromUsername: 'recipient1',
+          fromLevel: 8
         }
       ]);
 
@@ -342,8 +366,8 @@ describe('Friend API Routes', () => {
     it('should return empty arrays when no requests', async () => {
       const { getPendingRequests: getPendingMock, getSentRequests: getSentMock } = await import('@/lib/friendService');
       
-      (getPendingMock as any).mockResolvedValue([]);
-      (getSentMock as any).mockResolvedValue([]);
+      vi.mocked(getPendingMock).mockResolvedValue([]);
+      vi.mocked(getSentMock).mockResolvedValue([]);
 
       const request = new NextRequest('http://localhost/api/friends/requests');
       const response = await getRequests(request);
@@ -361,18 +385,19 @@ describe('Friend API Routes', () => {
   describe('GET /api/friends/search', () => {
     it('should search users successfully', async () => {
       const { searchUsers: searchUsersMock } = await import('@/lib/friendService');
-      (searchUsersMock as any).mockResolvedValue([
+      vi.mocked(searchUsersMock).mockResolvedValue([
         {
+          _id: 'player-1',
           username: 'player1',
           level: 15,
-          vip: true,
-          friendStatus: 'none'
+          vip: true
         },
         {
+          _id: 'player-2',
           username: 'player2',
           level: 8,
           vip: false,
-          friendStatus: 'friends'
+          friendStatus: FriendStatus.ACCEPTED
         }
       ]);
 
@@ -406,7 +431,7 @@ describe('Friend API Routes', () => {
 
     it('should respect limit parameter', async () => {
       const { searchUsers: searchUsersMock } = await import('@/lib/friendService');
-      (searchUsersMock as any).mockResolvedValue([]);
+      vi.mocked(searchUsersMock).mockResolvedValue([]);
 
       const request = new NextRequest('http://localhost/api/friends/search?q=test&limit=5');
       await searchUsers(request);
@@ -416,7 +441,7 @@ describe('Friend API Routes', () => {
 
     it('should use default limit when not provided', async () => {
       const { searchUsers: searchUsersMock } = await import('@/lib/friendService');
-      (searchUsersMock as any).mockResolvedValue([]);
+      vi.mocked(searchUsersMock).mockResolvedValue([]);
 
       const request = new NextRequest('http://localhost/api/friends/search?q=test');
       await searchUsers(request);
@@ -439,10 +464,12 @@ describe('Friend API Integration', () => {
     } = await import('@/lib/friendService');
 
     // 1. Send request
-    (sendFriendRequest as any).mockResolvedValue({
-      requestId: 'req-123',
-      recipientUsername: 'friend1',
-      status: 'pending'
+    vi.mocked(sendFriendRequest).mockResolvedValue({
+      _id: 'req-123',
+      from: 'test-user-123',
+      to: 'friend1',
+      status: FriendRequestStatus.PENDING,
+      createdAt: new Date()
     });
 
     const sendReq = new NextRequest('http://localhost/api/friends', {
@@ -453,15 +480,25 @@ describe('Friend API Integration', () => {
     expect(sendRes.status).toBe(201);
 
     // 2. Check pending requests
-    (getPendingRequests as any).mockResolvedValue([{
-      requestId: 'req-123',
-      senderUsername: 'testuser'
+    vi.mocked(getPendingRequests).mockResolvedValue([{
+      _id: 'req-123',
+      from: 'test-user-123',
+      to: 'friend-1',
+      status: FriendRequestStatus.PENDING,
+      createdAt: new Date(),
+      fromUsername: 'testuser',
+      fromLevel: 1
     }]);
 
     // 3. Accept request
-    (acceptRequest as any).mockResolvedValue({
-      friendshipId: 'friendship-123',
-      status: 'accepted'
+    vi.mocked(acceptRequest).mockResolvedValue({
+      _id: 'friendship-123',
+      userId: 'test-user-123',
+      friendId: 'friend-1',
+      status: FriendStatus.ACCEPTED,
+      initiatedBy: 'test-user-123',
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
     const acceptReq = new NextRequest('http://localhost/api/friends/req-123', {
@@ -472,10 +509,16 @@ describe('Friend API Integration', () => {
     expect(acceptRes.status).toBe(200);
 
     // 4. Verify in friends list
-    (getFriendsService as any).mockResolvedValue([{
-      friendshipId: 'friendship-123',
-      player: { username: 'friend1' },
-      status: 'accepted'
+    vi.mocked(getFriendsService).mockResolvedValue([{
+      _id: 'friendship-123',
+      userId: 'test-user-123',
+      friendId: 'friend-1',
+      status: FriendStatus.ACCEPTED,
+      initiatedBy: 'test-user-123',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      username: 'friend1',
+      level: 10
     }]);
 
     const listReq = new NextRequest('http://localhost/api/friends');
@@ -483,7 +526,7 @@ describe('Friend API Integration', () => {
     const listData = await listRes.json();
     
     expect(listData.friends).toHaveLength(1);
-    expect(listData.friends[0].player.username).toBe('friend1');
+    expect(listData.friends[0].username).toBe('friend1');
   });
 });
 

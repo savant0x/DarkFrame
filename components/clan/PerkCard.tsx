@@ -105,10 +105,10 @@ export default function PerkCard({
         };
       default:
         return {
-          border: 'border-glass-border',
-          text: 'text-text-secondary',
-          bg: 'bg-glass-dark',
-          badge: 'bg-glass-dark',
+          border: 'border-[color:var(--nn-glass-border)]',
+          text: 'nn-text-secondary',
+          bg: 'nn-surface nn-surface--dark',
+          badge: 'nn-surface nn-surface--dark',
         };
     }
   };
@@ -145,8 +145,8 @@ export default function PerkCard({
         isActive
           ? `${colors.border} ${colors.bg} shadow-lg`
           : isLocked
-          ? 'border-glass-border bg-glass-dark opacity-60'
-          : `${colors.border} bg-glass-dark hover:shadow-md`
+          ? 'border-[color:var(--nn-glass-border)] nn-surface nn-surface--dark opacity-60'
+          : `${colors.border} nn-surface nn-surface--dark hover:shadow-md`
       }`}
     >
       {/* Header */}
@@ -163,17 +163,17 @@ export default function PerkCard({
           </div>
         )}
         {isLocked && (
-          <div className="text-text-secondary text-lg">🔒</div>
+          <div className="nn-text-secondary text-lg">🔒</div>
         )}
       </div>
 
       {/* Perk Name */}
-      <h4 className={`font-bold mb-1 ${isLocked ? 'text-text-secondary' : 'text-[color:var(--nn-text-primary)]'}`}>
+      <h4 className={`font-bold mb-1 ${isLocked ? 'nn-text-secondary' : 'text-[color:var(--nn-text-primary)]'}`}>
         {perk.name}
       </h4>
 
       {/* Description */}
-      <p className={`text-xs mb-3 ${isLocked ? 'text-text-tertiary' : 'text-text-secondary'}`}>
+      <p className={`text-xs mb-3 ${isLocked ? 'nn-text-tertiary' : 'nn-text-secondary'}`}>
         {perk.description}
       </p>
 
@@ -186,19 +186,19 @@ export default function PerkCard({
 
       {/* Cost */}
       <div className="space-y-1 mb-3">
-        <div className="text-xs text-text-secondary">Cost:</div>
+        <div className="text-xs nn-text-secondary">Cost:</div>
         <div className="grid grid-cols-3 gap-1 text-xs">
           <div className="text-center">
             <div className="text-[color:var(--nn-amber)]">{formatNumberAbbreviated(perk.cost.metal)}</div>
-            <div className="text-text-secondary">Metal</div>
+            <div className="nn-text-secondary">Metal</div>
           </div>
           <div className="text-center">
             <div className="text-[color:var(--nn-cyan)]">{formatNumberAbbreviated(perk.cost.energy)}</div>
-            <div className="text-text-secondary">Energy</div>
+            <div className="nn-text-secondary">Energy</div>
           </div>
           <div className="text-center">
             <div className="text-[color:var(--nn-violet)]">{formatNumberAbbreviated(perk.cost.researchPoints)}</div>
-            <div className="text-text-secondary">RP</div>
+            <div className="nn-text-secondary">RP</div>
           </div>
         </div>
       </div>
@@ -209,7 +209,7 @@ export default function PerkCard({
           <div className="text-[color:var(--nn-magenta)] text-xs">
             🔒 Level {perk.requiredLevel} required
           </div>
-          <div className="text-text-secondary text-xs">
+          <div className="nn-text-secondary text-xs">
             ({levelsToUnlock} level{levelsToUnlock !== 1 ? 's' : ''} to unlock)
           </div>
         </div>
@@ -224,7 +224,7 @@ export default function PerkCard({
               disabled={isLoading}
               className={`w-full px-4 py-2 rounded-none font-semibold transition ${
                 isLoading
-                  ? 'bg-glass-light text-text-secondary cursor-not-allowed'
+                  ? 'nn-surface nn-text-secondary cursor-not-allowed'
                   : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)]'
               }`}
             >
@@ -236,7 +236,7 @@ export default function PerkCard({
               disabled={isLoading || !canActivate}
               className={`w-full px-4 py-2 rounded-none font-semibold transition ${
                 isLoading || !canActivate
-                  ? 'bg-glass-light text-text-secondary cursor-not-allowed'
+                  ? 'nn-surface nn-text-secondary cursor-not-allowed'
                   : `${colors.bg} ${colors.text} border ${colors.border} hover:opacity-80`
               }`}
             >
@@ -252,7 +252,7 @@ export default function PerkCard({
 
       {/* Activated Info (for active perks) */}
       {isActive && perk.activatedBy && perk.activatedAt && (
-        <div className="mt-2 text-xs text-text-secondary text-center">
+        <div className="mt-2 text-xs nn-text-secondary text-center">
           Activated by {perk.activatedBy}
           <br />
           {new Date(perk.activatedAt).toLocaleDateString()}

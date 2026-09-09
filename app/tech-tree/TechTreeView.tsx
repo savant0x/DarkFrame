@@ -428,7 +428,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                     </span>
                   ) : tech.researching ? (
                     <span className="nn-chip nn-chip--cyan nn-panel__meta">
-                      <Clock className="h-3 w-3 animate-spin" /> Researching
+                      <Clock className="h-3 w-3" /> Researching
                     </span>
                   ) : isLocked ? (
                     <span className="nn-chip nn-panel__meta">

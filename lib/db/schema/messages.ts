@@ -1,9 +1,10 @@
 import { pgTable, varchar,  timestamp, jsonb,  integer, index } from 'drizzle-orm/pg-core';
+import type { Conversation } from '@/types/messaging.types';
 
 export const conversations = pgTable('conversations', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	participants: jsonb('participants').notNull().$type<string[]>(),
-	participantDetails: jsonb('participant_details').$type<any>(),
+	participantDetails: jsonb('participant_details').$type<Conversation['participantDetails']>(),
 	lastMessageContent: varchar('last_message_content', { length: 1000 }),
 	lastMessageSenderId: varchar('last_message_sender_id', { length: 20 }),
 	lastMessageCreatedAt: timestamp('last_message_created_at'),
@@ -33,7 +34,7 @@ export const messages = pgTable('messages', {
 	editedAt: timestamp('edited_at'),
 	deletedAt: timestamp('deleted_at'),
 	metadataOriginalContent: varchar('metadata_original_content', { length: 1000 }),
-	metadataEditHistory: jsonb('metadata_edit_history').$type<any[]>(),
+	metadataEditHistory: jsonb('metadata_edit_history').$type<Array<{ content: string; editedAt: Date }>>(),
 	metadataSystemType: varchar('metadata_system_type', { length: 20 }),
 	metadataRelatedEntityId: varchar('metadata_related_entity_id', { length: 50 }),
 }, (table) => [

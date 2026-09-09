@@ -16,7 +16,7 @@
 import { db } from '@/lib/db';
 import { factories, players } from '@/lib/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { Factory, AttackResult, Unit,  UnitType } from '@/types';
+import { Factory, AttackResult, Unit, UnitType, InventoryItem, TutorialInventoryItem } from '@/types';
 import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
 import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';
@@ -105,6 +105,27 @@ export function calculateFactoryIncome(factory: Factory): {
  * 
  * NEW: Phase 5 - Batch collection for all owned factories
  */
+/**
+ * Recount a player's factory_count column from the factories table.
+ *
+ * players.factory_count is a denormalized counter consumed by the player mapper,
+ * the sanitized client projection (StatsPanel "Factories" readout), unit-slot
+ * capacity (100 + count × 50), and battleService — but no ownership transition
+ * maintained it, so it stayed at its default 0 forever (FID-20260908-004). A
+ * single-statement recount (instead of read-modify-write ±1) is atomic,
+ * self-healing against any drift, and inherently idempotent.
+ */
+export async function recountPlayerFactoryCount(username: string): Promise<number> {
+  const result = await db
+    .update(players)
+    .set({
+      factoryCount: sql`(SELECT count(*) FROM ${factories} WHERE ${factories.owner} = ${username})`,
+    })
+    .where(eq(players.username, username))
+    .returning({ factoryCount: players.factoryCount });
+  return result[0]?.factoryCount ?? 0;
+}
+
 export async function collectAllFactoryIncome(username: string): Promise<{
   totalMetal: number;
   totalEnergy: number;
@@ -180,6 +201,39 @@ export async function collectAllFactoryIncome(username: string): Promise<{
 }
 
 /**
+ * JSON parse boundary for players.inventoryItems. The column physically holds
+ * THREE entry shapes (see the schema annotation): harvested/found InventoryItem,
+ * tutorial-granted TutorialInventoryItem, and full Unit objects pushed by
+ * produceUnit since the Mongo era. Malformed jsonb is logged and treated as
+ * empty — never fabricated.
+ */
+function parseInventory(
+  raw: Array<InventoryItem | TutorialInventoryItem | Unit> | string | null
+): Array<InventoryItem | TutorialInventoryItem | Unit> {
+  if (!raw) return [];
+  if (typeof raw !== 'string') return raw;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed as Array<InventoryItem | TutorialInventoryItem | Unit>;
+    console.warn('[factoryService] inventoryItems jsonb parsed to a non-array — treating as empty');
+    return [];
+  } catch (error) {
+    console.warn('[factoryService] malformed inventoryItems jsonb — treating as empty', error);
+    return [];
+  }
+}
+
+/**
+ * Discriminator for Unit entries inside the mixed inventoryItems jsonb.
+ * The legacy `type === 'UNIT'` filter could never match (Unit.type is a
+ * UnitType value like 'T1_RIFLEMAN', and InventoryItem.type is an ItemType) —
+ * Unit entries are identified by their producedAt/strength shape instead.
+ */
+function isUnitEntry(item: InventoryItem | TutorialInventoryItem | Unit): item is Unit {
+  return 'producedAt' in item && 'strength' in item;
+}
+
+/**
  * Calculate player's total power for attack
  * Based on: base power + (units owned * unit power) + level bonuses
  */
@@ -202,15 +256,10 @@ export async function calculatePlayerPower(username: string): Promise<number> {
     power += p.totalStrength;
   }
   
-  // Add power from units in inventory (secondary bonus)
-  if (p.inventoryItems) {
-    let inventory: any[] = [];
-    try {
-      inventory = typeof p.inventoryItems === 'string' ? JSON.parse(p.inventoryItems) : p.inventoryItems;
-    } catch {}
-    const units = inventory.filter((item: any) => item.type === 'UNIT');
-    power += units.length * 50; // Each unit adds 50 power
-  }
+  // Add power from units held in inventoryItems (secondary bonus)
+  const inventory = parseInventory(p.inventoryItems);
+  const inventoryUnits = inventory.filter(isUnitEntry);
+  power += inventoryUnits.length * 50; // Each unit adds 50 power
   
   return power;
 }
@@ -239,7 +288,11 @@ export async function getFactoryData(x: number, y: number): Promise<Factory | nu
       lastAttackTime: null
     };
     
-    await db.insert(factories).values(newFactory as any);
+    // pg numeric arrives as string — map the domain number explicitly (no cast)
+    await db.insert(factories).values({
+      ...newFactory,
+      productionRate: String(newFactory.productionRate),
+    });
     return newFactory;
   }
   
@@ -328,6 +381,9 @@ export async function attackFactory(
         lastResourceGeneration: new Date() // NEW: Initialize passive income on capture
       })
       .where(and(eq(factories.x, x), eq(factories.y, y)));
+
+    // Maintain the denormalized ownership counter (FID-20260908-004)
+    await recountPlayerFactoryCount(username);
   } else {
     await db.update(factories)
       .set({
@@ -418,12 +474,7 @@ export async function produceUnit(
   };
   
   // Update player: deduct resources, add unit to inventory
-  let inventory: any[] = [];
-  if (player.inventoryItems) {
-    try {
-      inventory = typeof player.inventoryItems === 'string' ? JSON.parse(player.inventoryItems) : player.inventoryItems;
-    } catch {}
-  }
+  const inventory = parseInventory(player.inventoryItems);
   inventory.push(unit);
 
   const newMetal = BigInt(player.resourcesMetal || 0) - BigInt(UNIT_COST_METAL);
@@ -433,7 +484,13 @@ export async function produceUnit(
     .set({
       resourcesMetal: Number(newMetal),
       resourcesEnergy: Number(newEnergy),
-      inventoryItems: inventory as any
+      inventoryItems: inventory,
+      // Maintain the aggregate combat totals (FID-20260908-003 addendum):
+      // factory-produced units are part of the army and must raise
+      // totalStrength/totalDefense like build-unit does, or Military Power
+      // never reflects them.
+      totalStrength: (player.totalStrength || 0) + unit.strength,
+      totalDefense: (player.totalDefense || 0) + unit.defense,
     })
     .where(eq(players.username, username));
   
@@ -473,13 +530,8 @@ export async function getPlayerUnitCount(username: string): Promise<number> {
   const player = playerResult[0];
   if (!player.inventoryItems) return 0;
   
-  let inventory: any[] = [];
-  try {
-    inventory = typeof player.inventoryItems === 'string' ? JSON.parse(player.inventoryItems) : player.inventoryItems;
-  } catch {}
-  
-  const units = inventory.filter((item: any) => item.type === 'UNIT');
-  return units.length;
+  const inventory = parseInventory(player.inventoryItems);
+  return inventory.filter(isUnitEntry).length;
 }
 
 // ============================================================

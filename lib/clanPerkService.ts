@@ -85,7 +85,7 @@ export async function activatePerk(
 
   await db.update(clans)
     .set({
-      activePerks: updatedPerks as any,
+      activePerks: updatedPerks,
       bankTreasuryMetal: Number(BigInt(Number(clan.bank.treasury.metal) - metal)),
       bankTreasuryEnergy: Number(BigInt(Number(clan.bank.treasury.energy) - energy)),
       bankTreasuryResearchPoints: clan.bank.treasury.researchPoints - researchPoints,
@@ -144,7 +144,7 @@ export async function deactivatePerk(
 
   await db.update(clans)
     .set({
-      activePerks: updatedPerks as any,
+      activePerks: updatedPerks,
     })
     .where(eq(clans.id, clanId));
 

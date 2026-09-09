@@ -48,7 +48,6 @@
     "date-fns": "^4.1.0",
     "dompurify": "^3.3.0",
     "drizzle-orm": "^0.45.2",
-    "framer-motion": "^12.23.24",
     "ioredis": "^5.8.1",
     "jose": "^6.1.0",
     "jsonwebtoken": "^9.0.2",

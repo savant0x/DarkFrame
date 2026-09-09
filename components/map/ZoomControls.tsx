@@ -142,10 +142,10 @@ export function ZoomControls({
     >
       {/* Label */}
       <div className="flex items-center justify-between">
-        <label className="text-sm font-semibold text-text-primary">
+        <label className="text-sm font-semibold text-[color:var(--nn-text-primary)]">
           Zoom Level
         </label>
-        <span className="text-xs text-text-secondary">
+        <span className="text-xs text-[color:var(--nn-text-secondary)]">
           {ZOOM_SCALES[currentZoom]}x
         </span>
       </div>
@@ -162,8 +162,8 @@ export function ZoomControls({
               flex items-center justify-center gap-1
               ${
                 currentZoom === zoom.level
-                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-md'
-                  : 'bg-glass-light text-text-primary hover:bg-glass-light hover:text-[color:var(--nn-text-primary)]'
+                  ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] shadow-[0_0_14px_color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]'
+                  : 'bg-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] text-[color:var(--nn-text-secondary)] hover:bg-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] hover:text-[color:var(--nn-text-primary)]'
               }
               active:scale-95
               focus:outline-none focus:ring-1 focus:ring-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]
@@ -179,9 +179,9 @@ export function ZoomControls({
       </div>
 
       {/* Keyboard shortcuts hint */}
-      <div className="text-xs text-text-secondary text-center md:text-left mt-1">
+      <div className="text-xs text-[color:var(--nn-text-secondary)] text-center md:text-left mt-1">
         <span className="hidden md:inline text-xs">
-          <kbd className="px-1 py-0.5 bg-glass-light rounded-none text-xs">+/-</kbd> zoom
+          <kbd className="px-1 py-0.5 bg-[color-mix(in_oklab,var(--nn-void)_55%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_18%,transparent)] rounded-none text-xs">+/-</kbd> zoom
         </span>
       </div>
     </div>

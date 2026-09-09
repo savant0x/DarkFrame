@@ -191,10 +191,26 @@ body::before {
   text-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/*
+ * FID-20260908-006 §9.1a (root-cause layout fix, 2026-09-08):
+ * this legacy reset was UNLAYERED author CSS. Under the Tailwind v4 CSS-first
+ * entry (globals.css `@import "tailwindcss"` puts every utility in @layer
+ * utilities), unlayered rules BEAT layered ones regardless of specificity —
+ * so `* { margin: 0; padding: 0 }` silently killed EVERY Tailwind margin and
+ * padding utility app-wide (mx-auto, mb-*, py-*, pt-14…). That is the root
+ * cause of the documented pt-14 failure, the left-hugging unit-factory
+ * column (mx-auto dead), and the operator's spacing complaints.
+ *
+ * The reset is now inside @layer base so utilities out-rank it, and it stays
+ * only as a belt-and-braces fallback beneath Tailwind's own preflight (which
+ * already zeroes margins/paddings).
+ */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
 }
 
 code {

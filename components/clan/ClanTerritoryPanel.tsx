@@ -29,7 +29,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
-import { Button, Input, Badge, Divider } from '@/components/ui';
+
 import { 
   MapPin, 
   Map, 
@@ -137,27 +137,27 @@ export default function ClanTerritoryPanel({
         />
       </div>
 
-      <Divider />
+      <div className="nn-divider"  />
 
       {/* Search and Actions */}
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
-          <Input
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 nn-text-secondary" />
+          <input
             placeholder="Search by coordinates or claimer..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+            className="nn-input pl-10"
+           />
         </div>
         {canManage && (
-          <Button
+          <button
             onClick={() => setShowClaimModal(true)}
-            className="gap-2"
+            className="nn-btn gap-2"
           >
             <Plus className="w-4 h-4" />
             Claim Territory
-          </Button>
+          </button>
         )}
       </div>
 
@@ -167,7 +167,7 @@ export default function ClanTerritoryPanel({
           <AlertTriangle className="w-5 h-5 text-[color:var(--nn-amber)] flex-shrink-0 mt-0.5" />
           <div className="text-sm">
             <p className="text-[color:var(--nn-amber)] font-medium">Limited Access</p>
-            <p className="text-text-secondary mt-1">
+            <p className="nn-text-secondary mt-1">
               Only Officers and above can claim or manage territories.
             </p>
           </div>
@@ -176,18 +176,18 @@ export default function ClanTerritoryPanel({
 
       {/* Territories List */}
       {isLoading ? (
-        <div className="text-center py-12 text-text-secondary">
-          <Map className="w-12 h-12 mx-auto mb-3 animate-pulse" />
+        <div className="text-center py-12 nn-text-secondary">
+          <Map className="nn-pulse w-12 h-12 mx-auto mb-3" />
           <p>Loading territories...</p>
         </div>
       ) : filteredTerritories.length === 0 ? (
         <div className="text-center py-12">
-          <MapPin className="w-12 h-12 mx-auto mb-3 text-text-tertiary" />
-          <p className="text-text-secondary mb-2">
+          <MapPin className="w-12 h-12 mx-auto mb-3 nn-text-tertiary" />
+          <p className="nn-text-secondary mb-2">
             {searchQuery ? 'No matching territories found' : 'No territories claimed yet'}
           </p>
           {!searchQuery && canManage && (
-            <p className="text-sm text-text-secondary">
+            <p className="text-sm nn-text-secondary">
               Click &quot;Claim Territory&quot; to expand your clan{"'"}s domain
             </p>
           )}
@@ -269,13 +269,13 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, subtext }: StatCardProps) {
   return (
-    <div className="bg-glass-light border border-glass-border rounded-none p-4">
+    <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-4">
       <div className="flex items-center gap-2 mb-2">
         {icon}
-        <span className="text-sm text-text-secondary">{label}</span>
+        <span className="text-sm nn-text-secondary">{label}</span>
       </div>
       <div className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-1">{value}</div>
-      <div className="text-xs text-text-secondary">{subtext}</div>
+      <div className="text-xs nn-text-secondary">{subtext}</div>
     </div>
   );
 }
@@ -294,7 +294,7 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
   const daysSinceClaim = Math.floor(timeSinceClaim / (1000 * 60 * 60 * 24));
 
   return (
-    <div className="bg-glass-light border border-glass-border rounded-none p-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all">
+    <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] transition-all">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           {/* Coordinates */}
@@ -303,29 +303,29 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
             <span className="text-lg font-semibold text-[color:var(--nn-text-primary)]">
               ({territory.tileX}, {territory.tileY})
             </span>
-            <Badge variant="info" className="text-xs">
+            <span className="nn-chip nn-chip--cyan text-xs">
               +{territory.defenseBonus}% Defense
-            </Badge>
+            </span>
           </div>
 
           {/* Details Grid */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div>
-              <span className="text-text-secondary">Claimed by:</span>
-              <span className="text-text-primary ml-2">{territory.claimedBy}</span>
+              <span className="nn-text-secondary">Claimed by:</span>
+              <span className="nn-text-primary ml-2">{territory.claimedBy}</span>
             </div>
             <div>
-              <span className="text-text-secondary">Held for:</span>
-              <span className="text-text-primary ml-2">
+              <span className="nn-text-secondary">Held for:</span>
+              <span className="nn-text-primary ml-2">
                 {daysSinceClaim === 0 ? 'Today' : `${daysSinceClaim}d`}
               </span>
             </div>
             <div>
-              <span className="text-text-secondary">Income:</span>
+              <span className="nn-text-secondary">Income:</span>
               <span className="text-[color:var(--nn-amber)] ml-2">100M + 100E/h</span>
             </div>
             <div>
-              <span className="text-text-secondary">Status:</span>
+              <span className="nn-text-secondary">Status:</span>
               <span className="text-[color:var(--nn-green)] ml-2 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" />
                 Secured
@@ -336,13 +336,11 @@ function TerritoryCard({ territory, canManage, onUnclaim }: TerritoryCardProps) 
 
         {/* Actions */}
         {canManage && (
-          <Button
-            onClick={onUnclaim}
-            variant="ghost"
-            className="text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
+          <button
+            onClick={onUnclaim} className="nn-btn nn-btn--ghost text-[color:var(--nn-magenta)] bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]"
           >
             <Trash2 className="w-4 h-4" />
-          </Button>
+          </button>
         )}
       </div>
     </div>
@@ -409,7 +407,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
 
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] flex items-center justify-center z-50 p-4">
-      <div className="bg-glass-dark border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6 w-full max-w-md">
+      <div className="nn-surface nn-surface--dark border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-6 w-full max-w-md">
         <h2 className="text-xl font-bold text-[color:var(--nn-text-primary)] mb-4 flex items-center gap-2">
           <MapPin className="w-5 h-5 text-[color:var(--nn-cyan)]" />
           Claim Territory
@@ -418,26 +416,26 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
         <form onSubmit={handleClaim} className="space-y-4">
           {/* Coordinates Input */}
           <div>
-            <label className="block text-sm text-text-secondary mb-2">
+            <label className="block text-sm nn-text-secondary mb-2">
               Territory Coordinates
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <Input
+              <input className="nn-input"
                 type="number"
                 placeholder="X coordinate"
                 value={tileX}
                 onChange={(e) => setTileX(e.target.value)}
                 required
-              />
-              <Input
+               />
+              <input className="nn-input"
                 type="number"
                 placeholder="Y coordinate"
                 value={tileY}
                 onChange={(e) => setTileY(e.target.value)}
                 required
-              />
+               />
             </div>
-            <p className="text-xs text-text-secondary mt-2">
+            <p className="text-xs nn-text-secondary mt-2">
               Enter the map coordinates of the tile you want to claim
             </p>
           </div>
@@ -445,7 +443,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
           {/* Info Box */}
           <div className="bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-3">
             <p className="text-sm text-[color:var(--nn-cyan)] mb-2 font-medium">Territory Benefits:</p>
-            <ul className="text-xs text-text-secondary space-y-1">
+            <ul className="text-xs nn-text-secondary space-y-1">
               <li>• +100 Metal and Energy per hour</li>
               <li>• +10% defense bonus per adjacent clan territory</li>
               <li>• Strategic positioning for warfare</li>
@@ -455,18 +453,16 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
 
           {/* Actions */}
           <div className="flex gap-3">
-            <Button
+            <button
               type="button"
-              onClick={onClose}
-              variant="ghost"
-              className="flex-1"
+              onClick={onClose} className="nn-btn nn-btn--ghost flex-1"
               disabled={isClaiming}
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              className="flex-1 gap-2"
+              className="nn-btn flex-1 gap-2"
               disabled={isClaiming}
             >
               {isClaiming ? (
@@ -477,7 +473,7 @@ function ClaimTerritoryModal({ clanId, onClose, onSuccess }: ClaimTerritoryModal
                   Claim Territory
                 </>
               )}
-            </Button>
+            </button>
           </div>
         </form>
       </div>

@@ -17,7 +17,7 @@ import { logger } from '@/lib/logger';
 /**
  * Game context state interface
  */
-interface GameContextState {
+export interface GameContextState {
   /** The client NEVER holds private fields (password/email/etc.) — the context
    *  carries the honest sanitized shape served by the APIs. */
   player: SanitizedPlayer | null;

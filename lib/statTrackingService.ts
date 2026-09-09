@@ -44,7 +44,7 @@ async function ensureStatsExist(playerId: string) {
           shrineTradeCount: 0,
           cavesExplored: 0
         }
-      } as any
+      }
     }
   );
 }
@@ -60,7 +60,7 @@ export async function trackBattleWon(playerId: string) {
   const playersCollection = await getCollection('players');
   await playersCollection.updateOne(
     { username: playerId },
-    { $inc: { 'stats.battlesWon': 1 } as any }
+    { $inc: { 'stats.battlesWon': 1 } }
   );
 
   // Check for achievement unlocks
@@ -79,7 +79,7 @@ export async function trackUnitBuilt(playerId: string, quantity: number = 1) {
   const playersCollection = await getCollection('players');
   await playersCollection.updateOne(
     { username: playerId },
-    { $inc: { 'stats.totalUnitsBuilt': quantity } as any }
+    { $inc: { 'stats.totalUnitsBuilt': quantity } }
   );
 
   // Check for achievement unlocks
@@ -98,7 +98,7 @@ export async function trackResourcesGathered(playerId: string, amount: number) {
   const playersCollection = await getCollection('players');
   await playersCollection.updateOne(
     { username: playerId },
-    { $inc: { 'stats.totalResourcesGathered': amount } as any }
+    { $inc: { 'stats.totalResourcesGathered': amount } }
   );
 
   // Check for achievement unlocks
@@ -117,7 +117,7 @@ export async function trackResourcesBanked(playerId: string, amount: number) {
   const playersCollection = await getCollection('players');
   await playersCollection.updateOne(
     { username: playerId },
-    { $inc: { 'stats.totalResourcesBanked': amount } as any }
+    { $inc: { 'stats.totalResourcesBanked': amount } }
   );
 
   // Check for achievement unlocks
@@ -135,7 +135,7 @@ export async function trackShrineTrade(playerId: string) {
   const playersCollection = await getCollection('players');
   await playersCollection.updateOne(
     { username: playerId },
-    { $inc: { 'stats.shrineTradeCount': 1 } as any }
+    { $inc: { 'stats.shrineTradeCount': 1 } }
   );
 
   // Check for achievement unlocks
@@ -153,7 +153,7 @@ export async function trackCaveExplored(playerId: string) {
   const playersCollection = await getCollection('players');
   await playersCollection.updateOne(
     { username: playerId },
-    { $inc: { 'stats.cavesExplored': 1 } as any }
+    { $inc: { 'stats.cavesExplored': 1 } }
   );
 
   // Check for achievement unlocks

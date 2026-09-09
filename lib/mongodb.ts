@@ -83,6 +83,24 @@ export interface MongoUpdate {
   /** Add distinct values to an array column (jsonb) if not already present. */
   $addToSet?: Record<string, DocumentValue>;
 }
+/**
+ * Normalize a Mongo `$push` operand into the array of elements to append.
+ * `{$each: [...]}` appends EVERY element of the array (Mongo parity); a bare
+ * value appends itself as a single element. Exported for unit testing — the
+ * payload builder (FID-20260908-003) composes SQL around this result.
+ */
+export function normalizePushOperand(value: DocumentValue): unknown[] {
+  if (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Array.isArray((value as { $each?: unknown }).$each)
+  ) {
+    return (value as { $each: unknown[] }).$each;
+  }
+  return [value];
+}
+
 /** A set operation translated to drizzle: either a literal value or a raw SQL fragment. */
 type SetOp = DocumentValue | SQL;
 /** Mongo aggregation pipeline stage (acknowledged shape; see aggregate()). */
@@ -659,7 +677,13 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
   for (const [key, value] of Object.entries(update.$push ?? {})) {
     const column = columns[key];
     if (column) {
-      payload[key] = sql`coalesce(${column}, '[]'::jsonb) || ${JSON.stringify([value])}::jsonb`;
+      // Mongo parity via normalizePushOperand: `{$each: [...]}` appends every
+      // element; a bare value appends itself. The old handler serialized the
+      // operand verbatim, so unit builds (`$push: { units: { $each: newUnits } }`)
+      // persisted ONE junk element `{$each:[...]}` instead of N units
+      // (FID-20260908-003).
+      const elements = normalizePushOperand(value);
+      payload[key] = sql`coalesce(${column}, '[]'::jsonb) || ${JSON.stringify(elements)}::jsonb`;
       hasOps = true;
     } else if (columns.doc && isAuctionsTable(table)) {
       // Atomic array append inside the stored doc (placeBid's $push: { bids: bid }).
@@ -1309,10 +1333,10 @@ export class Collection<T = Record<string, unknown>> {
    * counts make JS evaluation correct and cheap; a partial SQL translation would silently
    * mis-handle $cond/$push/$lookup — the exact wrongness this seam exists to avoid.
    */
-  aggregate(pipeline: AggregateStage[]): AggregateBuilder<T> {
+  aggregate<TResult = T>(pipeline: AggregateStage[]): AggregateBuilder<TResult> {
     const tableName = this.name;
     return {
-      async toArray(): Promise<T[]> {
+      async toArray(): Promise<TResult[]> {
         const t = getTable(tableName);
         if (!t) return [];
         // Preload any $lookup foreign tables (equality and $expr forms) into the cache.
@@ -1337,10 +1361,10 @@ export class Collection<T = Record<string, unknown>> {
             : await drizzleDb.select().from(t);
           stages = pipeline.slice(1);
           // Shaped rows let $-expressions read domain paths ('$resources.metal').
-          return runPipeline(stages, (fetched as Array<Record<string, unknown>>).map((r) => shapeRowAliases(t, r)), tableName) as T[];
+          return runPipeline(stages, (fetched as Array<Record<string, unknown>>).map((r) => shapeRowAliases(t, r)), tableName) as TResult[];
         }
         const fetched = (await drizzleDb.select().from(t)) as Array<Record<string, unknown>>;
-        return runPipeline(stages, fetched.map((r) => shapeRowAliases(t, r)), tableName) as T[];
+        return runPipeline(stages, fetched.map((r) => shapeRowAliases(t, r)), tableName) as TResult[];
       },
     };
   }

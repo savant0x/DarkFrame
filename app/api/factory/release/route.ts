@@ -31,6 +31,7 @@ import { db as gameDb, factories } from '@/lib/db';
 import { and, eq, lte, sql } from 'drizzle-orm';
 import type { Factory } from '@/types/game.types';
 import { getMaxSlots } from '@/lib/factoryUpgradeService';
+import { recountPlayerFactoryCount } from '@/lib/factoryService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest) {
       releasedCount = 1;
       message = `Factory at (${factoryX}, ${factoryY}) has been released and reset to Level 1`;
       
+      // Maintain the denormalized ownership counter (FID-20260908-004)
+      await recountPlayerFactoryCount(username);
+      
       console.log(`🏭 ${username} released factory at (${factoryX}, ${factoryY})`);
       
     } else {
@@ -173,6 +177,11 @@ export async function POST(request: NextRequest) {
       releasedFactories = factoryCoords;
       releasedCount = matchingFactories.length;
       message = `Released ${releasedCount} ${releasedCount === 1 ? 'factory' : 'factories'} with ${threshold} or fewer slots`;
+
+      // Maintain the denormalized ownership counter (FID-20260908-004)
+      if (releasedCount > 0) {
+        await recountPlayerFactoryCount(username);
+      }
       
       console.log(`🏭 ${username} batch released ${releasedCount} factories (threshold: ${threshold} slots)`);
     }

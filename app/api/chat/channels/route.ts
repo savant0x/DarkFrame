@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
     const user: PlayerContext = {
       username,
       level: player.level || 1,
-      isVIP: player.vip === true || player.isVIP === true,
+      isVIP: player.vip === 1,
       clanId: player.clanId?.toString(),
       isMuted: false, // Will be checked by chatService when needed
       channelBans,

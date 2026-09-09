@@ -20,10 +20,10 @@ export default function WebSocketTestPage() {
   const { socket, isConnected, error } = useWebSocketContext();
   const { emit, on } = useWebSocket();
   
-  const [events, setEvents] = useState<Array<{ time: string; event: string; data: any }>>([]);
+  const [events, setEvents] = useState<Array<{ time: string; event: string; data: unknown }>>([]);
   const [message, setMessage] = useState('');
 
-  const addEvent = (event: string, data: any) => {
+  const addEvent = (event: string, data: unknown) => {
     const timestamp = new Date().toLocaleTimeString();
     setEvents(prev => [{ time: timestamp, event, data }, ...prev].slice(0, 20)); // Keep last 20
   };
@@ -87,7 +87,7 @@ export default function WebSocketTestPage() {
               <span className="font-medium">Status:</span>
               {isConnected ? (
                 <span className="flex items-center gap-2 text-[color:var(--nn-green)]">
-                  <span className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-green)_12%,transparent)] rounded-full animate-pulse"></span>
+                  <span className="w-3 h-3 bg-[color-mix(in_oklab,var(--nn-green)_12%,transparent)] rounded-full nn-pulse"></span>
                   Connected
                 </span>
               ) : (
@@ -133,7 +133,7 @@ export default function WebSocketTestPage() {
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendTestMessage()}
                 placeholder="Type a chat message..."
-                className="flex-1 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-primary)] px-4 py-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)] focus:border-blue-500 focus:outline-none"
+                className="nn-input flex-1"
                 disabled={!isConnected}
               />
               <button

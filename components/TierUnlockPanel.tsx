@@ -1,14 +1,16 @@
 // ============================================================
 // FILE: TierUnlockPanel.tsx
 // CREATED: 2025-01-17
-// LAST MODIFIED: 2025-01-17
+// LAST MODIFIED: 2026-09-08 (FID-20260908-011 neon-noir structural pass)
 // ============================================================
 // OVERVIEW:
 // Unit Tier unlock management component using Research Points (RP).
 // Displays all 5 tiers with lock/unlock status, level and RP requirements,
 // and unlock functionality. Features confirmation modal, success notifications,
-// and real-time tier status updates. Integrates design system components
-// (Card, Badge, Button, ProgressBar, Panel, StaggerChildren, LoadingSpinner, toast).
+// and real-time tier status updates.
+// Styling: token primitives only (nn-panel / nn-chip / nn-abtn / nn-meter-free
+// ledger rows); no legacy UI-kit imports. Logic byte-preserved from the
+// pre-migration component.
 // ============================================================
 
 'use client';
@@ -16,14 +18,8 @@
 import React, { useState, useEffect } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { UnitTier, TIER_UNLOCK_REQUIREMENTS } from '@/types/game.types';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { Panel } from '@/components/ui/Panel';
-import { Divider } from '@/components/ui/Divider';
-import { StaggerChildren, StaggerItem } from '@/components/transitions/StaggerChildren';
-import { LoadingSpinner } from '@/components/transitions/LoadingSpinner';
 import { toast } from '@/lib/toast';
+import { FlaskConical } from 'lucide-react';
 
 // ============================================================
 // TYPE DEFINITIONS
@@ -51,7 +47,7 @@ interface UnlockConfirmationProps {
 /**
  * Get color classes for tier card styling
  * @param tier - Unit tier number
- * @returns Tailwind border and background classes
+ * @returns Token border and background classes
  */
 function getTierColor(tier: UnitTier): string {
   const map: Record<UnitTier, string> = {
@@ -65,19 +61,19 @@ function getTierColor(tier: UnitTier): string {
 }
 
 /**
- * Get icon emoji for tier
+ * Get icon glyph for tier (FID-011: emoji slab → token display glyphs)
  * @param tier - Unit tier number
- * @returns Icon emoji string
+ * @returns Icon glyph string
  */
 function getTierIcon(tier: UnitTier): string {
   const map: Record<UnitTier, string> = {
-    [UnitTier.Tier1]: '⚔️',
-    [UnitTier.Tier2]: '🛡️',
-    [UnitTier.Tier3]: '🏹',
-    [UnitTier.Tier4]: '🔥',
-    [UnitTier.Tier5]: '⚡',
+    [UnitTier.Tier1]: 'I',
+    [UnitTier.Tier2]: 'II',
+    [UnitTier.Tier3]: 'III',
+    [UnitTier.Tier4]: 'IV',
+    [UnitTier.Tier5]: 'V',
   };
-  return map[tier] || '🎖️';
+  return map[tier] || 'I';
 }
 
 // ============================================================
@@ -91,53 +87,40 @@ function getTierIcon(tier: UnitTier): string {
 function UnlockConfirmation({ tier, rpCost, onConfirm, onCancel }: UnlockConfirmationProps) {
   return (
     <div className="fixed inset-0 bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-      <Card className="max-w-md w-full border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-        <div className="p-6">
-          <h3 className="text-2xl font-bold text-[color:var(--nn-violet)] mb-4 flex items-center gap-2">
-            <span>🔓</span>
-            <span>Unlock Tier {tier}?</span>
-          </h3>
-          
-          <Panel className="mb-6">
-            <p className="text-[color:var(--nn-text-secondary)] mb-4 leading-relaxed">
-              This will unlock <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] text-[color:var(--nn-violet)]">Tier {tier}</Badge> units, 
-              granting access to 8 new powerful unit types.
-            </p>
-            
-            <div className="flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] rounded-none p-4 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-              <span className="text-3xl mr-3">🧪</span>
-              <div>
-                <div className="text-sm text-[color:var(--nn-text-secondary)]">Cost:</div>
-                <div className="text-2xl font-bold text-[color:var(--nn-violet)]">{rpCost} RP</div>
-              </div>
-            </div>
-            
-            <p className="text-sm text-[color:var(--nn-amber)] mt-4 text-center flex items-center justify-center gap-2">
-              <span>⚠️</span>
-              <span>This is a permanent unlock and cannot be undone</span>
-            </p>
-          </Panel>
+      <div
+        className="nn-panel nn-panel--violet max-w-md w-full"
+        role="dialog"
+        aria-label={`Unlock Tier ${tier} confirmation`}
+      >
+        <div className="nn-panel__header nn-panel__header--violet">
+          <span className="nn-panel__title">Unlock Tier {tier}?</span>
+          <span className="nn-panel__meta">Permanent RP expenditure</span>
+        </div>
+        <div className="nn-panel__body p-6">
+          <p className="text-[color:var(--nn-text-secondary)] mb-4 leading-relaxed text-sm">
+            This will unlock <span className="nn-chip nn-chip--violet">Tier {tier}</span> units,
+            granting access to 8 new powerful unit types.
+          </p>
 
-          <div className="flex gap-3">
-            <Button
-              variant="ghost"
-              size="base"
-              onClick={onCancel}
-              className="flex-1"
-            >
+          <div className="nn-well mb-4" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+            <span className="nn-lab">Cost</span>
+            <span className="nn-num nn-text-violet text-2xl font-bold">{rpCost} RP</span>
+          </div>
+
+          <p className="nn-note">
+            <span className="nn-text-amber">This is a permanent unlock and cannot be undone.</span>
+          </p>
+
+          <div className="flex gap-3 mt-6">
+            <button onClick={onCancel} className="nn-btn nn-btn--ghost flex-1">
               Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="base"
-              onClick={onConfirm}
-              className="flex-1 bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]"
-            >
+            </button>
+            <button onClick={onConfirm} className="nn-btn nn-btn--violet flex-1">
               Unlock Now
-            </Button>
+            </button>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 }
@@ -149,7 +132,7 @@ function UnlockConfirmation({ tier, rpCost, onConfirm, onCancel }: UnlockConfirm
 /**
  * Main TierUnlockPanel component
  * Manages tier display, unlock logic, and user interaction
- * 
+ *
  * Features:
  * - Visual tier cards with lock/unlock indicators
  * - Display level and RP requirements for locked tiers
@@ -157,7 +140,6 @@ function UnlockConfirmation({ tier, rpCost, onConfirm, onCancel }: UnlockConfirm
  * - Confirmation modal before RP spending
  * - Success/error feedback with toast notifications
  * - Real-time tier status updates
- * - Design system integration with animations
  */
 export default function TierUnlockPanel() {
   const { player, refreshPlayer } = useGameContext();
@@ -183,9 +165,9 @@ export default function TierUnlockPanel() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/tier/unlock');
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch tier status');
       }
@@ -241,10 +223,9 @@ export default function TierUnlockPanel() {
       }
 
       // Success! Show notification and refresh data
-      toast.success(`🎉 Tier ${tier} Unlocked! 8 new units available`);
+      toast.success(`Tier ${tier} Unlocked! 8 new units available`);
       await refreshPlayer();
       await fetchTierStatus();
-
     } catch (err) {
       console.error('Error unlocking tier:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to unlock tier';
@@ -261,9 +242,11 @@ export default function TierUnlockPanel() {
 
   if (loading) {
     return (
-      <Panel className="flex items-center justify-center py-12">
-        <LoadingSpinner size="lg" />
-      </Panel>
+      <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+        <div className="nn-panel__body flex items-center justify-center py-12">
+          <span className="nn-spin-icon h-6 w-6" aria-label="Loading tier status" />
+        </div>
+      </div>
     );
   }
 
@@ -272,129 +255,112 @@ export default function TierUnlockPanel() {
   // ============================================================
 
   return (
-    <Panel>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🧪</span>
-          <div>
-            <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">Research Tiers</h2>
-            <p className="text-sm text-[color:var(--nn-text-secondary)]">Unlock advanced unit types with RP</p>
-          </div>
+    <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+      {/* Header — scanline section instrument */}
+      <div className="nn-panel__header">
+        <span className="nn-panel__icon"><FlaskConical className="h-4 w-4" /></span>
+        <span className="nn-panel__title">Research Tiers</span>
+        <span className="nn-panel__meta">Unlock advanced unit types with RP</span>
+        <div className="ml-auto text-right">
+          <div className="nn-lab">Available RP</div>
+          <div className="nn-num nn-text-violet text-xl font-bold">{player?.researchPoints || 0}</div>
         </div>
-        <Card className="bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] px-4 py-2 border border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]">
-          <div className="text-sm text-[color:var(--nn-text-secondary)]">Available RP:</div>
-          <div className="text-xl font-bold text-[color:var(--nn-violet)]">{player?.researchPoints || 0}</div>
-        </Card>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <Panel className="bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] mb-4">
-          <p className="text-[color:var(--nn-magenta)] text-sm flex items-center gap-2">
-            <span>❌</span>
-            <span>{error}</span>
-          </p>
-        </Panel>
-      )}
+      <div className="nn-panel__body">
+        {/* Error Display */}
+        {error && (
+          <div className="nn-note mb-4" role="alert">
+            <p className="nn-text-magenta text-sm">{error}</p>
+          </div>
+        )}
 
-      <Divider className="my-6" />
-
-      {/* Tier Cards Grid */}
-      <StaggerChildren staggerDelay={0.08}>
+        {/* Tier Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {tierStatuses.map((tierStatus) => (
-            <StaggerItem key={tierStatus.tier}>
-              <Card
+            <div key={tierStatus.tier} className="nn-fade">
+              <div
                 className={`
-                  border-2 ${getTierColor(tierStatus.tier)}
+                  nn-panel border ${getTierColor(tierStatus.tier)}
                   ${tierStatus.unlocked ? 'opacity-100' : 'opacity-75'}
-                  transition-all hover:scale-[1.02]
                 `}
               >
                 <div className="p-4">
-                  {/* Header */}
+                  {/* Header — roman-numeral instrument label */}
                   <div className="text-center mb-3">
-                    <div className="text-4xl mb-2">{getTierIcon(tierStatus.tier)}</div>
-                    <h3 className="text-lg font-bold text-[color:var(--nn-text-primary)]">Tier {tierStatus.tier}</h3>
+                    <div className="nn-num nn-text-violet text-2xl font-bold tracking-widest mb-1">
+                      {getTierIcon(tierStatus.tier)}
+                    </div>
+                    <h3 className="nn-lab">Tier {tierStatus.tier}</h3>
                   </div>
 
                   {tierStatus.unlocked ? (
                     // Unlocked State
-                    <div className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] rounded-none p-3 text-center">
-                      <Badge variant="default" className="bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-text-primary)] mb-2">
-                        ✅ Unlocked
-                      </Badge>
-                      <p className="text-xs text-[color:var(--nn-green)]">8 units available</p>
+                    <div className="text-center space-y-2 border border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] p-3">
+                      <span className="nn-chip nn-chip--green">Unlocked</span>
+                      <p className="nn-text-dim text-xs">8 units available</p>
                     </div>
                   ) : (
-                    // Locked State
+                    // Locked State — ledger rows + gated action
                     <div className="space-y-3">
-                      {/* Requirements */}
-                      <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-2 space-y-2 text-xs">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[color:var(--nn-text-secondary)]">Required Level:</span>
-                          <Badge
-                            variant="default"
-                            className={
+                      <div className="space-y-2 text-xs">
+                        <div className="nn-well py-1.5">
+                          <span className="nn-lab">Required Level</span>
+                          <span
+                            className={`nn-chip ${
                               (player?.level || 0) >= tierStatus.requiresLevel
-                                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
-                                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
-                            }
+                                ? 'nn-chip--green'
+                                : 'nn-chip--magenta'
+                            }`}
                           >
                             {tierStatus.requiresLevel}
-                          </Badge>
+                          </span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[color:var(--nn-text-secondary)]">Required RP:</span>
-                          <Badge
-                            variant="default"
-                            className={
+                        <div className="nn-well py-1.5">
+                          <span className="nn-lab">Required RP</span>
+                          <span
+                            className={`nn-chip ${
                               (player?.researchPoints || 0) >= tierStatus.requiresRP
-                                ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] text-[color:var(--nn-green)]'
-                                : 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-magenta)]'
-                            }
+                                ? 'nn-chip--green'
+                                : 'nn-chip--magenta'
+                            }`}
                           >
                             {tierStatus.requiresRP}
-                          </Badge>
+                          </span>
                         </div>
                       </div>
 
-                      {/* Unlock Button */}
-                      <Button
-                        variant={tierStatus.canUnlock ? 'primary' : 'ghost'}
-                        size="sm"
+                      {/* Unlock Button — violet = RP domain */}
+                      <button
                         onClick={() => handleUnlockClick(tierStatus.tier)}
                         disabled={!tierStatus.canUnlock || unlocking}
-                        className={`w-full ${
+                        className={`nn-abtn w-full ${
                           tierStatus.canUnlock
-                            ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]'
-                            : 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] text-[color:var(--nn-text-secondary)] cursor-not-allowed'
+                            ? 'nn-abtn--violet'
+                            : 'nn-abtn--ghost opacity-60 cursor-not-allowed'
                         }`}
                       >
-                        {unlocking ? '...' : tierStatus.canUnlock ? '🔓 Unlock' : '🔒 Locked'}
-                      </Button>
+                        {unlocking ? '…' : tierStatus.canUnlock ? 'Unlock' : 'Locked'}
+                      </button>
                     </div>
                   )}
                 </div>
-              </Card>
-            </StaggerItem>
+              </div>
+            </div>
           ))}
         </div>
-      </StaggerChildren>
 
-      <Divider className="my-6" />
-
-      {/* Information Footer */}
-      <Panel className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)]">
-        <p className="text-sm text-[color:var(--nn-text-secondary)] flex items-start gap-2">
-          <span className="text-[color:var(--nn-violet)] font-bold text-base">💡</span>
-          <span>
-            <span className="text-[color:var(--nn-violet)] font-bold">Tip:</span> Earn Research Points (RP) by leveling up. 
-            Higher levels grant more RP. Unlock tiers to access more powerful units!
-          </span>
-        </p>
-      </Panel>
+        {/* Information Footer — brief block */}
+        <div className="nn-brief nn-brief--violet mt-6">
+          <p className="text-sm text-[color:var(--nn-text-secondary)] flex items-start gap-2">
+            <span className="nn-text-violet font-bold text-base">▸</span>
+            <span>
+              <span className="nn-text-violet font-bold">Tip:</span> Earn Research Points (RP) by leveling up.
+              Higher levels grant more RP. Unlock tiers to access more powerful units!
+            </span>
+          </p>
+        </div>
+      </div>
 
       {/* Unlock Confirmation Modal */}
       {confirmUnlock !== null && (
@@ -405,7 +371,7 @@ export default function TierUnlockPanel() {
           onCancel={() => setConfirmUnlock(null)}
         />
       )}
-    </Panel>
+    </div>
   );
 }
 
@@ -415,14 +381,11 @@ export default function TierUnlockPanel() {
 // - Tier status management: Fetches from /api/tier/unlock (GET)
 // - Auto-refreshes when player level or RP changes
 // - Unlock flow: Click → Confirmation modal → POST /api/tier/unlock → Success toast
-// - Visual feedback: Color-coded tiers (gray/green/blue/purple/yellow)
-// - Lock/unlock indicators with badges and icons
-// - Green/red indicators for requirement fulfillment
+// - Visual feedback: accent-coded tier cards (green/cyan/violet/amber)
+// - Lock/unlock indicators with semantic chips (green=met, magenta=unmet)
 // - Toast notifications for success/error feedback
 // - Responsive grid layout (1-5 columns based on screen size)
-// - Smooth animations with stagger effects (0.08s delay)
-// - Hover effects on tier cards (scale)
-// - Design system integration: Card, Badge, Button, Panel, Divider, StaggerChildren, LoadingSpinner, toast
+// - Stagger-free nn-fade entry on tier cards
 // - Disabled buttons for ineligible unlocks with visual feedback
 // - Confirmation modal prevents accidental purchases
 // - Real-time RP balance display in header

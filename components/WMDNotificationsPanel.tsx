@@ -1,29 +1,21 @@
-
 /**
  * @file components/WMDNotificationsPanel.tsx
  * @created 2025-10-22
+ * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-chip/
+ * nn-abtn token structure, event glyph slabs removed; feed logic byte-preserved)
  * @overview WMD Event Notifications Panel
- * 
+ *
  * OVERVIEW:
  * Real-time WMD event notifications display. Shows launches, intercepts,
  * research completions, spy operations, and vote results.
- * 
- * Features:
- * - Notification feed with timestamps
- * - Priority-based styling (INFO/WARNING/ALERT/CRITICAL)
- * - Mark as read functionality
- * - Clear old notifications
- * - Event-specific icons and colors
- * 
+ *
  * Dependencies: /api/wmd/notifications, /types/wmd/notification.types
  */
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
+import { Bell } from 'lucide-react';
 import { showSuccess } from '@/lib/toastService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
@@ -87,23 +79,14 @@ export default function WMDNotificationsPanel() {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityChip = (priority: string) => {
     switch (priority) {
-      case 'CRITICAL': return 'bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)]';
-      case 'ALERT': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
-      case 'WARNING': return 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)]';
-      case 'INFO': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]';
-      default: return 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)]';
+      case 'CRITICAL': return 'nn-chip nn-chip--magenta';
+      case 'ALERT': return 'nn-chip nn-chip--amber';
+      case 'WARNING': return 'nn-chip nn-chip--amber';
+      case 'INFO': return 'nn-chip nn-chip--cyan';
+      default: return 'nn-chip';
     }
-  };
-
-  const getEventIcon = (eventType: string) => {
-    if (eventType.includes('MISSILE')) return '🚀';
-    if (eventType.includes('DEFENSE')) return '🛡️';
-    if (eventType.includes('SPY')) return '🕵️';
-    if (eventType.includes('RESEARCH')) return '🔬';
-    if (eventType.includes('VOTE')) return '🗳️';
-    return '📢';
   };
 
   const formatTime = (date: Date) => {
@@ -124,8 +107,8 @@ export default function WMDNotificationsPanel() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none">
-        <p className="text-[color:var(--nn-text-secondary)]">Loading notifications...</p>
+      <div style={{ background: 'color-mix(in oklab, var(--nn-void) 65%, transparent)' }} className="p-6 rounded-none">
+        <p className="nn-lab">Loading notifications…</p>
       </div>
     );
   }
@@ -133,63 +116,53 @@ export default function WMDNotificationsPanel() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="p-6 bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-[color:var(--nn-text-primary)]">WMD Notifications</h2>
-          <p className="text-sm text-[color:var(--nn-text-secondary)]">
-            {unreadCount} unread | {notifications.length} total
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={markAllRead} variant="secondary" size="sm">
-            Mark All Read
-          </Button>
-          <Button onClick={clearOld} variant="danger" size="sm">
-            Clear Old
-          </Button>
+    <div className="space-y-6">
+      {/* Header — scanline section instrument */}
+      <div className="nn-sec">
+        <span className="nn-panel__icon"><Bell className="h-4 w-4" /></span>
+        <span className="nn-sec__title">WMD Notifications</span>
+        <span className="nn-sec__note nn-num">{unreadCount} unread · {notifications.length} total</span>
+        <div className="ml-auto flex gap-2">
+          <button onClick={markAllRead} className="nn-abtn nn-abtn--cyan">Mark All Read</button>
+          <button onClick={clearOld} className="nn-abtn nn-abtn--magenta">Clear Old</button>
         </div>
       </div>
 
-      {/* Notifications Feed */}
+      {/* Notifications Feed — ledger panels, unread = cyan left-rule */}
       <div className="space-y-3 max-h-[600px] overflow-y-auto">
         {notifications.map((notif) => (
-          <Card
+          <div
             key={notif.notificationId}
-            className={`p-4 ${notif.read ? 'bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)]' : 'bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] border-l-4 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]'}`}
+            className="nn-panel"
+            style={
+              {
+                '--nn-accent': notif.read ? 'var(--nn-cyan)' : 'var(--nn-cyan)',
+                opacity: notif.read ? 0.75 : 1,
+                borderLeft: notif.read ? undefined : '2px solid var(--nn-cyan)',
+              } as React.CSSProperties
+            }
           >
-            <div className="flex justify-between items-start gap-4">
-              {/* Icon */}
-              <div className="text-2xl flex-shrink-0">
-                {getEventIcon(notif.eventType)}
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 space-y-1">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-[color:var(--nn-text-primary)]">{notif.title}</h3>
-                  <Badge className={getPriorityColor(notif.priority)}>
-                    {notif.priority}
-                  </Badge>
-                </div>
-                <p className="text-sm text-[color:var(--nn-text-secondary)]">{notif.message}</p>
-                <div className="flex gap-4 text-xs text-[color:var(--nn-text-secondary)] mt-2">
-                  <span>From: {notif.sourceName}</span>
-                  {notif.targetName && <span>To: {notif.targetName}</span>}
-                  <span>{formatTime(notif.createdAt)}</span>
-                </div>
+            <div className="nn-panel__header">
+              <span className="nn-panel__title">{notif.title}</span>
+              <span className={`nn-chip ${getPriorityChip(notif.priority)} nn-panel__meta`}>{notif.priority}</span>
+            </div>
+            <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <p style={{ fontSize: 12.5, color: 'var(--nn-text-secondary)', margin: 0 }}>{notif.message}</p>
+              <div className="flex gap-4">
+                <span className="nn-lab" style={{ fontSize: 9.5 }}>From ▸ {notif.sourceName}</span>
+                {notif.targetName && <span className="nn-lab" style={{ fontSize: 9.5 }}>To ▸ {notif.targetName}</span>}
+                <span className="nn-lab" style={{ fontSize: 9.5 }}>{formatTime(notif.createdAt)}</span>
               </div>
             </div>
-          </Card>
+          </div>
         ))}
       </div>
 
       {/* Empty State */}
       {notifications.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-[color:var(--nn-text-secondary)] text-lg">No notifications</p>
-          <p className="text-[color:var(--nn-text-secondary)] text-sm">WMD events will appear here</p>
+          <p className="nn-lab">No notifications</p>
+          <p className="nn-footnote" style={{ marginTop: 4 }}>WMD events will appear here</p>
         </div>
       )}
     </div>

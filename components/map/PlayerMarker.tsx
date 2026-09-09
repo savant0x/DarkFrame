@@ -19,6 +19,11 @@
 import { Graphics, Text, Container } from 'pixi.js';
 import { type PlayerMarker as PlayerMarkerType, MAP_CONFIG, tileToWorld } from '@/types';
 
+/** PixiJS Graphics carrying the player marker it renders (FID-20260908-018: replaces `as any`). */
+type MarkerGraphics = Graphics & { markerData: PlayerMarkerType };
+/** Same, where the marker may be absent (read sites). */
+type MaybeMarkerGraphics = Graphics & { markerData?: PlayerMarkerType };
+
 /**
  * Create a PixiJS Graphics object for a player marker
  * 
@@ -110,7 +115,7 @@ export function createPlayerMarker(
   graphics.cursor = 'pointer';
   
   // Store marker data for later reference
-  (graphics as any).markerData = marker;
+  (graphics as MarkerGraphics).markerData = marker;
   
   return graphics;
 }
@@ -140,8 +145,8 @@ export function updatePlayerMarkerPosition(
   graphics.y = worldPos.y;
   
   // Update stored marker data
-  if ((graphics as any).markerData) {
-    (graphics as any).markerData.position = newPosition;
+  if ((graphics as MaybeMarkerGraphics).markerData) {
+    (graphics as MarkerGraphics).markerData.position = newPosition;
   }
 }
 
@@ -167,7 +172,7 @@ export function animatePlayerMarker(graphics: Graphics, _delta: number): void {
     return;
   }
   
-  const markerData = (graphics as any).markerData as PlayerMarkerType | undefined;
+  const markerData = (graphics as MaybeMarkerGraphics).markerData;
   
   // Only animate current player and Flag Bearer
   if (!markerData || (!markerData.isCurrentPlayer && !markerData.isFlagBearer)) {
