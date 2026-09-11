@@ -55,3 +55,14 @@ app/api/combat/attack/route.ts · app/api/map/bases/route.ts (new) · app/game/p
 app/map/page.tsx · app/neon-noir.css · components/TileRenderer.tsx ·
 components/FlagTrackerPanel.tsx · components/FactoryManagementPanel.tsx ·
 components/map/CanvasMapRenderer.tsx
+
+## RULING (2026-09-11) — Raid loot economics: full stockpile stands
+
+The open question "20% theft per FID-023 vs full chosen stockpile" is resolved:
+**full-loot is the ruling.** FID-023's 20% belonged to its legacy PvP base-raid
+path (PvP victims must retain a base to counter-attack); the live PvE loop raids
+bots/Beer Bases whose stockpiles are finite and hourly-regenerated — taking the
+whole chosen resource is the intended reward, and resource-scoping (loot ONLY
+metal or ONLY energy) is the real strategic decision. Live verification stands:
+metal-scoped raid credited metal only, energy delta exactly 0, Full Permanence
+intact. No code change.
