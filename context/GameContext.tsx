@@ -10,9 +10,10 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo, ReactNode } from 'react';
 import { SanitizedPlayer, Tile, MovementDirection } from '@/types';
 import { logger } from '@/lib/logger';
+import { toast } from '@/lib/toast';
 
 /**
  * Game context state interface
@@ -82,44 +83,13 @@ export function GameProvider({ children }: GameProviderProps) {
   // Prevent duplicate API calls
   const loadingRef = useRef(false);
   const lastFetchRef = useRef<number>(0);
-
-  /**
-   * Check session with server (works with HttpOnly cookies)
-   * Server-side endpoint can read HttpOnly cookies that JavaScript cannot access
-   */
+  // FID-20260909-024 §: stable-identity optimization — handlers read the live
+  // player through this ref so their useCallback identities never change when
+  // player state changes, keeping the provider's memoized value stable.
+  const playerRef = useRef<SanitizedPlayer | null>(null);
   useEffect(() => {
-    async function checkSession() {
-      try {
-        console.log('[GameContext] 🔍 Starting session check...');
-        logger.debug('Checking session');
-        const response = await fetch('/api/auth/session');
-        console.log('[GameContext] ✅ Session response received:', response.status);
-        const data = await response.json();
-        console.log('[GameContext] 📦 Session data:', data);
-        
-        logger.debug('Session response received', { success: data.success, hasUsername: !!data.username });
-        
-        if (data.success && data.username) {
-          // Valid session found - load player data
-          console.log('[GameContext] ✅ Valid session, loading player data for:', data.username);
-          logger.info('Valid session found', { username: data.username });
-          await loadPlayerData(data.username);
-          console.log('[GameContext] ✅ loadPlayerData completed');
-        } else {
-          // No valid session - user needs to login
-          console.log('[GameContext] ⚠️ No valid session, stopping');
-          logger.debug('No valid session, user needs to login');
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('[GameContext] ❌ Session check failed:', error);
-        logger.error('Session check failed', error instanceof Error ? error : new Error(String(error)));
-        setIsLoading(false);
-      }
-    }
-    
-    checkSession();
-  }, []);
+    playerRef.current = player;
+  }, [player]);
 
   /**
    * Save username to localStorage when player changes (for backward compatibility)
@@ -132,77 +102,10 @@ export function GameProvider({ children }: GameProviderProps) {
     }
   }, [player]);
 
-  /**
-   * Load player data from API
-   */
-  async function loadPlayerData(username: string) {
-    console.log('[loadPlayerData] 🚀 Called for username:', username);
-    // Prevent duplicate simultaneous calls
-    if (loadingRef.current) {
-      console.log('[loadPlayerData] ⏸️ Already loading, skipping');
-      logger.debug('Player data load already in progress, skipping');
-      return;
-    }
-    
-    // Throttle: Don't fetch more than once every 2 seconds
-    const now = Date.now();
-    if (now - lastFetchRef.current < 2000) {
-      console.log('[loadPlayerData] ⏱️ Throttled, skipping (last fetch:', (now - lastFetchRef.current), 'ms ago)');
-      logger.debug('Player data fetched recently, skipping');
-      return;
-    }
-    
-    loadingRef.current = true;
-    lastFetchRef.current = now;
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      console.log('[loadPlayerData] 📡 Fetching /api/player?username=' + username);
-      const response = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
-      console.log('[loadPlayerData] ✅ Player API responded:', response.status);
-      const data = await response.json();
-      console.log('[loadPlayerData] 📦 Player data:', data);
-
-      if (!data.success) {
-        // API returns a structured error object: { code, message, details }
-        // Avoid throwing the object directly which results in `[object Object]`.
-        const apiError = data.error;
-        const errorMessage = typeof apiError === 'string'
-          ? apiError
-          : apiError && (apiError.message || apiError.code)
-            ? `${apiError.code ? apiError.code + ': ' : ''}${apiError.message || JSON.stringify(apiError)}`
-            : 'Failed to load player data';
-
-        throw new Error(errorMessage);
-      }
-
-      console.log('[loadPlayerData] ✅ Setting player state');
-      setPlayer(data.data);
-
-      // Load current tile
-      if (data.data.currentPosition) {
-        console.log('[loadPlayerData] 📍 Loading tile at position:', data.data.currentPosition);
-        await loadTileData(data.data.currentPosition.x, data.data.currentPosition.y);
-        console.log('[loadPlayerData] ✅ Tile data loaded');
-      }
-      console.log('[loadPlayerData] ✅ loadPlayerData complete');
-    } catch (err) {
-      console.error('[loadPlayerData] ❌ Error:', err);
-      logger.error('Error loading player data', err instanceof Error ? err : new Error(String(err)));
-      setError(err instanceof Error ? err.message : 'Failed to load player');
-      setPlayer(null);
-    } finally {
-      console.log('[loadPlayerData] 🏁 Setting isLoading = false');
-      setIsLoading(false);
-      loadingRef.current = false;
-    }
-  }
-
-  /**
-   * Load tile data from API
-   */
-  async function loadTileData(x: number, y: number) {
+  // Stable loader identities (FID-20260909-024): both loaders are useCallback
+  // consts (loadTileData first — loadPlayerData depends on it), so every
+  // handler below keeps one identity for the provider's whole lifetime.
+  const loadTileData = useCallback(async function loadTileData(x: number, y: number) {
     // Retry with backoff: under load (or during a transient blip) the first fetch
     // can fail — previously a single failure left `currentTile` null forever and
     // the game view stuck on "Loading tile..." with no self-heal.
@@ -230,13 +133,109 @@ export function GameProvider({ children }: GameProviderProps) {
         }
       }
     }
-  }
+  }, []);
+
+  /**
+   * Load player data from API
+   */
+  const loadPlayerData = useCallback(async function loadPlayerData(username: string) {
+    logger.debug('loadPlayerData called', { username });
+    // Prevent duplicate simultaneous calls
+    if (loadingRef.current) {
+      logger.debug('Player data load already in progress, skipping');
+      return;
+    }
+    
+    // Throttle: Don't fetch more than once every 2 seconds
+    const now = Date.now();
+    if (now - lastFetchRef.current < 2000) {
+      logger.debug('Player data fetched recently, skipping', { elapsedMs: now - lastFetchRef.current });
+      return;
+    }
+    
+    loadingRef.current = true;
+    lastFetchRef.current = now;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      logger.debug('Fetching player data', { username });
+      const response = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
+      logger.debug('Player API responded', { status: response.status });
+      const data = await response.json();
+
+      if (!data.success) {
+        // API returns a structured error object: { code, message, details }
+        // Avoid throwing the object directly which results in `[object Object]`.
+        const apiError = data.error;
+        const errorMessage = typeof apiError === 'string'
+          ? apiError
+          : apiError && (apiError.message || apiError.code)
+            ? `${apiError.code ? apiError.code + ': ' : ''}${apiError.message || JSON.stringify(apiError)}`
+            : 'Failed to load player data';
+
+        throw new Error(errorMessage);
+      }
+
+      logger.debug('Setting player state');
+      setPlayer(data.data);
+
+      // Load current tile
+      if (data.data.currentPosition) {
+        logger.debug('Loading tile at position', data.data.currentPosition);
+        await loadTileData(data.data.currentPosition.x, data.data.currentPosition.y);
+      }
+      logger.debug('loadPlayerData complete');
+    } catch (err) {
+      console.error('[loadPlayerData] ❌ Error:', err);
+      logger.error('Error loading player data', err instanceof Error ? err : new Error(String(err)));
+      setError(err instanceof Error ? err.message : 'Failed to load player');
+      setPlayer(null);
+    } finally {
+      setIsLoading(false);
+      loadingRef.current = false;
+    }
+  }, [loadTileData]);
+
+  /**
+   * Check session with server (works with HttpOnly cookies)
+   * Server-side endpoint can read HttpOnly cookies that JavaScript cannot access
+   */
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        logger.debug('Checking session');
+        const response = await fetch('/api/auth/session');
+        const data = await response.json();
+        
+        logger.debug('Session response received', { success: data.success, hasUsername: !!data.username });
+        
+        if (data.success && data.username) {
+          // Valid session found - load player data
+          logger.info('Valid session found', { username: data.username });
+          await loadPlayerData(data.username);
+          logger.debug('loadPlayerData completed');
+        } else {
+          // No valid session - user needs to login
+          logger.debug('No valid session, user needs to login');
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('[GameContext] ❌ Session check failed:', error);
+        logger.error('Session check failed', error instanceof Error ? error : new Error(String(error)));
+        setIsLoading(false);
+      }
+    }
+    
+    checkSession();
+  }, [loadPlayerData]);
 
   /**
    * Move player in specified direction
    */
-  async function movePlayer(direction: MovementDirection) {
-    if (!player) {
+  // Stable handler identities (FID-20260909-024): live player read via ref.
+  const movePlayer = useCallback(async function movePlayer(direction: MovementDirection) {
+    if (!playerRef.current) {
       setError('No player logged in');
       return;
     }
@@ -251,7 +250,7 @@ export function GameProvider({ children }: GameProviderProps) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: player.username,
+          username: playerRef.current.username,
           direction,
         }),
       });
@@ -265,40 +264,45 @@ export function GameProvider({ children }: GameProviderProps) {
       setPlayer(data.data.player);
       setCurrentTile(data.data.currentTile);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to move';
       logger.error('Error moving player', err instanceof Error ? err : new Error(String(err)));
-      setError(err instanceof Error ? err.message : 'Failed to move');
+      setError(msg);
+      // FID-20260911-041: the context `error` state is consumed by no route —
+      // without this toast every move rejection (rate limits, locked tiles,
+      // combat zones) vanished silently.
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
 
   /**
    * Refresh current game state
    */
-  async function refreshGameState() {
-    if (player) {
-      await loadPlayerData(player.username);
+  const refreshGameState = useCallback(async function refreshGameState() {
+    if (playerRef.current) {
+      await loadPlayerData(playerRef.current.username);
     }
-  }
+  }, [loadPlayerData]);
 
   /**
    * Refresh only player data (lightweight)
    */
-  async function refreshPlayer() {
-    if (!player) return;
+  const refreshPlayer = useCallback(async function refreshPlayer() {
+    if (!playerRef.current) return;
     
     try {
-      await loadPlayerData(player.username);
+      await loadPlayerData(playerRef.current.username);
     } catch (error) {
       logger.error('Failed to refresh player', error instanceof Error ? error : new Error(String(error)));
     }
-  }
+  }, [loadPlayerData]);
 
   /**
    * Update only the current tile without refreshing player data
    * Useful for auto-farm to update tile visuals without destroying timers
    */
-  async function updateTileOnly(x: number, y: number) {
+  const updateTileOnly = useCallback(async function updateTileOnly(x: number, y: number) {
     try {
       const response = await fetch(`/api/tile?x=${x}&y=${y}`);
       const data = await response.json();
@@ -309,19 +313,23 @@ export function GameProvider({ children }: GameProviderProps) {
     } catch (error) {
       logger.error('Failed to update tile', error instanceof Error ? error : new Error(String(error)));
     }
-  }
+  }, []);
 
   /**
    * Logout and clear session
    */
-  function logout() {
+  const logout = useCallback(function logout() {
     setPlayer(null);
     setCurrentTile(null);
     setError(null);
     localStorage.removeItem('darkframe_username');
-  }
+  }, []);
 
-  const value: GameContextState = {
+  // FID-20260909-024: stable-identity provider value — re-created only when the
+  // actual data (player/tile/loading/error) changes, not on every unrelated
+  // render of the provider. Handler identities are stable via useCallback +
+  // playerRef, so consumers re-render only on real state transitions.
+  const value: GameContextState = useMemo(() => ({
     player,
     currentTile,
     isLoading,
@@ -333,7 +341,7 @@ export function GameProvider({ children }: GameProviderProps) {
     refreshGameState,
     refreshPlayer,
     logout,
-  };
+  }), [player, currentTile, isLoading, error, updateTileOnly, movePlayer, refreshGameState, refreshPlayer, logout]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }

@@ -226,20 +226,30 @@ export interface FlagOwnershipChangeEvent {
 
 /**
  * Flag configuration constants
+ *
+ * FID-20260910-039: the steal channel is the only capture mechanic (Option A).
+ * The HP-battle-era constants (ATTACK_COOLDOWN / BASE_ATTACK_DAMAGE) are kept
+ * only as historical config — nothing reads them. STEAL_RANGE is the doc's
+ * challenge radius (PLAN §168-176: challenge appears within 15 tiles).
  */
 export const FLAG_CONFIG = {
-  /** Attack range in tiles (can attack if within this distance) */
+  /** Doc steal-channel range (tiles, Chebyshev) — PLAN §168-176 (15 tiles).
+   *  Supersedes the HP-battle ATTACK_RANGE: 5 (historical). */
+  STEAL_RANGE: 15,
+
+  /** @deprecated HP-battle era (no consumer). Kept for config archaeology. */
   ATTACK_RANGE: 5,
-  
-  /** Maximum hold duration before flag auto-drops (seconds) */
-  MAX_HOLD_DURATION: 3600, // 1 hour
-  
-  /** Cooldown between attacks (seconds) */
+
+  /** Maximum hold duration before flag auto-drops (seconds) — doc §354-362
+   *  is the operative limit (12h); this legacy 1h value has no consumer. */
+  MAX_HOLD_DURATION: 3600,
+
+  /** @deprecated HP-battle era (no consumer). */
   ATTACK_COOLDOWN: 60,
-  
-  /** Base damage for flag attacks */
+
+  /** @deprecated HP-battle era (no consumer). */
   BASE_ATTACK_DAMAGE: 100,
-  
+
   /** Flag position update interval (ms) */
   POSITION_UPDATE_INTERVAL: 5000, // 5 seconds
 } as const;

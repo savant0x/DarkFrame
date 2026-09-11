@@ -60,6 +60,18 @@ export interface HotkeyConfig {
 }
 
 /**
+ * Shape persisted in the game_config jsonb `config` column under
+ * type='hotkeys' (FID-20260909-023 §3.6: promoted from the route-local
+ * declaration so the column's payload union can reference it).
+ */
+export interface StoredHotkeyConfig {
+  version: number;
+  hotkeys: HotkeyConfig[];
+  modifiedBy: string;
+  lastModified: string;
+}
+
+/**
  * Hotkey category for organization
  */
 export enum HotkeyCategory {

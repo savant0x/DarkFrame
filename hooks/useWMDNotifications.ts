@@ -25,6 +25,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { logger } from '@/lib/logger';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import type {
   WMDMissileLaunchedPayload,
@@ -75,7 +76,7 @@ export function useWMDNotifications(handlers: WMDNotificationHandlers = {}) {
       }
       
       // Fallback: could integrate with a toast library here
-      console.log(`[WMD ${type.toUpperCase()}]`, message);
+      logger.debug(`[WMD ${type.toUpperCase()}] ${message}`);
     };
 
     // Missile Launched

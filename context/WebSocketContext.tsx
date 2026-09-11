@@ -28,9 +28,10 @@
 
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { ServerToClientEvents, ClientToServerEvents } from '@/types/websocket';
+import { logger } from '@/lib/logger';
 
 // ============================================================================
 // TYPES
@@ -124,11 +125,11 @@ export function WebSocketProvider({
   const connect = useCallback(() => {
     disposedRef.current = false;
     if (socket?.connected) {
-      console.log('[WebSocket] Already connected');
+      logger.debug('[WebSocket] Already connected');
       return;
     }
 
-    console.log('[WebSocket] Initializing connection...');
+    logger.debug('[WebSocket] Initializing connection...');
     setConnectionState('connecting');
     setError(null);
 
@@ -143,7 +144,7 @@ export function WebSocketProvider({
 
     // Connection successful
     newSocket.on('connect', () => {
-      console.log('[WebSocket] Connected successfully');
+      logger.debug('[WebSocket] Connected successfully');
       setConnectionState('connected');
       setError(null);
       reconnectAttemptsRef.current = 0; // Reset reconnect counter
@@ -190,24 +191,24 @@ export function WebSocketProvider({
       // jitter (FID-20260908-005). No hard ceiling — dev-server restarts and
       // network blips recover automatically once the server returns.
       const delay = getReconnectDelay(reconnectAttemptsRef.current);
-      console.log(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
+      logger.debug(`[WebSocket] Reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
       scheduleReconnect(newSocket, delay);
     });
 
     // Disconnection
     newSocket.on('disconnect', (reason) => {
-      console.log('[WebSocket] Disconnected:', reason);
+      logger.info('[WebSocket] Disconnected:', reason);
       setConnectionState('disconnected');
 
       // Auto-reconnect if server disconnected us (not manual disconnect)
       if (reason === 'io server disconnect') {
-        console.log('[WebSocket] Server disconnected, reconnecting...');
+        logger.info('[WebSocket] Server disconnected, reconnecting...');
         reconnectAttemptsRef.current = 0;
         newSocket.connect();
       } else if (reason === 'transport close' || reason === 'ping timeout') {
         // Network issue — reconnect endlessly with bounded backoff (no ceiling)
         const delay = getReconnectDelay(reconnectAttemptsRef.current);
-        console.log(`[WebSocket] Network drop - reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
+        logger.debug(`[WebSocket] Network drop - reconnecting in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1})`);
         scheduleReconnect(newSocket, delay);
       }
     });
@@ -219,7 +220,7 @@ export function WebSocketProvider({
    * Manually trigger reconnection
    */
   const reconnect = useCallback(() => {
-    console.log('[WebSocket] Manual reconnection triggered');
+    logger.debug('[WebSocket] Manual reconnection triggered');
     reconnectAttemptsRef.current = 0;
     
     if (socket) {
@@ -234,7 +235,7 @@ export function WebSocketProvider({
    * Manually disconnect
    */
   const disconnectSocket = useCallback(() => {
-    console.log('[WebSocket] Manual disconnection triggered');
+    logger.debug('[WebSocket] Manual disconnection triggered');
     
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -266,21 +267,24 @@ export function WebSocketProvider({
         reconnectTimeoutRef.current = null;
       }
       if (socket) {
-        console.log('[WebSocket] Cleaning up connection');
+        logger.debug('[WebSocket] Cleaning up connection');
         socket.disconnect();
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoConnect]); // Only run on mount and when autoConnect changes
 
-  const value: WebSocketContextValue = {
+  // FID-20260909-024: memoized value — reconnect/disconnect are useCallback-
+  // stable, socket identity changes only on reconnect, so consumers re-render
+  // only on real connection-state transitions.
+  const value = useMemo<WebSocketContextValue>(() => ({
     socket,
     connectionState,
     isConnected: connectionState === 'connected',
     error,
     reconnect,
     disconnect: disconnectSocket,
-  };
+  }), [socket, connectionState, error, reconnect, disconnectSocket]);
 
   return (
     <WebSocketContext.Provider value={value}>

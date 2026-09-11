@@ -591,6 +591,73 @@ export const UNIT_BLUEPRINTS: Record<string, UnitBlueprint> = {
 };
 
 /**
+ * Canonical roster index (FID-20260909-033): the single tier order for the 40
+ * combat units. game.types derives UNIT_CONFIGS from this — the enum key for
+ * each id lives in UNIT_ID_TO_UNIT_TYPE below. Tech nodes are NOT units.
+ */
+export const UNIT_TIER_ORDER: Record<string, number> = {
+  infantry: 1, scout: 1, militia: 1, rifleman: 1,
+  marksman: 2, cavalry: 2, grenadier: 2, saboteur: 2,
+  sniper: 3, commando: 3, artillery: 3, bombardier: 3,
+  tank: 4, bomber: 4, juggernaut: 4, gunship: 4,
+  titan: 5, warlord: 5, dreadnought: 5, annihilator: 5,
+  barricade: 1, watchman: 1, palisade: 1, trench: 1,
+  wall: 2, guardian: 2, turret: 2, rampart: 2,
+  bunker: 3, fortress: 3, sentinel: 3, pillbox: 3,
+  citadel: 4, aegis: 4, stronghold: 4, guardian_array: 4,
+  bastion: 5, colossus: 5, sentinel_prime: 5, invincible: 5,
+};
+
+/**
+ * Blueprint id → UnitType enum key (FID-20260909-033). UNIT_CONFIGS is DERIVED
+ * from UNIT_BLUEPRINTS through this map: one roster, one set of stats. The enum
+ * keys stay the integration vocabulary (combat modal, saves, bot pools).
+ */
+export const UNIT_ID_TO_UNIT_TYPE: Record<string, string> = {
+  infantry: 'T1_Infantry',
+  scout: 'T1_Scout',
+  militia: 'T1_Militia',
+  rifleman: 'T1_Rifleman',
+  marksman: 'T2_Marksman',
+  cavalry: 'T2_Cavalry',
+  grenadier: 'T2_Grenadier',
+  saboteur: 'T2_Saboteur',
+  sniper: 'T3_Sniper',
+  commando: 'T3_Commando',
+  artillery: 'T3_Artillery',
+  bombardier: 'T3_Bombardier',
+  tank: 'T4_Tank',
+  bomber: 'T4_Bomber',
+  juggernaut: 'T4_Juggernaut',
+  gunship: 'T4_Gunship',
+  titan: 'T5_Titan',
+  warlord: 'T5_Warlord',
+  dreadnought: 'T5_Dreadnought',
+  annihilator: 'T5_Annihilator',
+  barricade: 'T1_Barricade',
+  watchman: 'T1_Watchman',
+  palisade: 'T1_Palisade',
+  trench: 'T1_Trench',
+  wall: 'T2_Wall',
+  guardian: 'T2_Guardian',
+  turret: 'T2_Turret',
+  rampart: 'T2_Rampart',
+  bunker: 'T3_Bunker',
+  fortress: 'T3_Fortress',
+  sentinel: 'T3_Sentinel',
+  pillbox: 'T3_Pillbox',
+  citadel: 'T4_Citadel',
+  aegis: 'T4_Aegis',
+  stronghold: 'T4_Stronghold',
+  guardian_array: 'T4_GuardianArray',
+  bastion: 'T5_Bastion',
+  colossus: 'T5_Colossus',
+  sentinel_prime: 'T5_SentinelPrime',
+  invincible: 'T5_Invincible',
+};
+
+
+/**
  * Tech tree definition
  */
 export const TECH_TREE: Record<string, TechNode> = {
