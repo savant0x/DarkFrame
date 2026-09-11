@@ -381,9 +381,25 @@ export async function harvestResourceTile(
       // Don't fail harvest if milestone check fails
     }
     
-    // Get updated player
-    const updatedPlayerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
-    const updatedPlayer = updatedPlayerRows[0] ? mapRowToPlayer(updatedPlayerRows[0]) : undefined;
+    // FID-20260911-043: slim post-write read — the harvest route never ships
+    // updatedPlayer (route contract: "DO NOT return player"), so reading the
+    // full 39 KB row here was pure waste on the hottest loop in the game.
+    // Keep to the slim projection; the earlier full read (line ~250) still
+    // supplies the gather math with blobs.
+    const updatedPlayerRows = await db.select({
+      username: players.username,
+      xp: players.xp,
+      level: players.level,
+      currentPositionX: players.currentPositionX,
+      currentPositionY: players.currentPositionY,
+      resourcesMetal: players.resourcesMetal,
+      resourcesEnergy: players.resourcesEnergy,
+      bankMetal: players.bankMetal,
+      bankEnergy: players.bankEnergy,
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
+    }).from(players).where(eq(players.username, playerId)).limit(1);
+    const updatedPlayer = updatedPlayerRows[0] ? mapRowToPlayer(updatedPlayerRows[0] as typeof players.$inferSelect) : undefined;
     
     // Generate success message with VIP and Flag Bearer indicators
     let successMessage = getHarvestSuccessMessage(tile.terrain, finalAmount);

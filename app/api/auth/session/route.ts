@@ -60,10 +60,29 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     
     log.debug('Session validated', { username: payload.username });
     
+    // FID-20260911-044: daily login reward — checkDailyLogin was fully built
+    // (streaks 100-170 RP + VIP) but had NO caller anywhere; the source was
+    // dead since the RP overhaul. The session endpoint fires exactly once per
+    // page load with a verified identity — the service's own 24h/claim guard
+    // makes repeat loads a no-op, so this is the idempotent wiring point.
+    // Non-fatal: a reward failure must never block session validation.
+    let dailyReward: { claimed: boolean; amount?: number; streak?: number } | undefined;
+    try {
+      const { checkDailyLogin } = await import('@/lib/dailyLoginService');
+      const reward = await checkDailyLogin(payload.username as string);
+      if (reward.success && reward.rewardClaimed) {
+        dailyReward = { claimed: true, amount: reward.rpAwarded, streak: reward.currentStreak };
+        log.info('🎁 Daily login reward claimed', { username: payload.username, rp: reward.rpAwarded, streak: reward.currentStreak });
+      }
+    } catch (rewardError) {
+      log.warn('Daily login reward check failed (non-fatal)', rewardError instanceof Error ? rewardError : new Error(String(rewardError)));
+    }
+    
     // Return username from token payload
     return NextResponse.json({
       success: true,
       username: payload.username as string,
+      ...(dailyReward ? { dailyReward } : {}),
     });
     
   } catch (error) {

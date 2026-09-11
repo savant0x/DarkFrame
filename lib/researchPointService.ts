@@ -213,9 +213,13 @@ export async function awardRP(
     const currentRP = player.researchPoints || 0;
     const newBalance = currentRP + finalAmount;
 
-    // Create transaction record
-    const transaction: ResearchPointHistory = {
+    // Create transaction record — FID-20260911-044: carry `source` in the
+    // embedded history too (the rpTransactions audit table always had it, but
+    // the per-player rpHistory never did, so admin per-source analytics from
+    // rpHistory showed every transaction as null-source).
+    const transaction: ResearchPointHistory & { source: RPSource } = {
       amount: finalAmount,
+      source,
       reason: description,
       timestamp: new Date(),
       balance: newBalance

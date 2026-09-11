@@ -26,7 +26,11 @@ import { checkAchievements } from './achievementService';
  */
 async function ensureStatsExist(playerId: string) {
   const playersCollection = await getCollection('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  // FID-20260911-043: slim projection — only need to know if stats exist.
+  const player = await playersCollection.findOne(
+    { username: playerId },
+    { projection: { stats: 1 } }
+  );
 
   if (!player || player.stats) {
     return; // Stats already exist or player doesn't exist

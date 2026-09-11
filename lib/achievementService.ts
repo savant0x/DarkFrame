@@ -243,7 +243,12 @@ export const ACHIEVEMENTS: Record<string, Omit<Achievement, 'unlockedAt' | 'prog
  */
 export async function checkAchievements(playerId: string): Promise<Achievement[]> {
   const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  // FID-20260911-043: slim projection — achievements need only scalars/stats,
+  // not the 30 KB units/inventory blobs (runs after EVERY harvest).
+  const player = await playersCollection.findOne(
+    { username: playerId },
+    { projection: { achievements: 1, stats: 1, discoveries: 1, level: 1, specialization: 1, totalStrength: 1, totalDefense: 1, rpHistory: 0 } }
+  );
 
   if (!player) {
     return [];

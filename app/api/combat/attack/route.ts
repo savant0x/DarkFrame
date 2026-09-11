@@ -250,6 +250,36 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         log.warn('Beer Base win XP failed (loot already credited)', xpError as Error);
       }
 
+      // FID-20260911-044: PvE battles now pay battle RP — the RP overhaul
+      // (FID-20251020-RP-OVERHAUL) listed battle rewards as a core source, but
+      // only the PvP infantry path ever awarded it; raiding bots/Beer Bases
+      // (the dominant combat activity) paid zero RP. Scale by base level:
+      // 100 base + 20 per defender level (same shape as the PvP formula).
+      try {
+        const { awardRP } = await import('@/lib/researchPointService');
+        const rpResult = await awardRP(
+          auth.username,
+          100 + (base.level ?? 1) * 20,
+          'battle',
+          `Victory against ${defender} (Base Raid)`,
+          { battleType: 'base', defenderLevel: base.level ?? 1, beerBase: isBeerBase }
+        );
+        if (rpResult.success) {
+          log.debug('Raid RP awarded', { by: auth.username, base: defender, rp: rpResult.rpAwarded });
+        }
+      } catch (rpError) {
+        log.warn('Raid RP award failed (loot already credited)', rpError as Error);
+      }
+
+      // Achievement feed: battlesWon is an achievement axis that bot raids
+      // never incremented — wire the same tracker the PvP path uses.
+      try {
+        const { trackBattleWon } = await import('@/lib/statTrackingService');
+        await trackBattleWon(auth.username);
+      } catch (trackError) {
+        log.warn('battle-won stat tracking failed (non-fatal)', trackError as Error);
+      }
+
       // FID-038 D4: message reflects the declared raid resource (both → legacy phrasing).
       const lootPhrase = resource === 'metal'
         ? `${lootMetal.toLocaleString()} Metal`

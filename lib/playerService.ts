@@ -220,6 +220,83 @@ async function getPlayerByUsernameImpl(
   }
 }
 
+/**
+ * Slim projection reader — the AutoFarm hot-loop reader (FID-20260911-043).
+ *
+ * A players row carries 39 KB of jsonb blobs (fame's 10.7K-unit `units` blob
+ * alone is 31.8 KB). The move+harvest loop used to pull that full row 5–8× per
+ * cycle ≈ 1 GB/hour of egress. AutoFarm moves/harvests only need position,
+ * resources, and progression scalars — so this reader selects ONLY the slim
+ * columns and maps them through the same domain shape. Everything else is
+ * `undefined` on the returned object, which the client merge treats as
+ * "keep current value" (see move/harvest routes).
+ *
+ * NOT for callers that mutate or return blob fields (units, inventory,
+ * achievements…) — those must keep the full read.
+ */
+export async function getPlayerSlim(username: string): Promise<SanitizedPlayer | null> {
+  try {
+    const [row] = await db
+      .select({
+        username: players.username,
+        xp: players.xp,
+        level: players.level,
+        currentPositionX: players.currentPositionX,
+        currentPositionY: players.currentPositionY,
+        resourcesMetal: players.resourcesMetal,
+        resourcesEnergy: players.resourcesEnergy,
+        bankMetal: players.bankMetal,
+        bankEnergy: players.bankEnergy,
+        bankLastDeposit: players.bankLastDeposit,
+        baseX: players.baseX,
+        baseY: players.baseY,
+        rank: players.rank,
+        vip: players.vip,
+        vipExpiration: players.vipExpiration,
+        gatheringBonusMetalBonus: players.gatheringBonusMetalBonus,
+        gatheringBonusEnergyBonus: players.gatheringBonusEnergyBonus,
+        totalStrength: players.totalStrength,
+        totalDefense: players.totalDefense,
+        currentHP: players.currentHP,
+        maxHP: players.maxHP,
+        clanId: players.clanId,
+        clanName: players.clanName,
+        clanRole: players.clanRole,
+        clanLevel: players.clanLevel,
+        lastLoginDate: players.lastLoginDate,
+        loginStreak: players.loginStreak,
+      })
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1);
+    if (!row) return null;
+
+    // Map through the domain shape using the single source of truth: build a
+    // typed partial and cast through the same mapper contract. Blobs are
+    // deliberately absent (undefined, not []) so the client never "resets"
+    // stored lists with empty data on a delta merge.
+    const mapped = {
+      ...row,
+      isAdmin: false,
+      isBot: false,
+      isSpecialBase: false,
+      base: { x: row.baseX, y: row.baseY },
+      currentPosition: { x: row.currentPositionX, y: row.currentPositionY },
+      resources: { metal: row.resourcesMetal, energy: row.resourcesEnergy },
+      bank: { metal: row.bankMetal, energy: row.bankEnergy, lastDeposit: row.bankLastDeposit },
+      rank: row.rank ?? 1,
+      gatheringBonus: {
+        metalBonus: Number(row.gatheringBonusMetalBonus),
+        energyBonus: Number(row.gatheringBonusEnergyBonus),
+      },
+    } as unknown as Player;
+    return sanitizePlayer(mapped);
+  } catch (error) {
+    console.error('Error fetching slim player:', error);
+    throw error;
+  }
+}
+
 export function getPlayerByUsername(username: string, options: { includePrivate: true }): Promise<Player | null>;
 export function getPlayerByUsername(username: string, options?: { includePrivate?: false }): Promise<SanitizedPlayer | null>;
 export function getPlayerByUsername(

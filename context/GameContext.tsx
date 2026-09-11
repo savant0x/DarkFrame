@@ -25,7 +25,10 @@ export interface GameContextState {
   currentTile: Tile | null;
   isLoading: boolean;
   error: string | null;
-  setPlayer: (player: SanitizedPlayer | null) => void;
+  /** Direct set (replaces). Accepts an updater for delta merges — used by the
+   *  move handler since FID-20260911-043: move returns a SLIM player whose
+   *  absent blob fields must not wipe client state. */
+  setPlayer: (player: SanitizedPlayer | null | ((prev: SanitizedPlayer | null) => SanitizedPlayer | null)) => void;
   setCurrentTile: (tile: Tile | null) => void;
   updateTileOnly: (x: number, y: number) => Promise<void>;
   movePlayer: (direction: MovementDirection) => Promise<void>;
@@ -215,6 +218,12 @@ export function GameProvider({ children }: GameProviderProps) {
           logger.info('Valid session found', { username: data.username });
           await loadPlayerData(data.username);
           logger.debug('loadPlayerData completed');
+          // FID-20260911-044: daily login reward now flows from the session
+          // endpoint (the dead dailyLoginService source is wired server-side).
+          const reward = (data as { dailyReward?: { claimed: boolean; amount?: number; streak?: number } }).dailyReward;
+          if (reward?.claimed) {
+            toast.success(`🎁 Daily login reward: +${reward.amount ?? 0} RP (${reward.streak ?? 1}-day streak)`);
+          }
         } else {
           // No valid session - user needs to login
           logger.debug('No valid session, user needs to login');
@@ -261,7 +270,11 @@ export function GameProvider({ children }: GameProviderProps) {
         throw new Error(extractApiErrorMessage(data, 'Failed to move'));
       }
 
-      setPlayer(data.data.player);
+      // FID-20260911-043: the move endpoint now returns a SLIM player (blob
+      // fields absent — the 30 KB units blob was shipping every tile under
+      // AutoFarm). Delta-merge over the existing player so client state keeps
+      // its units/inventory/achievements; only the slim scalars refresh.
+      setPlayer((prev) => (prev ? { ...prev, ...data.data.player } : data.data.player));
       setCurrentTile(data.data.currentTile);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to move';

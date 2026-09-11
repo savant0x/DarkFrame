@@ -1,4 +1,4 @@
-import { pgTable, varchar,  timestamp, jsonb,  integer, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar,  timestamp, jsonb,  integer, index, text } from 'drizzle-orm/pg-core';
 import type { Conversation } from '@/types/messaging.types';
 
 export const conversations = pgTable('conversations', {
@@ -26,7 +26,9 @@ export const messages = pgTable('messages', {
 	conversationId: varchar('conversation_id', { length: 24 }).notNull(),
 	senderId: varchar('sender_id', { length: 20 }).notNull(),
 	recipientId: varchar('recipient_id', { length: 20 }).notNull(),
-	content: varchar('content', { length: 1000 }).notNull(),
+	// text: FID-20260911-044 — battle reports (system messages) exceed the
+	// chat-legacy varchar(1000); player-typed messages stay zod-capped at 1000.
+	content: text('content').notNull(),
 	contentType: varchar('content_type', { length: 20 }).notNull().default('text'),
 	status: varchar('status', { length: 20 }).notNull().default('sent'),
 	createdAt: timestamp('created_at').notNull(),

@@ -12,7 +12,7 @@ import { getCollection } from './mongodb';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
-import { getPlayer, type SanitizedPlayer } from './playerService';
+import { getPlayer, getPlayerSlim, type SanitizedPlayer } from './playerService';
 import { calculateNewPosition } from '@/utils/coordinates';
 import { Tile, MovementDirection, HarvestRecord } from '@/types';
 
@@ -121,8 +121,11 @@ export async function movePlayer(
   direction: MovementDirection
 ): Promise<{ player: SanitizedPlayer; tile: Tile }> {
   try {
-    // Get current player data
-    const player = await getPlayer(username);
+    // FID-20260911-043: slim read — a move only needs position + progression
+    // scalars. The old full-row read shipped the 30 KB units blob every tile
+    // (~1 GB/hour under AutoFarm). Blob fields are absent on the slim shape,
+    // so the client's delta merge keeps its existing units/inventory.
+    const player = await getPlayerSlim(username);
     if (!player) {
       throw new Error('Player not found');
     }

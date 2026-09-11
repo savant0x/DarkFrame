@@ -1117,11 +1117,31 @@ export class Collection<T = Record<string, unknown>> {
   }
 
   async findOne(filter: MongoFilter = {}, options?: FindOneOptions): Promise<T | null> {
-    void options?.projection; // accepted for Mongo parity; pg rows return in full
     const t = this.table();
     if (!t) return null;
     const w = buildWhere(t, filter);
-    const base = drizzleDb.select().from(t).$dynamic();
+    // FID-20260911-043: projection support — Mongo-style inclusion maps
+    // ({ stats: 1, achievements: 1 }) translate to drizzle slim selects so
+    // per-action services stop shipping 30 KB jsonb blobs on hot paths.
+    // Unknown keys are ignored (same leniency as Mongo driver projections).
+    const projection = options?.projection as Record<string, unknown> | undefined;
+    const cols = getTableColumns(t);
+    let selected: Record<string, unknown> | undefined;
+    if (projection && Object.values(projection).some((v) => v === 1)) {
+      selected = {};
+      for (const [key, want] of Object.entries(projection)) {
+        if (want !== 1) continue;
+        const prop = resolveKeyToProp(t, key);
+        if (!prop) continue;
+        const column = cols[prop];
+        if (column) (selected as Record<string, PgColumn>)[prop] = column;
+      }
+      if (Object.keys(selected).length === 0) selected = undefined;
+    }
+    const base = (selected
+      ? drizzleDb.select(selected as never).from(t)
+      : drizzleDb.select().from(t)
+    ).$dynamic();
     let q = w ? base.where(w) : base;
     if (options?.sort) {
       // Multi-key sort specs: every recognized key participates, in spec order.
