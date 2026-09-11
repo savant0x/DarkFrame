@@ -30,7 +30,19 @@ export async function GET() {
       );
     }
 
-    const playerResult = await db.select().from(players).where(eq(players.username, auth.username)).limit(1);
+    // FID-20260911-048: projections — the caller needs position only; bases
+    // need the ~10 rendered fields (plus units solely for the scanned one).
+    // A full read ships a ~30 KB units blob per special base as the population
+    // grows; keep this endpoint O(rendered fields), not O(row).
+    const playerResult = await db
+      .select({
+        username: players.username,
+        currentPositionX: players.currentPositionX,
+        currentPositionY: players.currentPositionY,
+      })
+      .from(players)
+      .where(eq(players.username, auth.username))
+      .limit(1);
     const player = playerResult[0];
     if (!player) {
       return NextResponse.json(
@@ -41,7 +53,21 @@ export async function GET() {
 
     const playerPos = { x: player.currentPositionX, y: player.currentPositionY };
 
-    const beerBases = await db.select().from(players).where(eq(players.isSpecialBase, 1));
+    const beerBases = await db
+      .select({
+        username: players.username,
+        currentPositionX: players.currentPositionX,
+        currentPositionY: players.currentPositionY,
+        rank: players.rank,
+        totalStrength: players.totalStrength,
+        totalDefense: players.totalDefense,
+        resourcesMetal: players.resourcesMetal,
+        resourcesEnergy: players.resourcesEnergy,
+        specialization: players.specialization,
+        units: players.units,
+      })
+      .from(players)
+      .where(eq(players.isSpecialBase, 1));
 
     const beerBasesPayload = beerBases.map((base) => {
       const dx = Math.abs(base.currentPositionX - playerPos.x);
