@@ -23,7 +23,8 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest --coverage",
     "test:ci": "vitest run",
-    "prepare": "git config core.hooksPath .githooks && git config commit.template .gitmessage"
+    "prepare": "git config core.hooksPath .githooks && git config commit.template .gitmessage",
+    "postinstall": "node scripts/ensure-hooks.js"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
