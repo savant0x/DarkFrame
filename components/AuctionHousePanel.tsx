@@ -24,6 +24,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { AuctionListing, MyBidAuctionView, MyBidEntry } from '@/types/auction.types';
 
 import { AuctionListingCard } from './AuctionListingCard';
@@ -125,7 +126,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
         setTotalCount(data.totalCount || 0);
         setTotalPages(data.totalPages || 1);
       } else {
-        setError(data.message || 'Failed to load auctions');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error loading auctions');
@@ -148,7 +149,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
         setTotalCount(data.totalCount || 0);
         setTotalPages(data.totalPages || 1);
       } else {
-        setError(data.message || 'Failed to load your listings');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error loading listings');
@@ -176,7 +177,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
         setTotalCount(data.totalCount || 0);
         setTotalPages(data.totalPages || 1);
       } else {
-        setError(data.message || 'Failed to load your bids');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error loading bids');

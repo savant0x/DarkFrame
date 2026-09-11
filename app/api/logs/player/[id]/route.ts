@@ -75,9 +75,10 @@ export async function GET(
   const { id } = await context.params;
   const targetPlayerId = id;
 
-    // Authorization: Users can only view their own logs unless admin
-    // TODO: Add admin role check from user profile/database
-    const isAdmin = false; // Placeholder - implement admin check
+    // Authorization: Users can only view their own logs unless admin.
+    // FID-20260909-023 §3.2: honor the session's isAdmin claim (the same
+    // trust anchor every other route uses) instead of a stubbed false.
+    const isAdmin = payload.isAdmin === true;
     if (!isAdmin && requestingPlayer !== targetPlayerId) {
       return NextResponse.json(
         { error: 'You can only view your own logs' },

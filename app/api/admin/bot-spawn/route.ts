@@ -12,9 +12,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
-import { players, modLog } from '@/lib/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { players, modLog, tiles } from '@/lib/db/schema';
+import { eq, sql, and, isNull } from 'drizzle-orm';
 import { getGlobalBotConfig } from '@/lib/botConfigService';
+import { generateBotName, claimBotBaseTile } from '@/lib/botService';
 import { generateId } from '@/lib/utils';
 import type { PlayerUnit, BotConfig } from '@/types/game.types';
 import {
@@ -84,18 +85,49 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Generate bots
     const spawnedBots: string[] = [];
-    const MAP_SIZE = 5000;
 
     for (let i = 0; i < count; i++) {
-      // Generate bot username
-      const botNumber = Math.floor(Math.random() * 100000);
-      const username = `${specialization}Bot_${botNumber}`;
+      // FID-20260906-007 contract: ALL bot names come from the themed
+      // generator (UsernameSchema-safe by contract test). The old inline
+      // `${specialization}Bot_${n}` slug bypassed the lexicon entirely and
+      // produced names like "infantryBot_48213".
+      const username = generateBotName();
 
-      // Determine position
-      const botPosition = position || {
-        x: Math.floor(Math.random() * MAP_SIZE),
-        y: Math.floor(Math.random() * MAP_SIZE),
-      };
+      // FID-20260909-030: placement legality is enforced, not assumed. An
+      // admin-supplied position is honored ONLY if it is an unoccupied
+      // Wasteland tile; otherwise 400 with the reason. The default path      // claims a legal tile through the shared helper (the old      // `Math.random() * 5000` could land OFF the 150×150 map entirely —      // bases at coordinates with no tile).
+      let botPosition: { x: number; y: number };
+      if (position) {
+        const tileRows = await db
+          .select({ terrain: tiles.terrain, occupied: tiles.occupiedByBase })
+          .from(tiles)
+          .where(and(eq(tiles.x, position.x), eq(tiles.y, position.y)))
+          .limit(1);
+        const tile = tileRows[0];
+        if (!tile) {
+          return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, {
+            message: `Position (${position.x}, ${position.y}) does not exist on the 150×150 map.`,
+          });
+        }
+        if (tile.terrain !== 'Wasteland') {
+          return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, {
+            message: `Position (${position.x}, ${position.y}) is ${tile.terrain} — bases can only be placed on Wasteland (spawn terrain per docs/README_NEW.md).`,
+          });
+        }
+        if (tile.occupied !== null) {
+          return createErrorResponse(ErrorCode.VALIDATION_OUT_OF_RANGE, {
+            message: `Position (${position.x}, ${position.y}) is already occupied by a base.`,
+          });
+        }
+        botPosition = { x: position.x, y: position.y };
+        await db
+          .update(tiles)
+          .set({ occupiedByBase: 1, baseOwner: username })
+          .where(and(eq(tiles.x, position.x), eq(tiles.y, position.y), isNull(tiles.occupiedByBase)));
+      } else {
+        const claimed = await claimBotBaseTile({ zone: null, ownerUsername: username });
+        botPosition = { x: claimed.x, y: claimed.y };
+      }
 
       // Calculate resources based on tier
       const baseResources = [10000, 25000, 50000, 100000, 200000, 400000];

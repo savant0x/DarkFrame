@@ -893,6 +893,10 @@ span.nn-panel__icon > svg {
 .nn-viewport {
   position: relative;
   aspect-ratio: 1 / 1;
+  /* Strip height token: the bottom status bar's fixed height. Bottom corner
+     brackets anchor above it (same 6px inset as the top pair) so the frame
+     never collides with the strip content. */
+  --nn-viewport-strip-h: 44px;
   border-radius: 0; /* HUD is squared — radius reads as card, not instrument */
   background: oklab(0.12 0.01 0 / 0.55);
   box-shadow:
@@ -915,8 +919,8 @@ span.nn-panel__icon > svg {
 }
 .nn-viewport__corner--tl { top: 6px; left: 6px; border-right: 0; border-bottom: 0; }
 .nn-viewport__corner--tr { top: 6px; right: 6px; border-left: 0; border-bottom: 0; }
-.nn-viewport__corner--bl { bottom: 6px; left: 6px; border-right: 0; border-top: 0; }
-.nn-viewport__corner--br { bottom: 6px; right: 6px; border-left: 0; border-top: 0; }
+.nn-viewport__corner--bl { bottom: calc(var(--nn-viewport-strip-h, 44px) + 6px); left: 6px; border-right: 0; border-top: 0; }
+.nn-viewport__corner--br { bottom: calc(var(--nn-viewport-strip-h, 44px) + 6px); right: 6px; border-left: 0; border-top: 0; }
 
 /* subtle scanline texture */
 .nn-viewport__scanlines {
@@ -935,7 +939,8 @@ span.nn-panel__icon > svg {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.375rem 0.75rem;
+  height: var(--nn-viewport-strip-h, 44px);
+  padding: 0 0.75rem;
   background: linear-gradient(to top, oklab(0.09 0.01 0 / 0.92), oklab(0.09 0.01 0 / 0.55) 70%, transparent);
   backdrop-filter: blur(6px);
   border-top: 1px solid color-mix(in oklab, var(--nn-cyan) 22%, transparent);
@@ -953,14 +958,17 @@ span.nn-panel__icon > svg {
    arrow glyph + Orbitron letter sub-label ---------- */
 .nn-dpad {
   display: grid;
-  grid-template-columns: repeat(3, 46px);
-  grid-template-rows: repeat(3, 46px);
+  /* FID-20260909-032 §3-B: fill the host panel instead of floating a fixed
+     46px cluster — cells stay square via aspect-ratio and scale with the rail. */
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
-  width: fit-content;
+  width: 100%;
+  max-width: 220px;
   margin: 14px auto 8px;
 }
-
 .nn-dpad__btn {
+  aspect-ratio: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1483,12 +1491,18 @@ span.nn-panel__icon > svg {
 
 /* sample `.range` — range status pill (OUT OF RANGE / IN RANGE) */
 .nn-range {
+  /* FID-20260909-032 §3-C: full-width block inside the panel column so the
+     label centers across the whole pill; long strings wrap instead of
+     clipping asymmetrically at tight widths. */
+  display: block;
+  align-self: stretch;
   margin: 4px 12px 8px;
   padding: 8px;
   text-align: center;
+  overflow-wrap: anywhere;
   font-family: var(--nn-font-display);
   font-size: 9.5px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
 }
 .nn-range--no {
   color: var(--nn-magenta);
@@ -1559,6 +1573,30 @@ span.nn-panel__icon > svg {
   padding: 12px 12px 4px;
 }
 .nn-grid2x2 .nn-well { margin: 0; }
+
+/* Result readout — centered stat presentation for harvest/attack result decks.
+   Wells flow on one centered row (equal width up to a readable cap); each
+   column centers its micro-label + display number. Single-resource results
+   read as a centered medallion, never a left-hugging half-grid. */
+.nn-deck__stats {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 12px 4px;
+}
+.nn-deck__stats .nn-well {
+  margin: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 240px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+}
+.nn-deck__stats .nn-num { font-size: 1.05rem; }
+.nn-deck__msg--center { text-align: center; }
 
 /* tutorial step marker (sample §04 tutorial module) */
 .nn-step {
@@ -2317,8 +2355,11 @@ span.nn-panel__icon > svg {
   -webkit-backdrop-filter: blur(4px);
 }
 
-/* range input — square HUD slider for batch-release threshold */
-.nn-range {
+/* FID-20260910-038 D3: renamed .nn-range → .nn-slider — this block previously
+   COLLIDED with the flag panel's .nn-range pill (FID-032 §3-C): the later
+   appearance:none/height:4px slider styles flattened the pill into a 4px
+   sliver with a track line (read as a strikethrough on OUT OF RANGE). */
+.nn-slider {
   -webkit-appearance: none;
   appearance: none;
   flex: 1;
@@ -2328,7 +2369,7 @@ span.nn-panel__icon > svg {
   outline: none;
   cursor: pointer;
 }
-.nn-range::-webkit-slider-thumb {
+.nn-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 12px;
@@ -2338,7 +2379,7 @@ span.nn-panel__icon > svg {
   box-shadow: 0 0 10px color-mix(in oklab, var(--nn-cyan) 55%, transparent);
   cursor: pointer;
 }
-.nn-range::-moz-range-thumb {
+.nn-slider::-moz-range-thumb {
   width: 12px;
   height: 16px;
   border-radius: 0;
@@ -2354,7 +2395,7 @@ span.nn-panel__icon > svg {
   .nn-unit:hover:not(:disabled),
   .nn-ptab,
   .nn-stepper__max,
-  .nn-range::-webkit-slider-thumb {
+  .nn-slider::-webkit-slider-thumb {
     transition: none;
     transform: none;
   }

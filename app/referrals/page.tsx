@@ -23,7 +23,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import ReferralDashboard from '@/components/ReferralDashboard';
 import ReferralLeaderboard from '@/components/ReferralLeaderboard';
@@ -33,13 +33,23 @@ import { useRouter } from 'next/navigation';
 type Tab = 'dashboard' | 'leaderboard' | 'guide';
 
 export default function ReferralsPage() {
-  const { player } = useGameContext();
+  const { player, isLoading } = useGameContext();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated — via effect, never the render body: a
+  // render-time router.push throws "ReferenceError: location is not defined"
+  // during static prerender (FID-20260909-026 §7) and is a side-effect-in-
+  // render violation. The isLoading guard mirrors app/game/page.tsx: player
+  // is null until GameContext's async session check finishes, so an
+  // unconditional bounce here would trap every hard visit at /login.
+  useEffect(() => {
+    if (!isLoading && !player) {
+      router.push('/login');
+    }
+  }, [isLoading, player, router]);
+
   if (!player) {
-    router.push('/login');
     return null;
   }
 

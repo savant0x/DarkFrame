@@ -121,9 +121,13 @@ export default function FriendRequestsPanel({
     fetchRequests();
   }, [fetchRequests]);
 
-  // HTTP polling for request updates (5-second intervals)
+  // HTTP polling for request updates (5-second intervals; skipped while the
+  // tab is hidden — FID-20260909-023 §3.8)
   useEffect(() => {
-    const intervalId = setInterval(fetchRequests, 5000);
+    const intervalId = setInterval(() => {
+      if (document.hidden) return;
+      fetchRequests();
+    }, 5000);
     return () => clearInterval(intervalId);
   }, [fetchRequests]);
 

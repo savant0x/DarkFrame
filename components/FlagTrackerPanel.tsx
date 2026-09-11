@@ -62,6 +62,10 @@ interface FlagTrackerPanelProps {
 
   /** Compact mode for mobile */
   compact?: boolean;
+
+  /** FID-20260910-038 D2: viewer's username — client-side bearer-self fallback
+   * when flagDetail's actions are stale (poll lag). */
+  playerUsername?: string;
 }
 
 /**
@@ -119,7 +123,8 @@ export default function FlagTrackerPanel({
   onChallenge,
   onFlee,
   onClaim,
-  compact = false
+  compact = false,
+  playerUsername
 }: FlagTrackerPanelProps) {
   const [trackerData, setTrackerData] = useState<FlagTrackerData | null>(null);
 
@@ -161,7 +166,13 @@ export default function FlagTrackerPanel({
   const compassArrow = getCompassArrow(direction);
   const timeRemaining = getTimeRemaining(bearer.holdDuration);
   const isExpiringSoon = isFlagExpiringSoon(bearer.holdDuration);
-  const isBearerViewer = flagDetail?.actions.isBearer ?? false;
+  // FID-20260910-038 D2: server flag `actions.isBearer` can lag reality (30s
+  // poll; capture before the next refetch). The client knows the holder's
+  // identity AND the viewer's — OR them in so a new holder never sees the
+  // tracker view ("X is holding it") about themselves.
+  const isBearerViewer = (flagDetail?.actions.isBearer ?? false) ||
+    Boolean(flagDetail && playerUsername && flagDetail.bearer?.username === playerUsername) ||
+    Boolean(flagBearer && playerUsername && flagBearer.username === playerUsername);
   const isChallengerViewer = flagDetail?.actions.isChallenger ?? false;
   const challenge = flagDetail?.challenge ?? null;
   const bonuses = flagDetail?.bonuses ?? null;
@@ -336,7 +347,10 @@ export default function FlagTrackerPanel({
   // ============================================================
   // TRACKER VIEW — non-bearer: track + steal
   // ============================================================
-  const canChallenge = !inAttackRange || !!challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false);
+  // FID-20260910-039 R2: named for what it means — every term here BLOCKS a
+  // challenge (out of range / channel running / server says no). The old name
+  // `canChallenge` was the negation of this and read as an inverted gate.
+  const challengeBlocked = !inAttackRange || !!challenge || (actions ? !actions.canChallenge && !actions.isChallenger : false);
 
   // Full panel view with main collapsible header
   return (
@@ -440,8 +454,8 @@ export default function FlagTrackerPanel({
           {/* Steal Range Status — sample `.range` pill */}
           <div className={`nn-range ${inAttackRange ? 'nn-range--ok' : 'nn-range--no'}`}>
             {inAttackRange
-              ? `IN STEAL RANGE (≤${FLAG_CONFIG.ATTACK_RANGE})`
-              : `OUT OF RANGE (+${distance - FLAG_CONFIG.ATTACK_RANGE} TILES)`}
+              ? `IN STEAL RANGE (≤${FLAG_CONFIG.STEAL_RANGE})`
+              : `OUT OF RANGE (+${distance - FLAG_CONFIG.STEAL_RANGE} TILES)`}
           </div>
 
           {/* Compass Direction Section — sample `.compass` + `.rose`, collapsible */}
@@ -484,8 +498,8 @@ export default function FlagTrackerPanel({
             {/* Steal Button (channel start) — amber aggression */}
             <button
               onClick={() => onChallenge && onChallenge()}
-              disabled={canChallenge}
-              className={`nn-btn nn-btn--amber nn-btn--flex ${canChallenge ? 'cursor-not-allowed opacity-40' : ''}`}
+              disabled={challengeBlocked}
+              className={`nn-btn nn-btn--amber nn-btn--flex ${challengeBlocked ? 'cursor-not-allowed opacity-40' : ''}`}
               title={
                 challenge
                   ? 'A steal channel is already running'

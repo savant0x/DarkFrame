@@ -1,34 +1,45 @@
 /**
  * Tutorial Action Tracking API Endpoint
- * 
- * GET /api/tutorial/tracking?playerId=X&stepId=Y
- * Returns the current tracking data for a specific step (e.g., target coordinates for MOVE_TO_COORDS)
+ *
+ * GET /api/tutorial/tracking?stepId=Y
+ * Returns the current tracking data for a specific step (e.g., target coordinates for MOVE_TO_COORDS).
+ *
+ * FID-20260909-023 §3.1b: session identity — the `playerId` query parameter is
+ * IGNORED (an unauthenticated caller could read any player's tutorial progress
+ * by playerId). Identity comes from the authenticated session, matching the
+ * track-action route contract (FID-20260904-005 §5.1: playerId == username).
+ *
+ * Counts are read through getActionTracking — the canonical reader of the
+ * actionType JSON contract (FID-20260908-001). A raw findOne returning
+ * row.currentCount is always undefined.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { getActionTracking } from '@/lib/tutorialService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 export async function GET(request: NextRequest) {
   try {
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    const playerId = authUser.username;
+
     const { searchParams } = new URL(request.url);
-    const playerId = searchParams.get('playerId');
     const stepId = searchParams.get('stepId');
 
-    if (!playerId || !stepId) {
+    if (!stepId) {
       return NextResponse.json(
-        { error: 'Missing playerId or stepId parameter' },
+        { error: 'Missing stepId parameter' },
         { status: 400 }
       );
     }
 
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
-    const trackingCollection = db.collection('tutorial_action_tracking');
-
-    const tracking = await trackingCollection.findOne({ 
-      playerId, 
-      stepId 
-    });
+    const tracking = await getActionTracking(playerId, stepId);
 
     if (!tracking) {
       return NextResponse.json({});
@@ -40,7 +51,7 @@ export async function GET(request: NextRequest) {
       targetY: tracking.targetY,
       startX: tracking.startX,
       startY: tracking.startY,
-      moveCount: tracking.moveCount,
+      moveCount: tracking.targetCount,
       currentCount: tracking.currentCount,
     });
 

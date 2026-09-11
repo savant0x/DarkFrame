@@ -7,8 +7,10 @@
  * POST /api/flag/challenge
  * Session-authenticated. Starts the 30-second steal channel against the
  * current Flag Bearer. Server-enforced rules (client is never trusted):
- *  - Challenger must be within FLAG_CONFIG.ATTACK_RANGE (Chebyshev, DB
- *    positions via verifyPresence).
+ *  - Challenger must be within FLAG_CONFIG.STEAL_RANGE (doc 15 tiles,
+ *    EUCLIDEAN — the PLAN's own math is Euclidean area "~706 tile radius",
+ *    and the tracker panel's distance readout is Euclidean; FID-039 aligned
+ *    the server to the same metric). DB positions via verifyPresence.
  *  - Holder under the 1-hour post-steal grace → rejected.
  *  - An unfinished channel → rejected. Challenger cannot challenge self.
  *
@@ -62,9 +64,22 @@ export const POST = withRequestLogging(rateLimiter(async (_request: NextRequest)
       return NextResponse.json({ success: false, error: 'Flag Bearer not found' }, { status: 404 });
     }
     const holderPos = { x: Number(holderRow.x ?? 0), y: Number(holderRow.y ?? 0) };
-    const presence = await verifyPresence(user.username, holderPos, FLAG_CONFIG.ATTACK_RANGE);
+    // Resolve the challenger's DB position (presence check without a Chebyshev
+    // gate — the flag range is Euclidean per the doc; a bare maxDistance would
+    // misjudge diagonal tiles by up to √2×).
+    const presence = await verifyPresence(user.username, holderPos, Number.MAX_SAFE_INTEGER);
     if (!presence.ok) {
       return NextResponse.json({ success: false, error: presence.reason ?? 'Not in range' }, { status: 403 });
+    }
+    const atkPos = presence.attackerPosition ?? holderPos;
+    const dx = atkPos.x - holderPos.x;
+    const dy = atkPos.y - holderPos.y;
+    const euclidean = Math.sqrt(dx * dx + dy * dy);
+    if (euclidean > FLAG_CONFIG.STEAL_RANGE) {
+      return NextResponse.json(
+        { success: false, error: `Too far away: ${Math.round(euclidean)} tiles (max ${FLAG_CONFIG.STEAL_RANGE})` },
+        { status: 403 },
+      );
     }
 
     const result = await startChallenge(user.username);

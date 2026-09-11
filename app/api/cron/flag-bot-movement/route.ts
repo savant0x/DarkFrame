@@ -29,6 +29,9 @@ import { checkHoldMilestone } from '@/lib/flagBonusService';
 import { db } from '@/lib/db';
 import { flags, players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { createLogger } from '@/lib/logger/productionLogger';
+
+const log = createLogger({ context: 'cron/flag-bot-movement' });
 
 /** Doc §354-362: 12-hour maximum hold — the flag auto-drops at the limit. */
 const MAX_HOLD_MS = 12 * 60 * 60_000;
@@ -77,7 +80,7 @@ export async function GET(request: NextRequest) {
     if (heldTooLong && isBotHolder) {
       const newBot = await resetFlagBot();
 
-      console.log(`🔄 Flag reset: New bot spawned at (${newBot.currentPosition.x}, ${newBot.currentPosition.y})`);
+      log.info('Flag reset: new bot spawned', { x: newBot.currentPosition.x, y: newBot.currentPosition.y });
 
       return NextResponse.json({
         success: true,
@@ -127,7 +130,7 @@ export async function GET(request: NextRequest) {
             milestone12hAwarded: 0,
           })
           .where(eq(flags.id, flagRow!.id));
-        console.log(`⏱️ 12h limit reached for ${holder} — milestone granted: ${milestone.granted}, flag dropped unclaimed`);
+        log.info('12h hold limit reached, flag dropped unclaimed', { holder, milestoneGranted: milestone.granted });
         return NextResponse.json({
           success: true,
           action: 'hold-limit-drop',
@@ -138,7 +141,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      console.log(`ℹ️ Flag held by player ${holder} for >1h — no reset (player retention rule)`);
+      log.debug('Flag held >1h, no reset (player retention rule)', { holder });
 
       return NextResponse.json({
         success: true,
@@ -156,7 +159,7 @@ export async function GET(request: NextRequest) {
         const newPosition = await moveFlagBot(holder);
         const oldPosition = { x: botRow.currentPositionX, y: botRow.currentPositionY };
 
-        console.log(`🚁 Flag bot teleported to (${newPosition.x}, ${newPosition.y})`);
+        log.info('Flag bot moved', { x: newPosition.x, y: newPosition.y });
 
         return NextResponse.json({
           success: true,

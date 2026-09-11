@@ -16,6 +16,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { X, Scale } from 'lucide-react';
 import { useGameContext } from '@/context/GameContext';
 import { toast } from '@/lib/toast';
@@ -242,7 +243,7 @@ const SpecializationPanel: React.FC = () => {
         await refreshGameState();
         await fetchSpecializationData();
       } else {
-        toast.error(data.error || 'Failed to choose specialization');
+        toast.error(extractApiError(data, response.status));
       }
     } catch (error) {
       console.error('Error choosing specialization:', error);
@@ -277,7 +278,7 @@ const SpecializationPanel: React.FC = () => {
         await fetchSpecializationData();
         setSelectedDoctrine(null);
       } else {
-        toast.error(data.error || 'Failed to respec');
+        toast.error(extractApiError(data, response.status));
       }
     } catch (error) {
       console.error('Error respeccing:', error);

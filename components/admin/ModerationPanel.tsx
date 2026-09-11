@@ -165,6 +165,8 @@ export default function ModerationPanel() {
    */
   useEffect(() => {
     const interval = setInterval(() => {
+      // Skipped while the tab is hidden (FID-20260909-023 §3.8)
+      if (document.hidden) return;
       if (isAdmin) {
         loadModerationData();
       }

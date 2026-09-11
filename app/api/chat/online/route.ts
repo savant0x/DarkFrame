@@ -40,6 +40,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
 import { ChannelType } from '@/lib/channelService';
+import { db as sqlDb } from '@/lib/db';
+import { clans } from '@/lib/db/schema';
 
 // ============================================================================
 // TYPES
@@ -56,6 +58,9 @@ interface UserPresence {
   status: 'Online' | 'Away' | 'Busy';
   lastSeen: Date;
   expiresAt: Date;
+  /** Clan ids the user belongs to (resolved per request for clan-channel
+   *  filtering; absent on rows never post-processed — treated as no clans). */
+  clanIds?: Set<string>;
 }
 
 /**
@@ -127,12 +132,12 @@ function canAccessChannel(channelId: string, user: UserPresence): boolean {
     return true;
   }
 
-  // Clan channels: Format is "clan_[clanId]"
-  // For now, we can't filter by clan membership without querying user database
-  // So we'll count all online users for clan channels
-  // (In production, integrate with clan membership check)
+  // Clan channels: Format is "clan_[clanId]". Membership is checked against
+  // the preloaded clans.members roster (FID-20260909-023 §3.2 resolves the
+  // former TODO; the caller supplies the clanIds map from one indexed query).
   if (channelId.startsWith('clan_')) {
-    return true; // TODO: Check clan membership
+    const clanId = channelId.slice('clan_'.length);
+    return user.clanIds?.has(clanId) === true;
   }
 
   return false;
@@ -204,6 +209,25 @@ export async function GET(request: NextRequest) {
     const onlineUsers = await collection
       .find({ lastSeen: { $gte: onlineThreshold } })
       .toArray();
+
+    // FID-20260909-023 §3.2: resolve clan membership once per request and
+    // annotate presence rows, so clan-channel filtering is real (one indexed
+    // clans scan; membership rows carry playerId = username).
+    const onlineUsernames = new Set(onlineUsers.map((u) => u.userId));
+    const memberClanIds = new Map<string, Set<string>>();
+    for (const member of await sqlDb.select({ id: clans.id, members: clans.members }).from(clans)) {
+      for (const m of member.members ?? []) {
+        if (onlineUsernames.has(m.playerId)) {
+          const set = memberClanIds.get(m.playerId) ?? new Set<string>();
+          set.add(member.id);
+          memberClanIds.set(m.playerId, set);
+        }
+      }
+    }
+    for (const user of onlineUsers) {
+      const ids = memberClanIds.get(user.userId);
+      if (ids) user.clanIds = ids;
+    }
 
     // Single channel mode
     if (channelId) {

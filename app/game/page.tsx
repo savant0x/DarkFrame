@@ -12,6 +12,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
+import { logger } from '@/lib/logger';
+import { extractApiError } from '@/lib/apiClient';
 import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel } from '@/components';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
@@ -120,6 +122,8 @@ export default function GamePage() {
   // AUTO-FARM STATE & ENGINE
   // ============================================
   const autoFarmEngineRef = useRef<AutoFarmEngine | null>(null);
+  // FID-20260910-039 R2: guards handleFlagChallenge against double-POSTs.
+  const flagChallengeInFlightRef = useRef(false);
   const [autoFarmStatus, setAutoFarmStatus] = useState<AutoFarmStatus>(AutoFarmStatus.STOPPED);
   const [autoFarmPosition, setAutoFarmPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [autoFarmTilesCompleted, setAutoFarmTilesCompleted] = useState<number>(0);
@@ -142,7 +146,7 @@ export default function GamePage() {
     // 2. No player data found (!player)
     // 3. We're not already navigating
     if (!isLoading && !player) {
-      console.log('[GamePage] No authenticated session, redirecting to login');
+      logger.info('[GamePage] No authenticated session, redirecting to login');
       router.push('/login');
     }
   }, [player, isLoading, router]);
@@ -186,7 +190,7 @@ export default function GamePage() {
         };
         // Always update VIP status from player data (in case it changed)
         config.isVIP = player.vip || false;
-        console.log('[AutoFarm Init] VIP Status Check:', { 
+        logger.debug('[AutoFarm Init] VIP status check', { 
           playerVIP: player.vip, 
           playerHasVIPField: 'vip' in player,
           configIsVIP: config.isVIP,
@@ -199,7 +203,7 @@ export default function GamePage() {
           resourceTarget: 'METAL',
           isVIP: player.vip || false
         };
-        console.log('[AutoFarm Init] VIP Status Check (error path):', { 
+        logger.debug('[AutoFarm Init] VIP status check (error path)', { 
           playerVIP: player.vip, 
           configIsVIP: config.isVIP,
           shrineBoosts: player.shrineBoosts?.length || 0
@@ -264,7 +268,7 @@ export default function GamePage() {
           if (data.success && data.data) {
             // Update only the player state with fresh data (includes updated resources)
             setPlayer(data.data);
-            console.log('[AutoFarm] Resources updated in UI');
+            logger.debug('[AutoFarm] Resources updated in UI');
           }
         } catch (error) {
           console.warn('[AutoFarm] Failed to refresh resources:', error);
@@ -283,7 +287,7 @@ export default function GamePage() {
       // Only destroy if component is actually unmounting
       // Don't destroy on player data updates (which happen from refreshGameState)
       if (autoFarmEngineRef.current && !player) {
-        console.log('[AutoFarm] Destroying engine on unmount');
+        logger.debug('[AutoFarm] Destroying engine on unmount');
         autoFarmEngineRef.current.destroy();
         autoFarmEngineRef.current = null;
       }
@@ -293,34 +297,39 @@ export default function GamePage() {
   // ============================================
   // FLAG TRACKER DATA FETCHING
   // ============================================
+  // FID-20260910-038 D2: fetch is a stable useCallback so every flag action
+  // (challenge/flee/claim) refetches IMMEDIATELY — previously a capture only
+  // surfaced after the 30s poll, leaving the new holder staring at the tracker
+  // view ("Flag_Bearer_1027 is holding it") and literally tracking themselves.
+  const fetchFlagData = useCallback(async function fetchFlagData() {
+    try {
+      const response = await fetch('/api/flag');
+      const data = await response.json();
+
+      // FID-20260906-001 §5.8: the API returns the extended payload
+      // (bearer + challenge + bonuses + viewer actions); consumers get the
+      // nested bearer so existing shapes stay compatible.
+      if (data.success && data.data) {
+        setFlagDetail(data.data);
+        setFlagBearer(data.data.bearer ?? null);
+      } else {
+        setFlagDetail(null);
+        setFlagBearer(null);
+      }
+    } catch (error) {
+      // Only log in development - flag might not be initialized yet
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[Flag Tracker] Error fetching flag data:', error instanceof Error ? error.message : String(error));
+      }
+      setFlagDetail(null);
+      setFlagBearer(null);
+    }
+  }, []);
+
   useEffect(() => {
     // Fetch initial flag data
     // NOTE: Flag system is initialized at server startup in server.ts
     // No need to call /api/flag/init here - it's already done once globally
-    const fetchFlagData = async () => {
-      try {
-        const response = await fetch('/api/flag');
-        const data = await response.json();
-        
-        // FID-20260906-001 §5.8: the API returns the extended payload
-        // (bearer + challenge + bonuses + viewer actions); consumers get the
-        // nested bearer so existing shapes stay compatible.
-        if (data.success && data.data) {
-          setFlagDetail(data.data);
-          setFlagBearer(data.data.bearer ?? null);
-        } else {
-          setFlagDetail(null);
-          setFlagBearer(null);
-        }
-      } catch (error) {
-        // Only log in development - flag might not be initialized yet
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('[Flag Tracker] Error fetching flag data:', error instanceof Error ? error.message : String(error));
-        }
-        setFlagDetail(null);
-        setFlagBearer(null);
-      }
-    };
 
     // Fetch immediately
     fetchFlagData();
@@ -329,7 +338,7 @@ export default function GamePage() {
     const pollInterval = setInterval(fetchFlagData, 30000);
 
     return () => clearInterval(pollInterval);
-  }, []);
+  }, [fetchFlagData]);
 
   // Clear results and load factory data when tile changes
   useEffect(() => {
@@ -519,6 +528,18 @@ export default function GamePage() {
 
       const data = await response.json();
 
+      // FID-20260911-041: surface the server's actual rejection reason (the
+      // error body nests it under error.message; a bare `data.message` is
+      // absent on structured failures, which is why rejections used to show
+      // as console-only noise).
+      if (data.success === false || !response.ok) {
+        setHarvestResult({
+          success: false,
+          message: extractApiError(data, response.status),
+        });
+        return;
+      }
+
       setHarvestResult({
         success: data.success,
         message: data.message,
@@ -546,6 +567,72 @@ export default function GamePage() {
     }
   }, [player, isHarvesting, currentTile, updateTileOnly]);
 
+  // FID-20260909-036: Beer Base combat — the hostile-base ATTACK button on
+  // enemy base tiles dispatches through /api/combat/attack (the route the
+  // smoke-tested PvE loop runs on) instead of the factory endpoint. Results
+  // map into the shared AttackResult readout (victory → 'captured' slot).
+  // FID-20260910-038 D4: the raid declares its loot resource (metal/energy).
+  const handleBaseAttack = async (resource?: 'metal' | 'energy') => {
+    if (!player || !currentTile || isAttacking) return;
+    const defender = currentTile.baseOwner;
+    if (!defender) return;
+
+    setIsAttacking(true);
+    setAttackResult(null);
+
+    try {
+      const response = await fetch('/api/combat/attack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ defender, resource }),
+      });
+      const data = await response.json();
+
+      // FID-20260911-041: rejections (out of range, presence, cooldown…) used
+      // to fall into the generic readout or console-only noise — surface the
+      // server's reason verbatim.
+      if (data.success === false || !response.ok) {
+        setAttackResult({
+          success: false,
+          message: extractApiError(data, response.status),
+          playerPower: 0,
+          factoryDefense: 0,
+          captured: false,
+        });
+        setTimeout(() => setAttackResult(null), 6000);
+        return;
+      }
+
+      setAttackResult({
+        success: Boolean(data.success && data.victory) || data.success === true,
+        message: data.message ?? 'Attack resolved',
+        playerPower: data.battle?.attackerDamageDealt ?? 0,
+        factoryDefense: data.battle?.defenderDamageDealt ?? 0,
+        captured: Boolean(data.victory),
+        damageDealt: (data.battle?.attackerDamageDealt ?? 0) || undefined,
+        xpAwarded: data.rewards?.experience,
+      });
+
+      if (data.victory) {
+        setTimeout(() => {
+          void refreshGameState();
+        }, 1500);
+      }
+      setTimeout(() => setAttackResult(null), 8000);
+    } catch (error) {
+      console.error('Beer Base attack error:', error);
+      setAttackResult({
+        success: false,
+        message: 'Network error - please try again',
+        playerPower: 0,
+        factoryDefense: 0,
+        captured: false,
+      });
+    } finally {
+      setIsAttacking(false);
+    }
+  };
+
   // Handle factory attack action
   const handleAttack = async () => {
     if (!player || !currentTile || isAttacking) return;
@@ -565,6 +652,20 @@ export default function GamePage() {
       });
 
       const data = await response.json();
+
+      // FID-20260911-041: server rejection reasons surface verbatim (was
+      // console-only or a generic 'Network error').
+      if (data.success === false || !response.ok) {
+        setAttackResult({
+          success: false,
+          message: extractApiError(data, response.status),
+          playerPower: 0,
+          factoryDefense: 0,
+          captured: false,
+        });
+        setTimeout(() => setAttackResult(null), 6000);
+        return;
+      }
 
       setAttackResult({
         success: data.success,
@@ -600,6 +701,14 @@ export default function GamePage() {
       setIsAttacking(false);
     }
   };
+
+  // Tile-aware attack dispatch: ANY enemy base (Beer Bot or regular bot base)
+  // → combat route by defender username (resource declared per FID-038 D4);
+  // otherwise the factory attack flow (no resource argument).
+  const isCurrentTileEnemyBase = Boolean(
+    currentTile?.occupiedByBase && currentTile?.baseOwner && currentTile?.baseOwner !== player?.username
+  );
+  const handleTileAttack = isCurrentTileEnemyBase ? handleBaseAttack : () => handleAttack();
 
   // Add/remove keyboard event listener
   useEffect(() => {
@@ -656,6 +765,40 @@ export default function GamePage() {
   const handleFlagChallenge = async () => {
     if (!player) return;
 
+    // FID-20260910-039 R2 client guards — the server's rejections here are all
+    // legitimate, but the panel polls every 30s and the tile-view ATTACK
+    // BEARER button has no gating of its own, so the client must not fire a
+    // POST it can already know is illegal:
+    //  1) in-flight dedupe: a double-click (or ATTACK BEARER + STEAL racing)
+    //     must not double-POST — the second read sees its own channel → 409.
+    if (flagChallengeInFlightRef.current) {
+      setPanelMessage('⏳ Steal channel request already in flight…');
+      setTimeout(() => setPanelMessage(''), 3000);
+      return;
+    }
+    //  2) pre-flight holder check: if we are the bearer (fresh payload or the
+    //     client-side fallback), challenging is impossible — surface the real
+    //     state instead of a bare 409.
+    const viewerHoldsFlag =
+      flagDetail?.actions.isBearer ||
+      flagDetail?.bearer?.username === player.username ||
+      flagBearer?.username === player.username;
+    if (viewerHoldsFlag) {
+      setPanelMessage('👑 You already hold the Flag — no need to steal it.');
+      setTimeout(() => setPanelMessage(''), 5000);
+      await fetchFlagData();
+      return;
+    }
+    //  3) pre-flight channel check: our own running channel (or anyone's) is
+    //     visible in flagDetail — don't re-POST into it.
+    if (flagDetail?.challenge) {
+      setPanelMessage('⏳ A steal channel is already running.');
+      setTimeout(() => setPanelMessage(''), 5000);
+      await fetchFlagData();
+      return;
+    }
+
+    flagChallengeInFlightRef.current = true;
     try {
       const response = await fetch('/api/flag/challenge', { method: 'POST' });
       const result = await response.json();
@@ -663,21 +806,20 @@ export default function GamePage() {
       if (result.success) {
         setPanelMessage('🏴 Steal channel started — hold position for 30 seconds!');
       } else {
-        setPanelMessage(`❌ Challenge failed: ${result.error || 'Unknown error'}`);
+        // FID-20260911-041: result.error can be an OBJECT (structured error
+        // body) — extract the human reason, never render [object Object].
+        setPanelMessage(`❌ Challenge failed: ${extractApiError(result, response.status)}`);
       }
 
       // Always refetch so the channel countdown renders immediately.
-      const flagResponse = await fetch('/api/flag');
-      const flagData = await flagResponse.json();
-      if (flagData.success && flagData.data) {
-        setFlagDetail(flagData.data);
-        setFlagBearer(flagData.data.bearer ?? null);
-      }
+      await fetchFlagData();
       setTimeout(() => setPanelMessage(''), 5000);
     } catch (error) {
       console.error('[Flag Tracker] Challenge error:', error);
       setPanelMessage(`❌ Challenge failed: ${error instanceof Error ? error.message : 'Network error'}`);
       setTimeout(() => setPanelMessage(''), 5000);
+    } finally {
+      flagChallengeInFlightRef.current = false;
     }
   };
 
@@ -693,15 +835,10 @@ export default function GamePage() {
         // Player position changed server-side (5-tile dash) — refresh.
         await refreshGameState();
       } else {
-        setPanelMessage(`❌ Flee failed: ${result.error || 'Unknown error'}`);
+        setPanelMessage(`❌ Flee failed: ${extractApiError(result, response.status)}`);
       }
 
-      const flagResponse = await fetch('/api/flag');
-      const flagData = await flagResponse.json();
-      if (flagData.success && flagData.data) {
-        setFlagDetail(flagData.data);
-        setFlagBearer(flagData.data.bearer ?? null);
-      }
+      await fetchFlagData();
       setTimeout(() => setPanelMessage(''), 6000);
     } catch (error) {
       console.error('[Flag Tracker] Flee error:', error);
@@ -722,15 +859,10 @@ export default function GamePage() {
         // Bonus stack changed for this player — full refresh.
         await refreshGameState();
       } else {
-        setPanelMessage(`⏳ Claim failed: ${result.error || 'Unknown error'}`);
+        setPanelMessage(`⏳ Claim failed: ${extractApiError(result, response.status)}`);
       }
 
-      const flagResponse = await fetch('/api/flag');
-      const flagData = await flagResponse.json();
-      if (flagData.success && flagData.data) {
-        setFlagDetail(flagData.data);
-        setFlagBearer(flagData.data.bearer ?? null);
-      }
+      await fetchFlagData();
       setTimeout(() => setPanelMessage(''), 6000);
     } catch (error) {
       console.error('[Flag Tracker] Claim error:', error);
@@ -763,11 +895,11 @@ export default function GamePage() {
           playerId={player.username}
           isEnabled={true}
           onComplete={() => {
-            console.log('Tutorial completed!');
+            logger.debug('Tutorial completed');
             refreshGameState();
           }}
           onSkip={() => {
-            console.log('Tutorial skipped');
+            logger.debug('Tutorial skipped');
           }}
         />
       )}
@@ -932,7 +1064,7 @@ export default function GamePage() {
                 }}
                 onHarvestClick={handleHarvest}
                 isHarvesting={isHarvesting}
-                onAttackClick={handleAttack}
+                onAttackClick={handleTileAttack}
                 isAttacking={isAttacking}
                 onFlagAttack={handleFlagChallenge}
                 onBankClick={() => setCurrentView('BANK')}
@@ -946,7 +1078,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -961,7 +1093,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -976,7 +1108,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -991,7 +1123,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1009,7 +1141,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1024,7 +1156,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1039,7 +1171,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1054,7 +1186,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1069,7 +1201,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1084,7 +1216,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1099,7 +1231,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1121,7 +1253,7 @@ export default function GamePage() {
               <div className="mb-4">
                 <button
                   onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-void)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
                 >
                   <span className="text-lg">←</span>
                   <span>Back to Game</span>
@@ -1176,6 +1308,7 @@ export default function GamePage() {
                   onFlee={handleFlagFlee}
                   onClaim={handleFlagClaim}
                   compact={false}
+                  playerUsername={player?.username}
                 />
               </div>
             )}
@@ -1187,11 +1320,11 @@ export default function GamePage() {
               playerId={player.username}
               isVisible={true}
               onSkip={() => {
-                console.log('Tutorial skipped from quest panel');
+                logger.debug('Tutorial skipped from quest panel');
                 refreshGameState();
               }}
               onMinimize={() => {
-                console.log('Tutorial minimized');
+                logger.debug('Tutorial minimized');
               }}
             />
           )

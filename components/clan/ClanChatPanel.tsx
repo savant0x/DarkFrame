@@ -152,7 +152,7 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
   }, [activities]);
 
   /**
-   * Fetches chat message history
+   * Fetches chat message history (initial load / manual refresh — full window)
    */
   const fetchMessages = useCallback(async () => {
     setIsLoadingMessages(true);
@@ -171,6 +171,48 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
       setIsLoadingMessages(false);
     }
   }, [clanId]);
+
+  /**
+   * Delta poll (FID-20260909-027 §3.1): fetch only messages newer than the
+   * newest one we hold, instead of re-downloading the full 100-message window
+   * every 10 seconds. Merges preserve the existing render contract (newest
+   * first — the full fetch is DESC, so delta results are reversed+prepended).
+   * A `resync: true` response means our cursor was too stale to trust: the
+   * payload is a fresh full window and replaces state outright.
+   */
+  const pollNewMessages = useCallback(async () => {
+    const latest = messages[0]; // DESC list → index 0 is newest
+    if (!latest) return;
+
+    try {
+      const response = await fetch(
+        `/api/clan/chat/messages?clanId=${clanId}&since=${encodeURIComponent(latest.timestamp.toISOString())}`
+      );
+      if (!response.ok) return; // transient — keep the current window
+
+      const data: { success: boolean; messages: Array<ChatMessage & { timestamp: string | Date }>; resync?: boolean } =
+        await response.json();
+      if (!data.success) return;
+
+      if (data.resync) {
+        setMessages(data.messages.map((m) => ({ ...m, timestamp: new Date(m.timestamp) })));
+        return;
+      }
+      if (data.messages.length === 0) return;
+
+      const incoming = data.messages.map((m) => ({ ...m, timestamp: new Date(m.timestamp) }));
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const fresh = incoming
+          .filter((m) => !seen.has(m.id))
+          // wire delta is ASC (oldest→newest); render contract is newest-first
+          .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        return [...fresh, ...prev];
+      });
+    } catch (error) {
+      console.error('Error polling new messages:', error);
+    }
+  }, [clanId, messages]);
 
   /**
    * Fetches clan activity feed
@@ -202,14 +244,15 @@ export default function ClanChatPanel({ clanId, currentUserId, currentUserRole }
     fetchMessages();
     fetchActivities();
 
-    // Auto-refresh every 10 seconds
+    // Auto-refresh every 10 seconds — delta poll only (FID-027 §3.1);
+    // full window is fetched on mount and via the manual refresh button.
     const refreshInterval = setInterval(() => {
-      fetchMessages();
+      pollNewMessages();
       fetchActivities();
     }, 10000);
 
     return () => clearInterval(refreshInterval);
-  }, [fetchMessages, fetchActivities]);
+  }, [fetchMessages, fetchActivities, pollNewMessages]);
 
   useEffect(() => {
     // Auto-scroll to bottom on new messages

@@ -29,6 +29,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorMessage';
 
 interface IncomeProjection {
@@ -75,7 +76,7 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load income projection');
+        throw new Error(extractApiError(data, response.status));
       }
       
       setProjection(data.projection);
@@ -101,7 +102,7 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to collect income');
+        throw new Error(extractApiError(data, response.status));
       }
       
       const { metalCollected, energyCollected } = data.result;
@@ -149,7 +150,10 @@ export function PassiveIncomeDisplay({ clanId, role, onIncomeCollected }: Passiv
   useEffect(() => {
     loadProjection();
     
+    // Server poll skipped while the tab is hidden (FID-20260909-023 §3.8);
+    // the 1s countdown timer below is client-only and keeps running.
     const interval = setInterval(() => {
+      if (document.hidden) return;
       loadProjection();
       updateCountdown();
     }, 30000);

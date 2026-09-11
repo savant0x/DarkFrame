@@ -12,6 +12,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { Keyboard, Save, RotateCcw, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { HotkeyConfig, HotkeyCategory } from '@/types/hotkey.types';
 import { findHotkeyConflicts } from '@/lib/hotkeyRegistry';
@@ -58,7 +59,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
       if (data.success) {
         setHotkeys(data.hotkeys);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to load hotkeys' });
+        setMessage({ type: 'error', text: extractApiError(data, response.status) });
       }
     } catch {
       setMessage({ type: 'error', text: 'Network error loading hotkeys' });
@@ -87,7 +88,7 @@ export default function HotkeyManagerPanel({ isOpen, onClose }: HotkeyManagerPan
         setMessage({ type: 'success', text: 'Hotkey settings saved successfully!' });
         setTimeout(() => setMessage(null), 3000);
       } else {
-        setMessage({ type: 'error', text: data.message || 'Failed to save hotkeys' });
+        setMessage({ type: 'error', text: extractApiError(data, response.status) });
       }
     } catch {
       setMessage({ type: 'error', text: 'Network error saving hotkeys' });

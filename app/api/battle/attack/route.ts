@@ -17,6 +17,7 @@ import {
 } from '@/lib';
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { verifyPresence } from '@/lib/presenceCheck';
+import { logAttack } from '@/lib/activityLogger';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -129,6 +130,15 @@ const handler = rateLimiter(async (req: NextRequest) => {
       outcome: battleLog.outcome,
       captured: battleLog.outcome === 'ATTACKER_WIN'
     });
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry — attacks were previously
+    // invisible to the admin Activity tab (logger defined, never wired).
+    await logAttack(
+      attacker,
+      req.cookies.get('sessionId')?.value || 'unknown',
+      defender,
+      battleLog.outcome === 'ATTACKER_WIN' ? 'success' : 'failure'
+    );
     
     return NextResponse.json({ success: true, battle: battleLog });
     

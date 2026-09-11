@@ -19,6 +19,7 @@ import { useState, useEffect } from 'react';
 import { Rocket } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { extractApiError } from '@/lib/apiClient';
 import type { WMDMissileLaunchedPayload, WMDMissileInterceptedPayload } from '@/types/websocket';
 
 interface Missile {
@@ -107,7 +108,7 @@ export default function WMDMissilePanel() {
         showSuccess(`Created ${selectedWarhead} missile!`);
         await fetchMissiles();
       } else {
-        showError(data.error || 'Failed to create missile');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error creating missile');
@@ -130,7 +131,7 @@ export default function WMDMissilePanel() {
         showSuccess(`Assembled ${component} component!`);
         await fetchMissiles();
       } else {
-        showError(data.error || 'Failed to assemble component');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error assembling component');
@@ -160,7 +161,7 @@ export default function WMDMissilePanel() {
         setTargetId('');
         await fetchMissiles();
       } else {
-        showError(data.error || 'Failed to launch missile');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error launching missile');
@@ -181,7 +182,7 @@ export default function WMDMissilePanel() {
         showSuccess('Missile dismantled');
         await fetchMissiles();
       } else {
-        showError(data.error || 'Failed to dismantle missile');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error dismantling missile');

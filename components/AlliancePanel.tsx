@@ -32,6 +32,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface Alliance {
@@ -117,7 +118,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load alliances');
+        throw new Error(extractApiError(data, response.status));
       }
       
       const active = (data.alliances || []).filter((a: Alliance) => a.status === 'ACTIVE');
@@ -161,7 +162,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to propose alliance');
+        throw new Error(extractApiError(data, response.status));
       }
       
       setShowProposeModal(false);
@@ -188,7 +189,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to accept alliance');
+        throw new Error(extractApiError(data, response.status));
       }
       
       await loadAlliances();
@@ -210,7 +211,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to break alliance');
+        throw new Error(extractApiError(data, response.status));
       }
       
       await loadAlliances();
@@ -241,7 +242,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to add contract');
+        throw new Error(extractApiError(data, response.status));
       }
       
       setShowContractModal(false);
@@ -267,7 +268,7 @@ export function AlliancePanel({ clanId, role, treasuryMetal }: AlliancePanelProp
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to remove contract');
+        throw new Error(extractApiError(data, response.status));
       }
       
       await loadAlliances();

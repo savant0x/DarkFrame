@@ -16,7 +16,6 @@ export { default as CaveItemNotification } from './CaveItemNotification';
 export { default as FactoryButton } from './FactoryButton';
 export { default as BankPanel } from './BankPanel';
 export { default as ShrinePanel } from './ShrinePanel';
-export { default as UnitBuildPanel } from './UnitBuildPanel';
 export { default as BalanceIndicator } from './BalanceIndicator';
 export { default as FactoryManagementPanel } from './FactoryManagementPanel';
 export { default as XPProgressBar } from './XPProgressBar';

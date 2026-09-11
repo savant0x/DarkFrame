@@ -47,6 +47,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { useGameContext } from '@/context/GameContext';
 import { Resources, UnitType, UnitTier, UNIT_CONFIGS, getUnitsForTier } from '@/types/game.types';
 
@@ -165,7 +166,7 @@ export default function UnitBuildPanelEnhanced({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to build units');
+        throw new Error(extractApiError(data, response.status));
       }
 
       setMessage(data.message);

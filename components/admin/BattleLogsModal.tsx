@@ -29,7 +29,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { formatDateTime } from '@/utils/formatting';
 
@@ -69,11 +69,14 @@ interface BattleLogsModalProps {
  * Fetches all battle logs, applies filters, and displays in paginated table.
  */
 export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
-  // Data state
+  // Data state — one server page of rows + the filtered total (FID-20260909-027 §3.2:
+  // filtering/pagination moved server-side; the old 10,000-row client-side filter
+  // shipped ~99% of the payload never rendered)
   const [logs, setLogs] = useState<BattleLog[]>([]);
-  const [filteredLogs, setFilteredLogs] = useState<BattleLog[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Filter state
   const [searchPlayer, setSearchPlayer] = useState('');
@@ -85,23 +88,65 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
-  /**
-   * Fetch all battle logs on mount
-   */
+  // Debounce the text filter: server round-trips are not free (300ms as before-typing quiesce)
+  const [debouncedPlayer, setDebouncedPlayer] = useState('');
   useEffect(() => {
-    async function fetchBattleLogs() {
+    const t = setTimeout(() => {
+      setDebouncedPlayer(searchPlayer);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchPlayer]);
+
+  // Non-text filters reset to the first page immediately (their change also triggers the fetch below)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterOutcome, filterDateFrom, filterDateTo]);
+
+  /**
+   * Fetch one server page with the current filters. With exportAll, returns
+   * every matching row (10,000 cap) for the JSON download instead of state.
+   */
+  const fetchBattleLogs = useCallback(async function fetchBattleLogs(opts?: { exportAll?: boolean }) {
+    const params = new URLSearchParams();
+    if (debouncedPlayer.trim()) params.set('player', debouncedPlayer.trim());
+    if (filterOutcome !== 'all') params.set('outcome', filterOutcome);
+    if (filterDateFrom) params.set('dateFrom', new Date(filterDateFrom).toISOString());
+    if (filterDateTo) {
+      // Match the modal's old inclusive-day semantics: dateTo is a date input;
+      // extend to the end of that day.
+      const to = new Date(filterDateTo);
+      to.setHours(23, 59, 59, 999);
+      params.set('dateTo', to.toISOString());
+    }
+
+    if (opts?.exportAll) {
+      params.set('export', 'all');
+      const response = await fetch(`/api/admin/battle-logs?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      return (data.logs || []) as BattleLog[];
+    }
+
+    params.set('page', String(currentPage));
+    params.set('limit', String(itemsPerPage));
+    const response = await fetch(`/api/admin/battle-logs?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const data = await response.json();
+    setLogs(data.logs || []);
+    setTotal(typeof data.total === 'number' ? data.total : (data.logs?.length ?? 0));
+  }, [debouncedPlayer, filterOutcome, filterDateFrom, filterDateTo, currentPage]);
+
+  useEffect(() => {
+    async function run() {
       try {
         setLoading(true);
         setError(null);
-
-        const response = await fetch('/api/admin/battle-logs');
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        setLogs(data.logs || []);
-        setFilteredLogs(data.logs || []);
+        await fetchBattleLogs();
       } catch (err) {
         console.error('[BattleLogs] Failed to fetch logs:', err);
         setError(err instanceof Error ? err.message : 'Failed to load battle logs');
@@ -110,50 +155,14 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
       }
     }
 
-    fetchBattleLogs();
-  }, []);
+    run();
+  }, [fetchBattleLogs]);
 
   /**
-   * Apply filters when filter state changes
+   * Pagination calculations — server-driven: `logs` already IS the current page.
    */
-  useEffect(() => {
-    let filtered = [...logs];
-
-    // Filter by player (attacker or defender, case insensitive)
-    if (searchPlayer.trim()) {
-      const search = searchPlayer.toLowerCase();
-      filtered = filtered.filter(log =>
-        log.attackerUsername.toLowerCase().includes(search) ||
-        log.defenderUsername.toLowerCase().includes(search)
-      );
-    }
-
-    // Filter by outcome
-    if (filterOutcome !== 'all') {
-      filtered = filtered.filter(log => log.outcome === filterOutcome);
-    }
-
-    // Filter by date range
-    if (filterDateFrom) {
-      const fromDate = new Date(filterDateFrom).getTime();
-      filtered = filtered.filter(log => new Date(log.timestamp).getTime() >= fromDate);
-    }
-    if (filterDateTo) {
-      const toDate = new Date(filterDateTo).getTime() + 86400000; // Add 1 day to include full day
-      filtered = filtered.filter(log => new Date(log.timestamp).getTime() <= toDate);
-    }
-
-    setFilteredLogs(filtered);
-    setCurrentPage(1); // Reset to first page when filters change
-  }, [searchPlayer, filterOutcome, filterDateFrom, filterDateTo, logs]);
-
-  /**
-   * Pagination calculations
-   */
-  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentLogs = filteredLogs.slice(startIndex, endIndex);
+  const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+  const currentLogs = logs;
 
   /**
    * Navigate to previous page
@@ -170,17 +179,27 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
   };
 
   /**
-   * Export logs to JSON
+   * Export logs to JSON — refetches with export=all + the current filters so
+   * the download reflects what the admin is looking at, not just the open page.
    */
-  const handleExport = () => {
-    const dataStr = JSON.stringify(filteredLogs, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `battle-logs-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      const rows = await fetchBattleLogs({ exportAll: true });
+      const dataStr = JSON.stringify(rows, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `battle-logs-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[BattleLogs] Export failed:', err);
+      setError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
   };
 
   /**
@@ -266,15 +285,16 @@ export default function BattleLogsModal({ onClose }: BattleLogsModalProps) {
           <div>
             <h2 className="text-2xl font-bold text-[color:var(--nn-violet)]">⚔️ Battle Logs</h2>
             <p className="text-[color:var(--nn-text-secondary)] text-sm mt-1">
-              {filteredLogs.length} of {logs.length} battles
+              {total} battles
             </p>
           </div>
           <div className="flex gap-3">
             <button
               onClick={handleExport}
-              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition text-sm"
+              disabled={exporting}
+              className="px-4 py-2 bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)] rounded-none transition text-sm disabled:opacity-50"
             >
-              📥 Export JSON
+              {exporting ? '⏳ Exporting…' : '📥 Export JSON'}
             </button>
             <button
               onClick={onClose}

@@ -15,8 +15,9 @@ import { verifyAuth } from '@/lib/authMiddleware';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { db } from '@/lib/db';
 import { players, tiles } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import { trackResourcesBanked } from '@/lib/statTrackingService';
+import { logBanking } from '@/lib/activityLogger';
 import { 
   withRequestLogging, 
   createRouteLogger,
@@ -103,48 +104,72 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     const depositAmount = amount;
     const feeAmount = DEPOSIT_FEE;
 
-    const currentBankAmount = Number(resourceType === 'metal' ? player.bankMetal : player.bankEnergy);
-    const newResourceAmount = BigInt(currentAmount - totalNeeded);
-    const newBankAmount = BigInt(currentBankAmount + depositAmount);
+    // FID-20260909-026 §2.HIGH: atomic deposit — resources side is guarded
+    // (`gte(resources, amount + fee)`) and debited in the same statement; the
+    // bank credit is a pure SQL delta. No read-compute-write window.
+    const isMetal = resourceType === 'metal';
+    const deposited = await db.update(players).set(
+      isMetal
+        ? {
+            resourcesMetal: sql`${players.resourcesMetal} - ${totalNeeded}`,
+            bankMetal: sql`${players.bankMetal} + ${depositAmount}`,
+            bankLastDeposit: new Date(),
+          }
+        : {
+            resourcesEnergy: sql`${players.resourcesEnergy} - ${totalNeeded}`,
+            bankEnergy: sql`${players.bankEnergy} + ${depositAmount}`,
+            bankLastDeposit: new Date(),
+          }
+    )
+      .where(and(eq(players.username, username), isMetal ? gte(players.resourcesMetal, totalNeeded) : gte(players.resourcesEnergy, totalNeeded)))
+      .returning({ metal: players.resourcesMetal, energy: players.resourcesEnergy, bankMetal: players.bankMetal, bankEnergy: players.bankEnergy });
 
-    if (resourceType === 'metal') {
-      await db.update(players).set({
-        resourcesMetal: Number(newResourceAmount),
-        bankMetal: Number(newBankAmount),
-        bankLastDeposit: new Date(),
-      }).where(eq(players.username, username));
-    } else {
-      await db.update(players).set({
-        resourcesEnergy: Number(newResourceAmount),
-        bankEnergy: Number(newBankAmount),
-        bankLastDeposit: new Date(),
-      }).where(eq(players.username, username));
+    if (deposited.length === 0) {
+      // Race loser: concurrent deposit/withdraw moved the balance between our
+      // read and write — report honestly against fresh state.
+      log.warn('Concurrent deposit lost the atomic guard', { username, resourceType, needed: totalNeeded });
+      return createErrorResponse(
+        ErrorCode.INSUFFICIENT_RESOURCES, 
+        { 
+          resourceType, 
+          needed: totalNeeded,
+          fee: DEPOSIT_FEE
+        }
+      );
     }
+
+    const updatedPlayer = deposited[0];
 
     await trackResourcesBanked(username, depositAmount);
 
-    const updatedPlayerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
-    const updatedPlayer = updatedPlayerResult[0];
+    // FID-20260909-029 §2.4: anti-cheat telemetry — this action class was
+    // previously invisible to the admin Activity tab (logger defined, never
+    // wired). Logging failures are swallowed inside the logger.
+    await logBanking(
+      username,
+      request.headers.get('cookie')?.match(/sessionId=([^;]+)/)?.[1] || 'unknown',
+      true,
+      isMetal ? { metal: depositAmount } : { energy: depositAmount }
+    );
 
     log.info('Deposit successful', { 
       username, 
       resourceType, 
       amount: depositAmount, 
-      fee: feeAmount,
-      newBankTotal: currentBankAmount + depositAmount
+      fee: feeAmount
     });
 
     return NextResponse.json({
       success: true,
       message: `Deposited ${depositAmount.toLocaleString()} ${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} to bank (${feeAmount.toLocaleString()} fee)`,
       inventory: {
-        metal: Number(updatedPlayer!.resourcesMetal),
-        energy: Number(updatedPlayer!.resourcesEnergy),
+        metal: Number(updatedPlayer.metal),
+        energy: Number(updatedPlayer.energy),
       },
       bank: {
-        metal: Number(updatedPlayer!.bankMetal),
-        energy: Number(updatedPlayer!.bankEnergy),
-        lastDeposit: updatedPlayer!.bankLastDeposit,
+        metal: Number(updatedPlayer.bankMetal),
+        energy: Number(updatedPlayer.bankEnergy),
+        lastDeposit: player.bankLastDeposit,
       }
     });
 

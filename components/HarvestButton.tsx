@@ -7,6 +7,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
+import { logger } from '@/lib/logger';
 import { useGameContext } from '@/context/GameContext';
 import { TerrainType, HarvestResult } from '@/types';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
@@ -52,7 +54,8 @@ export default function HarvestButton({ onHarvestResult }: HarvestButtonProps) {
         if (onHarvestResult) {
           onHarvestResult({
             success: false,
-            message: data.message || 'Harvest failed',
+            // FID-20260911-041: rejection reasons live under error.message.
+            message: extractApiError(data, response.status),
             metalGained: 0,
             energyGained: 0
           });
@@ -99,14 +102,14 @@ export default function HarvestButton({ onHarvestResult }: HarvestButtonProps) {
       
       // G for Metal/Energy gathering
       if ((event.key === 'g' || event.key === 'G') && (isMetal || isEnergy)) {
-        console.log(`[HarvestButton] Received '${event.key}' keypress for ${tile.terrain} - triggering harvest`);
+        logger.debug(`[HarvestButton] Received '${event.key}' keypress for ${tile.terrain} - triggering harvest`);
         event.preventDefault();
         handleHarvest();
       }
       
       // F for Cave/Forest exploration
       if ((event.key === 'f' || event.key === 'F') && (isCave || isForest)) {
-        console.log(`[HarvestButton] Received '${event.key}' keypress for ${tile.terrain} - triggering harvest`);
+        logger.debug(`[HarvestButton] Received '${event.key}' keypress for ${tile.terrain} - triggering harvest`);
         event.preventDefault();
         handleHarvest();
       }

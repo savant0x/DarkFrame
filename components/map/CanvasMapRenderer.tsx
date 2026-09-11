@@ -11,6 +11,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { type MapTile, type MapViewport, MAP_CONFIG, TILE_COLORS } from '@/types';
 
 interface CanvasMapRendererProps {
@@ -24,6 +25,9 @@ interface CanvasMapRendererProps {
   } | null;
   /** Live trail tiles with expiry — rendered as fading gold glimmer. */
   flagTrail?: Array<{ x: number; y: number; timestamp: string | Date; expiresAt: string | Date }>;
+  /** FID-20260910-038 D1: occupied base tiles — magenta (Beer) / red (bot)
+   * markers with owner + LV chips so bases are visible at map scale. */
+  baseMarkers?: Array<{ x: number; y: number; owner: string; level: number; isBeerBase: boolean }>;
   onTileClick?: (x: number, y: number) => void;
 }
 
@@ -33,6 +37,7 @@ export function CanvasMapRenderer({
   playerPosition,
   flagMarker,
   flagTrail,
+  baseMarkers,
   onTileClick
 }: CanvasMapRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,39 +55,49 @@ export function CanvasMapRenderer({
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    console.log('[Canvas2D] Rendering FULL MAP: 150×150 tiles');
+    logger.debug('[Canvas2D] Rendering FULL MAP: 150×150 tiles');
     
     let tilesDrawn = 0;
-    
-    // Draw ALL tiles (no viewport culling - show entire map)
+
+    // FID-20260909-026 §2: batch all tiles of a terrain into ONE path and fill
+    // it in a single call — previously 22,500 fillRect + 22,500 strokeRect ops
+    // ran on every redraw (every move / flag tick). The per-tile stroke is
+    // invisible at the rendered scale (tiles ≈ 4px); adjacent tiles of the same
+    // terrain form one seamless region, exactly as before.
+    const terrainBuckets = new Map<string, number[]>();
     for (let tileY = 1; tileY <= MAP_CONFIG.HEIGHT; tileY++) {
       for (let tileX = 1; tileX <= MAP_CONFIG.WIDTH; tileX++) {
         // mapData is [row][column] = [y-1][x-1] (0-indexed array)
         const tile = mapData[tileY - 1]?.[tileX - 1];
         if (!tile) continue;
-        
-        // Calculate screen position (tile (1,1) is at pixel (0,0))
+
         const screenX = (tile.x - 1) * MAP_CONFIG.TILE_SIZE;
         const screenY = (tile.y - 1) * MAP_CONFIG.TILE_SIZE;
-        
-        // Get tile color
-        const colorHex = TILE_COLORS[tile.terrain];
-        const color = `#${colorHex.toString(16).padStart(6, '0')}`;
-        
-        // Draw tile
-        ctx.fillStyle = color;
-        ctx.fillRect(screenX, screenY, MAP_CONFIG.TILE_SIZE, MAP_CONFIG.TILE_SIZE);
-        
-        // Draw border
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(screenX, screenY, MAP_CONFIG.TILE_SIZE, MAP_CONFIG.TILE_SIZE);
-        
+
+        let bucket = terrainBuckets.get(tile.terrain);
+        if (!bucket) {
+          bucket = [];
+          terrainBuckets.set(tile.terrain, bucket);
+        }
+        bucket.push(screenX, screenY);
         tilesDrawn++;
       }
     }
-    
-    console.log('[Canvas2D] Drew', tilesDrawn, 'tiles (full map)');
+
+    for (const [terrain, coords] of terrainBuckets) {
+      const colorHex = TILE_COLORS[terrain as keyof typeof TILE_COLORS];
+      ctx.fillStyle = `#${colorHex.toString(16).padStart(6, '0')}`;
+      ctx.beginPath();
+      for (let i = 0; i < coords.length; i += 2) {
+        ctx.rect(coords[i], coords[i + 1], MAP_CONFIG.TILE_SIZE, MAP_CONFIG.TILE_SIZE);
+      }
+      ctx.fill();
+    }
+
+    logger.debug('[Canvas2D] Drew tiles (full map, terrain-batched)', {
+      tilesDrawn,
+      terrainGroups: terrainBuckets.size,
+    });
     
     // Draw coordinate grid overlay (every 10 tiles for full map view)
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -163,6 +178,31 @@ export function CanvasMapRenderer({
       ctx.fillText('🏴 FLAG', bx, by - 24);
     }
 
+    // Draw base markers (FID-20260910-038 D1) — under the player/flag so the
+    // important movers stay on top. Magenta = Beer Base, red = bot base.
+    for (const b of baseMarkers ?? []) {
+      const bx = (b.x - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
+      const by = (b.y - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
+
+      // Tile anchor square (distinct silhouette vs the round player/flag dots)
+      ctx.fillStyle = b.isBeerBase ? 'rgba(255, 64, 129, 0.85)' : 'rgba(211, 47, 47, 0.8)';
+      ctx.fillRect(bx - 6, by - 6, 12, 12);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx - 6, by - 6, 12, 12);
+
+      // Owner + LV chip
+      const label = `${b.owner} · LV ${b.level}`;
+      ctx.font = 'bold 10px monospace';
+      const w = ctx.measureText(label).width + 10;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(bx - w / 2, by + 8, w, 14);
+      ctx.fillStyle = b.isBeerBase ? '#FF9BC0' : '#FF8A80';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx, by + 15);
+    }
+
     // Draw player marker
     if (playerPosition) {
       const playerScreenX = (playerPosition.x - 1) * MAP_CONFIG.TILE_SIZE + MAP_CONFIG.TILE_SIZE / 2;
@@ -205,7 +245,7 @@ export function CanvasMapRenderer({
       ctx.fillText(`(${playerPosition.x}, ${playerPosition.y})`, playerScreenX, playerScreenY + 19);
     }
     
-  }, [mapData, viewport, playerPosition, flagMarker, flagTrail, canvasSize]); // flag overlay re-renders
+  }, [mapData, viewport, playerPosition, flagMarker, flagTrail, baseMarkers, canvasSize]); // flag/base overlays re-render
   
   // Handle resize
   useEffect(() => {
@@ -225,7 +265,7 @@ export function CanvasMapRenderer({
         canvas.height = newHeight;
         setCanvasSize({ width: newWidth, height: newHeight }); // Trigger re-render
         
-        console.log('[Canvas2D] Resized canvas:', { width: newWidth, height: newHeight });
+        logger.debug('[Canvas2D] Resized canvas', { width: newWidth, height: newHeight });
       }
     };
     

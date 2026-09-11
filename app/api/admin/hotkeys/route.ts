@@ -13,7 +13,7 @@ import { db } from '@/lib/db';
 import { gameConfig } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { DEFAULT_HOTKEYS, HotkeyConfig, HotkeySettings } from '@/types/hotkey.types';
+import { DEFAULT_HOTKEYS, HotkeyConfig, HotkeySettings, StoredHotkeyConfig } from '@/types/hotkey.types';
 import { findHotkeyConflicts } from '@/lib/hotkeyRegistry';
 import {
   withRequestLogging,
@@ -28,13 +28,9 @@ import {
 /** Single-row convention for this config: one game_config row, id/type = 'hotkeys'. */
 const HOTKEY_CONFIG_TYPE = 'hotkeys';
 
-/** Shape stored in the game_config jsonb `config` column. */
-interface StoredHotkeyConfig {
-  version: number;
-  hotkeys: HotkeyConfig[];
-  modifiedBy: string;
-  lastModified: string;
-}
+/** Shape stored in the game_config jsonb `config` column lives in
+ * types/hotkey.types.ts (StoredHotkeyConfig) — promoted for the schema's
+ * payload union (FID-20260909-023 §3.6). */
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 const putRateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);

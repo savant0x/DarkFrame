@@ -44,8 +44,12 @@ import {
   type MapViewport,
   MAP_CONFIG
 } from '@/types';
-import { generateMockMapData } from '@/components/map/GridRenderer';
+// FID-20260909-023 §3.3: GridRenderer.tsx (Pixi) deleted — generator lives with
+// the other map utilities now.
+import { generateMockMapData } from '@/lib/mapService';
+import { decodeTerrainGrid, COMPACT_TERRAIN_FORMAT } from '@/lib/terrainCodec';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
+import { logger } from '@/lib/logger';
 
 /**
  * Map Page Component
@@ -67,6 +71,27 @@ export default function MapPage() {
     username: string;
     trail: Array<{ x: number; y: number; timestamp: string; expiresAt: string }>;
   } | null>(null);
+  // FID-20260910-038 D1: occupied base intel for the map overlay
+  // (owner/level/Beer-class) — 30s server-cached endpoint, refetch on mount.
+  const [baseMarkers, setBaseMarkers] = useState<Array<{ x: number; y: number; owner: string; level: number; isBeerBase: boolean }>>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const loadBases = async () => {
+      try {
+        const res = await fetch('/api/map/bases');
+        const body = await res.json();
+        if (!cancelled && res.ok && body.success && Array.isArray(body.data?.bases)) {
+          setBaseMarkers(body.data.bases);
+        }
+      } catch {
+        // non-critical: map renders without base chips
+      }
+    };
+    loadBases();
+    const interval = setInterval(loadBases, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
   // Viewport state - FULL MAP VIEW (shows entire 150×150 grid)
   const [viewport, setViewport] = useState<MapViewport>({
     x: 0,
@@ -85,16 +110,36 @@ export default function MapPage() {
    * Loads real terrain from /api/map/terrain (falls back to mock on error)
    */
   useEffect(() => {
-    console.log('[MapPage] Initializing map data...');
+    logger.debug('[MapPage] Initializing map data...');
     let cancelled = false;
 
     const loadRealMap = async (): Promise<void> => {
       let map: MapTile[][] | null = null;
       try {
-        const res = await fetch('/api/map/terrain', { cache: 'no-store' });
-        const body = (await res.json()) as { success?: boolean; data?: { map?: MapTile[][] } };
-        if (res.ok && body.success && body.data?.map) {
-          map = body.data.map;
+        // FID-20260909-026: terrain is immutable after generation — default
+        // browser caching applies (endpoint sends Cache-Control); no-store
+        // re-downloaded ~2MB per map visit.
+        // §6 follow-up: wire format is one char per tile (~22 KB) — decoded
+        // client-side via the shared codec; decode failure falls back to mock.
+        const res = await fetch('/api/map/terrain');
+        const body = (await res.json()) as {
+          success?: boolean;
+          data?: { format?: string; width?: number; height?: number; grid?: string };
+        };
+        if (
+          res.ok &&
+          body.success &&
+          body.data &&
+          body.data.format === COMPACT_TERRAIN_FORMAT &&
+          typeof body.data.width === 'number' &&
+          typeof body.data.height === 'number' &&
+          typeof body.data.grid === 'string'
+        ) {
+          map = decodeTerrainGrid({
+            width: body.data.width,
+            height: body.data.height,
+            grid: body.data.grid,
+          });
         }
       } catch (err) {
         console.error('[MapPage] Failed to load real terrain, falling back to mock', err);
@@ -104,7 +149,7 @@ export default function MapPage() {
       // Real data unavailable (map not generated yet) → mock for UI testing
       const data = map ?? generateMockMapData();
       setMapData(data);
-      console.log('[MapPage] Map data loaded', {
+      logger.debug('[MapPage] Map data loaded', {
         source: map ? 'api/map/terrain' : 'mock (fallback)',
         dimensions: `${data.length}x${data[0].length}`,
         tiles: data.length * data[0].length
@@ -301,7 +346,7 @@ export default function MapPage() {
     // WebSocket integration will be added in future
     // For now, map only shows static player position
     
-    console.log('[MapPage] WebSocket integration pending');
+    logger.debug('[MapPage] WebSocket integration pending');
   }, [mapData]);
   
   /**
@@ -309,7 +354,7 @@ export default function MapPage() {
    */
   const handleTileClick = (x: number, y: number) => {
     setSelectedTile({ x, y });
-    console.log(`[MapPage] Tile selected: (${x}, ${y})`);
+    logger.debug(`[MapPage] Tile selected: (${x}, ${y})`);
   };
   
   /**
@@ -317,7 +362,7 @@ export default function MapPage() {
    */
   const handleZoomChange = (newZoom: ZoomLevel) => {
     setZoomLevel(newZoom);
-    console.log(`[MapPage] Zoom changed: ${newZoom}`);
+    logger.debug(`[MapPage] Zoom changed: ${newZoom}`);
   };
   
   const renderMapContent = () => (
@@ -450,6 +495,7 @@ export default function MapPage() {
                         : null
                     }
                     flagTrail={flagState?.trail}
+                    baseMarkers={baseMarkers}
                     onTileClick={handleTileClick}
                   />
                 </div>

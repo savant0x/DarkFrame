@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logTrade } from '@/lib/activityLogger';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { createAuctionListing } from '@/lib/auctionService';
@@ -87,6 +88,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       log.warn('Auction creation failed', { username, reason: result.message });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: result.message });
     }
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry — listings recorded as the
+    // sell side of a trade (was: logger defined, never wired). Logging
+    // failures are swallowed inside the logger.
+    await logTrade(
+      username,
+      request.cookies.get('sessionId')?.value || 'unknown',
+      false,
+      'auction-house',
+      [validated.item.itemType]
+    );
 
     log.info('Auction created successfully', { 
       username, 

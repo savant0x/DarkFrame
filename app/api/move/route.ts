@@ -26,12 +26,11 @@ import {  withRequestLogging,
   createValidationErrorResponse,
   ErrorCode
 } from '@/lib';
-import { ZodError } from 'zod';
-import {
-  
+import { ZodError } from 'zod';import {
   getCurrentQuestAndStep,
   getActionTracking,
   updateActionTracking,
+  resolveNearestCaveTile,
 } from '@/lib/tutorialService';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.movement);
@@ -113,7 +112,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       success: true,
       data: responseData
     };
-    log.info('[MoveAPI] Outgoing response', {
+    log.debug('[MoveAPI] Outgoing response', {
       username,
       response: successResponse,
       playerCurrentPosition: player.currentPosition,
@@ -130,10 +129,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     
     // Track tutorial progress (if in tutorial) - Direct function call
     try {
-      log.info('🎓 Tutorial tracking START', { username: player.username, direction });
+      log.debug('🎓 Tutorial tracking START', { username: player.username, direction });
       
       const { step, progress } = await getCurrentQuestAndStep(player.username);
-      log.info('🎓 Tutorial step retrieved', { 
+      log.debug('🎓 Tutorial step retrieved', { 
         hasStep: !!step, 
         stepId: step?.id,
         stepAction: step?.action,
@@ -143,7 +142,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       if (step && step.action === 'MOVE' && step.validationData) {
         const { requiredMoves, anyDirection, direction: requiredDirection } = step.validationData;
         
-        log.info('🎓 Tutorial MOVE step detected', { 
+        log.debug('🎓 Tutorial MOVE step detected', { 
           requiredMoves, 
           anyDirection, 
           requiredDirection,
@@ -159,7 +158,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           
           const currentCount = (tracking?.currentCount ?? 0) + 1;
           
-          log.info('🎓 Current tracking state', { 
+          log.debug('🎓 Current tracking state', { 
             hadTracking: !!tracking,
             previousCount: tracking?.currentCount || 0,
             newCount: currentCount,
@@ -189,7 +188,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
             const normalizedRequiredDirection = normalizeDirection(requiredDirection);
             countThis = normalizedPlayerDirection === normalizedRequiredDirection;
             
-            log.info('🎓 Direction check', {
+            log.debug('🎓 Direction check', {
               rawPlayerDir: direction,
               normalizedPlayerDir: normalizedPlayerDirection,
               rawRequiredDir: requiredDirection,
@@ -237,13 +236,89 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         log.debug('🎓 Not a tutorial MOVE step or no validation data');
       }
 
+      // FID-20260909-025 §4.3: coordinate-target MOVE steps
+      // (validationData.targetCoordinates). The cave step was unreachable:
+      // validateStepCompletion (the only reader of targetCoordinates) had zero
+      // callers and the hardcoded (20,40) is usually not a cave on a shuffled
+      // map. On the step's first move the nearest REAL cave tile is resolved
+      // and persisted through the one tracking writer; the step completes on
+      // arrival, exactly like MOVE_TO_COORDS.
+      if (step && step.action === 'MOVE' && step.targetCoordinates && !step.validationData?.requiredMoves) {
+        const targetCoordinates = step.targetCoordinates;
+        const currentX = player.currentPosition.x;
+        const currentY = player.currentPosition.y;
+
+        let tracking = await getActionTracking(player.username, step.id);
+
+        if (!tracking || tracking.targetX === undefined || tracking.targetY === undefined) {
+          // First move on this step: resolve the nearest actual cave and
+          // persist it (single-writer JSON contract, same as MOVE_TO_COORDS).
+          const resolved = await resolveNearestCaveTile(
+            targetCoordinates.x ?? currentX,
+            targetCoordinates.y ?? currentY
+          );
+
+          if (resolved) {
+            await updateActionTracking(player.username, step.id, 0, 0, {
+              targetX: resolved.x,
+              targetY: resolved.y,
+              startX: currentX,
+              startY: currentY,
+            });
+            tracking = await getActionTracking(player.username, step.id);
+
+            log.info('🎯 Cave-step target RESOLVED', {
+              stepId: step.id,
+              from: { x: currentX, y: currentY },
+              resolvedTarget: resolved,
+            });
+          } else {
+            // No caves exist in this world — fall back to the declared
+            // coordinates so the step can still complete by reaching them.
+            await updateActionTracking(player.username, step.id, 0, 0, {
+              targetX: targetCoordinates.x ?? currentX,
+              targetY: targetCoordinates.y ?? currentY,
+              startX: currentX,
+              startY: currentY,
+            });
+            tracking = await getActionTracking(player.username, step.id);
+          }
+        }
+
+        if (tracking?.targetX !== undefined && tracking.targetY !== undefined) {
+          const reachedTarget =
+            currentX === tracking.targetX && currentY === tracking.targetY;
+
+          if (reachedTarget && progress.currentQuestId) {
+            const { completeStep } = await import('@/lib/tutorialService');
+            const result = await completeStep({
+              playerId: player.username,
+              questId: progress.currentQuestId,
+              stepId: step.id,
+              validationData: {
+                x: currentX,
+                y: currentY,
+                targetX: tracking.targetX,
+                targetY: tracking.targetY,
+              },
+            });
+            log.info('🎉 Tutorial coordinate-target step AUTO-COMPLETED!', {
+              stepId: step.id,
+              target: { x: tracking.targetX, y: tracking.targetY },
+              success: result.success,
+              nextStep: result.nextStep,
+            });
+          }
+        }
+      }
+
       // Handle MOVE_TO_COORDS tutorial action (coordinate-based navigation)
       if (step && step.action === 'MOVE_TO_COORDS' && step.validationData) {
         const { dynamicTarget, minDistance, maxDistance, requireDiagonalPath, targetX: staticTargetX, targetY: staticTargetY, locationName } = step.validationData;
         const currentX = player.currentPosition.x;
         const currentY = player.currentPosition.y;
         
-        log.info('🎓 Tutorial MOVE_TO_COORDS step detected', { 
+        log.debug('🎓 Tutorial MOVE_TO_COORDS step detected', { 
           stepId: step.id,
           dynamicTarget,
           staticTarget: staticTargetX !== undefined ? { x: staticTargetX, y: staticTargetY } : null,
@@ -261,7 +336,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           targetX = staticTargetX;
           targetY = staticTargetY;
           
-          log.info('🎯 Using STATIC target coordinates', {
+          log.debug('🎯 Using STATIC target coordinates', {
             stepId: step.id,
             locationName,
             target: { x: targetX, y: targetY },
@@ -345,7 +420,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         // Check if player reached target
         const reachedTarget = currentX === targetX && currentY === targetY;
         
-        log.info('🎯 Position check', {
+        log.debug('🎯 Position check', {
           stepId: step.id,
           locationName,
           currentX,
@@ -381,7 +456,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           });
         } else {
           const distance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
-          log.info('🎯 Moving toward target', {
+          log.debug('🎯 Moving toward target', {
             stepId: step.id,
             locationName,
             current: { x: currentX, y: currentY },

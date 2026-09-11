@@ -26,8 +26,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Joyride, STATUS, EVENTS, ACTIONS } from 'react-joyride';
 import type { Step, EventData } from 'react-joyride';
+import toast from 'react-hot-toast';
+import confetti from 'canvas-confetti';
+import { CircleAlert } from 'lucide-react';
 import type { TutorialQuest, TutorialStep, TutorialProgress, TutorialUIState } from '@/types/tutorial.types';
 import { parseDetailedHelp } from '@/lib/tutorialHelpParser';
+import { logger } from '@/lib/logger';
 
 interface TutorialOverlayProps {
   playerId: string;
@@ -114,6 +118,10 @@ export default function TutorialOverlay({
   });
 
   const [progressPercent, setProgressPercent] = useState(0);
+
+  // FID-20260909-032 §3-F: inline validation refusal (rendered under the
+  // progress banner) — the old console.error-only path left players frozen.
+  const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
   const [joyrideSteps, setJoyrideSteps] = useState<Step[]>([]);
   const [runJoyride, setRunJoyride] = useState(false);
@@ -273,14 +281,37 @@ export default function TutorialOverlay({
       const result = await response.json();
 
       if (!result.success) {
-        console.error('Step validation failed:', result.message);
+        // FID-20260909-032 §3-F: the refusal must reach the player — a bare
+        // console.error left the joyride modal frozen with zero guidance.
+        // Surface the server's reason inline and re-sync state: the AUTO-step
+        // poller may have completed this step between render and click, and
+        // acting on a stale step is exactly how this dead-end happened.
+        setValidationWarning(result.message ?? 'Step could not be validated yet.');
+        await loadTutorialState();
         return;
+      }
+
+      // Validation warning only applies to the failed attempt — clear on success.
+      setValidationWarning(null);
+
+      // FID-20260909-032 §3-E: the grant is real (verified in DB) but invisible —
+      // celebrate it. confetti + toast carry the reward name like a loot drop.
+      if (result.reward) {
+        confetti({
+          particleCount: 120,
+          spread: 75,
+          origin: { y: 0.7 },
+          colors: ['#a855f7', '#00e5ff', '#ffb347', '#41ff8a'],
+          disableForReducedMotion: true,
+        });
+        toast.success(result.reward.displayMessage ?? `Reward granted: ${result.reward.itemName ?? result.reward.type}`, {
+          duration: 6000,
+        });
       }
 
       // Show completion message if present
       if (result.message) {
-        // TODO: Show toast notification
-        console.log('✅', result.message);
+        logger.debug('Tutorial action result', { message: result.message });
       }
 
       // Check if tutorial is complete
@@ -296,6 +327,7 @@ export default function TutorialOverlay({
 
     } catch (error) {
       console.error('Error completing step:', error);
+      setValidationWarning('Could not reach the tutorial service — try again.');
     }
   }, [uiState.currentQuest, uiState.currentStep, playerId, onComplete, loadTutorialState]);
 
@@ -337,6 +369,14 @@ export default function TutorialOverlay({
 
   return (
     <>
+      {/* FID-20260909-032 §3-F: inline validation warning (magenta note) */}
+      {uiState.showOverlay && validationWarning && (
+        <div className="nn-note" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 45%, transparent)', margin: '8px 16px' }}>
+          <CircleAlert className="h-4 w-4 flex-none" style={{ color: 'var(--nn-magenta)' }} />
+          <span>{validationWarning}</span>
+        </div>
+      )}
+
       {/* Tutorial Progress Bar (top of screen) — NEON NOIR .nn-banner:
           quiet glass tab under the nav, violet signal, sample .nn-meter. */}
       {uiState.showOverlay && (

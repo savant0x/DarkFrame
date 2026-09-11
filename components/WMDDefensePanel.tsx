@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { Shield } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError } from '@/lib/toastService';
+import { extractApiError } from '@/lib/apiClient';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import type { InterceptionSuccessBroadcast } from '@/types/wmd';
 
@@ -94,7 +95,7 @@ export default function WMDDefensePanel() {
         showSuccess(`Deployed ${selectedType} defense battery!`);
         await fetchBatteries();
       } else {
-        showError(data.error || 'Failed to deploy battery');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error deploying battery');
@@ -117,7 +118,7 @@ export default function WMDDefensePanel() {
         showSuccess('Battery repair started!');
         await fetchBatteries();
       } else {
-        showError(data.error || 'Failed to repair battery');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error repairing battery');
@@ -137,7 +138,7 @@ export default function WMDDefensePanel() {
     if (data.success) {
       await fetchBatteries();
     } else {
-      showError(data.error || 'Failed to dismantle battery');
+      showError(extractApiError(data, res.status));
     }
   };
 

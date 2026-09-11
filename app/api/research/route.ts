@@ -1,22 +1,31 @@
 // ============================================================
 // FILE: app/api/research/route.ts
 // CREATED: 2025-01-18
-// LAST MODIFIED: 2025-10-18
+// LAST MODIFIED: 2026-09-09 (FID-20260909-029 §2.2: Mongo-zombie migration —
+//   the route previously ran through the Mongo compat seam spending a phantom
+//   `gold` field and writing a phantom `unlockedTechnologies` array, so every
+//   unlock failed "Insufficient gold" and no unlock ever persisted. Now:
+//   Drizzle/Postgres, RP via the audited spendResearchPoints (the same
+//   currency WMD research spends, per docs/CHANGELOG_RP_OVERHAUL.md), and the
+//   real players.unlockedTechs jsonb column. Session identity enforced on GET
+//   (query username no longer trusted). logTechUnlock telemetry wired.)
 // ============================================================
 // OVERVIEW:
 // API endpoint for researching technologies. Handles starting research,
-// checking prerequisites, deducting costs, and updating player's
+// checking prerequisites, deducting RP costs, and updating player's
 // unlocked technologies.
-// Protected by middleware - authentication is handled at the middleware level.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import type { Player } from '@/types/game.types';
-import { 
-  withRequestLogging, 
-  createRouteLogger, 
+import { spendResearchPoints } from '@/lib/xpService';
+import { logTechUnlock } from '@/lib/activityLogger';
+import {
+  withRequestLogging,
+  createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
   ResearchTechSchema,
@@ -29,6 +38,8 @@ import { ZodError } from 'zod';
 
 // ============================================================
 // TECHNOLOGY DEFINITIONS
+// (Costs are RP per the RP economy; curve tuning is tracked in
+//  FID-20260909-029 §7 as an operator decision.)
 // ============================================================
 
 interface Technology {
@@ -85,19 +96,17 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
 /**
  * POST /api/research
- * 
- * Start researching a technology
- * 
+ *
+ * Research (unlock) a technology for the authenticated player.
+ *
  * Request Body:
  * - technologyId: string - ID of technology to research
- * - username: string - Player username
- * 
+ *
  * Response:
  * - success: boolean
  * - message: string
- * - player: updated player object (if successful)
- * 
- * Note: Authentication handled by Next.js middleware
+ * - researchPoints: number - RP balance after the spend (if successful)
+ * - technology: { id, name }
  */
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('ResearchAPI');
@@ -109,14 +118,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     if (!authUser?.username) {
       return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
     }
+    const username = authUser.username;
 
     const body = await request.json();
     const validated = ResearchTechSchema.parse(body);
-    const username = authUser.username;
 
-    log.debug('Research request', { 
+    log.debug('Research request', {
       username,
-      technologyId: validated.technologyId 
+      technologyId: validated.technologyId
     });
 
     // Validate technology exists
@@ -128,31 +137,27 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Connect to database
-    const client = await clientPromise;
-    const db = client.db('darkframe');
-    const playersCollection = db.collection<Player & { unlockedTechnologies?: string[]; gold?: number }>('players');
+    // Fetch the player's unlock state (Postgres)
+    const playerRows = await db
+      .select({ unlockedTechs: players.unlockedTechs })
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1);
 
-    // Fetch player by session username
-    const player = await playersCollection.findOne({
-      username,
-    });
-
-    if (!player) {
-      log.warn('Player not found', { username: username });
+    if (playerRows.length === 0) {
+      log.warn('Player not found', { username });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'Player not found'
       });
     }
 
-    // Initialize technologies array if it doesn't exist
-    const unlockedTechnologies = player.unlockedTechnologies || [];
+    const unlockedTechnologies = playerRows[0].unlockedTechs ?? [];
 
     // Check if already unlocked
     if (unlockedTechnologies.includes(validated.technologyId)) {
-      log.debug('Technology already unlocked', { 
-        username: username, 
-        technologyId: validated.technologyId 
+      log.debug('Technology already unlocked', {
+        username,
+        technologyId: validated.technologyId
       });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
         message: 'Technology already unlocked'
@@ -163,10 +168,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     for (const prereqId of technology.prerequisites) {
       if (!unlockedTechnologies.includes(prereqId)) {
         const prereq = TECHNOLOGIES[prereqId];
-        log.debug('Prerequisite not met', { 
-          username: username,
+        log.debug('Prerequisite not met', {
+          username,
           required: prereqId,
-          name: prereq?.name 
+          name: prereq?.name
         });
         return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
           message: `Prerequisite not met: ${prereq?.name || prereqId}`
@@ -174,53 +179,51 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }
 
-    // Check if player has enough gold
-    if ((player.gold ?? 0) < technology.cost) {
-      log.debug('Insufficient gold', { 
-        username: username,
-        required: technology.cost,
-        available: player.gold 
-      });
-      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: `Insufficient gold. Required: ${technology.cost}, Available: ${player.gold ?? 0}`
-      });
-    }
-
-    // Deduct gold and unlock technology atomically
-    const updateResult = await playersCollection.updateOne(
-      { username: username },
-      {
-        $inc: { gold: -technology.cost },
-        $push: { unlockedTechnologies: validated.technologyId },
-        $set: { lastUpdated: new Date() },
-      }
+    // Spend RP via the audited economy service (same currency and path as
+    // WMD research). Refuses with a message when the balance is short.
+    const spend = await spendResearchPoints(
+      username,
+      technology.cost,
+      `Technology research: ${technology.name}`
     );
 
-    if (updateResult.modifiedCount === 0) {
-      log.error('Failed to update player', new Error('Database update failed'), {
-        username: username,
-        technologyId: validated.technologyId
+    if (!spend.success) {
+      log.debug('Insufficient RP', {
+        username,
+        required: technology.cost,
+        message: spend.message
       });
-      return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
-        message: 'Failed to update player'
+      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
+        message: spend.message
       });
     }
 
-    // Fetch updated player
-    const updatedPlayer = await playersCollection.findOne({
-      username: username,
+    // Persist the unlock onto the real column
+    const updatedTechs = [...unlockedTechnologies, validated.technologyId];
+    await db
+      .update(players)
+      .set({ unlockedTechs: updatedTechs })
+      .where(eq(players.username, username));
+
+    // Anti-cheat telemetry (FID-20260909-029 §2.4): this logger previously
+    // had zero call sites. Logging failures are swallowed by the logger.
+    const sessionId = request.cookies.get('sessionId')?.value || 'unknown';
+    await logTechUnlock(username, sessionId, technology.id, {
+      metal: 0,
+      energy: 0
     });
 
-    log.info('Technology researched successfully', { 
-      username: username,
+    log.info('Technology researched successfully', {
+      username,
       technology: technology.name,
-      cost: technology.cost
+      cost: technology.cost,
+      newBalance: spend.newBalance
     });
 
     return NextResponse.json({
       success: true,
       message: `Successfully researched ${technology.name}`,
-      player: updatedPlayer,
+      researchPoints: spend.newBalance,
       technology: {
         id: technology.id,
         name: technology.name,
@@ -246,45 +249,33 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
 /**
  * GET /api/research
- * 
- * Get player's unlocked technologies
- * 
- * Query Parameters:
- * - username: string - Player username
- * 
+ *
+ * Get the authenticated player's unlocked technologies.
+ *
  * Response:
  * - success: boolean
  * - unlockedTechnologies: string[] - Array of unlocked technology IDs
- * 
- * Note: Authentication handled by Next.js middleware
+ *   (wire key kept for consumer compatibility)
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Authentication is handled by middleware - no need to check here
-
-    // Get username from query parameters
-    const searchParams = request.nextUrl.searchParams;
-    const username = searchParams.get('username');
-
-    if (!username) {
+    // Session identity — the query-string username is no longer trusted
+    // (FID-20260904-005 §5.1 pattern).
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
       return NextResponse.json(
-        { success: false, error: 'Username is required' },
-        { status: 400 }
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
-    // Connect to database
-    const client = await clientPromise;
-    const db = client.db('darkframe');
-    const playersCollection = db.collection<Player & { unlockedTechnologies?: string[]; gold?: number }>('players');
+    const rows = await db
+      .select({ unlockedTechs: players.unlockedTechs })
+      .from(players)
+      .where(eq(players.username, authUser.username))
+      .limit(1);
 
-    // Fetch player by username
-    const player = await playersCollection.findOne(
-      { username: username },
-      { projection: { unlockedTechnologies: 1 } }
-    );
-
-    if (!player) {
+    if (rows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Player not found' },
         { status: 404 }
@@ -293,10 +284,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      unlockedTechnologies: player.unlockedTechnologies || [],
+      unlockedTechnologies: rows[0].unlockedTechs ?? [],
     });
   } catch (error) {
-    console.error('❌ Research GET API error:', error);
+    console.error('Research GET API error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch technologies' },
       { status: 500 }
@@ -307,12 +298,11 @@ export async function GET(request: NextRequest) {
 // ============================================================
 // IMPLEMENTATION NOTES:
 // ============================================================
-// - POST: Research a technology (deduct gold, check prerequisites, unlock)
-// - GET: Retrieve player's unlocked technologies
-// - Validates prerequisites before allowing research
-// - Deducts gold cost from player balance
-// - Adds technology to unlockedTechnologies array
-// - Technologies stored as array of IDs in player document
+// - POST: Research a technology (check prerequisites, spend RP, unlock)
+// - GET: Retrieve the authenticated player's unlocked technologies
+// - RP is the research currency (docs/CHANGELOG_RP_OVERHAUL.md); the WMD
+//   research system shares it via the same spendResearchPoints service
+// - Technologies persist on players.unlockedTechs (jsonb, migration-free)
 // - Troop Transport enables fast travel (5 spaces movement)
 // - Future: Add research time/queue system
 // ============================================================

@@ -12,6 +12,7 @@ import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { User, Mail, Lock, ShieldCheck, KeyRound } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 // Strength tiers — semantic signal mapping (weak=magenta … strong=green).
 // glow only on strong per the glow discipline.
@@ -95,7 +96,7 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (data.success) {
-        console.log('✅ Registration successful, redirecting to game...');
+        logger.debug('Registration successful, redirecting to game');
         router.push('/game');
       } else {
         // Extract message from error object (API returns {code, message, timestamp, stack})

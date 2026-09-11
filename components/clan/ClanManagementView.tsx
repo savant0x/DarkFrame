@@ -46,7 +46,7 @@ import {
   
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Clan } from '@/types/clan.types';
+import { CLAN_CONSTANTS, type Clan } from '@/types/clan.types';
 import { ClanRole } from '@/types/clan.types';
 import type { SanitizedPlayer } from '@/types/game.types';
 import ClanMembersPanel from './ClanMembersPanel';
@@ -192,33 +192,41 @@ function NoClanView({ onCreateClick, onJoinClick }: NoClanViewProps) {
 
         <div className="nn-divider"  />
 
+        {/* Create / Join — nn-panel action cards (FID-029 §2.1: gradient slabs
+            removed; create card shows the REAL service cost from CLAN_CONSTANTS,
+            not a stale literal) */}
         <div>
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             <button
               onClick={onCreateClick}
-              className="bg-gradient-to-br from-[color:var(--nn-violet)] to-[color:var(--nn-cyan)] border-2 border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] rounded-none p-8 transition-all hover:scale-105 group"
+              className="nn-panel text-left p-6 group"
             >
-              <Crown className="w-12 h-12 text-[color:var(--nn-amber)] mx-auto mb-4 group-hover:scale-110 transition-transform" />
-              <h3 className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">Create New Clan</h3>
+              <div className="flex items-center gap-3 mb-3">
+                <Crown className="w-5 h-5" style={{ color: 'var(--nn-amber)' }} />
+                <h3 className="nn-panel__title" style={{ fontSize: 16 }}>Create New Clan</h3>
+              </div>
               <p className="nn-text-secondary text-sm mb-4">
                 Found your own clan and lead it to glory. Recruit members and build your empire.
               </p>
-              <div className="text-sm text-[color:var(--nn-cyan)]">
-                Cost: 50K Metal + 50K Energy + 100 RP
+              <div className="flex items-center gap-2">
+                <span className="nn-chip nn-chip--violet">{CLAN_CONSTANTS.CREATION_COST.metal.toLocaleString()} Metal</span>
+                <span className="nn-chip nn-chip--violet">{CLAN_CONSTANTS.CREATION_COST.energy.toLocaleString()} Energy</span>
               </div>
             </button>
-            
+
             <button
               onClick={onJoinClick}
-              className="bg-gradient-to-br from-[color:var(--nn-cyan)] to-[color:var(--nn-green)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)] rounded-none p-8 transition-all hover:scale-105 group"
+              className="nn-panel text-left p-6 group"
             >
-              <UserPlus className="w-12 h-12 text-[color:var(--nn-cyan)] mx-auto mb-4 group-hover:scale-110 transition-transform" />
-              <h3 className="text-2xl font-bold text-[color:var(--nn-text-primary)] mb-2">Join Existing Clan</h3>
+              <div className="flex items-center gap-3 mb-3">
+                <UserPlus className="w-5 h-5" style={{ color: 'var(--nn-cyan)' }} />
+                <h3 className="nn-panel__title" style={{ fontSize: 16 }}>Join Existing Clan</h3>
+              </div>
               <p className="nn-text-secondary text-sm mb-4">
                 Browse and join established clans. Find your place among fellow commanders.
               </p>
-              <div className="text-sm text-[color:var(--nn-cyan)]">
-                Free to join
+              <div className="flex items-center gap-2">
+                <span className="nn-chip nn-chip--green">Free to join</span>
               </div>
             </button>
           </div>
@@ -281,13 +289,17 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
   const [nameAvailable, setNameAvailable] = useState<boolean | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    description: '',
-    isPublic: true,
-    minLevel: 1
+    description: ''
   });
+  // FID-20260909-029 §2.1: required by CreateClanSchema (2–5, A-Z0-9; service
+  // allows 2–6) — the in-game form previously never sent one.
+  const [tag, setTag] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const CREATION_COSTS = { metal: 50000, energy: 50000, researchPoints: 100 };
+  // FID-20260909-029 §2.1: single source of truth — the service charges
+  // CLAN_CONSTANTS.CREATION_COST (1.5M/1.5M, no RP). The old literal
+  // ({50K, 50K, 100 RP}) was dead pricing that produced false "Insufficient RP".
+  const CREATION_COSTS = CLAN_CONSTANTS.CREATION_COST;
 
   const validateName = (name: string): string | null => {
     if (name.length < 3) return 'Name must be at least 3 characters';
@@ -336,9 +348,9 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
     const nameError = validateName(formData.name);
     if (nameError) newErrors.name = nameError;
     if (nameAvailable === false) newErrors.name = 'Clan name already taken';
+    if (!tag || tag.length < 2) newErrors.submit = 'Clan tag must be at least 2 characters';
     if (player.resources.metal < CREATION_COSTS.metal) newErrors.submit = 'Insufficient metal';
     if (player.resources.energy < CREATION_COSTS.energy) newErrors.submit = 'Insufficient energy';
-    if (player.researchPoints < CREATION_COSTS.researchPoints) newErrors.submit = 'Insufficient RP';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -350,13 +362,13 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
       const response = await fetch('/api/clan/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // FID-20260909-029 §2.1: CreateClanSchema requires `tag` and strips
+        // everything else — the old isPublic/minLevel/minPower fields never
+        // persisted (no columns) and tag's absence 400'd every submit.
         body: JSON.stringify({
-          username: player.username,
           name: formData.name.trim(),
-          description: formData.description.trim(),
-          isPublic: formData.isPublic,
-          minLevel: formData.minLevel,
-          minPower: 0
+          tag: tag.trim(),
+          description: formData.description.trim()
         })
       });
 
@@ -375,8 +387,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
   };
 
   const canAfford = player.resources.metal >= CREATION_COSTS.metal &&
-    player.resources.energy >= CREATION_COSTS.energy &&
-    player.researchPoints >= CREATION_COSTS.researchPoints;
+    player.resources.energy >= CREATION_COSTS.energy;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -406,7 +417,7 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
               <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />
               Creation Cost
             </h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="text-center">
                 <div className="text-xs nn-text-secondary mb-1">Metal</div>
                 <div className={`text-xl font-bold ${player.resources.metal >= CREATION_COSTS.metal ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
@@ -420,13 +431,6 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
                   {CREATION_COSTS.energy.toLocaleString()}
                 </div>
                 <div className="text-xs nn-text-secondary">Have: {player.resources.energy.toLocaleString()}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xs nn-text-secondary mb-1">RP</div>
-                <div className={`text-xl font-bold ${player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
-                  {CREATION_COSTS.researchPoints}
-                </div>
-                <div className="text-xs nn-text-secondary">Have: {player.researchPoints}</div>
               </div>
             </div>
           </div>
@@ -493,45 +497,20 @@ function CreateClanView({ player, onBack, onSuccess }: CreateClanViewProps) {
             </div>
           </div>
 
-          {/* Privacy & Min Level */}
+          {/* Clan Tag (schema-required: 2–5 chars, A-Z0-9) */}
           <div>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">Privacy</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleChange('isPublic', true)}
-                    className={`flex-1 px-4 py-3 rounded-none border text-sm font-medium transition-colors ${
-                      formData.isPublic ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]' : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
-                    }`}
-                  >
-                    Public
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleChange('isPublic', false)}
-                    className={`flex-1 px-4 py-3 rounded-none border text-sm font-medium transition-colors ${
-                      !formData.isPublic ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]' : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
-                    }`}
-                  >
-                    Private
-                  </button>
-                </div>
-                <p className="text-xs nn-text-secondary mt-1">{formData.isPublic ? 'Anyone can join' : 'Requires approval'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">Minimum Level</label>
-                <input
-                  type="number"
-                  value={formData.minLevel}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('minLevel', parseInt(e.target.value) || 1)}
-                  min={1}
-                  max={50}
-                  className="w-full px-4 py-3 nn-surface border border-[color:var(--nn-glass-border)] rounded-none text-[color:var(--nn-text-primary)] placeholder-text-secondary focus:outline-none focus:border-cyan-500 transition-colors"
-                />
-              </div>
-            </div>
+            <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
+              Clan Tag <span className="text-[color:var(--nn-magenta)]">*</span>
+            </label>
+            <input
+              type="text"
+              value={tag}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTag(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5))}
+              placeholder="e.g. DW (2-5 letters/numbers)"
+              maxLength={5}
+              className="nn-input w-full"
+            />
+            <p className="text-xs nn-text-secondary mt-1">Short identifier shown next to your clan name. 2–5 uppercase letters/numbers.</p>
           </div>
 
           {/* Error Message */}

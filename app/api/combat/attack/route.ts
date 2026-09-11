@@ -25,13 +25,16 @@ import {
 } from '@/lib';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { verifyPresence } from '@/lib/presenceCheck';
+import { logAttack } from '@/lib/activityLogger';
 import { resolveBattle, persistBattleLog } from '@/lib/battleService';
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
-import { getBeerBaseConfig } from '@/lib/beerBaseService';
+import { getBeerBaseConfig, removeBeerBase } from '@/lib/beerBaseService';
+import { updateReputation } from '@/lib/botCombatService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
+import type { BotConfig } from '@/types/game.types';
+import { eq } from 'drizzle-orm';
 import { BattleType, UnitType } from '@/types';
 import type { Player, PlayerUnit, Unit } from '@/types/game.types';
 
@@ -105,18 +108,29 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED, { message: 'Authentication required' });
     }
 
-    const { defender } = await request.json();
+    const { defender, resource } = await request.json();
     if (!defender || typeof defender !== 'string') {
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Missing field: defender' });
     }
+    // FID-20260910-038 D4 (design: dev/archive/FID-20251017-023): a base raid
+    // declares WHICH stockpile it is looting — metal or energy. Optional on
+    // the wire (absent = legacy loot-both behavior) but the UI always sends it.
+    if (resource !== undefined && resource !== 'metal' && resource !== 'energy') {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'resource must be "metal" or "energy"' });
+    }
 
     // Load the base row for position + garrison.
+    // FID-20260909-037: any bot base is attackable — Beer Bases (special)
+    // AND the regular specializations (Hoarder/Fortress/Raider/Ghost/
+    // Balanced/Boss). Regular bots follow the doc's Full Permanence model:
+    // defeat strips their resources but they remain on the map and regrow
+    // (lib/botCombatService.processBotAttack implements the same semantics).
     const [base] = await db.select().from(players).where(eq(players.username, defender)).limit(1);
     if (!base) {
-      return NextResponse.json({ success: false, victory: false, message: 'Beer Base not found' }, { status: 404 });
+      return NextResponse.json({ success: false, victory: false, message: 'Base not found' }, { status: 404 });
     }
-    if (!base.isSpecialBase) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target is not a Beer Base' });
+    if (!base.isBot) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target is not a hostile base' });
     }
 
     // Presence: must be standing on the base's tile (DB position).
@@ -161,11 +175,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // FID-20260906-006a R1/R3/R5: real crediting, base removal, doc-faithful XP.
     if (battleLog.outcome === 'ATTACKER_WIN') {
-      // 1) Loot = base resources × configured multiplier (doc: Beer Base 3×).
+      // 1) Loot = base resources × multiplier. Beer Bases keep the doc's
+      //    premium 3× (config-driven); regular bot bases pay the plain 1× loot.
+      //    FID-038 D4: the raid's declared resource (metal/energy) selects the
+      //    stockpile — the other one is left untouched for the next raider.
+      const isBeerBase = base.isSpecialBase === 1;
       const config = await getBeerBaseConfig();
-      const multiplier = Math.max(1, config.resourceMultiplier || 3);
-      const lootMetal = Math.floor(Number(base.resourcesMetal || 0) * multiplier);
-      const lootEnergy = Math.floor(Number(base.resourcesEnergy || 0) * multiplier);
+      const multiplier = isBeerBase ? Math.max(1, config.resourceMultiplier || 3) : 1;
+      const lootMetal = resource && resource !== 'metal' ? 0 : Math.floor(Number(base.resourcesMetal || 0) * multiplier);
+      const lootEnergy = resource && resource !== 'energy' ? 0 : Math.floor(Number(base.resourcesEnergy || 0) * multiplier);
       const tierNumber = baseTierIndex(defender);
 
       // 2) Credit the attacker (codebase pattern: BigInt math, Number() write —
@@ -178,18 +196,49 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         })
         .where(eq(players.username, auth.username));
 
-      // 3) Remove the defeated base (shim-free replacement for removeBeerBase R3),
-      //    gated on isBot + isSpecialBase (smallint columns: 1) so a player row
-      //    can never be deleted.
-      await db.delete(players).where(and(eq(players.username, defender), eq(players.isBot, 1), eq(players.isSpecialBase, 1)));
+      // 3) Post-victory base state. Beer Bases are removed entirely (tile
+      //    claim released — FID-20260909-030). Regular bots are Full
+      //    Permanence: resources zeroed, defeat/reputation bookkeeping, and
+      //    the regen timer reset so the growth cycle rebuilds them.
+      if (isBeerBase) {
+        try {
+          await removeBeerBase(defender);
+        } catch (removeError) {
+          log.warn('Beer Base removal after victory failed (loot already credited)', removeError as Error);
+        }
+      } else {
+        try {
+          const bot = (base.botConfig ?? {}) as unknown as { defeatedCount?: number } & Record<string, unknown>;
+          const defeatedCount = (bot.defeatedCount ?? 0) + 1;
+          const botConfig = {
+            ...bot,
+            lastDefeated: new Date(),
+            defeatedCount,
+            reputation: updateReputation(defeatedCount),
+            revengeTarget: auth.username,
+            lastResourceRegen: new Date(),
+          } as unknown as BotConfig;
+          await db.update(players)
+            .set({
+              resourcesMetal: 0,
+              resourcesEnergy: 0,
+              botConfig,
+            })
+            .where(eq(players.username, defender));
+        } catch (updateError) {
+          log.warn('Regular bot defeat bookkeeping failed (loot already credited)', updateError as Error);
+        }
+      }
 
-      // 4) Analytics (unchanged contract).
-      try {
-        const spawnTime = base.createdAt;
-        const timeAliveSeconds = Math.floor((battleLog.timestamp.getTime() - (spawnTime ? spawnTime.getTime() : Date.now())) / 1000);
-        await recordDefeatEvent(tierNumber - 1, auth.username, { metal: lootMetal, energy: lootEnergy }, timeAliveSeconds);
-      } catch (analyticsError) {
-        log.warn('Beer Base analytics failed (battle still resolved)', analyticsError as Error);
+      // 4) Analytics (Beer funnel only — regular bots have no spawn funnel).
+      if (isBeerBase) {
+        try {
+          const spawnTime = base.createdAt;
+          const timeAliveSeconds = Math.floor((battleLog.timestamp.getTime() - (spawnTime ? spawnTime.getTime() : Date.now())) / 1000);
+          await recordDefeatEvent(tierNumber - 1, auth.username, { metal: lootMetal, energy: lootEnergy }, timeAliveSeconds);
+        } catch (analyticsError) {
+          log.warn('Beer Base analytics failed (battle still resolved)', analyticsError as Error);
+        }
       }
 
       // 5) Doc-faithful XP: BASE_ATTACK_WIN = 400 (awardXP applies flag doubling).
@@ -201,8 +250,26 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         log.warn('Beer Base win XP failed (loot already credited)', xpError as Error);
       }
 
-      const message = `You defeated Beer Base ${defender} and looted ${lootMetal.toLocaleString()} Metal and ${lootEnergy.toLocaleString()} Energy!`;
-      log.info('Beer Base defeated + looted', { base: defender, by: auth.username, lootMetal, lootEnergy, xpAwarded });
+      // FID-038 D4: message reflects the declared raid resource (both → legacy phrasing).
+      const lootPhrase = resource === 'metal'
+        ? `${lootMetal.toLocaleString()} Metal`
+        : resource === 'energy'
+          ? `${lootEnergy.toLocaleString()} Energy`
+          : `${lootMetal.toLocaleString()} Metal and ${lootEnergy.toLocaleString()} Energy`;
+      const message = isBeerBase
+        ? `You defeated Beer Base ${defender} and looted ${lootPhrase}!`
+        : `You defeated ${defender}'s base and looted ${lootPhrase}! The garrison was routed — the base will regather resources.`;
+      log.info('Bot base defeated + looted', { base: defender, beer: isBeerBase, by: auth.username, lootMetal, lootEnergy, xpAwarded });
+
+      // FID-20260909-029 §2.4: anti-cheat telemetry (was: logger defined,
+      // never wired). Logging failures are swallowed inside the logger.
+      await logAttack(
+        auth.username,
+        request.cookies.get('sessionId')?.value || 'unknown',
+        defender,
+        'success',
+        { metal: lootMetal, energy: lootEnergy }
+      );
 
       return NextResponse.json({
         success: true,
@@ -219,6 +286,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     } catch {
       // Non-fatal — the repel message is the primary response.
     }
+    await logAttack(
+      auth.username,
+      request.cookies.get('sessionId')?.value || 'unknown',
+      defender,
+      'failure'
+    );
+
     return NextResponse.json({
       success: true,
       victory: false,

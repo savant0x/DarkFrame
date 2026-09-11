@@ -26,15 +26,30 @@
 import React, { useState, useEffect, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
+import { GAME_CONSTANTS } from '@/types';
+import { estimateHarvestExpected } from '@/lib/harvestEstimate';
 
 import { useCountUp, useIsMobile } from '@/hooks';
 
 import {
-  User, MapPin, Swords,
+  User, MapPin, Swords, Scale,
   Users, Trophy, Zap, Wrench,
   Clock, TrendingUp, Star, Sparkles, Package, Mountain,
   Gift, Crown, Flag
 } from 'lucide-react';
+
+/** `/api/player/stats` payload slice consumed here (FID-20260909-025).
+ *  Combat Power = (STR+DEF) × balance × clan × discovery × specialization —
+ *  the documented formula in lib/combatPowerService.ts. */
+interface CombatPowerPayload {
+  success: boolean;
+  combatPower?: number;
+  powerBreakdown?: {
+    balanceStatus: string;
+    balanceMultiplier: number;
+    totalCombatMultiplier: number;
+  };
+}
 
 interface StatsPanelProps {
   onClanClick?: () => void;
@@ -134,6 +149,31 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
   const defenseCount = useCountUp(player?.totalDefense || 0, { duration: 1200 });
   const effectivePower = useCountUp((player?.totalStrength || 0) + (player?.totalDefense || 0), { duration: 1500 });
 
+  // Real combat power (server-calculated formula), refetched when the army
+  // changes. Debounced 400ms; on failure the panel falls back to the honest
+  // Base Power readout instead of inventing a number (FID-20260909-025 §4.1).
+  const [powerData, setPowerData] = useState<CombatPowerPayload & { combatPower: number; powerBreakdown: NonNullable<CombatPowerPayload['powerBreakdown']> } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch('/api/player/stats');
+        if (!response.ok) throw new Error(`stats fetch ${response.status}`);
+        const data: CombatPowerPayload = await response.json();
+        if (!cancelled && data.success && typeof data.combatPower === 'number' && data.powerBreakdown) {
+          setPowerData(data as CombatPowerPayload & { combatPower: number; powerBreakdown: NonNullable<CombatPowerPayload['powerBreakdown']> });
+        }
+      } catch {
+        if (!cancelled) setPowerData(null);
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [player?.totalStrength, player?.totalDefense]);
+  const combatPowerCount = useCountUp(powerData?.combatPower ?? 0, { duration: 1500 });
+
   // Fetch clan tag when player has a clan
   useEffect(() => {
     const fetchClanTag = async () => {
@@ -194,18 +234,46 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
     );
   }
 
-  // Calculate total shrine boost
+  // FID-20260910-040: harvest figures come from the shared estimate module —
+  // the exact pipeline `harvestResourceTile` pays through — instead of a
+  // hand-rolled copy that had drifted (wrong base range, no balance term).
+  // Expected values use the uniform roll's mean (1150) for a stable headline.
+  const { HARVEST: { MIN_AMOUNT: HARVEST_MIN, MAX_AMOUNT: HARVEST_MAX } } = GAME_CONSTANTS;
+  const estimateInput = {
+    gatheringBonusPct: 0, // per-resource below
+    temporaryBonusPct: player.activeBoosts?.gatheringBoost || 0,
+    shrineBoosts: player.shrineBoosts ?? [],
+    vip: !!player.vip,
+    vipExpiration: player.vipExpiration ?? null,
+    isFlagBearer: Boolean(isPlayerFlagBearer),
+    totalStrength: player.totalStrength || 0,
+    totalDefense: player.totalDefense || 0,
+  } as const;
+  const baseInput = { ...estimateInput, base: (HARVEST_MIN + HARVEST_MAX) / 2 };
+  const metalEstimate = estimateHarvestExpected({ ...baseInput, gatheringBonusPct: player.gatheringBonus?.metalBonus ?? 0 });
+  const energyEstimate = estimateHarvestExpected({ ...baseInput, gatheringBonusPct: player.gatheringBonus?.energyBonus ?? 0 });
+  const metalExpected = metalEstimate;
+  const energyExpected = energyEstimate;
+  const hasVIP = metalEstimate.terms.vip;
+  // Shrine Buffs panel terms (display only — the estimate module does its own
+  // filtering for yield math).
   const activeBoosts = player.shrineBoosts?.filter(boost =>
     new Date(boost.expiresAt) > new Date()
   ) || [];
   const totalShrineBonus = activeBoosts.reduce((sum, boost) => sum + boost.yieldBonus, 0);
-  const hasVIP = !!(player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date());
 
-  // Military balance: percentage splits. Zero army = zero-width fills
-  // (a 50% split on 0/0 power read as a phantom half-filled bar).
+  // Military balance: the meters ARE the STR/DEF share of total army — labeled
+  // as such with a per-row percentage (the pre-FID-012 balance pill semantics,
+  // restored). Zero army = zero-width fills (a 50% split on 0/0 power read as a
+  // phantom half-filled bar).
   const totalPower = (player.totalStrength ?? 0) + (player.totalDefense ?? 0);
   const meterStrWidth = totalPower > 0 ? (player.totalStrength / totalPower) * 100 : 0;
   const meterDefWidth = totalPower > 0 ? (player.totalDefense / totalPower) * 100 : 0;
+  const balanceStatus = player.balanceEffects?.status;
+  const balanceColor =
+    balanceStatus === 'OPTIMAL' ? 'var(--nn-green)' :
+    balanceStatus === 'BALANCED' ? 'var(--nn-text-secondary)' :
+    'var(--nn-amber)';
 
   // XP progress for the sample-style meter
   const xp = player.xpProgress;
@@ -379,21 +447,46 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
         </div>
       </HudPanel>
 
-      {/* Military Power — two labeled meters per sample §02 */}
+      {/* Military Power — balance-share meters + formula-derived combat power.
+          The bars show each stat's share of the total army (balance), labeled
+          with its percentage; Combat Power is the server-calculated formula
+          result (FID-20260909-025 §4.1). */}
       <HudPanel accent="var(--nn-cyan)" icon={<Swords />} title="Military Power" meta="ORDER OF BATTLE">
         <MeterBlock
           seg="str"
-          label="STRENGTH"
+          label={`STRENGTH · ${Math.round(meterStrWidth)}%`}
           value={Math.round(strengthCount).toLocaleString()}
           pct={meterStrWidth}
         />
         <MeterBlock
           seg="def"
-          label="DEFENSE"
+          label={`DEFENSE · ${Math.round(meterDefWidth)}%`}
           value={Math.round(defenseCount).toLocaleString()}
           pct={meterDefWidth}
         />
-        <Row label="Total Power" value={Math.round(effectivePower).toLocaleString()} />
+        {balanceStatus && player.balanceEffects && (
+          <Row
+            icon={<Scale />}
+            label="Balance"
+            value={
+              <span style={{ color: balanceColor }}>
+                {balanceStatus} ×{player.balanceEffects.powerMultiplier.toFixed(2)}
+              </span>
+            }
+          />
+        )}
+        {powerData ? (
+          <Row
+            label="Combat Power"
+            value={
+              <span style={{ color: 'var(--nn-cyan)' }} title={`Base ${Math.round(effectivePower).toLocaleString()} × ${powerData.powerBreakdown.totalCombatMultiplier.toFixed(2)} multipliers`}>
+                {Math.round(combatPowerCount).toLocaleString()}
+              </span>
+            }
+          />
+        ) : (
+          <Row label="Base Power" value={Math.round(effectivePower).toLocaleString()} />
+        )}
 
         {player.balanceEffects && player.balanceEffects.status !== 'BALANCED' && player.balanceEffects.status !== 'OPTIMAL' && (
           <div className="nn-note nn-note--caution" style={{ margin: '8px 12px' }}>
@@ -432,138 +525,111 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
           </div>
         )}
 
-        {/* Metal Breakdown */}
+        {/* Metal Breakdown — FID-20260910-040: all figures from the shared
+            estimate module (server-identical pipeline), not hand-rolled math. */}
         <div className="nn-progblock" style={{ paddingTop: 4 }}>
           <span className="nn-lab" style={{ marginBottom: 4 }}><Wrench style={{ width: 12, height: 12, marginRight: 4, verticalAlign: -2 }} /> Metal Node</span>
-          <Row label="Base" value="1,000" />
+          <Row label="Base" value={`${HARVEST_MIN.toLocaleString()}–${HARVEST_MAX.toLocaleString()}`} />
           <Row
             label="Gathering"
-            value={<span style={{ color: 'var(--nn-green)' }}>+{player.gatheringBonus?.metalBonus ?? 0}%</span>}
+            value={<span style={{ color: 'var(--nn-green)' }}>+{metalEstimate.terms.gatheringBonusPct}%</span>}
           />
-          {activeBoosts.length > 0 && (
+          {metalEstimate.terms.shrineBonusPct > 0 && (
             <Row
               icon={<Sparkles />}
               label="Shrine"
-              value={<span style={{ color: 'var(--nn-cyan)' }}>+{(totalShrineBonus * 100).toFixed(0)}%</span>}
+              value={<span style={{ color: 'var(--nn-cyan)' }}>+{metalEstimate.terms.shrineBonusPct.toFixed(0)}%</span>}
             />
           )}
-          {hasVIP && (
+          {metalEstimate.terms.vip && (
             <Row
               icon={<Zap />}
               label="VIP"
               value={<span style={{ color: 'var(--nn-violet)', fontWeight: 700 }}>×2</span>}
             />
           )}
-          {isPlayerFlagBearer && (
+          {metalEstimate.terms.flagBearer && (
             <Row
               icon={<Flag />}
               label="Bearer"
               value={<span style={{ color: 'var(--nn-amber)', fontWeight: 700 }}>+100%</span>}
             />
           )}
+          {metalEstimate.terms.balanceMultiplier !== 1 && (
+            <Row
+              icon={<Scale />}
+              label={`Balance (${metalEstimate.terms.balanceStatus.toLowerCase()})`}
+              value={<span style={{ color: metalEstimate.terms.balanceMultiplier < 1 ? 'var(--nn-magenta)' : 'var(--nn-green)' }}>×{metalEstimate.terms.balanceMultiplier}</span>}
+            />
+          )}
           <hr className="nn-divider" />
           <Row
-            label="Expected"
-            value={<span style={{ color: 'var(--nn-green)', fontWeight: 700 }}>{(() => {
-              let amount = 1000 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
-              if (hasVIP) amount *= 2;
-              if (isPlayerFlagBearer) amount *= 2; // Flag bearer +100% = 2x multiplier
-              return Math.round(amount).toLocaleString();
-            })()}</span>}
+            label={`Expected (avg of ${HARVEST_MIN.toLocaleString()}–${HARVEST_MAX.toLocaleString()})`}
+            value={<span style={{ color: 'var(--nn-green)', fontWeight: 700 }}>{metalExpected.final.toLocaleString()}</span>}
           />
         </div>
 
         <hr className="nn-divider" style={{ margin: '0.5rem 16px' }} />
 
-        {/* Energy Breakdown */}
+        {/* Energy Breakdown — shared-estimate figures (see Metal block) */}
         <div className="nn-progblock" style={{ paddingTop: 0 }}>
           <span className="nn-lab" style={{ marginBottom: 4 }}><Zap style={{ width: 12, height: 12, marginRight: 4, verticalAlign: -2 }} /> Energy Node</span>
-          <Row label="Base" value="1,000" />
+          <Row label="Base" value={`${HARVEST_MIN.toLocaleString()}–${HARVEST_MAX.toLocaleString()}`} />
           <Row
             label="Gathering"
-            value={<span style={{ color: 'var(--nn-green)' }}>+{player.gatheringBonus?.energyBonus ?? 0}%</span>}
+            value={<span style={{ color: 'var(--nn-green)' }}>+{energyEstimate.terms.gatheringBonusPct}%</span>}
           />
-          {activeBoosts.length > 0 && (
+          {energyEstimate.terms.shrineBonusPct > 0 && (
             <Row
               icon={<Sparkles />}
               label="Shrine"
-              value={<span style={{ color: 'var(--nn-cyan)' }}>+{(totalShrineBonus * 100).toFixed(0)}%</span>}
+              value={<span style={{ color: 'var(--nn-cyan)' }}>+{energyEstimate.terms.shrineBonusPct.toFixed(0)}%</span>}
             />
           )}
-          {hasVIP && (
+          {energyEstimate.terms.vip && (
             <Row
               icon={<Zap />}
               label="VIP"
               value={<span style={{ color: 'var(--nn-violet)', fontWeight: 700 }}>×2</span>}
             />
           )}
-          {isPlayerFlagBearer && (
+          {energyEstimate.terms.flagBearer && (
             <Row
               icon={<Flag />}
               label="Bearer"
               value={<span style={{ color: 'var(--nn-amber)', fontWeight: 700 }}>+100%</span>}
             />
           )}
+          {energyEstimate.terms.balanceMultiplier !== 1 && (
+            <Row
+              icon={<Scale />}
+              label={`Balance (${energyEstimate.terms.balanceStatus.toLowerCase()})`}
+              value={<span style={{ color: energyEstimate.terms.balanceMultiplier < 1 ? 'var(--nn-magenta)' : 'var(--nn-green)' }}>×{energyEstimate.terms.balanceMultiplier}</span>}
+            />
+          )}
           <hr className="nn-divider" />
           <Row
-            label="Expected"
-            value={<span style={{ color: 'var(--nn-green)', fontWeight: 700 }}>{(() => {
-              let amount = 1000 * (1 + ((player.gatheringBonus?.energyBonus || 0) / 100)) * (1 + totalShrineBonus);
-              if (hasVIP) amount *= 2;
-              if (isPlayerFlagBearer) amount *= 2; // Flag bearer +100% = 2x multiplier
-              return Math.round(amount).toLocaleString();
-            })()}</span>}
+            label={`Expected (avg of ${HARVEST_MIN.toLocaleString()}–${HARVEST_MAX.toLocaleString()})`}
+            value={<span style={{ color: 'var(--nn-green)', fontWeight: 700 }}>{energyExpected.final.toLocaleString()}</span>}
           />
         </div>
 
         <hr className="nn-divider" style={{ margin: '0.5rem 16px' }} />
 
-        {/* Cave/Forest Breakdown */}
+        {/* Cave / Forest — FID-20260910-040: honest terms. These tiles credit
+            ZERO resources (the old "500–1,500" block was fabricated); they roll
+            digger/tradeable ITEMS instead — 30% cave, 50% forest. */}
         <div className="nn-progblock" style={{ paddingTop: 0 }}>
           <span className="nn-lab" style={{ marginBottom: 4 }}><Mountain style={{ width: 12, height: 12, marginRight: 4, verticalAlign: -2 }} /> Cave / Forest</span>
-          <Row label="Base" value="500–1,500" />
-          <Row
-            label="Gathering"
-            value={<span style={{ color: 'var(--nn-green)' }}>+{player.gatheringBonus?.metalBonus ?? 0}% / +{player.gatheringBonus?.energyBonus ?? 0}%</span>}
-          />
-          {activeBoosts.length > 0 && (
-            <Row
-              icon={<Sparkles />}
-              label="Shrine"
-              value={<span style={{ color: 'var(--nn-cyan)' }}>+{(totalShrineBonus * 100).toFixed(0)}%</span>}
-            />
-          )}
-          {hasVIP && (
-            <Row
-              icon={<Zap />}
-              label="VIP"
-              value={<span style={{ color: 'var(--nn-violet)', fontWeight: 700 }}>×2</span>}
-            />
-          )}
-          {isPlayerFlagBearer && (
-            <Row
-              icon={<Flag />}
-              label="Bearer"
-              value={<span style={{ color: 'var(--nn-amber)', fontWeight: 700 }}>+100%</span>}
-            />
-          )}
-          <hr className="nn-divider" />
-          <Row
-            label="Expected"
-            value={<span style={{ color: 'var(--nn-green)', fontWeight: 700 }}>{(() => {
-              let minAmount = 500 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
-              let maxAmount = 1500 * (1 + ((player.gatheringBonus?.metalBonus || 0) / 100)) * (1 + totalShrineBonus);
-              if (hasVIP) {
-                minAmount *= 2;
-                maxAmount *= 2;
-              }
-              if (isPlayerFlagBearer) {
-                minAmount *= 2; // Flag bearer +100% = 2x multiplier
-                maxAmount *= 2;
-              }
-              return `${Math.round(minAmount).toLocaleString()}–${Math.round(maxAmount).toLocaleString()}`;
-            })()}</span>}
-          />
+          <Row label="Resources" value="None — item drops only" />
+          <Row label="Cave item chance" value={<span style={{ color: 'var(--nn-cyan)' }}>30%</span>} />
+          <Row label="Forest item chance" value={<span style={{ color: 'var(--nn-green)' }}>50%</span>} />
+          <div className="nn-note" style={{ margin: '6px 12px 8px' }}>
+            <span style={{ fontSize: 10.5, lineHeight: 1.5 }}>
+              Drops are diggers (raise the Gathering % above permanently) and
+              tradeables — that&apos;s how these tiles feed your yield.
+            </span>
+          </div>
         </div>
 
         {/* Harvest Cooldown Info */}

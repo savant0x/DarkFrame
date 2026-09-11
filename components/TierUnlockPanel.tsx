@@ -16,6 +16,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { useGameContext } from '@/context/GameContext';
 import { UnitTier, TIER_UNLOCK_REQUIREMENTS } from '@/types/game.types';
 import { toast } from '@/lib/toast';
@@ -219,7 +220,7 @@ export default function TierUnlockPanel() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to unlock tier');
+        throw new Error(extractApiError(data, response.status));
       }
 
       // Success! Show notification and refresh data

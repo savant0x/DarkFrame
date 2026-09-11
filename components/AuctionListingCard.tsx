@@ -12,6 +12,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { AuctionListing, MyBidAuctionView, isMyBidAuctionView, AuctionItemType, AuctionStatus, ResourceType } from '@/types/auction.types';
 import { BidHistoryViewer } from './BidHistoryViewer';
 import { showSuccess, showInfo } from '@/lib/toastService';
@@ -96,7 +97,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
         setBidAmount('');
         onUpdate();
       } else {
-        setError(data.message || 'Failed to place bid');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error placing bid');
@@ -134,7 +135,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
         showSuccess('Purchase successful!');
         onUpdate();
       } else {
-        setError(data.message || 'Failed to buyout');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error during buyout');
@@ -170,7 +171,7 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
         showInfo('Auction cancelled');
         onUpdate();
       } else {
-        setError(data.message || 'Failed to cancel');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error cancelling auction');

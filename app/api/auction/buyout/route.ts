@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logTrade } from '@/lib/activityLogger';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -87,6 +88,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         message: result.message || 'Failed to buyout auction',
         context: { auctionId: validated.auctionId },
       });
+    }
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry (was: logger defined,
+    // never wired). Logging failures are swallowed inside the logger.
+    if (result.trade) {
+      await logTrade(
+        username,
+        request.cookies.get('sessionId')?.value || 'unknown',
+        true,
+        result.trade.sellerUsername,
+        [result.trade.item.itemType],
+        { metal: result.trade.finalPrice }
+      );
     }
 
     log.info('Auction buyout completed', { username, auctionId: validated.auctionId });

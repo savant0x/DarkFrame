@@ -95,11 +95,28 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     // Calculate duration based on item rarities
     const itemsToConsume = tradeable.slice(0, itemCount);
     const durationMinutes = calculateDuration(itemsToConsume);
+    // FID-20260909-028 §2.4: an inventory item with an unknown/legacy rarity
+    // makes RARITY_DURATION_MINUTES[rarity] undefined → the reduce sums to NaN
+    // → calculateDuration passes NaN through Math.min → the route happily
+    // computed expiresAt = Invalid Date, returned 200, and wrote a NaN expiry
+    // into shrine_boosts (a boost that never activates and poisons every
+    // future extension). NaN must be refused HERE, loudly, before any write.
+    if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'Sacrificed items have no valid rarity value. Your inventory contains legacy items that cannot be applied — please contact an admin.'
+      });
+    }
     const durationMs = durationMinutes * 60 * 1000;
     
     // Calculate expiration time
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationMs);
+    // Belt-and-braces: never persist or return a non-finite expiry.
+    if (Number.isNaN(expiresAt.getTime())) {
+      return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
+        message: 'Failed to compute a valid boost expiry'
+      });
+    }
 
     // Check if boost already exists
     const existingBoosts = player.shrineBoosts || [];

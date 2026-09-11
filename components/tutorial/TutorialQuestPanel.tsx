@@ -61,6 +61,12 @@ export default function TutorialQuestPanel({
     'nn-tutorial-dock w-[19rem] max-w-[calc(100vw-2rem)] space-y-2 transition-all duration-300';
   const [currentQuest, setCurrentQuest] = useState<TutorialQuest | null>(null);
   const [currentStep, setCurrentStep] = useState<TutorialStep | null>(null);
+  // FID-20260909-037 egress fix: once the server reports no active quest
+  // (completed / skipped / declined), the poller STOPS instead of firing
+  // /api/tutorial every 3s forever (pg_stat_statements: 128K progress reads +
+  // 130K action-tracking reads in one week from this single loop). Any action
+  // handler that restarts or re-enters the tutorial clears this flag.
+  const [pollTerminal, setPollTerminal] = useState(false);
   const [progress, setProgress] = useState<TutorialProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [stepJustCompleted, setStepJustCompleted] = useState(false);
@@ -82,7 +88,10 @@ export default function TutorialQuestPanel({
    * Load target coordinates for MOVE_TO_COORDS steps
    */
   useEffect(() => {
-    if (currentStep && currentStep.action === 'MOVE_TO_COORDS') {
+    // MOVE_TO_COORDS steps and MOVE steps with a coordinate target (the
+    // tutorial's cave step — FID-20260909-025 §4.3) both carry resolved
+    // targetX/targetY on validationData once the server resolves/persists them.
+    if (currentStep && (currentStep.action === 'MOVE_TO_COORDS' || (currentStep.action === 'MOVE' && !!currentStep.targetCoordinates))) {
       // Check if validationData has static coordinates
       const staticTargetX = currentStep.validationData?.targetX;
       const staticTargetY = currentStep.validationData?.targetY;
@@ -102,7 +111,9 @@ export default function TutorialQuestPanel({
         const pollCoords = async () => {
           if (coordCancelled) return;
           try {
-            const response = await fetch(`/api/tutorial/tracking?playerId=${playerId}&stepId=${currentStep.id}`);
+            // FID-20260909-023 §3.1b: identity is session-derived server-side;
+            // no playerId on the wire.
+            const response = await fetch(`/api/tutorial/tracking?stepId=${currentStep.id}`);
             if (coordCancelled) return;
             if (response.ok) {
               const data = await response.json();
@@ -182,7 +193,8 @@ export default function TutorialQuestPanel({
           setActionTarget(0);
         }
       } else {
-        // Tutorial complete or not started
+        // Tutorial complete or not started — terminal state: stop polling.
+        setPollTerminal(true);
         if (previousQuestRef.current) {
           // Just completed final quest
           setQuestJustCompleted(true);
@@ -210,7 +222,7 @@ export default function TutorialQuestPanel({
   }, [playerId]);
 
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible || pollTerminal) return;
 
     // Self-scheduling poll (same pattern as usePolling flood-fix): one request
     // in flight, next scheduled only after completion, exponential backoff on
@@ -237,7 +249,10 @@ export default function TutorialQuestPanel({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [playerId, isVisible, loadQuestData]);
+    // pollTerminal in deps: flipping to true re-runs this effect, which exits
+    // immediately (polling stops); flipping back to false on a tutorial
+    // restart resumes the loop (FID-20260909-037).
+  }, [playerId, isVisible, loadQuestData, pollTerminal]);
 
   /**
    * Trigger confetti celebration with error handling
@@ -596,8 +611,9 @@ export default function TutorialQuestPanel({
                     {currentStep.instruction}
                   </p>
                   
-                  {/* Show target coordinates for MOVE_TO_COORDS steps */}
-                  {currentStep.action === 'MOVE_TO_COORDS' && targetCoords && (
+                  {/* Show target coordinates for MOVE_TO_COORDS steps and
+                      coordinate-target MOVE steps (cave step) */}
+                  {(currentStep.action === 'MOVE_TO_COORDS' || (currentStep.action === 'MOVE' && !!currentStep.targetCoordinates)) && targetCoords && (
                     <div className="mt-2 rounded-none border px-2 py-1 text-center" style={{ borderColor: 'color-mix(in oklab, var(--nn-violet) 30%, transparent)', background: 'color-mix(in oklab, var(--nn-violet) 10%, transparent)' }}>
                       {currentStep.validationData?.locationName ? (
                         <div className="flex flex-col gap-1">
@@ -615,7 +631,7 @@ export default function TutorialQuestPanel({
                       )}
                     </div>
                   )}
-                  {currentStep.action === 'MOVE_TO_COORDS' && !targetCoords && (
+                  {(currentStep.action === 'MOVE_TO_COORDS' || (currentStep.action === 'MOVE' && !!currentStep.targetCoordinates)) && !targetCoords && (
                     <div className="mt-2 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_12%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_30%,transparent)] px-2 py-1 text-center">
                       <span className="nn-lab">
                         Loading target location…

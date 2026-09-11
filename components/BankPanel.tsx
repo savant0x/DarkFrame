@@ -33,6 +33,7 @@ import { useState } from 'react';
 import { BankStorage, Resources } from '@/types';
 
 import { toast } from '@/lib/toast';
+import { extractApiError } from '@/lib/apiClient';
 import { 
   Building2, 
   ArrowDownToLine, 
@@ -193,7 +194,9 @@ export default function BankPanel({
         setAmount('');
         onTransaction();
       } else {
-        toast.error(data.message || 'Deposit failed');
+        // FID-20260911-041: error bodies carry the reason under error.message
+        // (structured) — data.message only exists on success payloads.
+        toast.error(extractApiError(data, response.status));
       }
     } catch (error) {
       toast.error('Network error - please try again');
@@ -230,7 +233,7 @@ export default function BankPanel({
         setAmount('');
         onTransaction();
       } else {
-        toast.error(data.message || 'Withdrawal failed');
+        toast.error(extractApiError(data, response.status));
       }
     } catch (error) {
       toast.error('Network error - please try again');
@@ -269,7 +272,7 @@ export default function BankPanel({
         setAmount('');
         onTransaction();
       } else {
-        toast.error(data.message || 'Exchange failed');
+        toast.error(extractApiError(data, response.status));
       }
     } catch (error) {
       toast.error('Network error - please try again');

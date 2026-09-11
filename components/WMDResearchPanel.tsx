@@ -20,6 +20,7 @@ import { FlaskConical } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { useGameContext } from '@/context/GameContext';
 import { showSuccess, showError } from '@/lib/toastService';
+import { extractApiError } from '@/lib/apiClient';
 import type { WMDResearchCompletePayload } from '@/types/websocket';
 import type { ResearchTech } from '@/types/wmd';
 
@@ -142,7 +143,7 @@ export default function WMDResearchPanel() {
         showSuccess('Research started successfully!');
         await fetchResearchData();
       } else {
-        showError(data.error || 'Failed to start research');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error starting research');
@@ -166,7 +167,7 @@ export default function WMDResearchPanel() {
         await fetchResearchData();
         await fetchTechTree();
       } else {
-        showError(data.error || 'Failed to spend RP');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error spending RP');

@@ -29,6 +29,7 @@
 
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { logger } from '@/lib/logger';
 import { useGameContext } from '@/context/GameContext';
 import Link from 'next/link';
 import confetti from 'canvas-confetti';
@@ -164,7 +165,7 @@ function SuccessPageContent() {
         playNote(1046.50, now + 0.4, 0.6, 'sine'); // C6 (high note)
         
       } catch (error) {
-        console.log('Audio playback not supported or failed:', error);
+        logger.debug('Audio playback not supported or failed', error);
       }
     };
 
@@ -175,7 +176,7 @@ function SuccessPageContent() {
     // Verify session and activate VIP immediately
     const verifyAndActivateVIP = async () => {
       try {
-        console.log('Verifying checkout session:', sessionId);
+        logger.debug('Verifying checkout session', { sessionId });
         
         const response = await fetch('/api/stripe/verify-session', {
           method: 'POST',
@@ -186,7 +187,7 @@ function SuccessPageContent() {
         const data = await response.json();
         
         if (data.success && data.vipActivated) {
-          console.log('VIP activated successfully!', data.tier);
+          logger.debug('VIP activated successfully', { tier: data.tier });
           await refreshPlayer();
           setVipActivated(true);
         } else {

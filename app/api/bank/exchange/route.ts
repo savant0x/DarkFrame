@@ -23,9 +23,10 @@ import {
 import { ExchangeSchema } from '@/lib/validation/schemas';
 import { ZodError } from 'zod';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { logBanking } from '@/lib/activityLogger';
 import { db } from '@/lib/db';
 import { players, tiles } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import {   TerrainType } from '@/types';
 
 const _EXCHANGE_FEE_RATE = 0.20; // 20% fee
@@ -118,30 +119,49 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Update player resources
-    const newFromAmount = BigInt(currentAmount - validated.amount);
-    const newToAmount = BigInt(Number(validated.fromResource === 'metal' ? Number(player.resourcesEnergy) : Number(player.resourcesMetal)) + receivedAmount);
+    // FID-20260909-026 §2.HIGH: atomic exchange — the debit guard
+    // (`gte(source, amount)`) and both SQL deltas are one statement, so
+    // concurrent exchanges cannot both spend the same balance.
+    const isMetal = validated.fromResource === 'metal';
+    const exchanged = await db.update(players).set(
+      isMetal
+        ? {
+            resourcesMetal: sql`${players.resourcesMetal} - ${validated.amount}`,
+            resourcesEnergy: sql`${players.resourcesEnergy} + ${receivedAmount}`,
+          }
+        : {
+            resourcesEnergy: sql`${players.resourcesEnergy} - ${validated.amount}`,
+            resourcesMetal: sql`${players.resourcesMetal} + ${receivedAmount}`,
+          }
+    )
+      .where(and(eq(players.username, username), isMetal ? gte(players.resourcesMetal, validated.amount) : gte(players.resourcesEnergy, validated.amount)))
+      .returning({ metal: players.resourcesMetal, energy: players.resourcesEnergy });
 
-    if (validated.fromResource === 'metal') {
-      await db.update(players).set({
-        resourcesMetal: Number(newFromAmount),
-        resourcesEnergy: Number(newToAmount),
-      }).where(eq(players.username, username));
-    } else {
-      await db.update(players).set({
-        resourcesEnergy: Number(newFromAmount),
-        resourcesMetal: Number(newToAmount),
-      }).where(eq(players.username, username));
+    if (exchanged.length === 0) {
+      return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
+        message: `Insufficient ${validated.fromResource}`,
+        context: { 
+          need: validated.amount,
+          fromResource: validated.fromResource,
+        },
+      });
     }
 
-    // Get updated player data
-    const updatedPlayerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
-    const updatedPlayer = updatedPlayerResult[0];
-
     const updatedResources = {
-      metal: Number(updatedPlayer!.resourcesMetal),
-      energy: Number(updatedPlayer!.resourcesEnergy),
+      metal: Number(exchanged[0].metal),
+      energy: Number(exchanged[0].energy),
     };
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry — exchange recorded as a
+    // deposit of the received amount (the give side is already reflected in
+    // inventory deltas). Previously this money-path action was invisible to
+    // the admin Activity tab.
+    await logBanking(
+      username,
+      request.headers.get('cookie')?.match(/sessionId=([^;]+)/)?.[1] || 'unknown',
+      true,
+      toResource === 'metal' ? { metal: receivedAmount } : { energy: receivedAmount }
+    );
 
     log.info('Resource exchange completed', { 
       username, 

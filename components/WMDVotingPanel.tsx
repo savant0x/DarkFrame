@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { Vote } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { extractApiError } from '@/lib/apiClient';
 import type { WMDVoteUpdatePayload } from '@/types/websocket';
 
 interface ClanVote {
@@ -97,7 +98,7 @@ export default function WMDVotingPanel() {
         showSuccess(vote ? 'Voted YES' : 'Voted NO');
         await fetchVotes();
       } else {
-        showError(data.error || 'Failed to cast vote');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error casting vote');

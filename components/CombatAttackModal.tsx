@@ -31,6 +31,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { useGameContext } from '@/context/GameContext';
 import { UnitType, UNIT_CONFIGS, BattleResult } from '@/types/game.types';
 import BattleResultModal from './BattleResultModal';
@@ -172,7 +173,8 @@ export default function CombatAttackModal({ isOpen, onClose, onSuccess }: Combat
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to launch attack');
+        // FID-20260911-041: data.error is an OBJECT on structured failures.
+        throw new Error(extractApiError(data, response.status));
       }
 
       // Success! Show battle result

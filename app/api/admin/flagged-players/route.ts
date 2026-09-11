@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
-import { eq } from 'drizzle-orm';
+import { and, eq, or, sql as sqlFn } from 'drizzle-orm';
 import { playerFlags, players } from '@/lib/db/schema';
 import {
   withRequestLogging,
@@ -46,19 +46,29 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const severityFilter = searchParams.get('severity');
     const resolved = searchParams.get('resolved') === 'true';
 
-    const allFlags = await db.select().from(playerFlags);
-
-    const filteredFlags = allFlags.filter((f) => {
-      // Domain columns (migration 0007) with details-jsonb fallback for legacy rows.
-      const details = (f.details || {}) as Record<string, unknown>;
-      const flagType = f.flagType ?? details.flagType;
-      const severity = f.severity ?? details.severity;
-      const isResolved = f.resolved === 1 || details.resolved === true;
-      if (flagTypeFilter && flagType !== flagTypeFilter) return false;
-      if (severityFilter && severity !== severityFilter) return false;
-      if (isResolved !== resolved) return false;
-      return true;
-    });
+    // FID-20260909-027 §3.3: filters moved from JS post-processing into the WHERE
+    // clause. Domain columns (migration 0007) keep their details-jsonb fallback for
+    // legacy rows, expressed in SQL so both generations match without a full scan.
+    const flagConditions = [];
+    if (flagTypeFilter) {
+      flagConditions.push(
+        or(eq(playerFlags.flagType, flagTypeFilter), sqlFn`${playerFlags.details}->>'flagType' = ${flagTypeFilter}`)
+      );
+    }
+    if (severityFilter) {
+      flagConditions.push(
+        or(eq(playerFlags.severity, severityFilter), sqlFn`${playerFlags.details}->>'severity' = ${severityFilter}`)
+      );
+    }
+    if (resolved) {
+      flagConditions.push(
+        or(eq(playerFlags.resolved, 1), sqlFn`${playerFlags.details}->>'resolved' = 'true'`)
+      );
+    }
+    const filteredFlags = await db
+      .select()
+      .from(playerFlags)
+      .where(flagConditions.length > 0 ? and(...flagConditions) : undefined);
 
     interface FlagGroup {
       username: string;

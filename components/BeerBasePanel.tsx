@@ -17,6 +17,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { formatNumberAbbreviated } from '@/utils/formatting';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
+import { extractApiError } from '@/lib/apiClient';
 
 /** Full intel — served only when the player is standing on the base tile. */
 interface BeerBaseScanned {
@@ -170,6 +171,13 @@ export default function BeerBasePanel() {
       });
 
       const data: AttackResult = await response.json();
+      if (!response.ok) {
+        // FID-20260911-041: structured rejections ({ error: { message } }) previously
+        // rendered as an empty modal — surface the server's actual reason.
+        data.success = false;
+        data.victory = false;
+        data.message = extractApiError(data, response.status);
+      }
       setAttackResult(data);
 
       // Refresh list after attack

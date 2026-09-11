@@ -30,6 +30,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { MessageType } from '@/lib/clanChatService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
@@ -79,7 +80,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load messages');
+        throw new Error(extractApiError(data, response.status));
       }
       
       setMessages(data.messages.reverse());
@@ -142,7 +143,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load more messages');
+        throw new Error(extractApiError(data, response.status));
       }
       
       if (data.messages.length === 0) {
@@ -179,7 +180,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send message');
+        throw new Error(extractApiError(data, response.status));
       }
       
       // Add message to list
@@ -221,7 +222,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to edit message');
+        throw new Error(extractApiError(data, response.status));
       }
       
       // Update message in list
@@ -246,7 +247,7 @@ export function ClanChatPanel({ clanId, playerId, role }: ClanChatPanelProps) {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete message');
+        throw new Error(extractApiError(data, response.status));
       }
       
       // Remove message from list

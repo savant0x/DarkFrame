@@ -29,7 +29,7 @@ export async function GET(_request: NextRequest) {
   try {
     // Verify admin access
     const user = await getAuthenticatedUser();
-    if (!user) {
+    if (!user || !user.isAdmin) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
@@ -60,14 +60,12 @@ export async function POST(_request: NextRequest) {
   try {
     // Verify admin access
     const user = await getAuthenticatedUser();
-    if (!user) {
+    if (!user || !user.isAdmin) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
-
-    // Verify admin role
     if (user.isAdmin !== true) {
       return NextResponse.json(
         { success: false, message: 'Admin access required' },
@@ -108,14 +106,12 @@ export async function PUT(request: NextRequest) {
   try {
     // Verify admin access
     const user = await getAuthenticatedUser();
-    if (!user) {
+    if (!user || !user.isAdmin) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized' },
         { status: 401 }
       );
     }
-
-    // Verify admin role
     if (user.isAdmin !== true) {
       return NextResponse.json(
         { success: false, message: 'Admin access required' },
@@ -197,7 +193,6 @@ export async function PUT(request: NextRequest) {
 //   - respawnHour: 0-23
 //   - enabled: true/false
 // 
-// TODO: Add proper admin role verification
-// Currently any authenticated user can access these endpoints
-// Should restrict to users with admin: true flag
+// FID-20260909-023 §3.2: all handlers require the session's isAdmin claim
+// (getAuthenticatedUser + isAdmin), resolving the former TODO.
 // ============================================================

@@ -68,9 +68,10 @@ export async function GET(req: NextRequest) {
     const startDate = startDateParam ? new Date(startDateParam) : undefined;
     const endDate = endDateParam ? new Date(endDateParam) : undefined;
     
-    // Authorization check for global stats (admin only)
-    // TODO: Add proper admin role check from database
-    const isAdmin = false; // Replace with actual admin check
+    // Authorization check for global stats (admin only).
+    // FID-20260909-023 §3.2: honor the session's isAdmin claim instead of a
+    // stubbed false — the same trust anchor every other route uses.
+    const isAdmin = payload.isAdmin === true;
     
     if (type !== 'player' && !isAdmin) {
       return NextResponse.json(

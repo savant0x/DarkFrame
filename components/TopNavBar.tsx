@@ -157,7 +157,11 @@ export default function TopNavBar({
     };
 
     checkActivity();
-    const interval = setInterval(checkActivity, 30000); // Check every 30 seconds
+    // FID-20260909-023 §3.8: skip server polls while the tab is hidden.
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      checkActivity();
+    }, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
   }, [player?.clanId]);
 
@@ -177,7 +181,11 @@ export default function TopNavBar({
     };
 
     checkThreat();
-    const interval = setInterval(checkThreat, 30000);
+    // FID-20260909-023 §3.8: skip server polls while the tab is hidden.
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      checkThreat();
+    }, 30000);
     return () => clearInterval(interval);
   }, [player?.username]);
 

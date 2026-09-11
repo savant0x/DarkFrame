@@ -7,6 +7,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { logger } from '@/lib/logger';
 import { useGameContext } from '@/context/GameContext';
 import { MovementDirection, KeyToDirection } from '@/types';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
@@ -33,7 +34,7 @@ export default function MovementControls() {
 
       const direction = KeyToDirection[event.key];
       if (direction && !isLoading) {
-        console.log(`[MovementControls] Received '${event.key}' keypress - moving ${direction}`);
+        logger.debug(`[MovementControls] Received '${event.key}' keypress - moving ${direction}`);
         event.preventDefault();
         movePlayer(direction);
       }

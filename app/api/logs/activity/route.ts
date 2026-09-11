@@ -76,9 +76,10 @@ export async function GET(req: NextRequest) {
     const sortBy = searchParams.get('sortBy') as 'timestamp' | 'executionTimeMs' | null;
     const sortOrder = searchParams.get('sortOrder') as 'asc' | 'desc' | null;
     
-    // Authorization: Users can only view their own logs unless admin
-    // TODO: Add admin role check from database
-    const isAdmin = false; // Replace with actual admin check
+    // Authorization: Users can only view their own logs unless admin.
+    // FID-20260909-023 §3.2: honor the session's isAdmin claim (the same
+    // trust anchor every other route uses) instead of a stubbed false.
+    const isAdmin = payload.isAdmin === true;
     
     if (!isAdmin && playerId && playerId !== payload.username) {
       return NextResponse.json(

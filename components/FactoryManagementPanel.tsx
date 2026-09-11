@@ -19,6 +19,7 @@ import { Factory } from '@/types/game.types';
 import { formatFactoryLevel } from '@/lib/factoryUpgradeService';
 
 import { toast } from '@/lib/toast';
+import { extractApiError } from '@/lib/apiClient';
 import { Factory as FactoryIcon, TrendingUp, Trash2, AlertTriangle, Info, Filter } from 'lucide-react';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
@@ -35,6 +36,7 @@ interface FactoryData {
   };
   availableSlots: number;
   timeUntilNextSlot: { hours: number; minutes: number; seconds: number; totalMs: number };
+  invested: { metal: number; energy: number }; // FID-20260909-032 §H
 }
 
 interface FactoryManagementPanelProps {
@@ -71,10 +73,11 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
         setTotalInvestment(data.totalInvestment);
         setPlayerResources(data.playerResources);
       } else {
-        setError('Failed to load factories');
+        // FID-20260911-041: server's reason, not a static string.
+        setError(extractApiError(data, response.status));
       }
     } catch {
-      setError('Failed to load factories');
+      setError('Failed to load factories — network error');
     } finally {
       setLoading(false);
     }
@@ -96,10 +99,11 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
         toast.success(data.message);
         fetchFactories();
       } else {
-        toast.error(data.error);
+        // FID-20260911-041: data.error may be a structured OBJECT — extract.
+        toast.error(extractApiError(data, response.status));
       }
     } catch {
-      toast.error('Failed to upgrade factory');
+      toast.error('Failed to upgrade factory — network error');
     }
   };
 
@@ -116,10 +120,10 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
         setAbandonConfirm(null);
         fetchFactories();
       } else {
-        toast.error(data.error);
+        toast.error(extractApiError(data, response.status));
       }
     } catch {
-      toast.error('Failed to release factory');
+      toast.error('Failed to release factory — network error');
     }
   };
 
@@ -147,10 +151,10 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
         setBatchReleaseMode(false);
         fetchFactories();
       } else {
-        toast.error(data.error);
+        toast.error(extractApiError(data, response.status));
       }
     } catch {
-      toast.error('Failed to batch release factories');
+      toast.error('Failed to batch release factories — network error');
     }
   };
 
@@ -209,11 +213,11 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
                 <p className="nn-stat__num">{factoryCount}<span style={{ fontSize: 13, color: 'var(--nn-text-tertiary)' }}> / {maxFactories}</span></p>
               </div>
               <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
-                <p className="nn-stat__lab">Invested Metal</p>
+                <p className="nn-stat__lab">Upgrades Invested · Metal</p>
                 <p className="nn-stat__num nn-stat__num--glow-amber">{Math.round(totalInvestment.metal).toLocaleString()}</p>
               </div>
               <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
-                <p className="nn-stat__lab">Invested Energy</p>
+                <p className="nn-stat__lab">Upgrades Invested · Energy</p>
                 <p className="nn-stat__num nn-stat__num--glow-cyan">{Math.round(totalInvestment.energy).toLocaleString()}</p>
               </div>
             </div>
@@ -251,7 +255,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
                         step="2"
                         value={slotThreshold}
                         onChange={(e) => setSlotThreshold(parseInt(e.target.value))}
-                        className="nn-range"
+                        className="nn-slider"
                         aria-label="Slot threshold"
                       />
                       <span className="nn-chip nn-chip--amber nn-num">{slotThreshold}</span>
@@ -303,7 +307,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
             )}
             {!loading && !error && factories.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {getSortedFactories().map(({ factory, stats, upgradeCost, canUpgrade, upgradeProgress, availableSlots, timeUntilNextSlot }) => (
+                {getSortedFactories().map(({ factory, stats, upgradeCost, canUpgrade, upgradeProgress, availableSlots, timeUntilNextSlot, invested }) => (
                   <div key={`${factory.x},${factory.y}`} className="nn-panel" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>
                     <div className="nn-panel__header">
                       <span className="nn-panel__icon"><FactoryIcon /></span>
@@ -312,8 +316,16 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
                     </div>
                     <div className="nn-panel__body">
                       <div className="nn-row">
-                        <span className="nn-row__label">Lifetime investment</span>
-                        <span className="nn-row__value nn-num nn-text-amber">{upgradeProgress.percentage}%<span className="nn-lab" style={{ marginLeft: 5 }}>TO MAX</span></span>
+                        <span className="nn-row__label">Upgrade progress</span>
+                        <span className="nn-row__value nn-num nn-text-amber">{upgradeProgress.percentage}%<span className="nn-lab" style={{ marginLeft: 5 }}>UPGRADED · MAX 10</span></span>
+                      </div>
+                      <div className="nn-row">
+                        <span className="nn-row__label">Invested (upgrades + units)</span>
+                        <span className="nn-row__value nn-num">
+                          <span className="nn-text-amber">{Math.round(invested.metal).toLocaleString()} M</span>
+                          <span style={{ color: 'var(--nn-text-tertiary)' }}> + </span>
+                          <span className="nn-text-cyan">{Math.round(invested.energy).toLocaleString()} E</span>
+                        </span>
                       </div>
                       <div className="nn-row">
                         <span className="nn-row__label">Max Slots</span>

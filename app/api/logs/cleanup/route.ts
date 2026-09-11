@@ -32,6 +32,7 @@ import { requireAdmin } from '@/lib/authMiddleware';
 import { cleanupOldLogs } from '@/lib/activityLogService';
 import clientPromise from '@/lib/mongodb';
 import { BattleLog } from '@/types/activityLog.types';
+import { logger as structuredLogger } from '@/lib/logger';
 
 /**
  * POST /api/logs/cleanup
@@ -272,7 +273,7 @@ async function cleanupOldBattleLogs(battleRetentionDays: number): Promise<number
     timestamp: { $lt: cutoffDate },
   });
 
-  console.log(`[BattleLog Cleanup] Deleted ${result.deletedCount} battle logs older than ${battleRetentionDays} days`);
+  structuredLogger.info('Battle log cleanup completed', { deletedCount: result.deletedCount, battleRetentionDays });
 
   return result.deletedCount || 0;
 }

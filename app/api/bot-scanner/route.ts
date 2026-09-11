@@ -2,24 +2,28 @@
  * Bot Scanner API - Scan for Bots Within Radius
  * Created: 2024-10-18
  * 
- * GET /api/bot-scanner?username=player
+ * GET /api/bot-scanner?action=status
+ * - Returns scanner unlock status and cooldown info
+ * - No cooldown applied (just checking status)
+ * 
+ * GET /api/bot-scanner
  * - Scans for bots within radius
  * - Returns bot list, nest locations, scanner status
  * - Applies cooldown after scan
  * 
- * GET /api/bot-scanner/status?username=player
- * - Returns scanner unlock status and cooldown info
- * - No cooldown applied (just checking status)
+ * FID-20260909-023 §3.1a: session identity — the `username` query parameter is
+ * IGNORED. Identity comes from the authenticated session (query-string identity
+ * let any caller trigger scans and read intelligence for any other player).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { scanForBots, getScannerStatus } from '@/lib/botScannerService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   withRequestLogging,
   createRouteLogger,
   createRateLimiter,
   ENDPOINT_RATE_LIMITS,
-  createErrorResponse,
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
@@ -30,13 +34,17 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const log = createRouteLogger('bot-scanner-get');
   const endTimer = log.time('bot-scanner-get');
   try {
-    const { searchParams } = new URL(request.url);
-    const username = searchParams.get('username');
-    const action = searchParams.get('action');
-    
-    if (!username) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Username required');
+    // FID-20260909-023 §3.1a: session identity — query username ignored.
+    const authUser = await getAuthenticatedUser();
+    if (!authUser?.username) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
     }
+    const username = authUser.username;
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
     
     // Status check (no cooldown applied)
     if (action === 'status') {

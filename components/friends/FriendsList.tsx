@@ -169,8 +169,12 @@ export default function FriendsList({
     // Initial status fetch
     fetchOnlineStatus();
 
-    // Set up polling interval
-    const intervalId = setInterval(fetchOnlineStatus, 2000);
+    // Set up polling interval — skipped while the tab is hidden
+    // (FID-20260909-023 §3.8: a 2s presence poller runs ~1800 requests/hr idle).
+    const intervalId = setInterval(() => {
+      if (document.hidden) return;
+      fetchOnlineStatus();
+    }, 2000);
 
     // Cleanup on unmount
     return () => clearInterval(intervalId);

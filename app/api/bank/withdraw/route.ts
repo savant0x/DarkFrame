@@ -11,10 +11,11 @@
 
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
+import { logBanking } from '@/lib/activityLogger';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { db } from '@/lib/db';
 import { players, tiles } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte, sql } from 'drizzle-orm';
 import { 
   withRequestLogging, 
   createRouteLogger,
@@ -98,43 +99,64 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       );
     }
 
-    const currentResource = Number(resourceType === 'metal' ? Number(player.resourcesMetal) : Number(player.resourcesEnergy));
-    const newBankAmount = BigInt(bankAmount - amount);
-    const newResourceAmount = BigInt(currentResource + amount);
+    // FID-20260909-026 §2.HIGH: the withdrawal is enforced ATOMICALLY in SQL —
+    // the guard (`gte(bank, amount)`) and the arithmetic (`col - amount`) are
+    // the same statement, so two concurrent withdrawals can never both pass
+    // (previously both validated against the same stale read and the loser's
+    // absolute overwrite resurrected the spent balance). Zero returned rows =
+    // this request lost the race or the balance moved: re-read for an honest
+    // "insufficient" response.
+    const isMetal = resourceType === 'metal';
+    const withdrawn = await db.update(players).set(
+      isMetal
+        ? {
+            resourcesMetal: sql`${players.resourcesMetal} + ${amount}`,
+            bankMetal: sql`${players.bankMetal} - ${amount}`,
+          }
+        : {
+            resourcesEnergy: sql`${players.resourcesEnergy} + ${amount}`,
+            bankEnergy: sql`${players.bankEnergy} - ${amount}`,
+          }
+    )
+      .where(and(eq(players.username, username), isMetal ? gte(players.bankMetal, amount) : gte(players.bankEnergy, amount)))
+      .returning({ metal: players.resourcesMetal, energy: players.resourcesEnergy, bankMetal: players.bankMetal, bankEnergy: players.bankEnergy });
 
-    if (resourceType === 'metal') {
-      await db.update(players).set({
-        resourcesMetal: Number(newResourceAmount),
-        bankMetal: Number(newBankAmount),
-      }).where(eq(players.username, username));
-    } else {
-      await db.update(players).set({
-        resourcesEnergy: Number(newResourceAmount),
-        bankEnergy: Number(newBankAmount),
-      }).where(eq(players.username, username));
+    if (withdrawn.length === 0) {
+      log.warn('Concurrent withdrawal lost the atomic guard', { username, resourceType, requested: amount });
+      return createErrorResponse(
+        ErrorCode.BANK_BALANCE_INSUFFICIENT,
+        { resourceType, requested: amount }
+      );
     }
 
-    const updatedPlayerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
-    const updatedPlayer = updatedPlayerResult[0];
+    const updatedPlayer = withdrawn[0];
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry (was: logger defined,
+    // never wired). Logging failures are swallowed inside the logger.
+    await logBanking(
+      username,
+      request.headers.get('cookie')?.match(/sessionId=([^;]+)/)?.[1] || 'unknown',
+      false,
+      resourceType === 'metal' ? { metal: amount } : { energy: amount }
+    );
 
     log.info('Withdrawal successful', { 
       username, 
       resourceType, 
-      amount,
-      remainingInBank: bankAmount - amount
+      amount
     });
 
     return NextResponse.json({
       success: true,
       message: `Withdrew ${amount.toLocaleString()} ${resourceType.charAt(0).toUpperCase() + resourceType.slice(1)} from bank`,
       inventory: {
-        metal: Number(updatedPlayer!.resourcesMetal),
-        energy: Number(updatedPlayer!.resourcesEnergy),
+        metal: Number(updatedPlayer.metal),
+        energy: Number(updatedPlayer.energy),
       },
       bank: {
-        metal: Number(updatedPlayer!.bankMetal),
-        energy: Number(updatedPlayer!.bankEnergy),
-        lastDeposit: updatedPlayer!.bankLastDeposit,
+        metal: Number(updatedPlayer.bankMetal),
+        energy: Number(updatedPlayer.bankEnergy),
+        lastDeposit: player.bankLastDeposit,
       }
     });
 

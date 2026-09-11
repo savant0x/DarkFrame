@@ -11,7 +11,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Zap, 
@@ -293,6 +293,27 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   /**
    * Start researching a technology
    */
+  // FID-20260909-029 §2.2: hydrate unlock state on mount — the page never
+  // called the GET, so unlocks were invisible until a full reload.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/research');
+        const data = await response.json();
+        if (!cancelled && data.success && Array.isArray(data.unlockedTechnologies)) {
+          const unlockedIds = new Set<string>(data.unlockedTechnologies as string[]);
+          setTechnologies(prev =>
+            prev.map(tech => ({ ...tech, unlocked: unlockedIds.has(tech.id) }))
+          );
+        }
+      } catch {
+        // Non-fatal: tree renders with the static catalog
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleResearch = async (techId: string) => {
     setIsLoading(true);
     setError(null);
@@ -307,14 +328,15 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
       const data = await response.json();
 
       if (data.success) {
-        // Update local state
+        // FID-20260909-029 §2.2: the API unlocks instantly on spend — reflect
+        // that locally (the old flip to `researching` contradicted the        // server, which has no queue).
         setTechnologies(prev =>
           prev.map(tech =>
-            tech.id === techId ? { ...tech, researching: true } : tech
+            tech.id === techId ? { ...tech, unlocked: true, researching: false } : tech
           )
         );
         
-        // Refresh player data to update resources
+        // Refresh player data to update the RP balance
         await refreshGameState?.();
       } else {
         setError(data.error || 'Failed to start research');
@@ -333,7 +355,10 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   const canResearch = (tech: Technology): boolean => {
     if (!player) return false;
     if (tech.unlocked || tech.researching) return false;
-    if (player.resources.metal < tech.cost) return false;
+    // FID-20260909-029 §2.3: RP is the research currency (the API spends via
+    // spendResearchPoints) — the old client gate compared against Metal, so
+    // affordable techs were disabled and unaffordable ones looked purchasable.
+    if ((player.researchPoints ?? 0) < tech.cost) return false;
     
     // Check prerequisites
     for (const prereqId of tech.prerequisites) {
@@ -387,8 +412,8 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
           <span className="nn-sec__title">Research &amp; Technology</span>
           <span className="nn-sec__note">Tree ▸ {technologies.length} Branches</span>
           <div className="nn-stat nn-sec__end !py-2 !px-4">
-            <p className="nn-stat__lab">Available Metal</p>
-            <p className="nn-stat__num nn-stat__num--glow-amber !text-lg">{player.resources.metal.toLocaleString()}</p>
+            <p className="nn-stat__lab">Research Points</p>
+            <p className="nn-stat__num nn-stat__num--glow-violet !text-lg">{(player.researchPoints ?? 0).toLocaleString()}</p>
           </div>
         </div>
         {error && (
@@ -477,7 +502,7 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
                   {/* Cost + action footer */}
                   <div className="flex items-center justify-between border-t border-[color-mix(in_oklab,var(--nn-cyan)_10%,transparent)] pt-4">
                     <div>
-                      <p className="nn-lab">Cost</p>
+                      <p className="nn-lab">Cost (RP)</p>
                       <p className="nn-num text-lg font-bold text-[color:var(--nn-amber)]">{tech.cost.toLocaleString()}</p>
                     </div>
                     {tech.unlocked ? (

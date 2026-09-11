@@ -19,6 +19,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Eye } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
+import { extractApiError } from '@/lib/apiClient';
 import type { WMDSpyMissionCompletePayload } from '@/types/websocket';
 
 interface Spy {
@@ -100,7 +101,7 @@ export default function WMDIntelligencePanel() {
         showSuccess(`Recruited ${selectedSpec} spy!`);
         await fetchData();
       } else {
-        showError(data.error || 'Failed to recruit spy');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error recruiting spy');
@@ -134,7 +135,7 @@ export default function WMDIntelligencePanel() {
         setTargetId('');
         await fetchData();
       } else {
-        showError(data.error || 'Failed to start mission');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error starting mission');
@@ -156,7 +157,7 @@ export default function WMDIntelligencePanel() {
       if (data.success) {
         showInfo(`Counter-Intel: ${data.threatsDetected} threats, ${data.spiesDetected.length} spies detected`);
       } else {
-        showError(data.error || 'Counter-intel failed');
+        showError(extractApiError(data, res.status));
       }
     } catch (error) {
       showError('Error running counter-intel');

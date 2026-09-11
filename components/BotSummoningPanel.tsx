@@ -26,6 +26,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { BotSpecialization } from '@/types/game.types';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { extractApiError } from '@/lib/apiClient';
 
 interface SummoningStatus {
   canSummon: boolean;
@@ -137,7 +138,8 @@ export default function BotSummoningPanel() {
         setSummonedBots(data.bots || []);
         await fetchStatus();
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to summon bots' });
+        // FID-20260911-041: data.error is an OBJECT on structured failures.
+        setMessage({ type: 'error', text: extractApiError(data, response.status) });
       }
     } catch {
       setMessage({ type: 'error', text: 'Network error' });

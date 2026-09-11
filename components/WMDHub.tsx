@@ -16,6 +16,7 @@
 
 import { useState } from 'react';
 import { Crosshair } from 'lucide-react';
+import { logger } from '@/lib/logger';
 import { useWMDNotifications } from '@/hooks';
 import WMDResearchPanel from './WMDResearchPanel';
 import WMDMissilePanel from './WMDMissilePanel';
@@ -38,7 +39,7 @@ export default function WMDHub() {
     },
     onVoteUpdate: (data) => {
       // Could show a badge or notification on voting tab
-      console.log('[WMD] Vote update:', data);
+      logger.debug('[WMD] Vote update', data);
     },
   });
 

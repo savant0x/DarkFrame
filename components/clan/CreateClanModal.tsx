@@ -46,11 +46,13 @@ interface CreateClanModalProps {
   onSuccess: () => void;
 }
 
-// Clan creation costs (from specification)
+// Clan creation costs (FID-20260909-028 §2.3: aligned with the binding contract —
+// CLAN_CONSTANTS.CREATION_COST in types/clan.types.ts, the same values
+// lib/clanService.createClan validates and deducts. The old 50k/50k/100RP
+// constants lied about the price and gated submission on phantom RP.)
 const CREATION_COSTS = {
-  metal: 50000,
-  energy: 50000,
-  researchPoints: 100
+  metal: 1500000,
+  energy: 1500000,
 };
 
 export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateClanModalProps) {
@@ -59,25 +61,38 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [nameAvailable, setNameAvailable] = useState<boolean | null>(null);
 
-  // Form state
+  // Form state (FID-20260909-028 §2.3: `tag` is REQUIRED by CreateClanSchema —
+  // the old form never sent one, so every submit died in validation. The
+  // phantom isPublic/minLevel/minPower fields are gone: the schema strips them,
+  // the clans table has no such columns, and join policy is a leader setting
+  // per docs/COMPLETE_CLAN_SYSTEM_PLAN.md's settings model.)
   const [formData, setFormData] = useState({
     name: '',
+    tag: '',
     description: '',
-    isPublic: true,
-    minLevel: 1,
-    minPower: 0
   });
 
   // Form errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   /**
-   * Validates clan name length and format
+   * Validates clan name length and format (mirrors CreateClanSchema)
    */
   const validateName = (name: string): string | null => {
     if (name.length < 3) return 'Name must be at least 3 characters';
     if (name.length > 30) return 'Name must be at most 30 characters';
-    if (!/^[a-zA-Z0-9\s]+$/.test(name)) return 'Name can only contain letters, numbers, and spaces';
+    if (!/^[a-zA-Z0-9 _-]+$/.test(name)) return 'Name can only contain letters, numbers, spaces, hyphens, and underscores';
+    return null;
+  };
+
+  /**
+   * Validates clan tag format (mirrors CreateClanSchema: 2-5, uppercase alnum —
+   * service enforces uniqueness and 2-6 length)
+   */
+  const validateTag = (tag: string): string | null => {
+    if (tag.length < 2) return 'Tag must be at least 2 characters';
+    if (tag.length > 5) return 'Tag must be at most 5 characters';
+    if (!/^[A-Z0-9]+$/.test(tag)) return 'Tag can only contain uppercase letters and numbers';
     return null;
   };
 
@@ -126,6 +141,22 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
   };
 
   /**
+   * Tag input handler: auto-uppercases (schema requires [A-Z0-9]+) and clears
+   * the field error as the user types.
+   */
+  const handleTagChange = (raw: string) => {
+    const value = raw.toUpperCase().slice(0, 5);
+    setFormData(prev => ({ ...prev, tag: value }));
+    if (errors.tag) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.tag;
+        return newErrors;
+      });
+    }
+  };
+
+  /**
    * Validates entire form before submission
    */
   const validateForm = (): boolean => {
@@ -135,6 +166,10 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
     const nameError = validateName(formData.name);
     if (nameError) newErrors.name = nameError;
     if (nameAvailable === false) newErrors.name = 'This clan name is already taken';
+
+    // Tag validation (required by the schema — the old form never sent it)
+    const tagError = validateTag(formData.tag);
+    if (tagError) newErrors.tag = tagError;
 
     // Description validation
     if (formData.description.length > 500) {
@@ -154,9 +189,6 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
     if (player.resources.energy < CREATION_COSTS.energy) {
       newErrors.submit = `Insufficient energy (need ${CREATION_COSTS.energy.toLocaleString()})`;
     }
-    if (player.researchPoints < CREATION_COSTS.researchPoints) {
-      newErrors.submit = `Insufficient RP (need ${CREATION_COSTS.researchPoints})`;
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -175,13 +207,12 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
       const response = await fetch('/api/clan/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Schema contract: { name, tag, description? } — the session is the
+        // creator; extra fields are stripped by zod and were never stored.
         body: JSON.stringify({
-          username: player?.username,
           name: formData.name.trim(),
+          tag: formData.tag.trim(),
           description: formData.description.trim(),
-          isPublic: formData.isPublic,
-          minLevel: formData.minLevel,
-          minPower: formData.minPower
         })
       });
 
@@ -208,8 +239,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
    */
   const canAfford = player && 
     player.resources.metal >= CREATION_COSTS.metal &&
-    player.resources.energy >= CREATION_COSTS.energy &&
-    player.researchPoints >= CREATION_COSTS.researchPoints;
+    player.resources.energy >= CREATION_COSTS.energy;
 
   if (!isOpen) return null;
 
@@ -247,7 +277,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 <Coins className="w-4 h-4 text-[color:var(--nn-amber)]" />
                 Creation Cost
               </h3>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="text-center">
                   <div className="text-xs nn-text-secondary mb-1">Metal</div>
                   <div className={`text-lg font-bold ${player && player.resources.metal >= CREATION_COSTS.metal ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
@@ -267,17 +297,6 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                   {player && (
                     <div className="text-xs nn-text-secondary">
                       Have: {player.resources.energy.toLocaleString()}
-                    </div>
-                  )}
-                </div>
-                <div className="text-center">
-                  <div className="text-xs nn-text-secondary mb-1">RP</div>
-                  <div className={`text-lg font-bold ${player && player.researchPoints >= CREATION_COSTS.researchPoints ? 'text-[color:var(--nn-green)]' : 'text-[color:var(--nn-magenta)]'}`}>
-                    {CREATION_COSTS.researchPoints}
-                  </div>
-                  {player && (
-                    <div className="text-xs nn-text-secondary">
-                      Have: {player.researchPoints}
                     </div>
                   )}
                 </div>
@@ -321,6 +340,32 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
               </p>
             </div>
 
+            {/* Clan Tag (FID-20260909-028 §2.3: REQUIRED by the API schema — the
+                old form omitted it entirely, so every creation attempt failed
+                validation with "Invalid input" and the flow read as broken.) */}
+            <div>
+              <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
+                Clan Tag <span className="text-[color:var(--nn-magenta)]">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.tag}
+                onChange={(e) => handleTagChange(e.target.value)}
+                placeholder="e.g. DW (2-5 uppercase letters/numbers)"
+                className="nn-input w-full font-mono tracking-widest"
+                maxLength={5}
+              />
+              {errors.tag && (
+                <p className="text-[color:var(--nn-magenta)] text-xs mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {errors.tag}
+                </p>
+              )}
+              <p className="nn-text-secondary text-xs mt-1">
+                Shown next to your clan name everywhere. 2-5 uppercase letters/numbers.
+              </p>
+            </div>
+
             {/* Description */}
             <div>
               <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
@@ -340,59 +385,10 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
               <p className="nn-text-secondary text-xs mt-1">
                 {formData.description.length}/500 characters
               </p>
-            </div>
-
-            {/* Privacy & Requirements */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Privacy Toggle */}
-              <div>
-                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
-                  Privacy
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleChange('isPublic', true)}
-                    className={`flex-1 px-4 py-2 rounded-none border transition-colors ${
-                      formData.isPublic
-                        ? 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)] text-[color:var(--nn-green)]'
-                        : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
-                    }`}
-                  >
-                    Public
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleChange('isPublic', false)}
-                    className={`flex-1 px-4 py-2 rounded-none border transition-colors ${
-                      !formData.isPublic
-                        ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] text-[color:var(--nn-violet)]'
-                        : 'nn-surface border-[color:var(--nn-glass-border)] nn-text-secondary'
-                    }`}
-                  >
-                    Private
-                  </button>
-                </div>
-                <p className="text-xs nn-text-secondary mt-1">
-                  {formData.isPublic ? 'Anyone can join' : 'Requires approval'}
-                </p>
-              </div>
-
-              {/* Minimum Level */}
-              <div>
-                <label className="block text-sm font-semibold text-[color:var(--nn-text-primary)] mb-2">
-                  Minimum Level
-                </label>
-                <input
-                  type="number"
-                  value={formData.minLevel}
-                  onChange={(e) => handleChange('minLevel', parseInt(e.target.value) || 1)}
-                  min={1}
-                  max={50}
-                  className="nn-input w-full"
-                 />
-              </div>
-            </div>
+            </div>            {/* Privacy & Requirements — dropped (FID-20260909-028 §2.3): the clans
+                table has no public/private or min-power columns; join policy is a
+                leader setting (requiresApproval / minLevelToJoin defaults are set
+                by the service). The old controls shaped a payload the API strips. */}
 
             {/* Submit Error */}
             {errors.submit && (
@@ -411,7 +407,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
                 Cancel
               </button>
               <button className="nn-btn nn-btn--primary"
-                type="submit" disabled={isSubmitting || !canAfford || nameAvailable === false || formData.name.length < 3} >
+                type="submit" disabled={isSubmitting || !canAfford || nameAvailable === false || formData.name.length < 3 || formData.tag.length < 2} >
                 {isSubmitting ? 'Creating...' : 'Create Clan'}
               </button>
             </div>

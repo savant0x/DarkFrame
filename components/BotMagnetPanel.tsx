@@ -24,6 +24,7 @@
 import React, { useState, useEffect } from 'react';
 import { useGameContext } from '@/context/GameContext';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
+import { extractApiError } from '@/lib/apiClient';
 
 interface BeaconStatus {
   hasActiveBeacon: boolean;
@@ -104,7 +105,8 @@ export default function BotMagnetPanel() {
         setMessage({ type: 'success', text: data.message });
         await fetchBeaconStatus();
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to deploy beacon' });
+        // FID-20260911-041: data.error is an OBJECT on structured failures.
+        setMessage({ type: 'error', text: extractApiError(data, response.status) });
       }
     } catch {
       setMessage({ type: 'error', text: 'Network error' });
@@ -130,7 +132,7 @@ export default function BotMagnetPanel() {
         setMessage({ type: 'success', text: data.message });
         await fetchBeaconStatus();
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to deactivate beacon' });
+        setMessage({ type: 'error', text: extractApiError(data, response.status) });
       }
     } catch {
       setMessage({ type: 'error', text: 'Network error' });

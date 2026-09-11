@@ -32,7 +32,9 @@ interface TileRendererProps {
   onDiscovery?: (discovery: Discovery, total: number) => void;
   onHarvestClick?: () => void;
   isHarvesting?: boolean;
-  onAttackClick?: () => void;
+  /** FID-20260910-038 D4: base raids declare the looted stockpile (design
+   * FID-20251017-023). onAttackClick receives it; factory attacks ignore it. */
+  onAttackClick?: (resource?: 'metal' | 'energy') => void;
   isAttacking?: boolean;
   onFlagAttack?: (bearer: FlagBearer) => void;
   onBankClick?: () => void;
@@ -77,15 +79,35 @@ function getTerrainColor(terrain: TerrainType): string {
  * Get terrain description with base awareness
  * Now uses consistent randomized messages based on coordinates
  */
+/**
+ * Get tile description (FID-20260909-036 base classification).
+ * The pre-FID version passed `isAnyBase` as `isBase`, so EVERY base —
+ * including enemy Beer Bases — displayed as the player's own command base.
+ * Only the player's own base gets that copy now; enemy bases get intel copy
+ * inviting the attack.
+ */
 function getTerrainDescription(
   terrain: TerrainType, 
   x: number, 
   y: number, 
-  isBase: boolean = false, 
-  bankType?: 'metal' | 'energy' | 'exchange'
+  isPlayerBase: boolean = false,
+  isEnemyBase: boolean = false,
+  baseOwner?: string,
+  bankType?: 'metal' | 'energy' | 'exchange',
+  baseLevel?: number,
+  isBeerBase?: boolean
 ): string {
-  if (isBase) {
+  if (isPlayerBase) {
     return '🏠 Your command base - This is your starting location and safe haven';
+  }
+  if (isEnemyBase) {
+    const lvl = baseLevel ? ` · Level ${baseLevel} garrison` : '';
+    // FID-20260910-037 R2: honest fate per base class — regular bot bases are
+    // Full Permanence (loot, they regrow); only Beer Bases are destroyed.
+    const fate = isBeerBase
+      ? 'victory destroys the base and releases its territory'
+      : 'victory strips its stockpile — the garrison will regather';
+    return `⚔ Enemy base${baseOwner ? ` — ${baseOwner}` : ''}${lvl}. Attack to loot its resources; ${fate}.`;
   }
   
   // Use coordinate-based consistent message system
@@ -101,6 +123,10 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const [imageError, setImageError] = React.useState(false);
   const [baseImagePath, setBaseImagePath] = React.useState<string | null>(null);
   const [baseImageError, setBaseImageError] = React.useState(false);
+  // FID-20260909-036: enemy (Beer Bot) bases render a TIER image derived from
+  // the base's level — tiles/bases/1..10.jpg (10 levels per tier, clamped).
+  const [enemyBaseImagePath, setEnemyBaseImagePath] = React.useState<string | null>(null);
+  const [enemyBaseImageError, setEnemyBaseImageError] = React.useState(false);
   const [factoryImageError, setFactoryImageError] = React.useState(false);
   // FID extension-negotiation cache: remembers which factory image extensions
   // 404'd this session so the loader skips straight to an existing format.
@@ -300,9 +326,31 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   
   // Any base should show as a base (visible to all players)
   const isAnyBase = tile.occupiedByBase === true;
+  // FID-20260909-036: enemy base classification. An occupied tile the player
+  // does not own is a hostile base — Beer Bots carry explicit isBeerBase
+  // intel; any other non-owned base is still enemy-owned territory. The
+  // owner's level (present on every occupied tile) drives the tier image.
+  const isEnemyBase = isAnyBase && !isPlayerBase;
+  const enemyLevel = tile.baseLevel ?? 1;
+  // FID-20260910-037 R2: 10 levels per tier image across the live bot band
+  // (5–65): L1–10 → 1.jpg … L91+ → 10.jpg — a level-15 fortress no longer
+  // collapses onto the same art as a level-5 shack.
+  const tierIndex = Math.min(10, Math.max(1, Math.ceil(enemyLevel / 10)));
   
   // Get player rank for display (or rank 1 if not your base)
   const playerRank = player?.rank || 1;
+
+  // FID-20260909-036: enemy base tier image — static path from the base's
+  // level (10 levels per tier bucket, clamped to the 1..10 asset set).
+  React.useEffect(() => {
+    if (isEnemyBase) {
+      setEnemyBaseImagePath(`/assets/tiles/bases/${tierIndex}.jpg`);
+      setEnemyBaseImageError(false);
+    } else {
+      setEnemyBaseImagePath(null);
+      setEnemyBaseImageError(false);
+    }
+  }, [isEnemyBase, tierIndex]);
 
   // Factory level-based image path (keep existing factory system for now).
   // Accepts BOTH .webp/.jpg and .png sources: prefers the optimized .webp
@@ -390,7 +438,9 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           </div>
         )}
 
-        {/* Base Overlay Layer (if player's base) */}
+        {/* Base Overlay Layer — player's base shows their rank image;
+            enemy bases show the tier image for the base's level (FID-20260909-036:
+            pre-FID every base rendered the VIEWER's rank image). */}
         {isPlayerBase && !baseImageError && baseImagePath && (
           <Image
             src={baseImagePath}
@@ -399,6 +449,17 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             sizes="(min-width: 0px) 42rem"
             className="object-cover z-10"
             onError={() => setBaseImageError(true)}
+            priority
+          />
+        )}
+        {isEnemyBase && !enemyBaseImageError && enemyBaseImagePath && (
+          <Image
+            src={enemyBaseImagePath}
+            alt={`Tier ${tierIndex} enemy base`}
+            fill
+            sizes="(min-width: 0px) 42rem"
+            className="object-cover z-10"
+            onError={() => setEnemyBaseImageError(true)}
             priority
           />
         )}
@@ -430,10 +491,27 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
 
         {/* Farmability moved to the viewport status strip (NEON NOIR §5.1) */}
 
-        {/* Base Indicator Badge */}
+        {/* Base Indicator Badge — hostile bases get a magenta skull treatment
+            so an enemy base never reads as friendly territory (FID-20260909-036). */}
         {tile.occupiedByBase && (
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-none border border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_14%,transparent)] px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider text-[color:var(--nn-green)] shadow-[0_0_14px_color-mix(in_oklab,var(--nn-green)_25%,transparent)]">
-            <Home className="h-3.5 w-3.5" /> Base {isPlayerBase && playerRank > 1 ? `(Rank ${playerRank})` : !isPlayerBase && tile.baseOwner ? `(${tile.baseOwner})` : ''}
+          <div
+            className={`absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-none border px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider shadow-[0_0_14px_color-mix(in_oklab,var(--nn-green)_25%,transparent)] ${
+              isEnemyBase
+                ? 'border-[color-mix(in_oklab,var(--nn-magenta)_55%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_16%,transparent)] text-[color:var(--nn-magenta)]'
+                : 'border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_14%,transparent)] text-[color:var(--nn-green)]'
+            }`}
+          >
+            {isEnemyBase ? (
+              <>
+                {/* FID-20260910-038 D1: base class on the badge — Beer Bases
+                    get the mug treatment, every other bot reads BOT BASE. */}
+                {tile.isBeerBase ? '🍺' : <Skull className="h-3.5 w-3.5" />} {tile.isBeerBase ? 'Beer Base' : 'Bot Base'} {tile.baseOwner ? `(${tile.baseOwner})` : ''} · LV {enemyLevel}
+              </>
+            ) : (
+              <>
+                <Home className="h-3.5 w-3.5" /> Base {playerRank > 1 ? `(Rank ${playerRank})` : ''}
+              </>
+            )}
           </div>
         )}
 
@@ -893,11 +971,11 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           Layout: scanline header (title + meta) → body of wells and gains. */}
       <div className="nn-deck nn-fade">
         <div className="nn-deck__head">
-          <h3 className="nn-deck__title">{isAnyBase ? `Base — ${isPlayerBase ? 'Yours' : tile.baseOwner ?? 'Player'}` : tile.terrain}</h3>
+          <h3 className="nn-deck__title">{isAnyBase ? `Base — ${isPlayerBase ? 'Yours' : (tile.baseOwner ?? 'HOSTILE')}` : tile.terrain}</h3>
           <span className="nn-deck__meta">SEC {String(tile.x).padStart(3, '0')} · {String(tile.y).padStart(3, '0')} · {tile.terrain.toUpperCase()}</span>
         </div>
         <div className="nn-deck__body">
-          <p className="nn-deck__desc">{getTerrainDescription(tile.terrain, tile.x, tile.y, isAnyBase, tile.bankType)}</p>
+          <p className="nn-deck__desc">{getTerrainDescription(tile.terrain, tile.x, tile.y, isPlayerBase, isEnemyBase, tile.baseOwner, tile.bankType, tile.baseLevel, tile.isBeerBase)}</p>
           
           {/* Base Greeting Display */}
           {isAnyBase && tile.baseGreeting && (
@@ -966,6 +1044,30 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               Press <kbd className="nn-kbd">S</kbd> to open Shrine interface
             </p>
           )}
+
+          {/* FID-20260909-036: Beer Base attack — the actions row above skips
+              enemy base tiles, so the hostile-base CTA lives here. Dispatches
+              through the game page's combat handler. */}
+          {isEnemyBase && onAttackClick && (
+            /* FID-20260910-038 D4: the doc's resource choice — raid the METAL
+               or the ENERGY stockpile. Two CTAs instead of one blind button. */
+            <div className="flex gap-2">
+              <button
+                onClick={() => onAttackClick('metal')}
+                disabled={isAttacking}
+                className="nn-btn nn-btn--danger flex-1 py-3 text-base"
+              >
+                {isAttacking ? 'RAIDING…' : 'ATTACK · METAL'}
+              </button>
+              <button
+                onClick={() => onAttackClick('energy')}
+                disabled={isAttacking}
+                className="nn-btn nn-btn--danger flex-1 py-3 text-base"
+              >
+                {isAttacking ? 'RAIDING…' : 'ATTACK · ENERGY'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1007,7 +1109,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {/* Attack Factory Button */}
           {onAttackClick && (
             <button
-              onClick={onAttackClick}
+              onClick={() => onAttackClick()}
               disabled={isAttacking}
               className={`nn-btn w-full py-3 text-base ${
                 isAttacking 
@@ -1033,18 +1135,19 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             <span className="nn-deck__meta">+{((harvestResult.metalGained ?? 0) + (harvestResult.energyGained ?? 0)).toLocaleString()} RES</span>
           </div>
 
-          {/* Resource Results */}
+          {/* Resource Results — centered readout row (single result = centered
+              medallion, dual results = two centered columns) */}
           {harvestResult.success && (harvestResult.metalGained || harvestResult.energyGained) && (
             <div className="nn-deck__body">
-              <div className="nn-grid2x2">
+              <div className="nn-deck__stats">
                 {!!harvestResult.metalGained && harvestResult.metalGained > 0 && (
-                  <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <div className="nn-well p-2">
                     <span className="nn-lab">Metal</span>
                     <div className="nn-num text-[color:var(--nn-amber)]">+{harvestResult.metalGained.toLocaleString()}</div>
                   </div>
                 )}
                 {!!harvestResult.energyGained && harvestResult.energyGained > 0 && (
-                  <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <div className="nn-well p-2">
                     <span className="nn-lab">Energy</span>
                     <div className="nn-num text-[color:var(--nn-cyan)]">+{harvestResult.energyGained.toLocaleString()}</div>
                   </div>
@@ -1053,10 +1156,10 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             </div>
           )}
 
-          {/* Cave Item Result */}
+          {/* Cave Item Result — centered readout */}
           {harvestResult.success && harvestResult.item && (
             <div className="nn-deck__body">
-              <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 4, borderColor: 'color-mix(in oklab, var(--nn-violet) 40%, transparent)' }}>
+              <div className="nn-well" style={{ margin: 0, flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 4, borderColor: 'color-mix(in oklab, var(--nn-violet) 40%, transparent)' }}>
                 <span className="nn-lab">Item recovered</span>
                 <div className="text-sm font-bold text-[color:var(--nn-violet)]">{harvestResult.item.name}</div>
                 {harvestResult.item.description && (
@@ -1069,13 +1172,13 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           <div className="nn-deck__body" style={{ paddingTop: harvestResult.bonusApplied && harvestResult.bonusApplied > 0 ? undefined : 0 }}>
             {/* Bonus Applied */}
             {harvestResult.bonusApplied && harvestResult.bonusApplied > 0 && (
-              <p className="nn-deck__foot" style={{ color: 'var(--nn-green)' }}>
+              <p className="nn-deck__foot" style={{ color: 'var(--nn-green)', textAlign: 'center' }}>
                 +{harvestResult.bonusApplied.toFixed(2)}% BONUS APPLIED
               </p>
             )}
-            {/* Result Message (single instance) */}
+            {/* Result Message (single instance) — centered under the readout */}
             {harvestResult.message && (
-              <p className="nn-deck__msg" style={{ textAlign: 'left' }}>{harvestResult.message}</p>
+              <p className="nn-deck__msg nn-deck__msg--center">{harvestResult.message}</p>
             )}
           </div>
         </div>
@@ -1085,20 +1188,22 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
       {attackResult && (
         <div className="nn-deck mt-4 nn-fade">
           <div className="nn-deck__head">
-            <h4 className={`nn-deck__title ${attackResult.captured ? 'nn-deck__title--green' : attackResult.success ? '' : 'nn-deck__title--magenta'}`}>
-              {attackResult.captured ? 'FACTORY CAPTURED' : attackResult.success ? 'ATTACK LANDED' : 'ATTACK FAILED'}
+            {/* FID-20260910-038 D4: enemy-base wins read BASE SACKED — the
+                shared readout previously said FACTORY CAPTURED for base raids. */}
+            <h4 className={`nn-deck__title ${attackResult.captured ? (isEnemyBase ? 'nn-deck__title--magenta' : 'nn-deck__title--green') : attackResult.success ? '' : 'nn-deck__title--magenta'}`}>
+              {attackResult.captured ? (isEnemyBase ? 'BASE SACKED' : 'FACTORY CAPTURED') : attackResult.success ? 'ATTACK LANDED' : 'ATTACK FAILED'}
             </h4>
             <span className="nn-deck__meta">DMG ▸ {attackResult.damageDealt ?? 0}</span>
           </div>
 
-          {/* Power Comparison */}
+          {/* Power Comparison — centered readout row */}
           <div className="nn-deck__body">
-            <div className="nn-grid2x2">
-              <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+            <div className="nn-deck__stats">
+              <div className="nn-well p-2">
                 <span className="nn-lab">Your power</span>
                 <div className="nn-num text-[color:var(--nn-cyan)]">{attackResult.playerPower.toLocaleString()}</div>
               </div>
-              <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <div className="nn-well p-2">
                 <span className="nn-lab">Factory defense</span>
                 <div className="nn-num text-[color:var(--nn-magenta)]">{attackResult.factoryDefense.toLocaleString()}</div>
               </div>

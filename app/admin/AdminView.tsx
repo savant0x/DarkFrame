@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import BackButton from '@/components/BackButton';
@@ -24,6 +24,9 @@ import TileInspectorModal from '@/components/admin/TileInspectorModal';
 import FactoryInspectorModal from '@/components/admin/FactoryInspectorModal';
 import BattleLogsModal from '@/components/admin/BattleLogsModal';
 import AchievementStatsModal from '@/components/admin/AchievementStatsModal';
+
+// FID-20260909-035: scheduler-health panel, lazy-loaded (opened on demand)
+const JobsStatusModal = lazy(() => import('@/components/admin/JobsStatusModal'));
 import SystemResetModal from '@/components/admin/SystemResetModal';
 import WebSocketConsoleModal from '@/components/admin/WebSocketConsoleModal';
 import HotkeyManagerPanel from '@/components/HotkeyManagerPanel';
@@ -220,6 +223,8 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
   const [showSystemReset, setShowSystemReset] = useState(false);
   const [showWebSocketConsole, setShowWebSocketConsole] = useState(false);
   const [showHotkeyManager, setShowHotkeyManager] = useState(false);
+  // FID-20260909-035: scheduler-health visibility (jobs-status panel).
+  const [showJobsStatus, setShowJobsStatus] = useState(false);
   
   // WMD system state
   const [wmdStatus, setWmdStatus] = useState<WmdStatusPayload | null>(null);
@@ -909,7 +914,9 @@ By Specialization:
     }
   }, [analyticsPeriod]);
 
-  // Load VIP users
+  // Load VIP users (FID-20260909-025 §4.2: failures are surfaced — an empty
+  // table used to silently stand in for a 403/network error and read as
+  // "there is no grant feature".
   const loadVipUsers = async () => {
     setVipLoading(true);
     try {
@@ -917,9 +924,12 @@ By Specialization:
       const data = await response.json();
       if (data.success) {
         setVipUsers(data.users);
+      } else {
+        showError(data.error || 'Failed to load VIP users');
       }
     } catch (error) {
       console.error('Error loading VIP users:', error);
+      showError('Failed to load VIP users');
     } finally {
       setVipLoading(false);
     }
@@ -941,7 +951,10 @@ By Specialization:
         showSuccess(`VIP granted to ${username} for ${days} days`);
         loadVipUsers(); // Refresh list
       } else {
-        showError(`Error: ${data.error}`);
+        // FID-20260909-028 §2.2: createErrorResponse nests the message under
+        // error.message; interpolating the object read as [object Object].
+        const reason = data?.error?.message ?? data?.message ?? 'Request failed';
+        showError(`Grant failed: ${reason}`);
       }
     } catch (error) {
       console.error('Error granting VIP:', error);
@@ -965,7 +978,8 @@ By Specialization:
         showSuccess(`VIP revoked from ${username}`);
         loadVipUsers(); // Refresh list
       } else {
-        showError(`Error: ${data.error}`);
+        const reason = data?.error?.message ?? data?.message ?? 'Request failed';
+        showError(`Revoke failed: ${reason}`);
       }
     } catch (error) {
       console.error('Error revoking VIP:', error);
@@ -1148,6 +1162,13 @@ By Specialization:
             ) : (
               <span className="ml-auto text-[color:var(--nn-green)]">WMD alerts clear</span>
             )}
+            <button
+              onClick={() => document.getElementById('admin-vip-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="nn-abtn nn-abtn--amber px-3 py-1 text-xs"
+              title="Jump to VIP Management (grant / revoke)"
+            >
+              VIP ▾
+            </button>
           </div>
         )}
 
@@ -1281,9 +1302,10 @@ By Specialization:
             </div>
 
             {/* VIP Management */}
-            <div className="nn-panel nn-panel--x-pad nn-panel--amber">
+            <div className="nn-panel nn-panel--x-pad nn-panel--amber" id="admin-vip-management">
               <div className="nn-panel__header nn-panel__header--bleed">
                 <span className="nn-panel__title">VIP Management</span>
+                <span className="nn-panel__meta">GRANT ▸ 7D / 30D / 1YR</span>
                 <span className="nn-panel__meta">TIER ▸ STATUS CONTROL</span>
               </div>
               <div className="flex justify-end items-center mb-4">
@@ -1570,6 +1592,11 @@ By Specialization:
                   onClick={() => setShowAchievementStats(true)}
                 >
                   Achievement Stats
+                </button>
+                <button className="nn-abtn nn-abtn--green"
+                  onClick={() => setShowJobsStatus(true)}
+                >
+                  Scheduler Health
                 </button>
                 <button className="nn-abtn nn-abtn--magenta"
                   onClick={() => setShowSystemReset(true)}
@@ -3390,6 +3417,15 @@ By Specialization:
             <AchievementStatsModal
               onClose={() => setShowAchievementStats(false)}
             />
+          )}
+
+          {/* Scheduler Health Modal (FID-20260909-035 jobs-status panel) */}
+          {showJobsStatus && (
+            <Suspense fallback={null}>
+              <JobsStatusModal
+                onClose={() => setShowJobsStatus(false)}
+              />
+            </Suspense>
           )}
 
           {showSystemReset && (

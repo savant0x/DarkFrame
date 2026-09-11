@@ -31,6 +31,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { getErrorMessage } from '@/lib/errorMessage';
 
 interface DistributionHistory {
@@ -118,7 +119,7 @@ export function FundDistributionPanel({
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load history');
+        throw new Error(extractApiError(data, response.status));
       }
       
       setHistory(data.distributions || []);
@@ -169,7 +170,7 @@ export function FundDistributionPanel({
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to distribute funds');
+        throw new Error(extractApiError(data, response.status));
       }
       
       setSuccessMessage(`Successfully distributed ${totalAmount.toLocaleString()} ${resourceType.toUpperCase()} to ${data.distribution.recipients.length} members!`);

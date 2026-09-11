@@ -25,6 +25,7 @@ import { getFlagState } from '@/lib/flagState';import {
   getFlagHolderState,
   getBonusStack,
   evaluateFleeEligibility,
+  pollChallenge,
   getFleeCostShare,
   MAX_FLEES,
 } from '@/lib/flagBonusService';
@@ -61,6 +62,11 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest):
       });
     }
 
+    // FID-039: sweep dead channels on reads too — after the 2-minute claim
+    // window an expired channel stops showing in the UI (countdown gone,
+    // challengeable again). The claim path never sweeps, so a live challenger's
+    // "Claim the Flag" button can never be yanked by a concurrent reader.
+    await pollChallenge();
     const holderState = await getFlagHolderState();
     const bonusStack = await getBonusStack(state.holderUsername);
     const holdDuration = Math.floor((Date.now() - state.claimedAt.getTime()) / 1000);

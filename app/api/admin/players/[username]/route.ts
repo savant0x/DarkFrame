@@ -74,6 +74,10 @@ export async function GET(
       },
       baseLocation: `(${player.baseX || 0}, ${player.baseY || 0})`,
       isBot: player.isBot === 1,
+      // FID-20260909-028 §2.2: the modal's Admin tab renders VIP state + actions
+      // from this payload; the grant/revoke state must come from the row.
+      vip: player.vip === 1,
+      vipExpiration: player.vipExpiration ?? null,
       createdAt: player.createdAt,
       lastActive,
       totalPlayTime: 0,

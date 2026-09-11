@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb';
 import { Player } from '@/types';
+import { logger as structuredLogger } from '@/lib/logger';
 
 /**
  * POST /api/player/greeting
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`✅ Updated base greeting for ${username}`);
+    structuredLogger.info('Base greeting updated', { username });
 
     return NextResponse.json({
       success: true,

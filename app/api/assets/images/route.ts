@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
+import { logger as structuredLogger } from '@/lib/logger';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -74,10 +75,10 @@ function buildImageManifest(): Record<string, string[]> {
     if (images.length > 0) {
       // Store relative paths from /assets/tiles/
       manifest[terrainDir] = images.map(img => `/assets/tiles/${terrainDir}/${img}`);
-      console.log(`📁 Found ${images.length} image(s) in ${terrainDir}:`, images);
+      structuredLogger.debug(`Image manifest: found ${images.length} image(s)`, { terrainDir });
     } else {
       manifest[terrainDir] = [];
-      console.log(`📁 No images found in ${terrainDir}`);
+      structuredLogger.debug(`Image manifest: no images found`, { terrainDir });
     }
   }
 
@@ -99,9 +100,9 @@ export async function GET() {
   try {
     // Use cached manifest if available
     if (!imageCache) {
-      console.log('🔄 Building image manifest...');
+      structuredLogger.debug('Building image manifest...');
       imageCache = buildImageManifest();
-      console.log('✅ Image manifest built:', Object.keys(imageCache).length, 'terrain types');
+      structuredLogger.info('Image manifest built', { terrainTypes: Object.keys(imageCache).length });
     }
 
     return NextResponse.json({
@@ -139,7 +140,7 @@ export async function POST(request: NextRequest) {
     const action = searchParams.get('action');
 
     if (action === 'refresh') {
-      console.log('🔄 Refreshing image manifest...');
+      structuredLogger.debug('Refreshing image manifest...');
       imageCache = null;
       imageCache = buildImageManifest();
       

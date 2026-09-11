@@ -103,10 +103,22 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       
       // Calculate duration based on item rarities
       const durationMinutes = calculateDuration(itemsForThisTier);
+      // FID-20260909-028 §2.4 (same NaN conviction as activate): an unknown/legacy
+      // rarity here must refuse the whole boost-all batch, not write Invalid Dates.
+      if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          message: 'Sacrificed items have no valid rarity value. Your inventory contains legacy items that cannot be applied — please contact an admin.'
+        });
+      }
       const durationMs = durationMinutes * 60 * 1000;
       
       // Calculate expiration time
       const expiresAt = new Date(now.getTime() + durationMs);
+      if (Number.isNaN(expiresAt.getTime())) {
+        return createErrorResponse(ErrorCode.INTERNAL_ERROR, {
+          message: 'Failed to compute a valid boost expiry'
+        });
+      }
 
       // Check if boost already exists
       const existingBoostIndex = existingBoosts.findIndex(

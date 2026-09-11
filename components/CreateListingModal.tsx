@@ -13,8 +13,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import { extractApiError } from '@/lib/apiClient';
 import { AuctionItemType, ResourceType, AUCTION_CONFIG, CreateAuctionRequest, AuctionItem } from '@/types/auction.types';
-import { UnitType } from '@/types';
+import { UnitType, UNIT_CONFIGS, UnitConfig } from '@/types';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -32,7 +33,7 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
   const [resourceAmount, setResourceAmount] = useState('1000');
   
   // Unit listing state (Phase 4 - simplified, full implementation needs player's units)
-  const [unitType, setUnitType] = useState<UnitType>(UnitType.T1_Rifleman);
+  const [unitType, setUnitType] = useState<UnitType>(UnitType.T1_Infantry);
   
   // Pricing state
   const [startingBid, setStartingBid] = useState('1000');
@@ -149,7 +150,7 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
       if (data.success) {
         onSuccess();
       } else {
-        setError(data.message || 'Failed to create auction');
+        setError(extractApiError(data, response.status));
       }
     } catch (err) {
       setError('Network error creating auction');
@@ -288,12 +289,15 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
                 onChange={(e) => setUnitType(e.target.value as UnitType)}
                 className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
               >
-                <option value={UnitType.T1_Rifleman}>T1 Rifleman</option>
-                <option value={UnitType.T1_Scout}>T1 Scout</option>
-                <option value={UnitType.T1_Grenadier}>T1 Grenadier</option>
-                <option value={UnitType.T2_Commando}>T2 Commando</option>
-                <option value={UnitType.T2_Ranger}>T2 Ranger</option>
-                <option value={UnitType.T3_Striker}>T3 Striker</option>
+              {/* FID-20260909-033: options derive from the unified config —
+                  a new unit appears here automatically, never drifts. */}
+                {(Object.values(UNIT_CONFIGS)
+                  .filter((c) => c.tier <= 3)
+                  .sort((a: UnitConfig, b: UnitConfig) => a.tier - b.tier || b.strength + b.defense - (a.strength + a.defense)) as UnitConfig[])
+                  .slice(0, 6)
+                  .map((c) => (
+                    <option key={c.type} value={c.type}>{c.name}</option>
+                  ))}
               </select>
               <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Full unit selection from inventory coming in Phase 4 enhancement

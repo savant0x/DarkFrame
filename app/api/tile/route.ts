@@ -10,7 +10,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTileAt } from '@/lib/movementService';
 import { ApiResponse } from '@/types';
-import type { Player } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -70,27 +69,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Tile not found');
     }
     
-    // If tile is occupied by a base, fetch the owner's username
-    if (tile.occupiedByBase) {
-      try {
-        const { getDatabase } = await import('@/lib/mongodb');
-        const db = await getDatabase();
-        const playersCollection = db.collection<Player>('players');
-        
-        const baseOwner = await playersCollection.findOne(
-          { 'base.x': x, 'base.y': y },
-          { projection: { username: 1, baseGreeting: 1 } }
-        );
-        
-        if (baseOwner) {
-          (tile as unknown as { baseOwner: string; baseGreeting?: string }).baseOwner = baseOwner.username;
-          (tile as unknown as { baseOwner: string; baseGreeting?: string }).baseGreeting = baseOwner.baseGreeting || '';
-        }
-      } catch (error) {
-        log.error('Error fetching base owner', error instanceof Error ? error : new Error(String(error)));
-        // Continue without base owner - non-critical
-      }
-    }
+    // FID-20260909-036: owner identity and greeting already arrive via the
+    // FID-20260910-037 R2: base intel (owner level + Beer Base flag) now rides
+    // on getTileAt itself (lib/movementService), so move/tile/login/harvest all
+    // ship it and this route no longer duplicates the owner lookup.
 
     // Check if Flag Bearer is on this tile or if tile has trail
     // (Postgres-native via lib/flagState — the holder's position lives on their

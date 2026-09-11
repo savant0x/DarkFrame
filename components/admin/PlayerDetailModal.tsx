@@ -46,24 +46,37 @@ interface PlayerData {
   lastActive?: string;
   totalPlayTime?: number;
   achievements?: unknown[];
+  // FID-20260909-028 §2.2: VIP state rides the player payload (admin route).
+  vip?: boolean;
+  vipExpiration?: string | null;
 }
 
 interface ActivityData {
   activities: Array<{
     actionType: string;
-    timestamp: Date;
+    timestamp: string; // wire ISO string (see SessionData note)
     details: Record<string, unknown> | null;
   }>;
   stats: {
     totalActions: number;
     mostCommonAction: string;
   };
+  // FID-20260909-032 §3-A: per-action tracking coverage (action, volume, last seen)
+  perAction?: Array<{
+    action: string;
+    count: number;
+    lastSeen: string;
+  }>;
 }
 
 interface SessionData {
+  // FID-20260909-028 §2.1: wire timestamps are ISO STRINGS (NextResponse.json
+  // serializes drizzle Dates). The old `Date` typings made every render call
+  // `.toISOString()` on a string → TypeError crash. formatDateTime consumes
+  // the string directly.
   sessions: Array<{
-    startTime: Date;
-    endTime?: Date;
+    startTime: string;
+    endTime?: string;
     duration: number;
     actionsPerformed: number;
   }>;
@@ -78,7 +91,7 @@ interface FlagData {
   flags: Array<{
     flagType: string;
     severity: string;
-    timestamp: Date;
+    timestamp: string; // wire ISO string (see SessionData note)
     details: string;
   }>;
   maxSeverity: string;
@@ -266,6 +279,44 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
     }
   };
 
+  // FID-20260909-028 §2.2: VIP grant/revoke from the player modal — same audited
+  // route as AdminView's VIP Management panel. Failures surface the structured
+  // error's message (createErrorResponse nests it under error.message).
+  const handleVipAction = async (action: 'grant' | 'revoke', days?: number) => {
+    if (action === 'grant') {
+      if (!(await confirmDialog(`Grant VIP to ${username} for ${days} day(s)?`))) return;
+    } else {
+      if (!(await confirmDialog(`Revoke VIP from ${username}?`))) return;
+    }
+
+    setActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/vip/${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(action === 'grant' ? { username, days } : { username })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(data.message || (action === 'grant' ? 'VIP granted' : 'VIP revoked'));
+        // Refresh so the Admin tab's VIP row reflects the new state.
+        const refresh = await fetch(`/api/admin/players/${username}`);
+        if (refresh.ok) {
+          const refreshed = await refresh.json();
+          if (refreshed.success) setPlayerData(refreshed.data);
+        }
+      } else {
+        const reason = data?.error?.message ?? data?.message ?? data?.error ?? 'Request failed';
+        showError(`VIP ${action} failed: ${typeof reason === 'string' ? reason : JSON.stringify(reason)}`);
+      }
+    } catch {
+      showError(`Failed to ${action} VIP`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Format duration
   const formatDuration = (ms: number) => {
     const hours = Math.floor(ms / 3600000);
@@ -362,31 +413,63 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                 </div>
               )}
 
-              {/* Activity Tab */}
-              {activeTab === 'activity' && activityData && (
+              {/* Activity Tab — FID-20260909-032 §3-A: per-action coverage ledger
+                  + recent actions; explicit empty and error states (the old tab
+                  rendered blank on route failure with no indication). */}
+              {activeTab === 'activity' && (
+                activityData ? (
                 <div className="space-y-4">
                   <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none mb-4">
                     <h3 className="nn-lab mb-2">Activity Summary</h3>
                     <p className="text-[color:var(--nn-text-secondary)]">Total Actions: {activityData.stats.totalActions}</p>
-                    <p className="text-[color:var(--nn-text-secondary)]">Most Common: {activityData.stats.mostCommonAction}</p>
+                    <p className="text-[color:var(--nn-text-secondary)]">Most Common: {activityData.stats.mostCommonAction || '—'}</p>
                   </div>
 
-                  <div className="space-y-2">
-                    {activityData.activities.map((activity, idx) => (
-                      <div key={idx} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="text-[color:var(--nn-text-primary)] font-semibold">{activity.actionType}</p>
-                            <p className="text-[color:var(--nn-text-secondary)] text-sm">{formatDateTime(activity.timestamp.toISOString())}</p>
+                  {(activityData.perAction?.length ?? 0) > 0 && (
+                    <div>
+                      <h3 className="nn-lab mb-2">Tracking Coverage</h3>
+                      <div className="space-y-1.5">
+                        {activityData.perAction!.map((row) => (
+                          <div key={row.action} className="nn-row">
+                            <span className="nn-row__label">{row.action}</span>
+                            <span className="nn-row__value">
+                              <span className="nn-num">{row.count.toLocaleString()}</span>
+                              <span className="text-[color:var(--nn-text-tertiary)] text-xs ml-3">last {formatDateTime(row.lastSeen)}</span>
+                            </span>
                           </div>
-                          {activity.details && (
-                            <p className="text-[color:var(--nn-text-secondary)] text-sm">{JSON.stringify(activity.details)}</p>
-                          )}
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )}
+
+                  <div>
+                    <h3 className="nn-lab mb-2">Recent Actions (latest {activityData.activities.length})</h3>
+                    {activityData.activities.length === 0 ? (
+                      <p className="text-[color:var(--nn-text-tertiary)] text-sm">No tracked actions recorded for this player.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {activityData.activities.map((activity, idx) => (
+                          <div key={idx} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-[color:var(--nn-text-primary)] font-semibold">{activity.actionType}</p>
+                                <p className="text-[color:var(--nn-text-secondary)] text-sm">{formatDateTime(activity.timestamp)}</p>
+                              </div>
+                              {activity.details && (
+                                <p className="text-[color:var(--nn-text-secondary)] text-sm max-w-[50%] truncate" title={JSON.stringify(activity.details)}>{JSON.stringify(activity.details)}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
+                ) : (
+                  <div className="nn-note" style={{ borderColor: 'color-mix(in oklab, var(--nn-magenta) 45%, transparent)' }}>
+                    <span>Activity data unavailable — the tracking endpoint returned an error. Check server logs.</span>
+                  </div>
+                )
               )}
 
               {/* Sessions Tab */}
@@ -402,9 +485,9 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                   <div className="space-y-2">
                     {sessionData.sessions.map((session, idx) => (
                       <div key={idx} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-3 rounded-none">
-                        <p className="text-[color:var(--nn-text-primary)]">Started: {formatDateTime(session.startTime.toISOString())}</p>
+                        <p className="text-[color:var(--nn-text-primary)]">Started: {formatDateTime(session.startTime)}</p>
                         {session.endTime && (
-                          <p className="text-[color:var(--nn-text-secondary)]">Ended: {formatDateTime(session.endTime.toISOString())}</p>
+                          <p className="text-[color:var(--nn-text-secondary)]">Ended: {formatDateTime(session.endTime)}</p>
                         )}
                         <p className="text-[color:var(--nn-text-secondary)]">Duration: {formatDuration(session.duration)}</p>
                         <p className="text-[color:var(--nn-text-secondary)]">Actions: {session.actionsPerformed}</p>
@@ -454,7 +537,7 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                               }`}>
                                 {flag.severity}
                               </p>
-                              <p className="text-[color:var(--nn-text-secondary)] text-sm">{formatDateTime(flag.timestamp.toISOString())}</p>
+                              <p className="text-[color:var(--nn-text-secondary)] text-sm">{formatDateTime(flag.timestamp)}</p>
                             </div>
                             <p className="text-[color:var(--nn-text-secondary)] text-sm">{flag.details}</p>
                           </div>
@@ -509,6 +592,39 @@ export default function PlayerDetailModal({ username, onClose }: PlayerDetailMod
                     >
                       Reset Progress
                     </button>
+                  </div>
+
+                  {/* VIP controls (FID-20260909-028 §2.2) — the modal workflow
+                      (open player → Admin tab → act) previously had no way to
+                      apply VIP at all. */}
+                  <div className="nn-well p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="nn-lab">VIP STATUS</span>
+                      {playerData?.vip ? (
+                        <span className="nn-chip nn-chip--amber">
+                          ACTIVE{playerData.vipExpiration ? ` · until ${formatDateTime(playerData.vipExpiration)}` : ''}
+                        </span>
+                      ) : (
+                        <span className="nn-chip">NOT ACTIVE</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {playerData?.vip ? (
+                        <button
+                          onClick={() => handleVipAction('revoke')}
+                          disabled={actionLoading}
+                          className="nn-abtn nn-abtn--magenta disabled:opacity-50"
+                        >
+                          Revoke VIP
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => handleVipAction('grant', 7)} disabled={actionLoading} className="nn-abtn nn-abtn--amber disabled:opacity-50">Grant 7d</button>
+                          <button onClick={() => handleVipAction('grant', 30)} disabled={actionLoading} className="nn-abtn nn-abtn--amber disabled:opacity-50">Grant 30d</button>
+                          <button onClick={() => handleVipAction('grant', 365)} disabled={actionLoading} className="nn-abtn nn-abtn--cyan disabled:opacity-50">Grant 1yr</button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {actionLoading && (

@@ -39,6 +39,7 @@ import { Loader2 } from 'lucide-react';
 import { MessageInbox, MessageThread } from '@/components/messaging';
 import { useGameContext } from '@/context/GameContext';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { logger } from '@/lib/logger';
 import type { Conversation } from '@/types/messaging.types';
 import type {
   MessagingMessagePayload,
@@ -149,7 +150,7 @@ export default function MessagesPage() {
    * Updates conversation list and triggers UI updates
    */
   const handleMessageReceive = useCallback((payload: MessagingMessagePayload) => {
-    console.log('[Messages] Received message:', payload);
+    logger.debug('[Messages] Received message', payload);
 
     setState(prev => {
       const conversations = [...prev.conversations];
@@ -203,7 +204,7 @@ export default function MessagesPage() {
    * Updates conversation details (last message, unread counts, etc.)
    */
   const handleConversationUpdated = useCallback((payload: MessagingConversationPayload) => {
-    console.log('[Messages] Conversation updated:', payload);
+    logger.debug('[Messages] Conversation updated', payload);
 
     setState(prev => {
       const conversations = [...prev.conversations];
@@ -237,7 +238,7 @@ export default function MessagesPage() {
    * MessageThread component handles this internally
    */
   const handleReadReceipt = useCallback((payload: MessagingReadReceiptPayload) => {
-    console.log('[Messages] Read receipt:', payload);
+    logger.debug('[Messages] Read receipt', payload);
     
     // Update unread count in conversation list
     setState(prev => {
@@ -272,12 +273,12 @@ export default function MessagesPage() {
    * MessageThread component handles display
    */
   const handleTypingStart = useCallback((payload: MessagingTypingPayload) => {
-    console.log('[Messages] Typing started:', payload);
+    logger.debug('[Messages] Typing started', payload);
     // MessageThread component will handle this
   }, []);
 
   const handleTypingStop = useCallback((payload: MessagingTypingPayload) => {
-    console.log('[Messages] Typing stopped:', payload);
+    logger.debug('[Messages] Typing stopped', payload);
     // MessageThread component will handle this
   }, []);
 
@@ -338,7 +339,7 @@ export default function MessagesPage() {
     // Join conversation room via Socket.io
     emit('conversation:join', { conversationId });
 
-    console.log('[Messages] Joined conversation:', conversationId, 'with recipient:', recipientUsername);
+    logger.debug('[Messages] Joined conversation', { conversationId, recipientUsername });
   }, [currentPlayerId, state.conversations, emit]);
 
   /**

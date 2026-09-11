@@ -6,7 +6,6 @@
 
 import type { Metadata } from 'next';
 import { Inter, Orbitron } from 'next/font/google';
-import '@fortawesome/fontawesome-free/css/all.min.css';
 import './globals.css';
 import { GameProvider } from '@/context/GameContext';
 import { WebSocketProvider } from '@/context/WebSocketContext';
