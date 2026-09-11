@@ -126,6 +126,10 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   // FID-20260909-036: enemy (Beer Bot) bases render a TIER image derived from
   // the base's level — tiles/bases/1..10.jpg (10 levels per tier, clamped).
   const [enemyBaseImagePath, setEnemyBaseImagePath] = React.useState<string | null>(null);
+  // FID-20260911-042: Beer Bases carry their own art namespace (dev/art/BEER-BASE-ART-SPEC.md).
+  // Try beer/{tier}.jpg first; on 404 fall back to the shared bot tier set so the
+  // tile never renders bare while the beer set is incomplete.
+  const [beerFallback, setBeerFallback] = React.useState(false);
   const [enemyBaseImageError, setEnemyBaseImageError] = React.useState(false);
   const [factoryImageError, setFactoryImageError] = React.useState(false);
   // FID extension-negotiation cache: remembers which factory image extensions
@@ -344,13 +348,14 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   // level (10 levels per tier bucket, clamped to the 1..10 asset set).
   React.useEffect(() => {
     if (isEnemyBase) {
-      setEnemyBaseImagePath(`/assets/tiles/bases/${tierIndex}.jpg`);
+      const tierPath = `/assets/tiles/bases/${tierIndex}.jpg`;
+      setEnemyBaseImagePath(tile.isBeerBase && !beerFallback ? `/assets/tiles/bases/beer/${tierIndex}.jpg` : tierPath);
       setEnemyBaseImageError(false);
     } else {
       setEnemyBaseImagePath(null);
       setEnemyBaseImageError(false);
     }
-  }, [isEnemyBase, tierIndex]);
+  }, [isEnemyBase, tierIndex, tile.isBeerBase, beerFallback]);
 
   // Factory level-based image path (keep existing factory system for now).
   // Accepts BOTH .webp/.jpg and .png sources: prefers the optimized .webp
@@ -459,7 +464,14 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             fill
             sizes="(min-width: 0px) 42rem"
             className="object-cover z-10"
-            onError={() => setEnemyBaseImageError(true)}
+            onError={() => {
+              // FID-20260911-042: beer art missing → degrade to the shared bot set.
+              if (tile.isBeerBase && !beerFallback) {
+                setBeerFallback(true);
+              } else {
+                setEnemyBaseImageError(true);
+              }
+            }}
             priority
           />
         )}
