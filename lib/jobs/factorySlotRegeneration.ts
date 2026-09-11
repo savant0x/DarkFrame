@@ -24,17 +24,29 @@ interface JobStats {
   isRunning: boolean;
 }
 
-const jobStats: JobStats = {
-  lastRun: null,
-  nextRun: null,
-  executionCount: 0,
-  factoriesRegenerated: 0,
-  totalSlotsRegenerated: 0,
-  averageExecutionTime: 0,
-  isRunning: false,
-};
+/**
+ * FID-20260909-036 (cross-runtime fix): see flagBotManager — job state lives
+ * on globalThis so the tsx server runtime and Next's bundled route runtime
+ * share one instance of the counters and interval handles.
+ */
+interface FactoryRegenJobState {
+  jobInterval: NodeJS.Timeout | null;
+  jobStats: JobStats;
+}
 
-let jobInterval: NodeJS.Timeout | null = null;
+const factoryRegenGlobals = globalThis as unknown as { __darkframeFactoryRegenJob?: FactoryRegenJobState };
+const state: FactoryRegenJobState = (factoryRegenGlobals.__darkframeFactoryRegenJob ??= {
+  jobInterval: null,
+  jobStats: {
+    lastRun: null,
+    nextRun: null,
+    executionCount: 0,
+    factoriesRegenerated: 0,
+    totalSlotsRegenerated: 0,
+    averageExecutionTime: 0,
+    isRunning: false,
+  },
+});
 
 function getRegenRate(level: number): number {
   return FACTORY_SLOT_REGEN_JOB_CONFIG.slotsPerHour * (1 + (level - 1) * 0.1);
@@ -79,13 +91,13 @@ async function factorySlotRegenerationJob(): Promise<number> {
     console.log(`[Factory Slot Regen] Regenerated ${totalSlotsRegenerated} slots across ${factoriesProcessed} factories`);
 
     const executionTime = Date.now() - startTime;
-    jobStats.lastRun = new Date();
-    jobStats.executionCount++;
-    jobStats.factoriesRegenerated += factoriesProcessed;
-    jobStats.totalSlotsRegenerated += totalSlotsRegenerated;
-    jobStats.averageExecutionTime =
-      (jobStats.averageExecutionTime * (jobStats.executionCount - 1) + executionTime) /
-      jobStats.executionCount;
+    state.jobStats.lastRun = new Date();
+    state.jobStats.executionCount++;
+    state.jobStats.factoriesRegenerated += factoriesProcessed;
+    state.jobStats.totalSlotsRegenerated += totalSlotsRegenerated;
+    state.jobStats.averageExecutionTime =
+      (state.jobStats.averageExecutionTime * (state.jobStats.executionCount - 1) + executionTime) /
+      state.jobStats.executionCount;
 
     console.log(`[Factory Slot Regen] Execution time: ${executionTime}ms`);
     return factoriesProcessed;
@@ -97,18 +109,18 @@ async function factorySlotRegenerationJob(): Promise<number> {
 
 export async function startFactorySlotRegenJob(): Promise<{ success: boolean; message: string }> {
   try {
-    if (jobInterval) {
+    if (state.jobInterval) {
       return { success: false, message: 'Factory slot regeneration job already running' };
     }
 
     console.log('[Factory Slot Regen] Starting background job...');
 
-    jobInterval = setInterval(async () => {
+    state.jobInterval = setInterval(async () => {
       await factorySlotRegenerationJob();
     }, FACTORY_SLOT_REGEN_JOB_CONFIG.interval);
 
-    jobStats.nextRun = new Date(Date.now() + FACTORY_SLOT_REGEN_JOB_CONFIG.interval);
-    jobStats.isRunning = true;
+    state.jobStats.nextRun = new Date(Date.now() + FACTORY_SLOT_REGEN_JOB_CONFIG.interval);
+    state.jobStats.isRunning = true;
 
     console.log(`[Factory Slot Regen] Started with ${FACTORY_SLOT_REGEN_JOB_CONFIG.interval / 1000}s interval`);
     return { success: true, message: `Factory slot regeneration job started (interval: ${FACTORY_SLOT_REGEN_JOB_CONFIG.interval / 1000}s)` };
@@ -119,19 +131,19 @@ export async function startFactorySlotRegenJob(): Promise<{ success: boolean; me
 }
 
 export async function stopFactorySlotRegenJob(): Promise<{ success: boolean; message: string }> {
-  if (!jobInterval) {
+  if (!state.jobInterval) {
     return { success: false, message: 'Factory slot regeneration job is not running' };
   }
 
-  clearInterval(jobInterval);
-  jobInterval = null;
-  jobStats.isRunning = false;
-  jobStats.nextRun = null;
+  clearInterval(state.jobInterval);
+  state.jobInterval = null;
+  state.jobStats.isRunning = false;
+  state.jobStats.nextRun = null;
 
   console.log('[Factory Slot Regen] Job stopped');
   return { success: true, message: 'Factory slot regeneration job stopped' };
 }
 
 export function getFactorySlotRegenJobStats(): JobStats {
-  return { ...jobStats };
+  return { ...state.jobStats };
 }

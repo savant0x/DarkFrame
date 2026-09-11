@@ -32,6 +32,7 @@ export const CachePrefix = {
   AUCTION: 'auction',
   FACTORY: 'factory',
   ACHIEVEMENT: 'achievement',
+  MAP: 'map',
 } as const;
 
 /**
@@ -61,7 +62,19 @@ export const CacheTTL = {
   
   // Achievements - 5 minutes (rarely changes)
   ACHIEVEMENTS: 300,
+
+  // Terrain grid - 1 hour (immutable after world generation; only a full
+  // world reset changes it, and the generation flow should invalidate the key)
+  MAP_TERRAIN: 3600,
 } as const;
+
+/**
+ * Map cache keys (FID-20260909-026 §2: the 150×150 terrain grid is immutable
+ * after world generation — cached long; invalidate `map:terrain` on world reset)
+ */
+export const MapKeys = {
+  terrainGrid: () => `${CachePrefix.MAP}:terrain`,
+};
 
 /**
  * Leaderboard cache keys

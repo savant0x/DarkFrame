@@ -114,7 +114,7 @@ export function getCompassDirection(
  * Check if Flag Bearer is within attack range
  * 
  * Uses circular attack range (Euclidean distance).
- * Attack range is defined in FLAG_CONFIG.ATTACK_RANGE (default: 5 tiles).
+ * Steal range is defined in FLAG_CONFIG.STEAL_RANGE (doc: 15 tiles).
  * 
  * @param trackerPosition - Attacker's position
  * @param bearerPosition - Flag Bearer's position
@@ -134,7 +134,7 @@ export function isInAttackRange(
   bearerPosition: { x: number; y: number }
 ): boolean {
   const distance = calculateDistance(trackerPosition, bearerPosition);
-  return distance <= FLAG_CONFIG.ATTACK_RANGE;
+  return distance <= FLAG_CONFIG.STEAL_RANGE;
 }
 
 /**

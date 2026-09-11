@@ -24,6 +24,7 @@
 
 // Re-export flag bot manager (automated flag bot behavior)
 export * from './flagBotManager';
+export * from './botGrowthManager';
 
 // ============================================================================
 // FACTORY OPERATIONS

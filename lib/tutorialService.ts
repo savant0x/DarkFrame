@@ -26,10 +26,11 @@
  * Total: ~21 steps across 6 quests
  */
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { tutorialProgress, tutorialActionTracking, players, factories } from '@/lib/db/schema';
+import { tutorialProgress, tutorialActionTracking, players, factories, tiles } from '@/lib/db/schema';
 import { randomUUID } from 'node:crypto';
+import { UNIT_CONFIGS } from '@/types/game.types';
 import type {
   TutorialQuest,
   TutorialProgress,
@@ -324,7 +325,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         id: 'resource_find_cave',
         order: 1,
         title: 'Find Your First Cave',
-        instruction: 'Navigate to the cave at coordinates (20, 40) and harvest resources!',
+        instruction: 'A cave has been marked on your map! Navigate to the marked coordinates and harvest resources!',
         detailedHelp: `🎯 WHY: Caves are rich sources of Metal and Energy. Finding them often gives you a huge advantage!
 
 🕐 WHEN TO USE:
@@ -333,7 +334,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • When exploring new areas of the map
 
 ⚡ HOW TO HARVEST:
-• Navigate to coordinates (20, 40)
+• Walk to the cave coordinates shown in your quest tracker
 • Press F or click the Harvest button
 • Caves regenerate over time - return often!
 
@@ -351,15 +352,17 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         order: 2,
         title: 'Harvest the Cave',
         instruction: 'Press F (or click Harvest) to collect resources and earn a special quest reward digger!',
-        detailedHelp: `🎁 SPECIAL QUEST REWARD: Harvesting this cave will give you resources AND a guaranteed Tutorial Universal Digger!
+        // FID-20260909-032 §3-D: structured sections (the parser consumes these
+        // headers) — emoji stripped from copy per the neon-noir rubric; the
+        // reward card (not this text) carries the reward presentation.
+        detailedHelp: `🎯 WHY: This cave carries a guaranteed quest reward on top of its resources — one harvest collects both.
 
-✨ WHAT YOU GET:
-• Tutorial Universal Digger (RARE quality)
-• +5% gathering efficiency for BOTH Metal AND Energy
-• This is a PERMANENT bonus - it stacks with future diggers
-• This special digger is a quest reward, not a random drop!
+⚡ HOW TO HARVEST:
+• Press F or click the HARVEST button
+• Resources are added instantly
+• The Tutorial Universal Digger is granted automatically
 
-💡 IMPORTANT: This is your guaranteed tutorial reward - you won't find this digger anywhere else!`,
+💡 PRO TIP: The digger is a quest reward, not a random drop — it cannot be found anywhere else and stacks with future diggers.`,
         action: 'HARVEST',
         targetElement: '.harvest-button',
         completionMessage: 'Excellent! You received your special quest reward: Tutorial Universal Digger (+5% gathering efficiency)!',
@@ -370,7 +373,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
           type: 'ITEM',
           itemId: 'tutorial_universal_digger',
           itemName: 'Tutorial Universal Digger',
-          displayMessage: '🎁 QUEST REWARD: You received a Tutorial Universal Digger! This permanently increases your gathering efficiency by 5% for both Metal AND Energy!',
+          displayMessage: 'Tutorial Universal Digger granted — +5% gathering efficiency for Metal and Energy, permanent and stacking.',
         },
       },
       {
@@ -378,15 +381,12 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         order: 3,
         title: 'Collect 5,000 Metal',
         instruction: 'Gather 5,000 Metal by harvesting caves or completing actions!',
-        detailedHelp: `🎯 GOAL: Reach 5,000 Metal (tracks your current balance, not total earned)
+        detailedHelp: `🎯 GOAL: Reach 5,000 Metal (tracks your current balance, not total earned).
 
-💰 HOW TO EARN METAL:
+⚡ HOW TO EARN METAL:
 • Harvest caves (primary source)
 • Complete tutorial steps (bonus rewards)
-• Attack Beer Bases (coming soon!)
 • Raid other players (advanced strategy)
-
-⚡ YOUR RARE DIGGER HELPS: +5% faster harvesting!
 
 💡 PRO TIP: Your current Metal balance is shown in the top bar. Keep harvesting caves until you reach 5,000!`,
         action: 'CUSTOM',
@@ -867,7 +867,40 @@ export async function getCurrentQuestAndStep(playerId: string): Promise<{
         ...step.validationData,
         currentCount: actionTracking.currentCount,
         targetCount: actionTracking.targetCount,
+        // Cave-step resolved target (FID-20260909-025 §4.3): the move route
+        // and the quest panel's static-coordinate branch both read
+        // targetX/targetY off validationData, so the persisted target is
+        // merged here for every consumer.
+        ...(actionTracking.targetX !== undefined && actionTracking.targetY !== undefined
+          ? { targetX: actionTracking.targetX, targetY: actionTracking.targetY }
+          : {}),
       };
+    }
+  }
+
+  // FID-20260909-025 §4.3: CUSTOM steps are requirements the player satisfies
+  // by playing (bank resources, own a factory, build a unit). completeStep
+  // already implements the full enrichment + validation for these — it simply
+  // had no caller, so the quest froze forever. Evaluate the active requirement
+  // on this read (the panel polls it every ~3s) and advance when satisfied.
+  if (step && step.action === 'CUSTOM' && quest._id) {
+    try {
+      const result = await completeStep({
+        playerId,
+        questId: quest._id,
+        stepId: step.id,
+        validationData: {},
+      });
+      if (result.success) {
+        // Step consumed — re-read so the caller sees the NEXT step in the same
+        // response (mirrors the READ_INFO auto-complete contract). Recursion is
+        // bounded: consecutive satisfied CUSTOM steps advance, an unsatisfied
+        // one returns untouched.
+        return getCurrentQuestAndStep(playerId);
+      }
+    } catch (error) {
+      // Progress reads must never crash over tutorial evaluation (Law 14).
+      console.error('[Tutorial] CUSTOM step evaluation failed:', error);
     }
   }
   
@@ -893,6 +926,63 @@ export interface ActionTracking {
   startX?: number;
   startY?: number;
   lastUpdated: Date;
+}
+
+/**
+ * Resolve the nearest actual cave tile to a position (FID-20260909-025 §4.3).
+ *
+ * The quest-2 cave step hardcoded (20,40) with radius 0, but terrain is
+ * shuffled by the generator — that tile is usually not a cave, freezing the
+ * step forever. The server instead points the step at the closest real cave.
+ * One indexed scan; ties broken by |dx|+|dy| then coordinates for determinism.
+ */
+export async function resolveNearestCaveTile(x: number, y: number): Promise<{ x: number; y: number } | null> {
+  const rows = await db
+    .select({ x: tiles.x, y: tiles.y })
+    .from(tiles)
+    .where(eq(tiles.terrain, 'Cave'))
+    .orderBy(
+      sql`(${tiles.x} - ${x}) * (${tiles.x} - ${x}) + (${tiles.y} - ${y}) * (${tiles.y} - ${y})`,
+      tiles.x,
+      tiles.y
+    )
+    .limit(1);
+  return rows.length > 0 ? { x: rows[0].x, y: rows[0].y } : null;
+}
+
+/**
+ * Record a successful cave/forest harvest for tutorial tracking
+ * (FID-20260909-025 §4.3).
+ *
+ * The HARVEST tutorial step could never complete: its tracking endpoint had
+ * no client callers and the harvest route was tutorial-blind. The harvest
+ * route now calls this after a successful harvest. Increments the active
+ * HARVEST step's count (via the FID-001 JSON contract) and auto-completes
+ * the step when the requirement is met. Non-throwing: harvesting must never
+ * fail because of tutorial bookkeeping (Law 14).
+ */
+export async function recordTutorialHarvest(playerId: string, terrain: string): Promise<void> {
+  try {
+    const { quest, step } = await getCurrentQuestAndStep(playerId);
+    if (!quest || !step || step.action !== 'HARVEST') return;
+
+    const requiredHarvests = step.validationData?.requiredHarvests || 1;
+    const tracking = await getActionTracking(playerId, step.id);
+    const nextCount = (tracking?.currentCount ?? 0) + 1;
+
+    await updateActionTracking(playerId, step.id, nextCount, requiredHarvests);
+
+    if (nextCount >= requiredHarvests) {
+      await completeStep({
+        playerId,
+        questId: quest._id!,
+        stepId: step.id,
+        validationData: { harvestCount: nextCount, resourceType: terrain },
+      });
+    }
+  } catch (error) {
+    console.error('[Tutorial] Harvest tracking failed:', error);
+  }
 }
 
 /**
@@ -1031,6 +1121,23 @@ export async function completeStep(
     };
   }
   
+  // Replay guard: a duplicate completion (double-click, stale retry, replayed
+  // request) previously re-advanced currentStepIndex — a stale call could SKIP
+  // the next step — and re-granted step rewards (double digger). An
+  // already-recorded step is a no-op success carrying the current progress.
+  if (progress.completedSteps.includes(stepId)) {
+    console.log(`[Tutorial] Replay guard: step ${stepId} already complete for ${playerId}, no-op`);
+    return {
+      success: true,
+      stepId,
+      message: 'Step already completed',
+      questComplete: false,
+      tutorialComplete: progress.tutorialComplete,
+      progress,
+      reward: undefined,
+    };
+  }
+  
   const enrichedValidationData: TutorialValidationData = validationData || {};
   
   if (step.action === 'CUSTOM') {
@@ -1054,19 +1161,34 @@ export async function completeStep(
         enrichedValidationData.factoryTier = matchingFactory?.tier || null;
         break;
       
-      case 'build_unit':
-        const unitType = stepValidation.unitType || 'Infantry';
-        const normalizedUnitType = unitType.toLowerCase();
+      case 'build_unit': {
+        // FID-20260909-033 §4.4: units are keyed by the unified UnitType enum
+        // value (e.g. 'INFANTRY', 'T1_SCOUT'). Accept the step's declared unit
+        // in every honest spelling — enum value, enum key, config display name,
+        // or legacy display name — so a step passes regardless of which build
+        // path produced the unit, while never counting a different unit.
+        const requested = stepValidation.unitType || 'Infantry';
+        const requestedLower = requested.toLowerCase();
+        const acceptedAliases = new Set<string>([requestedLower]);
+        for (const config of Object.values(UNIT_CONFIGS)) {
+          const candidates = [config.type as string, config.name];
+          for (const candidate of candidates) {
+            if (candidate.toLowerCase() === requestedLower) {
+              acceptedAliases.add((config.type as string).toLowerCase());
+              acceptedAliases.add(config.name.toLowerCase());
+              break;
+            }
+          }
+        }
         let unitCount = 0;
-        
         for (const [type, count] of Object.entries(gameState.unitCounts)) {
-          if (type.toLowerCase() === normalizedUnitType) {
+          if (acceptedAliases.has(type.toLowerCase())) {
             unitCount += count;
           }
         }
-        
         enrichedValidationData.unitCount = unitCount;
         break;
+      }
     }
     
     console.log(`[Tutorial] Injected game state for CUSTOM action:`, enrichedValidationData);
@@ -1454,13 +1576,11 @@ async function awardTutorialReward(playerId: string, reward: TutorialReward): Pr
   switch (reward.type) {
     case 'METAL':
       if (reward.amount) {
-        const playerRows = await db.select({ resourcesMetal: players.resourcesMetal }).from(players).where(eq(players.username, playerId)).limit(1);
-        if (playerRows.length > 0) {
-          const currentMetal = Number(playerRows[0].resourcesMetal || 0);
-          await db.update(players).set({
-            resourcesMetal: Number(BigInt(currentMetal + reward.amount)),
-          }).where(eq(players.username, playerId));
-        }
+        // FID-20260909-026: SQL delta — concurrent reward grants compose
+        // instead of the last write winning.
+        await db.update(players).set({
+          resourcesMetal: sql`${players.resourcesMetal} + ${reward.amount}`,
+        }).where(eq(players.username, playerId));
       }
       break;
     
@@ -1469,12 +1589,10 @@ async function awardTutorialReward(playerId: string, reward: TutorialReward): Pr
     
     case 'EXPERIENCE':
       if (reward.amount) {
-        const playerRows = await db.select({ xp: players.xp }).from(players).where(eq(players.username, playerId)).limit(1);
-        if (playerRows.length > 0) {
-          await db.update(players).set({
-            xp: (playerRows[0].xp || 0) + reward.amount,
-          }).where(eq(players.username, playerId));
-        }
+        // FID-20260909-026: SQL delta (concurrent reward grants compose).
+        await db.update(players).set({
+          xp: sql`${players.xp} + ${reward.amount}`,
+        }).where(eq(players.username, playerId));
       }
       break;
     

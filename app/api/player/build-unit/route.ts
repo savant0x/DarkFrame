@@ -14,7 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise, { type DocumentValue } from '@/lib/mongodb';
+import clientPromise from '@/lib/mongodb';
 import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
@@ -298,7 +298,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Sequential factory slot consumption logic
     const newUnits = [];
     let remainingUnits = validated.quantity;
-    const factoryUpdates: Array<{ factoryId: string; slotsUsed: number; newUsedSlots: number }> = []; // Track factory slot updates
+    // Track factory slot updates — keyed by the composite PK (x, y); the
+    // factories table has no _id column (FID-20260909-023 §3.5).
+    const factoryUpdates: Array<{ factoryX: number; factoryY: number; newUsedSlots: number }> = [];
 
     // Get slotCost from UNIT_CONFIGS for exponential slot cost system
     const unitType = unitBlueprint.id as UnitType;
@@ -315,12 +317,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         // Create units for this factory
         for (let i = 0; i < unitsToAssignHere; i++) {
           newUnits.push({
+            id: `${username}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
             unitId: unitBlueprint.id,
+            unitType: unitType,
             name: unitBlueprint.name,
             category: unitBlueprint.category,
             rarity: unitBlueprint.rarity,
             strength: unitBlueprint.strength,
             defense: unitBlueprint.defense,
+            producedAt: { x: factory.x, y: factory.y },
             createdAt: new Date()
           });
         }
@@ -330,8 +335,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
         // Track factory slot update
         factoryUpdates.push({
-          factoryId: (factory as Factory & { _id?: string })._id ?? `${factory.x},${factory.y}`,
-          slotsUsed: slotsNeeded,
+          factoryX: factory.x,
+          factoryY: factory.y,
           newUsedSlots: (factory.usedSlots || 0) + slotsNeeded
         });
 
@@ -355,7 +360,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const updateResult = await playersCollection.updateOne(
       { username: username },
       {
-        $push: { units: { $each: newUnits } } as unknown as Record<string, DocumentValue>,
+        // FID-20260909-033: plain entry array — the former `{ $each: … }` cast
+        // would persist the operand verbatim (same blob class as FID-032 §G).
+        // Entries also carry quantity so the PlayerUnit contract holds.
+        $push: { units: newUnits.map((u) => ({ ...u, quantity: validated.quantity })) },
         $inc: {
           'resources.metal': -totalMetalCost,
           'resources.energy': -totalEnergyCost
@@ -376,12 +384,26 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Update factory slots sequentially
-    for (const update of factoryUpdates) {
-      await factoriesCollection.updateOne(
-        { _id: update.factoryId },
-        { $set: { usedSlots: update.newUsedSlots } }
+    // FID-20260909-023 §3.5: one bulkWrite over the composite PK instead of a
+    // per-factory round-trip loop. The previous loop filtered on { _id } — a
+    // key no factories column exists for (PK is composite x/y) — so the shim's
+    // unmapped-key guard matched NOTHING and usedSlots never filled.
+    if (factoryUpdates.length > 0) {
+      const slotWrite = await factoriesCollection.bulkWrite(
+        factoryUpdates.map((update) => ({
+          updateOne: {
+            filter: { x: update.factoryX, y: update.factoryY },
+            update: { $set: { usedSlots: update.newUsedSlots } }
+          }
+        }))
       );
+      if (slotWrite.modifiedCount < factoryUpdates.length) {
+        log.warn('Some factory slot updates matched nothing', {
+          username,
+          expected: factoryUpdates.length,
+          modified: slotWrite.modifiedCount
+        });
+      }
     }
 
     log.info('Units built successfully', { 

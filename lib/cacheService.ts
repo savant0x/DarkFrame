@@ -61,6 +61,77 @@ function updateStats(type: 'hit' | 'miss' | 'error'): void {
   stats.hitRate = total > 0 ? (stats.hits / total) * 100 : 0;
 }
 
+// ============================================================================
+// L1 PROCESS-LOCAL MEMORY TIER (FID-20260909-024)
+// ============================================================================
+// Previously every operation no-oped when Redis was unavailable — meaning all
+// TTL caches (leaderboard 300s, player profiles, …) silently degraded to a
+// direct DB hit on EVERY request in dev or Redis-less deploys, and even with
+// Redis up, every read paid a network round-trip.
+//
+// This tier is an L1 in front of Redis (L2): always written, checked first.
+// The game runs as a single Next.js server process (server.ts owns socket.io),
+// so a process-local L1 is coherent with the delete/set paths below, which
+// always write through both tiers.
+
+interface MemoryEntry {
+  value: string;             // Pre-serialized, same wire format as Redis
+  expiresAt: number | null;  // Epoch ms; null = no TTL (mirrors redis.set)
+}
+
+const MEMORY_MAX_ENTRIES = 500;
+const memoryStore = new Map<string, MemoryEntry>();
+
+/** Evict expired entries (lazy) and enforce the size cap (oldest first). */
+function memorySweep(): void {
+  const now = Date.now();
+  for (const [key, entry] of memoryStore) {
+    if (entry.expiresAt !== null && entry.expiresAt <= now) {
+      memoryStore.delete(key);
+    }
+  }
+  while (memoryStore.size > MEMORY_MAX_ENTRIES) {
+    // Map preserves insertion order — the first key is the oldest.
+    const oldest = memoryStore.keys().next().value;
+    if (oldest === undefined) break;
+    memoryStore.delete(oldest);
+  }
+}
+
+function memoryGetRaw(key: string): MemoryEntry | null {
+  const entry = memoryStore.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt !== null && entry.expiresAt <= Date.now()) {
+    memoryStore.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function memorySet(key: string, serialized: string, ttl?: number): void {
+  memorySweep();
+  // Re-inserting an existing key refreshes its insertion order too.
+  memoryStore.delete(key);
+  memoryStore.set(key, {
+    value: serialized,
+    expiresAt: ttl ? Date.now() + ttl * 1000 : null,
+  });
+}
+
+function memoryMatchKeys(pattern: string): string[] {
+  const regex = new RegExp('^' + pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*') + '$');
+  return [...memoryStore.keys()].filter((k) => regex.test(k));
+}
+
+// ============================================================================
+// SINGLE-FLIGHT DEDUPE (cache-stampede guard)
+// ============================================================================
+// Concurrent getCacheOrFetch misses for the same key previously each ran the
+// fetchFn against the DB (cold leaderboard + N simultaneous players = N heavy
+// queries). The first caller's promise is now shared by everyone waiting on
+// that key.
+const inFlightFetches = new Map<string, Promise<unknown>>();
+
 /**
  * Get current cache statistics
  * 
@@ -96,6 +167,13 @@ export function resetCacheStats(): void {
  */
 export async function getCache<T>(key: string): Promise<T | null> {
   try {
+    // L1: process-local memory tier (works with or without Redis)
+    const mem = memoryGetRaw(key);
+    if (mem) {
+      updateStats('hit');
+      return JSON.parse(mem.value) as T;
+    }
+
     if (!isRedisAvailable()) {
       updateStats('miss');
       return null;
@@ -111,6 +189,9 @@ export async function getCache<T>(key: string): Promise<T | null> {
 
     if (cached) {
       updateStats('hit');
+      // Backfill L1 using the entry's remaining Redis TTL.
+      const ttl = await redis.ttl(key);
+      memorySet(key, cached, ttl > 0 ? ttl : undefined);
       return JSON.parse(cached) as T;
     }
 
@@ -140,17 +221,20 @@ export async function setCache<T>(
   ttl?: number
 ): Promise<boolean> {
   try {
+    const serialized = JSON.stringify(value);
+
+    // L1 write-through: cached data survives even with Redis down.
+    memorySet(key, serialized, ttl);
+
     if (!isRedisAvailable()) {
-      return false;
+      return true;
     }
 
     const redis = await getRedisClient();
     if (!redis) {
-      return false;
+      return true;
     }
     
-    const serialized = JSON.stringify(value);
-
     if (ttl) {
       await redis.setex(key, ttl, serialized);
     } else {
@@ -176,13 +260,16 @@ export async function setCache<T>(
  */
 export async function deleteCache(key: string): Promise<boolean> {
   try {
+    // L1 invalidate first (coherence: never leave stale memory entries).
+    memoryStore.delete(key);
+
     if (!isRedisAvailable()) {
-      return false;
+      return true;
     }
 
     const redis = await getRedisClient();
     if (!redis) {
-      return false;
+      return true;
     }
     
     await redis.del(key);
@@ -207,6 +294,11 @@ export async function deleteCache(key: string): Promise<boolean> {
  */
 export async function deleteCachePattern(pattern: string): Promise<number> {
   try {
+    // L1 invalidate (glob → regex match over memory keys).
+    for (const memKey of memoryMatchKeys(pattern)) {
+      memoryStore.delete(memKey);
+    }
+
     if (!isRedisAvailable()) {
       return 0;
     }
@@ -253,25 +345,54 @@ export async function deleteCachePattern(pattern: string): Promise<number> {
  */
 export async function getCacheMultiple<T>(keys: string[]): Promise<(T | null)[]> {
   try {
-    if (!isRedisAvailable() || keys.length === 0) {
-      return keys.map(() => null);
+    if (keys.length === 0) {
+      return [];
+    }
+
+    // L1 pass first.
+    const results: (T | null)[] = keys.map((key) => {
+      const mem = memoryGetRaw(key);
+      if (mem) {
+        updateStats('hit');
+        return JSON.parse(mem.value) as T;
+      }
+      return null;
+    });
+
+    const missingIndices = results
+      .map((r, _i) => (r === null ? _i : -1))
+      .filter((idx) => idx >= 0);
+
+    if (missingIndices.length === 0) return results;
+
+    if (!isRedisAvailable()) {
+      missingIndices.forEach(() => updateStats('miss'));
+      return results;
     }
 
     const redis = await getRedisClient();
     if (!redis) {
-      return keys.map(() => null);
+      missingIndices.forEach(() => updateStats('miss'));
+      return results;
     }
     
-    const cached = await redis.mget(...keys);
+    const missingKeys = missingIndices.map((i) => keys[i]);
+    const cached = await redis.mget(...missingKeys);
 
-    return cached.map((value: string | null, _index: number) => {
+    cached.forEach((value: string | null, idx: number) => {
+      const originalIndex = missingIndices[idx];
       if (value) {
         updateStats('hit');
-        return JSON.parse(value) as T;
+        results[originalIndex] = JSON.parse(value) as T;
+        void redis.ttl(missingKeys[idx]).then((ttl) => {
+          memorySet(missingKeys[idx], value, ttl > 0 ? ttl : undefined);
+        }).catch(() => undefined);
+      } else {
+        updateStats('miss');
       }
-      updateStats('miss');
-      return null;
     });
+
+    return results;
   } catch (error) {
     console.error('Cache mget error:', error);
     updateStats('error');
@@ -296,8 +417,17 @@ export async function setCacheMultiple<T>(
   entries: Array<{ key: string; value: T; ttl?: number }>
 ): Promise<boolean> {
   try {
-    if (!isRedisAvailable() || entries.length === 0) {
+    if (entries.length === 0) {
       return false;
+    }
+
+    // L1 write-through for every entry (Redis pipeline skips no-TTL items).
+    for (const entry of entries) {
+      memorySet(entry.key, JSON.stringify(entry.value), entry.ttl);
+    }
+
+    if (!isRedisAvailable()) {
+      return true;
     }
 
     const redis = await getRedisClient();
@@ -351,15 +481,25 @@ export async function getCacheOrFetch<T>(
     return cached;
   }
 
-  // Cache miss - fetch from source
-  const data = await fetchFn();
-
-  // Store in cache for next time
-  if (data !== null && data !== undefined) {
-    await setCache(key, data, ttl);
+  // Single-flight: coalesce concurrent misses on the same key so a cold cache
+  // plus a burst of requests produces ONE database fetch, not N.
+  const existing = inFlightFetches.get(key);
+  if (existing) {
+    return existing as Promise<T>;
   }
 
-  return data;
+  const fetchPromise = (async () => {
+    const data = await fetchFn();
+    if (data !== null && data !== undefined) {
+      await setCache(key, data, ttl);
+    }
+    return data;
+  })().finally(() => {
+    inFlightFetches.delete(key);
+  });
+
+  inFlightFetches.set(key, fetchPromise);
+  return fetchPromise;
 }
 
 /**
@@ -375,6 +515,10 @@ export async function getCacheOrFetch<T>(
  */
 export async function hasCache(key: string): Promise<boolean> {
   try {
+    if (memoryGetRaw(key)) {
+      return true;
+    }
+
     if (!isRedisAvailable()) {
       return false;
     }
@@ -461,6 +605,8 @@ export async function flushAllCache(): Promise<void> {
   }
 
   try {
+    memoryStore.clear();
+
     if (!isRedisAvailable()) {
       return;
     }

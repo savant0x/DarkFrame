@@ -31,7 +31,6 @@ import {
   calculateUpgradeCost,
   getFactoryStats,
   getUpgradeProgress,
-  calculateCumulativeCost,
   FACTORY_UPGRADE
 } from '@/lib/factoryUpgradeService';
 import { applySlotRegeneration, getTimeUntilNextSlot, getAvailableSlots } from '@/lib/slotRegenService';
@@ -59,6 +58,8 @@ interface FactoryResponse {
     seconds: number;
     totalMs: number;
   };
+  /** FID-20260909-032 §H: upgrade + reconstructed production spend for this factory. */
+  invested: { metal: number; energy: number };
 }
 
 export async function GET(_request: NextRequest) {
@@ -120,12 +121,15 @@ export async function GET(_request: NextRequest) {
         canUpgrade = playerMetal >= upgradeCost.metal && playerEnergy >= upgradeCost.energy;
       }
       
-      // Calculate investment in this factory
-      if (currentLevel > 1) {
-        const cumulativeCost = calculateCumulativeCost(currentLevel);
-        totalMetalInvested += cumulativeCost.metal;
-        totalEnergyInvested += cumulativeCost.energy;
-      }
+      // FID-20260909-032 §7: exact lifetime investment, maintained at write
+      // time by build-unit/upgrade ($inc SQL deltas) and seeded for pre-column
+      // rows by the migration-0020 backfill. Abandon/release zero it on reset.
+      const factoryInvested = {
+        metal: Number(factory.investedMetal ?? 0),
+        energy: Number(factory.investedEnergy ?? 0),
+      };
+      totalMetalInvested += factoryInvested.metal;
+      totalEnergyInvested += factoryInvested.energy;
       
       // Build upgrade progress object with all required fields
       const upgradePercentage = getUpgradeProgress(regenFactory);
@@ -143,7 +147,8 @@ export async function GET(_request: NextRequest) {
         canUpgrade,
         upgradeProgress,
         availableSlots: getAvailableSlots(regenFactory),
-        timeUntilNextSlot: timeUntilNext // Return full object with hours, minutes, seconds, totalMs
+        timeUntilNextSlot: timeUntilNext, // Return full object with hours, minutes, seconds, totalMs
+        invested: factoryInvested // FID-20260909-032 §H
       };
     });
 

@@ -42,6 +42,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logFactory } from '@/lib/activityLogger';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { connectToDatabase } from '@/lib/mongodb';
 import {
@@ -213,6 +214,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           defense: getFactoryDefense(newLevel), // Update defense to match new level
           // Don't modify current slots, just the capacity increases
           lastSlotRegen: now // Reset regen timer for new rate
+        },
+        // FID-20260909-032 §7: exact lifetime investment at write time.
+        $inc: {
+          investedMetal: upgradeCost.metal,
+          investedEnergy: upgradeCost.energy
         }
       }
     );
@@ -249,6 +255,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Award XP for factory upgrade
     const xpResult = await awardXP(username, XPAction.FACTORY_UPGRADE);
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry (was: logger defined,
+    // never wired). Logging failures are swallowed inside the logger.
+    await logFactory(
+      username,
+      request.cookies.get('sessionId')?.value || 'unknown',
+      true,
+      newLevel,
+      { x: validated.factoryX, y: validated.factoryY },
+      upgradeCost
+    );
 
     log.info('Factory upgraded successfully', { 
       username, 

@@ -57,12 +57,20 @@ interface SchedulerState {
   stats: Map<string, JobStats>;
 }
 
-const scheduler: SchedulerState = {
+/**
+ * FID-20260909-036 (cross-runtime fix): server.ts (tsx) and Next's bundled
+ * API routes keep separate module registries, so module-level scheduler state
+ * exists twice — the jobs-status panel read the empty instance while the
+ * real jobs ran in the server's. State lives on globalThis, shared by every
+ * runtime in the process.
+ */
+const wmdSchedulerGlobals = globalThis as unknown as { __darkframeWMDScheduler?: SchedulerState };
+const scheduler: SchedulerState = (wmdSchedulerGlobals.__darkframeWMDScheduler ??= {
   isRunning: false,
   startedAt: null,
   jobs: new Map(),
   stats: new Map(),
-};
+});
 
 interface JobConfig {
   name: string;
@@ -204,6 +212,80 @@ export function stopWMDJobs(): { success: boolean; message: string } {
   }
 }
 
+/**
+ * Stop a single WMD job (FID-20260909-036 admin controls). Clears its
+ * interval without touching the rest of the scheduler family.
+ */
+export function stopSingleWMDJob(jobName: string): { success: boolean; message: string } {
+  try {
+    const config = JOBS.find((j) => j.name === jobName);
+    if (!config) {
+      return { success: false, message: `Job '${jobName}' not found` };
+    }
+    
+    const existingInterval = scheduler.jobs.get(jobName);
+    if (!existingInterval) {
+      return { success: false, message: `Job '${jobName}' is not running` };
+    }
+    
+    clearInterval(existingInterval);
+    scheduler.jobs.delete(jobName);
+    if (scheduler.jobs.size === 0) scheduler.isRunning = false;
+    
+    const stats = scheduler.stats.get(jobName);
+    if (stats) stats.nextRun = null;
+    
+    console.log(`[WMD Scheduler] Stopped single job: ${jobName}`);
+    return { success: true, message: `Job '${jobName}' stopped` };
+  } catch (error) {
+    console.error(`[WMD Scheduler] Error stopping ${jobName}:`, error);
+    return { success: false, message: `Failed to stop job '${jobName}'` };
+  }
+}
+
+/**
+ * Start a single WMD job (FID-20260909-036 admin controls). Initializes its
+ * stats entry if the family was never started, then registers the interval.
+ */
+export function startSingleWMDJob(jobName: string): { success: boolean; message: string } {
+  try {
+    const config = JOBS.find((j) => j.name === jobName);
+    if (!config) {
+      return { success: false, message: `Job '${jobName}' not found` };
+    }
+    
+    if (scheduler.jobs.has(jobName)) {
+      return { success: false, message: `Job '${jobName}' already running` };
+    }
+    
+    if (!scheduler.stats.has(jobName)) {
+      scheduler.stats.set(jobName, {
+        name: jobName,
+        interval: config.interval,
+        lastRun: null,
+        nextRun: new Date(Date.now() + config.interval),
+        executionCount: 0,
+        errorCount: 0,
+        averageExecutionTime: 0,
+        isRunning: false,
+      });
+    }
+    
+    const intervalId = setInterval(() => {
+      executeJob(db, config);
+    }, config.interval);
+    scheduler.jobs.set(jobName, intervalId);
+    scheduler.isRunning = true;
+    if (!scheduler.startedAt) scheduler.startedAt = new Date();
+    
+    console.log(`[WMD Scheduler] Started single job: ${jobName}`);
+    return { success: true, message: `Job '${jobName}' started` };
+  } catch (error) {
+    console.error(`[WMD Scheduler] Error starting ${jobName}:`, error);
+    return { success: false, message: `Failed to start job '${jobName}'` };
+  }
+}
+
 export function getSchedulerHealth(): {
   isRunning: boolean;
   uptime: number | null;
@@ -218,7 +300,27 @@ export function getSchedulerHealth(): {
     isRunning: boolean;
   }>;
 } {
-  const jobStats = Array.from(scheduler.stats.values());
+  // FID-20260909-036: report the FULL job roster — a family that was never
+  // started (or is fully stopped) must still appear in health views with
+  // zeroed stats, not vanish from the panel. Per-job isRunning means
+  // "scheduled" (an interval is registered), matching the other job
+  // families' semantics in the admin health panel — not the transient
+  // "currently executing" flag executeJob toggles mid-run.
+  const jobStats = JOBS.map((config) => {
+    const scheduled = scheduler.jobs.has(config.name);
+    const existing = scheduler.stats.get(config.name);
+    if (existing) return { ...existing, isRunning: scheduled };
+    return {
+      name: config.name,
+      interval: config.interval,
+      lastRun: null,
+      nextRun: null,
+      executionCount: 0,
+      errorCount: 0,
+      averageExecutionTime: 0,
+      isRunning: scheduled,
+    };
+  });
   
   const uptime = scheduler.startedAt
     ? Date.now() - scheduler.startedAt.getTime()

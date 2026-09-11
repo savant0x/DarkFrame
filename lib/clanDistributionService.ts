@@ -32,7 +32,7 @@
 
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
-import { eq, sql, type SQL } from 'drizzle-orm';
+import { eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { ClanRole, type ClanMember } from '@/types/clan.types';
 
 
@@ -632,14 +632,21 @@ export async function directGrant(
   }
   
   const recipients: DistributionRecord['recipients'] = [];
-  
+
+  // FID-20260909-023 §3.5: batch the per-recipient work — one IN-select for
+  // username resolution instead of a select-per-grant round-trip. Resource
+  // updates stay per-recipient (different grant amounts per row); each is a
+  // single indexed UPDATE.
+  const recipientUsernames = grants.map((g) => g.playerId);
+  const recipientRows = recipientUsernames.length > 0
+    ? await db.select({ username: players.username }).from(players).where(inArray(players.username, recipientUsernames))
+    : [];
+  const knownUsernames = new Set(recipientRows.map((r) => r.username));
+
   for (const grant of grants) {
-    const playerRows = await db.select().from(players).where(eq(players.username, grant.playerId)).limit(1);
-    const player = playerRows[0];
-    
     recipients.push({
       playerId: grant.playerId,
-      username: player?.username || 'Unknown',
+      username: knownUsernames.has(grant.playerId) ? grant.playerId : 'Unknown',
       amount: {
         metal: grant.metal || 0,
         energy: grant.energy || 0,

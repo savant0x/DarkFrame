@@ -32,6 +32,9 @@ import { and, eq, lte, sql } from 'drizzle-orm';
 import type { Factory } from '@/types/game.types';
 import { getMaxSlots } from '@/lib/factoryUpgradeService';
 import { recountPlayerFactoryCount } from '@/lib/factoryService';
+import { createLogger } from '@/lib/logger/productionLogger';
+
+const log = createLogger({ context: 'factory/release' });
 
 export async function POST(request: NextRequest) {
   try {
@@ -106,7 +109,10 @@ export async function POST(request: NextRequest) {
             productionRate: 1,
             lastSlotRegen: new Date(),
             lastAttackedBy: null,
-            lastAttackTime: null
+            lastAttackTime: null,
+            // FID-20260909-032 §7: the factory forgets its owner and its spend.
+            investedMetal: 0,
+            investedEnergy: 0
           }
         }
       );
@@ -118,7 +124,7 @@ export async function POST(request: NextRequest) {
       // Maintain the denormalized ownership counter (FID-20260908-004)
       await recountPlayerFactoryCount(username);
       
-      console.log(`🏭 ${username} released factory at (${factoryX}, ${factoryY})`);
+      log.info(`Factory released`, { username, x: factoryX, y: factoryY });
       
     } else {
       // Batch release based on slot threshold
@@ -183,7 +189,7 @@ export async function POST(request: NextRequest) {
         await recountPlayerFactoryCount(username);
       }
       
-      console.log(`🏭 ${username} batch released ${releasedCount} factories (threshold: ${threshold} slots)`);
+      log.info(`Factories batch released`, { username, releasedCount, thresholdSlots: threshold });
     }
 
     return NextResponse.json({

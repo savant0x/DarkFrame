@@ -103,7 +103,38 @@ export async function getFlagRow() {
 }
 
 /** Full holder state including any in-flight challenge. */
+/**
+ * Doc §5.2 pollChallenge: an expired channel is a DEAD channel — the
+ * challenger abandoned it (closed tab / never claimed). Without a sweep the
+ * stale `challenge_challenger` row permanently blocks every future challenge
+ * ("A steal challenge is already in progress" forever) — the live capture
+ * deadlock. Called from startChallenge and the GET route so every entry point
+ * self-heals; the bearer's fleeCount/lastFleeAt persist (the doc's escalation
+ * ladder counts flee ATTEMPTS, not channels).
+ *
+ * CLAIM_WINDOW_MS: the sweep spares channels that expired recently so the
+ * challenger's claim (valid per doc "after challenge_ends_at, channel
+ * unbroken") is never destroyed by a concurrent reader's sweep. Abandoned
+ * channels sweep 2 minutes after expiry; the claim path itself NEVER sweeps.
+ */
+export const CLAIM_WINDOW_MS = 2 * 60_000;
+
+export async function pollChallenge(now = new Date()): Promise<void> {
+  const sweepBefore = new Date(now.getTime() - CLAIM_WINDOW_MS);
+  await db
+    .update(flags)
+    .set({ challengeChallenger: null, challengeStartedAt: null, challengeEndsAt: null })
+    .where(
+      sql`${flags.challengeChallenger} IS NOT NULL
+          AND ${flags.challengeEndsAt} IS NOT NULL
+          AND ${flags.challengeEndsAt} <= ${sweepBefore}`,
+    );
+}
+
 export async function getFlagHolderState(): Promise<FlagHolderState> {
+  // NOTE: deliberately NO sweep here — claimFlag reads through this function
+  // and must see the (expired) channel to settle it. Sweeping happens at the
+  // call sites that can tolerate it: startChallenge and the GET route.
   const row = await getFlagRow();
   if (!row) {
     return {
@@ -252,6 +283,9 @@ export interface ChallengeStartResult {
   startedAt?: Date;
   endsAt?: Date;
   bearerLockExpiresAt?: Date;
+  /** FID-20260910-039 R2: true when the call rejoined the challenger's own
+   * already-running channel (idempotent retry) rather than starting a new one. */
+  rejoined?: boolean;
 }
 
 /**
@@ -264,10 +298,29 @@ export interface ChallengeStartResult {
  *    (the bot never flees — §5.6).
  */
 export async function startChallenge(challenger: string): Promise<ChallengeStartResult> {
+  // Doc §5.2: sweep dead channels before judging "already in progress". The
+  // 2-minute claim window means a challenger who truly vanished still blocks
+  // re-challenges only briefly; abandoned channels never deadlock the flag.
+  await pollChallenge();
   const state = await getFlagHolderState();
   if (!state.currentHolder) return { ok: false, reason: 'No one is holding the Flag' };
   if (state.currentHolder === challenger) return { ok: false, reason: 'You already hold the Flag' };
-  if (state.challenge) return { ok: false, reason: 'A steal challenge is already in progress' };
+  // FID-20260910-039 R2: a retry by the SAME challenger rejoins its running
+  // channel idempotently (double-click, panel refocus, flaky network) instead
+  // of 409-ing — the channel is singular per flag, so a second start cannot
+  // create a second one. Other challengers still get 'already in progress'.
+  if (state.challenge) {
+    if (state.challenge.challenger === challenger) {
+      return {
+        ok: true,
+        startedAt: state.challenge.startedAt,
+        endsAt: state.challenge.endsAt,
+        bearerLockExpiresAt: new Date(state.challenge.startedAt.getTime() + BEARER_LOCK_MS),
+        rejoined: true,
+      };
+    }
+    return { ok: false, reason: 'A steal challenge is already in progress' };
+  }
   if (state.graceUntil && state.graceUntil > new Date()) {
     return { ok: false, reason: `Flag is under challenge grace for another ${Math.ceil((state.graceUntil.getTime() - Date.now()) / 1000)}s` };
   }
@@ -409,6 +462,9 @@ export interface ClaimResult {
  * (flee budget exhausted) or simply never fled; bot bearers always lose.
  */
 export async function claimFlag(challenger: string): Promise<ClaimResult> {
+  // Expired-channel sweep happens inside getFlagHolderState (pollChallenge):
+  // an abandoned channel must yield "No active challenge" here, never a
+  // claimable dead channel.
   const state = await getFlagHolderState();
   if (!state.challenge) return { ok: false, reason: 'No active challenge' };
   if (state.challenge.challenger !== challenger) return { ok: false, reason: 'Only the challenger can claim' };

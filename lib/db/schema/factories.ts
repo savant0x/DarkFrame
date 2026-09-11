@@ -8,6 +8,11 @@ export const factories = pgTable('factories', {
 	level: integer('level').notNull().default(1),
 	slots: integer('slots').notNull().default(0),
 	usedSlots: integer('used_slots').notNull().default(0),
+	// FID-20260909-032 §7: exact lifetime investment, maintained at write time by
+	// build-unit and upgrade. Backfilled once from reconstruction (migration 0020);
+	// units destroyed afterwards do NOT reduce these — they are lifetime spend.
+	investedMetal: integer('invested_metal').notNull().default(0),
+	investedEnergy: integer('invested_energy').notNull().default(0),
 	productionRate: numeric('production_rate', { precision: 5, scale: 2 }).notNull().default('0'),
 	lastSlotRegen: timestamp('last_slot_regen').notNull(),
 	lastResourceGeneration: timestamp('last_resource_generation'),

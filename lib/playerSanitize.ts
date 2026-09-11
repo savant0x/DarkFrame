@@ -67,10 +67,20 @@ const PUBLIC_FIELDS = [
   'inventory',
   'units',
   'factoryCount',
+  // FID-20260910-040: harvest yield drivers — both Harvest Calculators render
+  // the digger/shrine terms from these; stripping them forced the Stats tab to
+  // scrape nonexistent InventoryItem fields (always 0) and the sidebar to show
+  // +0% gathering. Non-sensitive multipliers (percentages + boost expiry).
+  'gatheringBonus',
+  'shrineBoosts',
   // combat power (columns are non-sensitive aggregates; StatsPanel's power
   // meters and the military readouts consume them — FID-20260908-003)
   'totalStrength',
   'totalDefense',
+  // derived army-balance readout (status/multipliers only; recomputed from
+  // STR/DEF server-side and consumed by the military balance row —
+  // FID-20260909-025 §4.1)
+  'balanceEffects',
   // presentation / social
   'baseGreeting',
   'achievements',

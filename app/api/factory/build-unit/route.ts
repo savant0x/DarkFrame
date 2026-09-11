@@ -16,8 +16,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logFactory } from '@/lib/activityLogger';
 import { authenticateRequest } from '@/lib/authMiddleware';
-import { connectToDatabase, type DocumentValue } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/mongodb';
 import type { Player } from '@/types/game.types';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
 import { applySlotRegeneration, hasEnoughSlots, consumeSlots } from '@/lib/slotRegenService';
@@ -190,6 +191,31 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     const newTotalDefense = (player.totalDefense || 0) + defGained;
 
     // 14. Update player (deduct resources, add units, update totals)
+    // FID-20260909-032 §5-G: the Mongo `$push: { units: { $each } }` operand
+    // was persisted VERBATIM by the legacy seam path (one junk `{$each:[…]}`
+    // blob element instead of N units — the live corruption repaired by
+    // scripts/repair-units-each-blob.ts). The seam's normalizePushOperand now
+    // handles `$each` correctly, but this route writes through Drizzle
+    // directly so the domain shape is explicit and the safety doesn't depend
+    // on seam resolution: proper PlayerUnit entries, quantity-folded.
+    const builtAt = new Date();
+    const newUnitEntries = [
+      {
+        id: `${username}-${builtAt.getTime()}-infantry`,
+        unitId: unitType,
+        unitType,
+        name: unitConfig.name,
+        category: (unitConfig.defense > 0 && !unitConfig.strength ? 'DEF' : 'STR') as 'STR' | 'DEF',
+        rarity: 'common' as const,
+        strength: unitConfig.strength,
+        defense: unitConfig.defense,
+        quantity,
+        createdAt: builtAt,
+        // FID-20260909-032 §H: factory provenance so per-factory production
+        // investment is reconstructible by /api/factory/list.
+        producedAt: { x: factoryX, y: factoryY },
+      },
+    ];
     await playersCollection.updateOne(
       { username },
       {
@@ -197,9 +223,14 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
           'resources.metal': -totalMetalCost,
           'resources.energy': -totalEnergyCost
         },
+        // FID-20260909-032 §2-G: the units value is the PLAIN entry array.
+        // The former `{ $each: … }` operand — smuggled past the type system
+        // with a cast — was persisted verbatim by the seam as one junk blob
+        // element in `units` (see scripts/repair-units-each-blob.ts). The
+        // seam persists arrays as arrays; entries are quantity-folded above.
         $push: {
-          units: { $each: newUnits }
-        } as unknown as Record<string, DocumentValue>,
+          units: newUnitEntries
+        },
         $set: {
           totalStrength: newTotalStrength,
           totalDefense: newTotalDefense
@@ -215,6 +246,12 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
         $set: {
           usedSlots: updatedFactory.usedSlots,
           lastSlotRegen: updatedFactory.lastSlotRegen
+        },
+        // FID-20260909-032 §7: exact lifetime investment at write time —
+        // SQL delta so concurrent builds compose instead of last-write-wins.
+        $inc: {
+          investedMetal: totalMetalCost,
+          investedEnergy: totalEnergyCost
         }
       }
     );
@@ -233,6 +270,17 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       defGained,
       factoryLocation: { x: factoryX, y: factoryY }
     });
+
+    // FID-20260909-029 §2.4: anti-cheat telemetry (was: logger defined,
+    // never wired). Logging failures are swallowed inside the logger.
+    await logFactory(
+      username,
+      request.cookies.get('sessionId')?.value || 'unknown',
+      false,
+      updatedFactory.level ?? 1,
+      { x: factoryX, y: factoryY },
+      { metal: totalMetalCost, energy: totalEnergyCost }
+    );
 
     // 18. Return success with updated data
     return NextResponse.json({

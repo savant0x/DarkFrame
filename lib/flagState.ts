@@ -15,7 +15,6 @@ import { db } from '@/lib/db';
 import { players, flags, flagTrail } from '@/lib/db/schema';
 import { eq, gt, lt, and, desc } from 'drizzle-orm';
 import { generateId } from '@/lib/utils';
-import { mapRowToPlayer } from '@/lib/playerService';
 
 export interface TrailEntry {
   x: number;
@@ -43,19 +42,32 @@ const TRAIL_MAX_ENTRIES = 200;
 /**
  * Read the full flag state, or null when nothing holds the flag / the holder
  * row is gone. Expired trail entries are filtered and never returned.
+ *
+ * FID-20260909-037 egress fix: the holder select previously fetched the FULL
+ * player row (units/discoveries/rp_history jsonb included) on every tile view,
+ * feeding the #1 pg_stat_statements entry (187K full-row reads/week). Only
+ * position/level/HP are consumed — select exactly those four columns.
  */
 export async function getFlagState(): Promise<FlagState | null> {
   const [flagRow] = await db.select().from(flags).limit(1);
   if (!flagRow?.currentHolder) return null;
 
   const [holderRow] = await db
-    .select()
+    .select({
+      username: players.username,
+      currentPositionX: players.currentPositionX,
+      currentPositionY: players.currentPositionY,
+      baseX: players.baseX,
+      baseY: players.baseY,
+      level: players.level,
+      currentHP: players.currentHP,
+      maxHP: players.maxHP,
+    })
     .from(players)
     .where(eq(players.username, flagRow.currentHolder))
     .limit(1);
   if (!holderRow) return null;
 
-  const holder = mapRowToPlayer(holderRow);
   const now = new Date();
 
   const trailRows = await db
@@ -69,12 +81,12 @@ export async function getFlagState(): Promise<FlagState | null> {
     holderUsername: flagRow.currentHolder,
     claimedAt: flagRow.lastCapturedAt ?? now,
     position: {
-      x: holder.currentPosition?.x ?? holder.base?.x ?? 1,
-      y: holder.currentPosition?.y ?? holder.base?.y ?? 1,
+      x: holderRow.currentPositionX ?? holderRow.baseX ?? 1,
+      y: holderRow.currentPositionY ?? holderRow.baseY ?? 1,
     },
-    level: holder.level ?? 1,
-    currentHP: holder.currentHP ?? 1000,
-    maxHP: holder.maxHP ?? 1000,
+    level: holderRow.level ?? 1,
+    currentHP: holderRow.currentHP ?? 1000,
+    maxHP: holderRow.maxHP ?? 1000,
     trail: trailRows
       .reverse() // oldest first for display
       .map((t) => ({
@@ -127,10 +139,20 @@ export async function recordTrailStep(username: string, position: { x: number; y
 /**
  * Whether the tile at (x, y) is on the current bearer's live trail. Used by the
  * tile route to set hasTrail/trailExpiresAt. Returns null when no flag state.
+ *
+ * FID-20260909-037 egress fix: previously re-ran getFlagState() (3 more
+ * queries) for a point lookup. A tile is ON the trail iff a live trail row
+ * exists at (x, y) — one indexed query, no holder/trail-list fetch.
  */
 export async function getTrailInfoAt(x: number, y: number): Promise<{ hasTrail: boolean; trailExpiresAt?: Date }> {
-  const state = await getFlagState();
-  if (!state) return { hasTrail: false };
-  const hit = state.trail.find((t) => t.x === x && t.y === y);
+  const [hit] = await db
+    .select({ expiresAt: flagTrail.expiresAt })
+    .from(flagTrail)
+    // innerJoin on the (single-row) flags table restricts hits to the CURRENT
+    // bearer's rows — a previous bearer's not-yet-expired entries must not
+    // render as live trail on the new holder's map.
+    .innerJoin(flags, eq(flags.currentHolder, flagTrail.holderUsername))
+    .where(and(eq(flagTrail.x, x), eq(flagTrail.y, y), gt(flagTrail.expiresAt, new Date())))
+    .limit(1);
   return hit ? { hasTrail: true, trailExpiresAt: hit.expiresAt } : { hasTrail: false };
 }

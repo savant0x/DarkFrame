@@ -24,7 +24,7 @@
 
 import {
   type Position,
-  type TerrainType,
+  TerrainType,
   type MapTile,
   type MapViewport,
   MAP_CONFIG,
@@ -416,6 +416,66 @@ export function getDirectionArrow(direction: string): string {
   };
 
   return arrows[direction] || '⬆️';
+}
+
+/**
+ * Generate a deterministic-shape mock map grid for dev/fallback rendering.
+ *
+ * Relocated verbatim from `components/map/GridRenderer.tsx` (FID-20260909-023
+ * §3.3): the Pixi rendering stack was deleted as dead code, but this pure
+ * data generator had a live consumer (`app/map/page.tsx`). It depends only on
+ * `@/types` — no Pixi — so it lives with the other map utilities here.
+ *
+ * Terrain distribution:
+ * - Wasteland: 40%
+ * - Metal: 20%, Energy: 20%
+ * - Factory: 10%, Cave: 8%, Forest: 2%
+ *
+ * @returns MAP_CONFIG.HEIGHT × MAP_CONFIG.WIDTH array of MapTile objects
+ */
+export function generateMockMapData(): MapTile[][] {
+  const map: MapTile[][] = [];
+
+  // Terrain distribution percentages
+  const terrainDistribution: Array<{ terrain: TerrainType; weight: number }> = [
+    { terrain: TerrainType.Metal, weight: 20 },
+    { terrain: TerrainType.Energy, weight: 20 },
+    { terrain: TerrainType.Cave, weight: 8 },
+    { terrain: TerrainType.Forest, weight: 2 },
+    { terrain: TerrainType.Factory, weight: 10 },
+    { terrain: TerrainType.Wasteland, weight: 40 }
+  ];
+
+  // Generate MAP_CONFIG-sized grid (1-based coordinates)
+  for (let y = 1; y <= MAP_CONFIG.HEIGHT; y++) {
+    const row: MapTile[] = [];
+
+    for (let x = 1; x <= MAP_CONFIG.WIDTH; x++) {
+      // Random terrain type based on distribution
+      const rand = Math.random() * 100;
+      let cumulative = 0;
+      let terrain: TerrainType = TerrainType.Wasteland;
+
+      for (const { terrain: t, weight } of terrainDistribution) {
+        cumulative += weight;
+        if (rand <= cumulative) {
+          terrain = t;
+          break;
+        }
+      }
+
+      row.push({
+        x,
+        y,
+        terrain,
+        isVisible: false
+      });
+    }
+
+    map.push(row);
+  }
+
+  return map;
 }
 
 /**

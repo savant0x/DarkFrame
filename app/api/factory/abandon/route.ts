@@ -122,7 +122,10 @@ export async function POST(request: NextRequest) {
           usedSlots: 0,
           lastSlotRegen: now,
           lastAttackedBy: null,
-          lastAttackTime: null
+          lastAttackTime: null,
+          // FID-20260909-032 §7: the factory forgets its owner and its spend.
+          investedMetal: 0,
+          investedEnergy: 0
         }
       }
     );

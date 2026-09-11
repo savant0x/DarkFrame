@@ -55,16 +55,31 @@ interface FlagBotJobStats {
 /**
  * Global job state
  */
-let jobInterval: NodeJS.Timeout | null = null;
-const jobStats: FlagBotJobStats = {
-  lastRun: null,
-  nextRun: null,
-  executionCount: 0,
-  errorCount: 0,
-  movementCount: 0,
-  resetCount: 0,
-  averageExecutionTime: 0,
-};
+/**
+ * FID-20260909-036 (cross-runtime fix): server.ts runs under tsx while API
+ * routes compile through Next's bundler — the two runtimes keep SEPARATE
+ * module registries, so module-level state exists twice. Job state lives on
+ * globalThis, shared by every runtime in the process, so the jobs-status
+ * panel (bundled route runtime) sees the same counters the tsx server writes.
+ */
+interface FlagBotJobState {
+  jobInterval: NodeJS.Timeout | null;
+  jobStats: FlagBotJobStats;
+}
+
+const flagBotJobGlobals = globalThis as unknown as { __darkframeFlagBotJob?: FlagBotJobState };
+const state: FlagBotJobState = (flagBotJobGlobals.__darkframeFlagBotJob ??= {
+  jobInterval: null,
+  jobStats: {
+    lastRun: null,
+    nextRun: null,
+    executionCount: 0,
+    errorCount: 0,
+    movementCount: 0,
+    resetCount: 0,
+    averageExecutionTime: 0,
+  },
+});
 
 /**
  * Job configuration
@@ -111,7 +126,7 @@ async function flagBotManagerJob(): Promise<number> {
     if (needsReset) {
       console.log('[Flag Bot Job] 🔄 Flag unclaimed > 1 hour, resetting...');
       await resetFlagBot();
-      jobStats.resetCount++;
+      state.jobStats.resetCount++;
       operationsPerformed++;
       console.log('[Flag Bot Job] ✅ Flag bot reset complete');
       return operationsPerformed;
@@ -127,7 +142,7 @@ async function flagBotManagerJob(): Promise<number> {
       const botDoc = await db.select().from(players).where(eq(players.username, flagBot.username)).limit(1);
       if (botDoc.length > 0) {
         const newPosition = await moveFlagBot(botDoc[0].username);
-        jobStats.movementCount++;
+        state.jobStats.movementCount++;
         operationsPerformed++;
         console.log(
           `[Flag Bot Job] ✅ Flag bot moved to (${newPosition.x}, ${newPosition.y})`
@@ -153,11 +168,11 @@ async function flagBotManagerJob(): Promise<number> {
 
     // Update statistics
     const executionTime = Date.now() - startTime;
-    jobStats.lastRun = new Date();
-    jobStats.executionCount++;
-    jobStats.averageExecutionTime =
-      (jobStats.averageExecutionTime * (jobStats.executionCount - 1) + executionTime) /
-      jobStats.executionCount;
+    state.jobStats.lastRun = new Date();
+    state.jobStats.executionCount++;
+    state.jobStats.averageExecutionTime =
+      (state.jobStats.averageExecutionTime * (state.jobStats.executionCount - 1) + executionTime) /
+      state.jobStats.executionCount;
 
     console.log(
       `[Flag Bot Job] ✅ Execution complete in ${executionTime}ms (${operationsPerformed} operations)`
@@ -165,7 +180,7 @@ async function flagBotManagerJob(): Promise<number> {
 
     return operationsPerformed;
   } catch (error) {
-    jobStats.errorCount++;
+    state.jobStats.errorCount++;
     console.error('[Flag Bot Job] ❌ Error during execution:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
@@ -200,7 +215,7 @@ export async function startFlagBotJob(): Promise<{
 }> {
   try {
     // Prevent duplicate job instances
-    if (jobInterval) {
+    if (state.jobInterval) {
       return {
         success: false,
         message: 'Flag bot job already running',
@@ -213,12 +228,12 @@ export async function startFlagBotJob(): Promise<{
     console.log('[Flag Bot Job] ✅ Flag system initialized');
 
     // Start interval job
-    jobInterval = setInterval(async () => {
+    state.jobInterval = setInterval(async () => {
       await flagBotManagerJob();
     }, FLAG_BOT_JOB_CONFIG.interval);
 
     // Calculate next run time
-    jobStats.nextRun = new Date(Date.now() + FLAG_BOT_JOB_CONFIG.interval);
+    state.jobStats.nextRun = new Date(Date.now() + FLAG_BOT_JOB_CONFIG.interval);
 
     console.log(
       `[Flag Bot Job] ✅ Started with ${FLAG_BOT_JOB_CONFIG.interval / 1000 / 60}min interval`
@@ -254,16 +269,16 @@ export function stopFlagBotJob(): {
   message: string;
 } {
   try {
-    if (!jobInterval) {
+    if (!state.jobInterval) {
       return {
         success: false,
         message: 'Flag bot job not running',
       };
     }
 
-    clearInterval(jobInterval);
-    jobInterval = null;
-    jobStats.nextRun = null;
+    clearInterval(state.jobInterval);
+    state.jobInterval = null;
+    state.jobStats.nextRun = null;
 
     console.log('[Flag Bot Job] 🛑 Stopped');
 
@@ -293,7 +308,7 @@ export function stopFlagBotJob(): {
  * ```
  */
 export function getFlagBotJobStats(): FlagBotJobStats {
-  return { ...jobStats };
+  return { ...state.jobStats };
 }
 
 /**
@@ -311,7 +326,7 @@ export function getFlagBotJobInfo(): {
   return {
     name: FLAG_BOT_JOB_CONFIG.name,
     interval: FLAG_BOT_JOB_CONFIG.interval,
-    isRunning: jobInterval !== null,
+    isRunning: state.jobInterval !== null,
     stats: getFlagBotJobStats(),
   };
 }

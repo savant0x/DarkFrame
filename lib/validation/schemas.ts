@@ -401,7 +401,9 @@ export type SystemResetRequest = z.infer<typeof SystemResetSchema>;
  * Matches app/api/research/route.ts API format
  */
 export const ResearchTechSchema = z.object({
-  username: UsernameSchema,
+  // FID-20260909-029 §2.2: username is session-derived (getAuthenticatedUser)
+  // and legacy clients still send it — optional + ignored at the handler.
+  username: UsernameSchema.optional(),
   technologyId: z.string().min(1, 'Technology ID is required'),
 });
 
@@ -913,9 +915,11 @@ export type BotRegenRequest = z.infer<typeof BotRegenSchema>;
 export const BotSpawnSchema = z.object({
   specialization: z.enum(['Hoarder', 'Fortress', 'Raider', 'Balanced', 'Ghost']),
   tier: z.number().int().min(1).max(6),
+  // FID-20260909-030: on-map bounds only (150×150, 1-based). The old 0–5000
+  // range accepted coordinates for tiles that do not exist.
   position: z.object({
-    x: z.number().min(0).max(5000),
-    y: z.number().min(0).max(5000),
+    x: z.number().int().min(1).max(150),
+    y: z.number().int().min(1).max(150),
   }).optional(),
   isSpecialBase: z.boolean().optional(),
   count: z.number().int().min(1).max(10).optional(),

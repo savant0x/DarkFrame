@@ -164,8 +164,12 @@ async function loadCustomBlacklist(): Promise<void> {
   }
 }
 
-// Load blacklist on module initialization
-loadCustomBlacklist();
+// FID-20260909-024: blacklist load is now LAZY — the module-level
+// loadCustomBlacklist() call fired a DB query at import time, which ran during
+// production prerender for every build worker and repeatedly exhausted the
+// Supavisor session pool (EMAXCONNSESSION, pool_size 15). The blacklist now
+// loads on first use of the chat content filter instead; the in-memory cache
+// and reloadChatBlacklist() semantics are unchanged.
 
 /**
  * Filter profanity from message
@@ -178,6 +182,7 @@ loadCustomBlacklist();
  */
 export function filterProfanity(message: string): string {
   try {
+    void loadCustomBlacklist(); // lazy, cached — no-op after the first load
     return profanityFilter.clean(message);
   } catch (error) {
     console.error('[ChatService] Profanity filter error:', error);
@@ -193,6 +198,7 @@ export function filterProfanity(message: string): string {
  */
 export function containsProfanity(message: string): boolean {
   try {
+    void loadCustomBlacklist(); // lazy, cached — no-op after the first load
     return profanityFilter.isProfane(message);
   } catch (error) {
     console.error('[ChatService] Profanity check error:', error);

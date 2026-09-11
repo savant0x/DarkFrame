@@ -49,7 +49,8 @@
 
 import { connectToDatabase, type DocumentValue } from './mongodb';
 import { getNestById } from './botNestService';
-import type { Player, PlayerUnit,  UnitType } from '@/types/game.types';
+import type { Player, PlayerUnit, UnitType } from '@/types/game.types';
+import { UNIT_CONFIGS, UnitTier } from '@/types/game.types';
 
 /**
  * Resource regeneration rates by bot specialization (percentage per hour).
@@ -106,20 +107,18 @@ const AGE_MULTIPLIERS = {
 } as const;
 
 /**
- * Available unit types for bot armies
+ * Available unit types for bot armies — FID-20260909-033: derived from the
+ * unified UNIT_CONFIGS (canonical roster). No third naming scheme: a bot's
+ * Warrior IS the player-buildable Warrior, with the same stats.
  */
 const UNIT_TYPES = {
-  STR: [
-    { id: 'warrior', name: 'Warrior', tier: 1, str: 10, def: 5, cost: 100 },
-    { id: 'berserker', name: 'Berserker', tier: 2, str: 25, def: 10, cost: 250 },
-    { id: 'champion', name: 'Champion', tier: 3, str: 50, def: 20, cost: 500 },
-  ],
-  DEF: [
-    { id: 'guard', name: 'Guard', tier: 1, str: 5, def: 10, cost: 100 },
-    { id: 'sentinel', name: 'Sentinel', tier: 2, str: 10, def: 25, cost: 250 },
-    { id: 'bastion', name: 'Bastion', tier: 3, str: 20, def: 50, cost: 500 },
-  ],
-} as const;
+  STR: Object.values(UNIT_CONFIGS)
+    .filter((c) => c.strength > 0 && c.tier <= UnitTier.Tier3)
+    .map((c) => ({ id: c.type as string, name: c.name, tier: c.tier as number, str: c.strength, def: c.defense })),
+  DEF: Object.values(UNIT_CONFIGS)
+    .filter((c) => c.defense > 0 && c.tier <= UnitTier.Tier3)
+    .map((c) => ({ id: c.type as string, name: c.name, tier: c.tier as number, str: c.strength, def: c.defense })),
+};
 
 /**
  * Calculate bot age in days

@@ -26,9 +26,9 @@
 import { connectToDatabase } from './mongodb';
 import type { Player } from '@/types/game.types';
 import { recordSpawnEvent } from './beerBaseAnalytics';
-import { createBotPlayer, generateBeerBaseName } from './botService';
+import { createBotPlayer, generateBeerBaseName, claimBotBaseTile, releaseBotBaseTile } from './botService';
 import { generatePredictiveDistribution, PredictiveDistribution } from './playerHistoryService';
-import { BotSpecialization, UnitType, PlayerUnit } from '@/types/game.types';
+import { BotSpecialization, UnitType, PlayerUnit, UNIT_CONFIGS, UnitTier } from '@/types/game.types';
 // FID-20260906-006a R4: drizzle-native config reads/writes (game_config table).
 import { db as drizzleDb } from '@/lib/db';
 import { gameConfig } from '@/lib/db/schema';
@@ -39,9 +39,6 @@ import { randomUUID } from 'node:crypto';
 function generateConfigId(): string {
   return randomUUID().replace(/-/g, '').slice(0, 24);
 }
-
-// Map size constant
-const MAP_SIZE = 150;
 
 /**
  * Beer Base Configuration
@@ -69,6 +66,12 @@ export interface BeerBaseConfig {
   // Predictive Spawning (FID-20251025-002)
   usePredictiveSpawning?: boolean; // Use predictive tier distribution based on projected player levels (default false)
   predictiveWeeksAhead?: number; // Weeks to project ahead for predictions (default 2)
+
+  // Scheduler bookkeeping (FID-20260909-035): the weekly respawn job persists
+  // the ISO week of its last run so a server restart inside the scheduled
+  // window cannot double-respawn, and a skipped window catches up on the
+  // next tick within the same week.
+  lastRespawnWeek?: number;
 }
 
 /**
@@ -208,6 +211,9 @@ export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
         // Predictive Spawning (FID-20251025-002)
         usePredictiveSpawning: config.usePredictiveSpawning ?? DEFAULT_CONFIG.usePredictiveSpawning,
         predictiveWeeksAhead: config.predictiveWeeksAhead ?? DEFAULT_CONFIG.predictiveWeeksAhead,
+
+        // Scheduler bookkeeping (FID-20260909-035)
+        lastRespawnWeek: config.lastRespawnWeek,
       };
     }
 
@@ -225,6 +231,8 @@ export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
  */
 export async function updateBeerBaseConfig(config: Partial<BeerBaseConfig>): Promise<void> {
   const current = await getBeerBaseConfig();
+  // Spread merge preserves the persisted lastRespawnWeek unless the caller
+  // explicitly supplies a new one (setLastRespawnWeek).
   const merged = { ...current, ...config };
   await drizzleDb
     .insert(gameConfig)
@@ -233,6 +241,16 @@ export async function updateBeerBaseConfig(config: Partial<BeerBaseConfig>): Pro
       target: gameConfig.type,
       set: { config: merged },
     });
+}
+
+/**
+ * Persist the ISO week of the last completed respawn (FID-20260909-035).
+ * Survives server restarts so the weekly respawn can neither double-fire
+ * within one week (restart inside the window) nor stay stuck when a window
+ * is missed entirely (catch-up: a past week triggers on the next tick).
+ */
+export async function setLastRespawnWeek(week: number): Promise<void> {
+  await updateBeerBaseConfig({ lastRespawnWeek: week });
 }
 
 /**
@@ -402,21 +420,14 @@ export async function getCurrentBeerBaseCount(): Promise<number> {
 }
 
 /**
- * Generate random position on map
- */
-function getRandomPosition(): { x: number; y: number } {
-  return {
-    x: Math.floor(Math.random() * MAP_SIZE),
-    y: Math.floor(Math.random() * MAP_SIZE),
-  };
-}
-
-/**
  * Power tier classification for Beer Bases
- * Realistic power ranges aligned with endgame player capabilities
+ * Realistic power ranges aligned with endgame player capabilities.
+ * Bands describe TOTAL army power (strength + defense, the sum the UI
+ * displays) and are calibrated against the post-FID-20260909-033 unified
+ * unit roster (T1 Infantry = 100 power).
  */
-enum PowerTier {
-  Weak = 'WEAK',           // 1K-50K total power (early targets)
+export enum PowerTier {
+  Weak = 'WEAK',           // 15K-50K total power (early targets; floor raised from 1K — post-unification a T1 unit costs 100, so sub-15K armies cannot exist)
   Mid = 'MID',             // 50K-500K total power (mid-game targets)
   Strong = 'STRONG',       // 500K-2M total power (late-game targets)
   Elite = 'ELITE',         // 2M-10M total power (endgame targets)
@@ -445,7 +456,7 @@ function powerTierToNumber(tier: PowerTier): number {
 function getTargetPowerForTier(tier: PowerTier): number {
   switch (tier) {
     case PowerTier.Weak:
-      return 1_000 + Math.floor(Math.random() * 49_000); // 1K-50K
+      return 15_000 + Math.floor(Math.random() * 35_000); // 15K-50K (floor: minimum viable 10-slot army post-unification)
     case PowerTier.Mid:
       return 50_000 + Math.floor(Math.random() * 450_000); // 50K-500K
     case PowerTier.Strong:
@@ -460,71 +471,45 @@ function getTargetPowerForTier(tier: PowerTier): number {
 }
 
 /**
- * Unit definitions with power stats
- * All 40 standard units organized by tier for progressive army building
+ * Unit pools for bot army generation — FID-20260909-033: DERIVED from
+ * UNIT_CONFIGS (which is itself derived from the canonical UNIT_BLUEPRINTS
+ * roster). No hand-copied stats: a bot Sniper is the same Sniper a player
+ * builds, so bot power and player power are computed on identical numbers.
+ * FID-20260909-034: band integrity (min ≤ Σ(quantity × (str+def)) ≤ max for
+ * every draw) is pinned by regression; generation filters to PURE entries.
  */
-const UNIT_POOLS = {
-  T1_STR: [
-    { type: UnitType.T1_Sniper, str: 15, def: 5, name: 'Sniper' },
-    { type: UnitType.T1_Grenadier, str: 12, def: 8, name: 'Grenadier' },
-    { type: UnitType.T1_Scout, str: 8, def: 10, name: 'Scout' },
-    { type: UnitType.T1_Rifleman, str: 5, def: 10, name: 'Rifleman' },
-  ],
-  T1_DEF: [
-    { type: UnitType.T1_Shield, str: 5, def: 15, name: 'Shield' },
-    { type: UnitType.T1_Turret, str: 8, def: 12, name: 'Turret' },
-    { type: UnitType.T1_Barrier, str: 7, def: 8, name: 'Barrier' },
-    { type: UnitType.T1_Bunker, str: 6, def: 5, name: 'Bunker' },
-  ],
-  T2_STR: [
-    { type: UnitType.T2_Demolisher, str: 60, def: 30, name: 'Demolisher' },
-    { type: UnitType.T2_Assassin, str: 50, def: 35, name: 'Assassin' },
-    { type: UnitType.T2_Ranger, str: 40, def: 40, name: 'Ranger' },
-    { type: UnitType.T2_Commando, str: 30, def: 32, name: 'Commando' },
-  ],
-  T2_DEF: [
-    { type: UnitType.T2_Sentinel, str: 30, def: 60, name: 'Sentinel' },
-    { type: UnitType.T2_Cannon, str: 35, def: 50, name: 'Cannon' },
-    { type: UnitType.T2_Barricade, str: 32, def: 40, name: 'Barricade' },
-    { type: UnitType.T2_Fortress, str: 40, def: 30, name: 'Fortress' },
-  ],
-  T3_STR: [
-    { type: UnitType.T3_Warlord, str: 135, def: 90, name: 'Warlord' },
-    { type: UnitType.T3_Enforcer, str: 120, def: 95, name: 'Enforcer' },
-    { type: UnitType.T3_Raider, str: 105, def: 100, name: 'Raider' },
-    { type: UnitType.T3_Striker, str: 90, def: 105, name: 'Striker' },
-  ],
-  T3_DEF: [
-    { type: UnitType.T3_Guardian, str: 90, def: 135, name: 'Guardian' },
-    { type: UnitType.T3_Artillery, str: 95, def: 120, name: 'Artillery' },
-    { type: UnitType.T3_Bulwark, str: 100, def: 105, name: 'Bulwark' },
-    { type: UnitType.T3_Citadel, str: 105, def: 90, name: 'Citadel' },
-  ],
-  T4_STR: [
-    { type: UnitType.T4_Annihilator, str: 270, def: 180, name: 'Annihilator' },
-    { type: UnitType.T4_Destroyer, str: 240, def: 190, name: 'Destroyer' },
-    { type: UnitType.T4_Juggernaut, str: 210, def: 200, name: 'Juggernaut' },
-    { type: UnitType.T4_Titan, str: 180, def: 210, name: 'Titan' },
-  ],
-  T4_DEF: [
-    { type: UnitType.T4_Colossus, str: 180, def: 270, name: 'Colossus' },
-    { type: UnitType.T4_Dreadnought, str: 190, def: 240, name: 'Dreadnought' },
-    { type: UnitType.T4_Rampart, str: 200, def: 210, name: 'Rampart' },
-    { type: UnitType.T4_Stronghold, str: 210, def: 180, name: 'Stronghold' },
-  ],
-  T5_STR: [
-    { type: UnitType.T5_Apocalypse, str: 540, def: 360, name: 'Apocalypse' },
-    { type: UnitType.T5_Devastator, str: 480, def: 380, name: 'Devastator' },
-    { type: UnitType.T5_Conqueror, str: 420, def: 400, name: 'Conqueror' },
-    { type: UnitType.T5_Overlord, str: 360, def: 420, name: 'Overlord' },
-  ],
-  T5_DEF: [
-    { type: UnitType.T5_Immortal, str: 360, def: 540, name: 'Immortal' },
-    { type: UnitType.T5_Leviathan, str: 380, def: 480, name: 'Leviathan' },
-    { type: UnitType.T5_Monolith, str: 400, def: 420, name: 'Monolith' },
-    { type: UnitType.T5_Bastion, str: 420, def: 360, name: 'Bastion' },
-  ],
+export const POWER_BANDS = {
+  weak:      { key: PowerTier.Weak,      min: 15_000,     max: 50_000 },
+  mid:       { key: PowerTier.Mid,       min: 50_000,     max: 500_000 },
+  strong:    { key: PowerTier.Strong,    min: 500_000,    max: 2_000_000 },
+  elite:     { key: PowerTier.Elite,     min: 2_000_000,  max: 10_000_000 },
+  ultra:     { key: PowerTier.Ultra,     min: 10_000_000, max: 50_000_000 },
+  legendary: { key: PowerTier.Legendary, min: 50_000_000, max: 100_000_000 },
+} as const;
+
+/**
+ * Bot tier → power band (FID-20260909-035 repopulation). Mirrors the
+ * player-bracket alignment: bot T1 ≈ player levels 1-10 ≈ WEAK, and so on;
+ * bot tiers 6-7 (levels 51+) both map to LEGENDARY.
+ */
+export const POWER_TIER_FOR_BOT_TIER: Record<number, PowerTier> = {
+  1: PowerTier.Weak,
+  2: PowerTier.Mid,
+  3: PowerTier.Strong,
+  4: PowerTier.Elite,
+  5: PowerTier.Ultra,
+  6: PowerTier.Legendary,
+  7: PowerTier.Legendary,
 };
+
+export const UNIT_POOLS = Object.fromEntries(
+  ([1, 2, 3, 4, 5] as UnitTier[]).map((tier) => [
+    tier,
+    Object.values(UNIT_CONFIGS)
+      .filter((c) => c.tier === tier)
+      .map((c) => ({ type: c.type, name: c.name, str: c.strength, def: c.defense }))
+  ])
+) as Record<UnitTier, { type: UnitType; name: string; str: number; def: number }[]>;
 
 /**
  * Generate realistic progressive unit composition for Beer Base
@@ -539,8 +524,23 @@ const UNIT_POOLS = {
  * @param specialization - Bot specialization affecting STR/DEF ratio
  * @param powerTier - Target power tier for this Beer Base
  * @returns Array of PlayerUnits with realistic progressive composition
+ *
+ * FID-20260909-034 power-band contract:
+ * - Budgets are TOTAL power (strength + defense). The previous generator
+ *   budgeted only the picked axis and ignored the other stat, so dual-stat
+ *   SPEC_TAC/PRESTIGE units leaked unbudgeted power (Silent_Citadel spawned
+ *   11.56M actual against the 10M ELITE ceiling).
+ * - Pools are PURE units (one nonzero stat) per tier, so quantity × stat cost
+ *   lands exactly on the tier's budget. Dual-stat units are excluded; the
+ *   fallback counts their full str+def into the quantity math so even a
+ *   dual-only pool stays inside the band.
+ * - Every tier slot delivers ≥1 unit: post-unification unit costs (T1 = 100)
+ *   exceed the smallest WEAK band slices, and a plain floor() emptied every
+ *   tier for small budgets (zero-STR hollow bases).
+ * - Result: Σ(quantity × (str + def)) stays within the tier band for every
+ *   (specialization, tier draw) — pinned by regression test.
  */
-function generateBeerBaseUnits(
+export function generateBeerBaseUnits(
   specialization: BotSpecialization,
   powerTier: PowerTier
 ): PlayerUnit[] {
@@ -570,25 +570,19 @@ function generateBeerBaseUnits(
       break;
   }
   
-  // Split total power into STR and DEF
-  const targetStrPower = Math.floor(totalTargetPower * strRatio);
-  const targetDefPower = Math.floor(totalTargetPower * (1 - strRatio));
-  
-  // Progressive power allocation across tiers
-  // T1: 10%, T2: 20%, T3: 30%, T4: 60% of remaining, T5: rest
-  const strPowerT1 = Math.floor(targetStrPower * 0.10);
-  const strPowerT2 = Math.floor(targetStrPower * 0.20);
-  const strPowerT3 = Math.floor(targetStrPower * 0.30);
-  const strPowerRemaining = targetStrPower - strPowerT1 - strPowerT2 - strPowerT3;
-  const strPowerT4 = Math.floor(strPowerRemaining * 0.60);
-  const strPowerT5 = strPowerRemaining - strPowerT4;
-  
-  const defPowerT1 = Math.floor(targetDefPower * 0.10);
-  const defPowerT2 = Math.floor(targetDefPower * 0.20);
-  const defPowerT3 = Math.floor(targetDefPower * 0.30);
-  const defPowerRemaining = targetDefPower - defPowerT1 - defPowerT2 - defPowerT3;
-  const defPowerT4 = Math.floor(defPowerRemaining * 0.60);
-  const defPowerT5 = defPowerRemaining - defPowerT4;
+  // Split total power into STR and DEF, then allocate progressively across
+  // tiers (T1: 10%, T2: 20%, T3: 30%, T4: 60% of remaining, T5: rest).
+  const allocateTiers = (target: number): [number, number, number, number, number] => {
+    const t1 = Math.floor(target * 0.10);
+    const t2 = Math.floor(target * 0.20);
+    const t3 = Math.floor(target * 0.30);
+    const remaining = target - t1 - t2 - t3;
+    const t4 = Math.floor(remaining * 0.60);
+    const t5 = remaining - t4;
+    return [t1, t2, t3, t4, t5];
+  };
+  const strPowerByTier = allocateTiers(Math.floor(totalTargetPower * strRatio));
+  const defPowerByTier = allocateTiers(Math.floor(totalTargetPower * (1 - strRatio)));
   
   // Helper to pick random unit from pool
   const pickRandom = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -614,66 +608,53 @@ function generateBeerBaseUnits(
     };
   };
   
-  // Generate STR units progressively across all tiers
-  if (strPowerT1 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T1_STR);
-    const quantity = Math.floor(strPowerT1 / unit.str);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
+  // Generate units progressively across all tiers — FID-20260909-034:
+  // pure units only (one nonzero stat), so quantity × stat lands exactly on
+  // the tier budget. FID-20260909-035: a slot the budget cannot afford is
+  // SKIPPED, not forced to 1 unit — the old ≥1 guarantee dumped up to one
+  // full unit cost of unbudgeted power per slot and could push WEAK-band
+  // armies past the ceiling (51,155 vs 50,000 caught by the sweep). Small
+  // bases legitimately field no T5 units; the floor top-up below keeps the
+  // ARMY total at or above the band minimum, and the 15K WEAK floor keeps
+  // the T1 slots always affordable (no hollow armies).
+  const tierBudgets: Array<{ tier: UnitTier; budget: number; stat: 'str' | 'def' }> = [
+    ...strPowerByTier.map((budget, i) => ({ tier: (i + 1) as UnitTier, budget, stat: 'str' as const })),
+    ...defPowerByTier.map((budget, i) => ({ tier: (i + 1) as UnitTier, budget, stat: 'def' as const })),
+  ];
+  
+  for (const { tier, budget, stat } of tierBudgets) {
+    if (budget <= 0) continue;
+    // Pure units only: a dual-stat unit budgeted on one axis delivers its
+    // other stat unbudgeted (the 1.9M STR leak that pushed Silent_Citadel
+    // to 11.56M against the 10M ELITE ceiling).
+    const pool = UNIT_POOLS[tier].filter((u) => u[stat] > 0 && u[stat === 'str' ? 'def' : 'str'] === 0);
+    // Fallback (dual-only pool): count the FULL str+def into the quantity
+    // math so the delivered total power still respects the budget.
+    const unit = pool.length > 0
+      ? pickRandom(pool)
+      : pickRandom(UNIT_POOLS[tier].filter((u) => u[stat] > 0));
+    const unitPower = unit.str + unit.def;
+    const quantity = Math.floor(budget / unitPower);
+    if (quantity < 1) continue;
+    units.push(createUnit(unit, quantity));
   }
   
-  if (strPowerT2 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T2_STR);
-    const quantity = Math.floor(strPowerT2 / unit.str);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (strPowerT3 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T3_STR);
-    const quantity = Math.floor(strPowerT3 / unit.str);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (strPowerT4 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T4_STR);
-    const quantity = Math.floor(strPowerT4 / unit.str);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (strPowerT5 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T5_STR);
-    const quantity = Math.floor(strPowerT5 / unit.str);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  // Generate DEF units progressively across all tiers
-  if (defPowerT1 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T1_DEF);
-    const quantity = Math.floor(defPowerT1 / unit.def);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (defPowerT2 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T2_DEF);
-    const quantity = Math.floor(defPowerT2 / unit.def);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (defPowerT3 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T3_DEF);
-    const quantity = Math.floor(defPowerT3 / unit.def);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (defPowerT4 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T4_DEF);
-    const quantity = Math.floor(defPowerT4 / unit.def);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
-  }
-  
-  if (defPowerT5 > 0) {
-    const unit = pickRandom(UNIT_POOLS.T5_DEF);
-    const quantity = Math.floor(defPowerT5 / unit.def);
-    if (quantity > 0) units.push(createUnit(unit, quantity));
+  // FID-20260909-034: floor() granularity can undershoot the band floor
+  // (e.g. a T5 slot budgeting 1,500 delivers a single 1,200 Sniper). Top up
+  // with the cheapest pure T1 STR unit so no army lands below its band's
+  // minimum. The overshoot is bounded by one unit cost (< min for every band),
+  // so the top-up can never breach the ceiling.
+  const band = Object.values(POWER_BANDS).find((b) => b.key === powerTier);
+  if (band) {
+    const delivered = units.reduce((s, u) => s + (u.strength + u.defense) * u.quantity, 0);
+    if (delivered < band.min) {
+      const t1Pure = UNIT_POOLS[UnitTier.Tier1]
+        .filter((u) => u.str > 0 && u.def === 0)
+        .sort((a, b) => a.str - b.str)[0];
+      const deficit = band.min - delivered;
+      const topUpQty = Math.ceil(deficit / t1Pure.str);
+      units.push(createUnit(t1Pure, topUpQty));
+    }
   }
   
   return units;
@@ -1152,15 +1133,14 @@ export async function spawnBeerBase(): Promise<string> {
     powerTier = selectRandomPowerTier();
   }
   
-  // Generate position
-  const position = getRandomPosition();
-  
   // Generate base bot using createBotPlayer service
+  // FID-20260909-030: createBotPlayer now claims a spawn-legal tile itself
+  // (Wasteland ∧ unoccupied, per docs/README_NEW.md) under its generated
+  // player-style name. The Beer Base name is assigned below, so the claim is
+  // re-attributed to the final themed name — and on a collision retry the
+  // re-attribution repeats, keeping tiles and names in sync.
   const bot = await createBotPlayer(null, specialization, true); // null zone = random, true = is Beer Base
-  
-  // Override position to be truly random (not zone-constrained)
-  bot.base = position;
-  bot.currentPosition = position;
+  let position = { x: bot.base!.x, y: bot.base!.y };
   
   // Generate realistic unit composition
   const units = generateBeerBaseUnits(specialization, powerTier);
@@ -1180,7 +1160,15 @@ export async function spawnBeerBase(): Promise<string> {
   // bot.isSpecialBase (BotScannerPanel 🍺), and tier stays visible via level/rank.
   // Collision safety: generateBotName's username column is varchar(20) PK, so on a
   // PK conflict the spawn retries with a numeric variant ("Crimson Bastion 2").
+  const tempName = bot.username!; // base tile is currently claimed under this name
   bot.username = generateBeerBaseName();
+  // FID-20260909-030: re-attribute the tile claim to the final themed name so
+  // the map renders it and defeat/respawn release the right tile.
+  await releaseBotBaseTile(position.x, position.y, tempName);
+  const reclaimed = await claimBotBaseTile({ zone: null, ownerUsername: bot.username });
+  position = { x: reclaimed.x, y: reclaimed.y };
+  bot.base = position;
+  bot.currentPosition = position;
   
   // Set appropriate level based on power tier
   switch (powerTier) {
@@ -1242,7 +1230,13 @@ export async function spawnBeerBase(): Promise<string> {
       if (!isUsernameConflict || attempt === 4) {
         throw error;
       }
+      // FID-20260909-030: keep the tile claim in sync with the renamed base.
+      await releaseBotBaseTile(position.x, position.y, bot.username);
       bot.username = generateBeerBaseName(attempt + 1);
+      const reclaimed = await claimBotBaseTile({ zone: null, ownerUsername: bot.username });
+      position = { x: reclaimed.x, y: reclaimed.y };
+      bot.base = position;
+      bot.currentPosition = position;
     }
   }
   
@@ -1294,7 +1288,18 @@ export async function removeBeerBase(username: string): Promise<void> {
     throw new Error('Bot is not a Beer Base or does not exist');
   }
   
-  // Remove completely from database
+  // Remove completely from database — and release the base tile claim so the
+  // Wasteland returns to the spawn pool (FID-20260909-030: despawned bases
+  // previously leaked claims forever, leaving ghost map entries).
+  const baseX = Number(bot.base?.x ?? 0);
+  const baseY = Number(bot.base?.y ?? 0);
+  if (baseX > 0 && baseY > 0) {
+    try {
+      await releaseBotBaseTile(baseX, baseY, username);
+    } catch (releaseError) {
+      console.warn(`⚠️ Beer Base tile release failed for ${username}:`, releaseError);
+    }
+  }
   await db.collection('players').deleteOne({ username });
   
   console.log(`🍺 Beer Base removed: ${username}`);
@@ -1316,7 +1321,24 @@ export async function weeklyBeerBaseRespawn(): Promise<{
     return { removed: 0, spawned: 0, beerBases: [] };
   }
   
-  // Remove all existing Beer Bases
+  // Remove all existing Beer Bases — releasing each base's tile claim first
+  // (FID-20260909-030 leak class: the bulk deleteMany skipped the tile
+  // release that removeBeerBase performs, leaving ghost base_owner rows on
+  // the map and permanently draining Wasteland tiles from the spawn pool).
+  const existingBases = await db.collection<Player>('players')
+    .find({ isBot: true, isSpecialBase: true }, { projection: { username: 1, base: 1 } })
+    .toArray();
+  for (const base of existingBases) {
+    const baseX = Number(base.base?.x ?? 0);
+    const baseY = Number(base.base?.y ?? 0);
+    if (baseX > 0 && baseY > 0) {
+      try {
+        await releaseBotBaseTile(baseX, baseY, base.username);
+      } catch (releaseError) {
+        console.warn(`⚠️ Respawn tile release failed for ${base.username}:`, releaseError);
+      }
+    }
+  }
   const deleteResult = await db.collection('players').deleteMany({ 
     isBot: true, 
     isSpecialBase: true 
@@ -1474,8 +1496,24 @@ export async function getBeerBaseStats(): Promise<{
  * Check if it's time for weekly respawn
  * Returns true if current time matches respawn schedule
  */
-export function isRespawnTime(config: BeerBaseConfig = DEFAULT_CONFIG): boolean {
-  const now = new Date();
+/**
+ * Is `now` inside a scheduled respawn hour window?
+ *
+ * FID-20260909-035: honors BOTH the legacy single schedule (respawnDay +
+ * respawnHour in server-local time) and the dynamic multi-schedule feature
+ * (schedulesEnabled + per-schedule weekday/hour/timezone, matching
+ * getNextRespawnTime's tz evaluation). The previous implementation checked
+ * only the legacy fields, so dynamic schedules were dead behind the
+ * scheduler no matter what the admin configured.
+ */
+export function isRespawnTime(config: BeerBaseConfig = DEFAULT_CONFIG, now: Date = new Date()): boolean {
+  if (config.schedulesEnabled && config.schedules && config.schedules.length > 0) {
+    return config.schedules.some((schedule) => {
+      if (!schedule.enabled) return false;
+      const tzNow = new Date(now.toLocaleString('en-US', { timeZone: schedule.timezone }));
+      return tzNow.getDay() === schedule.dayOfWeek && tzNow.getHours() === schedule.hour;
+    });
+  }
   return now.getDay() === config.respawnDay && now.getHours() === config.respawnHour;
 }
 
@@ -1559,3 +1597,12 @@ export async function manualBeerBaseRespawn(): Promise<{
 // - Notification when Beer Base spawns nearby (VIP feature)
 // - Regional Beer Base distribution (avoid clustering)
 // ============================================================
+
+// ============================================================
+// FID-20260909-034 test seam — exposes internal band/generation
+// machinery to the regression sweep without widening the public API.
+// ============================================================
+export const __testing = {
+  getTargetPowerForTier,
+  POWER_BANDS,
+};

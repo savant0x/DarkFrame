@@ -138,6 +138,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       if (tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) {
         await trackCaveExplored(username);
       }
+
+      // FID-20260909-025 §4.3: feed the tutorial's HARVEST step. The step could
+      // never complete — its tracking endpoint had no client callers and this
+      // route was tutorial-blind. Non-throwing inside recordTutorialHarvest.
+      if (tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) {
+        const { recordTutorialHarvest } = await import('@/lib/tutorialService');
+        await recordTutorialHarvest(username, tile.terrain);
+      }
       
       // Log activity for admin tracking
       const sessionId = request.cookies.get('sessionId')?.value || 'unknown';

@@ -112,10 +112,34 @@ import { eq, sql } from 'drizzle-orm';
 /** Full player row as attached to successful auth results. */
 export type PlayerRow = typeof players.$inferSelect;
 
+// FID-20260909-037 egress fix: the auth select previously shipped the FULL
+// 88-column player row — including units/inventory/discoveries/stats jsonb —
+// on EVERY authenticated API call. pg_stat_statements (week of Sep 3–10):
+// 187,781 calls, ~6 KB/result ≈ 1.1 GB of pooler egress and 85.6% of ALL
+// database time (TOAST detoast of the jsonb columns dominated). Route census
+// shows only these scalar fields are ever read off auth.player, so auth
+// loads exactly this whitelist; tsc enforces any future addition.
+export type AuthPlayer = Pick<
+  PlayerRow,
+  'username' | 'email' | 'level' | 'clanId' | 'clanName' | 'vip' | 'researchPoints' | 'isAdmin'
+>;
+
+/** The slim column set every auth select must use (see AuthPlayer above). */
+const AUTH_PLAYER_COLUMNS = {
+  username: players.username,
+  email: players.email,
+  level: players.level,
+  clanId: players.clanId,
+  clanName: players.clanName,
+  vip: players.vip,
+  researchPoints: players.researchPoints,
+  isAdmin: players.isAdmin,
+} as const;
+
 export interface AuthResult {
   username: string;
   playerId: string;
-  player: PlayerRow;
+  player: AuthPlayer;
   isAdmin: boolean;
 }
 
@@ -143,7 +167,7 @@ export async function authenticateRequest(
     if (process.env.NODE_ENV === 'test') {
       const testUser = request.headers.get('x-test-user');
       if (testUser) {
-        const player = await db.select().from(players).where(eq(players.username, testUser)).limit(1);
+        const player = await db.select(AUTH_PLAYER_COLUMNS).from(players).where(eq(players.username, testUser)).limit(1);
         if (player.length > 0) {
           return {
             username: testUser,
@@ -165,21 +189,28 @@ export async function authenticateRequest(
     const secret = new TextEncoder().encode(JWT_SECRET);
     const { payload } = await jwtVerify(token, secret);
     const username = payload.username as string;
-    const isAdmin = (payload.isAdmin as boolean) || false;
 
-    // Get player from database
-    const playerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    // Get player from database — slim column set only (FID-20260909-037:
+    // the previous full-row select shipped all jsonb payloads per call and
+    // was the single most expensive statement on the database).
+    const playerResult = await db.select(AUTH_PLAYER_COLUMNS).from(players).where(eq(players.username, username)).limit(1);
     if (playerResult.length === 0) {
       return null;
     }
 
     const player = playerResult[0];
 
+    // isAdmin is read from the players ROW, not the JWT claim (FID-20260909-025 §4.2):
+    // the claim is stamped once at login, so a token minted before an admin
+    // promotion locked the holder out of every requireAdmin route (403) until
+    // re-login — and a demotion stayed honored until the token expired. The row
+    // is already loaded here, so DB truth costs zero extra queries.
+
     return {
       username,
       playerId: player.username,
       player,
-      isAdmin,
+      isAdmin: player.isAdmin === 1,
     };
   } catch (error) {
     console.error('❌ Authentication failed:', error);

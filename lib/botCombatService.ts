@@ -240,8 +240,10 @@ function calculateLootBonus(target: Player): number {
 
 /**
  * Update bot reputation based on defeats
+ * (exported FID-20260909-037: the player-initiated base-attack route applies
+ * the same Full-Permanence reputation ladder on regular bot victories.)
  */
-function updateReputation(defeatedCount: number): BotReputation {
+export function updateReputation(defeatedCount: number): BotReputation {
   if (defeatedCount >= 31) return BotReputation.Legendary;
   if (defeatedCount >= 16) return BotReputation.Infamous;
   if (defeatedCount >= 6) return BotReputation.Notorious;

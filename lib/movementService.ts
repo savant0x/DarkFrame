@@ -61,6 +61,28 @@ export async function getTileAt(x: number, y: number): Promise<Tile | null> {
       ...(row.trailExpiresAt !== null && { trailExpiresAt: row.trailExpiresAt }),
     };
 
+    // FID-20260910-037 R2: occupied tiles carry the owner's level + Beer Base
+    // flag at THIS shared seam so every endpoint that returns a tile (move,
+    // tile, login, register, harvest) ships the intel that drives the enemy
+    // tier image — previously only /api/tile enriched, so walking to a base
+    // lost the level and the viewport fell back to the tier-1 shack.
+    // Best-effort: enrichment failure must never fail the tile read.
+    if (tile.occupiedByBase && tile.baseOwner) {
+      try {
+        const [owner] = await db
+          .select({ level: players.level, isSpecialBase: players.isSpecialBase })
+          .from(players)
+          .where(eq(players.username, tile.baseOwner))
+          .limit(1);
+        if (owner) {
+          (tile as { baseLevel?: number }).baseLevel = owner.level;
+          if (owner.isSpecialBase) (tile as { isBeerBase?: boolean }).isBeerBase = true;
+        }
+      } catch {
+        // non-critical: tile still returns without intel
+      }
+    }
+
     // 🔍 DEBUG: Log tile data for base investigation
     if (tile.occupiedByBase) {
       console.log(`🔍 BASE TILE (${x}, ${y}):`, {

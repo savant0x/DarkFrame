@@ -1,5 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { pgTable, varchar, integer, smallint, bigint, real, text, timestamp, jsonb, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import type { BeerBaseConfig } from '@/lib/beerBaseService';
+import type { StoredHotkeyConfig } from '@/types/hotkey.types';
+import type { WarfareConfig } from '@/lib/warfareConfigService';
 
 export const migrations = pgTable('migrations', {
 	id: varchar('id', { length: 100 }).primaryKey(),
@@ -7,11 +10,17 @@ export const migrations = pgTable('migrations', {
 	details: jsonb('details').$type<Record<string, unknown>>(),
 });
 
+/**
+ * Polymorphic key/value config store: the payload shape is discriminated by
+ * the `type` column (FID-20260909-023 §3.6 replaces the blanket $type<any>).
+ * Readers must narrow by `type` before trusting row.config fields.
+ */
+export type GameConfigPayload = Partial<BeerBaseConfig> | StoredHotkeyConfig | WarfareConfig;
+
 export const gameConfig = pgTable('game_config', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	type: varchar('type', { length: 30 }).notNull(),
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface without index signature
-	config: jsonb('config').notNull().$type<any>(),
+	config: jsonb('config').notNull().$type<GameConfigPayload>(),
 }, (table) => [
 	index('game_config_type_idx').on(table.type),
 	// FID-20260904-005 §5.2a: unique target for the beer-base config race-safe upsert
@@ -38,18 +47,21 @@ export const flags = pgTable('flags', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	currentHolder: varchar('current_holder', { length: 24 }),
 	currentHolderUsername: varchar('current_holder_username', { length: 20 }),
-	lastCapturedAt: timestamp('last_captured_at'),
+	lastCapturedAt: timestamp('last_captured_at', { withTimezone: true }),
 	lastCapturedBy: varchar('last_captured_by', { length: 20 }),
 	totalCaptures: integer('total_captures').notNull().default(0),
 	// FID-20260906-001 §5.1: holder state (design-doc faithful flag mechanics).
+	// FID-20260910-039: all windows are timestamptz — naive columns were written
+	// as UTC literals but parsed as local time, skewing every channel/grace/hold
+	// comparison by the machine's UTC offset.
 	sessionEarningsMetal: bigint('session_earnings_metal', { mode: 'number' }).notNull().default(0),
 	sessionEarningsEnergy: bigint('session_earnings_energy', { mode: 'number' }).notNull().default(0),
 	fleeCount: integer('flee_count').notNull().default(0),
-	graceUntil: timestamp('grace_until'),
+	graceUntil: timestamp('grace_until', { withTimezone: true }),
 	challengeChallenger: varchar('challenge_challenger', { length: 24 }),
-	challengeStartedAt: timestamp('challenge_started_at'),
-	challengeEndsAt: timestamp('challenge_ends_at'),
-	lastFleeAt: timestamp('last_flee_at'),
+	challengeStartedAt: timestamp('challenge_started_at', { withTimezone: true }),
+	challengeEndsAt: timestamp('challenge_ends_at', { withTimezone: true }),
+	lastFleeAt: timestamp('last_flee_at', { withTimezone: true }),
 	fleeDestinationX: integer('flee_destination_x'),
 	fleeDestinationY: integer('flee_destination_y'),
 	milestone12hAwarded: smallint('milestone_12h_awarded').notNull().default(0),

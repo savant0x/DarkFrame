@@ -11,7 +11,7 @@
 
 import { db } from '@/lib/db';
 import { players, tiles, flags } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { 
   Player, 
   Tile, 
@@ -20,6 +20,10 @@ import {
   HarvestRecord 
 } from '@/types';
 import { getHarvestSuccessMessage } from './harvestMessages';
+// FID-20260910-040: the estimate pipeline lives in ONE place. The service keeps
+// its own base roll + DB reads, then multiplies through the shared terms so UI
+// calculators (which import the same module) can never drift from the payout.
+import { estimateHarvest } from './harvestEstimate';
 
 /**
  * Harvest result interface
@@ -266,19 +270,14 @@ export async function harvestResourceTile(
     // Get temporary boost (DEPRECATED - kept for backwards compatibility)
     const temporaryBonus = player.activeBoosts.gatheringBoost || 0;
     
-    // Calculate shrine boost from active boosts
-    let shrineBonus = 0;
+    // FID-20260910-040: expire+persist stale shrine boosts, then hand the
+    // (now-clean) list to the shared estimate module, which sums live yields.
     if (player.shrineBoosts && player.shrineBoosts.length > 0) {
       const now = new Date();
-      // Filter out expired boosts and sum yield bonuses
       const originalLength = player.shrineBoosts.length;
       player.shrineBoosts = player.shrineBoosts.filter(
         boost => new Date(boost.expiresAt) > now
       );
-      
-      shrineBonus = player.shrineBoosts.reduce((sum, boost) => {
-        return sum + (boost.yieldBonus * 100); // Convert 0.25 to 25%
-      }, 0);
       
       // Update player to remove expired boosts if any were filtered
       if (player.shrineBoosts.length < originalLength) {
@@ -307,34 +306,35 @@ export async function harvestResourceTile(
       // Don't fail harvest if flag check fails
     }
     
-    // Calculate final amount with all bonuses (including shrine boosts)
-    let finalAmount = calculateHarvestAmount(baseAmount, permanentBonus, temporaryBonus + shrineBonus);
+    // FID-20260910-040: compute the payout through the shared estimate module
+    // (identical pipeline: additive % → floor → ×2 VIP → floor → ×2 bearer →
+    // floor → × balance gathering → floor) so UI calculators reading the same
+    // module can never drift from what this route actually credits.
+    const estimate = estimateHarvest({
+      gatheringBonusPct: permanentBonus,
+      temporaryBonusPct: temporaryBonus,
+      shrineBoosts: player.shrineBoosts,
+      vip: player.vip === true,
+      vipExpiration: player.vipExpiration,
+      isFlagBearer: isPlayerFlagBearer,
+      totalStrength: player.totalStrength || 0,
+      totalDefense: player.totalDefense || 0,
+      base: baseAmount,
+    });
+    const finalAmount = estimate.final;
     
-    // Apply VIP multiplier
-    finalAmount = Math.floor(finalAmount * vipMultiplier);
-    
-    // Apply Flag Bearer multiplier
-    finalAmount = Math.floor(finalAmount * flagBearerMultiplier);
-    
-    // Apply balance penalty/bonus to gathering (if player has units)
-    if (player.totalStrength || player.totalDefense) {
-      const { calculateBalanceEffects, applyBalanceToGathering } = await import('@/lib/balanceService');
-      const balanceEffects = calculateBalanceEffects(
-        player.totalStrength || 0,
-        player.totalDefense || 0
-      );
-      finalAmount = applyBalanceToGathering(finalAmount, balanceEffects);
-    }
-    
-    // Update player resources (read-add-update pattern)
+    // Update player resources — FID-20260909-026 §2.HIGH: server-side SQL
+    // delta (read-add-set lost two concurrent harvests' earnings; the mirror
+    // image of the bank double-spend). No guard needed: crediting is
+    // commutative, every concurrent writer's delta survives.
     if (tile.terrain === TerrainType.Metal) {
-      const currentMetal = Number(playerRow.resourcesMetal);
-      const newMetal = BigInt(currentMetal + finalAmount);
-      await db.update(players).set({ resourcesMetal: Number(newMetal) }).where(eq(players.username, playerId));
+      await db.update(players)
+        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${finalAmount}` })
+        .where(eq(players.username, playerId));
     } else {
-      const currentEnergy = Number(playerRow.resourcesEnergy);
-      const newEnergy = BigInt(currentEnergy + finalAmount);
-      await db.update(players).set({ resourcesEnergy: Number(newEnergy) }).where(eq(players.username, playerId));
+      await db.update(players)
+        .set({ resourcesEnergy: sql`${players.resourcesEnergy} + ${finalAmount}` })
+        .where(eq(players.username, playerId));
     }
 
     // FID-20260906-001 §5.4: GROSS session-earnings accrual while holding the

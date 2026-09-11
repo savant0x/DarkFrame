@@ -55,8 +55,10 @@
  * - Beer Bases (5-10% special bots with 3x resources, weekly respawn)
  */
 
-import { BotSpecialization, BotReputation, type Player, type BotConfig, type Position } from '@/types/game.types';
-import { getDatabase } from '@/lib/mongodb';
+import { BotSpecialization, BotReputation, type Player, type BotConfig, type Position, GAME_CONSTANTS } from '@/types/game.types';
+import { and, eq, gte, lte, isNull, sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { tiles } from '@/lib/db/schema';
 
 // ============================================================
 // BOT NAME GENERATION (1000+ UNIQUE NAMES)
@@ -498,6 +500,124 @@ export function getRandomPositionInZone(zone: number): Position {
 }
 
 // ============================================================
+// BOT BASE PLACEMENT (FID-20260909-030)
+// ============================================================
+// docs/README_NEW.md §Terrain Distribution designates Wasteland as THE spawn
+// terrain ("Empty tiles, spawn locations"), and the human path
+// (playerService.findAndClaimSpawnTile) already implements that rule —
+// Wasteland ∧ unoccupied ∧ claim (occupiedByBase=1 + baseOwner). Every bot
+// spawn path previously bypassed all of it: bases landed on Metal nodes
+// (live proof: "Rusted Redoubt" at (148,117)) with no tile claim, so the map
+// never rendered them and a new HUMAN could be spawned onto the same tile.
+// All bot placement now flows through this one helper.
+
+/** A claimed, on-map tile a bot base now owns. */
+export interface ClaimedBaseTile {
+  x: number;
+  y: number;
+  terrain: string;
+}
+
+/** Map sector for zone 0-8 (matches getRandomPositionInZone's 3×3 layout). */
+function zoneBounds(zone: number): { minX: number; maxX: number; minY: number; maxY: number } {
+  const sector = 50;
+  const zoneX = zone % 3;
+  const zoneY = Math.floor(zone / 3);
+  return {
+    minX: zoneX * sector + 1,
+    maxX: Math.min((zoneX + 1) * sector, GAME_CONSTANTS.MAP_WIDTH),
+    minY: zoneY * sector + 1,
+    maxY: Math.min((zoneY + 1) * sector, GAME_CONSTANTS.MAP_HEIGHT),
+  };
+}
+
+/**
+ * Find and claim a spawn-legal base tile for a bot — the bot twin of
+ * playerService.findAndClaimSpawnTile.
+ *
+ * Contract (docs/README_NEW.md §Terrain Distribution + human-path precedent):
+ *  - Wasteland terrain only (spawn terrain per the design table)
+ *  - Unoccupied only (`occupiedByBase IS NULL`)
+ *  - Within `zone`'s sector when a zone is given; anywhere on-map otherwise
+ *  - Race-safe claim: conditional UPDATE that only lands while the tile is
+ *    still unclaimed, re-selecting on loss (≤5 attempts)
+ *  - Sets baseOwner so the map/UI renders the base and no second claimer
+ *    (human or bot) can take the tile
+ *
+ * @throws Error when no legal tile can be claimed in 5 attempts (loud, never
+ *         silently placed on an illegal tile).
+ */
+export async function claimBotBaseTile(options: {
+  zone: number | null;
+  ownerUsername: string;
+}): Promise<ClaimedBaseTile> {
+  const maxAttempts = 5;
+  let lastError = 'no legal tile found';
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const bounds = options.zone !== null ? zoneBounds(options.zone) : {
+      minX: 1,
+      maxX: GAME_CONSTANTS.MAP_WIDTH,
+      minY: 1,
+      maxY: GAME_CONSTANTS.MAP_HEIGHT,
+    };
+
+    const candidates = await db
+      .select({ x: tiles.x, y: tiles.y, terrain: tiles.terrain })
+      .from(tiles)
+      .where(
+        and(
+          eq(tiles.terrain, 'Wasteland'),
+          isNull(tiles.occupiedByBase),
+          gte(tiles.x, bounds.minX),
+          lte(tiles.x, bounds.maxX),
+          gte(tiles.y, bounds.minY),
+          lte(tiles.y, bounds.maxY)
+        )
+      )
+      .orderBy(sql`random()`)
+      .limit(1);
+
+    const candidate = candidates[0];
+    if (!candidate) {
+      lastError = options.zone !== null
+        ? `no unoccupied Wasteland tile in zone ${options.zone}`
+        : 'no unoccupied Wasteland tile on the map';
+      continue;
+    }
+
+    // Race-safe claim: lands only while the tile is still unclaimed.
+    const claimed = await db
+      .update(tiles)
+      .set({ occupiedByBase: 1, baseOwner: options.ownerUsername })
+      .where(and(eq(tiles.x, candidate.x), eq(tiles.y, candidate.y), isNull(tiles.occupiedByBase)))
+      .returning({ x: tiles.x });
+
+    if (claimed.length > 0) {
+      return candidate;
+    }
+    lastError = `tile (${candidate.x}, ${candidate.y}) claimed concurrently`;
+  }
+
+  throw new Error(
+    `Bot base placement failed for ${options.ownerUsername} after ${maxAttempts} attempts: ${lastError}`
+  );
+}
+
+/**
+ * Release a bot base tile claim — the counterpart to claimBotBaseTile.
+ * Beer Bases despawn on defeat and during the weekly respawn; without this,
+ * every despawned base permanently drains a Wasteland tile from the spawn
+ * pool (and leaves a ghost base_owner on the map).
+ */
+export async function releaseBotBaseTile(x: number, y: number, ownerUsername: string): Promise<void> {
+  await db
+    .update(tiles)
+    .set({ occupiedByBase: null, baseOwner: null })
+    .where(and(eq(tiles.x, x), eq(tiles.y, y), eq(tiles.baseOwner, ownerUsername)));
+}
+
+// ============================================================
 // BOT CREATION
 // ============================================================
 
@@ -516,15 +636,19 @@ export async function createBotPlayer(
   specialization: BotSpecialization | null = null,
   isSpecial: boolean = false,
   tier: number | null = null
-): Promise<Partial<Player>> {
-  const botSpec = specialization || getRandomSpecialization();
+): Promise<Partial<Player>> {  const botSpec = specialization || getRandomSpecialization();
   const targetZone = zone ?? Math.floor(Math.random() * 9);
   
   // Expanded tier system: 1-7 (matching player level brackets)
   // If tier not specified, randomly select from 1-7 with weighted distribution
   const botTier = tier ?? getBotTierForZone(targetZone);
-  
-  const position = getRandomPositionInZone(targetZone);
+
+  // FID-20260909-030: placement goes through the shared claim helper —
+  // Wasteland ∧ unoccupied ∧ zone sector ∧ tile claim. The username must be
+  // generated first so the tile is attributed to the actual bot.
+  const botName = generateBotName();
+  const claimed = await claimBotBaseTile({ zone: targetZone, ownerUsername: botName });
+  const position: Position = { x: claimed.x, y: claimed.y };
   const resourceRange = getResourceRange(botSpec, botTier);
   const baseResources = Math.floor(Math.random() * (resourceRange.max - resourceRange.min + 1)) + resourceRange.min;
   const resources = isSpecial ? baseResources * 3 : baseResources;
@@ -551,7 +675,7 @@ export async function createBotPlayer(
   const baseDefense = getBotDefenseForTier(botTier);
   
   return {
-    username: generateBotName(),
+    username: botName, // claimed the base tile under this name (FID-030)
     email: `bot-${Date.now()}-${Math.random()}@darkframe.internal`,
     password: 'BOT_ACCOUNT', // Bots cannot log in
     base: position,
@@ -777,19 +901,6 @@ export async function regenerateBotResources(bot: Player): Promise<{ metal: numb
 export function isBeerBaseRespawnTime(): boolean {
   const now = new Date();
   return now.getDay() === 0 && now.getHours() === 4; // Sunday at 4 AM
-}
-
-/**
- * Remove all current Beer Bases from database
- * Called during weekly respawn
- */
-export async function removeAllBeerBases(): Promise<number> {
-  const db = await getDatabase();
-  const result = await db.collection('players').deleteMany({
-    isBot: true,
-    'botConfig.isSpecialBase': true
-  });
-  return result.deletedCount;
 }
 
 /**
