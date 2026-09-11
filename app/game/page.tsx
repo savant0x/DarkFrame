@@ -256,23 +256,28 @@ export default function GamePage() {
         setAutoFarmTilesCompleted(state.tilesCompleted);
       });
 
-      // Register refresh callback to update UI after harvests
-      engine.onRefresh(async () => {
-        // Lightweight resource update - just fetch player data without full refresh
+      // Register refresh callback to update UI after harvests.
+      // FID-20260911-047: the engine now calls /api/harvest directly and passes
+      // the SERVER-REPORTED gains here — apply the deltas to local state instead
+      // of refetching /api/player (a ~21.5 KB payload per harvest cycle).
+      engine.onRefresh(async (deltas) => {
         if (!player) return;
-        
-        try {
-          const response = await fetch(`/api/player?username=${encodeURIComponent(player.username)}`);
-          const data = await response.json();
-          
-          if (data.success && data.data) {
-            // Update only the player state with fresh data (includes updated resources)
-            setPlayer(data.data);
-            logger.debug('[AutoFarm] Resources updated in UI');
-          }
-        } catch (error) {
-          console.warn('[AutoFarm] Failed to refresh resources:', error);
+
+        if (deltas && (deltas.metal || deltas.energy)) {
+          setPlayer((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              resources: {
+                metal: Number(prev.resources?.metal ?? 0) + (deltas.metal ?? 0),
+                energy: Number(prev.resources?.energy ?? 0) + (deltas.energy ?? 0),
+              },
+            };
+          });
+          logger.debug('[AutoFarm] Resource deltas applied locally', deltas);
         }
+        // No deltas → nothing to do; the next move response already carries fresh
+        // resource scalars via the delta-merge move handler.
       });
 
       autoFarmEngineRef.current = engine;
@@ -555,6 +560,21 @@ export default function GamePage() {
         }, 100);
       }
 
+      // FID-20260911-047: apply the server-reported gains to local state —
+      // the resource display updates immediately with zero extra requests.
+      if (data.success && (data.metalGained || data.energyGained)) {
+        setPlayer((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            resources: {
+              metal: Number(prev.resources?.metal ?? 0) + (data.metalGained ?? 0),
+              energy: Number(prev.resources?.energy ?? 0) + (data.energyGained ?? 0),
+            },
+          };
+        });
+      }
+
       // Don't auto-clear results - they persist until player moves away
     } catch (error) {
       console.error('Harvest error:', error);
@@ -565,7 +585,7 @@ export default function GamePage() {
     } finally {
       setIsHarvesting(false);
     }
-  }, [player, isHarvesting, currentTile, updateTileOnly]);
+  }, [player, isHarvesting, currentTile, updateTileOnly, setPlayer]);
 
   // FID-20260909-036: Beer Base combat — the hostile-base ATTACK button on
   // enemy base tiles dispatches through /api/combat/attack (the route the

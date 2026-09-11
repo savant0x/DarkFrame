@@ -165,10 +165,11 @@ export interface TileProcessResult {
   error?: string;
 }
 
-/** Attempt to trigger a harvest via keypress simulation and verify resources rose. */
+/** Attempt to trigger a harvest (FID-20260911-047: direct API call — the server
+ *  response itself verifies and reports the gains). */
 export interface HarvestAttemptResult {
   success: boolean;
-  method?: 'keypress_simulation';
+  method?: 'direct_api' | 'keypress_simulation';
   terrain?: string;
   metalGained?: number;
   energyGained?: number;

@@ -45,7 +45,9 @@ import {
 type EventCallback = (event: AutoFarmEvent) => void;
 type StatsCallback = (stats: AutoFarmSessionStats) => void;
 type StateCallback = (state: AutoFarmState) => void;
-type RefreshCallback = () => Promise<void>;
+/** Optional resource deltas from a verified server action (FID-20260911-047:
+ *  the UI applies server-reported gains locally instead of refetching /api/player). */
+type RefreshCallback = (deltas?: { metal?: number; energy?: number }) => Promise<void>;
 
 /**
  * Auto-Farm Engine
@@ -788,8 +790,14 @@ export class AutoFarmEngine {
   }
 
   /**
-   * Attempt to harvest resources with actual server verification
-   * Waits for player resources to update confirming harvest succeeded
+   * Attempt to harvest resources via the /api/harvest API directly.
+   *
+   * FID-20260911-047 (egress): the previous implementation simulated a 'g'/'f'
+   * keypress and then verified the harvest by polling /api/player up to 16×
+   * per cycle (pre-read + 15×200ms polls + the UI refresh) — each poll a
+   * ~21.5 KB full player payload. The harvest API response already reports
+   * metalGained/energyGained/xpAwarded, so the response itself is the
+   * verification: one ~1 KB round-trip replaces ~350 KB of polling.
    */
   private async attemptHarvest(position: { x: number; y: number }, tileInfo: Tile): Promise<HarvestAttemptResult> {
     try {
@@ -799,113 +807,76 @@ export class AutoFarmEngine {
         return { success: false, reason: 'No harvestable resources' };
       }
       
-      // Determine which key to press based on terrain
-      // 'g' = Metal/Energy (Gather)
-      // 'f' = Cave/Forest (Find/Forage)
-      const harvestKey = (tileInfo.terrain === 'Metal' || tileInfo.terrain === 'Energy') ? 'g' : 'f';
-      
-      console.log(`[AutoFarm] Simulating keypress '${harvestKey}' for ${tileInfo.terrain} harvest at (${position.x}, ${position.y})`);
-      
-      // Get current resources before harvest for verification
       const username = localStorage.getItem('darkframe_username');
       if (!username) {
-        console.error('[AutoFarm] No username found for harvest verification');
+        console.error('[AutoFarm] No username found for harvest');
         return { success: false, reason: 'No username' };
       }
       
-      let initialResources = { metal: 0, energy: 0 };
+      console.log(`[AutoFarm] Direct harvest of ${tileInfo.terrain} at (${position.x}, ${position.y})`);
       
-      try {
-        const response = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
-        const data = await response.json();
-        if (data.success && data.data.resources) {
-          initialResources = data.data.resources;
-          console.log(`[AutoFarm] Pre-harvest resources: Metal=${initialResources.metal}, Energy=${initialResources.energy}`);
-        }
-      } catch (error) {
-        console.warn('[AutoFarm] Failed to get initial resources:', error);
-        return { success: false, reason: 'Could not load initial resources' };
-      }
+      const response = await fetch('/api/harvest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
       
-      // Simulate the keypress - this triggers the harvest API call
-      this.simulateKeyPress(harvestKey);
+      const data = await response.json().catch(() => null);
       
-      // Wait for the harvest to process and verify resources increased
-      // Poll player data until resources update or timeout
-      const maxAttempts = 15; // 15 attempts * 200ms = 3 second timeout (harvest cooldown)
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+      if (!response.ok || !data || data.success === false) {
+        // Not an error — cooldown/depleted rejections are expected cycles.
+        const reason = (data?.message || data?.error?.message || `HTTP ${response.status}`) as string;
+        console.warn(`[AutoFarm] Harvest rejected: ${reason}`);
         
-        try {
-          const response = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
-          const data = await response.json();
-          
-          if (data.success && data.data.resources) {
-            const currentResources = data.data.resources;
-            
-            // Check if resources increased (either metal or energy)
-            const metalGained = currentResources.metal - initialResources.metal;
-            const energyGained = currentResources.energy - initialResources.energy;
-            
-            if (metalGained > 0 || energyGained > 0) {
-              console.log(`[AutoFarm] Harvest verified: Gained Metal=${metalGained}, Energy=${energyGained}`);
-              
-              // Emit harvest event
-              this.emitEvent({
-                type: 'harvest',
-                timestamp: Date.now(),
-                position,
-                data: {
-                  terrain: tileInfo.terrain,
-                  method: 'keypress_simulation',
-                  key: harvestKey,
-                  verified: true,
-                  metalGained,
-                  energyGained
-                },
-                message: `Harvested ${tileInfo.terrain}: +${metalGained} Metal, +${energyGained} Energy`
-              });
-              
-              // Add extra delay for VIP/Basic cooldown respect
-              if (this.HARVEST_DELAY_EXTRA > 0) {
-                await new Promise(resolve => setTimeout(resolve, this.HARVEST_DELAY_EXTRA));
-              }
-              
-              // Trigger UI refresh to update resource display AFTER delays complete
-              if (this.onRefreshCallback) {
-                try {
-                  await this.onRefreshCallback();
-                  console.log('[AutoFarm] UI refreshed after harvest');
-                } catch (refreshError) {
-                  console.warn('[AutoFarm] UI refresh failed:', refreshError);
-                }
-              }
-              
-              return { 
-                success: true, 
-                method: 'keypress_simulation',
-                terrain: tileInfo.terrain,
-                metalGained,
-                energyGained
-              };
-            }
-          }
-        } catch (pollError) {
-          console.warn(`[AutoFarm] Harvest verification attempt ${attempt + 1} failed:`, pollError);
+        // Still add the extra delay for Basic mode cooldown respect.
+        if (this.HARVEST_DELAY_EXTRA > 0) {
+          await new Promise(resolve => setTimeout(resolve, this.HARVEST_DELAY_EXTRA));
         }
+        return { success: false, reason };
       }
       
-      // Timeout - harvest didn't complete (likely on cooldown or no resources)
-      console.warn(`[AutoFarm] Harvest verification timeout: Resources did not increase for ${tileInfo.terrain}`);
+      // Success — the response carries the authoritative gains.
+      const metalGained = Number(data.metalGained ?? 0);
+      const energyGained = Number(data.energyGained ?? 0);
+      console.log(`[AutoFarm] Harvest ok: Metal=${metalGained}, Energy=${energyGained}${data.itemFound ? `, item=${data.itemFound}` : ''}`);
       
-      // This is not an error - tile might be depleted or on cooldown
-      // Still add the extra delay for Basic mode cooldown respect
+      this.emitEvent({
+        type: 'harvest',
+        timestamp: Date.now(),
+        position,
+        data: {
+          terrain: tileInfo.terrain,
+          method: 'direct_api',
+          verified: true,
+          metalGained,
+          energyGained,
+          itemFound: data.itemFound
+        },
+        message: `Harvested ${tileInfo.terrain}: +${metalGained} Metal, +${energyGained} Energy`
+      });
+      
+      // Add extra delay for VIP/Basic cooldown respect
       if (this.HARVEST_DELAY_EXTRA > 0) {
         await new Promise(resolve => setTimeout(resolve, this.HARVEST_DELAY_EXTRA));
       }
       
-      return { success: false, reason: 'Harvest timeout (cooldown or depleted)' };
+      // Push the gains into the UI WITHOUT a refetch — the callback applies
+      // the server-reported deltas to local state (see game page onRefresh).
+      if (this.onRefreshCallback) {
+        try {
+          await this.onRefreshCallback({ metal: metalGained, energy: energyGained });
+        } catch (refreshError) {
+          console.warn('[AutoFarm] UI refresh failed:', refreshError);
+        }
+      }
       
+      return {
+        success: true,
+        method: 'direct_api',
+        terrain: tileInfo.terrain,
+        metalGained,
+        energyGained
+      };
     } catch (error) {
       this.emitEvent({
         type: 'error',
