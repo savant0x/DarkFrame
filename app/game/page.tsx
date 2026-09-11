@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import { logger } from '@/lib/logger';
 import { extractApiError } from '@/lib/apiClient';
-import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel } from '@/components';
+import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, BattleHistoryFeed, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel } from '@/components';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
 import FlagTrackerPanel from '@/components/FlagTrackerPanel';
@@ -1036,7 +1036,10 @@ export default function GamePage() {
 
       <GameLayout
         statsPanel={<StatsPanel onClanClick={() => setCurrentView('CLAN')} onReferralsClick={() => setCurrentView('REFERRALS')} onFactoryManagementClick={() => setShowFactoryManagement(true)} flagBearer={flagBearer} />}
-        battleLogs={<BattleLogLinks />}
+        battleLogs={<>
+          <BattleHistoryFeed />
+          <BattleLogLinks />
+        </>}
         backgroundImage={currentTile ? getTerrainBackgroundImage(currentTile.terrain, currentTile.x, currentTile.y) : undefined}
         chatUser={player ? {
           userId: player.username,

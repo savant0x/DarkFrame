@@ -2648,3 +2648,47 @@ span.nn-panel__icon > svg {
   transition: color 120ms ease;
 }
 .nn-battle-report__toggle:hover { color: var(--nn-cyan); outline: none; }
+
+/* ====================================================================== */
+/* FID-20260911-045 — HUD battle-history feed (Recent Raids)               */
+/* ====================================================================== */
+
+.nn-battlefeed {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.nn-battlefeed__row {
+  display: grid;
+  grid-template-columns: 16px 1fr auto 28px;
+  gap: 6px;
+  align-items: baseline;
+  font-family: var(--nn-font-body);
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--nn-text-secondary);
+}
+
+.nn-battlefeed__glyph { font-size: 11px; }
+
+.nn-battlefeed__where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--nn-text-primary);
+}
+
+.nn-battlefeed__result {
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-size: 9.5px;
+}
+
+.nn-battlefeed__when {
+  text-align: right;
+  color: var(--nn-text-tertiary);
+  font-family: var(--nn-num-font, var(--nn-font-body));
+}

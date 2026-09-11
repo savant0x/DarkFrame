@@ -63,11 +63,14 @@ export interface RPTransaction {
   metadata?: Record<string, unknown>; // Optional extra data (e.g., milestone threshold, level number)
 }
 
-/** Row shape of the dailyHarvestProgress table as returned by raw SELECT * (lower-case folded). */
+/** Row shape of the dailyharvestprogress table as returned by raw SELECT *
+ *  (Postgres folds the service's unquoted camelCase identifiers to lower-case
+ *  — FID-20260911-045: the code must read the FOLDED spellings, not the
+ *  camelCase it writes, or counts silently reset every harvest). */
 interface DailyHarvestProgressRow {
-  harvestCount?: number;
-  totalRPEarned?: number;
-  milestonesCompleted?: string | number[];
+  harvestcount?: number;
+  totalrpearned?: number;
+  milestonescompleted?: string | number[];
 }
 
 /** Row shape of the rpTransactions table as returned by raw SELECT * — keys are
@@ -328,19 +331,21 @@ export async function checkDailyHarvestMilestone(
     const period = resetPeriod.substring(11); // "AM" or "PM"
 
     // Find existing daily progress record using raw SQL
+    // FID-20260911-045: identifiers are unquoted → Postgres folds to lowercase;
+    // the physical table (migration 0024) is named accordingly.
     const existingRows = await db.execute(sql`
-      SELECT * FROM dailyHarvestProgress
-      WHERE playerUsername = ${playerUsername} AND date = ${date} AND resetPeriod = ${period}
+      SELECT * FROM dailyharvestprogress
+      WHERE playerusername = ${playerUsername} AND date = ${date} AND resetperiod = ${period}
       LIMIT 1
     `);
 
     const existingProgress: DailyHarvestProgressRow | null = existingRows.rows[0] ?? null;
 
-    const currentHarvestCount = (existingProgress?.harvestCount || 0) + 1;
-    const completedMilestones: number[] = existingProgress?.milestonesCompleted
-      ? (typeof existingProgress.milestonesCompleted === 'string'
-        ? JSON.parse(existingProgress.milestonesCompleted)
-        : existingProgress.milestonesCompleted)
+    const currentHarvestCount = (existingProgress?.harvestcount || 0) + 1;
+    const completedMilestones: number[] = existingProgress?.milestonescompleted
+      ? (typeof existingProgress.milestonescompleted === 'string'
+        ? JSON.parse(existingProgress.milestonescompleted)
+        : existingProgress.milestonescompleted)
       : [];
 
     // Check if new milestone reached
@@ -386,25 +391,27 @@ export async function checkDailyHarvestMilestone(
       (threshold) => threshold > currentHarvestCount
     );
 
-    // Upsert daily progress record using raw SQL
+    // Upsert daily progress record (Postgres ON CONFLICT — the MySQL-era
+    // ON DUPLICATE KEY UPDATE never ran on Postgres; table created in
+    // migration 0024, FID-20260911-045).
     const now = new Date().toISOString();
     const milestonesJson = JSON.stringify(completedMilestones);
-    const totalRPEarned = (existingProgress?.totalRPEarned || 0) + (rpAwarded || 0);
+    const totalRPEarned = (existingProgress?.totalrpearned || 0) + (rpAwarded || 0);
 
     await db.execute(sql`
-      INSERT INTO dailyHarvestProgress (
-        playerUsername, date, resetPeriod, harvestCount, milestonesCompleted,
-        totalRPEarned, lastHarvestAt, updatedAt, createdAt
+      INSERT INTO dailyharvestprogress (
+        playerusername, date, resetperiod, harvestcount, milestonescompleted,
+        totalrpearned, lastharvestat, updatedat, createdat
       ) VALUES (
-        ${playerUsername}, ${date}, ${period}, ${currentHarvestCount}, ${milestonesJson},
+        ${playerUsername}, ${date}, ${period}, ${currentHarvestCount}, ${milestonesJson}::jsonb,
         ${totalRPEarned}, ${now}, ${now}, ${now}
       )
-      ON DUPLICATE KEY UPDATE
-        harvestCount = VALUES(harvestCount),
-        milestonesCompleted = VALUES(milestonesCompleted),
-        totalRPEarned = VALUES(totalRPEarned),
-        lastHarvestAt = VALUES(lastHarvestAt),
-        updatedAt = VALUES(updatedAt)
+      ON CONFLICT (playerusername, date, resetperiod) DO UPDATE SET
+        harvestcount = EXCLUDED.harvestcount,
+        milestonescompleted = EXCLUDED.milestonescompleted,
+        totalrpearned = EXCLUDED.totalrpearned,
+        lastharvestat = EXCLUDED.lastharvestat,
+        updatedat = EXCLUDED.updatedat
     `);
 
     return {
@@ -452,7 +459,7 @@ export async function resetDailyProgress(
     // Delete all daily progress records using raw SQL
     if (playerUsername) {
       const result = await db.execute(sql`
-        DELETE FROM dailyHarvestProgress WHERE playerUsername = ${playerUsername}
+        DELETE FROM dailyharvestprogress WHERE playerusername = ${playerUsername}
       `);
       return {
         success: true,
@@ -461,7 +468,7 @@ export async function resetDailyProgress(
       };
     } else {
       const result = await db.execute(sql`
-        DELETE FROM dailyHarvestProgress
+        DELETE FROM dailyharvestprogress
       `);
       const deletedCount = result.rowCount ?? 0;
       return {
@@ -565,19 +572,19 @@ export async function getPlayerRPStats(playerUsername: string): Promise<{
     // Get today's progress using raw SQL
     const today = new Date().toISOString().substring(0, 10); // YYYY-MM-DD
     const todayProgressRows = await db.execute(sql`
-      SELECT * FROM dailyHarvestProgress
-      WHERE playerUsername = ${playerUsername} AND date = ${today}
+      SELECT * FROM dailyharvestprogress
+      WHERE playerusername = ${playerUsername} AND date = ${today}
       LIMIT 1
     `);
 
     const todayProgress: DailyHarvestProgressRow | null = todayProgressRows.rows[0] ?? null;
 
-    const dailyEarnings = todayProgress?.totalRPEarned || 0;
-    const harvestCount = todayProgress?.harvestCount || 0;
-    const milestonesCompleted: number[] = todayProgress?.milestonesCompleted
-      ? (typeof todayProgress.milestonesCompleted === 'string'
-        ? JSON.parse(todayProgress.milestonesCompleted)
-        : todayProgress.milestonesCompleted)
+    const dailyEarnings = todayProgress?.totalrpearned || 0;
+    const harvestCount = todayProgress?.harvestcount || 0;
+    const milestonesCompleted: number[] = todayProgress?.milestonescompleted
+      ? (typeof todayProgress.milestonescompleted === 'string'
+        ? JSON.parse(todayProgress.milestonescompleted)
+        : todayProgress.milestonescompleted)
       : [];
 
     // Find next milestone

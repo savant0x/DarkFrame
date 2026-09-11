@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
+import { extractApiError } from '@/lib/apiClient';
 import BackButton from '@/components/BackButton';
 import ActivityTimeline from '@/components/admin/charts/ActivityTimeline';
 import ResourceGains from '@/components/admin/charts/ResourceGains';
@@ -500,13 +501,14 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       
       const data = await res.json();
       if (data.success) {
-        showSuccess(`Successfully spawned ${data.spawned} bots!`);
+        // bot-spawn returns { bots: string[] } — derive the count from it.
+        showSuccess(`Successfully spawned ${Array.isArray(data.bots) ? data.bots.length : 0} bots!`);
         // Refresh bot stats
         const botStatsRes = await fetch('/api/admin/bot-stats');
         const botStatsData = await botStatsRes.json();
         if (botStatsData.success) setBotStats(botStatsData.data);
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Bot spawn error:', err);
@@ -532,7 +534,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         const botStatsData = await botStatsRes.json();
         if (botStatsData.success) setBotStats(botStatsData.data);
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Bot regen error:', err);
@@ -560,7 +562,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
           setBotStats(botStatsData.data);
         }
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Beer base respawn error:', err);
@@ -605,7 +607,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       if (data.success) {
         showSuccess('Beer Base configuration saved successfully!');
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Beer Base config save error:', err);
@@ -660,7 +662,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         });
         await loadSchedules();
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Schedule save error:', err);
@@ -684,7 +686,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         showSuccess('Schedule deleted!');
         await loadSchedules();
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Schedule delete error:', err);
@@ -710,7 +712,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       if (data.success) {
         await loadSchedules();
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Schedule toggle error:', err);
@@ -823,7 +825,7 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       if (data.success) {
         showSuccess('Bot configuration saved successfully!');
       } else {
-        showError(`Error: ${data.error}`);
+        showError(`Error: ${extractApiError(data, res.status)}`);
       }
     } catch (err) {
       console.error('Config save error:', err);
@@ -925,7 +927,7 @@ By Specialization:
       if (data.success) {
         setVipUsers(data.users);
       } else {
-        showError(data.error || 'Failed to load VIP users');
+        showError(extractApiError(data, response.status));
       }
     } catch (error) {
       console.error('Error loading VIP users:', error);
@@ -1052,7 +1054,7 @@ By Specialization:
         setRpBulkReason('');
         loadRpEconomyData(); // Refresh data
       } else {
-        setRpBulkResult(`Error: ${data.message}`);
+        setRpBulkResult(`Error: ${extractApiError(data, res.status)}`);
       }
       
     } catch (error) {
@@ -2515,7 +2517,7 @@ By Specialization:
                               if (data.success) {
                                 showSuccess(`Predictions recalculated!\n\nProjected ${data.playerCount} players over ${data.weeksAhead} weeks.\nNew distribution: ${JSON.stringify(data.distribution, null, 2)}`);
                               } else {
-                                showError(`Error: ${data.error}`);
+                                showError(`Error: ${extractApiError(data, res.status)}`);
                               }
                             } catch (err) {
                               console.error('Recalculation error:', err);
@@ -2904,7 +2906,7 @@ By Specialization:
                                 const statusData = await statusRes.json();
                                 if (statusData.success) setWmdStatus(statusData.data);
                               } else {
-                                showError(`Error: ${data.error}`);
+                                showError(`Error: ${extractApiError(data, res.status)}`);
                               }
                             } catch (err) {
                               console.error('Disarm error:', err);
@@ -2957,7 +2959,7 @@ By Specialization:
                                 const statusData = await statusRes.json();
                                 if (statusData.success) setWmdStatus(statusData.data);
                               } else {
-                                showError(`Error: ${data.error}`);
+                                showError(`Error: ${extractApiError(data, res.status)}`);
                               }
                             } catch (err) {
                               console.error('Expire error:', err);
@@ -3013,7 +3015,7 @@ By Specialization:
                               if (data.success) {
                                 showInfo(`Cooldown adjusted! New cooldown expires: ${new Date(data.newCooldownExpiry).toLocaleString()}`);
                               } else {
-                                showError(`Error: ${data.error}`);
+                                showError(`Error: ${extractApiError(data, res.status)}`);
                               }
                             } catch (err) {
                               console.error('Cooldown adjustment error:', err);
@@ -3095,7 +3097,7 @@ By Specialization:
                                 const statusData = await statusRes.json();
                                 if (statusData.success) setWmdStatus(statusData.data);
                               } else {
-                                showError(`Error: ${data.error}`);
+                                showError(`Error: ${extractApiError(data, res.status)}`);
                               }
                             } catch (err) {
                               console.error('Flag error:', err);

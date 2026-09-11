@@ -26,6 +26,7 @@ export { default as CombatAttackModal } from './CombatAttackModal';
 export { default as BattleResultModal } from './BattleResultModal';
 export { default as BattleLogViewer } from './BattleLogViewer';
 export { default as BattleLogLinks } from './BattleLogLinks';
+export { default as BattleHistoryFeed } from './BattleHistoryFeed';
 export { default as BattleLogModal } from './BattleLogModal';
 export { default as BackButton } from './BackButton';
 export { default as SpecializationPanel } from './SpecializationPanel';
