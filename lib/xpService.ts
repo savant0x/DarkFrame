@@ -293,7 +293,18 @@ export async function awardXP(
   }
   
   // Find player using username directly
-  const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  // FID-20260911-046: slim projection — awardXP runs on EVERY harvest and the
+  // full 39 KB row (mostly the units blob) was re-shipped for 4 scalar fields.
+  const playerResult = await db
+    .select({
+      username: players.username,
+      xp: players.xp,
+      level: players.level,
+      researchPoints: players.researchPoints,
+    })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
   const player = playerResult[0] ?? null;
   
   if (!player) {

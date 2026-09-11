@@ -40,7 +40,7 @@ export interface HarvestResult {
 /**
  * Map a flat database row to a Player object with nested structure
  */
-function mapRowToPlayer(row: typeof players.$inferSelect): Player {
+function mapRowToPlayer(row: Pick<typeof players.$inferSelect, 'username' | 'resourcesMetal' | 'resourcesEnergy' | 'gatheringBonusMetalBonus' | 'gatheringBonusEnergyBonus' | 'activeBoostsGatheringBoost' | 'activeBoostsExpiresAt' | 'shrineBoosts' | 'vip' | 'vipExpiration'>): Player {
   return {
     ...row,
     resources: {
@@ -247,7 +247,25 @@ export async function harvestResourceTile(
     }
     
     // Get player data
-    const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+    // FID-20260911-046: slim projection for the gather math — only these six
+    // fields feed the yield calculation; the units blob (30+ KB) and the other
+    // ~70 columns were shipped per harvest for nothing.
+    const playerRows = await db
+      .select({
+        username: players.username,
+        resourcesMetal: players.resourcesMetal,
+        resourcesEnergy: players.resourcesEnergy,
+        gatheringBonusMetalBonus: players.gatheringBonusMetalBonus,
+        gatheringBonusEnergyBonus: players.gatheringBonusEnergyBonus,
+        activeBoostsGatheringBoost: players.activeBoostsGatheringBoost,
+        activeBoostsExpiresAt: players.activeBoostsExpiresAt,
+        shrineBoosts: players.shrineBoosts,
+        vip: players.vip,
+        vipExpiration: players.vipExpiration,
+      })
+      .from(players)
+      .where(eq(players.username, playerId))
+      .limit(1);
     const playerRow = playerRows[0];
     
     if (!playerRow) {

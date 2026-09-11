@@ -241,7 +241,9 @@ export async function checkDiscoveryDrop(
   totalDiscoveries?: number;
 }> {
   const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  // FID-20260911-046: discoveries-only projection — this runs per harvest on
+  // the hot loop; the full row ships a 30+ KB units blob for one jsonb field.
+  const player = await playersCollection.findOne({ username: playerId }, { projection: { discoveries: 1 } });
 
   if (!player) {
     return { discovered: false, isNew: false };
@@ -311,7 +313,8 @@ export async function checkDiscoveryDrop(
  */
 export async function getDiscoveryProgress(playerId: string) {
   const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  // FID-20260911-046: discoveries-only projection (see checkDiscoveryDrop).
+  const player = await playersCollection.findOne({ username: playerId }, { projection: { discoveries: 1 } });
 
   if (!player) {
     return null;
@@ -360,7 +363,8 @@ export async function getDiscoveryProgress(playerId: string) {
  */
 export async function getDiscoveryBonuses(playerId: string) {
   const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  // FID-20260911-046: discoveries-only projection (see checkDiscoveryDrop).
+  const player = await playersCollection.findOne({ username: playerId }, { projection: { discoveries: 1 } });
 
   if (!player || !player.discoveries) {
     return {

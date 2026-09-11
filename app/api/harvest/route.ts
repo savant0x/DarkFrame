@@ -84,7 +84,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       currentPositionX: number;
       currentPositionY: number;
     }>('players');
-    const player = await playersCollection.findOne({ username });
+    // FID-20260911-046: position-only projection — the route needs two scalars;
+    // without the shim projection this fetched the full 39 KB row.
+    const player = await playersCollection.findOne(
+      { username },
+      { projection: { currentPositionX: 1, currentPositionY: 1 } },
+    );
     
     if (!player) {
       log.warn('Player not found', { username });
