@@ -28,6 +28,22 @@
       }
     },
     {
+      "files": [
+        "app/**/*.ts",
+        "app/**/*.tsx",
+        "components/**/*.ts",
+        "components/**/*.tsx",
+        "context/**/*.ts",
+        "context/**/*.tsx",
+        "hooks/**/*.ts",
+        "hooks/**/*.tsx"
+      ],
+      "excludedFiles": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "no-console": ["error", { "allow": ["warn", "error"] }]
+      }
+    },
+    {
       "files": ["**/*.ts", "**/*.tsx"],
       "rules": {
         "no-restricted-imports": ["error", {

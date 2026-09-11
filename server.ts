@@ -34,6 +34,7 @@ import { getSocketIOServer } from './lib/websocket/server';
 import { startWMDJobs, stopWMDJobs } from './lib/wmd/jobs/scheduler';
 import { startFlagBotJob, stopFlagBotJob } from './lib/jobs/flagBotManager';
 import { startBeerBaseJob, stopBeerBaseJob } from './lib/jobs/beerBaseManager';
+import { startBotGrowthJob, stopBotGrowthJob } from './lib/jobs/botGrowthManager';
 import { connectToDatabase } from './lib/mongodb';
 
 // Environment configuration
@@ -171,6 +172,20 @@ async function startServer(): Promise<void> {
       console.error('[Server] ❌ Error starting Beer Base job:', err);
     }
 
+    // Initialize Bot Growth Hourly Job (FID-20260909-035: was never scheduled —
+    // bots could only decay; regen/movement/unit-building now run hourly)
+    try {
+      console.log('[Server] 🔄 Starting Bot Growth background job...');
+      const botGrowthResult = startBotGrowthJob();
+      if (botGrowthResult.success) {
+        console.log('[Server] ✅ Bot Growth job started:', botGrowthResult.message);
+      } else {
+        console.error('[Server] ⚠️  Bot Growth job failed to start:', botGrowthResult.message);
+      }
+    } catch (err) {
+      console.error('[Server] ❌ Error starting Bot Growth job:', err);
+    }
+
     // ============================================================
     // START FACTORY SLOT REGENERATION BACKGROUND JOB
     // ============================================================
@@ -237,6 +252,14 @@ async function startServer(): Promise<void> {
         console.log('[Server] ✅ Beer Base job stopped');
       } catch (err) {
         console.error('[Server] ⚠️  Error stopping Beer Base job:', err);
+      }
+
+      // Stop Bot Growth background job (FID-20260909-035)
+      try {
+        stopBotGrowthJob();
+        console.log('[Server] ✅ Bot Growth job stopped');
+      } catch (err) {
+        console.error('[Server] ⚠️  Error stopping Bot Growth job:', err);
       }
       
       // Stop Factory Slot Regeneration background job

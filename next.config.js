@@ -19,6 +19,11 @@ const nextConfig = {
     return config;
   },
 
+  // FID-20260909-024: cheap response/body wins.
+  compress: true,            // gzip responses (default true, pinned explicitly)
+  poweredByHeader: false,    // drop X-Powered-By (fingerprinting, useless bytes)
+  productionBrowserSourceMaps: false, // smaller browser payloads
+
   // Content Security Policy headers
   async headers() {
     return [
