@@ -657,7 +657,7 @@ function mapConversationToType(row: typeof conversations.$inferSelect): Conversa
 /**
  * Map a Drizzle message row to the Message type
  */
-const SYSTEM_MESSAGE_TYPES = ['achievement', 'battle', 'trade', 'notification'] as const;
+const SYSTEM_MESSAGE_TYPES = ['achievement', 'battle', 'trade', 'notification', 'battle_result'] as const;
 
 /**
  * Type guard for the `metadata_system_type` varchar column — the DB column is

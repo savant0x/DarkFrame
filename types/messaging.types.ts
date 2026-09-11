@@ -57,7 +57,9 @@ export interface MessageMetadata {
     content: string;
     editedAt: Date;
   }>;
-  systemType?: 'achievement' | 'battle' | 'trade' | 'notification';
+  // FID-20260911-044: 'battle_result' markers full line-item battle reports
+  // written by lib/battleNotification.ts — rendered as styled report cards.
+  systemType?: 'achievement' | 'battle' | 'trade' | 'notification' | 'battle_result';
   relatedEntityId?: string;            // Link to battle, trade, etc.
 }
 

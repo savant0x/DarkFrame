@@ -5,3 +5,4 @@
 
 export { default as MessageInbox } from './MessageInbox';
 export { default as MessageThread } from './MessageThread';
+export { default as BattleReportCard } from './BattleReportCard';

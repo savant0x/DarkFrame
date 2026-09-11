@@ -23,6 +23,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Smile, Loader2, Check, CheckCheck, Clock } from 'lucide-react';
 import type { Message, MessageThreadState } from '@/types/messaging.types';
+import { BattleReportCard } from './BattleReportCard';
 
 interface MessageThreadProps {
   conversationId: string;
@@ -363,9 +364,13 @@ export default function MessageThread({
                       isOwn ? 'nn-msg--own' : 'nn-msg'
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap break-words text-[color:var(--nn-text-primary)]">
-                      {message.content}
-                    </p>
+                    {message.metadata?.systemType === 'battle_result' ? (
+                      <BattleReportCard message={message} />
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap break-words text-[color:var(--nn-text-primary)]">
+                        {message.content}
+                      </p>
+                    )}
                     <div className={`flex items-center gap-2 mt-1 text-xs ${
                       isOwn ? 'nn-text-cyan' : 'nn-text-secondary'
                     }`}>

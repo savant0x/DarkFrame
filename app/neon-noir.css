@@ -2442,3 +2442,209 @@ span.nn-panel__icon > svg {
   border: 1px solid var(--nn-glass-border);
   border-bottom-width: 2px;
 }
+
+/* ====================================================================== */
+/* FID-20260911-044 — battle report cards (metadata_system_type=battle_result) */
+/* ====================================================================== */
+
+.nn-battle-report {
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 25%, transparent);
+  background: color-mix(in oklab, var(--nn-void) 70%, transparent);
+  padding: 0;
+  overflow: hidden;
+}
+
+.nn-battle-report--victory { border-color: color-mix(in oklab, var(--nn-green) 55%, transparent); }
+.nn-battle-report--defeat  { border-color: color-mix(in oklab, var(--nn-magenta) 55%, transparent); }
+.nn-battle-report--draw    { border-color: color-mix(in oklab, var(--nn-amber) 55%, transparent); }
+
+.nn-battle-report__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid color-mix(in oklab, var(--nn-cyan) 15%, transparent);
+  background: color-mix(in oklab, var(--nn-cyan) 8%, transparent);
+}
+.nn-battle-report--victory .nn-battle-report__head { background: color-mix(in oklab, var(--nn-green) 12%, transparent); }
+.nn-battle-report--defeat  .nn-battle-report__head { background: color-mix(in oklab, var(--nn-magenta) 12%, transparent); }
+.nn-battle-report--draw    .nn-battle-report__head { background: color-mix(in oklab, var(--nn-amber) 12%, transparent); }
+
+.nn-battle-report__title {
+  font-family: var(--nn-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--nn-cyan);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.nn-battle-report__title span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nn-battle-report--victory .nn-battle-report__title { color: var(--nn-green); }
+.nn-battle-report--defeat  .nn-battle-report__title { color: var(--nn-magenta); }
+.nn-battle-report--draw    .nn-battle-report__title { color: var(--nn-amber); }
+
+.nn-battle-report__meta {
+  font-family: var(--nn-font-body);
+  font-size: 10px;
+  color: var(--nn-text-tertiary);
+  white-space: nowrap;
+}
+
+.nn-battle-report__body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nn-battle-report__section-head {
+  font-family: var(--nn-font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--nn-text-secondary);
+  margin-bottom: 4px;
+}
+
+/* Forces: two side-by-side columns when space allows */
+.nn-battle-report__forces {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 480px) {
+  .nn-battle-report__forces { grid-template-columns: 1fr; }
+}
+
+.nn-battle-report__force {
+  border: 1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent);
+  padding: 6px 8px;
+  min-width: 0;
+}
+.nn-battle-report__force--attacker { border-left: 2px solid var(--nn-cyan); }
+.nn-battle-report__force--defender { border-left: 2px solid var(--nn-magenta); }
+
+.nn-battle-report__force-name {
+  font-family: var(--nn-font-body);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--nn-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nn-battle-report__force--attacker .nn-battle-report__force-name { color: var(--nn-cyan); }
+.nn-battle-report__force--defender .nn-battle-report__force-name { color: var(--nn-magenta); }
+
+.nn-battle-report__units {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+.nn-battle-report__unit {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--nn-font-body);
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--nn-text-secondary);
+}
+.nn-battle-report__unit b { color: var(--nn-text-primary); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nn-battle-report__unit span { color: var(--nn-text-tertiary); white-space: nowrap; }
+.nn-battle-report__unit--off { color: color-mix(in oklab, var(--nn-amber) 80%, var(--nn-text-secondary)); }
+.nn-battle-report__unit--def { color: color-mix(in oklab, var(--nn-violet) 80%, var(--nn-text-secondary)); }
+
+.nn-battle-report__total {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in oklab, var(--nn-cyan) 10%, transparent);
+  font-family: var(--nn-num-font, var(--nn-font-body));
+  font-size: 10px;
+  color: var(--nn-text-primary);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.nn-battle-report__hp { color: var(--nn-text-tertiary); }
+
+/* Rounds */
+.nn-battle-report__rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+.nn-battle-report__round {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr;
+  gap: 6px;
+  align-items: baseline;
+  font-family: var(--nn-num-font, var(--nn-font-body));
+  font-size: 10.5px;
+  color: var(--nn-text-secondary);
+}
+.nn-battle-report__round-r {
+  color: var(--nn-cyan);
+  font-weight: 600;
+}
+.nn-battle-report__dmg-a { color: var(--nn-cyan); }
+.nn-battle-report__dmg-d { color: var(--nn-magenta); }
+.nn-battle-report__round-sub {
+  grid-column: 2 / 4;
+  font-size: 9.5px;
+  color: var(--nn-text-tertiary);
+}
+
+/* Results lines */
+.nn-battle-report__results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nn-battle-report__result {
+  font-family: var(--nn-font-body);
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--nn-text-secondary);
+  display: flex;
+  gap: 6px;
+}
+.nn-battle-report__result::before {
+  content: '▸';
+  color: var(--nn-cyan);
+  flex: 0 0 auto;
+}
+.nn-battle-report__result--gain { color: var(--nn-green); }
+.nn-battle-report__result--loss { color: var(--nn-magenta); }
+
+/* Collapsed state + toggle */
+.nn-battle-report--collapsed .nn-battle-report__body { display: none; }
+.nn-battle-report__toggle {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent);
+  color: var(--nn-text-tertiary);
+  font-family: var(--nn-font-body);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 6px 0;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.nn-battle-report__toggle:hover { color: var(--nn-cyan); outline: none; }
