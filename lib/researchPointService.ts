@@ -109,11 +109,18 @@ export type RPSource =
   | 'other'; // Miscellaneous
 
 /**
- * Daily harvest milestones (resets daily)
- * Key: harvest count threshold
- * Value: RP reward for reaching threshold
- * 
- * Total for full map completion (22,500 harvests): 7,750 RP (FID-20260906-006 P4)
+ * Daily harvest milestones (Milestones v2 — FID-20260912-056 proposal, shipped
+ * in FID-20260912-058). Resets per AM/PM half-day period.
+ * Key: harvest count threshold — anchored to the live tile census
+ * (~10,871 harvestable tiles split into two ~5.3k half-day periods; rungs at
+ * 20/40/60/80/100% of a period's ceiling, so every rung is human-reachable —
+ * the old 10k/15k/22.5k tiers were physically impossible).
+ * Value: RP reward for reaching threshold.
+ *
+ * Envelope: 2,150 RP per half-day period → 4,300 RP/day base; up to ~12,900/day
+ * for a VIP flag-bearer doing a full sweep (×1.5 VIP ×2 flag stack).
+ * Replaces the doc-era "7,750 RP full-map" figure (FID-20260906-006 P4), whose
+ * curve rewarded only AutoFarm (3 of 6 tiers unreachable by humans).
  */
 export const DAILY_HARVEST_MILESTONES: Record<number, number> = {
   1000: 200,  // 20% of harvestable tiles — every active player touches this
