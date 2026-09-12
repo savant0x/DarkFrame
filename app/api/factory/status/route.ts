@@ -8,9 +8,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getFactoryData } from '@/lib/factoryService';
+import { getFactoryData, collectAllFactoryIncome } from '@/lib/factoryService';
 import { applySlotRegeneration, getAvailableSlots, getTimeUntilNextSlot, getFactoryCapacity } from '@/lib/slotRegenService';
 import { connectToDatabase } from '@/lib/mongodb';
+import { authenticateRequest } from '@/lib/authMiddleware';
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,6 +53,24 @@ export async function GET(request: NextRequest) {
       );
     }
     
+    // FID-072 — Phase 5 income revival: viewing an owned factory pays its
+    // accrued income (1,000 metal + 500 energy per level-hour since last
+    // collection). Write-on-GET, same precedent as the slot-regen persist
+    // above; the 1-minute guard in calculateFactoryIncome prevents spam, and
+    // unauthenticated/anonymous views simply skip the accrual.
+    let incomeGranted: { totalMetal: number; totalEnergy: number } | null = null;
+    const auth = await authenticateRequest(request);
+    if (auth?.username && factory.owner === auth.username) {
+      try {
+        const collected = await collectAllFactoryIncome(auth.username);
+        if (collected.totalMetal > 0 || collected.totalEnergy > 0) {
+          incomeGranted = { totalMetal: collected.totalMetal, totalEnergy: collected.totalEnergy };
+        }
+      } catch {
+        // Income accrual must never block the status read.
+      }
+    }
+
     // Calculate additional info
     const availableSlots = getAvailableSlots(factory);
     const timeUntilNext = getTimeUntilNextSlot(factory);
@@ -59,6 +78,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       factory,
+      ...(incomeGranted ? { incomeGranted } : {}),
       slotInfo: {
         available: availableSlots,
         max: getFactoryCapacity(factory),

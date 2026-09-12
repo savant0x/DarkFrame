@@ -390,6 +390,12 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
     <span className={`nn-chip nn-viewport__chip ${onCooldown ? 'nn-chip--magenta' : 'nn-chip--green'}`}>
       {onCooldown ? getCooldownTimeRemaining() : 'ready'}
     </span>
+  ) : tile.terrain === TerrainType.Factory && factoryData ? (
+    // FID-072: factories carry their level as the viewport chip — the map's
+    // industrial gradient is now readable at a glance, not just via deck art.
+    <span className="nn-chip nn-viewport__chip nn-chip--amber">
+      LV {factoryData.level || 1}
+    </span>
   ) : null;
 
   return (
@@ -1088,8 +1094,13 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
         <div className="nn-deck nn-fade">
           <div className="nn-deck__head">
             <h4 className="nn-deck__title nn-deck__title--magenta">Factory Status</h4>
+            {/* FID-072: the level is THE headline stat — it drives every number
+                below. Badge next to the title, always visible. */}
+            <span className="nn-chip nn-chip--amber" style={{ marginLeft: 'auto', marginRight: factoryData.owner ? undefined : 0 }}>
+              LV {factoryData.level || 1}/{10}
+            </span>
             {factoryData.owner && (
-              <span className="nn-deck__meta" style={{ color: factoryData.owner === player?.username ? 'var(--nn-green)' : 'var(--nn-amber)' }}>
+              <span className="nn-deck__meta" style={{ marginLeft: 0, color: factoryData.owner === player?.username ? 'var(--nn-green)' : 'var(--nn-amber)' }}>
                 {factoryData.owner === player?.username ? 'YOURS' : `OWNER ▸ ${factoryData.owner.toUpperCase()}`}
               </span>
             )}
@@ -1103,6 +1114,14 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             <div className="nn-well p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
               <span className="nn-lab">Production</span>
               <div className="nn-num text-[color:var(--nn-text-primary)]">{factoryData.productionRate}/hr</div>
+            </div>
+            {/* FID-072: owner income rate — the level now pays (Phase 5 revival:
+                1,000 metal + 500 energy per level, hourly, accrued on status). */}
+            <div className="nn-well col-span-2 p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+              <span className="nn-lab">Owner Income</span>
+              <div className="nn-num" style={{ color: 'var(--nn-green)' }}>
+                +{(1000 * (factoryData.level || 1)).toLocaleString()} ⚙ / +{(500 * (factoryData.level || 1)).toLocaleString()} ⚡ per hr
+              </div>
             </div>
             <div className="nn-well col-span-2 p-2" style={{ margin: 0, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
               <span className="nn-lab">Unit Slots</span>

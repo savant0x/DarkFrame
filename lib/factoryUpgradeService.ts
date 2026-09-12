@@ -42,23 +42,34 @@ import { Factory, FactoryStats } from '@/types/game.types';
 export const FACTORY_UPGRADE = {
   MIN_LEVEL: 1,
   MAX_LEVEL: 10,
-  
-  // Cost formula constants
-  BASE_METAL_COST: 1000,
-  BASE_ENERGY_COST: 500,
+
+  // Cost formula constants (FID-072: real purchases, not pocket change —
+  // L1→2 ≈ 5.6k metal ≈ 5 harvests; L9→10 ≈ 144k ≈ a project)
+  BASE_METAL_COST: 2500,
+  BASE_ENERGY_COST: 1250,
   COST_MULTIPLIER: 1.5,
-  
-  // Stats formula constants (Updated for exponential slot cost system)
-  BASE_SLOTS: 5000,           // Level 1 factory = 5,000 slots
-  SLOTS_PER_LEVEL: 500,       // +500 slots per level (Level 10 = 9,500 slots)
-  BASE_REGEN_RATE: 416.67,    // ~417 slots/hour (full regen in 12 hours)
-  REGEN_PER_LEVEL: 41.67,     // +41.67 slots/hour per level
-  
-  // Defense formula constants (NEW: Exponential scaling after Level 1)
-  // Level 1: 1,000 (accessible for first factory capture)
-  // Level 2+: Exponential growth - (level-1)² × 50,000
-  // Level 10: 3,650,000 (requires ~3M+ strength for high success)
-  
+
+  // Slot curve (FID-072: honest scarcity — old 5,000+500L never bound; live
+  // max garrison 1,901 vs 5,000 capacity). L1=400 … L10=1,750. Binds
+  // sometimes, never strangles (T3 units cost 7 slots → 250 T3 at L10).
+  BASE_SLOTS: 400,
+  SLOTS_PER_LEVEL: 150,
+  // Regen rescaled to the same band: 30/hr +10/level → full L10 drain back
+  // in ~15h (old 416.67/hr refilled a 5,000 pool nobody used).
+  BASE_REGEN_RATE: 30,
+  REGEN_PER_LEVEL: 10,
+
+  // Defense formula (FID-072: cliff smoothed, ladder restored):
+  //   L1 = 1,000 (first-capture accessibility, unchanged)
+  //   L2+ = (level-1)² × 12,500 → L2=12.5k (bots ~23k STR can raid),
+  //   L5=200k, L7=450k, L10=1.01M (endgame wall intact). The old ×50,000
+  //   put L2 at 50k — above every bot — killing mid-game factory war.
+  DEFENSE_SQUARE_MULTIPLIER: 12500,
+
+  // Passive income (Phase 5, FID-072 revival — was dead code with no route)
+  INCOME_METAL_PER_LEVEL: 1000, // L metal/hr: L1=1k … L10=10k
+  INCOME_ENERGY_PER_LEVEL: 500,
+
   // Player limits
   MAX_FACTORIES_PER_PLAYER: 10
 } as const;
@@ -163,53 +174,68 @@ export function getFactoryStats(level: number): FactoryStats {
 }
 
 /**
- * Get maximum slots for a factory at a given level
+ * Get maximum slots for a factory at a given level (FID-072 curve)
  * 
  * @param level - Factory level (1-10)
  * @returns Maximum slot capacity
  * 
  * @example
- * const maxSlots = getMaxSlots(10);
- * // Returns: 28 (10 + 9×2)
+ * const maxSlots = getMaxSlots(1);  // Returns: 400
+ * const maxSlots = getMaxSlots(10); // Returns: 1,750
  */
 export function getMaxSlots(level: number): number {
   return FACTORY_UPGRADE.BASE_SLOTS + ((level - 1) * FACTORY_UPGRADE.SLOTS_PER_LEVEL);
 }
 
 /**
- * Get regeneration rate for a factory at a given level
+ * Get regeneration rate for a factory at a given level (FID-072 curve)
  * 
  * @param level - Factory level (1-10)
  * @returns Slots regenerated per hour
  * 
  * @example
- * const regenRate = getRegenRate(10);
- * // Returns: 791.67 (416.67 + 9×41.67)
+ * const regenRate = getRegenRate(1);  // Returns: 30
+ * const regenRate = getRegenRate(10); // Returns: 120 (full L10 drain ≈ 15h)
  */
 export function getRegenRate(level: number): number {
   return FACTORY_UPGRADE.BASE_REGEN_RATE + ((level - 1) * FACTORY_UPGRADE.REGEN_PER_LEVEL);
 }
 
 /**
- * Get defense rating for a factory at a given level
+ * Units-per-hour production rate for a factory at a given level (FID-072).
+ * Continues the admin panel's existing table (L1=10, L2=25, L3=50) with a
+ * coherent quadratic: 5L² + 5 → L5=130, L10=505. The stored production_rate
+ * column is maintained at write time (FID-032 §7 pattern) — this is the
+ * canonical value any write path must persist.
+ */
+export function getProductionRate(level: number): number {
+  if (level < FACTORY_UPGRADE.MIN_LEVEL || level > FACTORY_UPGRADE.MAX_LEVEL) {
+    throw new Error(`Invalid factory level: ${level}`);
+  }
+  return 5 * level * level + 5;
+}
+
+/**
+ * Get defense rating for a factory at a given level (FID-072 curve)
  * 
- * EXPONENTIAL SCALING FORMULA:
+ * FORMULA:
  * - Level 1: 1,000 (accessible to all players - needed for first factory)
- * - Level 2+: (level - 1)² × 50,000 (exponential growth)
+ * - Level 2+: (level - 1)² × 12,500
  * 
  * Creates strategic progression:
  * - Level 1: 1,000 defense (anyone can capture for building capability)
- * - Level 2: 50,000 defense (requires ~50K strength for 90% success)
- * - Level 5: 650,000 defense (requires ~650K strength)
- * - Level 10: 3,650,000 defense (requires ~3M+ strength - end-game challenge)
+ * - Level 2: 12,500 defense (bots ~23k STR can raid — mid-game war exists)
+ * - Level 5: 200,000 defense
+ * - Level 7: 450,000 defense
+ * - Level 10: 1,012,500 defense (endgame wall — fame-class strength)
  * 
  * @param level - Factory level (1-10)
  * @returns Defense rating
  * 
  * @example
  * getFactoryDefense(1);  // Returns: 1,000
- * getFactoryDefense(5);  // Returns: 650,000 (4² × 50,000 + base offset)
- * getFactoryDefense(10); // Returns: 3,650,000 (9² × 50,000 + base offset)
+ * getFactoryDefense(5);  // Returns: 200,000 (4² × 12,500)
+ * getFactoryDefense(10); // Returns: 1,012,500 (9² × 12,500)
  */
 export function getFactoryDefense(level: number): number {
   if (level < FACTORY_UPGRADE.MIN_LEVEL || level > FACTORY_UPGRADE.MAX_LEVEL) {
@@ -221,10 +247,10 @@ export function getFactoryDefense(level: number): number {
     return 1000;
   }
   
-  // Level 2+: Exponential scaling
-  // Formula: (level - 1)² × 50,000
+  // Level 2+: quadratic scaling
+  // Formula: (level - 1)² × 12,500
   const exponent = level - 1;
-  return exponent * exponent * 50000;
+  return exponent * exponent * FACTORY_UPGRADE.DEFENSE_SQUARE_MULTIPLIER;
 }
 
 /**

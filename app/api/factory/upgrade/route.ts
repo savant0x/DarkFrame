@@ -50,6 +50,8 @@ import {
   getFactoryStats,
   canUpgradeFactory,
   getFactoryDefense,
+  getMaxSlots,
+  getProductionRate,
   FACTORY_UPGRADE
 } from '@/lib/factoryUpgradeService';
 import { Factory, Player } from '@/types/game.types';
@@ -203,16 +205,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Update factory level and max slots
-    // Note: Current slots are not changed, only max capacity
-    // Defense is recalculated based on new level
+    // FID-072: write the FULL stat block for the new level. The old write
+    // set only touched level+defense, leaving the `slots` column (used as
+    // build-unit's enforcement source) and productionRate frozen at L1 — the
+    // "Factory Status shows base metrics" bug. Capacity rises without
+    // touching usedSlots (only the ceiling moves).
     const factoryUpdateResult = await factoriesCollection.updateOne(
       { x: validated.factoryX, y: validated.factoryY },
       {
         $set: {
           level: newLevel,
-          defense: getFactoryDefense(newLevel), // Update defense to match new level
-          // Don't modify current slots, just the capacity increases
+          defense: getFactoryDefense(newLevel),
+          slots: getMaxSlots(newLevel),
+          productionRate: String(getProductionRate(newLevel)),
           lastSlotRegen: now // Reset regen timer for new rate
         },
         // FID-20260909-032 §7: exact lifetime investment at write time.

@@ -32,6 +32,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { factories } from '@/lib/db/schema';
+import { getProductionRate } from '@/lib/factoryUpgradeService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -83,12 +84,14 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
         : 0;
       const isActive = lastProdTime > twoHoursAgo;
 
-      let productionRate = 10;
-      if (factory.level === 2) productionRate = 25;
-      if (factory.level === 3) productionRate = 50;
-
-      if (factory.productionRate !== undefined) {
-        productionRate = Number(factory.productionRate);
+      // FID-072: production derives from level via the canonical curve
+      // (5L²+5). Stored values from before 072 are stale L1 stamps — prefer
+      // the curve, but let an explicitly-set non-default value win (admin
+      // overrides through the write path still maintain the column).
+      let productionRate = getProductionRate(factory.level || 1);
+      const storedRate = factory.productionRate !== undefined ? Number(factory.productionRate) : NaN;
+      if (Number.isFinite(storedRate) && storedRate > 0 && storedRate !== 1) {
+        productionRate = storedRate;
       }
 
       return {

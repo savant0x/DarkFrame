@@ -127,6 +127,25 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    // FID-20260912-072: recompute slots/production_rate/defense onto the
+    // canonical curves (heals the 965 dormant rows; drift-guarded after).
+    try {
+      console.log('[Server] 🔄 Running Factory Stat Resync migration (FID-072)...');
+      await connectToDatabase();
+      const { runFactoryStatResyncMigration } = await import('./lib/migrations/factoryStatResync');
+      const resyncResult = await runFactoryStatResyncMigration();
+      console.log('[Server] ✅ Factory Stat Resync:', resyncResult.message, {
+        modified: resyncResult.modified,
+        alreadyApplied: resyncResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Factory Stat Resync failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     // Initialize WMD Background Jobs
     try {
       console.log('[Server] 🔄 Starting WMD background jobs...');
