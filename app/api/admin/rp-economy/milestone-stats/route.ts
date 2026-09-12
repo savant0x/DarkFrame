@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authService';
+import { DAILY_HARVEST_MILESTONES } from '@/lib/researchPointService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -34,7 +35,11 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED);
     }
 
-    const milestoneThresholds = [1000, 2500, 5000, 10000, 15000, 22500];
+    // FID-20260912-058 Milestones v2: thresholds/amounts read from the
+    // service's single table instead of a stale local copy.
+    const milestoneThresholds = Object.keys(DAILY_HARVEST_MILESTONES)
+      .map(Number)
+      .sort((a, b) => a - b);
 
     const milestones = await Promise.all(
       milestoneThresholds.map(async (threshold) => {
@@ -46,16 +51,7 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
 
         const completions = (result as unknown as Array<{ count?: number }>)[0]?.count || 0;
 
-        const milestoneAmounts: Record<number, number> = {
-          1000: 500,
-          2500: 750,
-          5000: 1000,
-          10000: 1500,
-          15000: 1250,
-          22500: 1000
-        };
-
-        const rpAwarded = completions * (milestoneAmounts[threshold] || 0);
+        const rpAwarded = completions * DAILY_HARVEST_MILESTONES[threshold];
 
         const completionRate = completions > 0 ? (completions / Math.max(completions, 1)) * 100 : 0;
 

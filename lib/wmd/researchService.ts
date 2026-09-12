@@ -13,6 +13,7 @@ import {
   ResearchTech,
   PlayerResearch,
   ALL_RESEARCH_TECHS,
+  ResearchCategory,
   isValidTechId,
   WMDEventType,
   NotificationPriority,
@@ -112,7 +113,12 @@ export async function canStartResearch(
       }
     }
     
-    if (tech.requiredClanLevel && pr.clanId) {
+    if (tech.requiredClanLevel) {
+      // FID-20260912-058: a clanless player no longer bypasses the gate —
+      // high-end content genuinely requires clan membership.
+      if (!pr.clanId) {
+        return { canStart: false, reason: 'Requires clan membership' };
+      }
       const clanLevel = await getClanLevel(pr.clanId);
       if (clanLevel < tech.requiredClanLevel) {
         return { 
@@ -304,20 +310,31 @@ export async function recalculateAvailableTechs(
   try {
     const pr = await getPlayerResearch(playerId);
     if (!pr) return;
-    
+
+    // FID-20260912-058 W1: level gates are real now (L40+2t on every tier) —
+    // a tech whose level gate is unmet belongs in lockedTechs, not available,
+    // or the panel offers buttons the POST handler must refuse.
+    const levelRows = await db
+      .select({ level: players.level })
+      .from(players)
+      .where(eq(players.username, playerId))
+      .limit(1);
+    const playerLevel = levelRows[0]?.level ?? 1;
+
     const availableTechs: string[] = [];
     const lockedTechs: string[] = [];
-    
+
     for (const tech of ALL_RESEARCH_TECHS) {
       if (pr.completedTechs.includes(tech.techId)) {
         continue;
       }
-      
+
       const prerequisitesMet = tech.prerequisites.every(
         prereq => pr.completedTechs.includes(prereq)
       );
-      
-      if (prerequisitesMet) {
+      const levelMet = !tech.requiredLevel || playerLevel >= tech.requiredLevel;
+
+      if (prerequisitesMet && levelMet) {
         availableTechs.push(tech.techId);
       } else {
         lockedTechs.push(tech.techId);
@@ -355,12 +372,36 @@ export async function getAvailableTechs(
   }
 }
 
+/**
+ * Apply a completed tech's effects (FID-20260912-058 W1).
+ *
+ * The old implementation was a console.log stub — completions never touched
+ * the per-domain tier columns, so the panel's tier readouts stayed 0 forever
+ * and nothing downstream could ever observe progress. Domain tiers are
+ * derived from the completed set (max completed tier per domain), which is
+ * idempotent under the single-track model where a tier's unlock block can
+ * span several domains.
+ */
 async function applyTechEffects(
   playerId: string,
   tech: ResearchTech
 ): Promise<void> {
   try {
-    console.log(`Applied effects for ${tech.name} to player ${playerId}`);
+    const pr = await getPlayerResearchRow(playerId);
+    if (!pr) return;
+
+    const completed = [...(pr.completedTechs ?? []), tech.techId];
+    const domainTier = (category: ResearchCategory): number =>
+      ALL_RESEARCH_TECHS
+        .filter((t) => t.category === category && completed.includes(t.techId))
+        .reduce((max, t) => Math.max(max, t.tier), 0);
+
+    await db.update(playerResearch).set({
+      missileTier: domainTier(ResearchCategory.MISSILE),
+      defenseTier: domainTier(ResearchCategory.DEFENSE),
+      intelligenceTier: domainTier(ResearchCategory.INTELLIGENCE),
+      updatedAt: new Date(),
+    }).where(eq(playerResearch.playerId, playerId));
   } catch (error) {
     console.error('Error applying tech effects:', error);
   }
@@ -378,7 +419,10 @@ export async function initializePlayerResearch(
       return rowToPlayerResearch(existing);
     }
     
-    const startingTechs = ['missile_tier_1', 'defense_tier_1', 'spy_tier_1'];
+    // W1 (FID-20260912-058): a single track — tier 1 is the only starting
+    // tech. (The old init seeded all three tracks' tier-1 ids, which no
+    // longer exist.)
+    const startingTechs = ['wmd_tier_1'];
     const lockedTechs = ALL_RESEARCH_TECHS
       .filter(t => !startingTechs.includes(t.techId))
       .map(t => t.techId);
@@ -512,12 +556,32 @@ export async function getResearchStats(
   }
 }
 
-async function getPlayerLevel(_playerId: string): Promise<number> {
-  return 50;
+/**
+ * Real player level (FID-20260912-058): the W1 gates (L40+2t) are enforced
+ * against the actual column — the old helper hardcoded 50, making every
+ * level gate pass unconditionally. playerId is the username in this service.
+ */
+async function getPlayerLevel(playerId: string): Promise<number> {
+  const rows = await db
+    .select({ level: players.level })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
+  return rows[0]?.level ?? 1;
 }
 
-async function getClanLevel(_clanId: string): Promise<number> {
-  return 5;
+/**
+ * Real clan level (FID-20260912-058): tier-10's Clan Level 5 requirement is
+ * enforced against the actual column — the old helper hardcoded 5.
+ */
+async function getClanLevel(clanId: string): Promise<number> {
+  const { clans } = await import('@/lib/db/schema/clans');
+  const rows = await db
+    .select({ level: clans.levelCurrentLevel })
+    .from(clans)
+    .where(eq(clans.id, clanId))
+    .limit(1);
+  return rows[0]?.level ?? 0;
 }
 
 async function sendResearchCompletedNotification(

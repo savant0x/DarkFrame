@@ -53,201 +53,20 @@ interface Technology {
 }
 
 // ============================================================
-// MOCK TECHNOLOGIES
+// CATEGORY ICONS
+// (FID-20260912-058 T1: the in-file technology mock was deleted — it
+// advertised six functional bot techs the /api/research route refused to
+// sell, and six effectless techs the route happily sold. The tree now
+// hydrates entirely from the route's shared catalog, so the UI can only
+// show what the server actually sells at the server's prices.)
 // ============================================================
 
-const TECHNOLOGIES: Technology[] = [
-  {
-    id: 'troop-transport',
-    name: 'Troop Transport',
-    description: 'Advanced logistics allowing your armies to move 5 spaces per turn instead of 1',
-    icon: 'rocket',
-    cost: 10000,
-    researchTime: 300,
-    prerequisites: [],
-    unlocked: false,
-    researching: false,
-    category: 'movement',
-    effects: ['Movement range increased from 1 to 5 spaces', 'Fast travel enabled']
-  },
-  {
-    id: 'advanced-mining',
-    name: 'Advanced Mining',
-    description: 'Improved resource extraction techniques',
-    icon: 'pickaxe',
-    cost: 5000,
-    researchTime: 180,
-    prerequisites: [],
-    unlocked: false,
-    researching: false,
-    category: 'economy',
-    effects: ['+25% resource harvesting speed', '+10% resource yield']
-  },
-  {
-    id: 'fortification',
-    name: 'Fortification',
-    description: 'Defensive structures and tactics',
-    icon: 'shield',
-    cost: 8000,
-    researchTime: 240,
-    prerequisites: [],
-    unlocked: false,
-    researching: false,
-    category: 'combat',
-    effects: ['+15% defensive power', 'Reduced damage from raids']
-  },
-  {
-    id: 'tactical-warfare',
-    name: 'Tactical Warfare',
-    description: 'Advanced combat strategies and unit coordination',
-    icon: 'swords',
-    cost: 12000,
-    researchTime: 360,
-    prerequisites: ['fortification'],
-    unlocked: false,
-    researching: false,
-    category: 'combat',
-    effects: ['+20% attack power', 'Critical hit chance increased']
-  },
-  {
-    id: 'factory-automation',
-    name: 'Factory Automation',
-    description: 'Automated production systems for faster unit creation',
-    icon: 'factory',
-    cost: 15000,
-    researchTime: 420,
-    prerequisites: ['advanced-mining'],
-    unlocked: false,
-    researching: false,
-    category: 'economy',
-    effects: ['-30% unit production time', '+2 factory queue slots']
-  },
-  {
-    id: 'reconnaissance',
-    name: 'Reconnaissance',
-    description: 'Scout enemy territories and reveal hidden information',
-    icon: 'eye',
-    cost: 6000,
-    researchTime: 200,
-    prerequisites: [],
-    unlocked: false,
-    researching: false,
-    category: 'special',
-    effects: ['Reveal nearby enemy positions', 'View enemy unit counts']
-  },
-  
-  // ============================================================
-  // BOT HUNTER TECH BRANCH
-  // ============================================================
-  {
-    id: 'bot-hunter',
-    name: 'Bot Hunter',
-    description: 'Unlock bot detection scanner and increase loot from bot defeats',
-    icon: 'target',
-    cost: 5000,
-    researchTime: 180,
-    prerequisites: [],
-    unlocked: false,
-    researching: false,
-    category: 'special',
-    effects: [
-      'Unlock Bot Scanner (B key)',
-      'Scan radius: 50 tiles',
-      'Cooldown: 1 hour',
-      '+25% loot from defeated bots'
-    ]
-  },
-  {
-    id: 'advanced-tracking',
-    name: 'Advanced Tracking',
-    description: 'Enhanced bot scanner with larger radius and reduced cooldown',
-    icon: 'eye',
-    cost: 15000,
-    researchTime: 300,
-    prerequisites: ['bot-hunter'],
-    unlocked: false,
-    researching: false,
-    category: 'special',
-    effects: [
-      'Scan radius: 100 tiles (2x)',
-      'Cooldown: 30 minutes (50% faster)',
-      '+75% total loot from bots',
-      'View bot movement history'
-    ]
-  },
-  {
-    id: 'bot-magnet',
-    name: 'Bot Magnet',
-    description: 'Deploy a beacon that attracts bots to your location',
-    icon: 'target',
-    cost: 30000,
-    researchTime: 420,
-    prerequisites: ['advanced-tracking'],
-    unlocked: false,
-    researching: false,
-    category: 'special',
-    effects: [
-      'Attract 30% of bots within 100-tile radius',
-      'Duration: 7 days',
-      'Cooldown: 14 days',
-      'Increased bot engagement opportunities'
-    ]
-  },
-  {
-    id: 'bot-concentration-zones',
-    name: 'Bot Concentration Zones',
-    description: 'Define zones where new bots preferentially spawn',
-    icon: 'target',
-    cost: 35000,
-    researchTime: 480,
-    prerequisites: ['bot-magnet'],
-    unlocked: false,
-    researching: false,
-    category: 'special',
-    effects: [
-      'Define 3 zones (30×30 tiles each)',
-      '70% of new spawns in your zones',
-      'Zones persist until changed',
-      'No cooldown - permanent choice'
-    ]
-  },
-  {
-    id: 'bot-summoning-circle',
-    name: 'Bot Summoning Circle',
-    description: 'Summon specific bot types to your location',
-    icon: 'target',
-    cost: 75000,
-    researchTime: 600,
-    prerequisites: ['bot-concentration-zones'],
-    unlocked: false,
-    researching: false,
-    category: 'special',
-    effects: [
-      'Spawn 5 bots of chosen specialization',
-      'Spawns within 20-tile radius',
-      'Summoned bots have 1.5x resources',
-      'Cooldown: 7 days'
-    ]
-  },
-  {
-    id: 'fast-travel-network',
-    name: 'Fast Travel Network',
-    description: 'Create waypoints for instant travel across the map',
-    icon: 'rocket',
-    cost: 50000,
-    researchTime: 540,
-    prerequisites: ['bot-summoning-circle'],
-    unlocked: false,
-    researching: false,
-    category: 'movement',
-    effects: [
-      '5 waypoint slots',
-      'Set waypoint at any location',
-      'Instant travel to waypoints',
-      'Cooldown: 12 hours per use'
-    ]
-  }
-];
+const CATEGORY_ICONS: Record<string, string> = {
+  movement: 'rocket',
+  economy: 'pickaxe',
+  combat: 'shield',
+  special: 'target',
+};
 
 // ============================================================
 // MAIN COMPONENT
@@ -265,7 +84,7 @@ const TECHNOLOGIES: Technology[] = [
 export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   const router = useRouter();
   const { player, refreshGameState } = useGameContext();
-  const [technologies, setTechnologies] = useState<Technology[]>(TECHNOLOGIES);
+  const [technologies, setTechnologies] = useState<Technology[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -293,22 +112,28 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
   /**
    * Start researching a technology
    */
-  // FID-20260909-029 §2.2: hydrate unlock state on mount — the page never
-  // called the GET, so unlocks were invisible until a full reload.
+  // FID-20260912-058 T1: hydrate the ENTIRE tree from the server catalog —
+  // the route is the single source of truth for what exists, what it costs,
+  // and what is already unlocked (the old mock diverged in both directions).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const response = await fetch('/api/research');
         const data = await response.json();
-        if (!cancelled && data.success && Array.isArray(data.unlockedTechnologies)) {
-          const unlockedIds = new Set<string>(data.unlockedTechnologies as string[]);
-          setTechnologies(prev =>
-            prev.map(tech => ({ ...tech, unlocked: unlockedIds.has(tech.id) }))
-          );
-        }
+        if (cancelled || !data.success || !Array.isArray(data.catalog)) return;
+        const unlockedIds = new Set<string>(data.unlockedTechnologies as string[]);
+        const hydrated: Technology[] = (data.catalog as Array<
+          Pick<Technology, 'id' | 'name' | 'description' | 'cost' | 'researchTime' | 'prerequisites' | 'category' | 'effects'>
+        >).map((entry) => ({
+          ...entry,
+          icon: CATEGORY_ICONS[entry.category] ?? 'zap',
+          unlocked: unlockedIds.has(entry.id),
+          researching: false,
+        }));
+        setTechnologies(hydrated);
       } catch {
-        // Non-fatal: tree renders with the static catalog
+        // Non-fatal: tree renders empty if the catalog is unavailable
       }
     })();
     return () => { cancelled = true; };
@@ -424,6 +249,11 @@ export default function TechTreePage({ embedded = false }: TechTreePageProps) {
       </div>
 
       <div className="flex-1 p-6">
+        {/* FID-20260912-058 T1: the tree hydrates from the server catalog —
+            surface the sync state instead of a silent empty grid. */}
+        {technologies.length === 0 && (
+          <p className="nn-lab py-12 text-center">Syncing research catalog…</p>
+        )}
         {/* Technology cards — status accents via --nn-accent per card */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {technologies.map(tech => {

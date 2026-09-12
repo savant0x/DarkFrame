@@ -1,22 +1,25 @@
 /**
  * @file types/wmd/research.types.ts
  * @created 2025-10-22
- * @overview WMD Research System Type Definitions
- * 
+ * @last-modified 2026-09-12 (FID-20260912-058 W1 — single WMD research track)
+ *
  * OVERVIEW:
- * Complete type system for WMD research tech tree including missile tiers,
- * defense tiers, spy tiers, and research progression tracking.
- * 
- * Features:
- * - 10-tier research progression (3 parallel tracks)
- * - RP cost scaling and prerequisites
- * - Tech unlock validation
- * - Research progress tracking
- * - Clan research bonuses
- * 
- * Dependencies:
- * - /lib/xpService.ts for RP spending (REUSE EXISTING)
- * - MongoDB for data persistence
+ * WMD research system type definitions. W1 replaced the three parallel
+ * 10-tier tracks (2.7M RP total, 185-370 days per track at measured best-case
+ * income, 0 players ever having started) with ONE 10-tier domain-mixed track:
+ *
+ *   - 752,000 RP total — ~56 best-case days for the COMPLETE arc
+ *     (13.5k/day VIP flag-bearer); tier 1 lands in ~4 days, giving an
+ *     immediate first unlock while the full arc stays a ~2-month goal.
+ *   - Domains interleave per tier (offense/defense/intel) so the old tracks'
+ *     unlock content survives: every warhead, battery, radar, mission type,
+ *     and spy rank is reachable on the single path.
+ *   - Every tier carries a hard level gate (L40 + 2 per tier — gates tighten
+ *     with depth; the old catalog gated only tier 1).
+ *   - Tier 10 keeps the clan requirement (Clan Level 5) for high-end content.
+ *   - Ids are `wmd_tier_*` — previously the ONLY real consumer of completed
+ *     WMD techs (spyService) checked `intel_tier_*` ids the catalog never
+ *     sold; the single-track ids end that class of mismatch.
  */
 
 import { WarheadType } from './missile.types';
@@ -28,7 +31,7 @@ import { MissionType, SpyRank } from './intelligence.types';
 // ============================================================================
 
 /**
- * Research categories
+ * Research domains (thematic grouping on the single track)
  */
 export enum ResearchCategory {
   MISSILE = 'MISSILE',             // Offensive capabilities
@@ -54,20 +57,20 @@ export enum ResearchStatus {
  * Main research tech document
  */
 export interface ResearchTech {
-  techId: string;                  // Unique identifier (e.g., 'missile_tier_1')
+  techId: string;                  // Unique identifier (e.g., 'wmd_tier_1')
   name: string;
   description: string;
   category: ResearchCategory;
   tier: number;                    // 1-10
-  
+
   // Prerequisites
   prerequisites: string[];         // Tech IDs that must be completed first
   requiredLevel?: number;          // Player level requirement
   requiredClanLevel?: number;      // Clan level requirement
-  
+
   // Cost
   rpCost: number;                  // Research Points required
-  
+
   // Unlocks
   unlocks: {
     warheadTypes?: WarheadType[];
@@ -76,7 +79,7 @@ export interface ResearchTech {
     missionTypes?: MissionType[];
     spyRanks?: SpyRank[];
   };
-  
+
   // Metadata
   estimatedTime: string;           // Human-readable (e.g., "2 days")
 }
@@ -89,12 +92,12 @@ export interface PlayerResearch {
   playerId: string;
   playerUsername: string;
   clanId?: string;
-  
+
   // Research tracking
   completedTechs: string[];        // Array of techId
   availableTechs: string[];        // Techs that can be researched now
   lockedTechs: string[];           // Techs with unmet prerequisites
-  
+
   // Current research
   currentResearch?: {
     techId: string;
@@ -103,19 +106,19 @@ export interface PlayerResearch {
     rpRequired: number;
     progress: number;              // Percentage (0-100)
   };
-  
+
   // Stats by category
-  missileTier: number;             // Highest missile tier unlocked (0-10)
-  defenseTier: number;             // Highest defense tier unlocked (0-10)
-  intelligenceTier: number;        // Highest spy tier unlocked (0-10)
-  
+  missileTier: number;             // Highest missile-domain tier unlocked (0-10)
+  defenseTier: number;             // Highest defense-domain tier unlocked (0-10)
+  intelligenceTier: number;        // Highest intel-domain tier unlocked (0-10)
+
   // Total investment
   totalRPSpent: number;
   totalTechsUnlocked: number;
-  
+
   // Bonuses
   clanResearchBonus: number;       // Percentage bonus from clan
-  
+
   updatedAt: Date;
 }
 
@@ -151,31 +154,31 @@ export interface ResearchUnlockResult {
  */
 export interface TechTreeSummary {
   playerId: string;
-  
-  // Missile track (10 tiers)
+
+  // Missile domain progress
   missileProgress: {
     tier: number;
     nextTier?: ResearchTech;
     unlocked: WarheadType[];
     locked: WarheadType[];
   };
-  
-  // Defense track (10 tiers)
+
+  // Defense domain progress
   defenseProgress: {
     tier: number;
     nextTier?: ResearchTech;
     unlocked: BatteryType[];
     locked: BatteryType[];
   };
-  
-  // Intelligence track (10 tiers)
+
+  // Intelligence domain progress
   intelligenceProgress: {
     tier: number;
     nextTier?: ResearchTech;
     unlocked: MissionType[];
     locked: MissionType[];
   };
-  
+
   // Overall
   totalTechs: number;
   completedTechs: number;
@@ -191,443 +194,229 @@ export interface ResearchValidation {
   canResearch: boolean;
   techId: string;
   techName: string;
-  
+
   // Validation checks
   hasPrerequisites: boolean;
   meetsLevelRequirement: boolean;
   hasEnoughRP: boolean;
-  
+
   // Details
   missingPrerequisites: string[];
   currentLevel: number;
   requiredLevel: number;
   currentRP: number;
   requiredRP: number;
-  
+
   message: string;
 }
 
 // ============================================================================
-// CONSTANTS - MISSILE RESEARCH TRACK (10 TIERS)
+// CONSTANTS - THE WMD RESEARCH TRACK (SINGLE, 10 TIERS — FID-20260912-058 W1)
 // ============================================================================
 
-export const MISSILE_RESEARCH_TRACK: ResearchTech[] = [
+/**
+ * Cost ladder: 52k → 108k in smooth ~1.07-1.14× steps. Total 752,000 RP
+ * (~56 best-case days for the full arc; tier 1 = ~4 days). Level gates:
+ * L40 + 2 per tier (tier 10 needs L58). Tier 10 additionally requires
+ * Clan Level 5 (high-end content stays clan-gated).
+ *
+ * Domain rotation preserves every unlock from the three old tracks:
+ * warheads t1/t4/t6/t8/t10, batteries+radar t2/t5/t7/t10, missions and
+ * spy ranks t3/t5/t9/t10. (BASIC+ADVANCED batteries ride t2; the full
+ * mission ladder folds into t3/t5/t9/t10.)
+ */
+export const WMD_RESEARCH_TRACK: ResearchTech[] = [
   {
-    techId: 'missile_tier_1',
+    techId: 'wmd_tier_1',
     name: 'Tactical Missile Technology',
     description: 'Unlock Tactical Warheads (25% damage, single target)',
     category: ResearchCategory.MISSILE,
     tier: 1,
     prerequisites: [],
     requiredLevel: 40,
-    rpCost: 50000,
+    rpCost: 52000,
     unlocks: {
       warheadTypes: [WarheadType.TACTICAL],
     },
-    estimatedTime: '1 day',
+    estimatedTime: '4 days',
   },
   {
-    techId: 'missile_tier_2',
-    name: 'Improved Propulsion',
-    description: 'Reduce missile flight time by 15%',
-    category: ResearchCategory.MISSILE,
+    techId: 'wmd_tier_2',
+    name: 'Basic Defense Systems',
+    description: 'Unlock Basic Batteries (10% intercept chance) and Local Radar (30s warning, 50 tile range)',
+    category: ResearchCategory.DEFENSE,
     tier: 2,
-    prerequisites: ['missile_tier_1'],
-    rpCost: 90000,
-    unlocks: {},
-    estimatedTime: '1.5 days',
+    prerequisites: ['wmd_tier_1'],
+    requiredLevel: 42,
+    rpCost: 56000,
+    unlocks: {
+      batteryTypes: [BatteryType.BASIC, BatteryType.ADVANCED],
+      radarLevels: [RadarLevel.LOCAL],
+    },
+    estimatedTime: '4 days',
   },
   {
-    techId: 'missile_tier_3',
-    name: 'Advanced Guidance Systems',
-    description: 'Increase targeting accuracy by 20%',
-    category: ResearchCategory.MISSILE,
+    techId: 'wmd_tier_3',
+    name: 'Basic Espionage',
+    description: 'Unlock Reconnaissance, Surveillance, and Infiltration missions; deploy your first spy (Operative rank)',
+    category: ResearchCategory.INTELLIGENCE,
     tier: 3,
-    prerequisites: ['missile_tier_2'],
-    rpCost: 135000,
-    unlocks: {},
-    estimatedTime: '2 days',
+    prerequisites: ['wmd_tier_2'],
+    requiredLevel: 44,
+    rpCost: 60000,
+    unlocks: {
+      missionTypes: [
+        MissionType.RECONNAISSANCE,
+        MissionType.SURVEILLANCE,
+        MissionType.INFILTRATION,
+      ],
+      spyRanks: [SpyRank.OPERATIVE],
+    },
+    estimatedTime: '4 days',
   },
   {
-    techId: 'missile_tier_4',
-    name: 'Hardened Warheads',
-    description: 'Missiles gain +10% intercept resistance',
-    category: ResearchCategory.MISSILE,
-    tier: 4,
-    prerequisites: ['missile_tier_3'],
-    rpCost: 150000,
-    unlocks: {},
-    estimatedTime: '3 days',
-  },
-  {
-    techId: 'missile_tier_5',
+    techId: 'wmd_tier_4',
     name: 'Strategic Missile Technology',
     description: 'Unlock Strategic Warheads (50% damage, single target)',
     category: ResearchCategory.MISSILE,
-    tier: 5,
-    prerequisites: ['missile_tier_4'],
-    rpCost: 250000,
+    tier: 4,
+    prerequisites: ['wmd_tier_3'],
+    requiredLevel: 46,
+    rpCost: 65000,
     unlocks: {
       warheadTypes: [WarheadType.STRATEGIC],
     },
     estimatedTime: '5 days',
   },
   {
-    techId: 'missile_tier_6',
-    name: 'Miniaturization Technology',
-    description: 'Reduce component costs by 15%',
-    category: ResearchCategory.MISSILE,
-    tier: 6,
-    prerequisites: ['missile_tier_5'],
-    rpCost: 300000,
-    unlocks: {},
-    estimatedTime: '7 days',
-  },
-  {
-    techId: 'missile_tier_7',
-    name: 'Neutron Bomb Technology',
-    description: 'Unlock Neutron Warheads (60% damage, preserves resources)',
-    category: ResearchCategory.MISSILE,
-    tier: 7,
-    prerequisites: ['missile_tier_6'],
-    rpCost: 330000,
-    unlocks: {
-      warheadTypes: [WarheadType.NEUTRON],
-    },
-    estimatedTime: '10 days',
-  },
-  {
-    techId: 'missile_tier_8',
-    name: 'MIRV Technology',
-    description: 'Unlock Cluster Warheads (40%+20% damage, 5 targets)',
-    category: ResearchCategory.MISSILE,
-    tier: 8,
-    prerequisites: ['missile_tier_7'],
-    rpCost: 345000,
-    unlocks: {
-      warheadTypes: [WarheadType.CLUSTER],
-    },
-    estimatedTime: '15 days',
-  },
-  {
-    techId: 'missile_tier_9',
-    name: 'Advanced MIRV Systems',
-    description: 'Cluster warheads can hit 10 targets (was 5)',
-    category: ResearchCategory.MISSILE,
-    tier: 9,
-    prerequisites: ['missile_tier_8'],
-    rpCost: 350000,
-    unlocks: {},
-    estimatedTime: '20 days',
-  },
-  {
-    techId: 'missile_tier_10',
-    name: 'Clan Buster Technology',
-    description: 'Unlock Clan Buster Warheads (50%+30%+20% damage, entire clan)',
-    category: ResearchCategory.MISSILE,
-    tier: 10,
-    prerequisites: ['missile_tier_9'],
-    requiredClanLevel: 5,
-    rpCost: 500000,
-    unlocks: {
-      warheadTypes: [WarheadType.CLAN_BUSTER],
-    },
-    estimatedTime: '30 days',
-  },
-];
-
-// ============================================================================
-// CONSTANTS - DEFENSE RESEARCH TRACK (10 TIERS)
-// ============================================================================
-
-export const DEFENSE_RESEARCH_TRACK: ResearchTech[] = [
-  {
-    techId: 'defense_tier_1',
-    name: 'Basic Defense Systems',
-    description: 'Unlock Basic Batteries (10% intercept chance)',
-    category: ResearchCategory.DEFENSE,
-    tier: 1,
-    prerequisites: [],
-    requiredLevel: 40,
-    rpCost: 50000,
-    unlocks: {
-      batteryTypes: [BatteryType.BASIC],
-    },
-    estimatedTime: '1 day',
-  },
-  {
-    techId: 'defense_tier_2',
-    name: 'Local Radar Systems',
-    description: 'Unlock Local Radar (30s warning, 50 tile range)',
-    category: ResearchCategory.DEFENSE,
-    tier: 2,
-    prerequisites: ['defense_tier_1'],
-    rpCost: 90000,
-    unlocks: {
-      radarLevels: [RadarLevel.LOCAL],
-    },
-    estimatedTime: '1.5 days',
-  },
-  {
-    techId: 'defense_tier_3',
-    name: 'Advanced Defense Systems',
-    description: 'Unlock Advanced Batteries (25% intercept chance)',
-    category: ResearchCategory.DEFENSE,
-    tier: 3,
-    prerequisites: ['defense_tier_2'],
-    rpCost: 135000,
-    unlocks: {
-      batteryTypes: [BatteryType.ADVANCED],
-    },
-    estimatedTime: '2 days',
-  },
-  {
-    techId: 'defense_tier_4',
-    name: 'Battery Automation',
-    description: 'Reduce battery cooldown by 20%',
-    category: ResearchCategory.DEFENSE,
-    tier: 4,
-    prerequisites: ['defense_tier_3'],
-    rpCost: 150000,
-    unlocks: {},
-    estimatedTime: '3 days',
-  },
-  {
-    techId: 'defense_tier_5',
-    name: 'Elite Defense Systems',
-    description: 'Unlock Elite Batteries (40% intercept chance) + Regional Radar',
+    techId: 'wmd_tier_5',
+    name: 'Elite Defense & Counter-Intelligence',
+    description: 'Unlock Elite Batteries (40% intercept), Regional Radar, Counter-Intelligence, Light Sabotage, and Intelligence Leak missions (Agent rank)',
     category: ResearchCategory.DEFENSE,
     tier: 5,
-    prerequisites: ['defense_tier_4'],
-    rpCost: 250000,
+    prerequisites: ['wmd_tier_4'],
+    requiredLevel: 48,
+    rpCost: 70000,
     unlocks: {
       batteryTypes: [BatteryType.ELITE],
       radarLevels: [RadarLevel.REGIONAL],
-    },
-    estimatedTime: '5 days',
-  },
-  {
-    techId: 'defense_tier_6',
-    name: 'Hardened Installations',
-    description: 'Batteries resist sabotage (50% damage reduction)',
-    category: ResearchCategory.DEFENSE,
-    tier: 6,
-    prerequisites: ['defense_tier_5'],
-    rpCost: 300000,
-    unlocks: {},
-    estimatedTime: '7 days',
-  },
-  {
-    techId: 'defense_tier_7',
-    name: 'Fortress Defense Systems',
-    description: 'Unlock Fortress Batteries (60% intercept chance)',
-    category: ResearchCategory.DEFENSE,
-    tier: 7,
-    prerequisites: ['defense_tier_6'],
-    rpCost: 330000,
-    unlocks: {
-      batteryTypes: [BatteryType.FORTRESS],
-    },
-    estimatedTime: '10 days',
-  },
-  {
-    techId: 'defense_tier_8',
-    name: 'Global Surveillance Network',
-    description: 'Unlock Global Radar (90s warning, unlimited range, sees stealth)',
-    category: ResearchCategory.DEFENSE,
-    tier: 8,
-    prerequisites: ['defense_tier_7'],
-    rpCost: 345000,
-    unlocks: {
-      radarLevels: [RadarLevel.GLOBAL],
-    },
-    estimatedTime: '15 days',
-  },
-  {
-    techId: 'defense_tier_9',
-    name: 'Directed Energy Weapons',
-    description: 'Batteries gain +15% intercept chance',
-    category: ResearchCategory.DEFENSE,
-    tier: 9,
-    prerequisites: ['defense_tier_8'],
-    rpCost: 350000,
-    unlocks: {},
-    estimatedTime: '20 days',
-  },
-  {
-    techId: 'defense_tier_10',
-    name: 'AEGIS Defense System',
-    description: 'Unlock AEGIS Batteries (80% intercept, partial damage reduction)',
-    category: ResearchCategory.DEFENSE,
-    tier: 10,
-    prerequisites: ['defense_tier_9'],
-    requiredClanLevel: 5,
-    rpCost: 500000,
-    unlocks: {
-      batteryTypes: [BatteryType.AEGIS],
-    },
-    estimatedTime: '30 days',
-  },
-];
-
-// ============================================================================
-// CONSTANTS - INTELLIGENCE RESEARCH TRACK (10 TIERS)
-// ============================================================================
-
-export const INTELLIGENCE_RESEARCH_TRACK: ResearchTech[] = [
-  {
-    techId: 'spy_tier_1',
-    name: 'Basic Espionage',
-    description: 'Unlock Reconnaissance missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 1,
-    prerequisites: [],
-    requiredLevel: 40,
-    rpCost: 50000,
-    unlocks: {
-      missionTypes: [MissionType.RECONNAISSANCE],
-    },
-    estimatedTime: '1 day',
-  },
-  {
-    techId: 'spy_tier_2',
-    name: 'Surveillance Techniques',
-    description: 'Unlock Surveillance missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 2,
-    prerequisites: ['spy_tier_1'],
-    rpCost: 90000,
-    unlocks: {
-      missionTypes: [MissionType.SURVEILLANCE],
-    },
-    estimatedTime: '1.5 days',
-  },
-  {
-    techId: 'spy_tier_3',
-    name: 'Counter-Intelligence Operations',
-    description: 'Unlock Counter-Intelligence missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 3,
-    prerequisites: ['spy_tier_2'],
-    rpCost: 135000,
-    unlocks: {
-      missionTypes: [MissionType.COUNTER_INTELLIGENCE],
-      spyRanks: [SpyRank.OPERATIVE],
-    },
-    estimatedTime: '2 days',
-  },
-  {
-    techId: 'spy_tier_4',
-    name: 'Infiltration Training',
-    description: 'Unlock Infiltration missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 4,
-    prerequisites: ['spy_tier_3'],
-    rpCost: 150000,
-    unlocks: {
-      missionTypes: [MissionType.INFILTRATION],
-    },
-    estimatedTime: '3 days',
-  },
-  {
-    techId: 'spy_tier_5',
-    name: 'Sabotage Techniques',
-    description: 'Unlock Light Sabotage missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 5,
-    prerequisites: ['spy_tier_4'],
-    rpCost: 250000,
-    unlocks: {
-      missionTypes: [MissionType.SABOTAGE_LIGHT],
+      missionTypes: [
+        MissionType.COUNTER_INTELLIGENCE,
+        MissionType.SABOTAGE_LIGHT,
+        MissionType.INTELLIGENCE_LEAK,
+      ],
       spyRanks: [SpyRank.AGENT],
     },
     estimatedTime: '5 days',
   },
   {
-    techId: 'spy_tier_6',
-    name: 'Information Warfare',
-    description: 'Unlock Intelligence Leak missions',
-    category: ResearchCategory.INTELLIGENCE,
+    techId: 'wmd_tier_6',
+    name: 'Neutron Bomb Technology',
+    description: 'Unlock Neutron Warheads (60% damage, preserves resources)',
+    category: ResearchCategory.MISSILE,
     tier: 6,
-    prerequisites: ['spy_tier_5'],
-    rpCost: 300000,
+    prerequisites: ['wmd_tier_5'],
+    requiredLevel: 50,
+    rpCost: 76000,
     unlocks: {
-      missionTypes: [MissionType.INTELLIGENCE_LEAK],
+      warheadTypes: [WarheadType.NEUTRON],
+    },
+    estimatedTime: '6 days',
+  },
+  {
+    techId: 'wmd_tier_7',
+    name: 'Fortress Defense Systems',
+    description: 'Unlock Fortress Batteries (60% intercept chance)',
+    category: ResearchCategory.DEFENSE,
+    tier: 7,
+    prerequisites: ['wmd_tier_6'],
+    requiredLevel: 52,
+    rpCost: 82000,
+    unlocks: {
+      batteryTypes: [BatteryType.FORTRESS],
+    },
+    estimatedTime: '6 days',
+  },
+  {
+    techId: 'wmd_tier_8',
+    name: 'MIRV Technology',
+    description: 'Unlock Cluster Warheads (40%+20% damage, 5 targets)',
+    category: ResearchCategory.MISSILE,
+    tier: 8,
+    prerequisites: ['wmd_tier_7'],
+    requiredLevel: 54,
+    rpCost: 88000,
+    unlocks: {
+      warheadTypes: [WarheadType.CLUSTER],
     },
     estimatedTime: '7 days',
   },
   {
-    techId: 'spy_tier_7',
-    name: 'Advanced Sabotage',
-    description: 'Unlock Heavy Sabotage missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 7,
-    prerequisites: ['spy_tier_6'],
-    rpCost: 330000,
-    unlocks: {
-      missionTypes: [MissionType.SABOTAGE_HEAVY],
-    },
-    estimatedTime: '10 days',
-  },
-  {
-    techId: 'spy_tier_8',
-    name: 'Corporate Espionage',
-    description: 'Unlock Research Theft missions',
-    category: ResearchCategory.INTELLIGENCE,
-    tier: 8,
-    prerequisites: ['spy_tier_7'],
-    rpCost: 345000,
-    unlocks: {
-      missionTypes: [MissionType.THEFT],
-      spyRanks: [SpyRank.VETERAN],
-    },
-    estimatedTime: '15 days',
-  },
-  {
-    techId: 'spy_tier_9',
+    techId: 'wmd_tier_9',
     name: 'Wetwork Operations',
-    description: 'Unlock Assassination missions',
+    description: 'Unlock Heavy Sabotage, Research Theft, and Assassination missions (Veteran rank)',
     category: ResearchCategory.INTELLIGENCE,
     tier: 9,
-    prerequisites: ['spy_tier_8'],
-    rpCost: 350000,
+    prerequisites: ['wmd_tier_8'],
+    requiredLevel: 56,
+    rpCost: 95000,
     unlocks: {
-      missionTypes: [MissionType.ASSASSINATION],
+      missionTypes: [
+        MissionType.SABOTAGE_HEAVY,
+        MissionType.THEFT,
+        MissionType.ASSASSINATION,
+      ],
+      spyRanks: [SpyRank.VETERAN],
     },
-    estimatedTime: '20 days',
+    estimatedTime: '7 days',
   },
   {
-    techId: 'spy_tier_10',
+    techId: 'wmd_tier_10',
     name: 'Total Warfare',
-    description: 'Unlock Nuclear Sabotage missions (destroy ALL components)',
-    category: ResearchCategory.INTELLIGENCE,
+    description: 'Unlock Clan Buster Warheads (entire-clan damage), AEGIS Defense (80% intercept), Nuclear Sabotage, and the Elite spy rank',
+    category: ResearchCategory.MISSILE,
     tier: 10,
-    prerequisites: ['spy_tier_9'],
+    prerequisites: ['wmd_tier_9'],
+    requiredLevel: 58,
     requiredClanLevel: 5,
-    rpCost: 500000,
+    rpCost: 108000,
     unlocks: {
+      warheadTypes: [WarheadType.CLAN_BUSTER],
+      batteryTypes: [BatteryType.AEGIS],
+      radarLevels: [RadarLevel.GLOBAL],
       missionTypes: [MissionType.SABOTAGE_NUCLEAR],
       spyRanks: [SpyRank.ELITE],
     },
-    estimatedTime: '30 days',
+    estimatedTime: '8 days',
   },
 ];
+
+// ============================================================================
+// BACK-COMPAT ALIASES (the old three-track exports; W1 folds them into one)
+// ============================================================================
+
+/** W1: the missile/defense/intelligence "tracks" are views of the single track. */
+export const MISSILE_RESEARCH_TRACK: ResearchTech[] = WMD_RESEARCH_TRACK.filter(
+  (t) => t.category === ResearchCategory.MISSILE
+);
+export const DEFENSE_RESEARCH_TRACK: ResearchTech[] = WMD_RESEARCH_TRACK.filter(
+  (t) => t.category === ResearchCategory.DEFENSE
+);
+export const INTELLIGENCE_RESEARCH_TRACK: ResearchTech[] = WMD_RESEARCH_TRACK.filter(
+  (t) => t.category === ResearchCategory.INTELLIGENCE
+);
 
 // ============================================================================
 // AGGREGATED CONSTANTS
 // ============================================================================
 
 /**
- * All research techs combined
+ * All research techs (the single track)
  */
-export const ALL_RESEARCH_TECHS: ResearchTech[] = [
-  ...MISSILE_RESEARCH_TRACK,
-  ...DEFENSE_RESEARCH_TRACK,
-  ...INTELLIGENCE_RESEARCH_TRACK,
-];
+export const ALL_RESEARCH_TECHS: ResearchTech[] = [...WMD_RESEARCH_TRACK];
 
 /**
- * Research techs by category
+ * Research techs by domain
  */
 export const RESEARCH_BY_CATEGORY: Record<ResearchCategory, ResearchTech[]> = {
   [ResearchCategory.MISSILE]: MISSILE_RESEARCH_TRACK,
@@ -637,19 +426,23 @@ export const RESEARCH_BY_CATEGORY: Record<ResearchCategory, ResearchTech[]> = {
 
 /**
  * Total RP required to unlock everything
+ * (W1: 752,000 RP across 10 tiers — the full endgame arc, ~56 best-case
+ * days at ~13.5k/day. The old three-track tree was 2.7M demanding the
+ * same 900k grind three times over for parallel content.)
  */
 export const TOTAL_RP_REQUIRED = ALL_RESEARCH_TECHS.reduce(
   (sum, tech) => sum + tech.rpCost,
   0
-); // 2,700,000 RP total (900k per track)
+);
 
 /**
- * RP required per category
+ * RP required per domain (sums exceed TOTAL_RP_REQUIRED — W1 tiers can
+ * unlock multiple domains at once and are counted once in the total)
  */
 export const RP_BY_CATEGORY = {
-  [ResearchCategory.MISSILE]: 900000,
-  [ResearchCategory.DEFENSE]: 900000,
-  [ResearchCategory.INTELLIGENCE]: 900000,
+  [ResearchCategory.MISSILE]: MISSILE_RESEARCH_TRACK.reduce((s, t) => s + t.rpCost, 0),
+  [ResearchCategory.DEFENSE]: DEFENSE_RESEARCH_TRACK.reduce((s, t) => s + t.rpCost, 0),
+  [ResearchCategory.INTELLIGENCE]: INTELLIGENCE_RESEARCH_TRACK.reduce((s, t) => s + t.rpCost, 0),
 } as const;
 
 // ============================================================================
@@ -671,7 +464,7 @@ export function getTechById(techId: string): ResearchTech | undefined {
 }
 
 /**
- * Get techs by category
+ * Get techs by domain
  */
 export function getTechsByCategory(category: ResearchCategory): ResearchTech[] {
   return RESEARCH_BY_CATEGORY[category];
@@ -683,13 +476,13 @@ export function getTechsByCategory(category: ResearchCategory): ResearchTech[] {
 export function getPrerequisiteChain(techId: string): string[] {
   const tech = getTechById(techId);
   if (!tech || tech.prerequisites.length === 0) return [];
-  
+
   const chain: string[] = [];
   for (const prereq of tech.prerequisites) {
     chain.push(prereq);
     chain.push(...getPrerequisiteChain(prereq));
   }
-  
+
   return Array.from(new Set(chain)); // Remove duplicates
 }
 
@@ -702,7 +495,7 @@ export function hasPrerequisites(
 ): boolean {
   const tech = getTechById(techId);
   if (!tech) return false;
-  
+
   return tech.prerequisites.every(prereq => completedTechs.includes(prereq));
 }
 
@@ -713,7 +506,7 @@ export function getAvailableTechs(completedTechs: string[]): ResearchTech[] {
   return ALL_RESEARCH_TECHS.filter(tech => {
     // Skip already completed
     if (completedTechs.includes(tech.techId)) return false;
-    
+
     // Check prerequisites
     return hasPrerequisites(tech.techId, completedTechs);
   });
@@ -723,41 +516,27 @@ export function getAvailableTechs(completedTechs: string[]): ResearchTech[] {
 // IMPLEMENTATION NOTES
 // ============================================================================
 /**
- * 1. Research Tracks:
- *    - MISSILE: 10 tiers, 900k RP total
- *    - DEFENSE: 10 tiers, 900k RP total
- *    - INTELLIGENCE: 10 tiers, 900k RP total
- *    - TOTAL: 2.7M RP to unlock everything
- * 
- * 2. Tier 10 Requirements:
- *    - Clan Buster: 300k RP + Clan Level 5
- *    - AEGIS: 300k RP + Clan Level 5
- *    - Nuclear Sabotage: 300k RP + Clan Level 5
- *    (High-end content requires clan membership)
- * 
- * 3. RP Cost Progression:
- *    - Tier 1: 10k RP (1 day with full auto-farm)
- *    - Tier 5: 50k RP (5 days)
- *    - Tier 10: 300k RP (30 days)
- *    - Total: 2.7M RP (270 days to unlock everything)
- * 
+ * 1. Research Track (W1):
+ *    - ONE 10-tier track, 752k RP total — the full WMD endgame arc
+ *    - Domains interleave: offense/defense/intel content is spread across
+ *      the path instead of demanding three parallel 900k grinds
+ *
+ * 2. Tier Gates:
+ *    - Level gate on EVERY tier: L40 + 2(tier-1) — depth is earned
+ *    - Tier 10 requires Clan Level 5 (high-end content is clan-gated)
+ *
+ * 3. RP Cost Progression (at measured best-case ~13.5k RP/day):
+ *    - Tier 1: 52k RP (~4 days)
+ *    - Tier 5: 70k RP (cumulative 303k, ~3 weeks)
+ *    - Tier 10: 108k RP (cumulative 752k, ~8 weeks of top play)
+ *
  * 4. Integration with Existing System:
- *    - Reuses /lib/xpService.ts spendResearchPoints() function
+ *    - Reuses /lib/xpService.ts spendResearchPoints()
  *    - Pattern: await spendResearchPoints(userId, tech.rpCost, 'WMD Research: ${tech.name}')
- *    - No changes to existing RP system needed
- * 
- * 5. Parallel Progression:
- *    - Players can research all 3 tracks simultaneously
- *    - No cross-track dependencies (missile ≠ defense ≠ intel)
- *    - Encourages specialization or balanced approach
- * 
- * 6. Clan Research Bonuses:
- *    - Clan perks can reduce RP costs by 10-20%
- *    - Clan research can unlock shared techs
- *    - High-tier techs require clan membership
+ *
+ * 5. Consumer Compatibility:
+ *    - spyService gates on wmd_tier_* ids (the old intel_tier_* ids were
+ *      unsellable — FID-20260912-058)
+ *    - applyTechEffects (researchService) increments the per-domain tier
+ *      columns on completion and persists unlock effects
  */
-
-// ============================================================================
-// END OF FILE
-// ============================================================================
-

@@ -18,54 +18,21 @@ export interface ResearchNode {
   }[];
 }
 
+/**
+ * FID-20260912-058 (C1): the clan research tree is MILITARY-ONLY.
+ *
+ * The original tree priced 17 nodes across four branches (INDUSTRIAL,
+ * MILITARY, ECONOMIC, SOCIAL — ~480k RP of clan sinks), but `getClanBonuses`
+ * has exactly one consumer: combatPowerService, which reads ONLY the
+ * `attack` and `defense` bonus types. The INDUSTRIAL/ECONOMIC/SOCIAL
+ * branches sold bonuses (harvest_speed, factory_output, resource_capacity,
+ * auction_fee_reduction, bank_capacity, member_slots, xp_gain) that nothing
+ * in the codebase ever applied — dead sinks at real prices. Cut to the
+ * branch that works; the node ids and military values are unchanged so any
+ * existing unlocked-techs data stays valid.
+ */
 const RESEARCH_TREE: ResearchNode[] = [
-  {
-    id: 'ind_harvest_1',
-    name: 'Advanced Harvesting',
-    description: 'Improved harvesting techniques increase resource gathering speed',
-    branch: 'INDUSTRIAL',
-    tier: 1,
-    cost: 5000,
-    requiredLevel: 5,
-    prerequisites: [],
-    bonuses: [{ type: 'harvest_speed', value: 10 }],
-  },
-  {
-    id: 'ind_factory_1',
-    name: 'Factory Automation',
-    description: 'Automated systems boost factory production efficiency',
-    branch: 'INDUSTRIAL',
-    tier: 2,
-    cost: 15000,
-    requiredLevel: 10,
-    prerequisites: ['ind_harvest_1'],
-    bonuses: [{ type: 'factory_output', value: 15 }],
-  },
-  {
-    id: 'ind_capacity_1',
-    name: 'Resource Mastery',
-    description: 'Advanced storage techniques increase resource capacity',
-    branch: 'INDUSTRIAL',
-    tier: 3,
-    cost: 40000,
-    requiredLevel: 20,
-    prerequisites: ['ind_factory_1'],
-    bonuses: [{ type: 'resource_capacity', value: 20 }],
-  },
-  {
-    id: 'ind_super_harvest',
-    name: 'Hyperharvesting',
-    description: 'Ultimate harvesting technology maximizes resource extraction',
-    branch: 'INDUSTRIAL',
-    tier: 4,
-    cost: 100000,
-    requiredLevel: 30,
-    prerequisites: ['ind_capacity_1'],
-    bonuses: [
-      { type: 'harvest_speed', value: 25 },
-      { type: 'resource_capacity', value: 30 },
-    ],
-  },
+  // ── MILITARY (the only branch whose bonuses are consumed anywhere) ──────
   {
     id: 'mil_combat_1',
     name: 'Combat Training',
@@ -117,106 +84,6 @@ const RESEARCH_TREE: ResearchNode[] = [
     bonuses: [
       { type: 'attack', value: 25 },
       { type: 'defense', value: 20 },
-    ],
-  },
-  {
-    id: 'eco_trade_1',
-    name: 'Trade Expertise',
-    description: 'Better negotiation reduces auction house fees',
-    branch: 'ECONOMIC',
-    tier: 1,
-    cost: 5000,
-    requiredLevel: 5,
-    prerequisites: [],
-    bonuses: [{ type: 'auction_fee_reduction', value: 5 }],
-  },
-  {
-    id: 'eco_banking_1',
-    name: 'Banking Systems',
-    description: 'Improved financial infrastructure expands bank capacity',
-    branch: 'ECONOMIC',
-    tier: 2,
-    cost: 15000,
-    requiredLevel: 10,
-    prerequisites: ['eco_trade_1'],
-    bonuses: [{ type: 'bank_capacity', value: 25 }],
-  },
-  {
-    id: 'eco_empire',
-    name: 'Economic Empire',
-    description: 'Vast economic power maximizes wealth generation',
-    branch: 'ECONOMIC',
-    tier: 3,
-    cost: 40000,
-    requiredLevel: 20,
-    prerequisites: ['eco_banking_1'],
-    bonuses: [
-      { type: 'bank_capacity', value: 50 },
-      { type: 'auction_fee_reduction', value: 10 },
-    ],
-  },
-  {
-    id: 'eco_monopoly',
-    name: 'Market Monopoly',
-    description: 'Complete market dominance ensures maximum profits',
-    branch: 'ECONOMIC',
-    tier: 4,
-    cost: 100000,
-    requiredLevel: 30,
-    prerequisites: ['eco_empire'],
-    bonuses: [
-      { type: 'bank_capacity', value: 100 },
-      { type: 'auction_fee_reduction', value: 20 },
-    ],
-  },
-  {
-    id: 'soc_recruit_1',
-    name: 'Recruitment Drive',
-    description: 'Expanded recruitment efforts increase member capacity',
-    branch: 'SOCIAL',
-    tier: 1,
-    cost: 5000,
-    requiredLevel: 5,
-    prerequisites: [],
-    bonuses: [{ type: 'member_slots', value: 10 }],
-  },
-  {
-    id: 'soc_unity_1',
-    name: 'Unity Bonus',
-    description: 'Strong clan bonds accelerate member progression',
-    branch: 'SOCIAL',
-    tier: 2,
-    cost: 15000,
-    requiredLevel: 10,
-    prerequisites: ['soc_recruit_1'],
-    bonuses: [{ type: 'xp_gain', value: 5 }],
-  },
-  {
-    id: 'soc_alliance',
-    name: 'Grand Alliance',
-    description: 'Massive organization supports more members and faster growth',
-    branch: 'SOCIAL',
-    tier: 3,
-    cost: 40000,
-    requiredLevel: 20,
-    prerequisites: ['soc_unity_1'],
-    bonuses: [
-      { type: 'member_slots', value: 20 },
-      { type: 'xp_gain', value: 10 },
-    ],
-  },
-  {
-    id: 'soc_empire',
-    name: 'Empire of Unity',
-    description: 'Ultimate social cohesion creates an unstoppable force',
-    branch: 'SOCIAL',
-    tier: 4,
-    cost: 100000,
-    requiredLevel: 30,
-    prerequisites: ['soc_alliance'],
-    bonuses: [
-      { type: 'member_slots', value: 50 },
-      { type: 'xp_gain', value: 20 },
     ],
   },
 ];

@@ -779,7 +779,10 @@ function calculateSpyRank(experience: number, missionCount: number): SpyRank {
 async function hasSpyUnlocked(playerId: string): Promise<boolean> {
   try {
     const pr = await getPlayerResearch(playerId);
-    return pr?.completedTechs?.includes('intel_tier_1') || false;
+    // FID-20260912-058: the old intel_tier_* ids never existed in any catalog
+    // (the Intelligence track sold spy_tier_*), so every gate here was dead.
+    // Gates now sit on the single track's intel milestones: first spy at t3.
+    return pr?.completedTechs?.includes('wmd_tier_3') || false;
   } catch (error) {
     console.error('Error checking spy unlock:', error);
     return false;
@@ -792,9 +795,9 @@ async function getMaxSpies(playerId: string): Promise<number> {
     if (!pr) return 1;
     
     let maxSpies = 1;
-    if (pr.completedTechs?.includes('intel_tier_3')) maxSpies = 3;
-    if (pr.completedTechs?.includes('intel_tier_6')) maxSpies = 5;
-    if (pr.completedTechs?.includes('intel_tier_9')) maxSpies = 10;
+    if (pr.completedTechs?.includes('wmd_tier_5')) maxSpies = 3;
+    if (pr.completedTechs?.includes('wmd_tier_9')) maxSpies = 5;
+    if (pr.completedTechs?.includes('wmd_tier_10')) maxSpies = 10;
     
     return maxSpies;
   } catch (error) {
@@ -806,7 +809,7 @@ async function getMaxSpies(playerId: string): Promise<number> {
 async function hasCounterIntelUnlocked(playerId: string): Promise<boolean> {
   try {
     const pr = await getPlayerResearch(playerId);
-    return pr?.completedTechs?.includes('intel_tier_2') || false;
+    return pr?.completedTechs?.includes('wmd_tier_5') || false;
   } catch (error) {
     console.error('Error checking counter-intel unlock:', error);
     return false;
@@ -889,9 +892,9 @@ async function getTargetSecurity(playerId: string): Promise<number> {
     
     let security = 0.1;
     
-    if (pr?.completedTechs?.includes('intel_tier_2')) security += 0.15;
-    if (pr?.completedTechs?.includes('intel_tier_5')) security += 0.25;
-    if (pr?.completedTechs?.includes('intel_tier_8')) security += 0.35;
+    if (pr?.completedTechs?.includes('wmd_tier_5')) security += 0.15;
+    if (pr?.completedTechs?.includes('wmd_tier_7')) security += 0.25;
+    if (pr?.completedTechs?.includes('wmd_tier_10')) security += 0.35;
     
     return Math.min(0.8, security);
   } catch (error) {

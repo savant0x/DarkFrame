@@ -84,8 +84,9 @@ async function main(): Promise<void> {
   const isVIP = !!(vipRow.rows[0].vip && new Date(vipRow.rows[0].vip_expiration) > new Date());
   const flagRow = await c.query('select current_holder from flags limit 1');
   const isFlagBearer = flagRow.rows[0]?.current_holder === PLAYER;
-  const expectedMilestone = Math.floor(500 * (isVIP ? 1.5 : 1)) * (isFlagBearer ? 2 : 1);
-  console.log(`stack expectation: 500 × ${isVIP ? '1.5 VIP' : 'no VIP'}${isFlagBearer ? ' × 2 FLAG-BEARER' : ''} = ${expectedMilestone}`);
+  // FID-20260912-058 Milestones v2: first rung is 1,000 → 200 RP base.
+  const expectedMilestone = Math.floor(200 * (isVIP ? 1.5 : 1)) * (isFlagBearer ? 2 : 1);
+  console.log(`stack expectation: 200 × ${isVIP ? '1.5 VIP' : 'no VIP'}${isFlagBearer ? ' × 2 FLAG-BEARER' : ''} = ${expectedMilestone}`);
 
   // ---------------------------------------------------------------- PHASE 1a
   console.log('\n=== PHASE 1a: harvest milestone crossing ===');
@@ -129,7 +130,7 @@ async function main(): Promise<void> {
   await c.query(
     `update dailyharvestprogress
        set harvestcount = 30000,
-           milestonescompleted = '[1000,2500,5000,10000,15000,22500]'::jsonb
+           milestonescompleted = '[1000,2000,3000,4000,5000]'::jsonb
      where playerusername = $1 and date = $2 and resetperiod = 'AM'`,
     [PLAYER, today],
   );

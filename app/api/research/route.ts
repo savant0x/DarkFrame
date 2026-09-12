@@ -35,58 +35,16 @@ import {
   ErrorCode
 } from '@/lib';
 import { ZodError } from 'zod';
+// FID-20260912-058 T1: the route previously hard-coded a 6-entry map of
+// effectless techs while the UI advertised six functional bot techs this
+// route rejected. Both sides now consume the single shared catalog.
+import { TECH_CATALOG, TECH_CATALOG_BY_ID } from '@/lib/research/techCatalog';
 
 // ============================================================
 // TECHNOLOGY DEFINITIONS
-// (Costs are RP per the RP economy; curve tuning is tracked in
-//  FID-20260909-029 §7 as an operator decision.)
+// (T2 repricing per FID-20260912-058; every entry has a real effect
+//  consumer — see lib/research/techCatalog.ts for the consumer map.)
 // ============================================================
-
-interface Technology {
-  id: string;
-  name: string;
-  cost: number;
-  prerequisites: string[];
-}
-
-const TECHNOLOGIES: Record<string, Technology> = {
-  'troop-transport': {
-    id: 'troop-transport',
-    name: 'Troop Transport',
-    cost: 10000,
-    prerequisites: [],
-  },
-  'advanced-mining': {
-    id: 'advanced-mining',
-    name: 'Advanced Mining',
-    cost: 5000,
-    prerequisites: [],
-  },
-  'fortification': {
-    id: 'fortification',
-    name: 'Fortification',
-    cost: 8000,
-    prerequisites: [],
-  },
-  'tactical-warfare': {
-    id: 'tactical-warfare',
-    name: 'Tactical Warfare',
-    cost: 12000,
-    prerequisites: ['fortification'],
-  },
-  'factory-automation': {
-    id: 'factory-automation',
-    name: 'Factory Automation',
-    cost: 15000,
-    prerequisites: ['advanced-mining'],
-  },
-  'reconnaissance': {
-    id: 'reconnaissance',
-    name: 'Reconnaissance',
-    cost: 6000,
-    prerequisites: [],
-  },
-};
 
 // ============================================================
 // POST HANDLER
@@ -98,6 +56,10 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
  * POST /api/research
  *
  * Research (unlock) a technology for the authenticated player.
+ *
+ * The route also exposes the shared catalog on GET so the Tech Tree UI can
+ * render exactly what the server will sell (T1 — no more mock divergence).
+ * GET response additionally carries `catalog` and `catalogTotalRp`.
  *
  * Request Body:
  * - technologyId: string - ID of technology to research
@@ -129,7 +91,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     });
 
     // Validate technology exists
-    const technology = TECHNOLOGIES[validated.technologyId];
+    const technology = TECH_CATALOG_BY_ID.get(validated.technologyId);
     if (!technology) {
       log.warn('Invalid technology ID', { technologyId: validated.technologyId });
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
@@ -167,7 +129,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Check prerequisites
     for (const prereqId of technology.prerequisites) {
       if (!unlockedTechnologies.includes(prereqId)) {
-        const prereq = TECHNOLOGIES[prereqId];
+        const prereq = TECH_CATALOG_BY_ID.get(prereqId);
         log.debug('Prerequisite not met', {
           username,
           required: prereqId,
@@ -285,6 +247,10 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       unlockedTechnologies: rows[0].unlockedTechs ?? [],
+      // FID-20260912-058 T1: the server is the single source of truth for the
+      // tree — the UI renders this catalog instead of its own mock.
+      catalog: TECH_CATALOG,
+      catalogTotalRp: TECH_CATALOG.reduce((sum, tech) => sum + tech.cost, 0),
     });
   } catch (error) {
     console.error('Research GET API error:', error);

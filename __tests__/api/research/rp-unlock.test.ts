@@ -113,8 +113,9 @@ describe('POST /api/research — RP-based unlock (FID-029)', () => {
 
     expect(data.success).toBe(true);
     expect(capture.spendCalls).toHaveLength(1);
-    expect(capture.spendCalls[0]).toMatchObject({ playerId: 'tester', amount: 5000 });
-    expect(data.researchPoints).toBe(15000);
+    // FID-20260912-058 T2: advanced-mining repriced 5,000 → 3,000 RP.
+    expect(capture.spendCalls[0]).toMatchObject({ playerId: 'tester', amount: 3000 });
+    expect(data.researchPoints).toBe(17000); // 20000 − 3000 (T2 repricing)
 
     expect(capture.updates).toHaveLength(1);
     expect(capture.updates[0].set.unlockedTechs).toEqual(['advanced-mining']);
