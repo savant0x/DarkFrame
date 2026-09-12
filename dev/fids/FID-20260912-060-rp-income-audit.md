@@ -84,6 +84,11 @@ best-case daily income becomes ~4,300 milestones + 160 login + ~2,500 battles
 ≈ **7,000/day base (10,500 VIP)** — every sink on the v2 curve keeps its
 intended pacing, and nothing scales away from the design again.
 
+> **Status update (FID-20260912-062):** B3 is **shipped** — `awardRP()` now
+> enforces a 25,000/day base-earnings cap across all sources (admin bypass,
+> UTC-day ledger, fail-open). The unbounded raid loop is contained at the
+> backstop; B1+B2 remain open as pacing refinements.
+
 ---
 
 ## 6. Operational fix riding this PR (found during the :3001 restart)

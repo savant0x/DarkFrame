@@ -130,6 +130,37 @@ export const DAILY_HARVEST_MILESTONES: Record<number, number> = {
 export const VIP_RP_MULTIPLIER = 1.5;
 
 // ============================================================================
+// GLOBAL DAILY RP CAP (FID-20260912-062 B3 — safety backstop)
+// ============================================================================
+
+/**
+ * Backstop cap on total base RP earned per player per UTC day, across ALL
+ * award sources. Rationale (FID-20260912-060): milestone income is
+ * census-anchored, but battle/login/level streams had no global bound — a
+ * raid loop could out-earn the entire milestone envelope in minutes. This cap
+ * is insurance against ANY current or future unbounded income stream.
+ *
+ * Mechanics:
+ * - Applies to the BASE amount (pre-VIP, pre-flag) — stacking multipliers
+ *   still apply to whatever passes the clamp.
+ * - 'admin' bypasses (operators grant exact amounts).
+ * - Spending is unaffected — the cap throttles income only.
+ * - Fail-open: if the ledger is unreachable, awards proceed (log + no cap).
+ * - Ledger: rp_daily_totals (migration 0026), UTC day key, idempotent upsert.
+ */
+export const DAILY_RP_CAP = 25000;
+
+/**
+ * UTC day key for the daily cap ledger (e.g. "2026-09-12").
+ * UTC is deliberate: deterministic across server timezones and matches the
+ * cap's role as a fair-use backstop rather than a gameplay reset (milestones
+ * own the AM/PM gameplay rhythm).
+ */
+export function getRPDayKey(now: Date = new Date()): string {
+  return now.toISOString().substring(0, 10);
+}
+
+// ============================================================================
 // CORE RP AWARD FUNCTION
 // ============================================================================
 
@@ -165,6 +196,8 @@ export async function awardRP(
   rpAwarded: number;
   vipBonusApplied: boolean;
   newBalance: number;
+  /** Present when the B3 backstop was involved: base RP remaining under the cap AFTER this award. */
+  dailyCapRemaining?: number;
 }> {
   if (!playerUsername || amount <= 0) {
     return {
@@ -197,9 +230,57 @@ export async function awardRP(
       };
     }
 
-    // Calculate VIP bonus
+    // Calculate VIP bonus (read first — the at-cap return reports it)
     const isVIP = !!(player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date());
-    let finalAmount = isVIP ? Math.floor(amount * VIP_RP_MULTIPLIER) : amount;
+
+    // FID-20260912-062 B3: global daily cap on BASE earnings. The clamp is
+    // applied BEFORE the VIP/flag multiplier stack, so multipliers apply to
+    // the granted amount as normal. 'admin' bypasses entirely (operators
+    // grant exact amounts).
+    let dailyCapRemaining: number | undefined;
+    let grantedBase = amount;
+    if (source !== 'admin') {
+      try {
+        const dayKey = getRPDayKey();
+        const usedRows = await db.execute(sql`
+          SELECT baserpedtoday FROM rp_daily_totals
+          WHERE playerusername = ${playerUsername} AND daykey = ${dayKey}
+          LIMIT 1
+        `);
+        const baseUsed = Number(usedRows.rows[0]?.baserpedtoday || 0);
+        dailyCapRemaining = Math.max(0, DAILY_RP_CAP - baseUsed);
+
+        if (dailyCapRemaining <= 0) {
+          return {
+            success: false,
+            message: `Daily RP cap reached (${DAILY_RP_CAP}/day). Resets 00:00 UTC.`,
+            rpAwarded: 0,
+            vipBonusApplied: isVIP,
+            newBalance: Number(player.researchPoints || 0),
+            dailyCapRemaining: 0,
+          };
+        }
+
+        if (amount > dailyCapRemaining) {
+          console.warn(
+            `[researchPointService] Daily RP cap clamp: ${playerUsername} requested ${amount}, granted ${dailyCapRemaining} (${source})`
+          );
+          grantedBase = dailyCapRemaining;
+        }
+      } catch (capError) {
+        // Fail-open: a ledger outage must never block gameplay rewards.
+        console.error('[researchPointService] Daily RP cap check failed (failing open):', capError);
+        dailyCapRemaining = undefined;
+      }
+
+      // Report the envelope AFTER this award consumed its share.
+      if (typeof dailyCapRemaining === 'number') {
+        dailyCapRemaining = Math.max(0, dailyCapRemaining - grantedBase);
+      }
+    }
+
+    // Multiplier stack applies to the (possibly clamped) granted base.
+    let finalAmount = isVIP ? Math.floor(grantedBase * VIP_RP_MULTIPLIER) : grantedBase;
 
     // FID-20260906-001 §5.4: Flag bearer earns +100% RP (doc bonus stack).
     // Admin source is excluded — operators grant exact amounts.
@@ -258,19 +339,37 @@ export async function awardRP(
 
     await db.execute(sql`
       INSERT INTO rpTransactions (
-        id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter, metadata
+        id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter, metadata, bypassedDailyCap
       ) VALUES (
         ${transactionId}, ${playerUsername}, ${finalAmount}, ${source}, ${description},
-        ${timestamp}, ${isVIP ? 1 : 0}, ${newBalance}, ${metadataJson}
+        ${timestamp}, ${isVIP ? 1 : 0}, ${newBalance}, ${metadataJson}, ${source === 'admin' ? 1 : 0}
       )
     `);
+
+    // FID-20260912-062 B3: record BASE earnings in the daily cap ledger.
+    // Idempotent upsert; lastWrite wins under the theoretical concurrent-award
+    // race (B3 is a backstop, not an accounting system of record).
+    if (source !== 'admin') {
+      try {
+        await db.execute(sql`
+          INSERT INTO rp_daily_totals (playerusername, daykey, baserpedtoday, updatedat)
+          VALUES (${playerUsername}, ${getRPDayKey()}, ${grantedBase}, NOW())
+          ON CONFLICT (playerusername, daykey)
+          DO UPDATE SET baserpedtoday = rp_daily_totals.baserpedtoday + ${grantedBase}, updatedat = NOW()
+        `);
+      } catch (ledgerError) {
+        // The award already succeeded; a ledger write failure must not fail it.
+        console.error('[researchPointService] Daily RP ledger write failed (award stands):', ledgerError);
+      }
+    }
 
     return {
       success: true,
       message: `Awarded ${finalAmount} RP${isVIP ? ' (VIP bonus applied)' : ''} to ${playerUsername}`,
       rpAwarded: finalAmount,
       vipBonusApplied: isVIP,
-      newBalance
+      newBalance,
+      dailyCapRemaining,
     };
   } catch (error) {
     console.error('[researchPointService] Error awarding RP:', error);
@@ -379,6 +478,10 @@ export async function checkDailyHarvestMilestone(
         if (!awardResult.success) {
           console.error('[researchPointService] Failed to award milestone RP:', awardResult.message);
         }
+        // FID-20260912-062: bookkeep the ACTUAL awarded amount — the B3 cap
+        // can clamp the configured value, and totalRPEarned must reflect RP
+        // really granted, not the table's nominal amount.
+        rpAwarded = awardResult.success ? awardResult.rpAwarded : 0;
 
         // Update completed milestones
         completedMilestones.push(threshold);
