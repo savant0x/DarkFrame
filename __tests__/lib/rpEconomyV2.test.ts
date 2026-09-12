@@ -10,8 +10,9 @@
  *   to sell six functional ones).
  *
  *   W1 (WMD track): a single 10-tier track — monotonic costs, monotonic
- *   level gates (L40+2t), total ≈ 752k (~56 best-case days), and every
+ *   level gates (L40+2×tier), total 600k (~44 best-case days), and every
  *   unlock content type from the old three tracks still reachable.
+ *   (600k + L40+2×tier gates are the FID-20260912-059 user revision.)
  *
  *   Milestones v2: five rungs, every threshold ≤ the ~5,300 harvests/period
  *   physical ceiling (the old 10k/15k/22.5k rungs were unreachable by any
@@ -82,32 +83,33 @@ describe('T1/T2 — personal tech-tree catalog', () => {
 });
 
 describe('W1 — single WMD research track', () => {
-  it('is exactly 10 tiers under 752k RP total', () => {
+  it('is exactly 10 tiers at exactly 600k RP total (FID-059 revision)', () => {
     expect(WMD_RESEARCH_TRACK).toHaveLength(10);
     const total = WMD_RESEARCH_TRACK.reduce((s, t) => s + t.rpCost, 0);
-    expect(total).toBe(752000);
+    expect(total).toBe(600000);
     expect(ALL_RESEARCH_TECHS).toEqual(WMD_RESEARCH_TRACK);
   });
 
-  it('has strictly monotonic costs (~52k → ~108k)', () => {
+  it('has strictly monotonic arithmetic costs (42k → 78k, +4k steps)', () => {
     const costs = WMD_RESEARCH_TRACK.map((t) => t.rpCost);
     for (let i = 1; i < costs.length; i++) {
       expect(costs[i]).toBeGreaterThan(costs[i - 1]);
     }
-    expect(costs[0]).toBe(52000);
-    expect(costs[costs.length - 1]).toBe(108000);
+    expect(costs[0]).toBe(42000);
+    expect(costs[costs.length - 1]).toBe(78000);
   });
 
-  it('gates every tier at L40 + 2×(tier−1) — gates tighten with depth', () => {
+  it('gates every tier at L40 + 2×tier (FID-059 revision: t1=L42 … t10=L60)', () => {
     for (const tech of WMD_RESEARCH_TRACK) {
-      expect(tech.requiredLevel).toBe(40 + 2 * (tech.tier - 1));
+      expect(tech.requiredLevel).toBe(40 + 2 * tech.tier);
     }
   });
 
-  it('keeps the full-arc goal reachable: ≤ 60 best-case days', () => {
+  it('keeps the full-arc goal reachable: ≤ 50 best-case days', () => {
     const total = WMD_RESEARCH_TRACK.reduce((s, t) => s + t.rpCost, 0);
     // Best case measured in FID-057: 13,500 RP/day (VIP flag-bearer full sweep).
-    expect(Math.ceil(total / 13500)).toBeLessThanOrEqual(60);
+    // 600,000 / 13,500 = 44.4 → 45 days.
+    expect(Math.ceil(total / 13500)).toBeLessThanOrEqual(50);
   });
 
   it('still reaches every unlock content type from the old three tracks', () => {
