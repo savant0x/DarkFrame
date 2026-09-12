@@ -402,6 +402,13 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
           conditions.push(likeOperator);
         }
       }
+    } else if (value === null) {
+      // Mongo `{ field: null }` semantics: field is null OR missing. Drizzle's
+      // eq(column, null) binds a parameter producing "col = NULL" — never true
+      // in SQL (FID-067: every find({ owner: null }) silently matched zero
+      // rows). Translate to IS NULL. (Missing-vs-null nuance: pg columns are
+      // NULL when Mongo docs omitted the field, so IS NULL covers both.)
+      conditions.push(isNull(column));
     } else {
       conditions.push(eq(column, coerceScalar(value)));
     }

@@ -46,6 +46,13 @@ interface SeedMarker {
   totalInvestedEnergy: number;
 }
 
+/** game_config row shape: id PK + type + config jsonb (mirrors the beerBase row). */
+const markerConfig = (m: { seededAt?: string; totalInvestedMetal: number; totalInvestedEnergy: number }): SeedMarker => ({
+  seededAt: m.seededAt ?? new Date().toISOString(),
+  totalInvestedMetal: m.totalInvestedMetal,
+  totalInvestedEnergy: m.totalInvestedEnergy,
+});
+
 // ---------------------------------------------------------------------------
 // Core pass
 // ---------------------------------------------------------------------------
@@ -69,12 +76,14 @@ export async function runBotFactoryEconomyCycle(): Promise<{
 
     if (!marker) {
       const seed = await seedHistoricalLevels();
+      // Schema: game_config(id PK, type, config jsonb NOT NULL) — the payload
+      // lives in `config`, and `id` gets the type string (unique index on type
+      // makes a retry-on-conflict harmless).
       await configCollection.insertOne({
+        id: SEED_MARKER_TYPE,
         type: SEED_MARKER_TYPE,
-        seededAt: new Date().toISOString(),
-        totalInvestedMetal: seed.investedMetal,
-        totalInvestedEnergy: seed.investedEnergy,
-      } as SeedMarker & { type: string });
+        config: markerConfig({ totalInvestedMetal: seed.investedMetal, totalInvestedEnergy: seed.investedEnergy }),
+      } as unknown as SeedMarker & { id: string; type: string; config: SeedMarker });
       return {
         success: true,
         seeded: true,
@@ -123,6 +132,7 @@ async function seedHistoricalLevels(): Promise<{
   let upgraded = 0;
   let investedMetal = 0;
   let investedEnergy = 0;
+  let processed = 0;
 
   for (const factory of wild) {
     // Weighted target: 55% stay L1, 25% L2-3, 13% L4-5, 6% L6-7, 1% L8-9.
@@ -139,30 +149,33 @@ async function seedHistoricalLevels(): Promise<{
     const investor = nearestBot(bots, factory);
     if (!investor) continue;
 
+    // Batch purchase: walk the cost ladder in memory until the bot's remaining
+    // stockpile can't cover the next increment, then commit the whole tab in
+    // ONE bot update + ONE factory update. Two round trips per factory instead
+    // of two per level — and crash-consistent (a payment is never committed
+    // without its matching level bump in the same pair of writes).
     let level = factory.level ?? 1;
     let spentM = 0;
     let spentE = 0;
-    let viable = true;
-    while (level < targetLevel && viable) {
+    let walletM = investor.resources?.metal ?? 0;
+    let walletE = investor.resources?.energy ?? 0;
+    while (level < targetLevel) {
       const cost = calculateUpgradeCost(level);
-      const botMetal = investor.resources?.metal ?? 0;
-      const botEnergy = investor.resources?.energy ?? 0;
-      if (botMetal < cost.metal || botEnergy < cost.energy) {
-        viable = false; // this district's bots are tapped out — leaves history honest
-        break;
-      }
-      await playersCollection.updateOne(
-        { username: investor.username },
-        { $inc: { resources_metal: -cost.metal, resources_energy: -cost.energy } }
-      );
-      investor.resources!.metal -= cost.metal;
-      investor.resources!.energy -= cost.energy;
+      if (walletM < cost.metal || walletE < cost.energy) break; // tapped out — history stays honest
+      walletM -= cost.metal;
+      walletE -= cost.energy;
       spentM += cost.metal;
       spentE += cost.energy;
       level += 1;
     }
 
-    if (level > (factory.level ?? 1)) {
+    if (level > (factory.level ?? 1) && spentM > 0) {
+      await playersCollection.updateOne(
+        { username: investor.username },
+        { $inc: { resources_metal: -spentM, resources_energy: -spentE } }
+      );
+      investor.resources!.metal -= spentM;
+      investor.resources!.energy -= spentE;
       await factoriesCollection.updateOne(
         { x: factory.x, y: factory.y },
         {
@@ -173,6 +186,11 @@ async function seedHistoricalLevels(): Promise<{
       upgraded += 1;
       investedMetal += spentM;
       investedEnergy += spentE;
+    }
+
+    processed += 1;
+    if (processed % 60 === 0) {
+      logger.info(`Bot factory seed pass: ${processed}/${wild.length} factories scanned, ${upgraded} upgraded so far`);
     }
   }
 
