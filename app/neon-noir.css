@@ -2692,3 +2692,34 @@ span.nn-panel__icon > svg {
   color: var(--nn-text-tertiary);
   font-family: var(--nn-num-font, var(--nn-font-body));
 }
+
+/* ============ FID-20260911-050: raids deep-link + report focus ============ */
+
+/* Feed rows are now buttons that open the full report in /messages */
+button.nn-battlefeed__row--link {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--nn-glass-border);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+button.nn-battlefeed__row--link:hover,
+button.nn-battlefeed__row--link:focus-visible {
+  background: rgba(0, 255, 255, 0.06);
+  outline: 1px solid var(--nn-cyan);
+}
+
+/* Brief highlight pulse on the deep-linked battle report card */
+.nn-msg--focused .nn-battlereport,
+.nn-msg--focused {
+  animation: nn-report-focus 3.2s ease-out;
+}
+@keyframes nn-report-focus {
+  0% { box-shadow: 0 0 0 2px var(--nn-cyan), 0 0 24px rgba(0, 255, 255, 0.45); }
+  70% { box-shadow: 0 0 0 1px var(--nn-cyan), 0 0 10px rgba(0, 255, 255, 0.2); }
+  100% { box-shadow: none; }
+}

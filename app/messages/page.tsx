@@ -33,8 +33,8 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { MessageInbox, MessageThread } from '@/components/messaging';
 import { useGameContext } from '@/context/GameContext';
@@ -78,11 +78,35 @@ interface MessagesPageState {
 /**
  * Messages Page Component
  * Main container for private messaging interface
- * 
+ *
+ * Wrapped in Suspense: useSearchParams (deep-link support, FID-20260911-050)
+ * requires a boundary during static prerender.
+ *
  * @returns Messages page JSX
  */
 export default function MessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{ background: 'var(--nn-void)' }}
+        >
+          <Loader2
+            className="nn-spin-icon w-10 h-10 text-[color:var(--nn-cyan)]"
+            aria-label="Loading messages"
+          />
+        </div>
+      }
+    >
+      <MessagesPageInner />
+    </Suspense>
+  );
+}
+
+function MessagesPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { player, isLoading: playerLoading } = useGameContext();
   const { emit, on, isConnected, connectionState, reconnect } = useWebSocket();
 
@@ -96,6 +120,9 @@ export default function MessagesPage() {
     showThread: false,
     connectionStatus: 'connecting',
   });
+
+  /** Deep-link focus target (FID-20260911-050): message row to scroll to + highlight. */
+  const [focusMessageId, setFocusMessageId] = useState<string | null>(null);
 
   // ============================================================================
   // AUTHENTICATION & REDIRECT
@@ -362,6 +389,37 @@ export default function MessagesPage() {
   }, [state.selectedConversationId, emit]);
 
   // ============================================================================
+  // DEEP LINK (FID-20260911-050): /messages?conv=<id>&open=<messageId>
+  // The Recent Raids HUD feed routes here to open the full battle report:
+  // conv preselects the conversation, open focuses that message in the thread.
+  // Params are consumed once (cleared) so a manual refresh doesn't re-trigger.
+  // (Placed after the selection handlers — the dep array reads them.)
+  // ============================================================================
+
+  const pendingConv = searchParams.get('conv');
+  const pendingOpen = searchParams.get('open');
+
+  useEffect(() => {
+    if (!pendingConv || playerLoading || !player) return;
+    if (pendingOpen) setFocusMessageId(pendingOpen);
+    if (state.conversations.length === 0) return; // inbox still loading
+
+    const exists = state.conversations.some(c => c._id.toString() === pendingConv);
+    if (exists) {
+      handleConversationSelect(pendingConv);
+    } else {
+      // Conversation list hasn't caught up yet — one retry after a beat.
+      const t = setTimeout(() => {
+        if (state.conversations.some(c => c._id.toString() === pendingConv)) {
+          handleConversationSelect(pendingConv);
+        }
+      }, 800);
+      return () => clearTimeout(t);
+    }
+    router.replace('/messages');
+  }, [pendingConv, pendingOpen, playerLoading, player, state.conversations, handleConversationSelect, router]);
+
+  // ============================================================================
   // LOADING & ERROR STATES
   // ============================================================================
 
@@ -473,6 +531,8 @@ export default function MessagesPage() {
                     playerId={currentPlayerId}
                     recipientId={state.selectedRecipientId}
                     recipientUsername={state.selectedRecipientUsername}
+                    focusMessageId={focusMessageId}
+                    onFocusConsumed={() => setFocusMessageId(null)}
                     className="h-full"
                   />
                 ) : (

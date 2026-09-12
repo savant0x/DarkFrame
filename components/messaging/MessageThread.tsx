@@ -30,6 +30,10 @@ interface MessageThreadProps {
   playerId: string;
   recipientId: string;
   recipientUsername: string;
+  /** FID-20260911-050 deep-link: message id to scroll to + highlight once. */
+  focusMessageId?: string | null;
+  /** Called after the focus target has been consumed (scrolled + highlighted). */
+  onFocusConsumed?: () => void;
   className?: string;
 }
 
@@ -38,6 +42,8 @@ export default function MessageThread({
   playerId,
   recipientId,
   recipientUsername,
+  focusMessageId,
+  onFocusConsumed,
   className = '',
 }: MessageThreadProps) {
   const [state, setState] = useState<MessageThreadState>({
@@ -63,6 +69,31 @@ export default function MessageThread({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ========================================================================
+  // DEEP-LINK FOCUS (FID-20260911-050): scroll to + highlight the requested
+  // message once messages are loaded. Fires only while focusMessageId is set;
+  // the parent clears it via onFocusConsumed after the scroll lands.
+  // ========================================================================
+
+  useEffect(() => {
+    if (!focusMessageId || state.isLoading || state.messages.length === 0) return;
+    const idx = state.messages.findIndex(m => String(m._id) === focusMessageId);
+    if (idx === -1) {
+      // Not in the loaded window (old report + newer messages pushed it out) —
+      // don't highlight; the thread still opens on the correct conversation.
+      onFocusConsumed?.();
+      return;
+    }
+    const el = document.getElementById(`nn-msg-${focusMessageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('nn-msg--focused');
+      const t = setTimeout(() => el.classList.remove('nn-msg--focused'), 3200);
+      onFocusConsumed?.();
+      return () => clearTimeout(t);
+    }
+  }, [focusMessageId, state.isLoading, state.messages, onFocusConsumed]);
 
   // ========================================================================
   // DATA LOADING
@@ -357,6 +388,7 @@ export default function MessageThread({
               return (
                 <div
                   key={String(message._id)}
+                  id={`nn-msg-${String(message._id)}`}
                   className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
                   <div

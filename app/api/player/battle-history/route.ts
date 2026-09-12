@@ -21,6 +21,10 @@ import { conversations, messages } from '@/lib/db/schema';
 import { sql, desc, eq } from 'drizzle-orm';
 
 interface BattleSummary {
+  /** Message row id — the deep-link key into /messages. */
+  messageId: string;
+  /** Conversation row id — preselects the SYSTEM thread on arrival. */
+  conversationId: string;
   battleId: string | null;
   battleType: string | null;
   location: { x: number; y: number } | null;
@@ -34,7 +38,9 @@ interface BattleSummary {
 const OUTCOMES = new Set(['VICTORY', 'DEFEAT', 'DRAW']);
 
 /** Parse the report headline + meta line. Mirrors lib/battleReportParser.ts. */
-function summarize(content: string): Omit<BattleSummary, 'reportedAt'> | null {
+function summarize(
+  content: string,
+): Omit<BattleSummary, 'reportedAt' | 'messageId' | 'conversationId'> | null {
   const lines = content.split('\n');
 
   // Headline: "⚔️ BATTLE REPORT — FACTORY at (44, 2) — DEFEAT"
@@ -75,6 +81,8 @@ export async function GET(request: NextRequest) {
     // SYSTEM sender (battle reports live in the SYSTEM ↔ player 1:1 thread).
     const rows = await db
       .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
         content: messages.content,
         createdAt: messages.createdAt,
       })
@@ -92,7 +100,12 @@ export async function GET(request: NextRequest) {
     for (const row of rows) {
       const s = summarize(row.content);
       if (s) {
-        battles.push({ ...s, reportedAt: new Date(row.createdAt).toISOString() });
+        battles.push({
+          messageId: String(row.id),
+          conversationId: String(row.conversationId),
+          ...s,
+          reportedAt: new Date(row.createdAt).toISOString(),
+        });
       }
     }
 

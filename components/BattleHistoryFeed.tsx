@@ -14,9 +14,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 
 interface BattleSummary {
+  messageId: string;
+  conversationId: string;
   battleId: string | null;
   battleType: string | null;
   location: { x: number; y: number } | null;
@@ -43,6 +46,7 @@ function shortAgo(iso: string): string {
 
 export default function BattleHistoryFeed() {
   const { player } = useGameContext();
+  const router = useRouter();
   const [battles, setBattles] = useState<BattleSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const visibleRef = useRef(true);
@@ -87,11 +91,22 @@ export default function BattleHistoryFeed() {
       </div>
       <div className="nn-battlefeed" role="list" aria-label="Recent battle outcomes">
         {battles.map((b) => {
-          const style = OUTCOME_STYLE[b.outcome ?? ''] ?? OUTCOME_STYLE.DRAW;
-          // battleIds have been observed to repeat across separate battles —
+          const style = OUTCOME_STYLE[b.outcome ?? ''] ?? OUTCOME_STYLE.DRAW;          // battleIds have been observed to repeat across separate battles —
           // the message timestamp is the unique sort key.
           return (
-            <div key={`${b.reportedAt}-${b.battleId ?? ''}`} className="nn-battlefeed__row" role="listitem">
+            <button
+              key={`${b.reportedAt}-${b.battleId ?? ''}`}
+              type="button"
+              className="nn-battlefeed__row nn-battlefeed__row--link"
+              role="listitem"
+              title="Open full battle report"
+              aria-label={`Open battle report: ${b.outcome ?? 'Unknown'} ${b.battleType ?? 'battle'}${b.location ? ` at (${b.location.x}, ${b.location.y})` : ''}`}
+              onClick={() =>
+                router.push(
+                  `/messages?open=${encodeURIComponent(b.messageId)}&conv=${encodeURIComponent(b.conversationId)}`,
+                )
+              }
+            >
               <span className="nn-battlefeed__glyph" style={{ color: style.color }}>{style.glyph}</span>
               <span className="nn-battlefeed__where">
                 {b.battleType ?? 'Battle'}
@@ -101,7 +116,7 @@ export default function BattleHistoryFeed() {
                 {b.outcome ?? '—'}
               </span>
               <span className="nn-battlefeed__when">{shortAgo(b.reportedAt)}</span>
-            </div>
+            </button>
           );
         })}
       </div>
