@@ -35,6 +35,7 @@ import { foundItems } from '@/lib/inventoryUtils';
 import { AutoFarmStatus, AutoFarmSessionStats, AutoFarmAllTimeStats, AutoFarmEvent, DEFAULT_SESSION_STATS, DEFAULT_ALL_TIME_STATS } from '@/types/autoFarm.types';
 import { loadAllTimeStats } from '@/lib/autoFarmPersistence';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
+import { showSuccess } from '@/lib/toastService';
 
 /**
  * Get background image path for current tile terrain
@@ -380,6 +381,12 @@ export default function GamePage() {
         .then(data => {
           if (data.success) {
             setFactoryData(data.factory);
+            // FID-072: the status visit just paid accrued owner income —
+            // surface it (toast service dedupes bursts on its own).
+            if (data.incomeGranted) {
+              const { totalMetal, totalEnergy } = data.incomeGranted as { totalMetal: number; totalEnergy: number };
+              showSuccess(`Factory income collected: +${totalMetal.toLocaleString()} metal, +${totalEnergy.toLocaleString()} energy`);
+            }
           }
         })
         .catch(err => console.error('Failed to load factory data:', err));

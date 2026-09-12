@@ -28,7 +28,7 @@
 
 import { getCollection } from './mongodb';
 import { logger } from './logger';
-import { calculateUpgradeCost, getFactoryDefense, FACTORY_UPGRADE } from './factoryUpgradeService';
+import { calculateUpgradeCost, getFactoryDefense, getMaxSlots, getProductionRate, FACTORY_UPGRADE } from './factoryUpgradeService';
 import type { Factory, Player } from '@/types/game.types';
 
 /** Wild-factory investment radius (tiles) from an investing bot. */
@@ -179,7 +179,14 @@ async function seedHistoricalLevels(): Promise<{
       await factoriesCollection.updateOne(
         { x: factory.x, y: factory.y },
         {
-          $set: { level, defense: getFactoryDefense(level) },
+          // FID-072: full stat block — the seed previously wrote level+defense
+          // only, leaving slots/productionRate at L1 (the stale-metrics bug).
+          $set: {
+            level,
+            defense: getFactoryDefense(level),
+            slots: getMaxSlots(level),
+            productionRate: String(getProductionRate(level)),
+          },
           $inc: { investedMetal: spentM, investedEnergy: spentE },
         }
       );
@@ -255,7 +262,13 @@ async function botInvestmentPass(): Promise<{
     await factoriesCollection.updateOne(
       { x: factory.x, y: factory.y },
       {
-        $set: { level: nextLevel, defense: getFactoryDefense(nextLevel) },
+        // FID-072: full stat block (same as the seed pass + player upgrade).
+        $set: {
+          level: nextLevel,
+          defense: getFactoryDefense(nextLevel),
+          slots: getMaxSlots(nextLevel),
+          productionRate: String(getProductionRate(nextLevel)),
+        },
         $inc: { investedMetal: cost.metal, investedEnergy: cost.energy },
       }
     );

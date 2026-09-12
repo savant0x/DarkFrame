@@ -22,6 +22,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import type { Player } from '@/types/game.types';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
 import { applySlotRegeneration, hasEnoughSlots, consumeSlots } from '@/lib/slotRegenService';
+import { getMaxSlots } from '@/lib/factoryUpgradeService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { trackUnitBuilt } from '@/lib/statTrackingService';
 import { withRequestLogging, createRouteLogger } from '@/lib';
@@ -123,6 +124,11 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
 
     // 8. Apply slot regeneration
     const regeneratedFactory = applySlotRegeneration(factory);
+    // FID-072: capacity is DERIVED from level, never the stored `slots`
+    // column — that column went stale on every pre-072 upgrade (written only
+    // at creation), so building enforced L1 capacity on upgraded factories
+    // while the status panel showed the true (derived) capacity.
+    regeneratedFactory.slots = getMaxSlots(regeneratedFactory.level || 1);
 
     // 9. Check slot availability
     if (!hasEnoughSlots(regeneratedFactory, totalSlotCost)) {
