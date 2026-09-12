@@ -54,7 +54,16 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
+import dynamic from 'next/dynamic';
+import { Plus } from 'lucide-react';
 import type { Clan } from '@/types/clan.types';
+
+// FID-20260912-071: quick-create — the modal existed (and worked) but nothing
+// mounted it; clanless players had no create path anywhere in the UI.
+const CreateClanModal = dynamic(
+  () => import('@/components/clan/CreateClanModal'),
+  { ssr: false }
+);
 
 type LeaderboardCategory = 'power' | 'level' | 'territory' | 'wealth' | 'victories' | 'wars' | 'alliances';
 
@@ -67,6 +76,7 @@ interface LeaderboardEntry {
 
 export default function ClansLeaderboard() {
   const router = useRouter();
+  const [showCreate, setShowCreate] = useState(false);
   const [category, setCategory] = useState<LeaderboardCategory>('power');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -154,9 +164,16 @@ export default function ClansLeaderboard() {
               Clan Leaderboards
             </h1>
           </div>
-          <p className="nn-text-secondary text-lg">
+          <p className="nn-text-secondary text-lg mb-4">
             Compete for supremacy across {totalClans} clans
           </p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="nn-btn nn-btn--primary w-auto px-5 py-2.5 mx-auto"
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Create Clan
+          </button>
         </div>
 
         {/* Category Tabs */}
@@ -234,9 +251,18 @@ export default function ClansLeaderboard() {
             <p className="nn-text-secondary text-lg mb-2">
               {searchQuery ? 'No clans found matching your search' : 'No clans in this category yet'}
             </p>
-            <p className="nn-text-secondary text-sm">
+            <p className="nn-text-secondary text-sm mb-4">
               {searchQuery ? 'Try a different search term' : 'Be the first to create a clan!'}
             </p>
+            {!searchQuery && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="nn-btn nn-btn--primary w-auto px-5 py-2.5 mx-auto"
+              >
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                Create Clan
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -305,6 +331,17 @@ export default function ClansLeaderboard() {
           <p className="mt-2">Rankings update every 5 minutes</p>
         </div>
       </div>
+
+      {/* Quick-create modal (FID-20260912-071) */}
+      <CreateClanModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onSuccess={() => {
+          setShowCreate(false);
+          toast.success('Clan created! It will appear in the leaderboard momentarily.');
+          void fetchLeaderboard();
+        }}
+      />
     </div>
   );
 }

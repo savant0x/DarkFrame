@@ -23,6 +23,7 @@ import {
   GAME_CONSTANTS
 } from '@/types';
 import { canHarvestTile, getCurrentResetPeriod } from './harvestService';
+import { generateTradeableItemName, generateDiggerName } from './itemNameGenerator';
 import { generateId } from './utils';
 import { getHarvestSuccessMessage } from './harvestMessages';
 
@@ -109,7 +110,7 @@ export function generateCaveItem(): InventoryItem | null {
     return {
       id: generateId(),
       type: ItemType.TradeableItem,
-      name: `${rarity} Tradeable Item`,
+      name: generateTradeableItemName(rarity), // FID-20260912-066: procedural name
       description: 'A valuable item that can be used at the Shrine for gathering boosts',
       rarity,
       bonusPercent: 0, // No passive bonus for tradeable items
@@ -146,18 +147,16 @@ export function generateCaveItem(): InventoryItem | null {
       rarity = ItemRarity.Legendary;
     }
     
-    // Generate name based on type
-    let name: string;
+    // Generate name based on type (FID-20260912-066: procedural names)
+    const diggerKind = itemType === ItemType.MetalDigger ? 'metal' : itemType === ItemType.EnergyDigger ? 'energy' : 'universal';
+    const name = generateDiggerName(diggerKind, rarity);
     let description: string;
     
     if (itemType === ItemType.MetalDigger) {
-      name = 'Metal Digger';
       description = 'Permanently increases metal gathering efficiency';
     } else if (itemType === ItemType.EnergyDigger) {
-      name = 'Energy Digger';
       description = 'Permanently increases energy gathering efficiency';
     } else {
-      name = 'Universal Digger';
       description = 'Permanently increases all gathering efficiency';
     }
     
@@ -195,12 +194,19 @@ export function generateForestItem(): InventoryItem | null {
   
   if (isTradeableItem) {
     // Generate tradeable item (for future trading system)
+    // FID-20260912-066: forest finds keep their better rarity curve; name is procedural
+    const rarityRoll = Math.random();
+    const rarity = rarityRoll < 0.30 ? ItemRarity.Common
+      : rarityRoll < 0.65 ? ItemRarity.Uncommon
+      : rarityRoll < 0.85 ? ItemRarity.Rare
+      : rarityRoll < 0.97 ? ItemRarity.Epic
+      : ItemRarity.Legendary;
     return {
       id: generateId(),
       type: ItemType.TradeableItem,
-      name: 'Premium Tradeable Item',
+      name: generateTradeableItemName(rarity),
       description: 'A highly valuable item that can be traded at the Boost Station',
-      rarity: ItemRarity.Uncommon, // Forest items start at Uncommon rarity
+      rarity,
       bonusPercent: 0, // No bonus for tradeable items
       foundAt: { x: 0, y: 0 }, // Will be filled in by caller
       foundDate: new Date()
@@ -235,18 +241,16 @@ export function generateForestItem(): InventoryItem | null {
       rarity = ItemRarity.Legendary; // 3% legendary (vs 1% in caves)
     }
     
-    // Generate name based on type
-    let name: string;
+    // Generate name based on type (FID-20260912-066: procedural names)
+    const diggerKind = itemType === ItemType.MetalDigger ? 'metal' : itemType === ItemType.EnergyDigger ? 'energy' : 'universal';
+    const name = generateDiggerName(diggerKind, rarity);
     let description: string;
     
     if (itemType === ItemType.MetalDigger) {
-      name = 'Ancient Metal Digger';
       description = 'A rare and powerful metal gathering artifact from the old forests';
     } else if (itemType === ItemType.EnergyDigger) {
-      name = 'Ancient Energy Digger';
       description = 'A rare and powerful energy gathering artifact from the old forests';
     } else {
-      name = 'Ancient Universal Digger';
       description = 'A legendary gathering artifact that enhances all resource collection';
     }
     

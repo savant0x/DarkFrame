@@ -44,6 +44,53 @@ export interface RankedPlayer {
   validatedReferrals?: number; // Number of validated referrals
 }
 
+/** Beer Base ladder entry (FID-20260912-069): special bases ranked by power. */
+export interface RankedBeerBase {
+  rank: number;
+  username: string;
+  level: number;
+  totalStrength: number;
+  totalDefense: number;
+}
+
+/**
+ * Top Beer Bases (bots with bot_config.isSpecialBase = true), ranked by
+ * raw power (STR+DEF — no balance multiplier; base garrisons are symmetric
+ * by design). Shown as its own ladder on the rankings page so the world's
+ * PvE targets are visible without polluting the human player ranking.
+ */
+export async function getTopBeerBases(limit: number = 25): Promise<RankedBeerBase[]> {
+  const db = await connectToDatabase();
+  const playersCollection = db.collection<Player>('players');
+
+  const beerBases = await playersCollection
+    .find({
+      isBot: true,
+      isSpecialBase: true,
+    }, {
+      projection: {
+        username: 1,
+        level: 1,
+        totalStrength: 1,
+        totalDefense: 1,
+      },
+    })
+    .toArray();
+
+  return beerBases
+    .map((b) => ({
+      username: b.username,
+      level: b.level || 1,
+      totalStrength: b.totalStrength || 0,
+      totalDefense: b.totalDefense || 0,
+    }))
+    .sort((a, b) =>
+      (b.totalStrength + b.totalDefense) - (a.totalStrength + a.totalDefense)
+    )
+    .slice(0, limit)
+    .map((b, i) => ({ rank: i + 1, ...b }));
+}
+
 /**
  * Leaderboard response with rankings and metadata
  */

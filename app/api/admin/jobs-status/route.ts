@@ -66,6 +66,17 @@ import {
   stopFactorySlotRegenJob,
 } from '@/lib/jobs/factorySlotRegeneration';
 import {
+  getAuctionSettlementStats,
+  startAuctionSettlementJob,
+  stopAuctionSettlementJob,
+} from '@/lib/jobs/auctionSettlementManager';
+import {
+  getBotFactoryEconomyStats,
+  startBotFactoryEconomyJob,
+  stopBotFactoryEconomyJob,
+  triggerBotFactoryEconomyCycle,
+} from '@/lib/jobs/botFactoryEconomyManager';
+import {
   getSchedulerHealth,
   startWMDJobs,
   stopWMDJobs,
@@ -93,6 +104,8 @@ export const GET = withRequestLogging(rateLimiter(async () => {
     const factoryRegen = getFactorySlotRegenJobStats();
     const wmd = getSchedulerHealth();
     const beerBaseConfig = await getBeerBaseConfig();
+    const auctionSettlement = getAuctionSettlementStats();
+    const botFactoryEconomy = getBotFactoryEconomyStats();
 
     const jobs = [
       {
@@ -116,6 +129,33 @@ export const GET = withRequestLogging(rateLimiter(async () => {
         interval: 3_600_000,
         isRunning: factoryRegen.isRunning,
         stats: factoryRegen,
+      },
+      {
+        id: 'auctionSettlement',
+        name: 'Auction Settlement (5 min)',
+        interval: 300_000,
+        isRunning: auctionSettlement.running,
+        stats: {
+          lastRun: auctionSettlement.lastRun,
+          executionCount: auctionSettlement.runCount,
+          errorCount: auctionSettlement.errorCount,
+          soldTotal: auctionSettlement.soldTotal,
+          expiredTotal: auctionSettlement.expiredTotal,
+        },
+      },
+      {
+        id: 'botFactoryEconomy',
+        name: 'Bot Factory Economy (hourly)',
+        interval: 3_600_000,
+        isRunning: botFactoryEconomy.running,
+        stats: {
+          lastRun: botFactoryEconomy.lastRun,
+          executionCount: botFactoryEconomy.runCount,
+          errorCount: botFactoryEconomy.errorCount,
+          totalUpgraded: botFactoryEconomy.totalUpgraded,
+          totalInvestedMetal: botFactoryEconomy.totalInvestedMetal,
+          seeded: botFactoryEconomy.seeded,
+        },
       },
       ...wmd.jobs.map((j) => ({
         id: `wmd:${j.name}`,
@@ -159,6 +199,8 @@ const TOP_LEVEL_JOB_IDS = [
   'botGrowth',
   'flagBot',
   'factorySlotRegen',
+  'auctionSettlement',
+  'botFactoryEconomy',
   'wmd',
 ] as const;
 const ACTIONS = ['start', 'stop', 'restart', 'run-now'] as const;
@@ -225,6 +267,21 @@ async function dispatchJobMutation(job: string, action: JobAction): Promise<JobM
       return action === 'stop' ? await stopFlagBotJob() : await startFlagBotJob();
     case 'factorySlotRegen':
       return action === 'stop' ? await stopFactorySlotRegenJob() : await startFactorySlotRegenJob();
+    case 'auctionSettlement': {
+      if (action === 'run-now') {
+        const { settleExpiredAuctions } = await import('@/lib/auctionService');
+        const result = await settleExpiredAuctions();
+        return { success: result.success, message: result.message };
+      }
+      return action === 'stop' ? noResult(stopAuctionSettlementJob(), 'Auction settlement job stopped') : startAuctionSettlementJob();
+    }
+    case 'botFactoryEconomy': {
+      if (action === 'run-now') {
+        const result = await triggerBotFactoryEconomyCycle();
+        return result;
+      }
+      return action === 'stop' ? noResult(stopBotFactoryEconomyJob(), 'Bot factory economy job stopped') : startBotFactoryEconomyJob();
+    }
     default:
       return { success: false, message: `Unknown job '${job}'` };
   }

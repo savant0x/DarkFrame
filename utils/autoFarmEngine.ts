@@ -50,6 +50,42 @@ type StateCallback = (state: AutoFarmState) => void;
 type RefreshCallback = (deltas?: { metal?: number; energy?: number }) => Promise<void>;
 
 /**
+ * FID-20260912-063: extract the post-move position from a /api/move envelope.
+ * Exported pure (unit-testable). The canonical shape is
+ * `data.data.player.currentPosition`; every fallback validates finite numbers
+ * so truthy-but-empty objects (serialization drift, the live `{}` incident)
+ * fall through instead of short-circuiting.
+ */
+export function extractMovePosition(payload: unknown): { x: number; y: number } | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const d = payload as Record<string, unknown>;
+  const candidates: unknown[] = [
+    (d.data as Record<string, unknown> | undefined)?.player &&
+      ((d.data as Record<string, unknown>).player as Record<string, unknown>).currentPosition,
+    d.player && (d.player as Record<string, unknown>).currentPosition,
+    d.data && (d.data as Record<string, unknown>).newPosition,
+    d.newPosition,
+  ];
+  for (const c of candidates) {
+    if (!c || typeof c !== 'object') continue;
+    const p = c as { x?: unknown; y?: unknown };
+    if (
+      typeof p.x === 'number' && Number.isFinite(p.x) &&
+      typeof p.y === 'number' && Number.isFinite(p.y)
+    ) {
+      return { x: p.x, y: p.y };
+    }
+  }
+  const dataObj = d.data as { player?: { currentPositionX?: unknown; currentPositionY?: unknown } } | undefined;
+  const fx = dataObj?.player?.currentPositionX;
+  const fy = dataObj?.player?.currentPositionY;
+  if (typeof fx === 'number' && Number.isFinite(fx) && typeof fy === 'number' && Number.isFinite(fy)) {
+    return { x: fx, y: fy };
+  }
+  return null;
+}
+
+/**
  * Auto-Farm Engine
  * 
  * Manages automated map traversal, resource collection, and combat.
@@ -669,26 +705,11 @@ export class AutoFarmEngine {
       // Verify we moved to the expected position
       // FID-20260906-010 R2: the move API's documented contract is
       // { success, data: { player, currentTile } } — read data.data.player first.
-      // The route (R1) now also normalizes nested currentPosition from flat columns,
-      // so the legacy paths below exist only as defensive fallbacks.
-      let newPos;
-      if (data.data?.player?.currentPosition) {
-        newPos = data.data.player.currentPosition;
-      } else if (data.data?.player?.currentPositionX !== undefined) {
-        // Last-resort: flat columns if a future serialization drops the nested alias
-        const px = data.data.player.currentPositionX;
-        const py = data.data.player.currentPositionY;
-        if (typeof px === 'number' && typeof py === 'number') {
-          newPos = { x: px, y: py };
-        }
-      } else if (data.player?.currentPosition) {
-        newPos = data.player.currentPosition;
-      } else if (data.data?.newPosition) {
-        newPos = data.data.newPosition;
-      } else if (data.newPosition) {
-        newPos = data.newPosition;
-      }
-      
+      // FID-20260912-063: position extraction validates finite numbers — a
+      // truthy-but-empty {} (serialization drift) must fall through to the
+      // next shape instead of short-circuiting the whole chain.
+      const newPos = extractMovePosition(data);
+
       if (newPos && newPos.x === position.x && newPos.y === position.y) {
         console.log(`[AutoFarm] Move verified: Server confirms position (${newPos.x}, ${newPos.y})`);
         // Update internal position state
@@ -702,20 +723,32 @@ export class AutoFarmEngine {
         });
         return true;
       } else {
-        // Enhanced logging: Log full response and newPos for diagnostics
+        // FID-20260912-063: never hard-fail a move on verification drift.
+        // Re-sync from /api/player (authoritative) and accept only if the
+        // server says we are where we intended — self-heals transient
+        // serialization issues instead of stalling the engine with mismatch spam.
+        console.warn(
+          `[AutoFarm] Move verification inconclusive (extracted: ${JSON.stringify(newPos)}); re-syncing position`
+        );
+        try {
+          const sync = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
+          const syncData = await sync.json();
+          const serverPos = extractMovePosition(syncData);
+          if (serverPos && serverPos.x === position.x && serverPos.y === position.y) {
+            console.log(`[AutoFarm] Position re-sync confirms (${serverPos.x}, ${serverPos.y})`);
+            this.updateState({ currentPosition: position });
+            this.emitEvent({
+              type: 'move',
+              timestamp: Date.now(),
+              position: position,
+              message: `Moved to (${position.x}, ${position.y}) (re-synced)`
+            });
+            return true;
+          }
+        } catch {
+          // fall through to the failure return
+        }
         console.error(`[AutoFarm] Position mismatch: Expected (${position.x}, ${position.y}), got`, newPos);
-        console.error('[AutoFarm] Full move API response:', JSON.stringify(data, null, 2));
-        // Log additional diagnostic info
-        console.error('[AutoFarm] Diagnostic keys:', {
-          hasData: !!data.data,
-          hasPlayer: !!data.player,
-          hasPlayerCurrentPosition: !!data.player?.currentPosition,
-          dataPlayerExists: !!data.data?.player,
-          dataPlayerCurrentPosition: !!data.data?.player?.currentPosition,
-          dataKeys: data.data ? Object.keys(data.data) : [],
-          playerKeys: data.player ? Object.keys(data.player) : [],
-          topLevelKeys: Object.keys(data)
-        });
         return false;
       }
       

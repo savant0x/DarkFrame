@@ -2062,6 +2062,8 @@ span.nn-panel__icon > svg {
 .nn-table tbody tr:last-child td { border-bottom: 0; }
 .nn-table .nn-table__num { font-family: var(--nn-font-display); font-size: 12px; letter-spacing: 0.04em; }
 .nn-table .nn-table__dim { color: var(--nn-text-secondary); }
+/* Centered variant — every header and cell centers (rankings-style pages). */
+.nn-table--center thead th, .nn-table--center tbody td { text-align: center; }
 
 /* Stat block — labeled numeral instrument (sample type-spec .tn scale).  */
 .nn-stat {

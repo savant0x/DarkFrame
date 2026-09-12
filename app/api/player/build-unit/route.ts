@@ -384,6 +384,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
+    // FID-20260912-070: this route is the unit-factory page's live build path —
+    // it never fed the stats tracker, so "Units Built" stayed at 0 forever.
+    try {
+      const { trackUnitBuilt } = await import('@/lib/statTrackingService');
+      await trackUnitBuilt(username, validated.quantity);
+    } catch (trackErr) {
+      log.warn('Unit-build stat tracking failed (non-fatal)', trackErr instanceof Error ? trackErr : new Error(String(trackErr)));
+    }
+
     // FID-20260909-023 §3.5: one bulkWrite over the composite PK instead of a
     // per-factory round-trip loop. The previous loop filtered on { _id } — a
     // key no factories column exists for (PK is composite x/y) — so the shim's

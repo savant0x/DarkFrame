@@ -115,14 +115,21 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       ])
       .toArray();
 
+    // FID-20260912-070: real counters — battle_logs is the battle ledger that
+    // combat writes; occupied base tiles are the territories.
+    const [battleCount, territoryCount] = await Promise.all([
+      db.collection('battleLogs').countDocuments({}),
+      db.collection('tiles').countDocuments({ occupiedByBase: 1 }),
+    ]);
+
     const gameStats = {
       totalPlayers: statsResult?.totalPlayers || 0,
       totalMetal: statsResult?.totalMetal || 0,
       totalEnergy: statsResult?.totalEnergy || 0,
       totalPower: statsResult?.totalPower || 0,
       averageLevel: statsResult?.averageLevel || 0,
-      totalBattles: 0, // TODO: Implement battle tracking
-      totalTerritories: 0, // TODO: Implement territory tracking
+      totalBattles: battleCount,
+      totalTerritories: territoryCount,
     };
 
     log.info('Statistics retrieved', { 
