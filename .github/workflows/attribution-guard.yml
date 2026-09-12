@@ -22,6 +22,11 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    # FID-20260911-054: weekly standing full-history audit — Mondays 06:17 UTC
+    # (off-the-hour minute: GitHub cron queues hardest on the hour/half-hour).
+    # The range step maps any non-push/PR event to the full-history audit.
+    - cron: '17 6 * * 1'
 
 permissions:
   contents: read
@@ -60,6 +65,10 @@ jobs:
               ;;
             workflow_dispatch)
               echo "range=" >> "$GITHUB_OUTPUT" # empty = full-history audit
+              ;;
+            *)
+              # schedule (and any future event type): standing full-history audit
+              echo "range=" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
