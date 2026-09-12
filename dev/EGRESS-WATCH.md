@@ -40,3 +40,14 @@ condition — check Scheduler Health (admin panel) and the tutorial poll first.
 - `components/tutorial/TutorialQuestPanel.tsx` — polling stops on tutorial completion.
 - `lib/flagState.ts` — single cached batched read per tile view (no double getFlagState).
 - Attribution guard note: commits stay clean; hooks active via `prepare` script.
+
+## Reading Log (post-FID-037 fixes)
+
+| Date | Egress used in period | Daily rate | Verdict |
+|---|---|---|---|
+| _(fill in from Supabase → Usage → Egress; one row per check-in)_ | | | |
+
+How to fill a row: read "Used in period" GB and the period start date, compute
+GB/day, and compare against the success criteria above (~plan line, no >1 GB/day
+burn with zero players). Include the timestamp of your play sessions that day
+so idle burn is distinguishable from gameplay burn.
