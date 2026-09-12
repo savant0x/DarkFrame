@@ -49,6 +49,7 @@
 import { useState, useEffect } from 'react';
 import { extractApiError } from '@/lib/apiClient';
 import { useGameContext } from '@/context/GameContext';
+import { useBearerStatus } from '@/hooks/useBearerStatus';
 import { Resources, UnitType, UnitTier, UNIT_CONFIGS, getUnitsForTier } from '@/types/game.types';
 
 interface UnitBuildPanelEnhancedProps {
@@ -82,6 +83,8 @@ export default function UnitBuildPanelEnhanced({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [quantities, setQuantities] = useState<Record<UnitType, string>>({} as Record<UnitType, string>);
+  // FID-20260912-077: bearer-aware — build-unit 403s while holding the Flag.
+  const { isBearer } = useBearerStatus();
 
   // Initialize quantities for all units
   useEffect(() => {
@@ -226,6 +229,13 @@ export default function UnitBuildPanelEnhanced({
         </div>
 
         <div className="p-6">
+          {/* Bearer restriction banner (FID-20260912-077) */}
+          {isBearer && (
+            <div className="mb-4 p-3 text-sm rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_18%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)] text-[color:var(--nn-amber)]">
+              🚩 Flag Bearer restriction: unit production is locked while you hold the Flag.
+            </div>
+          )}
+
           {/* Factory Info */}
           <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-4 mb-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
@@ -423,7 +433,8 @@ export default function UnitBuildPanelEnhanced({
                       />
                       <button
                         onClick={() => handleBuild(unitType)}
-                        disabled={!canBuild}
+                        disabled={!canBuild || isBearer}
+                        title={isBearer ? 'The Flag Bearer cannot build while holding' : undefined}
                         className={`px-3 py-1 rounded-none text-xs font-bold ${
                           canBuild
                             ? 'bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] text-[color:var(--nn-text-primary)]'
@@ -573,7 +584,8 @@ export default function UnitBuildPanelEnhanced({
                       />
                       <button
                         onClick={() => handleBuild(unitType)}
-                        disabled={!canBuild}
+                        disabled={!canBuild || isBearer}
+                        title={isBearer ? 'The Flag Bearer cannot build while holding' : undefined}
                         className={`px-3 py-1 rounded-none text-xs font-bold ${
                           canBuild
                             ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] text-[color:var(--nn-text-primary)]'

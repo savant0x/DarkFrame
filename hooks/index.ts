@@ -15,3 +15,4 @@ export {
   usePrefersDarkMode,
 } from './useMediaQuery';
 export { useWMDNotifications } from './useWMDNotifications';
+export { useBearerStatus } from './useBearerStatus';

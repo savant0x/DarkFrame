@@ -29,6 +29,7 @@ import { AuctionListing, MyBidAuctionView, MyBidEntry } from '@/types/auction.ty
 
 import { AuctionListingCard } from './AuctionListingCard';
 import { CreateListingModal } from './CreateListingModal';
+import { useBearerStatus } from '@/hooks/useBearerStatus';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
   Store,
@@ -77,6 +78,8 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   // View mode
   const [viewMode, setViewMode] = useState<ViewMode>('marketplace');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // FID-20260912-077: bearer-aware — create/bid/buyout all 403 while holding.
+  const { isBearer } = useBearerStatus();
 
   // Filter state
   const [activeTab, setActiveTab] = useState<CategoryTab>('all');
@@ -305,12 +308,20 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
+              title={isBearer ? 'The Flag Bearer cannot auction while holding' : undefined}
               className="ml-auto nn-btn nn-btn--green self-center mr-3"
             >
               <Plus className="w-4 h-4 mr-1" />
               Create Listing
             </button>
           </div>
+
+          {/* Bearer restriction banner (FID-20260912-077) */}
+          {isBearer && (
+            <div className="mx-4 mb-3 p-3 text-sm rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_18%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)] text-[color:var(--nn-amber)]">
+              🚩 Flag Bearer restriction: listing, bidding, and buyouts are locked while you hold the Flag.
+            </div>
+          )}
 
           {/* Filters Panel (Marketplace only) */}
           {viewMode === 'marketplace' && (

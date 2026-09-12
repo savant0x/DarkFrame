@@ -53,6 +53,12 @@ vi.mock('@/lib/mongodb', async (importOriginal) => {
 });
 
 vi.mock('@/lib/activityLogger', () => ({ logFactory: vi.fn(async () => undefined) }));
+// FID-20260912-077: the route now runs the bearer gate — mock as non-bearer
+// (empty restrictions) so these tests exercise the build write path.
+vi.mock('@/lib/flagBonusService', () => ({
+  getBonusStack: vi.fn(async () => ({ isBearer: false, restrictions: [] })),
+  assertHolderMayTransact: vi.fn(() => ({ ok: true })),
+}));
 vi.mock('@/lib/xpService', () => ({ awardXP: vi.fn(async () => ({ xpAwarded: 5, levelUp: false, newLevel: 16 })), XPAction: { UNIT_BUILD: 'UNIT_BUILD' } }));
 vi.mock('@/lib/statTrackingService', () => ({ trackUnitBuilt: vi.fn(async () => undefined) }));
 

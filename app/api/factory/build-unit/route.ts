@@ -22,6 +22,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import type { Player } from '@/types/game.types';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
 import { applySlotRegeneration, hasEnoughSlots, consumeSlots } from '@/lib/slotRegenService';
+import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { getMaxSlots } from '@/lib/factoryUpgradeService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { trackUnitBuilt } from '@/lib/statTrackingService';
@@ -82,6 +83,18 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
         { success: false, message: `Invalid unit type. Must be one of: ${Object.values(UnitType).join(', ')}` },
         { status: 400 }
       );
+    }
+
+    // FID-20260906-001 §5.5 enforcement gap: the HOLDER_RESTRICTIONS list and
+    // the bearer's own flag panel both claim unit building is blocked, but this
+    // route (the in-game factory build panel's endpoint) never implemented the
+    // gate — only /api/player/build-unit did. Same 403 shape as the other gates
+    // so UI surfaces the real reason.
+    const flagStack = await getBonusStack(username);
+    const flagGate = assertHolderMayTransact(flagStack, 'build-unit');
+    if (!flagGate.ok) {
+      log.info('Bearer restriction: factory build-unit blocked', { username });
+      return NextResponse.json({ success: false, message: flagGate.reason }, { status: 403 });
     }
 
     if (quantity < 1 || quantity > 100) {
