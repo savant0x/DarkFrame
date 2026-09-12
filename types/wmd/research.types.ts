@@ -8,7 +8,7 @@
  * 10-tier tracks (2.7M RP total, 185-370 days per track at measured best-case
  * income, 0 players ever having started) with ONE 10-tier domain-mixed track:
  *
- *   - 752,000 RP total — ~56 best-case days for the COMPLETE arc
+ *   - 600,000 RP total — ~44 best-case days for the COMPLETE arc
  *     (13.5k/day VIP flag-bearer); tier 1 lands in ~4 days, giving an
  *     immediate first unlock while the full arc stays a ~2-month goal.
  *   - Domains interleave per tier (offense/defense/intel) so the old tracks'
@@ -215,10 +215,11 @@ export interface ResearchValidation {
 // ============================================================================
 
 /**
- * Cost ladder: 52k → 108k in smooth ~1.07-1.14× steps. Total 752,000 RP
- * (~56 best-case days for the full arc; tier 1 = ~4 days). Level gates:
- * L40 + 2 per tier (tier 10 needs L58). Tier 10 additionally requires
- * Clan Level 5 (high-end content stays clan-gated).
+ * Cost ladder (FID-20260912-059 revision): 44k → 80k in flat +4k steps.
+ * Total 600,000 RP exactly (~46 best-case days for the full arc; tier 1 =
+ * ~3.4 days). Level gates: L40 + 2×tier (tier 1 = L42, tier 10 = L60).
+ * Tier 10 additionally requires Clan Level 5 (high-end content stays
+ * clan-gated).
  *
  * Domain rotation preserves every unlock from the three old tracks:
  * warheads t1/t4/t6/t8/t10, batteries+radar t2/t5/t7/t10, missions and
@@ -233,12 +234,12 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.MISSILE,
     tier: 1,
     prerequisites: [],
-    requiredLevel: 40,
-    rpCost: 52000,
+    requiredLevel: 42,
+    rpCost: 42000,
     unlocks: {
       warheadTypes: [WarheadType.TACTICAL],
     },
-    estimatedTime: '4 days',
+    estimatedTime: '3 days',
   },
   {
     techId: 'wmd_tier_2',
@@ -247,8 +248,8 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.DEFENSE,
     tier: 2,
     prerequisites: ['wmd_tier_1'],
-    requiredLevel: 42,
-    rpCost: 56000,
+    requiredLevel: 44,
+    rpCost: 46000,
     unlocks: {
       batteryTypes: [BatteryType.BASIC, BatteryType.ADVANCED],
       radarLevels: [RadarLevel.LOCAL],
@@ -262,8 +263,8 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.INTELLIGENCE,
     tier: 3,
     prerequisites: ['wmd_tier_2'],
-    requiredLevel: 44,
-    rpCost: 60000,
+    requiredLevel: 46,
+    rpCost: 50000,
     unlocks: {
       missionTypes: [
         MissionType.RECONNAISSANCE,
@@ -281,12 +282,12 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.MISSILE,
     tier: 4,
     prerequisites: ['wmd_tier_3'],
-    requiredLevel: 46,
-    rpCost: 65000,
+    requiredLevel: 48,
+    rpCost: 54000,
     unlocks: {
       warheadTypes: [WarheadType.STRATEGIC],
     },
-    estimatedTime: '5 days',
+    estimatedTime: '4 days',
   },
   {
     techId: 'wmd_tier_5',
@@ -295,8 +296,8 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.DEFENSE,
     tier: 5,
     prerequisites: ['wmd_tier_4'],
-    requiredLevel: 48,
-    rpCost: 70000,
+    requiredLevel: 50,
+    rpCost: 58000,
     unlocks: {
       batteryTypes: [BatteryType.ELITE],
       radarLevels: [RadarLevel.REGIONAL],
@@ -316,12 +317,12 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.MISSILE,
     tier: 6,
     prerequisites: ['wmd_tier_5'],
-    requiredLevel: 50,
-    rpCost: 76000,
+    requiredLevel: 52,
+    rpCost: 62000,
     unlocks: {
       warheadTypes: [WarheadType.NEUTRON],
     },
-    estimatedTime: '6 days',
+    estimatedTime: '5 days',
   },
   {
     techId: 'wmd_tier_7',
@@ -330,12 +331,12 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.DEFENSE,
     tier: 7,
     prerequisites: ['wmd_tier_6'],
-    requiredLevel: 52,
-    rpCost: 82000,
+    requiredLevel: 54,
+    rpCost: 66000,
     unlocks: {
       batteryTypes: [BatteryType.FORTRESS],
     },
-    estimatedTime: '6 days',
+    estimatedTime: '5 days',
   },
   {
     techId: 'wmd_tier_8',
@@ -344,12 +345,12 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.MISSILE,
     tier: 8,
     prerequisites: ['wmd_tier_7'],
-    requiredLevel: 54,
-    rpCost: 88000,
+    requiredLevel: 56,
+    rpCost: 70000,
     unlocks: {
       warheadTypes: [WarheadType.CLUSTER],
     },
-    estimatedTime: '7 days',
+    estimatedTime: '5 days',
   },
   {
     techId: 'wmd_tier_9',
@@ -358,8 +359,8 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.INTELLIGENCE,
     tier: 9,
     prerequisites: ['wmd_tier_8'],
-    requiredLevel: 56,
-    rpCost: 95000,
+    requiredLevel: 58,
+    rpCost: 74000,
     unlocks: {
       missionTypes: [
         MissionType.SABOTAGE_HEAVY,
@@ -368,7 +369,7 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
       ],
       spyRanks: [SpyRank.VETERAN],
     },
-    estimatedTime: '7 days',
+    estimatedTime: '6 days',
   },
   {
     techId: 'wmd_tier_10',
@@ -377,9 +378,9 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
     category: ResearchCategory.MISSILE,
     tier: 10,
     prerequisites: ['wmd_tier_9'],
-    requiredLevel: 58,
+    requiredLevel: 60,
     requiredClanLevel: 5,
-    rpCost: 108000,
+    rpCost: 78000,
     unlocks: {
       warheadTypes: [WarheadType.CLAN_BUSTER],
       batteryTypes: [BatteryType.AEGIS],
@@ -387,7 +388,7 @@ export const WMD_RESEARCH_TRACK: ResearchTech[] = [
       missionTypes: [MissionType.SABOTAGE_NUCLEAR],
       spyRanks: [SpyRank.ELITE],
     },
-    estimatedTime: '8 days',
+    estimatedTime: '6 days',
   },
 ];
 
@@ -426,7 +427,7 @@ export const RESEARCH_BY_CATEGORY: Record<ResearchCategory, ResearchTech[]> = {
 
 /**
  * Total RP required to unlock everything
- * (W1: 752,000 RP across 10 tiers — the full endgame arc, ~56 best-case
+ * (W1: 600,000 RP across 10 tiers — the full endgame arc, ~44 best-case
  * days at ~13.5k/day. The old three-track tree was 2.7M demanding the
  * same 900k grind three times over for parallel content.)
  */
@@ -517,7 +518,7 @@ export function getAvailableTechs(completedTechs: string[]): ResearchTech[] {
 // ============================================================================
 /**
  * 1. Research Track (W1):
- *    - ONE 10-tier track, 752k RP total — the full WMD endgame arc
+ *    - ONE 10-tier track, 600k RP total — the full WMD endgame arc
  *    - Domains interleave: offense/defense/intel content is spread across
  *      the path instead of demanding three parallel 900k grinds
  *
@@ -528,7 +529,7 @@ export function getAvailableTechs(completedTechs: string[]): ResearchTech[] {
  * 3. RP Cost Progression (at measured best-case ~13.5k RP/day):
  *    - Tier 1: 52k RP (~4 days)
  *    - Tier 5: 70k RP (cumulative 303k, ~3 weeks)
- *    - Tier 10: 108k RP (cumulative 752k, ~8 weeks of top play)
+ *    - Tier 10: 78k RP (cumulative 600k, ~6 weeks of top play)
  *
  * 4. Integration with Existing System:
  *    - Reuses /lib/xpService.ts spendResearchPoints()
