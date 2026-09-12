@@ -1,30 +1,40 @@
 /**
  * @file app/api/clan/wars/route.ts
- * @created 2026-09-04
- * @overview Clan war list (FID-20260904-005 §5.3 dead-wire rebuild).
+ * @updated 2026-09-12 (FID-20260912-076 War Engine v2)
+ * @overview Clan war list — now served from the REAL clan_wars table.
  *
  * GET /api/clan/wars?clanId=<id>
- * Session-authenticated + clan membership required. Wars persist as
- * WAR_DECLARED entries in mod_log (see clanWarfareService.declareWar — there is
- * no dedicated wars table); this endpoint reads those entries and reconstitutes
- * the ClanWar shape the ClanWarfarePanel renders, including stats defaults.
- * Details JSON written by declareWar: { warId, targetClanId, cost }.
+ * Session-authenticated + clan membership required. FID-076 replaced the
+ * mod_log-scraping v1 (which showed only 'DECLARED' ghosts with hardcoded
+ * zero stats) with reads against the war ledger populated by declareWar and
+ * updated live by battle/capture hooks and the settlement job.
+ *
+ * DTO is the ClanWar shape ClanWarfarePanel renders: battles-won fields map
+ * from attackerScore/defenderScore, territory fields from
+ * attackerCaptures/defenderCaptures, winner derives from outcome on ENDED.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireClanMembership } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
-import { modLog } from '@/lib/db/schema';
-import { desc, eq } from 'drizzle-orm';
+import { clanWars } from '@/lib/db/schema';
+import { desc, or, eq } from 'drizzle-orm';
 
 interface WarDto {
   _id: string;
   warId: string;
   attackerClanId: string;
   defenderClanId: string;
-  status: string;
+  attackerTag?: string;
+  defenderTag?: string;
+  status: 'ACTIVE' | 'ENDED' | 'TRUCE';
   declaredAt: string;
+  startedAt?: string;
+  endedAt?: string;
+  endedReason?: string;
+  winner?: string;
   declarationCost: { metal: number; energy: number };
+  spoils?: { metal: number; energy: number; rp: number } | null;
   stats: {
     attackerTerritoryGained: number;
     defenderTerritoryGained: number;
@@ -50,46 +60,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Wars where this clan is either side. moderator_id stores the declaring
-    // PLAYER (username), so attacker attribution comes from the details JSON
-    // (attackerClanId — written by declareWar); SQL filters on the target side
-    // only, then the parsed side check below narrows to both sides.
     const rows = await db
       .select()
-      .from(modLog)
-      .where(eq(modLog.action, 'WAR_DECLARED'))
-      .orderBy(desc(modLog.createdAt))
-      .limit(200);
+      .from(clanWars)
+      .where(
+        or(
+          eq(clanWars.attackerClanId, gate.clanId),
+          eq(clanWars.defenderClanId, gate.clanId)
+        )
+      )
+      .orderBy(desc(clanWars.declaredAt))
+      .limit(100);
 
-    const wars: WarDto[] = rows
-      .map((r) => {
-        let details: { warId?: string; attackerClanId?: string; targetClanId?: string; cost?: { metal: number; energy: number } } = {};
-        try {
-          details = r.details ? JSON.parse(r.details) : {};
-        } catch {
-          details = {};
-        }
-        const attackerClanId = details.attackerClanId || '';
-        const defenderClanId = details.targetClanId || r.targetId;
-        return { r, details, attackerClanId, defenderClanId };
-      })
-      .filter(({ attackerClanId, defenderClanId }) => attackerClanId === gate.clanId || defenderClanId === gate.clanId)
-      .slice(0, 100)
-      .map(({ r, details, attackerClanId, defenderClanId }) => ({
-        _id: r.id,
-        warId: details.warId || r.id,
-        attackerClanId,
-        defenderClanId,
-        status: 'DECLARED',
-        declaredAt: r.createdAt.toISOString(),
-        declarationCost: details.cost || { metal: 0, energy: 0 },
-        stats: {
-          attackerTerritoryGained: 0,
-          defenderTerritoryGained: 0,
-          attackerBattlesWon: 0,
-          defenderBattlesWon: 0,
-        },
-      }));
+    const wars: WarDto[] = rows.map((w) => ({
+      _id: w.warId,
+      warId: w.warId,
+      attackerClanId: w.attackerClanId,
+      defenderClanId: w.defenderClanId,
+      attackerTag: w.attackerTag,
+      defenderTag: w.defenderTag,
+      status: w.status as WarDto['status'],
+      declaredAt: w.declaredAt.toISOString(),
+      startedAt: w.declaredAt.toISOString(),
+      endedAt: w.endedAt ? w.endedAt.toISOString() : undefined,
+      endedReason: w.endedReason ?? undefined,
+      winner:
+        w.status === 'ENDED' && w.outcome === 'ATTACKER_WIN'
+          ? w.attackerClanId
+          : w.status === 'ENDED' && w.outcome === 'DEFENDER_WIN'
+            ? w.defenderClanId
+            : undefined,
+      declarationCost: w.declarationCost ?? { metal: 0, energy: 0 },
+      spoils: w.spoils ?? null,
+      stats: {
+        attackerTerritoryGained: w.attackerCaptures,
+        defenderTerritoryGained: w.defenderCaptures,
+        attackerBattlesWon: w.attackerScore,
+        defenderBattlesWon: w.defenderScore,
+      },
+    }));
 
     return NextResponse.json({ success: true, wars }, { status: 200 });
   } catch (error) {

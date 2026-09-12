@@ -1,7 +1,7 @@
 export { players } from './players';
 export { tiles } from './tiles';
 export { factories } from './factories';
-export { clans } from './clans';
+export { clans, clanWars } from './clans';
 export { friends, friendRequests } from './friends';
 export { conversations, messages } from './messages';
 export { chatMessages, chatReadStatus } from './chat';

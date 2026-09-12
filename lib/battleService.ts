@@ -782,6 +782,34 @@ export async function executeBaseAttack(
   // Save battle log to database (FID-20260906-004 D1 seam)
   await persistBattleLog(battleLog);
 
+  // FID-20260912-076 War Engine v2: feed real outcomes into any ACTIVE war
+  // between the two combatants' clans (no-op when clans/ids absent or no war).
+  try {
+    const { recordWarBattleOutcome } = await import('@/lib/clanWarfareService');
+    const { getPlayer } = await import('@/lib/playerService');
+    const getClanIdForPlayer = async (username: string): Promise<string | null> => {
+      const p = await getPlayer(username).catch(() => null);
+      return p?.clanId ?? null;
+    };
+    const winnerClanId =
+      battleLog.outcome === BattleOutcome.AttackerWin
+        ? await getClanIdForPlayer(battleLog.attacker.username)
+        : battleLog.outcome === BattleOutcome.DefenderWin
+          ? await getClanIdForPlayer(battleLog.defender.username)
+          : null;
+    const loserClanId =
+      winnerClanId === null
+        ? null
+        : battleLog.outcome === BattleOutcome.AttackerWin
+          ? await getClanIdForPlayer(battleLog.defender.username)
+          : await getClanIdForPlayer(battleLog.attacker.username);
+    if (winnerClanId && loserClanId) {
+      await recordWarBattleOutcome(winnerClanId, loserClanId, battleLog.battleId);
+    }
+  } catch (warErr) {
+    console.error('⚠️ War score recording failed (non-fatal):', warErr);
+  }
+
   return {
     success: true,
     message: generateBattleMessage(battleLog),

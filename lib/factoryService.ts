@@ -434,6 +434,24 @@ export async function attackFactory(
     
     // Award XP for factory capture
     const xpResult = await awardXP(username, XPAction.FACTORY_CAPTURE);
+
+    // FID-20260912-076 War Engine v2: capturing a factory owned by a warring
+    // clan scores for the captor's clan (non-fatal on any lookup failure).
+    try {
+      if (factory.owner) {
+        const { recordWarFactoryCapture } = await import('@/lib/clanWarfareService');
+        const { getPlayer } = await import('@/lib/playerService');
+        const [attacker, defender] = await Promise.all([
+          getPlayer(username).catch(() => null),
+          getPlayer(factory.owner).catch(() => null),
+        ]);
+        if (attacker?.clanId && defender?.clanId && attacker.clanId !== defender.clanId) {
+          await recordWarFactoryCapture(attacker.clanId, defender.clanId, username, x, y);
+        }
+      }
+    } catch (warErr) {
+      console.error('⚠️ War capture scoring failed (non-fatal):', warErr);
+    }
     
     return {
       success: true,

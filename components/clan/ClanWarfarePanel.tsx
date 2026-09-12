@@ -352,9 +352,26 @@ interface WarCardProps {
   onRefresh: () => void;
 }
 
-function WarCard({ war, currentClanId }: WarCardProps) {
+function WarCard({ war, currentClanId, onRefresh }: WarCardProps) {
   const isAttacker = war.attackerClanId === currentClanId;
   const opponentId = isAttacker ? war.defenderClanId : war.attackerClanId;
+  const [truceState, setTruceState] = useState<'idle' | 'sending'>('idle');
+
+  /** FID-076: propose a truce on the active war (mutual settles instantly). */
+  const proposeTruce = async () => {
+    setTruceState('sending');
+    try {
+      const response = await fetch('/api/clan/war/truce', { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to propose truce');
+      toast.success(data.message || 'Truce proposed');
+      onRefresh();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setTruceState('idle');
+    }
+  };
   
   const getStatusBadge = () => {
     switch (war.status) {
@@ -419,11 +436,19 @@ function WarCard({ war, currentClanId }: WarCardProps) {
         </div>
       </div>
 
-      {/* War Duration */}
+      {/* War Duration + Truce (FID-076) */}
       {war.status === ClanWarStatus.ACTIVE && (
         <div className="mt-3 pt-3 border-t border-[color:var(--nn-glass-border)] flex items-center gap-2 text-sm nn-text-secondary">
           <Clock className="w-4 h-4" />
           <span>Duration: {timeSinceStart}h</span>
+          <button
+            onClick={proposeTruce}
+            disabled={truceState === 'sending'}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs nn-surface border border-[color:var(--nn-glass-border)] hover:border-[color:var(--nn-cyan)] text-[color:var(--nn-cyan)] transition-colors disabled:opacity-50"
+          >
+            {truceState === 'sending' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Handshake className="w-3.5 h-3.5" />}
+            Propose Truce
+          </button>
         </div>
       )}
 

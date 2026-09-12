@@ -77,6 +77,12 @@ import {
   triggerBotFactoryEconomyCycle,
 } from '@/lib/jobs/botFactoryEconomyManager';
 import {
+  getClanWarSettlementStats,
+  startClanWarSettlementJob,
+  stopClanWarSettlementJob,
+  runClanWarSettlementOnce,
+} from '@/lib/jobs/clanWarSettlementManager';
+import {
   getSchedulerHealth,
   startWMDJobs,
   stopWMDJobs,
@@ -106,6 +112,7 @@ export const GET = withRequestLogging(rateLimiter(async () => {
     const beerBaseConfig = await getBeerBaseConfig();
     const auctionSettlement = getAuctionSettlementStats();
     const botFactoryEconomy = getBotFactoryEconomyStats();
+    const warSettlement = getClanWarSettlementStats();
 
     const jobs = [
       {
@@ -157,6 +164,19 @@ export const GET = withRequestLogging(rateLimiter(async () => {
           seeded: botFactoryEconomy.seeded,
         },
       },
+      {
+        id: 'clanWarSettlement',
+        name: 'Clan War Settlement (hourly, FID-076)',
+        interval: 3_600_000,
+        isRunning: warSettlement.running,
+        stats: {
+          lastRun: warSettlement.lastRun,
+          executionCount: warSettlement.runCount,
+          errorCount: warSettlement.errorCount,
+          warsSettled: warSettlement.warsSettled,
+          totalSettled: warSettlement.totalSettled,
+        },
+      },
       ...wmd.jobs.map((j) => ({
         id: `wmd:${j.name}`,
         name: `WMD · ${j.name}`,
@@ -201,6 +221,7 @@ const TOP_LEVEL_JOB_IDS = [
   'factorySlotRegen',
   'auctionSettlement',
   'botFactoryEconomy',
+  'clanWarSettlement',
   'wmd',
 ] as const;
 const ACTIONS = ['start', 'stop', 'restart', 'run-now'] as const;
@@ -282,6 +303,15 @@ async function dispatchJobMutation(job: string, action: JobAction): Promise<JobM
       }
       return action === 'stop' ? noResult(stopBotFactoryEconomyJob(), 'Bot factory economy job stopped') : startBotFactoryEconomyJob();
     }
+    case 'clanWarSettlement': {
+      if (action === 'run-now') {
+        const result = await runClanWarSettlementOnce();
+        return { success: true, message: `War settlement pass executed — ${result.settled} war(s) settled` };
+      }
+      return action === 'stop'
+        ? noResult(stopClanWarSettlementJob(), 'War settlement job stopped')
+        : noResult(startClanWarSettlementJob(), 'War settlement job started');
+    }
     default:
       return { success: false, message: `Unknown job '${job}'` };
   }
@@ -308,6 +338,11 @@ async function restartFamily(job: string): Promise<JobMutationResult> {
     case 'factorySlotRegen': {
       await stopFactorySlotRegenJob();
       return await startFactorySlotRegenJob();
+    }
+    case 'clanWarSettlement': {
+      stopClanWarSettlementJob();
+      startClanWarSettlementJob();
+      return { success: true, message: 'War settlement job restarted' };
     }
     default:
       return { success: false, message: `Restart not supported for '${job}'` };

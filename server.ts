@@ -37,6 +37,7 @@ import { startBeerBaseJob, stopBeerBaseJob } from './lib/jobs/beerBaseManager';
 import { startBotGrowthJob, stopBotGrowthJob } from './lib/jobs/botGrowthManager';
 import { startAuctionSettlementJob, stopAuctionSettlementJob } from './lib/jobs/auctionSettlementManager';
 import { startBotFactoryEconomyJob, stopBotFactoryEconomyJob } from './lib/jobs/botFactoryEconomyManager';
+import { startClanWarSettlementJob, stopClanWarSettlementJob } from './lib/jobs/clanWarSettlementManager';
 import { connectToDatabase } from './lib/mongodb';
 
 // Environment configuration
@@ -146,6 +147,24 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    // FID-20260912-076: ensure the clan_wars table exists (War Engine v2
+    // ledger — wars previously lived only in mod_log with stub reads).
+    try {
+      console.log('[Server] 🔄 Running Clan Wars migration (FID-076)...');
+      await connectToDatabase();
+      const { runClanWarsMigration } = await import('./lib/migrations/clanWars');
+      const warsResult = await runClanWarsMigration();
+      console.log('[Server] ✅ Clan Wars migration:', warsResult.message, {
+        alreadyApplied: warsResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Clan Wars migration failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     // Initialize WMD Background Jobs
     try {
       console.log('[Server] 🔄 Starting WMD background jobs...');
@@ -233,6 +252,16 @@ async function startServer(): Promise<void> {
       }
     } catch (err) {
       console.error('[Server] ❌ Error starting Bot Factory Economy job:', err);
+    }
+
+    // Initialize Clan War Settlement Job (FID-20260912-076: wars settle
+    // automatically after the 48h minimum; spoils + notifications)
+    try {
+      console.log('[Server] 🔄 Starting Clan War Settlement background job...');
+      startClanWarSettlementJob();
+      console.log('[Server] ✅ Clan War Settlement job started');
+    } catch (err) {
+      console.error('[Server] ❌ Error starting Clan War Settlement job:', err);
     }
 
     // ============================================================
@@ -325,6 +354,14 @@ async function startServer(): Promise<void> {
         console.log('[Server] ✅ Bot Factory Economy job stopped');
       } catch (err) {
         console.error('[Server] ⚠️  Error stopping Bot Factory Economy job:', err);
+      }
+
+      // Stop Clan War Settlement job (FID-20260912-076)
+      try {
+        stopClanWarSettlementJob();
+        console.log('[Server] ✅ Clan War Settlement job stopped');
+      } catch (err) {
+        console.error('[Server] ⚠️  Error stopping Clan War Settlement job:', err);
       }
       
       // Stop Factory Slot Regeneration background job
