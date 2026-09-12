@@ -87,4 +87,14 @@ Pin: catalog/pricing (127,500; no dead ids return; no dangling prerequisites; es
 - `scripts/verify-rp-sources.ts` updated to the v2 first-rung stack (200 base × multipliers) and the 5-rung cap-seed array.
 - Deliberately **not** changed here: flag research ladder, WMD clan-vote costs, and the tech-tree research-time queue (unlocks remain instant RP spends; `researchTime` is display metadata).
 
-**Gates:** tsc 0 · eslint 0 · vitest **524 passed / 1 skipped** (15 new) · build 0 · sim 6/6 PASS.
+**Gates:** tsc 0 · eslint 0 · vitest **533 passed / 1 skipped** (15 economy + 9 catalog-contract) · build 0 · sim 6/6 PASS.
+
+## Addendum (same day) — T1 contract tests
+
+The T1 substance (shared catalog, 6 functional bot techs sellable, 6 dead techs deleted, UI hydrating from the route) landed with this FID; the follow-up added the missing enforcement layer, `__tests__/api/research/catalog-contract.test.ts` (9 tests):
+
+- **Sellable == shown:** POST accepts *every* id GET advertises, at the exact catalog price, persisting the full unlock set (prereqs + tech) — with prerequisite enforcement proven both ways (chained tech refused without parents).
+- **No dead content returns:** non-catalog ids (e.g. `factory-automation`) are refused at zero spend; ids unique; every prerequisite itself sellable.
+- **UI tripwire:** the view file must not re-grow a local catalog (regex block on `const TECHNOLOGIES: Technology[] = [`), must hydrate from `data.catalog`, and must render the syncing state rather than a mock default.
+
+Note: FID-057's "4 bot techs" was an undercount — there are **6** functional bot techs (`bot-summoning-circle` and `fast-travel-network` also have live consumers); all 6 are in the catalog.
