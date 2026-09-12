@@ -78,6 +78,12 @@ export function WebSocketProvider({
   autoConnect = true, // Auto-connect now that TypeScript server is working
 }: WebSocketProviderProps) {
   const [socket, setSocket] = useState<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
+  // FID-20260911-055: ref mirror of `socket` so connect()'s guard reads the
+  // LIVE socket identity instead of the stale closure from first render —
+  // previously, after any reconnect, connect() would still see the old
+  // (disconnected) socket as `null`/stale and create duplicate connections.
+  // Kept in sync exactly where setSocket runs.
+  const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [error, setError] = useState<string | null>(null);
   
@@ -124,7 +130,10 @@ export function WebSocketProvider({
    */
   const connect = useCallback(() => {
     disposedRef.current = false;
-    if (socket?.connected) {
+    // Read through the ref: `socket` is intentionally not a dep (adding it
+    // resubscribes the whole wiring on every reconnect — see setSocket note
+    // below); the ref makes the guard correct without that churn.
+    if (socketRef.current?.connected) {
       logger.debug('[WebSocket] Already connected');
       return;
     }
@@ -213,8 +222,9 @@ export function WebSocketProvider({
       }
     });
 
+    socketRef.current = newSocket;
     setSocket(newSocket);
-  }, [serverUrl, getReconnectDelay, scheduleReconnect]); // 'socket' omitted: read via ref-stable optional chain, re-adding loops (setSocket → re-render → connect)
+  }, [serverUrl, getReconnectDelay, scheduleReconnect]); // 'socket' omitted: read via socketRef (synced at this setSocket site)
 
   /**
    * Manually trigger reconnection

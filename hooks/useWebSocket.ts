@@ -204,16 +204,23 @@ export function useWebSocket(): UseWebSocketReturn {
 
   /**
    * Cleanup all listeners on unmount
+   *
+   * FID-20260911-055: snapshot the listeners map object into a local const
+   * (the eslint exhaustive-deps prescription for refs read in cleanups) —
+   * `listenersRef.current` may point at a NEW map by the time the cleanup
+   * runs, in which case the old handlers would be silently lost and leak on
+   * the socket. The const closes over exactly the map this effect saw.
    */
   useEffect(() => {
+    const listeners = listenersRef.current;
     return () => {
       if (socket) {
-        listenersRef.current.forEach((handler, key) => {
+        listeners.forEach((handler, key) => {
           const eventName = key.split('-')[0];
           // @ts-expect-error - Runtime cleanup
           socket.off(eventName, handler);
         });
-        listenersRef.current.clear();
+        listeners.clear();
       }
     };
   }, [socket]);
