@@ -15,7 +15,7 @@
 
 import { db } from '@/lib/db';
 import { factories, players } from '@/lib/db/schema';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull, gte, lte } from 'drizzle-orm';
 import { Factory, AttackResult, Unit, UnitType, InventoryItem, TutorialInventoryItem } from '@/types';
 import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
@@ -267,6 +267,42 @@ export async function calculatePlayerPower(username: string): Promise<number> {
 /**
  * Get or create factory data for a tile
  */
+/**
+ * Nearest owner-less factory to a coordinate within `radius` (Chebyshev),
+ * lowest-level first on ties. FID-073: used by the bot factory-raid phase to
+ * pick contest targets. Returns null when the district has no wild factories.
+ */
+export async function findNearestWildFactory(
+  x: number,
+  y: number,
+  radius: number
+): Promise<Factory | null> {
+  const candidates = await db
+    .select()
+    .from(factories)
+    .where(
+      and(
+        isNull(factories.owner),
+        gte(factories.x, x - radius),
+        lte(factories.x, x + radius),
+        gte(factories.y, y - radius),
+        lte(factories.y, y + radius)
+      )
+    );
+
+  let best: Factory | null = null;
+  let bestDist = Infinity;
+  for (const row of candidates) {
+    const dist = Math.max(Math.abs(row.x - x), Math.abs(row.y - y));
+    if (dist > radius) continue;
+    if (dist < bestDist || (dist === bestDist && (row.level ?? 1) < (best?.level ?? 99))) {
+      best = row as unknown as Factory;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 export async function getFactoryData(x: number, y: number): Promise<Factory | null> {
   const factoryRow = await db.select().from(factories).where(and(eq(factories.x, x), eq(factories.y, y))).limit(1);
   
