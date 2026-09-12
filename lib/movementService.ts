@@ -146,7 +146,16 @@ export async function movePlayer(
     if (positionUpdate.length === 0) {
       throw new Error('Failed to update player position');
     }
-    const updatedPlayer = { ...player, currentPosition: positionUpdate[0] };
+    // FID-20260912-063: overwrite the flat scalar columns too — the spread
+    // above kept the PRE-move slim-read values, so the response shipped
+    // currentPosition {x:44,y:45} next to currentPositionX/Y 43/45 (measured
+    // live). Any client reading the flat fields got the old tile.
+    const updatedPlayer = {
+      ...player,
+      currentPosition: positionUpdate[0],
+      currentPositionX: positionUpdate[0].x,
+      currentPositionY: positionUpdate[0].y,
+    };
     
     // Get tile at new position
     const tile = await getTileAt(newPosition.x, newPosition.y);

@@ -35,6 +35,8 @@ import { startWMDJobs, stopWMDJobs } from './lib/wmd/jobs/scheduler';
 import { startFlagBotJob, stopFlagBotJob } from './lib/jobs/flagBotManager';
 import { startBeerBaseJob, stopBeerBaseJob } from './lib/jobs/beerBaseManager';
 import { startBotGrowthJob, stopBotGrowthJob } from './lib/jobs/botGrowthManager';
+import { startAuctionSettlementJob, stopAuctionSettlementJob } from './lib/jobs/auctionSettlementManager';
+import { startBotFactoryEconomyJob, stopBotFactoryEconomyJob } from './lib/jobs/botFactoryEconomyManager';
 import { connectToDatabase } from './lib/mongodb';
 
 // Environment configuration
@@ -186,6 +188,34 @@ async function startServer(): Promise<void> {
       console.error('[Server] ❌ Error starting Bot Growth job:', err);
     }
 
+    // Initialize Auction Settlement Job (FID-20260912-065: expired auctions
+    // previously sat Active forever — zombie board, escrow never released)
+    try {
+      console.log('[Server] 🔄 Starting Auction settlement background job...');
+      const auctionJobResult = startAuctionSettlementJob();
+      if (auctionJobResult.success) {
+        console.log('[Server] ✅ Auction settlement job started:', auctionJobResult.message);
+      } else {
+        console.error('[Server] ⚠️  Auction settlement job failed to start:', auctionJobResult.message);
+      }
+    } catch (err) {
+      console.error('[Server] ❌ Error starting Auction settlement job:', err);
+    }
+
+    // Initialize Bot Factory Economy Job (FID-20260912-067: bots invest in wild
+    // factories so the map's industrial levels grow organically)
+    try {
+      console.log('[Server] 🔄 Starting Bot Factory Economy background job...');
+      const botFactoryResult = startBotFactoryEconomyJob();
+      if (botFactoryResult.success) {
+        console.log('[Server] ✅ Bot Factory Economy job started:', botFactoryResult.message);
+      } else {
+        console.error('[Server] ⚠️  Bot Factory Economy job failed to start:', botFactoryResult.message);
+      }
+    } catch (err) {
+      console.error('[Server] ❌ Error starting Bot Factory Economy job:', err);
+    }
+
     // ============================================================
     // START FACTORY SLOT REGENERATION BACKGROUND JOB
     // ============================================================
@@ -260,6 +290,22 @@ async function startServer(): Promise<void> {
         console.log('[Server] ✅ Bot Growth job stopped');
       } catch (err) {
         console.error('[Server] ⚠️  Error stopping Bot Growth job:', err);
+      }
+
+      // Stop Auction settlement job (FID-20260912-065)
+      try {
+        stopAuctionSettlementJob();
+        console.log('[Server] ✅ Auction settlement job stopped');
+      } catch (err) {
+        console.error('[Server] ⚠️  Error stopping Auction settlement job:', err);
+      }
+
+      // Stop Bot Factory Economy job (FID-20260912-067)
+      try {
+        stopBotFactoryEconomyJob();
+        console.log('[Server] ✅ Bot Factory Economy job stopped');
+      } catch (err) {
+        console.error('[Server] ⚠️  Error stopping Bot Factory Economy job:', err);
       }
       
       // Stop Factory Slot Regeneration background job

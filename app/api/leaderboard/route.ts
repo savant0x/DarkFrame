@@ -28,6 +28,7 @@ import {
   getTopPlayers,
   getTotalPlayerCount,
   getPlayerRankData,
+  getTopBeerBases,
   RankedPlayer
 } from '@/lib/rankingService';
 import { connectToDatabase } from '@/lib/mongodb';
@@ -89,6 +90,13 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const totalPlayers = await getCacheOrFetch(
       'leaderboard:totalPlayers',
       () => getTotalPlayerCount(),
+      CacheTTL.LEADERBOARD
+    );
+
+    // Beer Base ladder (FID-20260912-069): special bases ranked separately
+    const beerBases = await getCacheOrFetch(
+      'leaderboard:beerBases',
+      () => getTopBeerBases(25),
       CacheTTL.LEADERBOARD
     );
     
@@ -173,6 +181,7 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     
     const response = {
       leaderboard,
+      beerBases,
       currentPlayerRank,
       currentPlayerData: currentPlayerData ? {
         ...currentPlayerData,

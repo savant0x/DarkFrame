@@ -246,6 +246,12 @@ export default function TopNavBar({
             onClick={onLeaderboardClick || (() => router.push('/leaderboard'))}
           />
           <NavItem
+            label="Map"
+            icon={<Crosshair className="h-3.5 w-3.5" />}
+            onClick={() => router.push('/map')}
+            title="World Map"
+          />
+          <NavItem
             label="Stats"
             icon={<BarChart3 className="h-3.5 w-3.5" />}
             onClick={onStatsClick || (() => router.push('/stats'))}

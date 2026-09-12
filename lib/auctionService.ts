@@ -19,6 +19,18 @@ import {
 } from '@/types/auction.types';
 import { Player } from '@/types/game.types';
 import { logger } from './logger';
+import { notifyAuctionEvent } from './auctionNotification';
+
+/** Human-readable item label for notifications. */
+function describeAuctionItem(item: AuctionItem): string {
+  if (item.itemType === AuctionItemType.Resource) {
+    return `${(item.resourceAmount ?? 0).toLocaleString()} ${item.resourceType ?? 'resource'}`;
+  }
+  if (item.itemType === AuctionItemType.Unit) {
+    return `${item.unitType ?? 'unit'} (${item.unitId ?? 'unknown'})`;
+  }
+  return `${item.tradeableItemQuantity ?? 1}× tradeable item${(item.tradeableItemQuantity ?? 1) > 1 ? 's' : ''}`;
+}
 
 /**
  * Create a new auction listing
@@ -336,6 +348,16 @@ export async function placeBid(
       };
     }
 
+    // ESCROW: deduct the bid from the bidder immediately (FID-20260912-065).
+    // Previously bids were honor-system — winners could be broke at settlement.
+    // The previous highest bidder's escrow is released below, after the auction
+    // row records the new leader (two sequential $inc ops, no transaction in the
+    // seam; each is idempotent-safe under this call pattern).
+    await playersCollection.updateOne(
+      { username: bidderUsername },
+      { $inc: { resources_metal: -request.bidAmount } }
+    );
+
     // Create bid
     const bidId = `BID-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
     const newBid: AuctionBid = {
@@ -363,8 +385,22 @@ export async function placeBid(
       }
     );
 
-    // TODO: Create notification for previous highest bidder (outbid)
-    // TODO: Lock bidder's resources
+    // Outbid release: refund the previous leader's escrowed bid (their money was
+    // held since their own placeBid). Zero when no prior bids existed.
+    const previousBidder = auction.highestBidder;
+    const previousAmount = auction.currentBid;
+    if (previousBidder && previousAmount > 0) {
+      await playersCollection.updateOne(
+        { username: previousBidder },
+        { $inc: { resources_metal: previousAmount } }
+      );
+      await notifyAuctionEvent('outbid', previousBidder, {
+        auctionId: request.auctionId,
+        itemName: describeAuctionItem(auction.item),
+        amount: request.bidAmount,
+        counterparty: bidderUsername,
+      });
+    }
 
     const updatedAuction = await auctionsCollection.findOne({ auctionId: request.auctionId });
 
@@ -473,6 +509,19 @@ export async function buyoutAuction(
       { $inc: { resources_metal: sellerReceives } }
     );
 
+    void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
+      auctionId,
+      itemName: describeAuctionItem(auction.item),
+      amount: sellerReceives,
+      counterparty: buyerUsername,
+    });
+    void notifyAuctionEvent('sold_winner', buyerUsername, {
+      auctionId,
+      itemName: describeAuctionItem(auction.item),
+      amount: auction.buyoutPrice,
+      counterparty: auction.sellerUsername,
+    });
+
     // Update auction status
     await auctionsCollection.updateOne(
       { auctionId },
@@ -555,14 +604,15 @@ async function transferAuctionItem(
     );
 
   } else if (item.itemType === AuctionItemType.Resource) {
-    // Resources already locked/deducted, just transfer to buyer
-    // ($inc dot-paths into the jsonb resources object are not supported by the seam;
-    // resource transfer happens through the explicit metal/energy branch below)
-    const resourceField = item.resourceType === 'metal' ? 'metal' : 'energy';
+    // Resources were escrowed from the seller at listing time — credit the buyer.
+    // Key MUST resolve through the seam: bare 'metal'/'energy' map to no column and
+    // the delivery write silently vanished (FID-20260912-065). snake_case aliases
+    // resolve to resourcesMetal/resourcesEnergy.
+    const resourceKey = item.resourceType === 'metal' ? 'resources_metal' : 'resources_energy';
     const amount = item.resourceAmount ?? 0;
     await playersCollection.updateOne(
       { username: toUsername },
-      { $inc: { [resourceField]: amount } }
+      { $inc: { [resourceKey]: amount } }
     );
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
@@ -586,6 +636,7 @@ export async function cancelAuction(
 ): Promise<{ success: boolean; message: string; error?: string }> {
   try {
     const auctionsCollection = await getCollection<AuctionListing>('auctions');
+    const playersCollection = await getCollection<Player>('players');
 
     // Get auction
     const auction = await auctionsCollection.findOne({ auctionId });
@@ -618,13 +669,27 @@ export async function cancelAuction(
       {
         $set: {
           status: AuctionStatus.Cancelled,
-          closedAt: new Date()
+          closedAt: new Date(),
+          settled: true,
+          settledAt: new Date()
         }
       }
     );
 
-    // Return item to seller (unlock or return resources)
-    // TODO: Implement proper item unlocking/return
+    // Refund escrowed resources to the seller (FID-20260912-065). Listing locks
+    // the goods via a negative $inc; cancellation previously kept the money —
+    // sellers paid the listing fee AND lost the escrowed resources.
+    if (auction.item.itemType === AuctionItemType.Resource && (auction.item.resourceAmount ?? 0) > 0) {
+      const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
+      await playersCollection.updateOne(
+        { username: sellerUsername },
+        { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
+      );
+    }
+    void notifyAuctionEvent('refund_seller', sellerUsername, {
+      auctionId,
+      itemName: describeAuctionItem(auction.item),
+    });
 
     logger.info('Auction cancelled', { auctionId, seller: sellerUsername });
 
@@ -744,3 +809,211 @@ export async function getAuctions(
 // ============================================================
 // END OF FILE
 // ============================================================
+
+// ============================================================
+// FID-20260912-065 — Settlement engine (expired auctions)
+// ============================================================
+
+/**
+ * Settle a single expired auction and return the outcome.
+ *
+ * Called by the auctionSettlementManager job (every 5 min). An auction is
+ * settle-eligible when status is Active AND expiresAt has passed. Outcomes:
+ * - With bids  → Sold to highest bidder: item already escrowed from the seller
+ *   (delivered via transferAuctionItem), winner's bid was already escrowed at
+ *   placeBid (credited to seller minus sale fee; winner receives nothing extra —
+ *   their metal left at bid time and the goods arrive here).
+ * - No bids    → Expired: escrowed goods return to the seller.
+ *
+ * Guarded by a conditional update (claim) so concurrent job ticks or a job +
+ * a live bid/buyout racing the expiry boundary cannot double-settle: only the
+ * writer that flips status Active→settling earns the right to pay out.
+ */
+async function settleExpiredAuction(
+  auction: AuctionListing
+): Promise<{ auctionId: string; outcome: 'sold' | 'expired'; error?: string }> {
+  const auctionsCollection = await getCollection<AuctionListing>('auctions');
+  const playersCollection = await getCollection<Player>('players');
+
+  // Claim: atomically flip Active → Expired-claim marker. match count 0 = lost
+  // the race (already settled/cancelled, or a bid/buyout flipped status first).
+  const claim = await auctionsCollection.updateOne(
+    { auctionId: auction.auctionId, status: AuctionStatus.Active },
+    { $set: { status: AuctionStatus.Expired, closedAt: new Date() } }
+  );
+  if (!claim || claim.modifiedCount !== 1) {
+    return { auctionId: auction.auctionId, outcome: 'expired', error: 'CLAIM_LOST' };
+  }
+
+  const hasBids = auction.bids.length > 0 && !!auction.highestBidder;
+
+  if (!hasBids) {
+    // Expired unsold: refund escrowed resources (units/items were validated-only
+    // locks — nothing to refund until per-unit locking ships).
+    if (
+      auction.item.itemType === AuctionItemType.Resource &&
+      (auction.item.resourceAmount ?? 0) > 0
+    ) {
+      const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
+      await playersCollection.updateOne(
+        { username: auction.sellerUsername },
+        { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
+      );
+    }
+    void notifyAuctionEvent('expired_seller', auction.sellerUsername, {
+      auctionId: auction.auctionId,
+      itemName: describeAuctionItem(auction.item),
+    });
+
+    await auctionsCollection.updateOne(
+      { auctionId: auction.auctionId },
+      { $set: { settled: true, settledAt: new Date() } }
+    );
+    return { auctionId: auction.auctionId, outcome: 'expired' };
+  }
+
+  // Sold at hammer: deliver goods, credit seller, record trade.
+  const winner = auction.highestBidder!;
+  const finalPrice = auction.currentBid;
+  const saleFeeAmount = Math.floor(finalPrice * auction.saleFee);
+  const sellerReceives = finalPrice - saleFeeAmount;
+
+  const transferResult = await transferAuctionItem(
+    auction.sellerUsername,
+    winner,
+    auction.item
+  );
+
+  if (!transferResult.success) {
+    // Delivery failed (e.g. unit no longer present). Refund the winner's escrow
+    // and return goods escrow, then mark Expired-settled so we don't retry forever.
+    await playersCollection.updateOne(
+      { username: winner },
+      { $inc: { resources_metal: finalPrice } }
+    );
+    if (
+      auction.item.itemType === AuctionItemType.Resource &&
+      (auction.item.resourceAmount ?? 0) > 0
+    ) {
+      const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
+      await playersCollection.updateOne(
+        { username: auction.sellerUsername },
+        { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
+      );
+    }
+    await auctionsCollection.updateOne(
+      { auctionId: auction.auctionId },
+      { $set: { settled: true, settledAt: new Date() } }
+    );
+    return { auctionId: auction.auctionId, outcome: 'expired', error: 'TRANSFER_FAILED' };
+  }
+
+  // Winner's metal already left their wallet at bid time — pay the seller.
+  await playersCollection.updateOne(
+    { username: auction.sellerUsername },
+    { $inc: { resources_metal: sellerReceives } }
+  );
+
+  void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
+    auctionId: auction.auctionId,
+    itemName: describeAuctionItem(auction.item),
+    amount: sellerReceives,
+    counterparty: winner,
+  });
+  void notifyAuctionEvent('won_settlement', winner, {
+    auctionId: auction.auctionId,
+    itemName: describeAuctionItem(auction.item),
+    amount: finalPrice,
+    counterparty: auction.sellerUsername,
+  });
+
+  await auctionsCollection.updateOne(
+    { auctionId: auction.auctionId },
+    {
+      $set: {
+        status: AuctionStatus.Sold,
+        settled: true,
+        settledAt: new Date(),
+        finalPrice,
+        winnerUsername: winner
+      }
+    }
+  );
+
+  const tradesCollection = await getCollection<TradeHistory>('tradeHistory');
+  const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+  await tradesCollection.insertOne({
+    tradeId,
+    auctionId: auction.auctionId,
+    sellerUsername: auction.sellerUsername,
+    buyerUsername: winner,
+    item: auction.item,
+    finalPrice,
+    saleFee: saleFeeAmount,
+    sellerReceived: sellerReceives,
+    tradeType: 'auction',
+    completedAt: new Date()
+  });
+
+  return { auctionId: auction.auctionId, outcome: 'sold' };
+}
+
+/**
+ * Settle every overdue auction. Idempotent and race-safe (claim guard above).
+ * @returns per-run counters for the jobs-status panel.
+ */
+export async function settleExpiredAuctions(): Promise<{
+  success: boolean;
+  checked: number;
+  sold: number;
+  expired: number;
+  errors: number;
+  message: string;
+}> {
+  try {
+    const auctionsCollection = await getCollection<AuctionListing>('auctions');
+
+    const overdue = await auctionsCollection
+      .find({
+        status: AuctionStatus.Active,
+        expiresAt: { $lt: new Date() }
+      })
+      .limit(100)
+      .toArray();
+
+    let sold = 0;
+    let expired = 0;
+    let errors = 0;
+    for (const auction of overdue) {
+      try {
+        const result = await settleExpiredAuction(auction);
+        if (result.error === 'CLAIM_LOST') continue;
+        if (result.outcome === 'sold') sold += 1;
+        else expired += 1;
+        if (result.error === 'TRANSFER_FAILED') errors += 1;
+      } catch (err) {
+        errors += 1;
+        logger.error('Settlement failed for auction', err instanceof Error ? err : new Error(String(err)));
+      }
+    }
+
+    return {
+      success: true,
+      checked: overdue.length,
+      sold,
+      expired,
+      errors,
+      message: `Settled ${overdue.length} overdue auction(s): ${sold} sold, ${expired} expired`
+    };
+  } catch (error) {
+    logger.error('Error running auction settlement', error instanceof Error ? error : new Error(String(error)));
+    return {
+      success: false,
+      checked: 0,
+      sold: 0,
+      expired: 0,
+      errors: 1,
+      message: 'Settlement run failed'
+    };
+  }
+}

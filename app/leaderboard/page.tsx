@@ -37,6 +37,13 @@ import { RankedPlayer } from '@/lib/rankingService';
  */
 interface LeaderboardResponse {
   leaderboard: RankedPlayer[];
+  beerBases?: Array<{
+    rank: number;
+    username: string;
+    level: number;
+    totalStrength: number;
+    totalDefense: number;
+  }>;
   currentPlayerRank: number | null;
   currentPlayerData: RankedPlayer | null;
   totalPlayers: number;
@@ -186,7 +193,7 @@ export default function LeaderboardPage() {
     <div className="min-h-screen bg-[color:var(--nn-void)] text-[color:var(--nn-text-primary)] p-4">
       {/* Header */}
       <div className="max-w-7xl mx-auto mb-6">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col items-center gap-4 mb-4 text-center">
           <div>
             <h1 className="text-4xl font-bold mb-2" style={{ fontFamily: 'var(--nn-font-display)' }}>Player Rankings</h1>
             <p className="text-[color:var(--nn-text-secondary)]">
@@ -211,6 +218,7 @@ export default function LeaderboardPage() {
             </button>
           </div>
         </div>
+        {/* header block end */}
         
         {/* Search Bar */}
         <div className="mb-4">
@@ -269,7 +277,7 @@ export default function LeaderboardPage() {
       <div className="max-w-7xl mx-auto">
         <div className="nn-panel rounded-none overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="nn-table">
+            <table className="nn-table nn-table--center">
               <thead>
                 <tr>
                   <th>Rank</th>
@@ -340,6 +348,48 @@ export default function LeaderboardPage() {
           </div>
         </div>
         
+        {/* Beer Base Ladder (FID-20260912-069) */}
+        {(leaderboardData?.beerBases?.length ?? 0) > 0 && (
+          <div className="nn-panel rounded-none overflow-hidden mt-6">
+            <div className="px-6 py-4 border-b border-[color:color-mix(in_oklab,var(--nn-amber)_20%,transparent)]">
+              <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--nn-font-display)' }}>
+                🍺 Beer Base Rankings
+              </h2>
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
+                World PvE targets — attack them to loot stockpiles and earn RP
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="nn-table nn-table--center">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Beer Base</th>
+                    <th className="text-center">Level</th>
+                    <th className="text-center">Strength</th>
+                    <th className="text-center">Defense</th>
+                    <th className="text-center">Total Power</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboardData!.beerBases!.map((bb) => (
+                    <tr key={bb.username}>
+                      <td className="nn-table__num">#{bb.rank}</td>
+                      <td className="font-semibold text-[color:var(--nn-amber)]">{bb.username}</td>
+                      <td className="text-center">⭐ {bb.level}</td>
+                      <td className="text-center nn-table__num">{bb.totalStrength.toLocaleString()}</td>
+                      <td className="text-center nn-table__num">{bb.totalDefense.toLocaleString()}</td>
+                      <td className="text-center nn-table__num text-[color:var(--nn-amber)]">
+                        {(bb.totalStrength + bb.totalDefense).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Footer Info */}
         <div className="mt-6 text-center text-[color:var(--nn-text-secondary)] text-sm">
           <p>Rankings based on Effective Power: (Strength + Defense) × Balance Multiplier</p>

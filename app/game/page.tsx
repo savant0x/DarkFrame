@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import { logger } from '@/lib/logger';
 import { extractApiError } from '@/lib/apiClient';
-import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, BattleHistoryFeed, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel } from '@/components';
+import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, BattleHistoryFeed, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel, BankPanel } from '@/components';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
 import TopNavBar from '@/components/TopNavBar';
 import FlagTrackerPanel from '@/components/FlagTrackerPanel';
@@ -1283,12 +1283,35 @@ export default function GamePage() {
                 </button>
               </div>
               <div className="flex-1 overflow-auto">
-                {/* TODO: Convert BankPanel to inline view - for now show placeholder */}
-                <div className="text-center mt-10">
-                  <h2 className="text-2xl font-bold text-[color:var(--nn-amber)] mb-4">🏦 Bank</h2>
-                  <p className="text-[color:var(--nn-text-secondary)]">Bank panel conversion in progress...</p>
-                  <p className="text-sm text-[color:var(--nn-text-secondary)] mt-2">Coming soon!</p>
-                </div>
+                {/* FID-20260912-064: mount the fully-built BankPanel — it was
+                    orphaned behind this placeholder since the layout pivot. */}
+                {currentTile ? (
+                  <BankPanel
+                    isOpen={true}
+                    onClose={() => setCurrentView('TILE')}
+                    playerResources={{
+                      metal: player?.resources?.metal ?? 0,
+                      energy: player?.resources?.energy ?? 0,
+                    }}
+                    bankStorage={{
+                      metal: player?.bank?.metal ?? 0,
+                      energy: player?.bank?.energy ?? 0,
+                      lastDeposit: player?.bank?.lastDeposit ?? null,
+                    }}
+                    bankType={
+                      currentTile.bankType === 'exchange'
+                        ? 'exchange'
+                        : currentTile.bankType === 'energy'
+                          ? 'energy'
+                          : 'metal'
+                    }
+                    onTransaction={refreshGameState}
+                  />
+                ) : (
+                  <div className="text-center mt-10">
+                    <p className="text-[color:var(--nn-text-secondary)]">Loading bank…</p>
+                  </div>
+                )}
               </div>
             </div>
           ) : null
