@@ -28,6 +28,9 @@ import AchievementStatsModal from '@/components/admin/AchievementStatsModal';
 
 // FID-20260909-035: scheduler-health panel, lazy-loaded (opened on demand)
 const JobsStatusModal = lazy(() => import('@/components/admin/JobsStatusModal'));
+
+// FID-20260912-074: factory settings surface, lazy-loaded (opened on demand)
+const FactorySettingsPanel = lazy(() => import('@/components/admin/FactorySettingsPanel'));
 import SystemResetModal from '@/components/admin/SystemResetModal';
 import WebSocketConsoleModal from '@/components/admin/WebSocketConsoleModal';
 import HotkeyManagerPanel from '@/components/HotkeyManagerPanel';
@@ -279,6 +282,9 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
   const [schedules, setSchedules] = useState<BeerSchedule[]>([]);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+
+  // FID-20260912-074: factory settings panel visibility
+  const [showFactorySettings, setShowFactorySettings] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<BeerSchedule | null>(null);
   const [scheduleForm, setScheduleForm] = useState({
     enabled: true,
@@ -1599,6 +1605,12 @@ By Specialization:
                   onClick={() => setShowJobsStatus(true)}
                 >
                   Scheduler Health
+                </button>
+                {/* FID-20260912-074: factory economy settings */}
+                <button className="nn-abtn nn-abtn--amber"
+                  onClick={() => setShowFactorySettings(true)}
+                >
+                  Factory Settings
                 </button>
                 <button className="nn-abtn nn-abtn--magenta"
                   onClick={() => setShowSystemReset(true)}
@@ -3426,6 +3438,15 @@ By Specialization:
             <Suspense fallback={null}>
               <JobsStatusModal
                 onClose={() => setShowJobsStatus(false)}
+              />
+            </Suspense>
+          )}
+
+          {/* Factory Settings Panel (FID-20260912-074) */}
+          {showFactorySettings && (
+            <Suspense fallback={null}>
+              <FactorySettingsPanel
+                onClose={() => setShowFactorySettings(false)}
               />
             </Suspense>
           )}

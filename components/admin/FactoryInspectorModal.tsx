@@ -11,7 +11,7 @@
  * Features:
  * - View all factories in database
  * - Filter by owner username
- * - Filter by factory tier (tier1, tier2, tier3)
+ * - Filter by factory level (L1-L10, FID-074 — replaces the fake tier1/2/3 scheme)
  * - Search by coordinates (X, Y)
  * - Pagination (30 factories per page)
  * - Color-coded by tier
@@ -37,6 +37,7 @@ interface FactoryData {
   x: number;
   y: number;
   ownerUsername: string;
+  level: number; // FID-074: real factory level 1-10 (canonical: lib/factoryUpgradeService)
   tier: 'tier1' | 'tier2' | 'tier3';
   productionRate: number; // units per hour
   lastProduction: string; // ISO timestamp
@@ -70,6 +71,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
   const [searchX, setSearchX] = useState('');
   const [searchY, setSearchY] = useState('');
   const [filterTier, setFilterTier] = useState<string>('all');
+  const [filterLevel, setFilterLevel] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all'); // all, active, inactive
 
   // Pagination state
@@ -135,6 +137,10 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
     if (filterTier !== 'all') {
       filtered = filtered.filter(f => f.tier === filterTier);
     }
+    // FID-074: filter by real level
+    if (filterLevel !== 'all') {
+      filtered = filtered.filter(f => f.level === Number(filterLevel));
+    }
 
     // Filter by status
     if (filterStatus === 'active') {
@@ -145,7 +151,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
 
     setFilteredFactories(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [searchOwner, searchX, searchY, filterTier, filterStatus, factories]);
+  }, [searchOwner, searchX, searchY, filterTier, filterLevel, filterStatus, factories]);
 
   /**
    * Pagination calculations
@@ -170,27 +176,12 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
   };
 
   /**
-   * Get color class for factory tier
+   * FID-074: color by level band — L1-3 green, L4-6 cyan, L7-10 violet
    */
-  const getTierColor = (tier: string): string => {
-    switch (tier) {
-      case 'tier1': return 'text-[color:var(--nn-green)]';
-      case 'tier2': return 'text-[color:var(--nn-cyan)]';
-      case 'tier3': return 'text-[color:var(--nn-violet)]';
-      default: return 'text-[color:var(--nn-text-secondary)]';
-    }
-  };
-
-  /**
-   * Get background color for factory tier
-   */
-  const getTierBgColor = (tier: string): string => {
-    switch (tier) {
-      case 'tier1': return 'bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-green)_50%,transparent)]';
-      case 'tier2': return 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_50%,transparent)]';
-      case 'tier3': return 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)] border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)]';
-      default: return 'bg-[color:var(--nn-void)] border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]';
-    }
+  const getLevelColor = (level: number): string => {
+    if (level >= 7) return 'text-[color:var(--nn-violet)]';
+    if (level >= 4) return 'text-[color:var(--nn-cyan)]';
+    return 'text-[color:var(--nn-green)]';
   };
 
   /**
@@ -322,6 +313,20 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
                 <option value="tier3">Tier 3</option>
               </select>
             </div>
+            {/* FID-074: level filter */}
+            <div>
+              <label className="block text-sm text-[color:var(--nn-text-secondary)] mb-1">Level</label>
+              <select
+                value={filterLevel}
+                onChange={(e) => setFilterLevel(e.target.value)}
+                className="w-full px-3 py-2 bg-[color:var(--nn-void)] border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] text-[color:var(--nn-text-primary)] text-sm rounded-none focus:outline-none"
+              >
+                <option value="all">All Levels</option>
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((l) => (
+                  <option key={l} value={String(l)}>L{l}</option>
+                ))}
+              </select>
+            </div>
 
             {/* Status filter */}
             <div>
@@ -338,8 +343,7 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
             </div>
           </div>
 
-          {/* Clear filters */}
-          {(searchOwner || searchX || searchY || filterTier !== 'all' || filterStatus !== 'all') && (
+          {/* Clear filters */}                  {(searchOwner || searchX || searchY || filterTier !== 'all' || filterLevel !== 'all' || filterStatus !== 'all') && (
             <button
               onClick={() => {
                 setSearchOwner('');
@@ -367,13 +371,19 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
               {currentFactories.map((factory) => (
                 <div
                   key={factory._id}
-                  className={`border rounded-none p-4 ${getTierBgColor(factory.tier)} border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition`}
+                  className={`border rounded-none p-4 ${
+                    factory.level >= 7
+                      ? 'bg-[color-mix(in_oklab,var(--nn-violet)_22%,transparent)]'
+                      : factory.level >= 4
+                        ? 'bg-[color-mix(in_oklab,var(--nn-cyan)_22%,transparent)]'
+                        : 'bg-[color:var(--nn-void)]'
+                  } border-[color-mix(in_oklab,var(--nn-violet)_50%,transparent)] transition`}
                 >
                   {/* Header */}
                   <div className="flex justify-between items-start mb-3">
                     <div>
-                      <span className={`font-bold ${getTierColor(factory.tier)}`}>
-                        {factory.tier.toUpperCase()}
+                      <span className={`font-bold ${getLevelColor(factory.level)}`}>
+                        LV {factory.level}/10
                       </span>
                       <p className="text-sm text-[color:var(--nn-text-secondary)]">
                         ({factory.x}, {factory.y})
@@ -475,9 +485,9 @@ export default function FactoryInspectorModal({ onClose }: FactoryInspectorModal
  * 
  * Features Implemented:
  * - Full factory database viewing
- * - Multi-criteria filtering (owner, coordinates, tier, status)
+ * - Multi-criteria filtering (owner, coordinates, level, status)
  * - Pagination (30 factories per page)
- * - Color-coded by tier (tier1=green, tier2=blue, tier3=purple)
+ * - Color-coded by level band (L1-3=green, L4-6=blue, L7-10=purple)
  * - Production rate and current production display
  * - Last production timestamp with relative time
  * - Active/inactive status badges

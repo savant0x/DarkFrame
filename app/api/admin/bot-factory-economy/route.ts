@@ -51,6 +51,47 @@ export const GET = withRequestLogging(
         else wild += 1;
       }
 
+      // FID-074: full factory settings surface — canonical curves, raid
+      // config, ownership breakdown. One GET powers the whole panel.
+      const { FACTORY_UPGRADE, getMaxSlots, getRegenRate, getProductionRate, getFactoryDefense, calculateUpgradeCost } = await import('@/lib/factoryUpgradeService');
+      const curveTable = Array.from({ length: FACTORY_UPGRADE.MAX_LEVEL }, (_, i) => {
+        const level = i + 1;
+        const cost = level < FACTORY_UPGRADE.MAX_LEVEL ? calculateUpgradeCost(level) : null;
+        return {
+          level,
+          slots: getMaxSlots(level),
+          regenPerHour: getRegenRate(level),
+          productionPerHour: getProductionRate(level),
+          defense: getFactoryDefense(level),
+          upgradeCost: cost ? { metal: cost.metal, energy: cost.energy } : null,
+        };
+      });
+
+      const raidConfig = (await import('@/lib/botFactoryRaid')).BOT_FACTORY_RAID_CONFIG;
+      const players = await getCollection<{ isBot?: boolean; username?: string; totalStrength?: number; botConfig?: { tier?: number; attackCooldown?: string } }>('players');
+      const bots = await players.find({ isBot: true }).toArray();
+      const botNames = new Set(bots.map((b) => b.username));
+      const now = Date.now();
+      const raidEligible = bots.filter(
+        (b) => raidConfig.RAID_ELIGIBLE_TIERS.includes(b.botConfig?.tier ?? 1) && (b.totalStrength ?? 0) >= raidConfig.MIN_RAID_STRENGTH
+      );
+      const raidStats = {
+        eligibleBots: raidEligible.length,
+        onCooldown: raidEligible.filter((b) => {
+          const cd = b.botConfig?.attackCooldown;
+          return cd ? now - new Date(cd).getTime() < 6 * 3_600_000 : false;
+        }).length,
+        botOwnedFactories: all.filter((f) => f.owner && botNames.has(f.owner)).length,
+      };
+
+      const ownedRows = all.filter((f) => f.owner);
+      const ownership = Object.entries(
+        ownedRows.reduce<Record<string, number>>((acc, f) => {
+          acc[f.owner!] = (acc[f.owner!] ?? 0) + 1;
+          return acc;
+        }, {})
+      ).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([owner, count]) => ({ owner, count }));
+
       return NextResponse.json({
         success: true,
         data: {
@@ -63,6 +104,14 @@ export const GET = withRequestLogging(
               Object.entries(distribution).sort((a, b) => Number(a[0]) - Number(b[0]))
             ),
           },
+          // FID-074 additions:
+          curves: {
+            maxLevel: FACTORY_UPGRADE.MAX_LEVEL,
+            costMultiplier: FACTORY_UPGRADE.COST_MULTIPLIER,
+            table: curveTable,
+          },
+          raids: { config: raidConfig, stats: raidStats },
+          ownership,
         },
       });
     } catch (error) {
