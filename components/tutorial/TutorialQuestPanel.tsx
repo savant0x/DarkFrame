@@ -32,6 +32,7 @@ import { X, ChevronDown, ChevronUp, Trophy, Gift, CheckCircle2, Target, MapPin }
 import confetti from 'canvas-confetti';
 import type { TutorialQuest, TutorialStep, TutorialProgress } from '@/types/tutorial.types';
 import { parseDetailedHelp } from '@/lib/tutorialHelpParser';
+import { getTutorialPollInterval } from '@/lib/tutorialPollCadence';
 import { logger } from '@/lib/logger';
 
 interface TutorialQuestPanelProps {
@@ -79,6 +80,10 @@ export default function TutorialQuestPanel({
   const [isProcessingDecline, setIsProcessingDecline] = useState(false); // Processing decline request
   const previousStepRef = useRef<string | null>(null);
   const previousQuestRef = useRef<string | null>(null);
+  // FID-20260911-053: the poll loop reads the current step through a ref so
+  // cadence changes never resubscribe the effect (which would drop in-flight
+  // poll timing for no benefit).
+  const stepRef = useRef<TutorialStep | null>(null);
   // REMOVED: Client-side auto-complete timer (now handled server-side)
   // const autoCompleteTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -176,6 +181,7 @@ export default function TutorialQuestPanel({
 
         setCurrentQuest(data.quest);
         setCurrentStep(data.step);
+        stepRef.current = data.step;
         setProgress(data.progress);
 
         // Parse action progress from validation data
@@ -210,6 +216,7 @@ export default function TutorialQuestPanel({
         }
         previousStepRef.current = null;
         previousQuestRef.current = null;
+        stepRef.current = null;
       }
 
       setIsLoading(false);
@@ -239,7 +246,15 @@ export default function TutorialQuestPanel({
       if (cancelled) return;
       const ok = await loadQuestData();
       if (cancelled) return;
-      delay = ok ? 3000 : Math.min(delay * 2, MAX_DELAY); // 3s steady cadence, backoff to 5s on errors
+      // FID-20260911-053: cadence adapts to the step on screen — 3s while a
+      // gameplay action can complete server-side at any moment (the poll is
+      // the completion display), delayed cadence for READ_INFO windows where
+      // the server auto-completes after 4–7s and earlier polls are waste.
+      // Backoff on errors is unchanged. stepRef avoids effect resubscription
+      // on every step transition.
+      delay = ok
+        ? getTutorialPollInterval(stepRef.current)
+        : Math.min(delay * 2, MAX_DELAY);
       timer = setTimeout(tick, delay);
     };
 
