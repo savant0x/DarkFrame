@@ -1,0 +1,14 @@
+# CODEOWNERS — FID-20260911-052
+#
+# Every path is owned by the repo owner. With branch protection requiring
+# review + the attribution-guard `scan` check, changes to the guard itself
+# (.githooks/, .github/workflows/attribution-guard.yml) can never land
+# silently: they arrive by PR, get scanned, and render an owner diff.
+
+# Default owner for everything
+* @savant0x
+
+# Attribution-critical surfaces (explicit, for auditability)
+/.githooks/ @savant0x
+/.github/workflows/attribution-guard.yml @savant0x
+/scripts/ensure-hooks.js @savant0x
