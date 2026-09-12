@@ -116,6 +116,9 @@ export default function UnitFactoryPage() {
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [message, setMessage] = useState('');
+  // FID-20260912-075: real load-failure reason from the server (bearer
+  // restriction, 401, etc.) instead of a generic telemetry-unavailable note.
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [chatTab, setChatTab] = useState<'CHAT' | 'DM'>('CHAT');
   const [dmUnreadCount, setDmUnreadCount] = useState(0);
 
@@ -154,21 +157,24 @@ export default function UnitFactoryPage() {
     async function fetchUnits() {
       try {
         const response = await fetch(`/api/player/build-unit?username=${username}`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
 
-        if (data.success) {
-          setUnits(data.units);
-          setPlayerStats(data.playerStats);
-        } else {
-          console.error('API returned error:', data.message || 'Unknown error');
+        // FID-20260912-075: surface the server's actual rejection reason.
+        // The flag-bearer restriction (403) renders as "Bearer restriction" —
+        // not the dead-end "telemetry unavailable" users can't act on.
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data?.success) {
+          const reason = data?.error || data?.message || `HTTP ${response.status}`;
+          console.error('[UnitFactory] Load rejected:', reason);
+          setFetchError(reason);
+          return;
         }
+
+        setUnits(data.units);
+        setPlayerStats(data.playerStats);
       } catch (error) {
         console.error('Failed to fetch units:', error instanceof Error ? error.message : String(error));
+        setFetchError(error instanceof Error ? error.message : 'Network error');
       } finally {
         setLoading(false);
       }
@@ -262,8 +268,18 @@ export default function UnitFactoryPage() {
 
   if (!playerStats) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--nn-void)' }}>
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: 'var(--nn-void)' }}>
         <div className="nn-note">Uplink failed — unit factory telemetry unavailable</div>
+        {fetchError && (
+          <div className="text-sm text-[color:var(--nn-amber)] max-w-md text-center">
+            Reason: {fetchError}
+          </div>
+        )}
+        {fetchError?.toLowerCase().includes('bearer') && (
+          <div className="text-xs text-[color:var(--nn-text-secondary)] max-w-md text-center">
+            The Flag Bearer cannot build units while holding the flag. Drop the flag or wait for it to be captured.
+          </div>
+        )}
       </div>
     );
   }
