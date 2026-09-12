@@ -39,6 +39,8 @@
  *   * Tier 1: 1x army size cap
  *   * Tier 2: 2x army size cap
  *   * Tier 3: 3x army size cap
+ *   * Tiers 4-7: 4x-7x army size cap (FID-20260912-061 R1 — previously
+ *     undefined, fell back to the Tier 1 cap)
  * 
  * DEPENDENCIES:
  * - lib/botService.ts: Bot data management
@@ -95,6 +97,14 @@ const TIER_ARMY_CAPS = {
   1: 20,   // Tier 1: Max 20 units
   2: 40,   // Tier 2: Max 40 units
   3: 60,   // Tier 3: Max 60 units
+  // FID-20260912-061 R1: tiers 4-7 were missing — getMaxArmySize fell back to
+  // the Tier 1 cap (20), so endgame-zone bots (T5-T7, displayed L45-65) were
+  // army-capped BELOW tier-3 mid-game bots once the build cycle ran. Ladder is
+  // 20 × tier, matching the engine header's "tier multiplier" contract.
+  4: 80,   // Tier 4: Max 80 units
+  5: 100,  // Tier 5: Max 100 units
+  6: 120,  // Tier 6: Max 120 units
+  7: 140,  // Tier 7: Max 140 units (280 at legendary 30+ days)
 } as const;
 
 /**
@@ -141,7 +151,7 @@ function getAgeMultiplier(ageDays: number): number {
 /**
  * Get maximum army size for a bot based on tier and age
  */
-function getMaxArmySize(tier: number, ageDays: number): number {
+export function getMaxArmySize(tier: number, ageDays: number): number {
   const baseCap = TIER_ARMY_CAPS[tier as keyof typeof TIER_ARMY_CAPS] || TIER_ARMY_CAPS[1];
   const ageMultiplier = getAgeMultiplier(ageDays);
   return Math.floor(baseCap * ageMultiplier);
