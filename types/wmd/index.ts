@@ -153,6 +153,7 @@ export {
   type ResearchValidation,
   
   // Constants
+  WMD_RESEARCH_TRACK,
   MISSILE_RESEARCH_TRACK,
   DEFENSE_RESEARCH_TRACK,
   INTELLIGENCE_RESEARCH_TRACK,

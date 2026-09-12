@@ -10,16 +10,17 @@
  * 
  * Core features:
  * - Award RP from any source with automatic VIP bonus application
- * - Track daily harvest progress toward 6 milestones (1k/2.5k/5k/10k/15k/22.5k)
+ * - Track daily harvest progress toward 5 census-anchored milestones
+ *   (FID-20260912-058 Milestones v2 — 20%→100% of harvestable tiles)
  * - Reset daily counters on map reset
  * - Query player RP stats and transaction history
  * - Validate and deduct RP for research/purchases
  * 
- * Economy design targets:
- * - Active player: 6,000-7,600 RP/day (full map + activities)
- * - VIP player: 9,000-11,400 RP/day (+50% bonus)
- * - 100k RP features achievable in 8-17 days of active play
- * - Flag research T1-T4 achievable in 1-2 days
+ * Economy design targets (Milestones v2 — anchored to the live tile census):
+ * - Every milestone is reachable by a dedicated human (the old 10k/15k/22.5k
+ *   rungs exceeded the ~5,300 harvests/period physical ceiling)
+ * - Base envelope: 4,300 RP/day full sweep; ×1.5 VIP; ×2 flag-bearer stack
+ *   → 12,900 RP/day best case (sinks sized in FID-20260912-057/058)
  */
 
 import { db } from '@/lib/db';
@@ -115,12 +116,11 @@ export type RPSource =
  * Total for full map completion (22,500 harvests): 7,750 RP (FID-20260906-006 P4)
  */
 export const DAILY_HARVEST_MILESTONES: Record<number, number> = {
-  1000: 500, // 4% of map = 500 RP
-  2500: 750, // 11% of map = 750 RP
-  5000: 1000, // 22% of map = 1,000 RP
-  10000: 1500, // 44% of map = 1,500 RP
-  15000: 1750, // 67% of map = 1,750 RP (was 1,250 — monotonic tail, FID-006 P4)
-  22500: 2500 // 100% completion bonus = 2,500 RP (was 1,000 — full map must dominate, FID-006 P4)
+  1000: 200,  // 20% of harvestable tiles — every active player touches this
+  2000: 300,  // 40% — a focused play session
+  3000: 400,  // 60% — dedicated daily play
+  4000: 500,  // 80% — near-full sweep
+  5000: 750,  // 100% completion bonus — the full-map crown
 };
 
 /**
