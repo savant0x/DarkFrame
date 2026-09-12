@@ -259,12 +259,43 @@ export class AutoFarmEngine {
   }
 
   /**
+   * Fetch the authoritative position from /api/player and adopt it if the
+   * engine's state diverges (FID-20260912-075). Used at start/resume so a
+   * stale persisted engine position can never fight the server.
+   */
+  private async syncPositionFromServer(): Promise<void> {
+    try {
+      const username = localStorage.getItem('darkframe_username');
+      if (!username) return;
+      const res = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
+      const json = await res.json();
+      const serverPos = extractMovePosition(json);
+      if (serverPos) {
+        const cur = this.state.currentPosition;
+        if (serverPos.x !== cur.x || serverPos.y !== cur.y) {
+          console.warn(
+            `[AutoFarm] Syncing engine position (${cur.x}, ${cur.y}) -> server truth (${serverPos.x}, ${serverPos.y})`
+          );
+          this.updateState({ currentPosition: serverPos });
+        }
+      }
+    } catch {
+      // server unreachable — proceed with current state; move verification
+      // will reconcile on the first tile.
+    }
+  }
+
+  /**
    * Start auto-farming from current position
    */
   async start(): Promise<void> {
     if (this.state.status === AutoFarmStatus.ACTIVE) {
       return; // Already running
     }
+
+    // FID-20260912-075: reconcile with the server before computing a single
+    // tile — the engine may hold a stale persisted position after a refresh.
+    await this.syncPositionFromServer();
 
     // Initialize start time
     this.state.startTime = Date.now();
@@ -323,6 +354,10 @@ export class AutoFarmEngine {
     if (this.state.status !== AutoFarmStatus.PAUSED) {
       return;
     }
+
+    // FID-20260912-075: same reconciliation as start() — the player may have
+    // moved manually while paused.
+    await this.syncPositionFromServer();
 
     // Adjust start time to account for pause duration
     if (this.state.startTime && this.state.pausedTime) {
@@ -418,12 +453,9 @@ export class AutoFarmEngine {
    */
   private async processNextTile(): Promise<void> {
     console.log('[AutoFarm] processNextTile called');
-    console.log('[AutoFarm] Current state:', {
-      status: this.state.status,
-      position: this.state.currentPosition,
-      direction: this.state.direction,
-      tilesCompleted: this.state.tilesCompleted
-    });
+    console.log(
+      `[AutoFarm] state: pos=(${this.state.currentPosition.x}, ${this.state.currentPosition.y}) dir=${this.state.direction} tiles=${this.state.tilesCompleted}`
+    );
     
     if (this.state.status !== AutoFarmStatus.ACTIVE) {
       console.log('[AutoFarm] Not active, stopping');
@@ -695,7 +727,12 @@ export class AutoFarmEngine {
       
       const data = await response.json();
       
-      console.log('[AutoFarm] Move API response:', JSON.stringify(data, null, 2));
+      // FID-20260912-075: response bodies are bulky (~1.5 KB each) and this
+      // fires per tile — log a one-line summary instead of the full pretty JSON.
+      const loggedPos = extractMovePosition(data);
+      console.log(
+        `[AutoFarm] Move API success=${data.success} serverPos=${loggedPos ? `(${loggedPos.x}, ${loggedPos.y})` : 'unknown'}`
+      );
       
       if (!data.success) {
         console.error(`[AutoFarm] Move failed: ${data.error || 'Unknown error'}`);
@@ -723,20 +760,35 @@ export class AutoFarmEngine {
         });
         return true;
       } else {
-        // FID-20260912-063: never hard-fail a move on verification drift.
-        // Re-sync from /api/player (authoritative) and accept only if the
-        // server says we are where we intended — self-heals transient
-        // serialization issues instead of stalling the engine with mismatch spam.
+        // FID-20260912-075: on verification mismatch, ADOPT the server's
+        // position. The old behavior only accepted the move when the server
+        // confirmed the exact target, so once engine state diverged from
+        // server truth (tab refresh, manual movement, failed tile elsewhere)
+        // the engine stalled forever: it kept requesting moves toward a stale
+        // target while the player silently walked elsewhere — every request
+        // "succeeded" server-side and moved the character one more tile.
+        // The server is authoritative: record where it says we are, report
+        // the tile as failed, and let processNextTile recalculate from truth.
         console.warn(
           `[AutoFarm] Move verification inconclusive (extracted: ${JSON.stringify(newPos)}); re-syncing position`
         );
+        let serverPos: { x: number; y: number } | null = null;
         try {
           const sync = await fetch(`/api/player?username=${encodeURIComponent(username)}`);
           const syncData = await sync.json();
-          const serverPos = extractMovePosition(syncData);
-          if (serverPos && serverPos.x === position.x && serverPos.y === position.y) {
-            console.log(`[AutoFarm] Position re-sync confirms (${serverPos.x}, ${serverPos.y})`);
-            this.updateState({ currentPosition: position });
+          serverPos = extractMovePosition(syncData);
+        } catch {
+          // fall through with whatever the move response itself reported
+        }
+        if (!serverPos && newPos) serverPos = newPos;
+
+        if (serverPos) {
+          const diverged =
+            serverPos.x !== this.state.currentPosition.x ||
+            serverPos.y !== this.state.currentPosition.y;
+          this.updateState({ currentPosition: serverPos });
+          if (serverPos.x === position.x && serverPos.y === position.y) {
+            // Server says we ARE at the intended tile — treat as success.
             this.emitEvent({
               type: 'move',
               timestamp: Date.now(),
@@ -745,8 +797,11 @@ export class AutoFarmEngine {
             });
             return true;
           }
-        } catch {
-          // fall through to the failure return
+          if (diverged) {
+            console.warn(
+              `[AutoFarm] Engine position diverged from server — adopting server position (${serverPos.x}, ${serverPos.y})`
+            );
+          }
         }
         console.error(`[AutoFarm] Position mismatch: Expected (${position.x}, ${position.y}), got`, newPos);
         return false;

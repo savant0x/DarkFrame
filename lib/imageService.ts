@@ -114,14 +114,20 @@ export async function fetchImageManifest(): Promise<ImageManifest> {
   return manifestPromise;
 }
 
+// FID-20260912-075: terrain directories with no art yet (e.g. factory until
+// the art pass lands) would log this warning for EVERY tile of that type —
+// log once per type instead. The TileRenderer gradient fallback is the
+// designed render for artless terrain.
+const warnedEmptyTerrains = new Set<string>();
+
 /**
  * Get random image for terrain type with consistent selection per tile
- * 
+ *
  * @param terrainType - Terrain directory name (e.g., 'metal', 'banks', 'forest')
  * @param tileX - Tile X coordinate (for seeded randomness)
  * @param tileY - Tile Y coordinate (for seeded randomness)
  * @returns Image path or null if no images available
- * 
+ *
  * @example
  * const imagePath = await getTerrainImage('forest', 100, 200);
  * // Returns: '/assets/tiles/forest/forest-2.jpg' (always same for x=100, y=200)
@@ -140,7 +146,13 @@ export async function getTerrainImage(
   const availableImages: string[] = manifest[normalizedType as keyof ImageManifest] ?? [];
   
   if (availableImages.length === 0) {
-    console.log(`⚠️ No images found for terrain: ${terrainType}`);
+    // FID-20260912-075: artless terrain (factory until the art pass lands)
+    // would log once per TILE — warn once per type. The TileRenderer
+    // gradient fallback is the designed render for artless terrain.
+    if (!warnedEmptyTerrains.has(normalizedType)) {
+      warnedEmptyTerrains.add(normalizedType);
+      console.log(`⚠️ No images found for terrain: ${terrainType} (using color fallback)`);
+    }
     return null;
   }
 

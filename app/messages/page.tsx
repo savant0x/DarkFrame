@@ -334,6 +334,15 @@ function MessagesPageInner() {
   // ============================================================================
 
   /**
+   * FID-20260912-075: receive the inbox's loaded list. The inbox component
+   * owns fetching; without this lift the page's conversations stayed empty
+   * forever and every click failed "Selected conversation not found".
+   */
+  const handleConversationsLoaded = useCallback((loaded: Conversation[]) => {
+    setState(prev => ({ ...prev, conversations: loaded }));
+  }, []);
+
+  /**
    * Handle conversation selection
    * Extracts recipient info and joins conversation room
    */
@@ -407,16 +416,23 @@ function MessagesPageInner() {
     const exists = state.conversations.some(c => c._id.toString() === pendingConv);
     if (exists) {
       handleConversationSelect(pendingConv);
+      router.replace('/messages'); // consume the params — no re-fire loop
     } else {
       // Conversation list hasn't caught up yet — one retry after a beat.
       const t = setTimeout(() => {
         if (state.conversations.some(c => c._id.toString() === pendingConv)) {
           handleConversationSelect(pendingConv);
+          router.replace('/messages');
+        } else {
+          // FID-20260912-075: the conversation no longer exists (deleted
+          // battle-report DM, pruned inbox). Consume the params anyway — a
+          // stale deep link must not re-fire on every inbox state change.
+          console.warn('[Messages] Deep-link conversation not found, clearing:', pendingConv);
+          router.replace('/messages');
         }
       }, 800);
       return () => clearTimeout(t);
     }
-    router.replace('/messages');
   }, [pendingConv, pendingOpen, playerLoading, player, state.conversations, handleConversationSelect, router]);
 
   // ============================================================================
@@ -518,6 +534,7 @@ function MessagesPageInner() {
                 <MessageInbox
                   playerId={currentPlayerId}
                   onConversationSelect={handleConversationSelect}
+                  onConversationsLoaded={handleConversationsLoaded}
                   selectedConversationId={state.selectedConversationId || undefined}
                   className="h-full"
                 />
@@ -559,6 +576,7 @@ function MessagesPageInner() {
                 <MessageInbox
                   playerId={currentPlayerId}
                   onConversationSelect={handleConversationSelect}
+                  onConversationsLoaded={handleConversationsLoaded}
                   selectedConversationId={state.selectedConversationId || undefined}
                   className="h-full"
                 />

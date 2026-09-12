@@ -26,6 +26,11 @@ import type { Conversation, MessageInboxState } from '@/types/messaging.types';
 interface MessageInboxProps {
   playerId: string;
   onConversationSelect: (conversationId: string) => void;
+  // FID-20260912-075: lift the loaded (unfiltered) list to the parent page —
+  // the page's selection handler resolves conversations from ITS state, which
+  // was permanently empty before, so every click logged "not found" and the
+  // thread never opened.
+  onConversationsLoaded?: (conversations: Conversation[]) => void;
   selectedConversationId?: string;
   className?: string;
 }
@@ -33,6 +38,7 @@ interface MessageInboxProps {
 export default function MessageInbox({
   playerId,
   onConversationSelect,
+  onConversationsLoaded,
   selectedConversationId,
   className = '',
 }: MessageInboxProps) {
@@ -67,6 +73,11 @@ export default function MessageInbox({
 
       if (data.success) {
         let conversations = data.conversations;
+
+        // FID-20260912-075: hand the UNFILTERED list to the parent page first —
+        // its selection/deep-link logic resolves conversations from its own
+        // state and must see everything the API returned.
+        onConversationsLoaded?.(data.conversations);
 
         // Apply client-side filters
         if (state.filter === 'pinned') {
@@ -107,7 +118,7 @@ export default function MessageInbox({
         isLoading: false,
       }));
     }
-  }, [playerId, state.filter, state.searchQuery]);
+  }, [playerId, state.filter, state.searchQuery, onConversationsLoaded]);
 
   // Load conversations on mount and when filter/search changes
   useEffect(() => {
