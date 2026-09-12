@@ -392,6 +392,7 @@ export async function runGrowthCycle(): Promise<{
   regenerated: number;
   moved: number;
   unitsBuilt: number;
+  factoryCaptures: number;
   errors: string[];
 }> {
   const db = await connectToDatabase();
@@ -486,12 +487,33 @@ export async function runGrowthCycle(): Promise<{
     }
     
     console.log(`[Growth Cycle] Complete - Processed: ${processed}, Regenerated: ${regenerated}, Moved: ${moved}, Units Built: ${unitsBuilt}`);
-    
+
+    // FID-20260912-073: factory-raid phase — strong bots contest wild
+    // factories (bounded: tier gate, 20%/cycle, ownership cap 2, cooldown).
+    // Runs after movement so bots raid where they ended up.
+    let factoryCaptures = 0;
+    try {
+      const { runBotFactoryRaids } = await import('./botFactoryRaid');
+      const raidOutcome = await runBotFactoryRaids(bots);
+      factoryCaptures = raidOutcome.captures;
+      if (raidOutcome.attempts > 0) {
+        console.log(
+          `[Factory Raids] ${raidOutcome.attempts} attempted, ${raidOutcome.captures} captured` +
+            (raidOutcome.details.length > 0 ? ` — ${raidOutcome.details.join(' | ')}` : '')
+        );
+      }
+    } catch (raidError) {
+      const errorMsg = `Factory raid phase failed: ${raidError}`;
+      console.error(`[Factory Raids] ${errorMsg}`);
+      errors.push(errorMsg);
+    }
+
     return {
       processed,
       regenerated,
       moved,
       unitsBuilt,
+      factoryCaptures,
       errors,
     };
     
@@ -505,6 +527,7 @@ export async function runGrowthCycle(): Promise<{
       regenerated,
       moved,
       unitsBuilt,
+      factoryCaptures: 0,
       errors,
     };
   }

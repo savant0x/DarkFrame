@@ -188,6 +188,13 @@ const PLAYER_DOT_PATH_COLUMNS: Record<string, string> = {
   'gatheringBonus.energyBonus': 'gatheringBonusEnergyBonus',
   'activeBoosts.gatheringBoost': 'activeBoostsGatheringBoost',
   'activeBoosts.expiresAt': 'activeBoostsExpiresAt',
+  // FID-20260912-073: botConfig subfield writes (attackCooldown, lastDefeated)
+  // were silently dropped — the column exists (bot_config jsonb) but dot paths
+  // only resolved for flat-column tables with a `doc` column. Mapped to the
+  // root jsonb column: buildSetPayload's generic jsonb_set fallback (the
+  // numeric-path block) rebinds the whole subfield onto bot_config.
+  'botConfig.attackCooldown': 'botConfig',
+  'botConfig.lastDefeated': 'botConfig',
 };
 
 /**
@@ -747,15 +754,23 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
   }
   // Numeric paths handled above via jsonb arithmetic; string/other dot-path $set values
   // cannot be expressed generically and remain dropped (documented limitation).
+  // FID-20260912-073: Dates too — botConfig.attackCooldown/lastDefeated were
+  // silently dropped (typeof Date !== 'number'), so bot raid/combat cooldowns
+  // never persisted and every bot stayed perpetually off-cooldown.
   for (const [key, value] of Object.entries(update.$set ?? {})) {
-    if (!key.includes('.') || typeof value !== 'number') continue;
+    if (!key.includes('.') || (typeof value !== 'number' && !(value instanceof Date))) continue;
     const [root, ...path] = key.split('.');
     const column = columns[root];
     if (!column) continue;
     // pg text[] binds as an array literal: '{battlesWon}' — JSON.stringify's ["…"] form is
     // rejected ("malformed array literal")
     const pathLiteral = `{${path.join(',')}}`;
-    payload[root] = sql`jsonb_set(coalesce(${column}, '{}'::jsonb), ${pathLiteral}::text[], to_jsonb(${value}))`;
+    // Dates serialize to ISO strings for jsonb storage. A JSON string must be
+    // a QUOTED literal ('"…"') — an unquoted ISO string is invalid JSON, and
+    // to_jsonb(unknown-param) fails PG42804 either way. JSON.stringify the
+    // scalar and cast the resulting text to jsonb.
+    const jsonText = JSON.stringify(value instanceof Date ? value.toISOString() : value);
+    payload[root] = sql`jsonb_set(coalesce(${column}, '{}'::jsonb), ${pathLiteral}::text[], ${jsonText}::jsonb)`;
     hasOps = true;
   }
   return hasOps ? payload : undefined;
