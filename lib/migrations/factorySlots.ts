@@ -43,6 +43,16 @@ export async function runFactorySlotsMigration(): Promise<{
   matched?: number;
   alreadyApplied?: boolean;
 }> {
+  // Self-heal the bookkeeping table (fresh Postgres installs never had it;
+  // a missing table used to abort the whole migration on every boot).
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS "migrations" (
+      "id" varchar(100) PRIMARY KEY,
+      "applied_at" timestamp NOT NULL,
+      "details" jsonb
+    )
+  `);
+
   // Check if migration marker exists
   const existing = await db.select().from(migrations).where(eq(migrations.id, MIGRATION_ID));
   const markerExists = existing.length > 0;
@@ -70,9 +80,10 @@ export async function runFactorySlotsMigration(): Promise<{
     };
   }
 
-  // Update each factory
+  // Update only factories that actually need it (boot runs on every start;
+  // rewriting healthy rows wasted writes and inflated `modified`).
   let modified = 0;
-  for (const factory of allFactories) {
+  for (const factory of needingUpdate) {
     const level = factory.level ?? 1;
     const newSlots = getMaxSlots(level);
     const usedSlots = factory.usedSlots ?? 0;
