@@ -78,12 +78,15 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     // (Postgres-native via lib/flagState — the holder's position lives on their
     // players row; trail entries live in flag_trail. FID-20260905-001 §7.2.)
     try {
-      const { getFlagState, getTrailInfoAt } = await import('@/lib/flagState');
-      const flagState = await getFlagState();
+      // FID-20260911-051: position-only lookup — the tile route previously
+      // used getFlagState(), which also selected the bearer's live trail list
+      // (≤200 rows) it never consumed. Position + point trail check only.
+      const { getFlagBearerPosition, getTrailInfoAt } = await import('@/lib/flagState');
+      const bearerPos = await getFlagBearerPosition();
 
-      if (flagState) {
+      if (bearerPos) {
         // Check if bearer is on this exact tile
-        if (flagState.position.x === x && flagState.position.y === y) {
+        if (bearerPos.x === x && bearerPos.y === y) {
           (tile as { hasFlagBearer?: boolean }).hasFlagBearer = true;
         }
 

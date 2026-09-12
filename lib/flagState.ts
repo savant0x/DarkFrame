@@ -137,6 +137,36 @@ export async function recordTrailStep(username: string, position: { x: number; y
 }
 
 /**
+ * FID-20260911-051 — position-only flag lookup for the hottest read path.
+ *
+ * The tile route needs exactly one fact: is the bearer standing on THIS tile?
+ * getFlagState() answers that but also selects the bearer's live trail list
+ * (up to TRAIL_MAX_ENTRIES rows) — pure waste once per AutoFarm cycle and
+ * once per manual tile view. This reads the flags row + 5 holder columns.
+ */
+export async function getFlagBearerPosition(): Promise<{ x: number; y: number } | null> {
+  const [flagRow] = await db.select({ currentHolder: flags.currentHolder }).from(flags).limit(1);
+  if (!flagRow?.currentHolder) return null;
+
+  const [holderRow] = await db
+    .select({
+      currentPositionX: players.currentPositionX,
+      currentPositionY: players.currentPositionY,
+      baseX: players.baseX,
+      baseY: players.baseY,
+    })
+    .from(players)
+    .where(eq(players.username, flagRow.currentHolder))
+    .limit(1);
+  if (!holderRow) return null;
+
+  return {
+    x: holderRow.currentPositionX ?? holderRow.baseX ?? 1,
+    y: holderRow.currentPositionY ?? holderRow.baseY ?? 1,
+  };
+}
+
+/**
  * Whether the tile at (x, y) is on the current bearer's live trail. Used by the
  * tile route to set hasTrail/trailExpiresAt. Returns null when no flag state.
  *

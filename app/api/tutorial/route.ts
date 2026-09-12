@@ -21,6 +21,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import {
+  isTutorialTerminalCached,
+  markTutorialTerminal,
+  invalidateTutorialTerminal,
+} from '@/lib/tutorialTerminalCache';
 import type { Player } from '@/types/game.types';
 import {
   getCurrentQuestAndStep,
@@ -80,6 +85,20 @@ export async function GET(request: NextRequest) {
     }
     const playerId = authUser.username;
     const checkEligibility = request.nextUrl.searchParams.get('checkEligibility') === 'true';
+
+    // FID-20260911-051: terminal-state gate. A stale tab running pre-fix JS
+    // polls this endpoint every 3s forever after the tutorial ended; the
+    // client-side stop (FID-20260909-037) can't help it. Once a player's
+    // progress is observed terminal, serve the terminal payload from memory
+    // for the TTL window — zero DB reads. Restart invalidates (handleRestart).
+    if (!checkEligibility && isTutorialTerminalCached(playerId)) {
+      return NextResponse.json({
+        shouldShow: false,
+        quest: null,
+        step: null,
+        progress: null,
+      });
+    }
 
     if (!playerId) {
       return NextResponse.json(
@@ -153,6 +172,13 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+    }
+
+    // FID-20260911-051: remember terminal states so future stale-tab polls
+    // short-circuit from memory (the client stops itself on this payload;
+    // pre-fix tabs don't — now they cost nothing either).
+    if (!quest) {
+      markTutorialTerminal(playerId);
     }
 
     return NextResponse.json({
@@ -296,8 +322,15 @@ async function handleSkip(body: SkipBody) {
  */
 async function handleRestart(body: RestartBody) {
   const { playerId } = body;
+  if (!playerId) {
+    return NextResponse.json({ error: 'playerId is required' }, { status: 400 });
+  }
 
   try {
+    // FID-20260911-051: a restart flips terminal → active; drop the pinned
+    // terminal entry so stale-tab polls immediately see the live tutorial.
+    invalidateTutorialTerminal(playerId);
+
     const mongoClient = await clientPromise;
     const db = mongoClient.db('darkframe');
       const progressCollection = db.collection('tutorial_progress');
