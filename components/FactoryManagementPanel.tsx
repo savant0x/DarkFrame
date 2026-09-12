@@ -21,6 +21,7 @@ import { formatFactoryLevel } from '@/lib/factoryUpgradeService';
 import { toast } from '@/lib/toast';
 import { extractApiError } from '@/lib/apiClient';
 import { Factory as FactoryIcon, TrendingUp, Trash2, AlertTriangle, Info, Filter } from 'lucide-react';
+import { useBearerStatus } from '@/hooks/useBearerStatus';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
 interface FactoryData {
@@ -59,6 +60,9 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
   const [batchReleaseMode, setBatchReleaseMode] = useState(false);
   const [slotThreshold, setSlotThreshold] = useState(20);
   const [sortBy, setSortBy] = useState<SortOption>('level');
+  // FID-20260912-077: bearer-aware — factory capture/produce (and now build)
+  // all 403 while holding; upgrades stay allowed.
+  const { isBearer } = useBearerStatus();
 
   const fetchFactories = useCallback(async () => {
     setLoading(true);
@@ -206,6 +210,13 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
               ×
             </button>
           </div>
+          {/* Bearer restriction banner (FID-20260912-077) */}
+          {isBearer && (
+            <div className="mx-5 mt-4 p-3 text-sm rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_18%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)] text-[color:var(--nn-amber)]">
+              🚩 Flag Bearer restriction: producing and building units at your factories is locked while you hold the Flag.
+              Upgrades and slot management stay available.
+            </div>
+          )}
           <div className="px-5 py-4" style={{ borderBottom: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)' }}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="nn-stat" style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}>

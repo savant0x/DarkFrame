@@ -31,6 +31,7 @@
 
 import { useState } from 'react';
 import { BankStorage, Resources } from '@/types';
+import { useBearerStatus } from '@/hooks/useBearerStatus';
 
 import { toast } from '@/lib/toast';
 import { extractApiError } from '@/lib/apiClient';
@@ -96,6 +97,8 @@ export default function BankPanel({
   const [amount, setAmount] = useState('');
   const [resourceType, setResourceType] = useState<ResourceType>('metal');
   const [loading, setLoading] = useState(false);
+  // FID-20260912-077: bearer-aware — bank deposit/withdraw 403 while holding.
+  const { isBearer } = useBearerStatus();
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -315,6 +318,15 @@ export default function BankPanel({
           </button>
         </div>
 
+        {/* Bearer restriction banner (FID-20260912-077) — shown before the
+            player fills a form the server will 403. */}
+        {isBearer && (
+          <div className="mb-4 p-3 text-sm rounded-none bg-[color-mix(in_oklab,var(--nn-amber)_18%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)] text-[color:var(--nn-amber)]">
+            🚩 Flag Bearer restriction: deposits and withdrawals are locked while you hold the Flag.
+            Harvesting still works (at ×2) — drop the Flag to bank again.
+          </div>
+        )}
+
         {/* Balance Overview */}
         <div className="nn-panel"><div className="nn-panel__header"><span className="nn-panel__icon"><Coins className="w-5 h-5" /></span><span className="nn-panel__title">Account Overview</span></div>
         <div className="nn-panel__body">
@@ -500,7 +512,7 @@ export default function BankPanel({
         </div>
 
         {/* Action Button */}
-        <button onClick={handleSubmit} disabled={loading || !isValid} className="nn-btn nn-btn--green w-full">
+        <button onClick={handleSubmit} disabled={loading || !isValid || isBearer} title={isBearer ? 'The Flag Bearer cannot bank while holding' : undefined} className="nn-btn nn-btn--green w-full">
           {loading
             ? 'Processing...'
             : activeTab === 'deposit'

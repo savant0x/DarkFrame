@@ -83,6 +83,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
+import { useBearerStatus } from '@/hooks/useBearerStatus';
 import { BackButton, StatsPanel, ControlsPanel, BattleLogLinks } from '@/components';
 import GameLayout from '@/components/GameLayout';
 import TopNavBar from '@/components/TopNavBar';
@@ -119,6 +120,9 @@ export default function UnitFactoryPage() {
   // FID-20260912-075: real load-failure reason from the server (bearer
   // restriction, 401, etc.) instead of a generic telemetry-unavailable note.
   const [fetchError, setFetchError] = useState<string | null>(null);
+  // FID-20260912-077: bearer-aware build action — the POST 403s while holding;
+  // surface that before submit and show the server's real reason if it fires.
+  const { isBearer } = useBearerStatus();
   const [chatTab, setChatTab] = useState<'CHAT' | 'DM'>('CHAT');
   const [dmUnreadCount, setDmUnreadCount] = useState(0);
 
@@ -248,7 +252,9 @@ export default function UnitFactoryPage() {
           setPlayerStats(unitsData.playerStats);
         }
       } else {
-        setMessage(`❌ ${data.error}`);
+        // FID-20260912-077: both response shapes ({ error }) and the bearer
+        // gate's { message } 403 — prefer whichever carries the reason.
+        setMessage(`❌ ${data.error || data.message || 'Build rejected'}`);
       }
     } catch (error) {
       console.error('Failed to build unit:', error);
@@ -560,7 +566,8 @@ export default function UnitFactoryPage() {
               </button>
               <button
                 onClick={handleBuild}
-                disabled={building}
+                disabled={building || isBearer}
+                title={isBearer ? 'The Flag Bearer cannot build units while holding' : undefined}
                 className="nn-btn nn-btn--primary"
               >
                 {building ? 'Building…' : 'Confirm Build'}
