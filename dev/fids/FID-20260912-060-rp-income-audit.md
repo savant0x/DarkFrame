@@ -102,3 +102,15 @@ recorded) instead of ⚠️.
 
 tsc 0 · eslint 0 · vitest 533 passed / 1 skipped · `npm run build` exit 0.
 No data or balance change shipped in this FID — §5 awaits your call.
+
+---
+
+## 8. Correction (FID-20260912-061)
+
+§2 stated bot levels are "grown over time by `botGrowthManager`" — wrong.
+Bot level is assigned **once at spawn** (zone → tier → fixed level) and never
+written again; the live L5–65 spread is the spawn ladder itself, not growth
+(verified: zero level writes in the growth path; distribution matches the
+spawn ladder exactly). The battle-RP unboundedness finding **stands** — the
+level spread exists at spawn — and B1/B2 are unaffected. Full audit:
+`FID-20260912-061-bot-level-growth-audit.md`.
