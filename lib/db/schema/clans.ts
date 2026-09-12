@@ -59,6 +59,44 @@ export const clans = pgTable('clans', {
 ]);
 
 /**
+ * FID-20260912-076 (War Engine v2): the real war ledger. Wars previously
+ * existed only as WAR_DECLARED entries in mod_log with stub reads; v2 makes
+ * this table the single source of truth for declare -> score -> settle.
+ */
+export const clanWars = pgTable('clan_wars', {
+	warId: varchar('war_id', { length: 80 }).primaryKey(),
+	attackerClanId: varchar('attacker_clan_id', { length: 24 }).notNull(),
+	attackerName: varchar('attacker_name', { length: 30 }).notNull().default(''),
+	attackerTag: varchar('attacker_tag', { length: 6 }).notNull().default(''),
+	defenderClanId: varchar('defender_clan_id', { length: 24 }).notNull(),
+	defenderName: varchar('defender_name', { length: 30 }).notNull().default(''),
+	defenderTag: varchar('defender_tag', { length: 6 }).notNull().default(''),
+	status: varchar('status', { length: 16 }).notNull().default('ACTIVE'), // ACTIVE | ENDED | TRUCE
+	declaredAt: timestamp('declared_at').notNull().defaultNow(),
+	declaredBy: varchar('declared_by', { length: 20 }).notNull().default(''),
+	endedAt: timestamp('ended_at'),
+	endedReason: varchar('ended_reason', { length: 32 }),
+	outcome: varchar('outcome', { length: 16 }), // ATTACKER_WIN | DEFENDER_WIN | TRUCE
+	declarationCost: jsonb('declaration_cost').$type<{ metal: number; energy: number }>().notNull().default({ metal: 0, energy: 0 }),
+	attackerScore: integer('attacker_score').notNull().default(0),
+	defenderScore: integer('defender_score').notNull().default(0),
+	attackerCaptures: integer('attacker_captures').notNull().default(0),
+	defenderCaptures: integer('defender_captures').notNull().default(0),
+	captureDay: varchar('capture_day', { length: 10 }).notNull().default(''),
+	attackerCapturesToday: integer('attacker_captures_today').notNull().default(0),
+	defenderCapturesToday: integer('defender_captures_today').notNull().default(0),
+	attackerTruceProposed: integer('attacker_truce_proposed').notNull().default(0), // pg boolean via smallint
+	defenderTruceProposed: integer('defender_truce_proposed').notNull().default(0),
+	spoils: jsonb('spoils').$type<{ metal: number; energy: number; rp: number } | null>(),
+	createdAt: timestamp('created_at').notNull().defaultNow(),
+	updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => [
+	index('clan_wars_attacker_idx').on(table.attackerClanId, table.status),
+	index('clan_wars_defender_idx').on(table.defenderClanId, table.status),
+	index('clan_wars_status_idx').on(table.status, table.declaredAt),
+]);
+
+/**
  * Bilateral clan relations (FID-20260903-002). Writers canonicalize the pair
  * (lexicographically sorted) so the symmetric lookup in
  * clanConsequencesService matches regardless of argument order.

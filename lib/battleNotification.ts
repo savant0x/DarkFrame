@@ -156,7 +156,13 @@ async function findOrCreateSystemConversation(recipient: string) {
 }
 
 /** Insert the report message and bump the recipient's unread counter. */
-async function deliverReport(conversationId: string, recipient: string, content: string, battleId: string): Promise<void> {
+async function deliverReport(
+  conversationId: string,
+  recipient: string,
+  content: string,
+  battleId: string,
+  systemType: string = 'battle_result'
+): Promise<void> {
   const now = new Date();
   await db.insert(messages).values({
     id: shortId(),
@@ -167,7 +173,7 @@ async function deliverReport(conversationId: string, recipient: string, content:
     contentType: 'system',
     status: 'sent',
     createdAt: now,
-    metadataSystemType: 'battle_result',
+    metadataSystemType: systemType,
     metadataRelatedEntityId: battleId.slice(0, 50),
   });
 
@@ -207,5 +213,27 @@ export async function notifyBattleResult(battleLog: BattleLog): Promise<void> {
     }
   } catch (error) {
     console.error('⚠️ Battle notification failed (non-fatal):', error);
+  }
+}
+
+/**
+ * FID-20260912-076: generic SYSTEM DM for non-battle events (war declared/
+ * settled, captures, truces). Same find-or-create + unread-bump machinery as
+ * battle reports; renders as a styled card via the `war_result` system type.
+ * Non-fatal by contract. Inboxless usernames are filtered internally.
+ */
+export async function notifySystem(
+  recipient: string,
+  content: string,
+  systemType: string,
+  relatedEntityId?: string
+): Promise<void> {
+  try {
+    if (!recipient || recipient === SYSTEM_SENDER || isInboxless(recipient)) return;
+    const conversation = await findOrCreateSystemConversation(recipient);
+    if (!conversation) return;
+    await deliverReport(conversation.id, recipient, content, relatedEntityId ?? 'war', systemType);
+  } catch (error) {
+    console.error(`⚠️ System notification (${systemType}) failed (non-fatal):`, error);
   }
 }

@@ -396,7 +396,8 @@ export default function MessageThread({
                       isOwn ? 'nn-msg--own' : 'nn-msg'
                     }`}
                   >
-                    {message.metadata?.systemType === 'battle_result' ? (
+                    {/* FID-076: war_result rows render the same styled card */}
+                    {message.metadata?.systemType === 'battle_result' || message.metadata?.systemType === 'war_result' ? (
                       <BattleReportCard message={message} />
                     ) : (
                       <p className="text-sm whitespace-pre-wrap break-words text-[color:var(--nn-text-primary)]">
