@@ -99,7 +99,10 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
         x: factory.x || 0,
         y: factory.y || 0,
         ownerUsername: factory.owner || 'Unknown',
-        tier: `tier${factory.level || 1}`,
+        // FID-074: real level (1-10) — the tier1/2/3 field the modal showed was
+        // `tier${level}`, so L4+ factories styled gray and matched no filter.
+        level: factory.level || 1,
+        tier: `tier${Math.min(3, Math.max(1, Math.ceil((factory.level || 1) / 4)))}` as 'tier1' | 'tier2' | 'tier3',
         productionRate,
         lastProduction,
         currentProduction: 0,
