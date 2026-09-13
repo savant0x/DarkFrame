@@ -469,9 +469,10 @@ function MessagesPageInner() {
       className="min-h-screen text-[color:var(--nn-text-primary)]"
       style={{ background: 'var(--nn-void)' }}
     >
-      {/* Header */}
+      {/* Header — FID-093b: full window width (was max-w-7xl, which centered
+          a 1280px island on wide screens and halved the chat). */}
       <div className="nn-surface border-b border-[color:var(--nn-glass-border)] sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="w-full px-4 py-4">
           <div className="flex items-center justify-between">
             {/* Title */}
             <div>
@@ -523,8 +524,8 @@ function MessagesPageInner() {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Main Content — full window width (FID-093b). */}
+      <div className="w-full px-4 py-6">
         <div className="nn-surface overflow-hidden">
           {/* Desktop: Split Pane Layout */}
           {!state.isMobileView && (

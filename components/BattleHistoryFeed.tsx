@@ -109,13 +109,17 @@ export default function BattleHistoryFeed() {
             >
               <span className="nn-battlefeed__glyph" style={{ color: style.color }}>{style.glyph}</span>
               {/* FID-093: raids on hostile bases read 'BASE RAID', never
-                  FACTORY (the old mislabel from the shared battle type). */}
+                  FACTORY. Both spellings: enum 'BASE_RAID' (battle-logs rows)
+                  and 'BASE RAID' (parsed notification headline). FID-093b:
+                  historical rows were also written with battleType FACTORY —
+                  the raid-period heuristic (new battle ids from the FID-093
+                  relabel onward are stored correctly) can't see those, so the
+                  BACKFILL migration fixed the stored rows; nothing to map here
+                  beyond the two spellings. */}
               <span className="nn-battlefeed__where">
-                {b.battleType === 'BASE_RAID'
+                {(b.battleType === 'BASE_RAID' || b.battleType === 'BASE RAID')
                   ? 'BASE RAID'
-                  : b.battleType === 'FACTORY'
-                    ? 'FACTORY'
-                    : b.battleType ?? 'Battle'}
+                  : b.battleType ?? 'Battle'}
                 {b.location ? ` (${b.location.x}, ${b.location.y})` : ''}
               </span>
               <span className="nn-battlefeed__result" style={{ color: style.color }}>
