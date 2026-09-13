@@ -182,15 +182,43 @@ const DEFAULT_CONFIG: BeerBaseConfig = {
  * Get Beer Base configuration — FID-20260906-006a R4: drizzle-native read of the
  * `game_config` row (type='beerBase', jsonb config). Falls back to defaults on any
  * failure so spawn/loot paths never break because of a config read.
+ *
+ * FID-20260912-081: spawnRateMin/Max are healed on read — an AdminView regression
+ * (fixed same-FID) posted the slider values /100, storing 0.05/0.1 where the canon
+ * unit is a percent integer (5/10). getTargetBeerBaseCount divided by 100 again,
+ * computing a target of 1 base and the weekly respawn trimmed the population to it.
+ * Healing on read self-corrects the poisoned row without a data migration; values
+ * ≥ 0 are treated as fractions only when max ≤ 1 (a legit percent config of 0/0 is
+ * a no-op anyway).
  */
+/** Exported for the FID-20260912-081 config-healing tests. */
+export function normalizeSpawnRateConfig(config: Partial<BeerBaseConfig>): Partial<BeerBaseConfig> {
+  const { spawnRateMin, spawnRateMax } = config;
+  if (
+    spawnRateMin !== undefined &&
+    spawnRateMax !== undefined &&
+    spawnRateMin >= 0 &&
+    spawnRateMax <= 1 &&
+    (spawnRateMin > 0 || spawnRateMax > 0)
+  ) {
+    return {
+      ...config,
+      spawnRateMin: Math.min(100, Math.max(0, spawnRateMin * 100)),
+      spawnRateMax: Math.min(100, Math.max(0, spawnRateMax * 100)),
+    };
+  }
+  return config;
+}
+
 export async function getBeerBaseConfig(): Promise<BeerBaseConfig> {
   try {
     const rows = await drizzleDb.select().from(gameConfig).where(eq(gameConfig.type, 'beerBase')).limit(1);
     const config = rows[0]?.config as Partial<BeerBaseConfig> | undefined;
     if (config) {
+      const healed = normalizeSpawnRateConfig(config);
       return {
-        spawnRateMin: config.spawnRateMin ?? DEFAULT_CONFIG.spawnRateMin,
-        spawnRateMax: config.spawnRateMax ?? DEFAULT_CONFIG.spawnRateMax,
+        spawnRateMin: healed.spawnRateMin ?? DEFAULT_CONFIG.spawnRateMin,
+        spawnRateMax: healed.spawnRateMax ?? DEFAULT_CONFIG.spawnRateMax,
         resourceMultiplier: config.resourceMultiplier ?? DEFAULT_CONFIG.resourceMultiplier,
         respawnDay: config.respawnDay ?? DEFAULT_CONFIG.respawnDay,
         respawnHour: config.respawnHour ?? DEFAULT_CONFIG.respawnHour,
