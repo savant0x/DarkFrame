@@ -2473,7 +2473,9 @@ span.nn-panel__icon > svg {
 
 .nn-battle-report {
   width: 100%;
-  max-width: 420px;
+  /* FID-093b: fill the bubble. The 420px cap fought the full-width message
+     bubble and left half the thread empty on wide screens. */
+  max-width: 100%;
   border: 1px solid color-mix(in oklab, var(--nn-cyan) 25%, transparent);
   background: color-mix(in oklab, var(--nn-void) 70%, transparent);
   padding: 0;

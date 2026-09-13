@@ -55,6 +55,29 @@ Base attacks were a fake battle wearing a factory's uniform. The user's report, 
 - Gates: tsc 0 · eslint 0 · vitest **723 passed** (18 new) · build clean.
 - Live: server restarted on the new build; heal reports 0 silent tiles; Admin nav present for `fame`; battle report cards measured full-width in the messages preview.
 
+## Follow-up: FID-093b — old rows still said FACTORY, reports still half-width
+
+Post-merge verification caught two residues:
+
+1. **Stored data, not rendering, was wrong.** The 11 historical battle_logs rows + 9
+   system messages were written before the relabel — labels render from stored
+   values. And the real factory-capture path (`/api/factory/attack`) never writes
+   battle_logs rows at all, so **every** FACTORY row whose defender is a bot base
+   is provably a mislabeled raid. Migration `0033_base_raid_label_backfill`
+   relabels them (`is_bot = 1` OR the bot-name fingerprint — destroyed beer bases
+   have no players row to join, but the compact `b<tier><ts12>` / themed name is
+   unambiguous), rewrites the message headlines, AND the third cache:
+   `conversations.last_message_content` inbox previews. Live result: 18 logs, 9
+   messages, 4 previews relabeled; **0 FACTORY rows or headlines remain**.
+2. **The card had its own cap.** `.nn-battle-report { max-width: 420px }` fought
+   the bubble fix; now `max-width: 100%`. The messages PAGE also centered a
+   `max-w-7xl` (1280px) island — now full window width. Also fixed: the feed
+   matched only `'BASE_RAID'` but parsed headlines say `'BASE RAID'` — both map
+   to the label now.
+
+Tests: `baseRaidLabelBackfill.test.ts` (6) pins the backfill classifiers, the
+feed spelling map, the CSS uncapping, and the page-width contract.
+
 ## Notes for the future
 
 - Historical rows keep `battle_type='FACTORY'` — they render as FACTORY (honest: that's what the code called them then); new raids are BASE_RAID.
