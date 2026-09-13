@@ -91,8 +91,19 @@ function emitTyped<K extends keyof ServerToClientEvents>(
   event: K,
   payload: Parameters<ServerToClientEvents[K]>[0]
 ): void {
-  const emit = io.to(room).emit as (ev: K, payload: Parameters<ServerToClientEvents[K]>[0]) => void;
-  emit(event, payload);
+  // Member-call form is REQUIRED here. The previous version extracted
+  // `.emit` into a variable and invoked it detached — a detached function
+  // call loses `this`, and socket.io's BroadcastOperator.emit reads
+  // `this.adapter`, so EVERY broadcast through this helper died with
+  // "Cannot read properties of undefined (reading 'adapter')" (caught and
+  // logged, so it failed silently: player-online pings, tile updates, clan
+  // and global events never reached anyone). socket.io's overloaded emit
+  // cannot resolve a generic event key, so the operator must be widened to
+  // `any` HERE (single audited line) for the member call to typecheck — the
+  // payload contract is still enforced by this function's own signature, and
+  // every call site stays fully typed.
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  (io.to(room) as any).emit(event, payload);
 }
 
 export async function broadcastToAll<K extends keyof ServerToClientEvents>(
