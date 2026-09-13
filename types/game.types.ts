@@ -460,6 +460,17 @@ export interface Player {
   isBot?: boolean; // Bot player flag (excluded from leaderboards)
   isSpecialBase?: boolean; // Beer Base flag (top-level for easy querying, also in botConfig)
   botConfig?: BotConfig; // Bot-specific configuration (only present if isBot=true)
+  // FID-20260912-078: server-backed AutoFarm run record (replaces localStorage
+  // run persistence). Import-free structural type to avoid a client bundle edge.
+  autofarmRun?: {
+    status: 'ACTIVE' | 'PAUSED';
+    position: { x: number; y: number };
+    currentRow: number;
+    direction: 'forward' | 'backward';
+    tilesCompleted: number;
+    startTime: number;
+    savedAt: number;
+  } | null;
   clanId?: string; // ID of clan player belongs to (Phase 5-8)
   clanName?: string; // Name of player's clan (denormalized for quick access)
   clanRole?: string; // Player's role in clan (LEADER, CO_LEADER, OFFICER, MEMBER, etc.)

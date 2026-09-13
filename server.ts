@@ -165,6 +165,24 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    // FID-20260912-078: ensure players.autofarm_run exists (server-backed
+    // AutoFarm run persistence — replaces localStorage run state).
+    try {
+      console.log('[Server] 🔄 Running AutoFarm Run migration (FID-078)...');
+      await connectToDatabase();
+      const { runAutofarmRunMigration } = await import('./lib/migrations/autofarmRun');
+      const afResult = await runAutofarmRunMigration();
+      console.log('[Server] ✅ AutoFarm Run migration:', afResult.message, {
+        alreadyApplied: afResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  AutoFarm Run migration failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     // Initialize WMD Background Jobs
     try {
       console.log('[Server] 🔄 Starting WMD background jobs...');

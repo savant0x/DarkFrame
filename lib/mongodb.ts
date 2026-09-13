@@ -195,6 +195,10 @@ const PLAYER_DOT_PATH_COLUMNS: Record<string, string> = {
   // numeric-path block) rebinds the whole subfield onto bot_config.
   'botConfig.attackCooldown': 'botConfig',
   'botConfig.lastDefeated': 'botConfig',
+  // FID-20260912-078: AutoFarm run persistence — domain-path updates of the
+  // run record land on the root jsonb column (same rebinding pattern as
+  // botConfig subfields above).
+  'autofarmRun': 'autofarmRun',
 };
 
 /**

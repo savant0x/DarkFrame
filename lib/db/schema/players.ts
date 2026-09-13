@@ -57,6 +57,9 @@ export const players = pgTable('players', {
 	isBot: smallint('is_bot').default(0),
 	isSpecialBase: smallint('is_special_base').default(0),
 	botConfig: jsonb('bot_config').$type<BotConfig | null>(),
+	// FID-20260912-078: server-backed AutoFarm run state (replaces localStorage
+	// run persistence — the divergence class FID-075 fixed can then never recur).
+	autofarmRun: jsonb('autofarm_run').$type<import('@/lib/autoFarmRunService').AutoFarmRunRecord | null>(),
 	clanId: varchar('clan_id', { length: 24 }),
 	clanName: varchar('clan_name', { length: 30 }),
 	clanRole: varchar('clan_role', { length: 20 }),

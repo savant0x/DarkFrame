@@ -81,6 +81,9 @@ const PUBLIC_FIELDS = [
   // STR/DEF server-side and consumed by the military balance row —
   // FID-20260909-025 §4.1)
   'balanceEffects',
+  // FID-20260912-078: server-backed AutoFarm run record — the client's own run
+  // state (used for auto-resume). Own-data only; nothing sensitive.
+  'autofarmRun',
   // presentation / social
   'baseGreeting',
   'achievements',
