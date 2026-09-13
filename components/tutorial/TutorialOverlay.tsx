@@ -32,6 +32,7 @@ import { CircleAlert } from 'lucide-react';
 import type { TutorialQuest, TutorialStep, TutorialProgress, TutorialUIState } from '@/types/tutorial.types';
 import { parseDetailedHelp } from '@/lib/tutorialHelpParser';
 import { logger } from '@/lib/logger';
+import { resolveJoyrideTarget, TUTORIAL_TARGETS, type TutorialTarget } from '@/lib/tutorialSelectors';
 
 interface TutorialOverlayProps {
   playerId: string;
@@ -154,6 +155,63 @@ export default function TutorialOverlay({
   }, [playerId, onSkip]);
 
   /**
+   * Conditional target caveats (FID-20260912-092): steps whose hook only
+   * mounts in certain game states — the probe's info-log matches.
+   */
+  const stepConditional = (step: TutorialStep): TutorialTarget['conditional'] => {
+    if (step.targetElement === TUTORIAL_TARGETS.harvestButton) return 'harvestable-tile';
+    if (step.targetElement === TUTORIAL_TARGETS.attackButton) return 'enemy-base-tile';
+    return undefined;
+  };
+
+  /**
+   * Convert TutorialStep to Joyride Step format
+   */
+  // Stable identity so the loadTutorialState callback can list it as a dep
+  // without re-subscribing effects on every render (react-hooks/exhaustive-deps).
+  const convertToJoyrideStep = useCallback((step: TutorialStep, quest: TutorialQuest): Step => {
+    // FID-20260912-092: dead selectors previously fell through to joyride's
+    // silent body-fallback. resolveJoyrideTarget probes the DOM, logs any
+    // miss loudly, and returns 'body' explicitly when the hook is absent.
+    const target = resolveJoyrideTarget(step.targetElement, stepConditional(step));
+    if (step.targetElement && target === 'body') {
+      logger.warn(`Tutorial target missing in DOM: ${step.targetElement} (step ${step.id}) — centered spotlight`);
+    }
+    return {
+      target,
+      content: (
+        <div className="tutorial-step-content text-left">
+          <div className="quest-title text-sm font-bold text-[color:var(--nn-violet)] mb-1">
+            {quest.title}
+          </div>
+          <h3 className="step-title text-lg font-bold mb-2">{step.title}</h3>
+          <p className="step-instruction text-sm mb-3">{step.instruction}</p>
+          {/* FID-20260909-022: structured help renders as compact sections.
+              The raw template printed here collapsed every newline into a
+              single unbroken wall of text (the reported "breaks out" bug). */}
+          {step.detailedHelp && renderHelpSections(parseDetailedHelp(step.detailedHelp))}
+          {step.reward && (
+            <div className="step-reward text-xs text-[color:var(--nn-green)] mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none">
+              🎁 Reward: {step.reward.displayMessage}
+            </div>
+          )}
+          <div className="step-meta flex justify-between items-center mt-3 text-xs text-[color:var(--nn-text-secondary)]">
+            <span>Difficulty: {step.difficulty}</span>
+            {step.estimatedSeconds && (
+              <span>~{step.estimatedSeconds}s</span>
+            )}
+          </div>
+        </div>
+      ),
+      // FID-20260906-012 P0: joyride 3.x — disableBeacon → skipBeacon, styles are
+      // flat Options (no `options` subgroup), styling moved to Joyride-level `options`.
+      skipBeacon: true,
+      placement: 'auto',
+      spotlightPadding: 10,
+    };
+  }, []); // stepConditional + resolveJoyrideTarget are stable (pure, no deps)
+
+  /**
    * Load initial tutorial state from server
    */
   const loadTutorialState = useCallback(async () => {
@@ -200,7 +258,7 @@ export default function TutorialOverlay({
       console.error('Error loading tutorial state:', error);
       setUiState(prev => ({ ...prev, isLoading: false, isActive: false }));
     }
-  }, [playerId]);
+  }, [playerId, convertToJoyrideStep]);
 
   useEffect(() => {
     if (!isEnabled) {
@@ -210,44 +268,6 @@ export default function TutorialOverlay({
 
     loadTutorialState();
   }, [playerId, isEnabled, loadTutorialState]);
-
-  /**
-   * Convert TutorialStep to Joyride Step format
-   */
-  const convertToJoyrideStep = (step: TutorialStep, quest: TutorialQuest): Step => {
-    return {
-      target: step.targetElement || 'body',
-      content: (
-        <div className="tutorial-step-content text-left">
-          <div className="quest-title text-sm font-bold text-[color:var(--nn-violet)] mb-1">
-            {quest.title}
-          </div>
-          <h3 className="step-title text-lg font-bold mb-2">{step.title}</h3>
-          <p className="step-instruction text-sm mb-3">{step.instruction}</p>
-          {/* FID-20260909-022: structured help renders as compact sections.
-              The raw template printed here collapsed every newline into a
-              single unbroken wall of text (the reported "breaks out" bug). */}
-          {step.detailedHelp && renderHelpSections(parseDetailedHelp(step.detailedHelp))}
-          {step.reward && (
-            <div className="step-reward text-xs text-[color:var(--nn-green)] mt-2 p-2 bg-[color-mix(in_oklab,var(--nn-green)_22%,transparent)] rounded-none">
-              🎁 Reward: {step.reward.displayMessage}
-            </div>
-          )}
-          <div className="step-meta flex justify-between items-center mt-3 text-xs text-[color:var(--nn-text-secondary)]">
-            <span>Difficulty: {step.difficulty}</span>
-            {step.estimatedSeconds && (
-              <span>~{step.estimatedSeconds}s</span>
-            )}
-          </div>
-        </div>
-      ),
-      // FID-20260906-012 P0: joyride 3.x — disableBeacon → skipBeacon, styles are
-      // flat Options (no `options` subgroup), styling moved to Joyride-level `options`.
-      skipBeacon: true,
-      placement: 'auto',
-      spotlightPadding: 10,
-    };
-  };
 
   /**
    * Calculate overall tutorial progress percentage
