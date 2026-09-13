@@ -147,6 +147,27 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    // FID-20260912-086: recompute botConfig.tier onto the canonical signals
+    // (beer bases ← rank, bosses ← 7, regular bots ← level bracket). Heals the
+    // stale beer-base rows whose tier stayed at the zone roll; drift-guarded
+    // after (re-run is free when healthy).
+    try {
+      console.log('[Server] 🔄 Running Bot Tier Resync migration (FID-086)...');
+      await connectToDatabase();
+      const { runBotTierResyncMigration } = await import('./lib/migrations/botTierResync');
+      const tierResult = await runBotTierResyncMigration();
+      console.log('[Server] ✅ Bot Tier Resync:', tierResult.message, {
+        modified: tierResult.modified,
+        alreadyApplied: tierResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Bot Tier Resync failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     // FID-20260912-076: ensure the clan_wars table exists (War Engine v2
     // ledger — wars previously lived only in mod_log with stub reads).
     try {

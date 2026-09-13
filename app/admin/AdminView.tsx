@@ -76,6 +76,40 @@ interface PlayerListItem {
   armySize?: number;
 }
 
+/**
+ * FID-20260912-086: tier gradient chip — T1 (green) through T7 (red), so the
+ * registry shows the power gradient for every bot at a glance. Colors follow
+ * the threat ramp used elsewhere (scanner, WMD): cool → hot as tier rises.
+ */
+const TIER_CHIP_COLORS: Record<number, string> = {
+  1: 'var(--nn-green)',
+  2: 'var(--nn-cyan)',
+  3: 'var(--nn-violet)',
+  4: 'var(--nn-amber)',
+  5: '#ff9f43',
+  6: 'var(--nn-magenta)',
+  7: 'var(--nn-red, #ff4757)',
+};
+
+function TierChip({ tier }: { tier: number }) {
+  const color = TIER_CHIP_COLORS[tier] ?? 'var(--nn-text-secondary)';
+  return (
+    <span
+      className="nn-lab ml-2"
+      style={{
+        marginBottom: 0,
+        color,
+        borderColor: color,
+        fontSize: '0.65rem',
+        padding: '0 4px',
+      }}
+      title={`Power tier ${tier}`}
+    >
+      T{tier}
+    </span>
+  );
+}
+
 interface AdminPageProps {
   embedded?: boolean; // When true, hides router-based navigation elements
 }
@@ -1372,7 +1406,7 @@ By Specialization:
                           {p.isBeerBase
                             ? `BEER BASE${p.botTier ? ` · T${p.botTier}` : ''}`
                             : p.isBot
-                              ? `Bot${p.specialization ? ` · ${p.specialization}` : ''}`
+                              ? <>Bot{p.specialization ? ` · ${p.specialization}` : ''}{p.botTier != null && <TierChip tier={p.botTier} />}</>
                               : 'Player'}
                         </td>
                         <td className="nn-table__num text-[color:var(--nn-amber)]">{p.level}</td>
