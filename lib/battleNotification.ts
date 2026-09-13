@@ -63,13 +63,17 @@ export function formatBattleResultMessage(battleLog: BattleLog, viewerIsAttacker
   const lines: string[] = [];
 
   // Headline — from the viewer's perspective.
+  // FID-20260912-093: base raids read 'BASE RAID', not the raw enum value.
+  // (Was: raw battleType → BASE_RAID; before that the raid was mislabeled
+  // FACTORY end to end.)
+  const typeLabel = battleLog.battleType === 'BASE_RAID' ? 'BASE RAID' : battleLog.battleType;
   const youWon = viewerIsAttacker ? attackerWon : !attackerWinForDefender(draw, attackerWon);
   if (draw) {
-    lines.push(`⚔️ BATTLE REPORT — ${battleLog.battleType} at ${formatLocation(battleLog)} — DRAW`);
+    lines.push(`⚔️ BATTLE REPORT — ${typeLabel} at ${formatLocation(battleLog)} — DRAW`);
   } else if (youWon) {
-    lines.push(`⚔️ BATTLE REPORT — ${battleLog.battleType} at ${formatLocation(battleLog)} — VICTORY`);
+    lines.push(`⚔️ BATTLE REPORT — ${typeLabel} at ${formatLocation(battleLog)} — VICTORY`);
   } else {
-    lines.push(`⚔️ BATTLE REPORT — ${battleLog.battleType} at ${formatLocation(battleLog)} — DEFEAT`);
+    lines.push(`⚔️ BATTLE REPORT — ${typeLabel} at ${formatLocation(battleLog)} — DEFEAT`);
   }
   lines.push(`🗓 ${new Date(battleLog.timestamp).toLocaleString()} · Battle ID ${battleLog.battleId.slice(0, 12)} · ${battleLog.totalRounds} round${battleLog.totalRounds === 1 ? '' : 's'}`);
   lines.push('');

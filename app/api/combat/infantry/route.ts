@@ -74,6 +74,25 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
+    // FID-20260912-093: the Flag Bearer cannot INITIATE an attack on another
+    // player — the doc's §5.5 restricted list covers economy; the flag design
+    // keeps the bearer defenseless-by-choice: they may be challenged, but the
+    // advantage engine (+25% STR/DEF, +100% harvest) is not also a sword.
+    // Defense battles resolve through the challenge/steal channel instead.
+    try {
+      const { getFlagHolderState } = await import('@/lib/flagBonusService');
+      const flagState = await getFlagHolderState();
+      if (flagState.currentHolder === attackerId) {
+        log.debug('Flag bearer PvP attack blocked', { attacker: attackerId, target: validated.targetUsername });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          message: 'You hold the Flag — attacking other players is disabled while bearing it. Defend against challenges instead.'
+        });
+      }
+    } catch (flagError) {
+      // Never block combat because the flag check failed.
+      log.warn('Flag bearer check failed (non-fatal)', flagError as Error);
+    }
+
     // Presence: PvP requires standing on the defender's tile. Both positions
     // come from the DB — the client cannot claim a location.
     const [defenderRow] = await db

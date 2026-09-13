@@ -1233,24 +1233,47 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             <span className="nn-deck__meta">DMG ▸ {attackResult.damageDealt ?? 0}</span>
           </div>
 
-          {/* Power Comparison — centered readout row */}
+          {/* Power Comparison — centered readout row. FID-093: the label
+              follows the fight — enemy-base tiles are a RAID vs GARRISON,
+              factory tiles keep FACTORY DEFENSE. */}
           <div className="nn-deck__body">
             <div className="nn-deck__stats">
               <div className="nn-well p-2">
-                <span className="nn-lab">Your power</span>
+                <span className="nn-lab">Damage dealt</span>
                 <div className="nn-num text-[color:var(--nn-cyan)]">{attackResult.playerPower.toLocaleString()}</div>
               </div>
               <div className="nn-well p-2">
-                <span className="nn-lab">Factory defense</span>
+                <span className="nn-lab">{isEnemyBase ? 'Garrison damage' : 'Factory defense'}</span>
                 <div className="nn-num text-[color:var(--nn-magenta)]">{attackResult.factoryDefense.toLocaleString()}</div>
               </div>
             </div>
+            {/* FID-093: the real battle line — who died, on both sides. */}
+            {(attackResult.attackerUnitsLost !== undefined || attackResult.defenderUnitsLost !== undefined) && (
+              <div className="nn-deck__stats" style={{ marginTop: 8 }}>
+                <div className="nn-well p-2">
+                  <span className="nn-lab">Your losses</span>
+                  <div className="nn-num text-[color:var(--nn-magenta)]">{attackResult.attackerUnitsLost ?? 0}</div>
+                </div>
+                <div className="nn-well p-2">
+                  <span className="nn-lab">Enemy losses</span>
+                  <div className="nn-num text-[color:var(--nn-green)]">{attackResult.defenderUnitsLost ?? 0}</div>
+                </div>
+              </div>
+            )}
+            {isEnemyBase && (attackResult.lootMetal || attackResult.lootEnergy) ? (
+              <p className="nn-deck__foot" style={{ color: 'var(--nn-green)', marginTop: 8 }}>
+                LOOT: {[
+                  attackResult.lootMetal ? `${attackResult.lootMetal.toLocaleString()} metal` : null,
+                  attackResult.lootEnergy ? `${attackResult.lootEnergy.toLocaleString()} energy` : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            ) : null}
           </div>
 
           <div className="nn-deck__body" style={{ paddingTop: 0 }}>
             {attackResult.captured && (
               <p className="nn-deck__foot" style={{ color: 'var(--nn-green)' }}>
-                FACTORY NOW UNDER YOUR CONTROL
+                {isEnemyBase ? 'BASE DEFEATED — LOOT SECURED' : 'FACTORY NOW UNDER YOUR CONTROL'}
               </p>
             )}
             {attackResult.damageDealt && attackResult.damageDealt > 0 && !attackResult.captured && (

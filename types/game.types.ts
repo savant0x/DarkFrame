@@ -2025,6 +2025,11 @@ export interface AttackResult {
   xpAwarded?: number;
   levelUp?: boolean;
   newLevel?: number;
+  /** FID-20260912-093: real battle fidelity for the base-raid readout. */
+  attackerUnitsLost?: number;
+  defenderUnitsLost?: number;
+  lootMetal?: number;
+  lootEnergy?: number;
 }
 
 /**
@@ -2061,7 +2066,15 @@ export interface BankTransaction {
 export enum BattleType {
   Infantry = 'INFANTRY',   // Player vs Player direct combat
   Base = 'BASE',           // Attack enemy home base
-  Factory = 'FACTORY'      // Factory ownership battle
+  Factory = 'FACTORY',     // Factory ownership battle
+  /**
+   * FID-20260912-093: raid on a hostile BOT base (Beer Base / regular bot).
+   * Previously routed through Factory — every notification, feed row, and
+   * log headline mislabeled base hits as FACTORY. Distinct value so the
+   * whole pipeline (headline, Recent Raids, battle-logs page) can label
+   * them honestly.
+   */
+  BaseRaid = 'BASE_RAID'   // Raid on a hostile bot base (Beer Base / bot)
 }
 
 /**
@@ -2091,6 +2104,13 @@ export interface BattleParticipant {
   endingHP: number;      // Alias for finalHP
   damageDealt: number;   // Total damage dealt to opponent
   xpEarned: number;      // XP earned from battle
+  /**
+   * FID-20260912-093: casualties per unit type (e.g. { T2_Grenadier: 6 }).
+   * The log previously carried only the TOTAL unitsLost — a mixed army's
+   * losses couldn't be decremented faithfully. Optional: historical rows
+   * lack it; resolveBattle now stamps it on every participant.
+   */
+  casualtiesByType?: Partial<Record<UnitType, number>>;
 }
 
 /**

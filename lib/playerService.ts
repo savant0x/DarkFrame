@@ -259,6 +259,11 @@ export async function getPlayerSlim(username: string): Promise<SanitizedPlayer |
         gatheringBonusEnergyBonus: players.gatheringBonusEnergyBonus,
         totalStrength: players.totalStrength,
         totalDefense: players.totalDefense,
+        // FID-20260912-093: the slim projection hardcoded isAdmin:false — the
+        // TopNavBar Admin item vanished for real admins the moment moves
+        // switched to the slim read (FID-043). isAdmin is not secret (the
+        // full sanitized payload already ships it) and the nav needs it.
+        isAdmin: players.isAdmin,
         currentHP: players.currentHP,
         maxHP: players.maxHP,
         clanId: players.clanId,
@@ -279,7 +284,9 @@ export async function getPlayerSlim(username: string): Promise<SanitizedPlayer |
     // stored lists with empty data on a delta merge.
     const mapped = {
       ...row,
-      isAdmin: false,
+      // FID-20260912-093: isAdmin comes from the row (bit column) — was
+      // hardcoded false, killing the admin nav on the slim path.
+      isAdmin: row.isAdmin === 1,
       isBot: false,
       isSpecialBase: false,
       base: { x: row.baseX, y: row.baseY },

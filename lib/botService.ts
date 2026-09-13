@@ -550,6 +550,10 @@ function zoneBounds(zone: number): { minX: number; maxX: number; minY: number; m
 export async function claimBotBaseTile(options: {
   zone: number | null;
   ownerUsername: string;
+  /** FID-093: beer-base flag drives the greeting voice. */
+  isBeerBase?: boolean;
+  /** FID-093: specialization picks the warband chatter pool. */
+  specialization?: string;
 }): Promise<ClaimedBaseTile> {
   const maxAttempts = 5;
   let lastError = 'no legal tile found';
@@ -587,9 +591,16 @@ export async function claimBotBaseTile(options: {
     }
 
     // Race-safe claim: lands only while the tile is still unclaimed.
+    // FID-20260912-093: every claimed base tile gets a randomized greeting
+    // (beer-base voice for specials, specialist warband chatter otherwise).
+    const { generateBaseGreeting } = await import('./baseGreetings');
+    const greeting = generateBaseGreeting({
+      isBeerBase: options.isBeerBase ?? false,
+      specialization: options.specialization ?? null,
+    });
     const claimed = await db
       .update(tiles)
-      .set({ occupiedByBase: 1, baseOwner: options.ownerUsername })
+      .set({ occupiedByBase: 1, baseOwner: options.ownerUsername, baseGreeting: greeting })
       .where(and(eq(tiles.x, candidate.x), eq(tiles.y, candidate.y), isNull(tiles.occupiedByBase)))
       .returning({ x: tiles.x });
 
@@ -647,7 +658,14 @@ export async function createBotPlayer(
   // Wasteland ∧ unoccupied ∧ zone sector ∧ tile claim. The username must be
   // generated first so the tile is attributed to the actual bot.
   const botName = generateBotName();
-  const claimed = await claimBotBaseTile({ zone: targetZone, ownerUsername: botName });
+  // FID-093: pass the beer flag + specialization through so the tile greeting
+  // gets the right voice at claim time.
+  const claimed = await claimBotBaseTile({
+    zone: targetZone,
+    ownerUsername: botName,
+    isBeerBase: isSpecial,
+    specialization: botSpec,
+  });
   const position: Position = { x: claimed.x, y: claimed.y };
   const resourceRange = getResourceRange(botSpec, botTier);
   const baseResources = Math.floor(Math.random() * (resourceRange.max - resourceRange.min + 1)) + resourceRange.min;
