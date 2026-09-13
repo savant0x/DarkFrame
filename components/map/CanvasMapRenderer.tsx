@@ -21,6 +21,7 @@
 import { useEffect, useRef, useMemo } from 'react';
 import { MAP_CONFIG } from '@/types';
 import { TERRAIN_PALETTE, MAP_MARKERS, LABEL_BG, tierColor, tileJitter, shadeHex } from '@/lib/mapPalette';
+import { tileShade } from '@/lib/mapElevation';
 import { worldToScreen, type Camera } from '@/lib/mapCamera';
 import { logger } from '@/lib/logger';
 
@@ -106,7 +107,9 @@ export function CanvasMapRenderer({
       for (let i = 0; i < coords.length; i += 2) {
         const tx = coords[i];
         const ty = coords[i + 1];
-        octx.fillStyle = shadeHex(entry.base, tileJitter(tx, ty));
+        // FID-088: hillshade × jitter — one combined lightness factor.
+        const light = tileShade(tx, ty, terrain) * tileJitter(tx, ty);
+        octx.fillStyle = shadeHex(entry.base, light);
         octx.fillRect((tx - 1) * BASE_PX, (ty - 1) * BASE_PX, BASE_PX, BASE_PX);
         // Specials get a bright core dot at cache resolution.
         if (entry.accent) {
@@ -173,7 +176,10 @@ export function CanvasMapRenderer({
         for (let tx = tx0; tx <= tx1; tx++) {
           const tile = mapData[ty - 1]?.[tx - 1];
           const entry = tile ? TERRAIN_PALETTE[tile.terrain as keyof typeof TERRAIN_PALETTE] : undefined;
-          ctx.fillStyle = entry ? shadeHex(entry.base, tileJitter(tx, ty)) : '#07080d';
+          // FID-088: same shade decision as the cache path — identical pixels.
+          ctx.fillStyle = entry
+            ? shadeHex(entry.base, tileShade(tx, ty, tile.terrain) * tileJitter(tx, ty))
+            : '#07080d';
           const p = worldToScreen(c, tx - 1, ty - 1, W, H);
           const size = s + 0.5; // overlap to hide seams
           ctx.fillRect(p.x, p.y, size, size);

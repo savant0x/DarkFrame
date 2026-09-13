@@ -80,6 +80,22 @@ viewport rectangle, player dot, flag dot; click-to-jump. Toggleable.
 Fog of war, live other-player movement, PixiJS/WebGL. These are additive layers on the new
 camera/render pipeline and stay parked in dev/planned.md.
 
+## Elevation + hillshading (FID-20260912-088)
+
+Terrain depth without art assets: a two-octave value-noise height field
+(lib/mapElevation.ts) shaded with a fixed NW sun — the cartographic convention.
+
+- **Pure + deterministic**: every tile's shade is a pure function of (x, y, terrain);
+  the cached layer and the culled direct-draw path cannot disagree.
+- **One decision function**: `tileShade(x, y, terrain)` → lightness factor, consumed by
+  BOTH terrain paths, multiplied with the existing per-tile jitter.
+- **Contrast rules**: resource land shades the full band (≈0.86×–1.18×); wasteland is
+  tamed 60% toward flat (dead ground reads calm); landmark specials (Bank/Shrine/
+  AuctionHouse) are exempt so their glyphs never lurk in shade.
+- **Gradient normalization is probed, not guessed**: RELIEF matches the field's actual
+  max |gradient| (~0.027) so slopes span the full shade ramp; the shade distribution
+  spans ≈0.21–0.79 (p1–p99).
+
 ## Acceptance
 
 - Zoom presets actually change magnification; wheel + drag + keyboard all work; camera
