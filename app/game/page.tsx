@@ -282,6 +282,36 @@ export default function GamePage() {
       });
 
       autoFarmEngineRef.current = engine;
+
+      // FID-20260912-078: auto-resume an interrupted run from the SERVER record.
+      // A refresh used to drop an ACTIVE run silently; now the run record on the
+      // player row survives and we restore it (as PAUSED — the user confirms by
+      // hitting Resume). Stale records (>12h) are ignored and cleared server-side.
+      (async () => {
+        try {
+          const res = await fetch('/api/autofarm/run');
+          const data = await res.json().catch(() => null);
+          const run = data?.run;
+          if (!data?.success || !run) return;
+          const stale = Date.now() - (run.savedAt ?? 0) > 12 * 60 * 60 * 1000;
+          if (stale) {
+            void fetch('/api/autofarm/run', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ run: null }),
+            }).catch(() => undefined);
+            return;
+          }
+          const engineRef = autoFarmEngineRef.current;
+          if (engineRef?.getState().status === AutoFarmStatus.STOPPED && engineRef.adoptPersistedRun(run)) {
+            setAutoFarmLastAction(
+              `⏯️ Auto-Farm run restored at (${run.position.x}, ${run.position.y}) — ${run.tilesCompleted} tiles done. Press Resume.`
+            );
+          }
+        } catch {
+          // No run or server hiccup — fresh start is the correct fallback.
+        }
+      })();
     }
 
     // Load all-time stats from localStorage

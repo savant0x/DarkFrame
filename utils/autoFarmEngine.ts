@@ -218,6 +218,88 @@ export class AutoFarmEngine {
     }
   }
 
+  // ---------------------------------------------------------------
+  // FID-20260912-078: server-backed run persistence.
+  //
+  // The run record (status/position/row/direction/tiles/startTime) lives on
+  // the player's row, written through /api/autofarm/run with session auth.
+  // localStorage is never consulted for RUN state — config and all-time
+  // stats stay local, but the position that must never fight the server now
+  // IS server data. The page auto-resumes an interrupted run from this record.
+
+  private runSaveTimer: NodeJS.Timeout | null = null;
+
+  /** Fire-and-forget write of the current run to the server. */
+  private persistRun(): void {
+    if (this.state.status === AutoFarmStatus.STOPPED) return;
+    void fetch('/api/autofarm/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        run: {
+          status: this.state.status === AutoFarmStatus.ACTIVE ? 'ACTIVE' : 'PAUSED',
+          position: this.state.currentPosition,
+          currentRow: this.state.currentRow,
+          direction: this.state.direction,
+          tilesCompleted: this.state.tilesCompleted,
+          startTime: this.state.startTime ?? Date.now(),
+        },
+      }),
+    }).catch(() => undefined); // best-effort — move verification reconciles anyway
+  }
+
+  /** Throttled persistence: at most one POST per completed tile batch (2s). */
+  private schedulePersist(): void {
+    if (this.runSaveTimer) return;
+    this.runSaveTimer = setTimeout(() => {
+      this.runSaveTimer = null;
+      this.persistRun();
+    }, 2000);
+  }
+
+  /** Clear the persisted run (stop/complete). Fire-and-forget. */
+  private clearPersistedRun(): void {
+    if (this.runSaveTimer) {
+      clearTimeout(this.runSaveTimer);
+      this.runSaveTimer = null;
+    }
+    void fetch('/api/autofarm/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run: null }),
+    }).catch(() => undefined);
+  }
+
+  /**
+   * Adopt a server-persisted run record (page auto-resume). The caller has
+   * already decided staleness; here we only reconcile state and continue the
+   * sweep from the recorded position. Returns false if the phase is wrong.
+   */
+  adoptPersistedRun(
+    run: {
+      status: 'ACTIVE' | 'PAUSED';
+      position: { x: number; y: number };
+      currentRow: number;
+      direction: 'forward' | 'backward';
+      tilesCompleted: number;
+      startTime: number;
+    }
+  ): boolean {
+    if (this.state.status !== AutoFarmStatus.STOPPED) return false;
+    this.state = {
+      ...this.state,
+      currentPosition: { ...run.position },
+      startPosition: { ...run.position },
+      currentRow: run.currentRow,
+      direction: run.direction,
+      tilesCompleted: run.tilesCompleted,
+      startTime: run.startTime,
+      status: run.status === 'ACTIVE' ? AutoFarmStatus.PAUSED : AutoFarmStatus.PAUSED,
+    };
+    this.updateState({}); // notify
+    return true;
+  }
+
   /**
    * Get current configuration
    */
@@ -304,6 +386,9 @@ export class AutoFarmEngine {
       pausedTime: null
     });
 
+    // FID-078: record the run server-side immediately, then keep it fresh.
+    this.persistRun();
+
     this.emitEvent({
       type: 'move',
       timestamp: Date.now(),
@@ -338,6 +423,9 @@ export class AutoFarmEngine {
     }
 
     this.stopStatsTimer();
+
+    // FID-078: persist the PAUSED phase so a refresh can restore it.
+    this.persistRun();
 
     this.emitEvent({
       type: 'move',
@@ -395,6 +483,9 @@ export class AutoFarmEngine {
     }
     
     this.stopStatsTimer();
+
+    // FID-078: a stopped run no longer exists server-side.
+    this.clearPersistedRun();
 
     const finalStats = this.getStats();
 
@@ -470,6 +561,7 @@ export class AutoFarmEngine {
     if (!nextPos) {
       // Completed entire map
       console.log('[AutoFarm] Map completed!');
+      this.clearPersistedRun(); // FID-078: a finished run is not resumable
       this.emitEvent({
         type: 'complete',
         timestamp: Date.now(),
@@ -493,6 +585,8 @@ export class AutoFarmEngine {
         currentPosition: nextPos,
         tilesCompleted: this.state.tilesCompleted + 1
       });
+      // FID-078: keep the server run record in step with the sweep (throttled).
+      this.schedulePersist();
       
       this.updateStats({
         tilesVisited: this.stats.tilesVisited + 1
@@ -1155,6 +1249,10 @@ export class AutoFarmEngine {
    */
   destroy(): void {
     this.stop();
+    if (this.runSaveTimer) {
+      clearTimeout(this.runSaveTimer);
+      this.runSaveTimer = null;
+    }
     this.onEventCallback = null;
     this.onStatsCallback = null;
     this.onStateCallback = null;
