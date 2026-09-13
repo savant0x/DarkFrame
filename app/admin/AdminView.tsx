@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import { extractApiError } from '@/lib/apiClient';
@@ -70,6 +70,10 @@ interface PlayerListItem {
   isBeerBase?: boolean;
   specialization?: string | null;
   botTier?: number | null;
+  // FID-20260912-085: loot drilldown for beer base rows
+  totalStrength?: number;
+  totalDefense?: number;
+  armySize?: number;
 }
 
 interface AdminPageProps {
@@ -500,6 +504,19 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
 
   // Filter players by search term + FID-20260912-084 registry type filter
   const [registryFilter, setRegistryFilter] = useState<'all' | 'players' | 'bots' | 'beer'>('all');
+  // FID-20260912-085: expanded beer-base loot rows (username-keyed)
+  const [lootOpen, setLootOpen] = useState<Set<string>>(new Set());
+  const toggleLoot = (username: string) => {
+    setLootOpen(prev => {
+      const next = new Set(prev);
+      if (next.has(username)) {
+        next.delete(username);
+      } else {
+        next.add(username);
+      }
+      return next;
+    });
+  };
   const filteredPlayers = players.filter(p => {
     const matchesSearch = p.username.toLowerCase().includes(searchTerm.toLowerCase());
     if (!matchesSearch) return false;
@@ -1346,7 +1363,8 @@ By Specialization:
                   </thead>
                   <tbody>
                     {filteredPlayers.map((p) => (
-                      <tr key={p.username} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] transition-colors">
+                      <Fragment key={p.username}>
+                      <tr className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] transition-colors">
                         <td className="font-medium">
                           {p.isBeerBase ? '🍺 ' : p.isBot ? '🤖 ' : ''}{p.username}
                         </td>
@@ -1359,8 +1377,21 @@ By Specialization:
                         </td>
                         <td className="nn-table__num text-[color:var(--nn-amber)]">{p.level}</td>
                         <td className="nn-table__num text-[color:var(--nn-violet)]">{p.rank}</td>
-                        <td className="nn-table__num text-[color:var(--nn-cyan)]">{p.metal.toLocaleString()}</td>
-                        <td className="nn-table__num text-[color:var(--nn-amber)]">{p.energy.toLocaleString()}</td>
+                        {/* FID-20260912-085: beer base loot cells toggle the drilldown */}
+                        <td
+                          className={`nn-table__num text-[color:var(--nn-cyan)] ${p.isBeerBase ? 'cursor-pointer underline decoration-dotted underline-offset-4' : ''}`}
+                          onClick={p.isBeerBase ? () => toggleLoot(p.username) : undefined}
+                          title={p.isBeerBase ? 'Toggle loot breakdown' : undefined}
+                        >
+                          {p.metal.toLocaleString()}
+                        </td>
+                        <td
+                          className={`nn-table__num text-[color:var(--nn-amber)] ${p.isBeerBase ? 'cursor-pointer underline decoration-dotted underline-offset-4' : ''}`}
+                          onClick={p.isBeerBase ? () => toggleLoot(p.username) : undefined}
+                          title={p.isBeerBase ? 'Toggle loot breakdown' : undefined}
+                        >
+                          {p.energy.toLocaleString()}
+                        </td>
                         <td className="nn-table__num text-[color:var(--nn-green)]">{p.baseLocation}</td>
                         <td>
                           <button
@@ -1371,6 +1402,23 @@ By Specialization:
                           </button>
                         </td>
                       </tr>
+                      {p.isBeerBase && lootOpen.has(p.username) && (
+                        <tr key={`${p.username}-loot`}>
+                          <td colSpan={8} className="bg-[color-mix(in_oklab,var(--nn-void)_80%,transparent)] border-l-2 border-[color:var(--nn-amber)]">
+                            <div className="flex flex-wrap gap-x-6 gap-y-1 px-4 py-2 text-xs">
+                              <span className="nn-lab" style={{ marginBottom: 0 }}>🍺 Loot breakdown</span>
+                              <span>Metal <b className="text-[color:var(--nn-cyan)]">{p.metal.toLocaleString()}</b></span>
+                              <span>Energy <b className="text-[color:var(--nn-amber)]">{p.energy.toLocaleString()}</b></span>
+                              <span>Combined <b className="text-[color:var(--nn-green)]">{(p.metal + p.energy).toLocaleString()}</b></span>
+                              <span>STR <b className="text-[color:var(--nn-magenta)]">{formatNumberAbbreviated(p.totalStrength ?? 0)}</b></span>
+                              <span>DEF <b className="text-[color:var(--nn-violet)]">{formatNumberAbbreviated(p.totalDefense ?? 0)}</b></span>
+                              <span>Army <b>{(p.armySize ?? 0).toLocaleString()}</b></span>
+                              <span>Tier <b>{p.botTier ? `T${p.botTier}` : '—'}</b></span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

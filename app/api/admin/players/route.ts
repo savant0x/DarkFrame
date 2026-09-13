@@ -60,6 +60,10 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       isBot: players.isBot,
       isSpecialBase: players.isSpecialBase,
       botConfig: players.botConfig,
+      // FID-20260912-085: loot drilldown for beer base rows
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
+      units: players.units,
     })
       .from(players)
       .orderBy(desc(players.level), asc(players.username));
@@ -76,6 +80,12 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       isBeerBase: p.isSpecialBase === 1 || p.botConfig?.isSpecialBase === true,
       specialization: p.botConfig?.specialization ?? null,
       botTier: p.botConfig?.tier ?? null,
+      totalStrength: p.totalStrength ?? 0,
+      totalDefense: p.totalDefense ?? 0,
+      armySize: (p.units || []).reduce(
+        (sum: number, u: { quantity?: number }) => sum + (u.quantity || 0),
+        0
+      ),
     }));
 
     log.info('Player list retrieved', {
