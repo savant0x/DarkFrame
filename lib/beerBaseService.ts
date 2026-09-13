@@ -1226,6 +1226,16 @@ export async function spawnBeerBase(): Promise<string> {
       break;
   }
   
+  // FID-20260912-086: keep botConfig.tier in sync with the PowerTier that
+  // produced the level/rank above. It previously stayed at createBotPlayer's
+  // zone roll, so an Elite base rolled into a T1 zone read as tier 1 —
+  // raid-exempt, underpaid combat XP, wrong scanner tier. Rank (1..6) is the
+  // PowerTier index (Weak..Legendary); boot migration  // (lib/migrations/botTierResync.ts) derives existing rows from the same
+  // canonical signal.
+  if (bot.botConfig) {
+    bot.botConfig.tier = Math.min(6, Math.max(1, bot.rank ?? 1));
+  }
+  
   // Boost resources based on power tier (Beer Bases are high-value targets)
   const resourceMultipliers: Record<PowerTier, number> = {
     [PowerTier.Weak]: 2,
