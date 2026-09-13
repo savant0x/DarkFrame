@@ -26,6 +26,7 @@ import TileInspectorModal from '@/components/admin/TileInspectorModal';
 import FactoryInspectorModal from '@/components/admin/FactoryInspectorModal';
 import BattleLogsModal from '@/components/admin/BattleLogsModal';
 import AchievementStatsModal from '@/components/admin/AchievementStatsModal';
+import TutorialDiagnosticModal from '@/components/admin/TutorialDiagnosticModal';
 
 // FID-20260909-035: scheduler-health panel, lazy-loaded (opened on demand)
 const JobsStatusModal = lazy(() => import('@/components/admin/JobsStatusModal'));
@@ -280,6 +281,8 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
   const [showFactoryInspector, setShowFactoryInspector] = useState(false);
   const [showBattleLogs, setShowBattleLogs] = useState(false);
   const [showAchievementStats, setShowAchievementStats] = useState(false);
+  // FID-20260912-091: tutorial diagnostic
+  const [showTutorialDiagnostic, setShowTutorialDiagnostic] = useState(false);
   const [showSystemReset, setShowSystemReset] = useState(false);
   const [showWebSocketConsole, setShowWebSocketConsole] = useState(false);
   const [showHotkeyManager, setShowHotkeyManager] = useState(false);
@@ -1763,6 +1766,12 @@ By Specialization:
                   onClick={() => setShowJobsStatus(true)}
                 >
                   Scheduler Health
+                </button>
+                {/* FID-20260912-091: tutorial diagnostic */}
+                <button className="nn-abtn nn-abtn--cyan"
+                  onClick={() => setShowTutorialDiagnostic(true)}
+                >
+                  Tutorial Diagnostic
                 </button>
                 {/* FID-20260912-074: factory economy settings */}
                 <button className="nn-abtn nn-abtn--amber"
@@ -3651,6 +3660,13 @@ By Specialization:
           {showAchievementStats && (
             <AchievementStatsModal
               onClose={() => setShowAchievementStats(false)}
+            />
+          )}
+
+          {/* Tutorial Diagnostic Modal (FID-20260912-091) */}
+          {showTutorialDiagnostic && (
+            <TutorialDiagnosticModal
+              onClose={() => setShowTutorialDiagnostic(false)}
             />
           )}
 
