@@ -185,6 +185,23 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    try {
+      console.log('[Server] 🔄 Running Base Position Resync migration (FID-090)...');
+      await connectToDatabase();
+      const { runBasePositionResyncMigration } = await import('./lib/migrations/basePositionResync');
+      const posResult = await runBasePositionResyncMigration();
+      console.log('[Server] ✅ Base Position Resync:', posResult.message, {
+        modified: posResult.modified,
+        alreadyApplied: posResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Base Position Resync failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     // FID-20260912-076: ensure the clan_wars table exists (War Engine v2
     // ledger — wars previously lived only in mod_log with stub reads).
     try {

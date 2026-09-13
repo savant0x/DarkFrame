@@ -660,14 +660,17 @@ export default function GamePage() {
         return;
       }
 
+      // FID-090: the battle log nests combat stats under attacker/defender —
+      // the flat `battle.attackerDamageDealt` fields never existed, so the
+      // readout rendered all zeros even on real victories.
       setAttackResult({
         success: Boolean(data.success && data.victory) || data.success === true,
         message: data.message ?? 'Attack resolved',
-        playerPower: data.battle?.attackerDamageDealt ?? 0,
-        factoryDefense: data.battle?.defenderDamageDealt ?? 0,
+        playerPower: data.battle?.attacker?.damageDealt ?? 0,
+        factoryDefense: data.battle?.defender?.damageDealt ?? 0,
         captured: Boolean(data.victory),
-        damageDealt: (data.battle?.attackerDamageDealt ?? 0) || undefined,
-        xpAwarded: data.rewards?.experience,
+        damageDealt: (data.battle?.attacker?.damageDealt ?? 0) || undefined,
+        xpAwarded: data.rewards?.experience ?? data.battle?.attacker?.xpEarned,
       });
 
       if (data.victory) {

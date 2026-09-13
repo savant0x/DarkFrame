@@ -105,6 +105,19 @@ export async function GET(request: NextRequest) {
         defenderStrength: row.defenderTotalSTR,
         attackerLosses: row.attackerUnitsLost,
         defenderLosses: row.defenderUnitsLost,
+        // FID-090: full-report fields for click-to-expand detail.
+        battleType: row.battleType,
+        totalRounds: row.totalRounds,
+        attackerHpStart: row.attackerInitialHP,
+        attackerHpEnd: row.attackerFinalHP,
+        defenderHpStart: row.defenderInitialHP,
+        defenderHpEnd: row.defenderFinalHP,
+        attackerDamage: row.attackerDamageDealt,
+        defenderDamage: row.defenderDamageDealt,
+        attackerXp: row.attackerXP ?? row.attackerXpEarned ?? 0,
+        defenderXp: row.defenderXP ?? row.defenderXpEarned ?? 0,
+        attackerUnitsCaptured: row.unitsCapturedAttackerCaptured ?? [],
+        defenderUnitsCaptured: row.unitsCapturedDefenderCaptured ?? [],
       };
     });
 
