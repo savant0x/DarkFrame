@@ -32,10 +32,14 @@ import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 import { logger } from '@/lib/logger';
 import {
   type Camera,
+  type FlyToState,
   zoomAtPoint,
   clampCameraToMap,
   fitScale,
   panByPixels,
+  resolveFlyToTarget,
+  flyToDuration,
+  sampleFlyTo,
 } from '@/lib/mapCamera';
 
 const MAP_TILES = MAP_CONFIG.WIDTH;
@@ -85,19 +89,95 @@ export default function MapPage() {
 
   // --- camera ---------------------------------------------------------------
   const [cam, setCam] = useState<Camera>({ cx: MAP_TILES / 2, cy: MAP_TILES / 2, scale: 4 });
-  // Keep the camera valid when the canvas resizes.
+  // FID-089: animated fly-to state. The flight lives in refs (rAF-owned);
+  // every frame samples the eased camera into `cam`. Any manual input
+  // (drag / wheel / keys / preset / resize) cancels the flight instantly.
+  const flightRef = useRef<FlyToState | null>(null);
+  const flightStartRef = useRef(0);
+  const rafRef = useRef(0);
+  const camRef = useRef(cam);
+  camRef.current = cam;
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
+  const canvasSizeRef = useRef(canvasSize);
+  canvasSizeRef.current = canvasSize;
+
+  const cancelFlight = useCallback(() => {
+    if (flightRef.current) {
+      flightRef.current = null;
+      cancelAnimationFrame(rafRef.current);
+    }
+  }, []);
+
+  useEffect(() => () => cancelFlight(), [cancelFlight]);
+
+  /** Nearest zoom preset for a scale — keeps the sidebar label truthful. */
+  const nearestPreset = useCallback((scale: number): ZoomLevel => {
+    let best: ZoomLevel = 'FullMap';
+    let bestDiff = Infinity;
+    for (const level of Object.keys(ZOOM_MULTIPLIER) as ZoomLevel[]) {
+      const diff = Math.abs(fit * ZOOM_MULTIPLIER[level] - scale);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = level;
+      }
+    }
+    return best;
+  }, [fit]);
+
+  const syncZoomLabel = useCallback((scale: number) => {
+    setZoomLevel(nearestPreset(scale));
+  }, [nearestPreset]);
+
+  /**
+   * Fly the camera to world point (wx, wy): eased pan + geometric zoom
+   * landing at Region scale (never zooming out). Cancels on any input.
+   */
+  const flyTo = useCallback((wx: number, wy: number) => {
+    cancelAnimationFrame(rafRef.current);
+    const start = camRef.current;
+    const { w, h } = canvasSizeRef.current;
+    const to = resolveFlyToTarget(start, wx, wy, w, h, MAP_TILES, fitRef.current, maxScale);
+    flightRef.current = {
+      from: start,
+      to,
+      durationMs: flyToDuration(start, to),
+      elapsedMs: 0,
+    };
+    flightStartRef.current = 0;
+    const tick = (t: number) => {
+      const flight = flightRef.current;
+      if (!flight) return;
+      if (flightStartRef.current === 0) flightStartRef.current = t;
+      const elapsed = t - flightStartRef.current;
+      if (elapsed >= flight.durationMs) {
+        flightRef.current = null;
+        setCam(flight.to);
+        syncZoomLabel(flight.to.scale);
+        return;
+      }
+      setCam(sampleFlyTo({ ...flight, elapsedMs: elapsed }));
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, [maxScale, syncZoomLabel]);
+
+  // Keep the camera valid when the canvas resizes (and end any flight —
+  // its start frame no longer matches the viewport).
   useEffect(() => {
+    cancelFlight();
     setCam(c => clampCameraToMap({ ...c, scale: Math.max(fit, Math.min(maxScale, c.scale)) }, canvasSize.w, canvasSize.h, MAP_TILES));
-  }, [fit, canvasSize, maxScale]);
+  }, [fit, canvasSize, maxScale, cancelFlight]);
 
   const applyZoomPreset = useCallback((level: ZoomLevel) => {
+    cancelFlight();
     setZoomLevel(level);
     setCam(c => {
       const target = Math.min(maxScale, fit * ZOOM_MULTIPLIER[level]);
       const factor = target / c.scale;
       return zoomAtPoint(c, canvasSize.w / 2, canvasSize.h / 2, canvasSize.w, canvasSize.h, factor, fit, maxScale, MAP_TILES);
     });
-  }, [fit, maxScale, canvasSize]);
+  }, [fit, maxScale, canvasSize, cancelFlight]);
 
   // Initial fit once map data + size are known.
   const didFit = useRef(false);
@@ -115,6 +195,7 @@ export default function MapPage() {
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       if (isTypingInInput()) return;
+      cancelFlight();
       const rect = el.getBoundingClientRect();
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
@@ -123,7 +204,7 @@ export default function MapPage() {
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [fit, maxScale]);
+  }, [fit, maxScale, cancelFlight]);
 
   // Drag pan.
   useEffect(() => {
@@ -139,6 +220,7 @@ export default function MapPage() {
     };
     const move = (e: MouseEvent) => {
       if (!dragging) return;
+      cancelFlight();
       const dx = e.clientX - last.x;
       const dy = e.clientY - last.y;
       last = { x: e.clientX, y: e.clientY };
@@ -156,7 +238,7 @@ export default function MapPage() {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
     };
-  }, []);
+  }, [cancelFlight]);
 
   // Suppress click-select after a drag.
   const dragMoved = useRef(0);
@@ -182,6 +264,7 @@ export default function MapPage() {
       if (isTypingInInput()) return;
       const stepTiles = 3;
       const set = (dx: number, dy: number) => {
+        cancelFlight();
         setCam(c => clampCameraToMap(panByPixels(c, dx * c.scale, dy * c.scale), canvasSize.w, canvasSize.h, MAP_TILES));
         e.preventDefault();
       };
@@ -191,17 +274,17 @@ export default function MapPage() {
         case 'ArrowLeft': case 'a': case 'A': set(-stepTiles, 0); break;
         case 'ArrowRight': case 'd': case 'D': set(stepTiles, 0); break;
         case 'Home': case 'h': case 'H':
-          setCam(clampCameraToMap(
-            { cx: playerPosition.x - 0.5, cy: playerPosition.y - 0.5, scale: Math.max(fit * 2, 4) },
-            canvasSize.w, canvasSize.h, MAP_TILES
-          ));
+          // FID-089: recenter is now a warp, not a snap.
+          flyTo(playerPosition.x - 0.5, playerPosition.y - 0.5);
           e.preventDefault();
           break;
         case '+': case '=':
+          cancelFlight();
           setCam(c => zoomAtPoint(c, canvasSize.w / 2, canvasSize.h / 2, canvasSize.w, canvasSize.h, 1.25, fit, maxScale, MAP_TILES));
           e.preventDefault();
           break;
         case '-': case '_':
+          cancelFlight();
           setCam(c => zoomAtPoint(c, canvasSize.w / 2, canvasSize.h / 2, canvasSize.w, canvasSize.h, 1 / 1.25, fit, maxScale, MAP_TILES));
           e.preventDefault();
           break;
@@ -209,7 +292,7 @@ export default function MapPage() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playerPosition, canvasSize, fit, maxScale]);
+  }, [playerPosition, canvasSize, fit, maxScale, cancelFlight, flyTo]);
 
   // --- data: terrain ---------------------------------------------------------
   useEffect(() => {
@@ -299,13 +382,18 @@ export default function MapPage() {
 
   const onTerrainReady = useCallback((thumb: HTMLCanvasElement) => setMinimap(thumb), []);
 
-  /** Minimap click → jump camera. */
+  /** Minimap click → animated warp to the clicked world point (FID-089). */
   const jumpFromMinimap = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const wx = ((e.clientX - rect.left) / rect.width) * MAP_TILES;
     const wy = ((e.clientY - rect.top) / rect.height) * MAP_TILES;
-    setCam(c => clampCameraToMap({ ...c, cx: wx, cy: wy }, canvasSize.w, canvasSize.h, MAP_TILES));
+    flyTo(wx, wy);
   };
+
+  /** Double-click a tile → warp there (FID-089). */
+  const handleTileDoubleClick = useCallback((x: number, y: number) => {
+    flyTo(x - 0.5, y - 0.5);
+  }, [flyTo]);
 
   /** Viewport rect on the minimap (tile coords, continuous). */
   const minimapViewport = useMemo(() => {
@@ -434,7 +522,8 @@ export default function MapPage() {
               <ul className="space-y-1 text-[color:var(--nn-text-primary)]">
                 <li>Drag / Arrows / WASD: Pan</li>
                 <li>Wheel or +/-: Zoom at cursor</li>
-                <li>Home / H: Center on player</li>
+                <li>Double-click / Minimap: Warp</li>
+                <li>Home / H: Fly to player</li>
                 <li>Click Tile: Select</li>
               </ul>
             </div>
@@ -462,6 +551,7 @@ export default function MapPage() {
                 hoveredTile={hoveredTile}
                 onTileClick={handleTileClick}
                 onTileHover={setHoveredTile}
+                onTileDoubleClick={handleTileDoubleClick}
                 onTerrainReady={onTerrainReady}
               />
 
