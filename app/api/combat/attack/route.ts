@@ -25,6 +25,7 @@ import {
 } from '@/lib';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { verifyPresence } from '@/lib/presenceCheck';
+import { resolveBaseTilePosition } from '@/lib/baseTilePosition';
 import { logAttack } from '@/lib/activityLogger';
 import { resolveBattle, persistBattleLog } from '@/lib/battleService';
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
@@ -133,13 +134,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target is not a hostile base' });
     }
 
+    // FID-090: the base's location is its TILE (tiles.base_owner) — the thing
+    // the player sees on the map and walks to. The players row's currentPosition
+    // is bot-agent state that drifts; verifying against it 403s attacks from the
+    // real base tile.
+    const baseFallback = { x: Number(base.currentPositionX) || 0, y: Number(base.currentPositionY) || 0 };
+    const basePos = await resolveBaseTilePosition(defender, baseFallback);
+
     // Presence: must be standing on the base's tile (DB position).
-    const presence = await verifyPresence(auth.username, {
-      x: Number(base.currentPositionX),
-      y: Number(base.currentPositionY),
-    });
+    const presence = await verifyPresence(auth.username, basePos);
     if (!presence.ok) {
-      log.debug('Beer Base attack blocked: not at base location', { attacker: auth.username, base: defender });
+      log.debug('Beer Base attack blocked: not at base location', { attacker: auth.username, base: defender, tile: basePos });
       return NextResponse.json({ success: false, victory: false, message: presence.reason }, { status: 403 });
     }
 
@@ -166,28 +171,57 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       auth.username,
       defender,
       BattleType.Factory,
-      { x: Number(base.currentPositionX), y: Number(base.currentPositionY) }
+      { x: basePos.x, y: basePos.y }
     );
 
-    // FID-20260906-004 D1: persist the FULL battle log (was: zero-filled
-    // shadow row via recordBattle) + defender notification.
+    // FID-090 loot BEFORE persist: the theft goes ON the battleLog (so the
+    // history row carries it) and is credited in the same step — previously the
+    // credit happened after the insert and never touched the log, so every raid
+    // log rendered "No resources gained/lost" forever.
+    const isBeerBase = base.isSpecialBase === 1;
+    let lootMetal = 0;
+    let lootEnergy = 0;
+    let xpAwarded = 0;
+
+    if (battleLog.outcome === 'ATTACKER_WIN') {
+      // Loot = base resources × multiplier. Beer Bases keep the doc's premium
+      // 3× (config-driven); regular bot bases pay the plain 1× loot.
+      // FID-038 D4: the raid's declared resource selects the stockpile.
+      const config = await getBeerBaseConfig();
+      const multiplier = isBeerBase ? Math.max(1, config.resourceMultiplier || 3) : 1;
+      lootMetal = resource && resource !== 'metal' ? 0 : Math.floor(Number(base.resourcesMetal || 0) * multiplier);
+      lootEnergy = resource && resource !== 'energy' ? 0 : Math.floor(Number(base.resourcesEnergy || 0) * multiplier);
+      const stolen = lootMetal + lootEnergy;
+      if (stolen > 0) {
+        battleLog.resourcesStolen = {
+          resourceType: (lootMetal > 0 ? 'metal' : 'energy') as 'metal' | 'energy',
+          amount: stolen,
+        };
+      }
+
+      // Doc-faithful XP recorded on the log too (BASE_ATTACK_WIN = 400).
+      try {
+        const xpResult = await awardXP(auth.username, XPAction.BASE_ATTACK_WIN);
+        xpAwarded = xpResult.xpAwarded;
+        battleLog.attackerXP = xpAwarded;
+        battleLog.attacker = { ...battleLog.attacker, xpEarned: xpAwarded };
+      } catch (xpError) {
+        log.warn('Beer Base win XP failed (loot still credited)', xpError as Error);
+      }
+    }
+
+    // FID-20260906-004 D1: persist the FULL battle log (now loot-complete)
+    // + defender notification.
     await persistBattleLog(battleLog);
 
     // FID-20260906-006a R1/R3/R5: real crediting, base removal, doc-faithful XP.
     if (battleLog.outcome === 'ATTACKER_WIN') {
-      // 1) Loot = base resources × multiplier. Beer Bases keep the doc's
-      //    premium 3× (config-driven); regular bot bases pay the plain 1× loot.
-      //    FID-038 D4: the raid's declared resource (metal/energy) selects the
-      //    stockpile — the other one is left untouched for the next raider.
-      const isBeerBase = base.isSpecialBase === 1;
-      const config = await getBeerBaseConfig();
-      const multiplier = isBeerBase ? Math.max(1, config.resourceMultiplier || 3) : 1;
-      const lootMetal = resource && resource !== 'metal' ? 0 : Math.floor(Number(base.resourcesMetal || 0) * multiplier);
-      const lootEnergy = resource && resource !== 'energy' ? 0 : Math.floor(Number(base.resourcesEnergy || 0) * multiplier);
+      // FID-090: loot + XP were computed and stamped onto the battleLog BEFORE
+      // persist (above); here we only credit and do the post-victory state.
       const tierNumber = baseTierIndex(defender);
 
-      // 2) Credit the attacker (codebase pattern: BigInt math, Number() write —
-      //    schema columns are drizzle integer(); harvest + factory use the same).
+      // Credit the attacker (codebase pattern: BigInt math, Number() write —
+      // schema columns are drizzle integer(); harvest + factory use the same).
       const atkRow = attackerPlayer as unknown as { resourcesMetal?: number; resourcesEnergy?: number };
       await db.update(players)
         .set({
@@ -239,15 +273,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         } catch (analyticsError) {
           log.warn('Beer Base analytics failed (battle still resolved)', analyticsError as Error);
         }
-      }
-
-      // 5) Doc-faithful XP: BASE_ATTACK_WIN = 400 (awardXP applies flag doubling).
-      let xpAwarded = 0;
-      try {
-        const xpResult = await awardXP(auth.username, XPAction.BASE_ATTACK_WIN);
-        xpAwarded = xpResult.xpAwarded;
-      } catch (xpError) {
-        log.warn('Beer Base win XP failed (loot already credited)', xpError as Error);
       }
 
       // FID-20260911-044: PvE battles now pay battle RP — the RP overhaul

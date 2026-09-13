@@ -19,6 +19,7 @@ import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { chebyshevDistance } from '@/lib/presenceCheck';
+import { resolveBaseTilePositions } from '@/lib/baseTilePosition';
 
 export async function GET() {
   try {
@@ -70,9 +71,17 @@ export async function GET() {
       .from(players)
       .where(eq(players.isSpecialBase, 1));
 
+    // FID-090: distance + scan compare against the base's TILE (the thing the
+    // player walks to on the map), not the drifting players-row position.
+    const tilePositions = await resolveBaseTilePositions(
+      beerBases.map((b) => b.username),
+      Object.fromEntries(beerBases.map((b) => [b.username, { x: b.currentPositionX, y: b.currentPositionY }]))
+    );
+
     const beerBasesPayload = beerBases.map((base) => {
-      const dx = Math.abs(base.currentPositionX - playerPos.x);
-      const dy = Math.abs(base.currentPositionY - playerPos.y);
+      const basePos = tilePositions[base.username] ?? { x: base.currentPositionX, y: base.currentPositionY };
+      const dx = Math.abs(basePos.x - playerPos.x);
+      const dy = Math.abs(basePos.y - playerPos.y);
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       // FID-20260912-081: tier comes from rank (1–6 = WEAK→LEGENDARY, set by
@@ -88,7 +97,7 @@ export async function GET() {
           : tierFromLevel(base.level);
 
       // Scanned = the player stands on the base's tile (Chebyshev, 8-directional grid).
-      const scanned = chebyshevDistance(playerPos, { x: base.currentPositionX, y: base.currentPositionY }) === 0;
+      const scanned = chebyshevDistance(playerPos, basePos) === 0;
 
       if (!scanned) {
         // Unscanned: only what exploration itself reveals.
@@ -105,7 +114,7 @@ export async function GET() {
 
       return {
         username: base.username,
-        position: { x: base.currentPositionX, y: base.currentPositionY },
+        position: { x: basePos.x, y: basePos.y },
         distance: Math.round(distance),
         totalStrength: base.totalStrength,
         totalDefense: base.totalDefense,

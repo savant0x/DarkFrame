@@ -53,6 +53,19 @@ interface BattleLog {
   defenderStrength?: number;
   attackerLosses?: number;
   defenderLosses?: number;
+  // FID-090: full-report fields (click-to-expand detail).
+  battleType?: string;
+  totalRounds?: number;
+  attackerHpStart?: number;
+  attackerHpEnd?: number;
+  defenderHpStart?: number;
+  defenderHpEnd?: number;
+  attackerDamage?: number;
+  defenderDamage?: number;
+  attackerXp?: number;
+  defenderXp?: number;
+  attackerUnitsCaptured?: Array<{ unitType?: string; type?: string; quantity?: number } | string>;
+  defenderUnitsCaptured?: Array<{ unitType?: string; type?: string; quantity?: number } | string>;
 }
 
 interface BattleLogsResponse {
@@ -78,6 +91,8 @@ export default function BattleLogsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  // FID-090: click-to-expand full battle report.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const logType = params?.type as string;
 
@@ -194,10 +209,22 @@ export default function BattleLogsPage() {
             
             const metalChange = (log.metalGained || 0) - (log.metalLost || 0);
             const energyChange = (log.energyGained || 0) - (log.energyLost || 0);
+            const expanded = expandedId === log._id;
 
             return (
               <div
                 key={log._id}
+                onClick={() => setExpandedId(expanded ? null : log._id)}
+                role="button"
+                tabIndex={0}
+                aria-expanded={expanded}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setExpandedId(expanded ? null : log._id);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
                 className={`nn-brief ${
                   isVictory ? 'nn-brief--green' : 'nn-brief--magenta'
                 }`}
@@ -220,7 +247,9 @@ export default function BattleLogsPage() {
 
                     <div className="text-sm text-[color:var(--nn-text-secondary)] space-y-1">
                       <p>
-                        <span className="nn-lab">Location</span> ({log.location.x}, {log.location.y})
+                        {/* FID-090: legacy rows with no recorded location render                            a dash, never a fake (0, 0). */}
+                        <span className="nn-lab">Location</span>{' '}
+                        {log.location.x === 0 && log.location.y === 0 ? '—' : `(${log.location.x}, ${log.location.y})`}
                       </p>
                       <p>{formatTimestamp(log.timestamp)}</p>
                     </div>
@@ -238,8 +267,13 @@ export default function BattleLogsPage() {
                       )}
                       {log.attackerLosses !== undefined && log.defenderLosses !== undefined && (
                         <p className="text-[color:var(--nn-text-secondary)]">
+                          {/* FID-090: show BOTH sides — a 1.34M-vs-143K victory
+                              legitimately costs the attacker 0, which read as
+                              "battle had no casualties" when only your side
+                              rendered. */}
                           <span className="nn-lab">Casualties</span>{' '}
-                          {isAttacker ? log.attackerLosses : log.defenderLosses} units
+                          you {isAttacker ? log.attackerLosses : log.defenderLosses} ·
+                          enemy {isAttacker ? log.defenderLosses : log.attackerLosses}
                         </p>
                       )}
                     </div>
@@ -276,6 +310,65 @@ export default function BattleLogsPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* FID-090: click-to-expand full battle report */}
+                {expanded && (
+                  <div
+                    className="mt-4 pt-4 border-t border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div>
+                      <span className="nn-lab">Battle type</span>{' '}
+                      <span className="capitalize">{(log.battleType ?? 'skirmish').toLowerCase()}</span>
+                    </div>
+                    <div>
+                      <span className="nn-lab">Rounds</span> {log.totalRounds ?? '—'}
+                    </div>
+                    <div>
+                      <span className="nn-lab">Your HP</span>{' '}
+                      {log.attackerHpStart != null
+                        ? `${Math.round(log.attackerHpStart).toLocaleString()} → ${Math.round(log.attackerHpEnd ?? 0).toLocaleString()}`
+                        : '—'}
+                    </div>
+                    <div>
+                      <span className="nn-lab">Enemy HP</span>{' '}
+                      {log.defenderHpStart != null
+                        ? `${Math.round(log.defenderHpStart).toLocaleString()} → ${Math.round(log.defenderHpEnd ?? 0).toLocaleString()}`
+                        : '—'}
+                    </div>
+                    <div>
+                      <span className="nn-lab">Damage dealt</span>{' '}
+                      <span className="text-[color:var(--nn-magenta)]">{Math.round(log.attackerDamage ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="nn-lab">Damage taken</span>{' '}
+                      <span className="text-[color:var(--nn-cyan)]">{Math.round(log.defenderDamage ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="nn-lab">XP earned</span>{' '}
+                      <span className="text-[color:var(--nn-violet)]">+{Math.round(log.attackerXp ?? 0).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="nn-lab">Enemy XP</span> +{Math.round(log.defenderXp ?? 0).toLocaleString()}
+                    </div>
+                    {(log.attackerUnitsCaptured?.length ?? 0) > 0 && (
+                      <div className="col-span-2 md:col-span-4">
+                        <span className="nn-lab">Units captured</span>{' '}
+                        <span className="text-[color:var(--nn-amber)]">
+                          {log.attackerUnitsCaptured!.length} unit group(s)
+                        </span>
+                      </div>
+                    )}
+                    {(log.defenderUnitsCaptured?.length ?? 0) > 0 && (
+                      <div className="col-span-2 md:col-span-4">
+                        <span className="nn-lab">Units lost to capture</span>{' '}
+                        <span className="text-[color:var(--nn-magenta)]">
+                          {log.defenderUnitsCaptured!.length} unit group(s)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
