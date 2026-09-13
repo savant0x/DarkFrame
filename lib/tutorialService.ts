@@ -1020,6 +1020,44 @@ export async function recordTutorialBeerBaseFound(playerId: string): Promise<voi
   }
 }
 
+/**
+ * FID-20260912-094: OPEN_PANEL steps complete the moment the named panel
+ * actually opens — verified server-side against the step's validationData.
+ *
+ * The dead-end this fixes: the overlay's complete button sends
+ * `validationData: {}` (a literal TODO), and validateOpenPanelAction demands
+ * `panelName === 'clans'` / `'tech-tree'`. Nothing anywhere reported panel
+ * opens, so 'Open Clan Panel' / 'Explore Tech Tree' could NEVER pass — the
+ * modal froze on a completed action with no way forward (observed live:
+ * fame stuck on quest_social_intro step 1 after opening Clans).
+ *
+ * The game page calls this at its setCurrentView seam — the single place a
+ * panel genuinely opens. Match is case/separator-insensitive so step
+ * definitions may spell panels 'clans' | 'tech-tree' | 'techTree'.
+ */
+export async function recordTutorialPanelOpen(playerId: string, panelName: string): Promise<void> {
+  try {
+    const { quest, step } = await getCurrentQuestAndStep(playerId);
+    if (!quest || !step || step.action !== 'OPEN_PANEL') return;
+
+    const required = step.validationData?.panelName?.toLowerCase();
+    if (!required) return;
+    const opened = panelName.toLowerCase().replace(/[^a-z]/g, '');
+    const wanted = required.replace(/[^a-z]/g, '');
+    if (opened !== wanted) return;
+
+    await completeStep({
+      playerId,
+      questId: quest._id!,
+      stepId: step.id,
+      validationData: { panelName: required },
+    });
+    console.log(`[Tutorial] 🖥 Panel opened: ${panelName} — step ${step.id} completed for ${playerId}`);
+  } catch (error) {
+    console.error('[Tutorial] Panel-open tracking failed:', error);
+  }
+}
+
 /** Current step is ATTACK/targetType beer_base → complete it on a resolved raid. */
 export async function recordTutorialBaseAttack(playerId: string, victory: boolean): Promise<void> {
   try {

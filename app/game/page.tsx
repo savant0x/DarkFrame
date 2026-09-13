@@ -13,6 +13,25 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import { logger } from '@/lib/logger';
+
+/**
+ * FID-20260912-094: report a panel open to the tutorial track-action endpoint.
+ * Fire-and-forget (advisory telemetry — failures are logged, never surfaced):
+ * the server hook verifies the step's required panelName and completes
+ * OPEN_PANEL steps. tutorialService itself is server-only (drizzle/pg) and
+ * must never be imported into this client bundle.
+ */
+async function reportPanelOpen(panel: string): Promise<void> {
+  try {
+    await fetch('/api/tutorial/track-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'panel_open', data: { panel } }),
+    });
+  } catch (error) {
+    logger.debug('Panel-open tutorial report failed (non-fatal)', { panel, error });
+  }
+}
 import { extractApiError } from '@/lib/apiClient';
 import { GameLayout, StatsPanel, TileRenderer, ControlsPanel, ShrinePanel, UnitBuildPanelEnhanced, FactoryManagementPanel, TierUnlockPanel, BattleLogLinks, BattleHistoryFeed, DiscoveryNotification, DiscoveryLogPanel, AchievementNotification, AchievementPanel, AuctionHousePanel, InventoryPanel, BotScannerPanel, BeerBasePanel, AutoFarmPanel, BotMagnetPanel, BotSummoningPanel, BountyBoardPanel, BankPanel } from '@/components';
 import { TutorialOverlay, TutorialQuestPanel } from '@/components/tutorial';
@@ -972,10 +991,14 @@ export default function GamePage() {
 
       <TopNavBar 
         onLeaderboardClick={() => setCurrentView('LEADERBOARD')}
-        onClansClick={() => setCurrentView('CLANS')}
+        // FID-20260912-094: OPEN_PANEL tutorial steps complete at the moment
+        // the panel genuinely opens. Fired via the track-action endpoint —
+        // tutorialService is server-only (drizzle/pg) and must never enter
+        // the client bundle. The endpoint is a fire-and-forget POST.
+        onClansClick={() => { void reportPanelOpen('clans'); setCurrentView('CLANS'); }}
         onClanClick={() => setCurrentView('CLAN')}
         onStatsClick={() => setCurrentView('STATS')}
-        onTechTreeClick={() => setCurrentView('TECH_TREE')}
+        onTechTreeClick={() => { void reportPanelOpen('tech-tree'); setCurrentView('TECH_TREE'); }}
         onProfileClick={() => setCurrentView('PROFILE')}
         onAdminClick={() => setCurrentView('ADMIN')}
         onWMDClick={() => setCurrentView('WMD')}
