@@ -941,6 +941,7 @@ span.nn-panel__icon > svg {
   gap: 0.75rem;
   height: var(--nn-viewport-strip-h, 44px);
   padding: 0 0.75rem;
+  overflow: hidden; /* FID-20260912-082: long chip text degrades horizontally, never vertically */
   background: linear-gradient(to top, oklab(0.09 0.01 0 / 0.92), oklab(0.09 0.01 0 / 0.55) 70%, transparent);
   backdrop-filter: blur(6px);
   border-top: 1px solid color-mix(in oklab, var(--nn-cyan) 22%, transparent);
@@ -952,7 +953,20 @@ span.nn-panel__icon > svg {
 }
 .nn-viewport__status strong { color: var(--nn-cyan); font-weight: 600; }
 .nn-viewport__coords { font-variant-numeric: tabular-nums; color: var(--nn-text-secondary); }
-.nn-viewport__chip { margin-left: auto; }
+/* FID-20260912-082: ONE chip class for the status strip. There were two
+   conflicting .nn-viewport__chip blocks (this in-flow one and an absolute
+   top-right badge further down); the later block won and displaced the
+   cooldown/ready chip out of the bar, clipping it against the viewport
+   bottom edge. The corner-badge role now has its own class below. */
+.nn-viewport__chip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-width: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- D-pad HUD cluster — sample `.dpad`: 46px cells, squared,
    arrow glyph + Orbitron letter sub-label ---------- */
@@ -1800,7 +1814,14 @@ span.nn-panel__icon > svg {
 }
 .nn-bearer__info {
   position: absolute;
-  bottom: 12px;
+  /* FID-20260912-082: anchor ABOVE the status strip (44px) + margin, and cap
+     the card height — the old bottom:12px let the card sink INTO the bottom
+     bar, overlapping "YOU HOLD THE FLAG" with the strip (and swallowing it
+     outright on short viewports). max-height + clip keeps long names/HP rows
+     from ever re-reaching the bar; the card grows upward, never downward. */
+  bottom: calc(var(--nn-viewport-strip-h, 44px) + 10px);
+  max-height: calc(60% - var(--nn-viewport-strip-h, 44px) - 10px);
+  overflow: hidden;
   left: 12px;
   z-index: 40;
   display: flex;
@@ -1808,6 +1829,7 @@ span.nn-panel__icon > svg {
   gap: 2px;
   padding: 10px 12px;
   min-width: 140px;
+  max-width: calc(100% - 24px);
   background: color-mix(in oklab, var(--nn-void) 82%, transparent);
   border: 1px solid color-mix(in oklab, var(--nn-amber) 50%, transparent);
   backdrop-filter: blur(4px);
@@ -1844,7 +1866,7 @@ span.nn-panel__icon > svg {
   border: 1px solid color-mix(in oklab, var(--nn-green) 50%, transparent);
   background: color-mix(in oklab, var(--nn-green) 10%, transparent);
 }
-.nn-viewport__chip {
+.nn-viewport__badge {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -1855,7 +1877,7 @@ span.nn-panel__icon > svg {
   font-weight: 700;
   letter-spacing: 0.18em;
 }
-.nn-viewport__chip--violet {
+.nn-viewport__badge--violet {
   color: var(--nn-violet);
   background: color-mix(in oklab, var(--nn-void) 70%, transparent);
   border: 1px solid color-mix(in oklab, var(--nn-violet) 50%, transparent);
