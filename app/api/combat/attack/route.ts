@@ -32,6 +32,7 @@ import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { getBeerBaseConfig, removeBeerBase } from '@/lib/beerBaseService';
 import { updateReputation } from '@/lib/botCombatService';
 import { awardXP, XPAction } from '@/lib/xpService';
+import { recordTutorialBeerBaseFound, recordTutorialBaseAttack } from '@/lib/tutorialService';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import type { BotConfig } from '@/types/game.types';
@@ -173,6 +174,16 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       BattleType.Factory,
       { x: basePos.x, y: basePos.y }
     );
+
+    // FID-20260912-090b: feed the tutorial's combat quest. Presence at the
+    // base completes 'Find a Beer Base'; a resolved raid completes
+    // 'Attack the Base'. Non-throwing hooks (Law 14) — never block the raid.
+    try {
+      await recordTutorialBeerBaseFound(auth.username);
+      await recordTutorialBaseAttack(auth.username, battleLog.outcome === 'ATTACKER_WIN');
+    } catch (tutorialError) {
+      log.warn('Tutorial combat tracking failed (non-fatal)', tutorialError as Error);
+    }
 
     // FID-090 loot BEFORE persist: the theft goes ON the battleLog (so the
     // history row carries it) and is credited in the same step — previously the
