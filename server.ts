@@ -168,6 +168,23 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    try {
+      console.log('[Server] 🔄 Running Ship Terrain Heal migration (FID-089)...');
+      await connectToDatabase();
+      const { runShipTerrainHealMigration } = await import('./lib/migrations/shipTerrainHeal');
+      const healResult = await runShipTerrainHealMigration();
+      console.log('[Server] ✅ Ship Terrain Heal:', healResult.message, {
+        modified: healResult.modified,
+        alreadyApplied: healResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Ship Terrain Heal failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     // FID-20260912-076: ensure the clan_wars table exists (War Engine v2
     // ledger — wars previously lived only in mod_log with stub reads).
     try {

@@ -43,6 +43,8 @@ interface CanvasMapRendererProps {
   hoveredTile?: { x: number; y: number } | null;
   onTileClick?: (x: number, y: number) => void;
   onTileHover?: (tile: { x: number; y: number } | null) => void;
+  /** FID-089: double-click → fly-to warp (page-owned animation). */
+  onTileDoubleClick?: (x: number, y: number) => void;
   /** Expose the cached terrain thumbnail for the minimap (1px/tile). */
   onTerrainReady?: (thumbnail: HTMLCanvasElement) => void;
 }
@@ -60,6 +62,7 @@ export function CanvasMapRenderer({
   hoveredTile,
   onTileClick,
   onTileHover,
+  onTileDoubleClick,
   onTerrainReady,
 }: CanvasMapRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -387,6 +390,10 @@ export function CanvasMapRenderer({
       onClick={(e) => {
         const t = tileFromEvent(e);
         if (inBounds(t)) onTileClick?.(t.x, t.y);
+      }}
+      onDoubleClick={(e) => {
+        const t = tileFromEvent(e);
+        if (inBounds(t)) onTileDoubleClick?.(t.x, t.y);
       }}
       onMouseMove={(e) => {
         const t = tileFromEvent(e);
