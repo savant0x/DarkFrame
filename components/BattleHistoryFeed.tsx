@@ -108,8 +108,14 @@ export default function BattleHistoryFeed() {
               }
             >
               <span className="nn-battlefeed__glyph" style={{ color: style.color }}>{style.glyph}</span>
+              {/* FID-093: raids on hostile bases read 'BASE RAID', never
+                  FACTORY (the old mislabel from the shared battle type). */}
               <span className="nn-battlefeed__where">
-                {b.battleType ?? 'Battle'}
+                {b.battleType === 'BASE_RAID'
+                  ? 'BASE RAID'
+                  : b.battleType === 'FACTORY'
+                    ? 'FACTORY'
+                    : b.battleType ?? 'Battle'}
                 {b.location ? ` (${b.location.x}, ${b.location.y})` : ''}
               </span>
               <span className="nn-battlefeed__result" style={{ color: style.color }}>

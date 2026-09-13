@@ -663,6 +663,8 @@ export default function GamePage() {
       // FID-090: the battle log nests combat stats under attacker/defender —
       // the flat `battle.attackerDamageDealt` fields never existed, so the
       // readout rendered all zeros even on real victories.
+      // FID-093: real battle fidelity — casualty counts and loot reach the
+      // readout so a base raid reads like the battle it was.
       setAttackResult({
         success: Boolean(data.success && data.victory) || data.success === true,
         message: data.message ?? 'Attack resolved',
@@ -671,6 +673,10 @@ export default function GamePage() {
         captured: Boolean(data.victory),
         damageDealt: (data.battle?.attacker?.damageDealt ?? 0) || undefined,
         xpAwarded: data.rewards?.experience ?? data.battle?.attacker?.xpEarned,
+        attackerUnitsLost: data.battle?.attacker?.unitsLost ?? 0,
+        defenderUnitsLost: data.battle?.defender?.unitsLost ?? 0,
+        lootMetal: data.rewards?.metal,
+        lootEnergy: data.rewards?.energy,
       });
 
       if (data.victory) {

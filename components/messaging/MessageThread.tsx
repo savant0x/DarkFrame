@@ -392,9 +392,14 @@ export default function MessageThread({
                   className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[70%] px-4 py-2 ${
-                      isOwn ? 'nn-msg--own' : 'nn-msg'
-                    }`}
+                    className={`px-4 py-2 ${
+                      // FID-20260912-093: battle reports render FULL width —
+                      // the 70% bubble crushed the round-by-round table and
+                      // forces-committed columns into an unreadable sliver.
+                      message.metadata?.systemType === 'battle_result' || message.metadata?.systemType === 'war_result'
+                        ? 'w-full'
+                        : 'max-w-[70%]'
+                    } ${isOwn ? 'nn-msg--own' : 'nn-msg'}`}
                   >
                     {/* FID-076: war_result rows render the same styled card */}
                     {message.metadata?.systemType === 'battle_result' || message.metadata?.systemType === 'war_result' ? (

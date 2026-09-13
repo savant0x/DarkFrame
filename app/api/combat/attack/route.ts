@@ -27,18 +27,37 @@ import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { verifyPresence } from '@/lib/presenceCheck';
 import { resolveBaseTilePosition } from '@/lib/baseTilePosition';
 import { logAttack } from '@/lib/activityLogger';
-import { resolveBattle, persistBattleLog } from '@/lib/battleService';
+import { resolveBattle, persistBattleLog, applyAttackerCasualties } from '@/lib/battleService';
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { getBeerBaseConfig, removeBeerBase } from '@/lib/beerBaseService';
 import { updateReputation } from '@/lib/botCombatService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { recordTutorialBeerBaseFound, recordTutorialBaseAttack } from '@/lib/tutorialService';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, battleLogs } from '@/lib/db/schema';
 import type { BotConfig } from '@/types/game.types';
-import { eq } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import { BattleType, UnitType } from '@/types';
 import type { Player, PlayerUnit, Unit } from '@/types/game.types';
+/**
+ * FID-20260912-093: one raid per base per reset period. Periods mirror the
+ * harvest cadence (lib/harvestService.getCurrentResetPeriod): tiles x≤75
+ * reset at midnight (AM), the rest at noon (PM). Returns the period start
+ * instant the raid-guard compares battle timestamps against.
+ */
+function currentRaidPeriodStart(baseX: number): Date {
+  const now = new Date();
+  const start = new Date(now);
+  if (baseX >= 1 && baseX <= 75) {
+    start.setHours(0, 0, 0, 0); // AM period: since midnight
+  } else if (now.getHours() < 12) {
+    start.setDate(start.getDate() - 1); // PM period rolled over midnight
+    start.setHours(12, 0, 0, 0);
+  } else {
+    start.setHours(12, 0, 0, 0); // PM period: since noon
+  }
+  return start;
+}
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.battle);
 
@@ -149,6 +168,28 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return NextResponse.json({ success: false, victory: false, message: presence.reason }, { status: 403 });
     }
 
+    // FID-20260912-093: one raid per base per reset period. A raid counts
+    // whether it won or lost — the garrison knows who came. Any log row
+    // (including losses) inside the current period blocks a re-attack.
+    const periodStart = currentRaidPeriodStart(basePos.x);
+    const [priorRaid] = await db
+      .select({ battleId: battleLogs.battleId })
+      .from(battleLogs)
+      .where(
+        and(
+          eq(battleLogs.attackerUsername, auth.username),
+          eq(battleLogs.defenderUsername, defender),
+          gte(battleLogs.timestamp, periodStart)
+        )
+      )
+      .limit(1);
+    if (priorRaid) {
+      return NextResponse.json(
+        { success: false, victory: false, message: `You already raided ${defender} this reset period. The garrison has locked the gates until the next reset.` },
+        { status: 429 }
+      );
+    }
+
     // Garrison: real units if present, else synthesized from totalDefense (FID-006a R2).
     const baseUnits = (base.units ?? []) as PlayerUnit[];
     const garrisonUnits = synthesizeGarrison(base, baseUnits);
@@ -166,14 +207,34 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
+    // FID-20260912-093: real battle, honestly labeled. Was BattleType.Factory
+    // — every notification/feed/headline called base raids FACTORY. Levels
+    // feed the level-gap damage protection; applyCasualties:false keeps the
+    // dead garrison OUT of the attacker's army (loot is the reward).
     const battleLog = await resolveBattle(
       attackerUnits.flatMap((pu) => playerUnitToUnits(pu, auth.username)),
       garrisonUnits,
       auth.username,
       defender,
-      BattleType.Factory,
-      { x: basePos.x, y: basePos.y }
+      BattleType.BaseRaid,
+      { x: basePos.x, y: basePos.y },
+      {
+        attackerLevel: attackerPlayer.level ?? 1,
+        defenderLevel: base.level ?? 1,
+        applyCasualties: false,
+      }
     );
+
+    // FID-20260912-093: real casualties — the attacker's losses come OFF
+    // their army (per unit type, totals recomputed). Previously raid
+    // casualties were cosmetic: the log said 1,013 dead, the army kept all.
+    if (battleLog.attacker.unitsLost > 0) {
+      try {
+        await applyAttackerCasualties(battleLog);
+      } catch (casualtyError) {
+        log.warn('Attacker casualty application failed (battle still resolved)', casualtyError as Error);
+      }
+    }
 
     // FID-20260912-090b: feed the tutorial's combat quest. Presence at the
     // base completes 'Find a Beer Base'; a resolved raid completes

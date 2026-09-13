@@ -1193,7 +1193,8 @@ export async function spawnBeerBase(): Promise<string> {
   // FID-20260909-030: re-attribute the tile claim to the final themed name so
   // the map renders it and defeat/respawn release the right tile.
   await releaseBotBaseTile(position.x, position.y, tempName);
-  const reclaimed = await claimBotBaseTile({ zone: null, ownerUsername: bot.username });
+  // FID-093: beer-base reclaim keeps the greeting in the beer voice.
+  const reclaimed = await claimBotBaseTile({ zone: null, ownerUsername: bot.username, isBeerBase: true });
   position = { x: reclaimed.x, y: reclaimed.y };
   bot.base = position;
   bot.currentPosition = position;
@@ -1271,7 +1272,7 @@ export async function spawnBeerBase(): Promise<string> {
       // FID-20260909-030: keep the tile claim in sync with the renamed base.
       await releaseBotBaseTile(position.x, position.y, bot.username);
       bot.username = generateBeerBaseName(attempt + 1);
-      const reclaimed = await claimBotBaseTile({ zone: null, ownerUsername: bot.username });
+      const reclaimed = await claimBotBaseTile({ zone: null, ownerUsername: bot.username, isBeerBase: true });
       position = { x: reclaimed.x, y: reclaimed.y };
       bot.base = position;
       bot.currentPosition = position;

@@ -319,7 +319,7 @@ export default function BattleLogsPage() {
                   >
                     <div>
                       <span className="nn-lab">Battle type</span>{' '}
-                      <span className="capitalize">{(log.battleType ?? 'skirmish').toLowerCase()}</span>
+                      <span className="capitalize">{log.battleType === 'BASE_RAID' ? 'base raid' : (log.battleType ?? 'skirmish').toLowerCase()}</span>
                     </div>
                     <div>
                       <span className="nn-lab">Rounds</span> {log.totalRounds ?? '—'}

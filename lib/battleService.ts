@@ -226,16 +226,42 @@ function selectCapturedUnits(defeatedUnits: Unit[]): Unit[] {
 }
 
 /**
+ * Options for resolveBattle (FID-20260912-093).
+ * levels are optional named params now; applyCasualties opts a battle out of
+ * the unit-capture lottery (PvE base raids: the defender isn't a real player
+ * whose units should teleport to the attacker — loot IS the reward).
+ */
+export interface ResolveBattleOptions {
+  attackerLevel?: number;
+  defenderLevel?: number;
+  /** Winner takes 10–15% of loser's casualties as own units (PvP only). */
+  applyCasualties?: boolean;
+}
+
+/**
+ * FID-20260912-093: tally casualties per unit type. The log previously
+ * carried only unitsLost (a total) — callers couldn't decrement a mixed
+ * army faithfully. Random-selection order makes 'first N' = 'random N',
+ * so type counts are derived from the same casualty sets the HP loop built.
+ */
+function casualtiesByType(casualties: Unit[]): Partial<Record<UnitType, number>> {
+  const tally: Partial<Record<UnitType, number>> = {};
+  for (const unit of casualties) {
+    tally[unit.type] = (tally[unit.type] ?? 0) + 1;
+  }
+  return tally;
+}
+
+/**
  * Resolve battle between two armies using HP-based combat
- * 
+ *
  * @param attackerUnits - Attacker's units
  * @param defenderUnits - Defender's units
  * @param attackerName - Attacker username
  * @param defenderName - Defender username
  * @param battleType - Type of battle (Infantry/Base/Factory)
  * @param location - Battle location (optional)
- * @param attackerLevel - Attacker's player level (for level gap protection)
- * @param defenderLevel - Defender's player level (for level gap protection)
+ * @param options - levels + capture behavior (FID-20260912-093)
  * @returns Complete battle result with logs
  */
 export async function resolveBattle(
@@ -245,9 +271,11 @@ export async function resolveBattle(
   defenderName: string,
   battleType: BattleType,
   location?: { x: number; y: number },
-  attackerLevel: number = 1,
-  defenderLevel: number = 1
+  options: ResolveBattleOptions = {}
 ): Promise<BattleLog> {
+  const attackerLevel = options.attackerLevel ?? 1;
+  const defenderLevel = options.defenderLevel ?? 1;
+  const applyCasualties = options.applyCasualties ?? true;
   // Calculate initial combat stats
   const attackerStats = calculateCombatStats(attackerUnits);
   const defenderStats = calculateCombatStats(defenderUnits);
@@ -339,11 +367,15 @@ export async function resolveBattle(
     outcome = BattleOutcome.Draw;
   }
 
-  // Unit captures (winner captures from loser)
+  // Unit captures (winner captures from loser).
+  // FID-20260912-093: opt-out for PvE — a bot base's destroyed garrison must
+  // NOT teleport into the attacker's army; the loot is the reward.
   let attackerCapturedUnits: Unit[] = [];
   let defenderCapturedUnits: Unit[] = [];
 
-  if (outcome === BattleOutcome.AttackerWin) {
+  if (!applyCasualties) {
+    // No capture path.
+  } else if (outcome === BattleOutcome.AttackerWin) {
     attackerCapturedUnits = selectCapturedUnits(defenderCasualties);
   } else if (outcome === BattleOutcome.DefenderWin) {
     defenderCapturedUnits = selectCapturedUnits(attackerCasualties);
@@ -367,6 +399,8 @@ export async function resolveBattle(
       finalHP: attackerHP,
       unitsLost: attackerCasualties.length,
       unitsCaptured: attackerCapturedUnits.length,
+      // FID-20260912-093: per-type casualty breakdown (drives inventory writes)
+      casualtiesByType: casualtiesByType(attackerCasualties),
       // Aliases for component compatibility
       startingHP: initialAttackerHP,
       endingHP: attackerHP,
@@ -382,6 +416,7 @@ export async function resolveBattle(
       finalHP: defenderHP,
       unitsLost: defenderCasualties.length,
       unitsCaptured: defenderCapturedUnits.length,
+      casualtiesByType: casualtiesByType(defenderCasualties),
       // Aliases for component compatibility
       startingHP: initialDefenderHP,
       endingHP: defenderHP,
@@ -519,8 +554,7 @@ export async function executeInfantryAttack(
     defenderId,
     BattleType.Infantry,
     undefined,
-    attacker.level,
-    defender.level
+    { attackerLevel: attacker.level, defenderLevel: defender.level }
   );
 
   // Apply battle results to database
@@ -668,8 +702,7 @@ export async function executeBaseAttack(
     defenderId,
     BattleType.Base,
     defender.base,
-    attacker.level,
-    defender.level
+    { attackerLevel: attacker.level, defenderLevel: defender.level }
   );
 
   // If attacker wins, steal resources
@@ -836,7 +869,55 @@ export async function executeBaseAttack(
  * - Update total STR/DEF
  * 
  * This function properly handles the Unit → PlayerUnit conversion after battle.
+ *
+ * FID-20260912-093: casualtiesByType-aware. The old implementation sliced the
+ * first `unitsLost` units off the units array — a random-looking but actually
+ * ORDER-DEPENDENT cut that ignored type mix and mis-wrote quantities whenever
+ * per-type losses crossed type boundaries. Now the per-type tally from the
+ * resolver decrements each PlayerUnit group by exactly what died; the total
+ * slice falls back only for pre-FID-093 logs that never carried the tally.
  */
+/**
+ * FID-20260912-093: apply ONLY the attacker's casualties to their army.
+ *
+ * applyBattleResults is the PvP seam — it touches BOTH rows and transfers
+ * captures. Base raids must not resurrect a bot row (removed/zeroed rows
+ * would be recreated with an empty army by the defender write) nor steal
+ * garrison units. Exported so /api/combat/attack can decrement the real
+ * attacker inventory after a raid.
+ */
+export async function applyAttackerCasualties(battleLog: BattleLog): Promise<void> {
+  const [attackerResult] = await db.select().from(players).where(eq(players.username, battleLog.attacker.username)).limit(1);
+  if (!attackerResult) {
+    throw new Error('Attacker not found during casualty application');
+  }
+  const attacker: Player = playerRowToPlayer(attackerResult);
+
+  // Per-type decrement (same helper semantics as applyBattleResults).
+  const byType = battleLog.attacker.casualtiesByType;
+  let remaining = battleLog.attacker.unitsLost;
+  const finalUnits: PlayerUnit[] = (attacker.units ?? []).flatMap((pu: PlayerUnit) => {
+    if (byType && Object.keys(byType).length > 0) {
+      const killed = byType[pu.unitType] ?? 0;
+      const newQty = pu.quantity - Math.min(killed, pu.quantity);
+      return newQty > 0 ? [{ ...pu, quantity: newQty }] : [];
+    }
+    // Legacy-log fallback: drain front-to-back.
+    const take = Math.min(pu.quantity, remaining);
+    remaining -= take;
+    return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [pu];
+  }) as PlayerUnit[];
+
+  const newStats = calculatePlayerUnitStats(finalUnits);
+  await db.update(players)
+    .set({
+      units: finalUnits,
+      totalStrength: newStats.totalSTR,
+      totalDefense: newStats.totalDEF,
+    })
+    .where(eq(players.username, battleLog.attacker.username));
+}
+
 async function applyBattleResults(battleLog: BattleLog): Promise<void> {
   // Get current player states
   const [attackerResult] = await db.select().from(players).where(eq(players.username, battleLog.attacker.username)).limit(1);
@@ -849,30 +930,57 @@ async function applyBattleResults(battleLog: BattleLog): Promise<void> {
   const attacker: Player = playerRowToPlayer(attackerResult);
   const defender: Player = playerRowToPlayer(defenderResult);
 
-  // Get casualty IDs from battle log
-  const attackerCasualtyIds = battleLog.attacker.units
-    .slice(0, battleLog.attacker.unitsLost)
-    .map(u => u.id);
-  
-  const defenderCasualtyIds = battleLog.defender.units
-    .slice(0, battleLog.defender.unitsLost)
-    .map(u => u.id);
+  // FID-20260912-093: faithful per-type decrement. Returns the surviving
+  // PlayerUnit[] after subtracting each type's casualties from its group.
+  const decrementByCasualties = (
+    army: PlayerUnit[],
+    lost: number,
+    byType: Partial<Record<UnitType, number>> | undefined
+  ): PlayerUnit[] => {
+    if (!byType || Object.keys(byType).length === 0) {
+      // Legacy log (no tally): drain the loss total front-to-back.
+      let remaining = lost;
+      return army.flatMap(pu => {
+        const take = Math.min(pu.quantity, remaining);
+        remaining -= take;
+        return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [pu];
+      }).filter(pu => pu.quantity > 0) as PlayerUnit[];
+    }
+    return army.flatMap(pu => {
+      const killed = byType[pu.unitType] ?? 0;
+      const newQty = pu.quantity - Math.min(killed, pu.quantity);
+      return newQty > 0 ? [{ ...pu, quantity: newQty }] : [];
+    }) as PlayerUnit[];
+  };
 
-  // Get survivor Units from battle
-  const attackerSurvivorUnits = battleLog.attacker.units.filter(u => !attackerCasualtyIds.includes(u.id));
-  const defenderSurvivorUnits = battleLog.defender.units.filter(u => !defenderCasualtyIds.includes(u.id));
+  const attackerFinalFromLosses = decrementByCasualties(
+    attacker.units,
+    battleLog.attacker.unitsLost,
+    battleLog.attacker.casualtiesByType
+  );
+  const defenderFinalFromLosses = decrementByCasualties(
+    defender.units,
+    battleLog.defender.unitsLost,
+    battleLog.defender.casualtiesByType
+  );
 
-  // Get captured Units from battle
+  // Captured units still join the winner's army (PvP only — resolveBattle
+  // zeroes captures for PvE battles). Converted with legacy metadata lookup.
   const attackerCapturedUnits = battleLog.unitsCaptured?.attackerCaptured || [];
   const defenderCapturedUnits = battleLog.unitsCaptured?.defenderCaptured || [];
-
-  // Combine survivors + captured for each side
-  const attackerFinalUnits = [...attackerSurvivorUnits, ...attackerCapturedUnits];
-  const defenderFinalUnits = [...defenderSurvivorUnits, ...defenderCapturedUnits];
-
-  // Convert Units back to PlayerUnit format (collapse quantities)
-  const attackerFinalPlayerUnits = unitsToPlayerUnits(attackerFinalUnits, attacker.units);
-  const defenderFinalPlayerUnits = unitsToPlayerUnits(defenderFinalUnits, defender.units);
+  const attackerFinalUnits = unitsToPlayerUnits(attackerCapturedUnits, attacker.units);
+  const defenderFinalUnits = unitsToPlayerUnits(defenderCapturedUnits, defender.units);
+  const mergeByType = (base: PlayerUnit[], add: PlayerUnit[]): PlayerUnit[] => {
+    const merged = base.map(pu => ({ ...pu }));
+    for (const pu of add) {
+      const existing = merged.find(m => m.unitType === pu.unitType && m.strength === pu.strength && m.defense === pu.defense);
+      if (existing) existing.quantity += pu.quantity;
+      else merged.push(pu);
+    }
+    return merged;
+  };
+  const attackerFinalPlayerUnits = mergeByType(attackerFinalFromLosses, attackerFinalUnits);
+  const defenderFinalPlayerUnits = mergeByType(defenderFinalFromLosses, defenderFinalUnits);
 
   // Calculate new totals from final PlayerUnit arrays
   const attackerNewStats = calculatePlayerUnitStats(attackerFinalPlayerUnits);

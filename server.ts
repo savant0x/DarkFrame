@@ -168,6 +168,25 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    // FID-20260912-093: greet every silent base tile (beer voice for beer
+    // bases, warband chatter for bots). Drift-guarded — free when none left.
+    try {
+      console.log('[Server] 🔄 Running Base Greeting Resync migration (FID-093)...');
+      await connectToDatabase();
+      const { runBaseGreetingResyncMigration } = await import('./lib/migrations/baseGreetingResync');
+      const greetResult = await runBaseGreetingResyncMigration();
+      console.log('[Server] ✅ Base Greeting Resync:', greetResult.message, {
+        modified: greetResult.modified,
+        alreadyApplied: greetResult.alreadyApplied,
+      });
+    } catch (err) {
+      console.error('[Server] ⚠️  Base Greeting Resync failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     try {
       console.log('[Server] 🔄 Running Ship Terrain Heal migration (FID-089)...');
       await connectToDatabase();
