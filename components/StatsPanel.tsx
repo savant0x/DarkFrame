@@ -255,6 +255,18 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
   const metalExpected = metalEstimate;
   const energyExpected = energyEstimate;
   const hasVIP = metalEstimate.terms.vip;
+  // FID-20260912-083: the Player Info VIP row shows the actual status —
+  // remaining time from vipExpiration — not a bare "Active". The crown is
+  // inline-flex with the text so the narrow right-aligned cell can never
+  // wrap the icon onto its own line above the label.
+  const vipRemaining = (() => {
+    if (!hasVIP || !player.vipExpiration) return null;
+    const ms = new Date(player.vipExpiration).getTime() - Date.now();
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    const days = Math.floor(ms / 86_400_000);
+    const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+    return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+  })();
   // Shrine Buffs panel terms (display only — the estimate module does its own
   // filtering for yield math).
   const activeBoosts = player.shrineBoosts?.filter(boost =>
@@ -333,10 +345,21 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
               <button
                 onClick={() => router.push('/game/vip-upgrade')}
                 className="nn-link"
-                style={{ color: 'var(--nn-violet)' }}
-                title="Manage your VIP subscription"
+                style={{
+                  color: 'var(--nn-violet)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  whiteSpace: 'nowrap',
+                }}
+                title={
+                  player.vipExpiration
+                    ? `VIP active until ${new Date(player.vipExpiration).toLocaleString()}`
+                    : 'Manage your VIP subscription'
+                }
               >
-                <Crown style={{ width: 12, height: 12, marginRight: 4 }} /> Active
+                <Crown style={{ width: 12, height: 12, flex: 'none' }} />
+                Active{vipRemaining ? ` · ${vipRemaining}` : ''}
               </button>
             ) : (
               <button
