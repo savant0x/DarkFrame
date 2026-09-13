@@ -18,7 +18,7 @@
 'use client';
 
 import React from 'react';
-import { TILE_COLORS } from '@/types';
+import { TERRAIN_PALETTE } from '@/lib/mapPalette';
 
 /**
  * Legend item configuration
@@ -47,51 +47,52 @@ interface LegendItem {
  * ```
  */
 export function MapLegend({ compact = false }: { compact?: boolean }): React.JSX.Element {
-  // Convert TILE_COLORS hex numbers to CSS hex strings
+  // FID-20260912-087: colors come from the shared map palette — the exact
+  // values the canvas renderer paints, so legend and map can never drift.
   const getLegendItems = (): LegendItem[] => {
     return [
       {
         label: 'Metal',
-        color: `#${TILE_COLORS.Metal.toString(16).padStart(6, '0')}`,
-        icon: '⛏️',
-        description: 'Metal resource tile (+800-1,500 Metal)'
+        color: TERRAIN_PALETTE.Metal.base,
+        icon: TERRAIN_PALETTE.Metal.icon,
+        description: TERRAIN_PALETTE.Metal.description,
       },
       {
         label: 'Energy',
-        color: `#${TILE_COLORS.Energy.toString(16).padStart(6, '0')}`,
-        icon: '⚡',
-        description: 'Energy resource tile (+800-1,500 Energy)'
+        color: TERRAIN_PALETTE.Energy.base,
+        icon: TERRAIN_PALETTE.Energy.icon,
+        description: TERRAIN_PALETTE.Energy.description,
       },
       {
         label: 'Cave',
-        color: `#${TILE_COLORS.Cave.toString(16).padStart(6, '0')}`,
-        icon: '🗿',
-        description: 'Cave exploration tile (30% item drop chance)'
+        color: TERRAIN_PALETTE.Cave.base,
+        icon: TERRAIN_PALETTE.Cave.icon,
+        description: TERRAIN_PALETTE.Cave.description,
       },
       {
         label: 'Forest',
-        color: `#${TILE_COLORS.Forest.toString(16).padStart(6, '0')}`,
-        icon: '🌲',
-        description: 'Forest tile (better loot than caves)'
+        color: TERRAIN_PALETTE.Forest.base,
+        icon: TERRAIN_PALETTE.Forest.icon,
+        description: TERRAIN_PALETTE.Forest.description,
       },
       {
         label: 'Factory',
-        color: `#${TILE_COLORS.Factory.toString(16).padStart(6, '0')}`,
-        icon: '🏭',
-        description: 'Factory location (capturable for unit production)'
+        color: TERRAIN_PALETTE.Factory.base,
+        icon: TERRAIN_PALETTE.Factory.icon,
+        description: TERRAIN_PALETTE.Factory.description,
       },
       {
         label: 'Wasteland',
-        color: `#${TILE_COLORS.Wasteland.toString(16).padStart(6, '0')}`,
-        icon: '💀',
-        description: 'Empty wasteland (no resources)'
+        color: TERRAIN_PALETTE.Wasteland.base,
+        icon: TERRAIN_PALETTE.Wasteland.icon,
+        description: TERRAIN_PALETTE.Wasteland.description,
       },
       {
         label: 'You',
-        color: '#2196F3',
+        color: '#37d6f5',
         icon: '🔵',
-        description: 'Your current position'
-      }
+        description: 'Your current position',
+      },
     ];
   };
 
