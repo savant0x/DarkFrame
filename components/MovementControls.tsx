@@ -60,7 +60,8 @@ export default function MovementControls() {
   const refreshButtonClass = 'nn-dpad__btn nn-dpad__btn--refresh';
 
   return (
-    <div>
+    /* data-tutorial hook: FID-20260912-092 (tutorial target registry) */
+    <div data-tutorial="movement-controls">
       {/* Compass Grid — sample `.dpad`: arrow glyph + letter sub-label */}
       <div className="nn-dpad mb-2">
         {/* Row 1 */}

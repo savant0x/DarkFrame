@@ -1047,6 +1047,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             <button
               onClick={onHarvestClick}
               disabled={isHarvesting}
+              /* data-tutorial hook: FID-20260912-092 (tutorial target registry) */
+              data-tutorial="harvest-button"
               className={`nn-btn ${isHarvesting ? 'nn-btn--ghost' : 'nn-btn--primary nn-btn--harvest'} w-full py-3 text-base`}
             >
               {isHarvesting ? 'HARVESTING…' : `HARVEST (${tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest ? 'F' : 'G'})`}
@@ -1073,7 +1075,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           {isEnemyBase && onAttackClick && (
             /* FID-20260910-038 D4: the doc's resource choice — raid the METAL
                or the ENERGY stockpile. Two CTAs instead of one blind button. */
-            <div className="flex gap-2">
+            <div className="flex gap-2" data-tutorial="attack-button">
               <button
                 onClick={() => onAttackClick('metal')}
                 disabled={isAttacking}

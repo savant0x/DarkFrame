@@ -59,6 +59,7 @@ function NavItem({
   active = false,
   accent,
   badge,
+  tutorialHook,
 }: {
   label: string;
   icon: React.ReactNode;
@@ -67,6 +68,8 @@ function NavItem({
   active?: boolean;
   accent?: 'flag' | 'vip';
   badge?: number;
+  /** FID-20260912-092: data-tutorial value for the tutorial target registry. */
+  tutorialHook?: string;
 }) {
   const accentClass =
     accent === 'flag'
@@ -77,7 +80,7 @@ function NavItem({
         ? 'text-[color:var(--nn-violet)] hover:text-[color:var(--nn-violet-bright,var(--nn-violet))]'
         : '';
   return (
-    <button onClick={onClick} title={title} className={`nn-navitem ${active ? 'nn-navitem--active' : ''} ${accentClass}`}>
+    <button onClick={onClick} title={title} data-tutorial={tutorialHook} className={`nn-navitem ${active ? 'nn-navitem--active' : ''} ${accentClass}`}>
       {icon}
       <span>{label}</span>
       {badge !== undefined && badge > 0 && (
@@ -86,6 +89,10 @@ function NavItem({
     </button>
   );
 }
+
+// FID-20260912-092: tutorial selector registry contract — the literal hook
+// names must appear in source for the registry test to bind them to real UI.
+// clans-nav-item → NavItem at “Clans” · tech-tree-nav-item → NavItem at “Tech Tree”.
 
 export default function TopNavBar({
   onLeaderboardClick,
@@ -259,6 +266,7 @@ export default function TopNavBar({
           <NavItem
             label="Tech Tree"
             icon={<Zap className="h-3.5 w-3.5" />}
+            tutorialHook="tech-tree-nav-item"
             onClick={onTechTreeClick || (() => router.push('/tech-tree'))}
           />
 
@@ -319,6 +327,7 @@ export default function TopNavBar({
               label="Clans"
               icon={<Users className="h-3.5 w-3.5" />}
               onClick={onClansClick || (() => router.push('/clans'))}
+              tutorialHook="clans-nav-item"
             />
           )}
           {player.isAdmin && (

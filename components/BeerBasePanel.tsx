@@ -227,7 +227,8 @@ export default function BeerBasePanel() {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] backdrop-blur-sm">
+    /* data-tutorial hook: FID-20260912-092 (tutorial target registry) */
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[color-mix(in_oklab,var(--nn-void)_50%,transparent)] backdrop-blur-sm" data-tutorial="beer-base-panel">
       <div className="bg-[color:var(--nn-void)] border-2 border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] rounded-none w-[90%] max-w-4xl max-h-[80vh] overflow-hidden shadow-2xl">
         {/* Header */}
         <div className="bg-gradient-to-r from-[color:var(--nn-amber)] to-[color:var(--nn-amber)] p-4 border-b border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)]">

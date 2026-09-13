@@ -45,6 +45,7 @@ import type {
   PlayerGameStateValidation,
 } from '@/types/tutorial.types';
 import { DEFAULT_TUTORIAL_CONFIG } from '@/types/tutorial.types';
+import { TUTORIAL_TARGETS } from './tutorialSelectors';
 import type { TutorialInventoryItem, AchievementMarker, AchievementRecord } from '@/types/game.types';
 import { awardTutorialDiggerToPlayer } from './caveItemService';
 
@@ -94,7 +95,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 • Click "Visit Shrine" button when you arrive
 • Use WASD, Arrow Keys, or Numpad to move`,
         action: 'MOVE_TO_COORDS',
-        targetElement: '.movement-controls',
+        targetElement: TUTORIAL_TARGETS.movementControls,
         validationData: { 
           targetX: 1,
           targetY: 1,
@@ -129,7 +130,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 
 💡 PRO TIP: Always bank your resources before going AFK to prevent raids from taking your hard-earned Metal!`,
         action: 'MOVE_TO_COORDS',
-        targetElement: '.movement-controls',
+        targetElement: TUTORIAL_TARGETS.movementControls,
         validationData: { 
           targetX: 25,
           targetY: 25,
@@ -165,7 +166,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 
 💡 PRO TIP: Plan conversions carefully - the 20% fee adds up! Only convert when you really need the other resource.`,
         action: 'MOVE_TO_COORDS',
-        targetElement: '.movement-controls',
+        targetElement: TUTORIAL_TARGETS.movementControls,
         validationData: { 
           targetX: 50,
           targetY: 50,
@@ -201,7 +202,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 
 💡 PRO TIP: Energy is precious! Always bank it immediately after harvest. Other players WILL raid you if they see high Energy counts!`,
         action: 'MOVE_TO_COORDS',
-        targetElement: '.movement-controls',
+        targetElement: TUTORIAL_TARGETS.movementControls,
         validationData: { 
           targetX: 75,
           targetY: 75,
@@ -238,7 +239,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 
 💡 PRO TIP: The corners and edges of the map are often less crowded. Remote caves can be harvested safely while you grow stronger!`,
         action: 'MOVE_TO_COORDS',
-        targetElement: '.movement-controls',
+        targetElement: TUTORIAL_TARGETS.movementControls,
         validationData: { 
           targetX: 100,
           targetY: 100,
@@ -341,8 +342,9 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 💡 PRO TIP: Harvesting caves also rewards you with special tools like diggers that boost your harvest amounts!`,
         action: 'MOVE',
         targetCoordinates: { x: 20, y: 40, radius: 0 },
-        targetElement: '.cave-tile',
-        completionMessage: 'You found the cave! Now harvest it!',
+        // FID-20260912-092: '.cave-tile' named a canvas-drawn tile — no DOM
+        // element can ever match. The step's real CTA is the HARVEST button
+        // (conditional: mounts only on harvestable tiles, which this step is).
         difficulty: 'MEDIUM',
         estimatedSeconds: 30,
         skipAllowed: true,
@@ -364,7 +366,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
 
 💡 PRO TIP: The digger is a quest reward, not a random drop — it cannot be found anywhere else and stacks with future diggers.`,
         action: 'HARVEST',
-        targetElement: '.harvest-button',
+        targetElement: TUTORIAL_TARGETS.harvestButton,
         completionMessage: 'Excellent! You received your special quest reward: Tutorial Universal Digger (+5% gathering efficiency)!',
         difficulty: 'EASY',
         estimatedSeconds: 10,
@@ -510,7 +512,9 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         title: 'Find a Beer Base',
         instruction: 'Look for a WEAK Beer Base on the map (they appear as beer mug icons)',
         action: 'CUSTOM',
-        targetElement: '.beer-base-tile',
+        // FID-20260912-092: '.beer-base-tile' named a canvas-drawn tile — no
+        // DOM element can ever match. The panel (Shift+E) is the DOM surface
+        // for base intel; the actual find happens on the map by design.
         validationData: { requirementType: 'find_beer_base' },
         completionMessage: 'Target acquired!',
         difficulty: 'EASY',
@@ -523,7 +527,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         title: 'Attack the Base',
         instruction: 'Click on the Beer Base and select "Attack" to engage in combat!',
         action: 'ATTACK',
-        targetElement: '.attack-button',
+        targetElement: TUTORIAL_TARGETS.attackButton,
         validationData: { targetType: 'beer_base' },
         completionMessage: 'Victory! You\'ve won your first battle!',
         difficulty: 'MEDIUM',
@@ -576,7 +580,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         title: 'Open Clan Panel',
         instruction: 'Open the Clans panel to see available clans or create your own',
         action: 'OPEN_PANEL',
-        targetElement: '.clan-panel-button',
+        targetElement: TUTORIAL_TARGETS.clansNavItem,
         validationData: { panelName: 'clans' },
         completionMessage: 'You can join a clan or create your own anytime!',
         difficulty: 'EASY',
@@ -624,7 +628,7 @@ export const TUTORIAL_QUESTS: TutorialQuest[] = [
         title: 'Explore Tech Tree',
         instruction: 'Open the Tech Tree panel to see available research options',
         action: 'OPEN_PANEL',
-        targetElement: '.tech-tree-button',
+        targetElement: TUTORIAL_TARGETS.techTreeNavItem,
         validationData: { panelName: 'tech-tree' },
         completionMessage: 'You can research upgrades as you earn more resources!',
         difficulty: 'EASY',
