@@ -542,9 +542,13 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           </div>
         )}
 
-        {/* Shrine Indicator Badge */}
+        {/* Shrine Indicator Badge — FID-20260912-082: the corner badge got its
+            own .nn-viewport__badge class. It previously shared .nn-viewport__chip
+            with the strip chip, and the badge's absolute top-right rule
+            displaced the strip chip (the "time until reset" readout) out of
+            the status bar. */}
         {tile.terrain === TerrainType.Shrine && (
-          <div className="nn-viewport__chip nn-viewport__chip--violet">
+          <div className="nn-viewport__badge nn-viewport__badge--violet">
             SHRINE
           </div>
         )}
