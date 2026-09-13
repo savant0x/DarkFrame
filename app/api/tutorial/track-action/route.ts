@@ -19,6 +19,7 @@ import {
   getCurrentQuestAndStep,
   getActionTracking,
   updateActionTracking,
+  recordTutorialPanelOpen,
 } from '@/lib/tutorialService';
 
 /**
@@ -123,6 +124,16 @@ export async function POST(request: NextRequest) {
         const currentCount = (tracking?.currentCount ?? 0) + 1;
         await updateActionTracking(playerId, step.id, currentCount, requiredAttacks);
         tracked = true;
+      }
+    } else if (action === 'panel_open') {
+      // FID-20260912-094: the client reports a panel opened (Clans/Tech Tree
+      // nav). The hook server-verifies the step's required panelName and
+      // completes OPEN_PANEL steps — previously unwirable (validation demanded
+      // panelName; nothing ever sent it).
+      const panel = typeof data?.panel === 'string' ? data.panel : '';
+      if (panel) {
+        await recordTutorialPanelOpen(playerId, panel);
+        tracked = step.action === 'OPEN_PANEL';
       }
     }
 
