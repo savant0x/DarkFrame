@@ -45,8 +45,31 @@ clickable, so the full report (rounds, HP curves, damage, XP, captures) was unre
   accessible, aria-expanded); casualties show **both sides** ("you X · enemy Y");
   missing locations render "—", never "(0, 0)".
 
+## Follow-up (090b): the tutorial combat quest could never finish
+
+Same report, deeper layer: quest 3 ("First Battle") stalled at step 2/3 even after a real
+raid, because **neither beer-base step had a writer anywhere**:
+
+- `Find a Beer Base` (CUSTOM/`find_beer_base`) validated `validationData.requirementMet === true` —
+  but the field was **set by nothing**: no enrichment case in `completeStep`'s CUSTOM
+  switch, no client signal, no tracking row. Unconditionally false forever.
+- `Attack the Base` (ATTACK/`targetType: beer_base`) validated fine — but
+  `/api/combat/attack` (the only endpoint that resolves that attack) was **tutorial-blind**;
+  only MOVE and HARVEST routes feed steps today.
+
+Fix: two server-side hooks in tutorialService (same contract as `recordTutorialHarvest`,
+non-throwing, replay-guarded by completeStep's already-completed no-op):
+
+- `recordTutorialBeerBaseFound(playerId)` — presence at a base completes the find step.
+- `recordTutorialBaseAttack(playerId, victory)` — a resolved raid completes the attack
+  step (the step declares no `requireSuccess`; the tutorial teaches the action, not a win).
+
+Both wired into `/api/combat/attack` after battle resolution. Tests (5) pin the validator
+contracts and the step shapes that make the hooks correct.
+
 ## Gates
 
-tsc 0 · eslint 0 · vitest **678** (11 new: heal classification on the live drift
-fixture, presence-vs-tile contract, raid loot stamping, route resource mapping) ·
-build clean · heal verified live (32 rows, 0 remaining drift).
+tsc 0 · eslint 0 · vitest **683** (11 + 5 new: heal classification on the live drift
+fixture, presence-vs-tile contract, raid loot stamping, route resource mapping,
+tutorial validator contracts) · build clean · heal verified live (32 rows, 0 remaining
+drift).

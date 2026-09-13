@@ -986,8 +986,59 @@ export async function recordTutorialHarvest(playerId: string, terrain: string): 
 }
 
 /**
+ * FID-20260912-090b — tutorial hooks for the combat quest's beer-base steps.
+ *
+ * The 'Find a Beer Base' (CUSTOM/find_beer_base) and 'Attack the Base'
+ * (ATTACK/targetType beer_base) steps previously had NO writer anywhere:
+ * `requirementMet` was read by validation but set by nothing, and the raid
+ * route was tutorial-blind — so steps 2/3 of the first-battle quest could
+ * never complete through real gameplay. Same contract as
+ * recordTutorialHarvest: server-side hook, non-throwing (Law 14),
+ * replay-guarded by completeStep.
+ */
+
+/** Current step is CUSTOM/find_beer_base → complete it (the player reached a base). */
+export async function recordTutorialBeerBaseFound(playerId: string): Promise<void> {
+  try {
+    const { quest, step } = await getCurrentQuestAndStep(playerId);
+    if (!quest || !step) return;
+    if (step.action !== 'CUSTOM' || step.validationData?.requirementType !== 'find_beer_base') return;
+
+    await completeStep({
+      playerId,
+      questId: quest._id!,
+      stepId: step.id,
+      validationData: { requirementMet: true },
+    });
+    console.log(`[Tutorial] 🍺 Beer Base FOUND — step ${step.id} completed for ${playerId}`);
+  } catch (error) {
+    console.error('[Tutorial] Beer-base-found tracking failed:', error);
+  }
+}
+
+/** Current step is ATTACK/targetType beer_base → complete it on a resolved raid. */
+export async function recordTutorialBaseAttack(playerId: string, victory: boolean): Promise<void> {
+  try {
+    const { quest, step } = await getCurrentQuestAndStep(playerId);
+    if (!quest || !step || step.action !== 'ATTACK') return;
+    if (step.validationData?.targetType !== 'beer_base') return;
+
+    await completeStep({
+      playerId,
+      questId: quest._id!,
+      stepId: step.id,
+      validationData: { targetType: 'beer_base', success: victory, attackCount: 1 },
+    });
+    console.log(`[Tutorial] ⚔️ Base attack recorded — step ${step.id} for ${playerId} (victory: ${victory})`);
+  } catch (error) {
+    console.error('[Tutorial] Base-attack tracking failed:', error);
+  }
+}
+
+/**
  * Get action tracking for a step (exported for route-layer reads —
- * FID-20260908-001: the single reader of the actionType JSON contract)
+ * FID-20260909-090 follow-up, originally FID-20260908-001: the single reader
+ * of the actionType JSON contract)
  */
 export async function getActionTracking(playerId: string, stepId: string): Promise<ActionTracking | null> {
   const rows = await db.select().from(tutorialActionTracking).where(
