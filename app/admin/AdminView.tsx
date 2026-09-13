@@ -65,6 +65,11 @@ interface PlayerListItem {
   energy: number;
   baseLocation: string;
   lastActive?: string;
+  // FID-20260912-084: bot identity for the registry's Type column + filter
+  isBot?: boolean;
+  isBeerBase?: boolean;
+  specialization?: string | null;
+  botTier?: number | null;
 }
 
 interface AdminPageProps {
@@ -493,10 +498,18 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
     }
   }, [vipFilter, player, isAdmin]);
 
-  // Filter players by search term
-  const filteredPlayers = players.filter(p =>
-    p.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter players by search term + FID-20260912-084 registry type filter
+  const [registryFilter, setRegistryFilter] = useState<'all' | 'players' | 'bots' | 'beer'>('all');
+  const filteredPlayers = players.filter(p => {
+    const matchesSearch = p.username.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+    switch (registryFilter) {
+      case 'players': return !p.isBot;
+      case 'bots': return !!p.isBot && !p.isBeerBase;
+      case 'beer': return !!p.isBeerBase;
+      default: return true;
+    }
+  });
 
   // Filter VIP users
   const filteredVipUsers = vipUsers
@@ -1295,7 +1308,19 @@ By Specialization:
                 <span className="nn-panel__title">Player Management</span>
                 <span className="nn-panel__meta">REGISTRY ▸ ALL PLAYERS</span>
               </div>
-              <div className="flex justify-end items-center mb-4">
+              <div className="flex justify-end items-center gap-3 mb-4">
+                {/* FID-20260912-084: registry type filter */}
+                <div className="flex gap-1">
+                  {([['all', 'All'], ['players', 'Players'], ['bots', 'Bots'], ['beer', '🍺 Beer Bases']] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setRegistryFilter(key)}
+                      className={`nn-abtn nn-abtn--ghost text-xs ${registryFilter === key ? 'nn-abtn--amber' : ''}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="text"
                   placeholder="Search players..."
@@ -1310,6 +1335,7 @@ By Specialization:
                   <thead>
                     <tr>
                       <th>Username</th>
+                      <th>Type</th>
                       <th>Level</th>
                       <th>Rank</th>
                       <th>Metal</th>
@@ -1321,7 +1347,16 @@ By Specialization:
                   <tbody>
                     {filteredPlayers.map((p) => (
                       <tr key={p.username} className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] transition-colors">
-                        <td className="font-medium">{p.username}</td>
+                        <td className="font-medium">
+                          {p.isBeerBase ? '🍺 ' : p.isBot ? '🤖 ' : ''}{p.username}
+                        </td>
+                        <td className="text-[color:var(--nn-text-secondary)] text-xs">
+                          {p.isBeerBase
+                            ? `BEER BASE${p.botTier ? ` · T${p.botTier}` : ''}`
+                            : p.isBot
+                              ? `Bot${p.specialization ? ` · ${p.specialization}` : ''}`
+                              : 'Player'}
+                        </td>
                         <td className="nn-table__num text-[color:var(--nn-amber)]">{p.level}</td>
                         <td className="nn-table__num text-[color:var(--nn-violet)]">{p.rank}</td>
                         <td className="nn-table__num text-[color:var(--nn-cyan)]">{p.metal.toLocaleString()}</td>

@@ -99,10 +99,14 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       const energy = bot.resourcesEnergy;
       const position = { x: bot.currentPositionX, y: bot.currentPositionY };
 
-      // Specialization count
-      if (spec && spec in stats.bySpecialization) {
-        const specKey = spec as unknown as keyof typeof stats.bySpecialization;
-        stats.bySpecialization[specKey]++;
+      // Specialization count — FID-20260912-084: DB stores lowercase enum
+      // values ('hoarder'), the stats keys are PascalCase ('Hoarder'); the old
+      // case-sensitive `in` check matched nothing and every bucket read 0.
+      if (spec) {
+        const specKey = (spec.charAt(0).toUpperCase() + spec.slice(1).toLowerCase()) as keyof typeof stats.bySpecialization;
+        if (specKey in stats.bySpecialization) {
+          stats.bySpecialization[specKey]++;
+        }
       }
 
       // Tier count

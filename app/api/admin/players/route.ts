@@ -55,6 +55,11 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       baseX: players.baseX,
       baseY: players.baseY,
       createdAt: players.createdAt,
+      // FID-20260912-084: expose bot identity so the Player Management table
+      // can label and filter by type (bot / Beer Base / specialization).
+      isBot: players.isBot,
+      isSpecialBase: players.isSpecialBase,
+      botConfig: players.botConfig,
     })
       .from(players)
       .orderBy(desc(players.level), asc(players.username));
@@ -66,7 +71,11 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       metal: Number(p.resourcesMetal || 0),
       energy: Number(p.resourcesEnergy || 0),
       baseLocation: `(${p.baseX}, ${p.baseY})`,
-      lastActive: p.createdAt ? new Date(p.createdAt).toISOString() : undefined
+      lastActive: p.createdAt ? new Date(p.createdAt).toISOString() : undefined,
+      isBot: p.isBot === 1,
+      isBeerBase: p.isSpecialBase === 1 || p.botConfig?.isSpecialBase === true,
+      specialization: p.botConfig?.specialization ?? null,
+      botTier: p.botConfig?.tier ?? null,
     }));
 
     log.info('Player list retrieved', {
