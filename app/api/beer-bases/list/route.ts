@@ -56,9 +56,10 @@ export async function GET() {
     const beerBases = await db
       .select({
         username: players.username,
+        rank: players.rank,
+        level: players.level,
         currentPositionX: players.currentPositionX,
         currentPositionY: players.currentPositionY,
-        rank: players.rank,
         totalStrength: players.totalStrength,
         totalDefense: players.totalDefense,
         resourcesMetal: players.resourcesMetal,
@@ -74,17 +75,17 @@ export async function GET() {
       const dy = Math.abs(base.currentPositionY - playerPos.y);
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      const powerTier = base.username.includes('-LEGENDARY-')
-        ? 'LEGENDARY'
-        : base.username.includes('-ULTRA-')
-        ? 'ULTRA'
-        : base.username.includes('-ELITE-')
-        ? 'ELITE'
-        : base.username.includes('-STRONG-')
-        ? 'STRONG'
-        : base.username.includes('-MID-')
-        ? 'MID'
-        : 'WEAK';
+      // FID-20260912-081: tier comes from rank (1–6 = WEAK→LEGENDARY, set by
+      // spawnBeerBase) with a level-band fallback — the old username-slug parse
+      // ('-ELITE-' etc.) matches nothing since FID-20260906-007 renamed bases
+      // to themed place names, so every base rendered as WEAK.
+      const RANK_TO_TIER = ['WEAK', 'MID', 'STRONG', 'ELITE', 'ULTRA', 'LEGENDARY'] as const;
+      const tierFromLevel = (lvl: number): string =>
+        lvl < 5 ? 'WEAK' : lvl < 10 ? 'MID' : lvl < 20 ? 'STRONG' : lvl < 30 ? 'ELITE' : lvl < 40 ? 'ULTRA' : 'LEGENDARY';
+      const powerTier =
+        base.rank && base.rank >= 1 && base.rank <= 6
+          ? RANK_TO_TIER[base.rank - 1]
+          : tierFromLevel(base.level);
 
       // Scanned = the player stands on the base's tile (Chebyshev, 8-directional grid).
       const scanned = chebyshevDistance(playerPos, { x: base.currentPositionX, y: base.currentPositionY }) === 0;

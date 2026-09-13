@@ -14,6 +14,7 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import { extractApiError } from '@/lib/apiClient';
+import { formatNumberAbbreviated } from '@/utils/formatting';
 import BackButton from '@/components/BackButton';
 import ActivityTimeline from '@/components/admin/charts/ActivityTimeline';
 import ResourceGains from '@/components/admin/charts/ResourceGains';
@@ -191,6 +192,18 @@ interface VipUser {
   vipExpiration: string | null;
 }
 
+// app/api/admin/beer-bases/list rows (FID-20260912-081 roster)
+interface BeerBaseRosterEntry {
+  username: string;
+  tier: string;
+  level: number;
+  position: { x: number; y: number };
+  totalStrength: number;
+  totalDefense: number;
+  resources: { metal: number; energy: number };
+  armySize: number;
+}
+
 // app/api/admin/beer-bases/schedules rows
 interface BeerSchedule {
   id: string;
@@ -277,6 +290,11 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
     predictiveExpanded: false, // UI state for collapsible section
   });
   const [beerBaseLoading, setBeerBaseLoading] = useState(false);
+  
+  // FID-20260912-081: the actual base roster (config sliders existed, the list didn't)
+  const [beerBaseRoster, setBeerBaseRoster] = useState<BeerBaseRosterEntry[]>([]);
+  const [beerBaseRosterLoading, setBeerBaseRosterLoading] = useState(false);
+  const [beerBaseRosterOpen, setBeerBaseRosterOpen] = useState(false);
   
   // Schedule management state (FID-20251025-003)
   const [schedules, setSchedules] = useState<BeerSchedule[]>([]);
@@ -550,6 +568,25 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
     }
   };
   
+  // FID-20260912-081: fetch the live base roster for the admin list
+  const loadBeerBaseRoster = async () => {
+    setBeerBaseRosterLoading(true);
+    try {
+      const res = await fetch('/api/admin/beer-bases/list');
+      const data = await res.json();
+      if (data.success) {
+        setBeerBaseRoster(data.bases);
+      } else {
+        showError(`Failed to load beer base roster: ${extractApiError(data, res.status)}`);
+      }
+    } catch (err) {
+      console.error('Beer base roster error:', err);
+      showError('Failed to load beer base roster');
+    } finally {
+      setBeerBaseRosterLoading(false);
+    }
+  };
+
   const handleRespawnBeerBases = async () => {
     setBeerBaseLoading(true);
     try {
@@ -561,12 +598,13 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
       const data = await res.json();
       if (data.success) {
         showSuccess(`Beer bases respawned! ${data.count} bases created using smart spawning.`);
-        // Refresh bot stats
+        // Refresh bot stats + the roster list (FID-20260912-081)
         const botStatsRes = await fetch('/api/admin/bot-stats');
         const botStatsData = await botStatsRes.json();
         if (botStatsData.success) {
           setBotStats(botStatsData.data);
         }
+        void loadBeerBaseRoster();
       } else {
         showError(`Error: ${extractApiError(data, res.status)}`);
       }
@@ -586,8 +624,11 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: beerBaseConfig.enabled,
-          spawnRateMin: beerBaseConfig.spawnRateMin / 100,
-          spawnRateMax: beerBaseConfig.spawnRateMax / 100,
+          // FID-20260912-081: spawnRateMin/Max are PERCENT INTEGERS end to end —
+          // the previous /100 here stored fractions (0.05) which getTargetBeerBaseCount
+          // divided by 100 again, starving the population to a single base.
+          spawnRateMin: beerBaseConfig.spawnRateMin,
+          spawnRateMax: beerBaseConfig.spawnRateMax,
           resourceMultiplier: beerBaseConfig.resourceMultiplier,
           respawnDay: beerBaseConfig.respawnDay,
           respawnHour: beerBaseConfig.respawnHour,
@@ -2137,6 +2178,69 @@ By Specialization:
                   <div className="nn-brief nn-brief--cyan mt-4">
                     <strong>How It Works</strong> — System checks active players (last 7 days), analyzes their levels, 
                     and spawns Beer Bases with appropriate power tiers. Distribution: 40% same tier, 30% one up, 10% one down, 20% two up.
+                  </div>
+
+                  {/* Live roster (FID-20260912-081): the actual bases on the map */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        onClick={() => {
+                          const next = !beerBaseRosterOpen;
+                          setBeerBaseRosterOpen(next);
+                          if (next && beerBaseRoster.length === 0) void loadBeerBaseRoster();
+                        }}
+                        className="nn-abtn nn-abtn--ghost text-xs"
+                      >
+                        {beerBaseRosterOpen ? '▾' : '▸'} Live Roster ({beerBaseRoster.length})
+                      </button>
+                      {beerBaseRosterOpen && (
+                        <button
+                          onClick={() => void loadBeerBaseRoster()}
+                          disabled={beerBaseRosterLoading}
+                          className="nn-abtn nn-abtn--ghost text-xs disabled:cursor-not-allowed"
+                        >
+                          {beerBaseRosterLoading ? 'Loading…' : '↻ Refresh'}
+                        </button>
+                      )}
+                    </div>
+                    {beerBaseRosterOpen && (
+                      beerBaseRoster.length === 0 ? (
+                        <div className="nn-brief nn-brief--amber">
+                          <p>No Beer Bases currently on the map. Use &quot;Manual Respawn Now&quot; to populate.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-[color:var(--nn-text-secondary)]">
+                                <th className="py-1.5 pr-3 font-medium">Base</th>
+                                <th className="py-1.5 pr-3 font-medium">Tier</th>
+                                <th className="py-1.5 pr-3 font-medium">Lvl</th>
+                                <th className="py-1.5 pr-3 font-medium">Position</th>
+                                <th className="py-1.5 pr-3 font-medium">STR</th>
+                                <th className="py-1.5 pr-3 font-medium">DEF</th>
+                                <th className="py-1.5 pr-3 font-medium">Army</th>
+                                <th className="py-1.5 pr-3 font-medium">Loot (M/E)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {beerBaseRoster.map((base) => (
+                                <tr key={base.username} className="border-t border-[color:var(--nn-border)]">
+                                  <td className="py-1.5 pr-3 font-medium">🍺 {base.username}</td>
+                                  <td className="py-1.5 pr-3">{base.tier}</td>
+                                  <td className="py-1.5 pr-3">{base.level}</td>
+                                  <td className="py-1.5 pr-3">({base.position.x}, {base.position.y})</td>
+                                  <td className="py-1.5 pr-3">{formatNumberAbbreviated(base.totalStrength)}</td>
+                                  <td className="py-1.5 pr-3">{formatNumberAbbreviated(base.totalDefense)}</td>
+                                  <td className="py-1.5 pr-3">{base.armySize}</td>
+                                  <td className="py-1.5 pr-3">{formatNumberAbbreviated(base.resources.metal)} / {formatNumberAbbreviated(base.resources.energy)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
 
