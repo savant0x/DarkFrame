@@ -166,7 +166,7 @@ Scratch census/probe scripts deleted after use; evidence preserved in §2.
 ## 7. Closure
 
 - **Gates:** [x] census complete (22 names resolved) · [x] live shape probe · [x] loop converged · [x] machine re-census confirms the unmapped set and caller citations (`scripts/censusCollectionMapping.ts`, 2026-09-14)
-- **Commit hash (G2):** _pending implementation + commit (spec FID; Phases A/B gated)_
+- **Commit hash (G2):** `20597c6` (umbrella multi-stream commit, 2026-09-15)
 - **Staging plan:** Phase A — `app/api/factory/abandon/route.ts`, `lib/cacheWarming.ts`; Phase B —
   `lib/db/migrations/0031_player_level_history.sql`, `lib/db/schema/playerHistory.ts`,
   `lib/db/schema/index.ts`, `lib/playerHistoryService.ts`, `app/api/cron/player-snapshot/route.ts`,
@@ -189,4 +189,4 @@ honest `.returning()` counts. Live: table applied to the DB (information_schema-
 snapshot insert → growth-rate read → prediction → cleanup verified end-to-end. The MySQL-era SQL
 sweep commissioned alongside found **zero live remnants** — every hit was a comment or valid pg
 syntax; the two stale `JSON_CONTAINS` doc-comments in `dmService.ts` were corrected.
-**Final status:** implemented + live-verified (closes on commit per G2)
+**Final status:** closed (commit `20597c6`)
