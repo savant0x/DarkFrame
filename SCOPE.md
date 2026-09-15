@@ -1043,3 +1043,4 @@ Every step of the approved plan carries an explicit status (`implemented | block
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.
+| 54 | **Ladder-truth gate → every documented game-math table (FID-20260915-007):** four new ladders (regen-rate 12 cells/4 sites engine-derived via tick(0)÷max, unit-cost 23/2, build-rate 10/2, army-composition 20/2) + first catches corrected pre-ship: regen summaries said 5-20% while Boss is 2% (now 2-20% ×4 sites), UNIT_CONFIGS header said 40 units vs 65 actual (rescoped). BUILD_RATES/ARMY_COMPOSITION exported. Drill-proven E/F/G (comment-only edits fail 2/2/2). Gates: tsc 0 · lint 0 · vitest 839/1 skipped. Status: verified (uncommitted) |
