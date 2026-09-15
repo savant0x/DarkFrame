@@ -6,7 +6,7 @@
  * 
  * OVERVIEW:
  * Manages AI-controlled bot players that mimic real player behavior.
- * Full Permanence Model: Bots stay on map permanently, regenerate resources hourly (5-20% by type).
+ * Full Permanence Model: Bots stay on map permanently, regenerate resources hourly (2-20% by type — Boss 2%; FID-20260915-007 corrected).
  * Beer Bases despawn when defeated and respawn weekly at random locations.
  * 
  * EXPANDED BOT TIER SYSTEM (7 Tiers) — values below are CODE truth
@@ -916,7 +916,7 @@ export async function createBeerBaseBots(count: number): Promise<Partial<Player>
 // - Full Permanence Model: Regular bots never despawn, regenerate resources hourly
 // - Beer Bases despawn when defeated, respawn weekly (Sunday 4 AM)
 // - All bots have permanentBase=true for static base locations
-// - Resource regeneration rates: 5-20% per hour based on specialization
+// - Resource regeneration rates: 2-20% per hour based on specialization (Boss 2%; FID-20260915-007 corrected)
 // - Reputation system tracks defeats for bonus loot (up to 2x)
 // - Zone system ensures even distribution across 150×150 map
 // - Admin panel will control all bot parameters via configuration

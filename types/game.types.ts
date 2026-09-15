@@ -1104,26 +1104,30 @@ export interface UnitConfig {
  * Available unit configurations
  */
 /**
- * Complete unit configurations for all 40 units (5 tiers × 8 units)
- * 
- * BALANCING PHILOSOPHY:
+ * Complete unit configurations for all 65 units: the 40-unit core roster
+ * (5 tiers × 8 units, blueprint-derived) plus 25 SPEC/PRESTIGE progression
+ * units (FID-20260915-007 scope correction — previously claimed "all 40",
+ * undercounting the constant).
+ *
+ * BALANCING PHILOSOPHY (core roster):
  * - Tier 1: Entry-level units (Level 1+, 0 RP)
  * - Tier 2: Mid-game units (Level 5+, 5 RP to unlock tier)
  * - Tier 3: Advanced units (Level 10+, 15 RP to unlock tier)
  * - Tier 4: Elite units (Level 20+, 30 RP to unlock tier)
  * - Tier 5: Legendary units (Level 30+, 50 RP to unlock tier)
- * 
+ *
  * COST SCALING:
  * - Metal/Energy costs scale exponentially per tier
- * - Higher tiers require more factory slots
+ * - Higher tiers require more factory slots (core roster: 1/3/7/15/30)
  * - STR/DEF values scale progressively within each tier
  */
 /**
  * FID-20260909-033: UNIT_CONFIGS is DERIVED from UNIT_BLUEPRINTS
- * (types/units.types.ts) — the canonical roster. Names, stats, and costs here
- * are generated from the blueprint table; do not hand-edit values. The
- * slotCost per tier follows the exponential slot system (1/3/7/15/30);
- * level/rp requirements mirror TIER_UNLOCK_REQUIREMENTS.
+ * (types/units.types.ts) — the canonical roster for the 40-unit T1–T5 core;
+ * SPEC/PRESTIGE units have no blueprint counterpart by design. Names, stats,
+ * and costs of the core are generated from the blueprint table; do not
+ * hand-edit values. The core slotCost per tier follows the exponential slot
+ * system (1/3/7/15/30); level/rp requirements mirror TIER_UNLOCK_REQUIREMENTS.
  */
 export const UNIT_CONFIGS: Record<UnitType, UnitConfig> = {
   [UnitType.T1_Infantry]: {

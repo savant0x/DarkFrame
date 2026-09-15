@@ -8,7 +8,7 @@
  * challenging bot populations that scale in difficulty over time.
  * 
  * KEY FEATURES:
- * - Full Permanence: Bots regenerate resources hourly (5-20% by type)
+ * - Full Permanence: Bots regenerate resources hourly (2-20% by type — Boss 2%; FID-20260915-007 corrected)
  * - Unit Building: Bots build BOTH STR and DEF armies that scale with age/tier
  * - Growth Patterns: 70% grow, 20% stable, 10% decrease for dynamic economy
  * - Movement System: Raiders roam, Ghosts teleport, others stationary
@@ -73,7 +73,7 @@ const REGENERATION_RATES = {
 /**
  * Unit building rates by specialization (units built per hour)
  */
-const BUILD_RATES = {
+export const BUILD_RATES = {
   Fortress: 0.5,   // 1 unit every 2 hours - slow but defensive
   Raider: 1.0,     // 1 unit per hour - fast aggressive builds
   Hoarder: 0.25,   // 1 unit every 4 hours - minimal unit focus
@@ -84,7 +84,7 @@ const BUILD_RATES = {
 /**
  * Army composition by specialization (STR vs DEF percentages)
  */
-const ARMY_COMPOSITION = {
+export const ARMY_COMPOSITION = {
   Fortress: { str: 0.3, def: 0.7 },  // 30% STR, 70% DEF - defensive wall
   Raider: { str: 0.7, def: 0.3 },    // 70% STR, 30% DEF - offensive power
   Hoarder: { str: 0.5, def: 0.5 },   // 50/50 - minimal but balanced
@@ -611,7 +611,7 @@ export async function forceRegeneration(): Promise<{ success: boolean; count: nu
  *    - DEF units: Guard (T1), Sentinel (T2), Bastion (T3)
  * 
  * 5. FULL PERMANENCE MODEL:
- *    - Bots regenerate 5-20% resources hourly (never despawn)
+ *    - Bots regenerate 2-20% resources hourly (never despawn; Boss 2% — FID-20260915-007 corrected)
  *    - Growth pattern adds economic variation (70/20/10)
  *    - Movement creates dynamic map presence
  *    - Nest attraction maintains strategic clustering
