@@ -218,6 +218,42 @@ describe('applyAttackerCasualties', () => {
     expect(t2?.quantity).toBe(8);
   });
 
+  it('FID-20260915-001: the tally drains ACROSS a type\'s entries (multi-entry armies are not annihilated)', async () => {
+    // Live-verification regression: the old per-entry subtraction removed the
+    // type's TOTAL casualties from EVERY entry of that type — a 400×qty-1
+    // infantry army lost all 400 units to 225 casualties (live E2E catch).
+    // Drain semantics: the tally is the type's total; entries absorb it
+    // front-to-back. 15 + 25 T1 with 10 dead → [5, 25] = 30 survivors, and the
+    // T2 group is untouched.
+    const units = [
+      armyPU('T1_Rifleman', 15, 100),
+      armyPU('T1_Rifleman', 25, 100),
+      armyPU('T2_Grenadier', 8, 200),
+    ];
+    stubAttackerRow(units);
+
+    const log = {
+      attacker: {
+        username: 'attacker',
+        unitsLost: 10,
+        casualtiesByType: { T1_Rifleman: 10 },
+      },
+    } as unknown as BattleLog;
+
+    await applyAttackerCasualties(log);
+
+    expect(updateCalls).toHaveLength(1);
+    const written = updateCalls[0].units as PlayerUnit[];
+    const t1Entries = written.filter(u => u.unitType === ('T1_Rifleman' as UnitType));
+    expect(t1Entries).toHaveLength(2); // both entries survive with split quantities
+    expect(t1Entries[0]?.quantity).toBe(5);
+    expect(t1Entries[1]?.quantity).toBe(25);
+    const t1Total = t1Entries.reduce((s, u) => s + (u.quantity ?? 0), 0);
+    expect(t1Total).toBe(30); // 40 − 10, not 40 − 20
+    const t2 = written.find(u => u.unitType === ('T2_Grenadier' as UnitType));
+    expect(t2?.quantity).toBe(8);
+  });
+
   it('removes a group entirely when all of a type dies', async () => {
     const units = [armyPU('T1_Rifleman', 5), armyPU('T2_Grenadier', 4, 200)];
     stubAttackerRow(units);

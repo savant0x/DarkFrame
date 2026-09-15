@@ -3,7 +3,32 @@
 All notable changes to DarkFrame are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); dates are session dates (America/New_York).
 
-## [Unreleased] — 2026-09-14 session
+## [Unreleased] — 2026-09-15 session
+
+### Fixed — FID-20260915-001 Phase 3 (combat rebalance converged + two army-wipe bugs)
+
+- Battle HP scale is now power-proportional (`strength + defense` per unit;
+  zero-power floor 10), replacing the flat 10/15 scale under which every battle
+  resolved in round 1 (army pools of hundreds vs per-round damage of
+  hundreds–thousands — the BATTLE-17894 annihilation-DRAW class was the norm).
+  Mirror matches fight ~2 rounds at any tier; tanky garrisons fight
+  multi-round; overreached raids die fast. The incident's exact matchup now
+  resolves as a 4-round Pyrrhic victory (~70% proportional losses) instead of a
+  mutual-annihilation DRAW — the pinned regression suite covers the full matrix.
+- Live raid verification surfaced and fixed a second annihilation class: the
+  type-tally write-back subtracted each type's TOTAL casualties from EVERY
+  entry of that type, so any multi-entry army (the canonical per-unit build
+  shape) lost entryCount × killed units — a 400-unit infantry army wiped by
+  225 casualties. Both write-back paths (raid `applyAttackerCasualties` and PvP
+  `applyBattleResults`) now drain the tally across the type's entries.
+- Live E2E (`scripts/e2eBattleRebalance.ts`): competitive raid = ATTACKER_WIN
+  in exactly the projected 10 rounds with exactly the projected 225/400
+  proportional losses and 175 survivors intact in the DB; overreached raid =
+  clean DefenderWin with the garrison unscratched. Never a DRAW.
+- Rejected the FID's original per-axis coefficient sketch in the perfection
+  loop: algebra showed no linear coefficients can produce multi-round close
+  matchups while keeping incident-class fights in round 1 (proven live: the
+  incident replay's honest outcome is a close-matchup-shaped fight).
 
 ### Fixed — FID-20260914-004 (compat-seam hardening)
 
