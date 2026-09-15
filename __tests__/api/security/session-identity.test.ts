@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/security/session-identity.test.ts
  * @overview FID-20260909-023 §3.1 regression tests — session-derived identity

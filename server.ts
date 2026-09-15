@@ -187,6 +187,22 @@ async function startServer(): Promise<void> {
       console.log('[Server] ⚠️  Continuing without blocking startup');
     }
 
+    // FID-20260912-093b: relabel historical FACTORY rows that were really base
+    // raids (pre-FID-093 mislabel) in battle_logs + report message headlines.
+    try {
+      console.log('[Server] 🔄 Running Base Raid Label Backfill migration (FID-093b)...');
+      await connectToDatabase();
+      const { runBaseRaidLabelBackfillMigration } = await import('./lib/migrations/baseRaidLabelBackfill');
+      const labelResult = await runBaseRaidLabelBackfillMigration();
+      console.log('[Server] ✅ Base Raid Label Backfill:', labelResult.message);
+    } catch (err) {
+      console.error('[Server] ⚠️  Base Raid Label Backfill failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        stack: dev && err instanceof Error ? err.stack : undefined,
+      });
+      console.log('[Server] ⚠️  Continuing without blocking startup');
+    }
+
     try {
       console.log('[Server] 🔄 Running Ship Terrain Heal migration (FID-089)...');
       await connectToDatabase();

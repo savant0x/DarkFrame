@@ -667,12 +667,14 @@ export default function GamePage() {
       // FID-20260911-041: rejections (out of range, presence, cooldown…) used
       // to fall into the generic readout or console-only noise — surface the
       // server's reason verbatim.
+      // FID-20260914-006: mirror the success path's battle-stat extraction —
+      // a resolved raid the defender won still carries real damage numbers.
       if (data.success === false || !response.ok) {
         setAttackResult({
           success: false,
           message: extractApiError(data, response.status),
-          playerPower: 0,
-          factoryDefense: 0,
+          playerPower: data.battle?.attacker?.damageDealt ?? 0,
+          factoryDefense: data.battle?.defender?.damageDealt ?? 0,
           captured: false,
         });
         setTimeout(() => setAttackResult(null), 6000);
@@ -740,12 +742,16 @@ export default function GamePage() {
 
       // FID-20260911-041: server rejection reasons surface verbatim (was
       // console-only or a generic 'Network error').
+      // FID-20260914-006: keep the server's real numbers when the payload
+      // carries them — a genuine combat miss DOES return playerPower/
+      // factoryDefense, and hardcoding 0/0 made every failure (bad roll,
+      // cooldown, presence) render identically as 0/0, masking the cause.
       if (data.success === false || !response.ok) {
         setAttackResult({
           success: false,
           message: extractApiError(data, response.status),
-          playerPower: 0,
-          factoryDefense: 0,
+          playerPower: typeof data.playerPower === 'number' ? data.playerPower : 0,
+          factoryDefense: typeof data.factoryDefense === 'number' ? data.factoryDefense : 0,
           captured: false,
         });
         setTimeout(() => setAttackResult(null), 6000);
@@ -928,6 +934,31 @@ export default function GamePage() {
     } catch (error) {
       console.error('[Flag Tracker] Flee error:', error);
       setPanelMessage(`❌ Flee failed: ${error instanceof Error ? error.message : 'Network error'}`);
+      setTimeout(() => setPanelMessage(''), 5000);
+    }
+  };
+
+  // FID-20260914-002 Issue 4: bearer drops the Flag voluntarily (POST /api/flag/drop).
+  const handleFlagDrop = async () => {
+    if (!player) return;
+
+    try {
+      const response = await fetch('/api/flag/drop', { method: 'POST' });
+      const result = await response.json();
+
+      if (result.success) {
+        setPanelMessage(`🏳️ ${result.message ?? 'Flag dropped — it is now unclaimed.'}`);
+        // Bearer bonuses ended and the flag is unclaimed — full refresh.
+        await refreshGameState();
+      } else {
+        setPanelMessage(`❌ Drop failed: ${extractApiError(result, response.status)}`);
+      }
+
+      await fetchFlagData();
+      setTimeout(() => setPanelMessage(''), 6000);
+    } catch (error) {
+      console.error('[Flag Tracker] Drop error:', error);
+      setPanelMessage(`❌ Drop failed: ${error instanceof Error ? error.message : 'Network error'}`);
       setTimeout(() => setPanelMessage(''), 5000);
     }
   };
@@ -1422,6 +1453,7 @@ export default function GamePage() {
                   onChallenge={handleFlagChallenge}
                   onFlee={handleFlagFlee}
                   onClaim={handleFlagClaim}
+                  onDrop={handleFlagDrop}
                   compact={false}
                   playerUsername={player?.username}
                 />

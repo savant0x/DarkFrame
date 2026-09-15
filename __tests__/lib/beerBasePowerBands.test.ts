@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/lib/beerBasePowerBands.test.ts
  * @overview FID-20260909-034 — Beer Base power-band integrity regression.

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Integration Tests for WebSocket Chat
  * Created: 2025-10-25

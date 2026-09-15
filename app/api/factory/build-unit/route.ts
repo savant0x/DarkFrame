@@ -26,6 +26,7 @@ import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { getMaxSlots } from '@/lib/factoryUpgradeService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { trackUnitBuilt } from '@/lib/statTrackingService';
+import { getPlayerDoctrineBonuses } from '@/lib/specializationService';
 import { withRequestLogging, createRouteLogger } from '@/lib';
 
 interface BuildUnitRequest {
@@ -107,8 +108,11 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
 
     // 4. Get unit configuration
     const unitConfig = UNIT_CONFIGS[unitType];
-    const totalMetalCost = unitConfig.metalCost * quantity;
-    const totalEnergyCost = unitConfig.energyCost * quantity;
+    // FID-20260914-008 Phase 1: doctrine cost discounts apply here (one of the
+    // three converged cost seams). Ceil+1 floor keeps every charge ≥ 1.
+    const doctrine = await getPlayerDoctrineBonuses(username);
+    const totalMetalCost = Math.max(1, Math.ceil(unitConfig.metalCost * quantity * doctrine.metalCostMul));
+    const totalEnergyCost = Math.max(1, Math.ceil(unitConfig.energyCost * quantity * doctrine.energyCostMul));
     const totalSlotCost = unitConfig.slotCost * quantity;
 
     // 5. Connect to database
@@ -275,8 +279,14 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       }
     );
 
-    // 16. Track units built for achievements
-    await trackUnitBuilt(username, quantity);
+    // 16. Track units built for achievements (+ doctrine-matching mastery XP —
+    // FID-20260914-008 Phase 2). Factory units are strength-class (T1 Rifleman
+    // and kin); the unit's STR/DEF split decides the category.
+    await trackUnitBuilt(
+      username,
+      quantity,
+      unitConfig.strength > 0 && unitConfig.defense === 0 ? 'strength' : unitConfig.defense > 0 && unitConfig.strength === 0 ? 'defense' : undefined
+    );
 
     // 17. Award XP for unit building (5 XP per unit)
     const xpResult = await awardXP(username, XPAction.UNIT_BUILD, quantity);

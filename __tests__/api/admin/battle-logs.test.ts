@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/admin/battle-logs.test.ts
  * @overview FID-20260909-027 §3.2 regression tests — server-side battle-log

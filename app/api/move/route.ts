@@ -10,6 +10,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
 import { movePlayer } from '@/lib/movementService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { ApiResponse, MoveResponse } from '@/types';
@@ -79,8 +82,31 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const validated = MoveSchema.parse(body);
     const username = authUser.username;
     const direction = validated.direction;
-    
     log.debug('Movement initiated', { username, direction });
+
+    // FID-20260914-001: troop-transport multi-step gate — steps > 1 requires
+    // the troop-transport tech on the real players.unlockedTechs column
+    // (drizzle, same pattern as the research route). A hostile client without
+    // the tech can never get a multi-step move past this check, whatever it
+    // sends in the body.
+    const steps = validated.steps ?? 1;
+    if (steps > 1) {
+      const techRows = await db
+        .select({ unlockedTechs: players.unlockedTechs })
+        .from(players)
+        .where(eq(players.username, username))
+        .limit(1);
+      const ownedTechs = techRows[0]?.unlockedTechs ?? [];
+      if (!ownedTechs.includes('troop-transport')) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Troop Transport technology required for multi-space movement',
+          },
+          { status: 403 }
+        );
+      }
+    }
     
     // Get player's current position before moving
     // NOTE: the Mongo→pg compat shim returns RAW rows — flat currentPositionX/Y, no nested
@@ -93,9 +119,15 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const oldPosition = playerBefore
       ? { x: playerBefore.currentPositionX, y: playerBefore.currentPositionY }
       : null;
-    
-    // Move player — validated.direction is typed via z.nativeEnum(MovementDirection)
-    const { player, tile } = await movePlayer(username, direction);
+    // Move player — validated.direction is typed via z.nativeEnum(MovementDirection).
+    // FID-20260914-001: multi-step transport movement — each step is a full
+    // 1-tile move (wrap-around honored per step); the final position and tile
+    // are the response. steps is 1 for every pre-existing caller (default).
+    let lastMove = await movePlayer(username, direction);
+    for (let step = 1; step < steps; step++) {
+      lastMove = await movePlayer(username, direction);
+    }
+    const { player, tile } = lastMove;
 
     // FID-20260906-010 R1 + FID-012 type honesty: `movePlayer` now returns a
     // genuinely-typed SanitizedPlayer whose nested `currentPosition` is always a
@@ -501,7 +533,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         username,
         oldPosition,
         { x: player.currentPosition.x, y: player.currentPosition.y },
-        Date.now()
+        Date.now(),
+        // FID-20260914-001: step-normalized thresholds — a transport move
+        // legitimately covers up to 5 tiles per action (gated above).
+        steps
       );
       
       if (speedCheck.suspicious) {

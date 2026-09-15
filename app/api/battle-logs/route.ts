@@ -25,6 +25,25 @@ import { and, desc, eq, or, sql } from 'drizzle-orm';
 const VALID_TYPES = ['attack', 'defense', 'infantry', 'land-mines'] as const;
 type LogType = (typeof VALID_TYPES)[number];
 
+/**
+ * Captured-units summary. The raw jsonb arrays hold FULL unit documents — one
+ * observed log row carried 4,400+ entries (242 KB) — while the only consumer
+ * (the battle-logs page detail view) renders just a count. Shipping raw arrays
+ * re-inflated every response to hundreds of KB even after the column
+ * projection, so collapse to per-type groups with entry counts preserved.
+ * (Module-local: route files may only export route handlers/config.)
+ */
+function summarizeCapturedUnits(units: Array<unknown> | null | undefined): Array<{ unitType: string; count: number }> {
+  if (!units || units.length === 0) return [];
+  const counts = new Map<string, number>();
+  for (const raw of units) {
+    const u = (raw ?? {}) as Record<string, unknown>;
+    const type = typeof u.unitType === 'string' && u.unitType ? u.unitType : typeof u.type === 'string' && u.type ? u.type : 'unknown';
+    counts.set(type, (counts.get(type) ?? 0) + 1);
+  }
+  return Array.from(counts, ([unitType, count]) => ({ unitType, count })).sort((a, b) => b.count - a.count);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -64,9 +83,50 @@ export async function GET(request: NextRequest) {
 
     const offset = (page - 1) * limit;
 
+    // land-mines has no writer yet — the honest empty set the header comment
+    // always promised (previously the infantry-only battleType filter let the
+    // land-mines tab serve the user's attack/defense logs mislabeled).
+    if (type === 'land-mines') {
+      return NextResponse.json({ success: true, logs: [], total: 0, page, totalPages: 1 });
+    }
+
+    // Explicit projection — the list mapping below never reads the giant report
+    // columns (attackerUnits ≈ 48 KB, defenderUnits up to ~125 KB compressed,
+    // rounds), and SELECT * forced a TOAST decompress of all of them per row:
+    // ~19 s per page fetch on a 26-row table (same blob-shipping class as
+    // FID-20260911-043). The mapped fields — including the modest captured-units
+    // arrays the detail view uses — cover every consumed key.
     const [rows, countRows] = await Promise.all([
       db
-        .select()
+        .select({
+          battleId: battleLogs.battleId,
+          battleType: battleLogs.battleType,
+          totalRounds: battleLogs.totalRounds,
+          timestamp: battleLogs.timestamp,
+          attackerUsername: battleLogs.attackerUsername,
+          defenderUsername: battleLogs.defenderUsername,
+          outcome: battleLogs.outcome,
+          attackerTotalSTR: battleLogs.attackerTotalSTR,
+          defenderTotalSTR: battleLogs.defenderTotalSTR,
+          attackerInitialHP: battleLogs.attackerInitialHP,
+          attackerFinalHP: battleLogs.attackerFinalHP,
+          defenderInitialHP: battleLogs.defenderInitialHP,
+          defenderFinalHP: battleLogs.defenderFinalHP,
+          attackerDamageDealt: battleLogs.attackerDamageDealt,
+          defenderDamageDealt: battleLogs.defenderDamageDealt,
+          attackerUnitsLost: battleLogs.attackerUnitsLost,
+          defenderUnitsLost: battleLogs.defenderUnitsLost,
+          attackerXP: battleLogs.attackerXP,
+          attackerXpEarned: battleLogs.attackerXpEarned,
+          defenderXP: battleLogs.defenderXP,
+          defenderXpEarned: battleLogs.defenderXpEarned,
+          unitsCapturedAttackerCaptured: battleLogs.unitsCapturedAttackerCaptured,
+          unitsCapturedDefenderCaptured: battleLogs.unitsCapturedDefenderCaptured,
+          resourcesStolenResourceType: battleLogs.resourcesStolenResourceType,
+          resourcesStolenAmount: battleLogs.resourcesStolenAmount,
+          locationX: battleLogs.locationX,
+          locationY: battleLogs.locationY,
+        })
         .from(battleLogs)
         .where(predicate)
         .orderBy(desc(battleLogs.timestamp))
@@ -116,8 +176,9 @@ export async function GET(request: NextRequest) {
         defenderDamage: row.defenderDamageDealt,
         attackerXp: row.attackerXP ?? row.attackerXpEarned ?? 0,
         defenderXp: row.defenderXP ?? row.defenderXpEarned ?? 0,
-        attackerUnitsCaptured: row.unitsCapturedAttackerCaptured ?? [],
-        defenderUnitsCaptured: row.unitsCapturedDefenderCaptured ?? [],
+        // Per-type summaries, not raw unit documents (see summarizeCapturedUnits).
+        attackerUnitsCaptured: summarizeCapturedUnits(row.unitsCapturedAttackerCaptured),
+        defenderUnitsCaptured: summarizeCapturedUnits(row.unitsCapturedDefenderCaptured),
       };
     });
 

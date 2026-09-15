@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/economy/stats.test.ts
  * @overview FID-20260909-031 §4.1 regression — the economy statistics

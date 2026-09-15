@@ -6,7 +6,7 @@
 > recorded in the Operator-Confirmed section below.
 
 **Protocol:** `dev/echo-v0.1.2-single-agent.md` (v0.1.2-single-agent — the sole authoritative protocol per operator decision 2026-09-01)
-**Last updated:** 2026-09-14 (sessions 001–003 — FID-20260914-001/-002 stream completed; SCOPE #25 corrected, FID-20260914-003 converged + implemented)
+**Last updated:** 2026-09-14 (session 005 — FID-20260914-004 implemented + live-verified: honest update/delete counts via .returning(), jsonb_agg $pull rewrite, true $addToSet; session 004 converged its spec; session 003 implemented FID-20260914-003)
 
 ---
 
@@ -445,62 +445,6 @@ Explicitly NOT approved: findings in files outside the WIP-touched set (next bat
 
 ---
 
-### Session 2026-09-14 (004) — FID-20260914-004 converged (shim hardening spec)
-
-Operator instruction: "Build and converge the shim-hardening FID: replace the dead `$pull`
-SQL with the verified `jsonb_agg` rewrite and add conditional-update semantics to the
-compat seam."
-
-Approved items:
-
-- [x] RED evidence pass: `$pull`/`modifiedCount`/`deletedCount`/`$addToSet` consumer
-      censuses repo-wide; shim handler bodies re-read (`$pull`, `$addToSet`, `$push`,
-      `$inc`, `updateOne`/`updateMany`/`deleteOne`/`deleteMany`/`bulkWrite`, upsert
-      gating, `findOneAndUpdate`); `.returning()` precedent census (10+ sites);
-      scripted-mock test idiom verified
-- [x] Ground-truth findings: `$pull` = latent guaranteed-500 (zero live callers, type
-      still advertises it); unconditional counts lie to seven live branches + three
-      reporting sites; `$addToSet` = unconditional append (third defect found in-family);
-      upsert phantom-insert suspicion checked and CLEARED (gated)
-- [x] FID-20260914-004 written and Perfection-Looped to `converged` on loop 2 (deep
-      audit: 1 GREEN refinement — upsert insert branches included in honest counting —
-      plus 1 probe hardening — JSON-null element case; 4 probes cleared with evidence;
-      gates re-run as Method-1 proof: tsc 0 / eslint 0 / vitest 747/1/0, zero drift)
-- [x] Implementation NOT started (§7 not-started) — gated on operator direction
-
-No other work is approved. Bookkeeping commit presented, not executed (G1 default).
-
----
-
-### Session 2026-09-14 (005) — FID-20260914-004 implemented (shim hardening)
-
-Operator instruction: "Implement converged FID-20260914-004: honest update/delete counts
-via .returning(), the jsonb_agg $pull rewrite, and real $addToSet semantics — full gates
-and evidence."
-
-Approved items:
-
-- [x] Honest counts: updateOne/updateMany/deleteOne/deleteMany report real affected-row
-      counts via bare `.returning()`; empty-set updates honestly return 0; upsert insert
-      branches count returned rows; bulkWrite sums the real per-op results
-- [x] `$pull` → probe-verified `jsonb_agg` deep-equality rewrite (one shape for object
-      and scalar operands); `$addToSet` → containment-guarded append (`@>` over a
-      one-element array) — duplicate tiers impossible for tierUnlockService
-- [x] 13 unit tests via a scripted drizzle harness (`__tests__/lib/fakeDrizzle.ts`);
-      probe extended to live-verify every shipped fragment (exit 0) incl. the JSON-null
-      element case; live seam verification (`scripts/verifyShimSemanticsLive.ts`) exit 0:
-      honest-failure branch proven (non-matching filter → 0), `$pull` removes exactly the
-      matching unit from `players.units`, `$addToSet` present-tier does not duplicate
-- [x] Implementation discoveries disclosed: the upsert `onConflictDoNothing` branch is
-      dead code (gated on its own negation); the abandon route's count branch is
-      defense-in-depth behind its findOne pre-check
-- [x] Gates: tsc 0 · eslint 0 · vitest 760/1 skipped/0 failures (+13 over 747); zero
-      caller edits (Law 4: the seven count branches gain live paths unchanged)
-
-No other work is approved. `fix(shim)` commit presented, not executed (G1 default).
-
----
-
 ## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
 
 **Outcome (2026-09-07):** both fixes applied and verified — `lib/__tests__/redis.test.ts` gained the `vi.hoisted` env pin (REDIS_URL='disabled', UPSTASH=''; documented rationale in-file); `__tests__/lib/flagHolderSurvival.test.ts` fake retyped `unknown`→`Table` (import + `tableName` + `from` + `update`/`delete`/`insert` + the `setTableNameResolver` setter — the first pass missed the setter and tsc caught it at (90,22)). Evidence: `vitest run lib/__tests__/redis.test.ts` = **16/16** (fallback path visibly exercised — "[RateLimiter] Redis unavailable, allowing request" in the no-fallback test); `vitest run __tests__/lib/flagHolderSurvival.test.ts` = 3/3; full `npx vitest run` = **354 passed / 0 failed / 1 skipped**; `npx tsc --noEmit` = **exit 0** (recorded clean baseline restored). Residual (pre-existing, not touched): 2 `no-unused-vars` eslint errors in flagHolderSurvival.test.ts (`players`/`flags` imported but never referenced — present in session 001's baseline lint output).
@@ -664,6 +608,261 @@ Approved items:
 
 No other work is approved. `fix(auction)` commit presented, not executed (G1 default).
 
+---
+
+### Session 2026-09-14 (004) — FID-20260914-004 converged (shim hardening spec)
+
+Operator instruction: "Build and converge the shim-hardening FID: replace the dead `$pull`
+SQL with the verified `jsonb_agg` rewrite and add conditional-update semantics to the
+compat seam."
+
+Approved items:
+
+- [x] RED evidence pass: `$pull`/`modifiedCount`/`deletedCount`/`$addToSet` consumer
+      censuses repo-wide; shim handler bodies re-read (`$pull`, `$addToSet`, `$push`,
+      `$inc`, `updateOne`/`updateMany`/`deleteOne`/`deleteMany`/`bulkWrite`, upsert
+      gating, `findOneAndUpdate`); `.returning()` precedent census (10+ sites);
+      scripted-mock test idiom verified
+- [x] Ground-truth findings: `$pull` = latent guaranteed-500 (zero live callers, type
+      still advertises it); unconditional counts lie to seven live branches + three
+      reporting sites; `$addToSet` = unconditional append (third defect found in-family);
+      upsert phantom-insert suspicion checked and CLEARED (gated)
+- [x] FID-20260914-004 written and Perfection-Looped to `converged` on loop 2 (deep
+      audit: 1 GREEN refinement — upsert insert branches included in honest counting —
+      plus 1 probe hardening — JSON-null element case; 4 probes cleared with evidence;
+      gates re-run as Method-1 proof: tsc 0 / eslint 0 / vitest 747/1/0, zero drift)
+- [x] Implementation NOT started (§7 not-started) — gated on operator direction
+
+No other work is approved. Bookkeeping commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (005) — FID-20260914-004 implemented (shim hardening)
+
+Operator instruction: "Implement converged FID-20260914-004: honest update/delete counts
+via .returning(), the jsonb_agg $pull rewrite, and real $addToSet semantics — full gates
+and evidence."
+
+Approved items:
+
+- [x] Honest counts: updateOne/updateMany/deleteOne/deleteMany report real affected-row
+      counts via bare `.returning()`; empty-set updates honestly return 0; upsert insert
+      branches count returned rows; bulkWrite sums the real per-op results
+- [x] `$pull` → probe-verified `jsonb_agg` deep-equality rewrite (one shape for object
+      and scalar operands); `$addToSet` → containment-guarded append (`@>` over a
+      one-element array) — duplicate tiers impossible for tierUnlockService
+- [x] 13 unit tests via a scripted drizzle harness (`__tests__/lib/fakeDrizzle.ts`);
+      probe extended to live-verify every shipped fragment (exit 0) incl. the JSON-null
+      element case; live seam verification (`scripts/verifyShimSemanticsLive.ts`) exit 0:
+      honest-failure branch proven (non-matching filter → 0), `$pull` removes exactly the
+      matching unit from `players.units`, `$addToSet` present-tier does not duplicate
+- [x] Implementation discoveries disclosed: the upsert `onConflictDoNothing` branch is
+      dead code (gated on its own negation); the abandon route's count branch is
+      defense-in-depth behind its findOne pre-check
+- [x] Gates: tsc 0 · eslint 0 · vitest 760/1 skipped/0 failures (+13 over 747); zero
+      caller edits (Law 4: the seven count branches gain live paths unchanged)
+
+No other work is approved. `fix(shim)` commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (006) — Battle-logs ~40 s load fixed (blob-shipping)
+
+Operator report: "clicking attack logs takes about 40 seconds until it loads, something is
+wrong there. `http://localhost:3002/game/battle-logs/attack`"
+
+Approved items:
+
+- [x] Root-caused with measurement, not guesswork: the route's `db.select()` shipped all 38
+      columns while the mapping consumes 27; on a 26-row table whose TOAST holds 1,352 of
+      1,488 kB (giant combat-report jsonb: `attacker_units` ≈ 48 KB, `defender_units` up to
+      ~125 KB compressed), every fetch detoasted ~1.5 MB it discarded. In-database plan
+      0.15 ms; Node-side `SELECT *` 17–23 s every run; slim columns 66 ms. The page's dev
+      strict-mode double-fetch completes the user's ~40 s
+- [x] Fix 1: explicit 27-column projection (excludes the three giant report columns)
+- [x] Fix 2: captured-unit documents collapse to per-type `{ unitType, count }` summaries
+      (one log carried 4,400+ full unit documents = 242 KB; the page renders only a count —
+      payload 654 KB → 14.6 KB)
+- [x] Fix 3: `land-mines` short-circuits to the honest empty envelope its own header always
+      documented (it had been serving mislabeled attack/defense logs)
+- [x] Contract suite extended (+3: projection excludes giants; summarize collapse;
+      land-mines makes NO db query); mock discriminator sharpened (one-key `{count}`
+      projection = count query)
+- [x] Gates: tsc 0 · eslint 0 · vitest **763/1 skipped/0 failures**; live timings:
+      attack 19 s → 0.35–1.04 s, all tabs sub-second; scratch perf probes deleted after use
+
+No other work is approved. `perf(battle-logs)` commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (007) — Factory-attack audit: combat healthy, failure display fixed
+
+Operator report: "whenever you try to attack a factory, it always fails… ATTACK FAILED /
+DMG ▸ 0 / Damage dealt 0 / Factory defense 0."
+
+Approved items:
+
+- [x] Deep audit of the full flow (page handlers → route → attackFactory → presence/bonus
+      gates → roll) with live experiments: combat math healthy (captured on first roll at
+      the expected ~90%: power 50,110 vs defense 1,000); presence/persistence healthy;
+      bots historically capture through the same function; no Math.random tampering
+- [x] Actual failure history decoded from log + factory rows: two genuine 90%-chance
+      misses (a 1% double-miss) then a 5-minute cooldown lockout — plus a client branch
+      that renders EVERY failure identically as 0/0 (FID-20260911-041's error mapping
+      discards the server's real playerPower/factoryDefense)
+- [x] Fix: both attack handlers (factory + base raid) preserve the server's real numbers
+      on failure — genuine misses display true odds (2,272,610 vs 1,000), rejections keep
+      their verbatim messages
+- [x] Gates: tsc 0 · eslint 0 · vitest 763/1 skipped/0 failures; scratch experiment
+      scripts deleted after use, evidence in FID-20260914-006
+
+No other work is approved. `fix(game)` commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (008) — Profile combat record wired to truth + infantry system review
+
+Operator report: profile Battle Statistics shows all zeros ("combat stats/record is clearly
+not wired"), and the infantry battle system should have a doc but "i don't think we ever
+wired it."
+
+Approved items:
+
+- [x] Root-caused the zeros: `players.battle_stats` has NO writer anywhere (repo census);
+      the panel defaulted to a zero shape forever. Truthful source = `battle_logs`
+- [x] `lib/battleStatsService.ts`: single-aggregate lifetime record (FILTER clauses) with
+      viewer-perspective outcomes, legacy BASE_ATTACK label support, derived losses,
+      corrupt-data clamping; 6 unit tests
+- [x] Wired into both profile routes (authed + public); public profile page's raw-JSON
+      section upgraded to the three-well panel
+- [x] Live proof: `/api/profile/fame` returns 2/2/0 infantry · 17/15/2 base attacks ·
+      0 defenses — exactly matching battle_logs
+- [x] Infantry review: engine live + session-hardened, but reachable ONLY via auto-farm
+      (dev/architecture.md's documented wiring); manual `CombatAttackModal` orphaned
+      (rendered nowhere) and its `/api/combat/base` endpoint never existed — options
+      recorded in FID-20260914-007, implementation is an operator decision
+- [x] Gates: tsc 0 · eslint 0 · vitest 769/1 skipped/0 failures (+6)
+
+No other work is approved. `fix(profile)` commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (009) — Specialization audit: built but inert; Phase 0 fixed, plan converged
+
+Operator directive: audit whether the Specialization system is built; if not, review the
+docs, re-run the Perfection Loop on the idea, then improve it with an updated plan
+(`/game/specialization` needs an audit/review).
+
+Approved items:
+
+- [x] Audit verdict: skeleton built and mostly solid (service/column/3 route pairs/panel),
+      but INERT — doctrine bonuses have zero consumers; choosing a doctrine changes nothing
+- [x] **Live-probed partial-apply defect:** choose 500'd AFTER deducting RP and applying
+      the doctrine (MySQL `JSON_ARRAY_APPEND` remnant on rp_history; ban-player class)
+      → **Phase 0 fixed** (pg jsonb append per referralService precedent), re-probed 200
+      with doctrine + ledger entry persisted; scratch account cleaned up
+- [x] Full defect table (12 items incl. client-granted unbounded mastery XP, no nav entry,
+      ARCHITECTURE.md endpoint drift, unbuilt specialized-units promise, respec ledger
+      hole, admin JSON_EXTRACT remnant)
+- [x] Perfection Loop on the system idea: converged in 2/10 iterations (double-apply vs
+      existing bonus stacks identified; earnable-not-grantable mastery; per-seam cost
+      consumption; specialized units cut from v1 contract) → phased GREEN plan in FID §4
+      (Phase 1 bonuses real, Phase 2 earnable mastery, Phase 3 seams; specialized units
+      deferred to own FID) — Phases 1–3 gated on operator go-ahead
+- [x] Gates: tsc 0 · eslint 0 · vitest 769/1 skipped/0 failures (Phase 0 only code delta)
+
+No other work is approved. `fix(specialization)` commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (010) — Unmapped-collection census: four silent no-ops pinned, spec FID converged
+
+Operator directive: open and converge a FID for the unmapped units collection — abandon's
+lost-unit accounting silently no-ops post-pivot while units live in `players.units`
+(the candidate recorded during the FID-20260914-004 sweep).
+
+Approved items:
+
+- [x] RED census: all 22 distinct `collection('…')` names in lib/+app/ resolved against the
+      shim's registry (110 keys covering 63 distinct tables ∪ 11 aliases; machine-verified by
+      `scripts/censusCollectionMapping.ts`) — **four unmapped**: `units` (abandon),
+      `BattleLog` (admin log-cleanup retention), `playerLevelHistory` (daily snapshot cron),
+      `clan_territories` (cache-warming dead code) — the directive's seed is one of a class
+- [x] Domain-shift probe: **0 of 57** players' unit entries carry `producedAt` — "units
+      stationed at their producing factory" is not reconstructible post-pivot; abandon's
+      dead accounting is semantically obsolete, not merely unmapped (Option C aliasing
+      rejected by evidence: filter keys `owner/factoryX/factoryY` have no column home)
+- [x] **FID-20260914-009** written (`converged`): four-finding RED table, GREEN per finding
+      (Phase A: remove abandon's dead block + the dead territory branch · Phase B: retention
+      rewritten on the `battleLogs` shim name + `player_level_history` table/migration),
+      Perfection Loop converged 2/10 (loop 1 falsified the initial
+      alias approach; loop 2 folded cron-scheduling + backfill-honesty notes)
+- [x] Document-only session: gates re-run as Method-1 proof of zero code drift —
+      tsc 0 · eslint 0 · vitest 769/1 skipped/0 failures
+
+Implementation of Phases A/B is gated on operator go-ahead. Commit plan presented, not
+executed (G1 default).
+
+---
+
+### Session 2026-09-14 (011) — Live E2E: unit escrow + cancel/expiry refunds (FID-003 residual)
+
+Operator directive: run a live end-to-end verification of the unit-escrow and
+cancel/expiry refund paths against the dev server, mirroring the auction money-path E2E.
+
+Approved items:
+
+- [x] `scripts/e2eUnitEscrow.ts` driven live, full pass exit 0: buyout delivery (unit
+      leaves seller's army at listing, frozen `unitSnapshot` delivered intact to the
+      buyer, seller paid 285 = 300 − 5%), cancel refund (snapshot returned; second
+      cancel REJECTED claim-first with no duplicate refund), expiry refund (settled by
+      the REAL 5-minute settlement job — clock backdated only; no run-now route exists)
+- [x] Conservation: Σ(metal final − initial) = −465 = exactly 3×150 listing + 15 sale fee
+      (pure burn); unit conservation 3 minted → 3 owned, no duplicates
+- [x] Guarded cleanup with NEW `esc%` prefix (retained `e2e%` cleaner doesn't cover these
+      fixtures): residual 0/0/0 verified
+- [x] FID-20260914-003 archive: post-closure verification addendum appended
+- [x] Gates: tsc 0 · eslint 0 · vitest 769/1 skipped/0 failures (unchanged)
+
+Driver bugs disclosed (test-side only): register 201-class success initially misread as
+failure; one orphaned fixture account from an aborted first run, cleaned by the guarded
+cleaner. `test(auction)` commit presented, not executed (G1 default).
+
+### Session 2026-09-15 (001) — Battle-annihilation incident fixed; army restored; FID-008/009 implemented
+
+Operator live incident: beer-base raid ended DRAW with the army wiped to 0 plus a flood
+of `Failed query` errors; then the directive to address everything in full.
+
+Approved items:
+
+- [x] **FID-20260915-001 (opened, converged 2 loops, implemented, live-verified):** the
+      raid's DRAW was mutual annihilation — both HP pools zeroed in the same round
+      (formula-verified from the stored row) and applyBattleResults charged FULL
+      casualties to both sides (10,725 + 6,673 units). Fix: sequential resolution (dead
+      defenders never strike), casualties from HP actually deducted, destroyed armies
+      record their remaining units, 100-round cap = repelled raid (DefenderWin), Draw
+      only as empty-input guard. Regression suite incl. the incident replay; live E2E
+      through the production raid route: old-DRAW boundary matchup → ATTACKER_WIN, 0
+      attacker losses
+- [x] **Conn-pool exhaustion root-caused and hardened:** EMAXCONNSESSION (Supavisor
+      session cap 15) from hot-reload-orphaned pg Pools; pool now cached on globalThis
+      (lib/db/connection.ts)
+- [x] **fame's army RESTORED** from the battle row's exact 10,725-entry snapshot,
+      folded to the canonical PlayerUnit shape, totals verified 1,072,500 STR, guarded
+      against double-restore (scripts/restoreFameArmy.ts)
+- [x] **FID-20260914-008 Phases 1–3 implemented + live-verified** (doctrine bonuses at
+      power/combat/all cost seams, server-side earnable mastery, exploit closed,
+      respec ledger, nav, docs, admin remnant); finding recorded: respec cooldown does
+      not anchor at choose (recommendation logged)
+- [x] **MySQL-era SQL sweep: zero live remnants** (comments/valid-pg only; two stale
+      dmService doc-comments corrected)
+- [x] **FID-20260914-009 Phases A + B implemented + live-verified:** abandon +
+      cacheWarming dead paths removed; player_level_history migration 0031 applied;
+      service on drizzle; snapshot cron fixed (phantom `lastActive` filter →
+      `lastLoginDate`; `_id` → username); retention on mapped `battleLogs`
+- [x] **Census regression gate:** `__tests__/lib/collectionCensus.test.ts` fails on any
+      future unmapped collection name (self-validating)
+- [x] Gates: tsc 0 · eslint 0 · vitest 793/1 skipped/0 failures (+24 new tests)
 
 ---
 
@@ -707,6 +906,8 @@ operator decides whether each item is added to scope.
 | 35 | ~~**JoinClanModal filter UI is decorative**~~ **→ RESOLVED 2026-09-07 (session 006, operator-directed "fix the JoinClanModal filter UI by extending /api/clan/search with its filter params"):** route extended with `minLevel`/`maxLevel` (clamped 1–50, on `level_current_level`), `minMembers`/`maxMembers` (jsonb_array_length on members), `publicOnly=true` → `settings_requires_approval = 0`, plus `recruitingOnly=true` → `settings_is_recruiting = 1` (the modal's "Public Only" toggle honestly maps to approval-free join; recruiting flag added so the schema's isRecruiting setting is reachable). Modal now sends `q` (was `name`, which the route never read). Bounds clamped so hostile input degrades to a wide filter, not an error | 2026-09-07 (session 005) | Closed (resolved) |
 | 36 | **Repo-wide `no-explicit-any` census. Session-005 original: 336 across 78 files (lib/ 226 — worst: clanDistributionService 21, queryOptimization 19, beerBaseAnalytics 15, tutorialService 14, rankingService 11, botScannerService 10, clanChatService 10; __tests__/ 36; components/ 30; app/ 12; types/ 7; hooks/ 3; scripts/ 15; vitest.setup.ts 7). **Correction 2026-09-08 (session 008-001): the census tool replaced counts on grouping-key collision, so its totals were understatements; with the tool fixed and cross-validated (348 = raw eslint 348), the true post-006 baseline was 369, not 322.** Post batch 1 (clanDistributionService 21→0, 2026-09-08): **348 across 86 files** — next worst: queryOptimization 19, beerBaseAnalytics 15, rankingService 11, botScannerService 10, clanChatService 10, friends test suites 36. `dev/` and root `scripts/*.mjs` are eslint-exempt (config override). Burn-down continues on operator direction | 2026-09-07 (session 005); corrected 2026-09-08 (session 008-001) | Open (campaign in progress) |
 | 37 | **Compat-seam hardening (FID-20260914-004, status `converged`):** (a) the shim's `$pull` emits SQL this engine rejects (`operator does not exist: jsonb - jsonb`, probe-verified 2026-09-14) — zero live callers since FID-20260914-003 removed the last, but the type advertises a guaranteed-500 operator; (b) `updateOne`/`updateMany`/`deleteOne`/`deleteMany`/`bulkWrite` return unconditional counts, so seven live failure branches (ban-player, factory abandon/upgrade, build-unit batch integrity, greeting) and three `deletedCount` reporting sites read fictional numbers; (c) `$addToSet` is an unconditional append (duplicate tiers possible in `tierUnlockService`). Fix specified: probe-verified `jsonb_agg` rewrite for `$pull`, `.returning()`-based honest counts (in-repo idiom, 10+ precedents), containment-guarded `$addToSet` — zero caller edits required. | 2026-09-14 (SESSION-2026-09-14-004, banked by FID-20260914-003); implemented 2026-09-14 (SESSION-2026-09-14-005) | Closed (resolved by FID-20260914-004 implementation — honest counts live-verified incl. the honest-failure branch, $pull rewrite live-proven, $addToSet no-duplicate verified; FID closes on commit per G2) |
+| 38 | **Four unmapped legacy collection names (FID-20260914-009, status `implemented`):** full census of 22 `collection('…')` names vs the shim's registry found `units` (abandon's lost-unit accounting + STR/DEF deductions all no-op; 0/57 players' units carry `producedAt`, so the stationing concept is unreconstructible — removal chosen over aliasing), `BattleLog` (admin log-cleanup retention counts/deletes nothing — battle_logs unbounded), `playerLevelHistory` (daily snapshot cron has stored nothing since the pivot; beer-base predictions run on their fallback), `clan_territories` (barrel-only dead code). Spec FID converged 2/10 | 2026-09-14 (SESSION-2026-09-14-010); Phases A+B implemented 2026-09-15 (SESSION-2026-09-15-001) | Closed (implemented + live-verified; census gate added to the suite; closes on commit per G2) |
+| 39 | **Degenerate battle DRAW annihilates both armies (FID-20260915-001, `implemented`):** simultaneous round resolution + all-or-nothing casualties + HP scale (10–15/unit vs 10⁵–10⁶ damage) made mutual-annihilation Draws the norm (live incident BATTLE-17894: 17,398 units wiped across both sides). Fixed sequentially (dead defenders never strike; casualties from HP actually deducted; cap = repelled raid); conn-pool exhaustion flood root-caused and hardened (globalThis pool); fame's army restored from the battle-log snapshot; rebalance proposal (Phase 3) recorded for operator approval | 2026-09-15 (SESSION-2026-09-15-001) | Closed (implemented + live-verified; closes on commit per G2) |
 | 30 | **Gate-baseline divergence:** repo gates no longer match the ledger's 2026-09-06 "tsc 0 / eslint clean / 341 green" — live: tsc 1 error (`__tests__/lib/flagHolderSurvival.test.ts`, committed `4674b73`), eslint **460 errors / 3 warnings** (incl. re-appeared `any`s in friends suites previously burn-downed), vitest **12 failed** (all `lib/__tests__/redis.test.ts`). The tree also carries an uncommitted parallel session's WIP (20 modified files: clan panels, friends/messaging tests, messagingService, websocket handlers; untracked `scripts/nn-fixany.mjs`, `scripts/nn-lintreport.mjs`, `lib/errorMessage.ts`, `docs/llms-*`; `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` deleted). Attribution and disposition were operator decisions — session 2026-09-07 (001) touched nothing beyond its approved 2-line fix **→ RESOLVED 2026-09-07 (SESSION-2026-09-07-002): operator reviewed the WIP and chose fix+commit+gitignore — defect repaired, WIP committed as 4 path-scoped commits (`0e82eb5`, `8be0bde`, `de914fa`, `8051813`), scraped llms docs gitignored (kept local), nn-*.mjs codemod scripts left untracked pending operator call** | 2026-09-07 (sessions 001–002) | Closed (resolved) |
 
 ---
@@ -820,6 +1021,13 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-14 (001): issue 4 UI half wired (FlagTrackerPanel Drop button + game-page handleFlagDrop) | implemented (tsc 0; eslint 0; vitest 736/1/0) |
 | Session 2026-09-14 (002): SCOPE #25 ground-truth verification + ledger correction (rebuild exists; row annotated) | implemented |
 | Session 2026-09-14 (002): FID-20260914-003 written + Perfection Loop to `converged` (five residual defects; GREEN = seam completion; audit pass on loop 1) | implemented (gates re-verified: tsc 0, eslint 0, vitest 736/1/0) |
+| Session 2026-09-14 (003): FID-20260914-003 implemented (escrow refunds, unit escrow, tradeable gate, my-bids ordering) + live E2E ledger proof | implemented (tsc 0; eslint 0; vitest 747/1/0; committed `7d51fc9`) |
+| Session 2026-09-14 (005): FID-20260914-004 implemented (honest counts via .returning(), jsonb_agg $pull, real $addToSet) + probe/live seam verification | implemented (tsc 0; eslint 0; vitest 760/1/0; probe exit 0; live verify exit 0) |
+| Session 2026-09-14 (005): live regression sweep of the newly-live count branches — 23/23; three real defects found and fixed (ban-player + clear-flags audit inserts 500'd post-apply; player build-unit nested-array unit corruption → $each; db.collection('units') unmapped recorded as candidate FID) | implemented (sweep exit 0; tsc 0; eslint 0; vitest 760/1/0) |
+| Session 2026-09-14 (006): battle-logs ~40 s load fixed (27-column projection, captured-units summarization, honest land-mines envelope) — 19 s → sub-second live, 654 KB → 14.6 KB | implemented (tsc 0; eslint 0; vitest 763/1/0; live timings recorded in FID-20260914-005) |
+| Session 2026-09-14 (007): factory-attack audit — combat math proven healthy live (90% roll captured on attempt 1; failure payloads carry real numbers); client failure branch fixed to preserve server stats instead of hardcoded 0/0 | implemented (tsc 0; eslint 0; vitest 763/1/0; FID-20260914-006) |
+| Session 2026-09-14 (008): profile lifetime combat record computed from battle_logs (battle_stats column had no writer — zeros forever); both profile routes wired; infantry review: engine works via auto-farm, manual modal orphaned, /api/combat/base nonexistent | implemented (tsc 0; eslint 0; vitest 769/1/0; live record cross-checked; FID-20260914-007) |
+| Session 2026-09-14 (009): specialization audit — built but inert (zero bonus consumers); choose-flow partial-apply fixed live (MySQL JSON_ARRAY_APPEND remnant → pg jsonb, probed 500→200); Perfection Loop converged on phased system plan (Phases 1–3 gated) | implemented Phase 0 + converged plan (tsc 0; eslint 0; vitest 769/1/0; FID-20260914-008) |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.

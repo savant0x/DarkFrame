@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/lib/beerBaseScheduler.test.ts
  * @overview FID-20260909-035 — scheduler wiring regression.
@@ -30,6 +31,7 @@ vi.mock('@/lib/botService', () => ({
 
 import { isRespawnTime, setLastRespawnWeek } from '@/lib/beerBaseService';
 import type { BeerBaseConfig } from '@/lib/beerBaseService';
+import { getISOWeek } from '../../lib/jobs/beerBaseManager';
 
 /** Legacy single-schedule config stub. */
 const legacyConfig = (day: number, hour: number): BeerBaseConfig =>
@@ -92,10 +94,15 @@ describe('isRespawnTime (FID-20260909-035 window semantics)', () => {
 });
 
 describe('beerBaseManager persisted-week dedup (FID-20260909-035)', () => {
-  const week = 37;
+  // FID-20260913-001: the persisted week is computed at test time — the old
+  // hardcoded 37 went stale the instant the UTC date rolled past the scheduled
+  // week, so the dedup skip could never match and the test failed after 8pm
+  // ET on Sundays (getISOWeek uses UTC dates; 8pm ET = midnight UTC next day).
+  let week: number;
 
   beforeEach(() => {
     vi.resetModules();
+    week = getISOWeek(new Date());
   });
   afterEach(() => {
     vi.restoreAllMocks();

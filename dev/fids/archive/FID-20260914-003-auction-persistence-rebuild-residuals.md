@@ -169,3 +169,23 @@ settlement tests.
 ---
 
 **Final status:** closed (implemented + live-E2E verified; commit `7d51fc9`)
+
+### Post-closure verification addendum (2026-09-14, session 011)
+
+The unit-escrow and cancel/expiry refund legs — until now covered only by the in-process
+suite — were driven live against the dev server by `scripts/e2eUnitEscrow.ts`, mirroring
+the money-path E2E (`scripts/e2eAuctionLedger.ts`):
+
+- **Buyout delivery:** unit leaves the seller's army at listing (escrow), the frozen
+  `unitSnapshot` is delivered intact into the buyer's army, seller paid 300 − 5% sale fee,
+  trade_history row written.
+- **Cancel refund:** snapshot returned to the seller's army; a second cancel was REJECTED
+  (claim-first close) and refunded nothing (no duplicate).
+- **Expiry refund:** settled by the REAL 5-minute settlement job (expires_at backdated to
+  simulate the clock only — no run-now route exists); snapshot returned, status
+  expired+settled.
+- **Conservation:** Σ(metal final − initial) = −465 = exactly 3×150 listing fee + 15 sale
+  fee (pure burn); unit conservation 3 minted → 3 owned, no duplicates. Full pass, exit 0;
+  fixtures cleaned with verified residual 0/0/0 (`scripts/e2eCleanupUnitEscrow.ts`).
+- Gates after: tsc 0 · eslint 0 · vitest 769/1 skipped/0 failures (unchanged baseline).
+  Driver + cleaner retained alongside the money-path E2E pair.

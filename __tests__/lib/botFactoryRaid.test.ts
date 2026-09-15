@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/lib/botFactoryRaid.test.ts
  * @overview FID-20260912-073 — unit tests for the bot factory-raid gates.

@@ -19,6 +19,7 @@ import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { UNIT_BLUEPRINTS } from '@/types/units.types';
+import { getPlayerDoctrineBonuses } from '@/lib/specializationService';
 import { UNIT_CONFIGS, UnitType } from '@/types/game.types';
 import type { Player, Factory } from '@/types/game.types';
 import { 
@@ -261,9 +262,12 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
     }
 
-    // Calculate total cost
-    const totalMetalCost = unitBlueprint.metalCost * validated.quantity;
-    const totalEnergyCost = unitBlueprint.energyCost * validated.quantity;
+    // Calculate total cost — FID-20260914-008 Phase 1: doctrine cost discounts
+    // apply here (one of the three converged cost seams). Ceil+1 floor keeps
+    // every charge ≥ 1 and prevents zero-cost edge cases on odd multipliers.
+    const doctrine = await getPlayerDoctrineBonuses(username);
+    const totalMetalCost = Math.max(1, Math.ceil(unitBlueprint.metalCost * validated.quantity * doctrine.metalCostMul));
+    const totalEnergyCost = Math.max(1, Math.ceil(unitBlueprint.energyCost * validated.quantity * doctrine.energyCostMul));
 
     const playerMetal = player.resources?.metal || 0;
     const playerEnergy = player.resources?.energy || 0;
@@ -390,9 +394,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // FID-20260912-070: this route is the unit-factory page's live build path —
     // it never fed the stats tracker, so "Units Built" stayed at 0 forever.
+    // FID-20260914-008 Phase 2: passes the blueprint category so doctrine-matching
+    // builds earn mastery XP server-side.
     try {
       const { trackUnitBuilt } = await import('@/lib/statTrackingService');
-      await trackUnitBuilt(username, validated.quantity);
+      await trackUnitBuilt(username, validated.quantity, unitBlueprint.category);
     } catch (trackErr) {
       log.warn('Unit-build stat tracking failed (non-fatal)', trackErr instanceof Error ? trackErr : new Error(String(trackErr)));
     }

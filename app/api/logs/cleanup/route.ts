@@ -31,7 +31,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
 import { cleanupOldLogs } from '@/lib/activityLogService';
 import clientPromise from '@/lib/mongodb';
-import { BattleLog } from '@/types/activityLog.types';
+import { db as drizzleDb } from '@/lib/db/connection';
+import { battleLogs } from '@/lib/db/schema';
+import { lt } from 'drizzle-orm';
 import { logger as structuredLogger } from '@/lib/logger';
 
 /**
@@ -241,18 +243,19 @@ async function countOldActivityLogs(
  * @returns Promise resolving to count of battle logs to delete
  */
 async function countOldBattleLogs(battleRetentionDays: number): Promise<number> {
-  const client = await clientPromise;
-  const db = client.db();
-  const collection = db.collection<BattleLog>('BattleLog');
-
+  // FID-20260914-009 Phase B: retention previously ran on the unmapped
+  // `BattleLog` collection name via the raw client — counts/deletes silently
+  // matched nothing while reporting success, so battle_logs grew unbounded.
+  // The mapped drizzle table is the real store.
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - battleRetentionDays);
 
-  const count = await collection.countDocuments({
-    timestamp: { $lt: cutoffDate },
-  });
+  const old = await drizzleDb
+    .select({ battleId: battleLogs.battleId })
+    .from(battleLogs)
+    .where(lt(battleLogs.timestamp, cutoffDate));
 
-  return count;
+  return old.length;
 }
 
 /**
@@ -262,20 +265,19 @@ async function countOldBattleLogs(battleRetentionDays: number): Promise<number> 
  * @returns Promise resolving to count of deleted battle logs
  */
 async function cleanupOldBattleLogs(battleRetentionDays: number): Promise<number> {
-  const client = await clientPromise;
-  const db = client.db();
-  const collection = db.collection<BattleLog>('BattleLog');
-
+  // FID-20260914-009 Phase B: same unmapped-name fix as countOldBattleLogs.
+  // Honest count via .returning() (FID-20260914-004 semantics).
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - battleRetentionDays);
 
-  const result = await collection.deleteMany({
-    timestamp: { $lt: cutoffDate },
-  });
+  const deleted = await drizzleDb
+    .delete(battleLogs)
+    .where(lt(battleLogs.timestamp, cutoffDate))
+    .returning({ battleId: battleLogs.battleId });
 
-  structuredLogger.info('Battle log cleanup completed', { deletedCount: result.deletedCount, battleRetentionDays });
+  structuredLogger.info('Battle log cleanup completed', { deletedCount: deleted.length, battleRetentionDays });
 
-  return result.deletedCount || 0;
+  return deleted.length;
 }
 
 /**

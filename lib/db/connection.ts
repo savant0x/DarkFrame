@@ -17,6 +17,16 @@ import * as schema from "./schema";
 let _pool: Pool | null = null;
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
+/**
+ * FID-20260915-001 Phase 2: Next.js dev hot-reload re-instantiates this module,
+ * and each generation previously built its own Pool — orphaned pools kept idle
+ * clients connected until the provider's session cap (Supavisor: 15) tripped
+ * with EMAXCONNSESSION and every later query failed (2026-09-15 incident).
+ * Cache the pool on globalThis so every module generation shares the ONE
+ * process-wide pool; production behavior is unchanged (one pool per process).
+ */
+const globalForPg = globalThis as unknown as { __dfPgPool?: Pool };
+
 function requireDatabaseUrl(): string {
   const url = process.env.DATABASE_URL;
   if (!url) {
@@ -41,11 +51,17 @@ function requireDatabaseUrl(): string {
 function getPool(): Pool {
   if (_pool) return _pool;
   const POOL_MAX = Number(process.env.DATABASE_POOL_MAX || 5);
+  const cached = globalForPg.__dfPgPool;
+  if (cached) {
+    _pool = cached;
+    return _pool;
+  }
   _pool = new Pool({
     connectionString: requireDatabaseUrl(),
     ssl: { rejectUnauthorized: false },
     max: POOL_MAX,
   });
+  globalForPg.__dfPgPool = _pool;
   return _pool;
 }
 
@@ -75,5 +91,6 @@ export const closeConnection = async () => {
     await _pool.end().catch(() => {});
     _pool = null;
     _db = null;
+    delete globalForPg.__dfPgPool;
   }
 };

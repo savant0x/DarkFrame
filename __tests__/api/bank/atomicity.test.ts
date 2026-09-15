@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/bank/atomicity.test.ts
  * @overview FID-20260909-026 §6 regression tests — money-path atomicity.

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-093b — label backfill + full-width report contract tests.
  *

@@ -29,14 +29,11 @@ import { getDatabase } from './mongodb';
 
 
 
-/** Minimal clanTerritories row shape consumed by cache warming. */
-interface ClanTerritoryDoc {
-  x: number;
-  y: number;
-  clanId: string;
-}
 import { setCache, setCacheMultiple } from './cacheService';
-import { LeaderboardKeys, ClanKeys, PlayerKeys, TerritoryKeys, CacheTTL } from './cacheKeys';
+// FID-20260914-009 Phase A: TerritoryKeys removed with the dead territory-warming
+// branch — the `clan_territories` collection it read is unmapped on the shim and
+// the warmed keys had zero readers anywhere in the codebase.
+import { LeaderboardKeys, ClanKeys, PlayerKeys, CacheTTL } from './cacheKeys';
 import { isRedisAvailable } from './redis';
 
 /**
@@ -186,56 +183,10 @@ async function warmTopClans(): Promise<number> {
   return warmed;
 }
 
-/**
- * Warm territory ownership map
- * Caches global territory data
- */
-async function warmTerritoryMap(): Promise<number> {
-  console.log('🔥 Warming territory ownership map...');
-  let warmed = 0;
-
-  try {
-    const db = await getDatabase();
-    
-    // Get all clan territories
-    const territories = await db.collection<ClanTerritoryDoc>('clan_territories')
-      .find({})
-      .toArray();
-
-    // Build ownership map: { "x,y": clanId }
-    const ownershipMap: Record<string, string> = {};
-    for (const territory of territories) {
-      const key = `${territory.x},${territory.y}`;
-      ownershipMap[key] = territory.clanId;
-    }
-
-    // Cache the ownership map
-    await setCache(
-      TerritoryKeys.ownershipMap(),
-      ownershipMap,
-      CacheTTL.TERRITORY_DATA
-    );
-
-    // Cache territory counts by clan
-    const clanCounts: Record<string, number> = {};
-    for (const territory of territories) {
-      clanCounts[territory.clanId] = (clanCounts[territory.clanId] || 0) + 1;
-    }
-
-    await setCache(
-      TerritoryKeys.clanCounts(),
-      clanCounts,
-      CacheTTL.TERRITORY_DATA
-    );
-
-    warmed = 2;
-    console.log(`✅ Warmed territory map (${territories.length} territories)`);
-  } catch (error) {
-    console.error('❌ Error warming territory map:', error);
-  }
-
-  return warmed;
-}
+// FID-20260914-009 Phase A: warmTerritoryMap() removed. It read the unmapped
+// `clan_territories` collection (a silent read no-op on the shim) to warm two
+// cache keys that had no readers. The live territory source of truth is
+// territoryService (tiles.base_owner), which does not consume these keys.
 
 /**
  * Warm all hot data categories
@@ -266,16 +217,16 @@ export async function warmCache(): Promise<WarmingStats> {
   }
 
   try {
-    // Warm each category in parallel
-    const [leaderboards, players, clans, territories] = await Promise.all([
+    // Warm each category in parallel (FID-20260914-009 Phase A: the territories
+    // category was dead — unmapped collection, unread cache keys — and is gone).
+    const [leaderboards, players, clans] = await Promise.all([
       warmLeaderboards(),
       warmTopPlayers(),
       warmTopClans(),
-      warmTerritoryMap(),
     ]);
 
-    stats.itemsWarmed = leaderboards + players + clans + territories;
-    stats.categories = ['leaderboards', 'players', 'clans', 'territories'];
+    stats.itemsWarmed = leaderboards + players + clans;
+    stats.categories = ['leaderboards', 'players', 'clans'];
     
     stats.endTime = new Date();
     stats.duration = stats.endTime.getTime() - stats.startTime.getTime();

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/lib/beerBaseRespawn.test.ts
  * @overview FID-20260909-030 leak-class regression — weekly Beer Base respawn

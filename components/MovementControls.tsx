@@ -6,14 +6,48 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { logger } from '@/lib/logger';
 import { useGameContext } from '@/context/GameContext';
 import { MovementDirection, KeyToDirection } from '@/types';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 
+/** FID-20260914-001: transport multi-step range — matches the tech's
+ *  documented effect ("Movement range increased to 5 spaces") and the
+ *  server schema cap (steps <= 5). */
+const TRANSPORT_STEPS = 5;
+
 export default function MovementControls() {
   const { movePlayer, isLoading } = useGameContext();
+
+  // FID-20260914-001: toggle state — visibility gated on tech ownership
+  // (probed once on mount); activation is a client-session toggle.
+  const [hasTransport, setHasTransport] = useState(false);
+  const [transportActive, setTransportActive] = useState(false);
+
+  // FID-20260914-001: ownership probe — GET /api/research is the canonical
+  // reader of players.unlockedTechs (session identity). Non-critical: on any
+  // failure the toggle simply stays hidden and movement is untouched.
+  useEffect(() => {
+    let cancelled = false;
+    async function probeTransportOwnership() {
+      try {
+        const response = await fetch('/api/research');
+        const data = await response.json();
+        if (!cancelled && data?.success && Array.isArray(data.unlockedTechnologies)) {
+          setHasTransport(data.unlockedTechnologies.includes('troop-transport'));
+        }
+      } catch (err) {
+        logger.warn('[MovementControls] Transport ownership probe failed - toggle hidden', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    probeTransportOwnership();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Handle keyboard input
@@ -36,20 +70,20 @@ export default function MovementControls() {
       if (direction && !isLoading) {
         logger.debug(`[MovementControls] Received '${event.key}' keypress - moving ${direction}`);
         event.preventDefault();
-        movePlayer(direction);
+        movePlayer(direction, ...(transportActive ? [TRANSPORT_STEPS] : []));
       }
     }
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [movePlayer, isLoading]);
+  }, [movePlayer, isLoading, transportActive]);
 
   /**
    * Handle button click
    */
   function handleMove(direction: MovementDirection) {
     if (!isLoading) {
-      movePlayer(direction);
+      movePlayer(direction, ...(transportActive ? [TRANSPORT_STEPS] : []));
     }
   }
 
@@ -142,6 +176,25 @@ export default function MovementControls() {
           ↘<small>C</small>
         </button>
       </div>
+
+      {/* FID-20260914-001: troop-transport toggle - rendered only for tech
+          owners, spans the full compass width; one click activates, a second
+          deactivates. */}
+      {hasTransport && (
+        <button
+          type="button"
+          onClick={() => setTransportActive((active) => !active)}
+          className={
+            transportActive
+              ? 'nn-dpad__transport nn-dpad__transport--active'
+              : 'nn-dpad__transport'
+          }
+          title="Troop Transport (5-space movement)"
+          aria-pressed={transportActive}
+        >
+          TROOP TRANSPORT <small>{transportActive ? 'ACTIVE · 5 SPACES' : 'OFF · 1 SPACE'}</small>
+        </button>
+      )}
 
       <p className="nn-footnote" style={{ letterSpacing: '0.1em', paddingBottom: 14 }}>
         PRESS A KEY OR CLICK A DIRECTION

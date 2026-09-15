@@ -120,7 +120,12 @@ export async function detectSpeedHack(
   username: string,
   fromPos: { x: number; y: number },
   toPos: { x: number; y: number },
-  timestamp: number
+  timestamp: number,
+  // FID-20260914-001: step-normalized thresholds — a troop-transport move
+  // legitimately covers up to 5 tiles per action (gated server-side on tech
+  // ownership), so both thresholds scale with the verified step count.
+  // Default 1 keeps every pre-existing call site behavior-identical.
+  steps = 1
 ): Promise<DetectionResult> {
   try {
     const client = await clientPromise;
@@ -138,14 +143,14 @@ export async function detectSpeedHack(
       const wrappedDy = Math.min(dy, MAP_SIZE - dy);
       const distance = wrappedDx + wrappedDy;
 
-    // Check for impossible single-move distance
-    if (distance > THRESHOLDS.IMPOSSIBLE_DISTANCE) {
+    // Check for impossible single-move distance (scaled by verified steps)
+    if (distance > THRESHOLDS.IMPOSSIBLE_DISTANCE * steps) {
       await createFlag({
         username,
         flagType: 'SPEED_HACK',
         severity: 'CRITICAL',
         description: 'Impossible movement distance detected',
-        evidence: `Moved ${distance} tiles in single action (max: ${THRESHOLDS.IMPOSSIBLE_DISTANCE})`,
+        evidence: `Moved ${distance} tiles in single action (max: ${THRESHOLDS.IMPOSSIBLE_DISTANCE * steps})`,
         metadata: { fromPos, toPos, distance, timestamp }
       });
 
@@ -184,16 +189,17 @@ export async function detectSpeedHack(
 
     const movementRate = totalDistance / timeDiff;
 
-    // Flag if movement rate exceeds threshold
-    if (movementRate > THRESHOLDS.MAX_MOVEMENT_RATE) {
-      const severity = movementRate > THRESHOLDS.MAX_MOVEMENT_RATE * 2 ? 'HIGH' : 'MEDIUM';
+    // Flag if movement rate exceeds threshold (scaled by verified steps)
+    if (movementRate > THRESHOLDS.MAX_MOVEMENT_RATE * steps) {
+      const severity =
+        movementRate > THRESHOLDS.MAX_MOVEMENT_RATE * steps * 2 ? 'HIGH' : 'MEDIUM';
       
       await createFlag({
         username,
         flagType: 'SPEED_HACK',
         severity,
         description: 'Excessive movement speed detected',
-        evidence: `Moving at ${movementRate.toFixed(2)} tiles/sec (max: ${THRESHOLDS.MAX_MOVEMENT_RATE})`,
+        evidence: `Moving at ${movementRate.toFixed(2)} tiles/sec (max: ${THRESHOLDS.MAX_MOVEMENT_RATE * steps})`,
         metadata: { movementRate, recentMoves: recentMoves.length, timeDiff }
       });
 

@@ -205,7 +205,7 @@ darkframe/
 
 **Progression:**
 - `POST /api/specialization/choose` - Select class
-- `POST /api/specialization/upgrade` - Increase mastery
+- `GET /api/specialization/mastery` - Mastery status (earned server-side: +10 per doctrine-matching unit build, +25 per battle won; direct POST is admin-only)
 - `GET /api/achievements` - List achievements
 - `POST /api/achievements/claim` - Claim rewards
 - `GET /api/discoveries` - Technology unlocks

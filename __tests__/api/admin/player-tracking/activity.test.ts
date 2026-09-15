@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/admin/player-tracking/activity.test.ts
  * @overview FID-20260909-032 §2-A regression tests — the admin Activity route.

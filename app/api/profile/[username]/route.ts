@@ -22,6 +22,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlayerByUsername } from '@/lib/playerService';
 import { isLookupableUsername } from '@/lib/authService';
+import { computeBattleStats, toPanelBattleStats } from '@/lib/battleStatsService';
 import type { AchievementRecord, BattleStatistics } from '@/types/game.types';
 import {
   withRequestLogging,
@@ -103,7 +104,9 @@ export const GET = withRequestLogging(
           : null,
         totalStrength: player.totalStrength ?? 0,
         totalDefense: player.totalDefense ?? 0,
-        battleStats: player.battleStats ?? null,
+        // FID-20260914-007: computed live from battle_logs — the battle_stats
+        // column had NO writer, so every profile showed zeros forever.
+        battleStats: toPanelBattleStats(await computeBattleStats(username)),
         achievements: player.achievements ?? [],
         createdAt: player.createdAt ? new Date(player.createdAt).toISOString() : null,
       };

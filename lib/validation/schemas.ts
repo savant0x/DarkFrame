@@ -148,6 +148,9 @@ export const MoveSchema = z.object({
   // validation and the MovementDirection type, and `validated.direction` is
   // genuinely typed as MovementDirection — no casts downstream.
   direction: z.nativeEnum(MovementDirection),
+  // FID-20260914-001: troop-transport multi-step movement — omitted = 1.
+  // 2-5 is gated server-side on tech ownership (route), never client-trusted.
+  steps: z.number().int().min(1).max(5).optional(),
 });
 
 export type MoveRequest = z.infer<typeof MoveSchema>;

@@ -99,7 +99,8 @@ export async function beerBaseManagerJob(): Promise<void> {
   }
 }
 
-function getISOWeek(d: Date): number {
+/** Exported for the FID-20260909-035 scheduler tests — the persisted-week stubs must match the manager's week math. */
+export function getISOWeek(d: Date): number {
   const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const dayNum = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);

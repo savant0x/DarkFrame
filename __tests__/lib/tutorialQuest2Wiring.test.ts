@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/lib/tutorialQuest2Wiring.test.ts
  * @overview FID-20260909-025 §6 regression tests — tutorial quest-2 completion

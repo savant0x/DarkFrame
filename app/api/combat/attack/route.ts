@@ -95,18 +95,39 @@ function _armySize(units: PlayerUnit[]): number {
  * anomalous row can't spawn an unbounded army.
  * Takes the drizzle players row (loosely typed — the DB projection is the truth).
  */
+/**
+ * FID-20260914-002: garrison balance knobs — docs/design/BASE_RAID_BALANCE.md
+ * is the tuning source of truth (edit the doc + these constants together).
+ * The weight-class ratio is load-bearing: the damage formula's defender term
+ * is `defSTR − attackerSTR/2`, so a fixed-STR garrison can never hurt a
+ * larger attacker beyond the 5-damage floor (the root cause of zero attacker
+ * losses — raids ended in 1 round, 5 < one unit's 10 HP).
+ */
+const GARRISON_DEF = 20;
+const GARRISON_STR = 10;
+const GARRISON_SIZE_DIVISOR = 20;
+const GARRISON_SIZE_FLOOR = 8;
+const GARRISON_SIZE_CAP = 60;
+const GARRISON_STR_RATIO = 0.6;
+
 function synthesizeGarrison(
   base: { username: string; totalDefense?: number | null; currentPositionX?: number | null; currentPositionY?: number | null; createdAt?: Date | null } & Record<string, unknown>,
-  baseUnits: PlayerUnit[]
+  baseUnits: PlayerUnit[],
+  attackerSTR: number
 ): Unit[] {
   if (baseUnits.length > 0) return baseUnits.flatMap((pu) => playerUnitToUnits(pu, base.username));
   const totalDefense = Number(base.totalDefense) || 150; // T1 scalar default (botService getBotDefenseForTier)
-  const unitCount = Math.max(1, Math.min(Math.ceil(totalDefense / 20), 500));
+  const unitCount = Math.min(GARRISON_SIZE_CAP, Math.max(GARRISON_SIZE_FLOOR, Math.ceil(totalDefense / GARRISON_SIZE_DIVISOR)));
+  // Weight-class floor: total STR ≥ ceil(attackerSTR × RATIO), redistributed
+  // across the units so the garrison deals proportional damage every round
+  // (docs/design/BASE_RAID_BALANCE.md tuning table).
+  const strengthFloor = Math.ceil(attackerSTR * GARRISON_STR_RATIO);
+  const perUnitSTR = Math.max(GARRISON_STR, Math.ceil(strengthFloor / unitCount));
   return Array.from({ length: unitCount }, (_, i) => ({
     id: `${base.username}-garrison-${i}`,
     type: UnitType.T1_Rifleman,
-    strength: 0,
-    defense: 20,
+    strength: perUnitSTR,
+    defense: GARRISON_DEF,
     producedAt: { x: Number(base.currentPositionX) || 0, y: Number(base.currentPositionY) || 0 },
     producedDate: base.createdAt ?? new Date(),
     owner: base.username,
@@ -192,7 +213,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // Garrison: real units if present, else synthesized from totalDefense (FID-006a R2).
     const baseUnits = (base.units ?? []) as PlayerUnit[];
-    const garrisonUnits = synthesizeGarrison(base, baseUnits);
     const attackerRow = await db.select().from(players).where(eq(players.username, auth.username)).limit(1);
     const attackerPlayer = attackerRow[0] as unknown as Player | undefined;
     if (!attackerPlayer) {
@@ -206,6 +226,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         message: 'You have no units to attack with',
       });
     }
+
+    // FID-20260914-002: the garrison is built AFTER the attacker's army is
+    // known — the weight-class floor needs the attacker's total STR.
+    const attackerSTR = attackerUnits.reduce(
+      (sum, u) => sum + (u.strength || 0) * (u.quantity || 0),
+      0
+    );
+    const garrisonUnits = synthesizeGarrison(base, baseUnits, attackerSTR);
 
     // FID-20260912-093: real battle, honestly labeled. Was BattleType.Factory
     // — every notification/feed/headline called base raids FACTORY. Levels
@@ -254,6 +282,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     let lootMetal = 0;
     let lootEnergy = 0;
     let xpAwarded = 0;
+    // FID-20260914-002: hoisted — assigned in the first victory block, stated
+    // in the victory message + rewards response (the second victory block,
+    // after persist, consumes them for the return).
+    let raidRP = 0;
+    let message = '';
 
     if (battleLog.outcome === 'ATTACKER_WIN') {
       // Loot = base resources × multiplier. Beer Bases keep the doc's premium
@@ -280,6 +313,45 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       } catch (xpError) {
         log.warn('Beer Base win XP failed (loot still credited)', xpError as Error);
       }
+
+      // FID-20260911-044: PvE battles now pay battle RP — the RP overhaul
+      // (FID-20251020-RP-OVERHAUL) listed battle rewards as a core source, but
+      // only the PvP infantry path ever awarded it; raiding bots/Beer Bases
+      // (the dominant combat activity) paid zero RP. Scale by base level:
+      // 100 base + 20 per defender level (same shape as the PvP formula).
+      // FID-20260914-002: awarded BEFORE persist so the report can state it
+      // (it previously happened after persist — the winner received RP no
+      // report ever mentioned).
+      try {
+        const { awardRP } = await import('@/lib/researchPointService');
+        const rpResult = await awardRP(
+          auth.username,
+          100 + (base.level ?? 1) * 20,
+          'battle',
+          `Victory against ${defender} (Base Raid)`,
+          { battleType: 'base', defenderLevel: base.level ?? 1, beerBase: isBeerBase }
+        );
+        if (rpResult.success) {
+          raidRP = rpResult.rpAwarded;
+          log.debug('Raid RP awarded', { by: auth.username, base: defender, rp: rpResult.rpAwarded });
+        }
+      } catch (rpError) {
+        log.warn('Raid RP award failed (loot still credited)', rpError as Error);
+      }
+
+      // FID-038 D4: message reflects the declared raid resource (both → legacy phrasing).
+      // FID-20260914-002: the message states EVERY reward — loot, XP, RP — and
+      // is set on the battleLog BEFORE persist, so the battle report's info
+      // line carries it and the winner never receives unstated resources.
+      const lootPhrase = resource === 'metal'
+        ? `${lootMetal.toLocaleString()} Metal`
+        : resource === 'energy'
+          ? `${lootEnergy.toLocaleString()} Energy`
+          : `${lootMetal.toLocaleString()} Metal and ${lootEnergy.toLocaleString()} Energy`;
+      message = isBeerBase
+        ? `You defeated Beer Base ${defender} and looted ${lootPhrase}! (+${xpAwarded} XP, +${raidRP} RP)`
+        : `You defeated ${defender}'s base and looted ${lootPhrase}! The garrison was routed — the base will regather resources. (+${xpAwarded} XP, +${raidRP} RP)`;
+      battleLog.message = message;
     }
 
     // FID-20260906-004 D1: persist the FULL battle log (now loot-complete)
@@ -347,27 +419,6 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         }
       }
 
-      // FID-20260911-044: PvE battles now pay battle RP — the RP overhaul
-      // (FID-20251020-RP-OVERHAUL) listed battle rewards as a core source, but
-      // only the PvP infantry path ever awarded it; raiding bots/Beer Bases
-      // (the dominant combat activity) paid zero RP. Scale by base level:
-      // 100 base + 20 per defender level (same shape as the PvP formula).
-      try {
-        const { awardRP } = await import('@/lib/researchPointService');
-        const rpResult = await awardRP(
-          auth.username,
-          100 + (base.level ?? 1) * 20,
-          'battle',
-          `Victory against ${defender} (Base Raid)`,
-          { battleType: 'base', defenderLevel: base.level ?? 1, beerBase: isBeerBase }
-        );
-        if (rpResult.success) {
-          log.debug('Raid RP awarded', { by: auth.username, base: defender, rp: rpResult.rpAwarded });
-        }
-      } catch (rpError) {
-        log.warn('Raid RP award failed (loot already credited)', rpError as Error);
-      }
-
       // Achievement feed: battlesWon is an achievement axis that bot raids
       // never incremented — wire the same tracker the PvP path uses.
       try {
@@ -377,16 +428,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         log.warn('battle-won stat tracking failed (non-fatal)', trackError as Error);
       }
 
-      // FID-038 D4: message reflects the declared raid resource (both → legacy phrasing).
-      const lootPhrase = resource === 'metal'
-        ? `${lootMetal.toLocaleString()} Metal`
-        : resource === 'energy'
-          ? `${lootEnergy.toLocaleString()} Energy`
-          : `${lootMetal.toLocaleString()} Metal and ${lootEnergy.toLocaleString()} Energy`;
-      const message = isBeerBase
-        ? `You defeated Beer Base ${defender} and looted ${lootPhrase}!`
-        : `You defeated ${defender}'s base and looted ${lootPhrase}! The garrison was routed — the base will regather resources.`;
-      log.info('Bot base defeated + looted', { base: defender, beer: isBeerBase, by: auth.username, lootMetal, lootEnergy, xpAwarded });
+      log.info('Bot base defeated + looted', { base: defender, beer: isBeerBase, by: auth.username, lootMetal, lootEnergy, xpAwarded, raidRP });
 
       // FID-20260909-029 §2.4: anti-cheat telemetry (was: logger defined,
       // never wired). Logging failures are swallowed inside the logger.
@@ -402,7 +444,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         success: true,
         victory: true,
         message,
-        rewards: { metal: lootMetal, energy: lootEnergy, experience: xpAwarded },
+        rewards: { metal: lootMetal, energy: lootEnergy, experience: xpAwarded, rp: raidRP },
         battle: battleLog,
       });
     }

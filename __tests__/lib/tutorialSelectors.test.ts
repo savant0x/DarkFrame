@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-092 — tutorial selector registry contract tests.
  *

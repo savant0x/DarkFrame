@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/friends/friends.integration.test.ts
  * @created 2025-11-04
@@ -17,7 +18,9 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { createHmac } from 'crypto';
+// node: prefix required under the jsdom environment — bare builtin specifiers
+// hit vite's browser-compat externalization and kill collection (FID-20260913-001).
+import { createHmac } from 'node:crypto';
 
 
 function getDbName() {

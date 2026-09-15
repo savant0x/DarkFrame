@@ -821,7 +821,7 @@ export async function searchConversations(
  *    - conversations table for conversation metadata
  *    - messages table for message storage
  *    - players table for participant details
- *    - Uses sql`JSON_CONTAINS` for participant array queries
+ *    - Uses pg jsonb containment (@>) for participant array queries
  * 
  * 2. Conversation Design:
  *    - Participants array sorted alphabetically ensures unique conversations
@@ -869,8 +869,8 @@ export async function searchConversations(
  * 9. Performance Optimizations:
  *    - Batch operations where possible
  *    - Limit fetches with upper bounds (100 messages max)
- *    - Leverage MySQL indexes for efficient queries
- *    - JSON_CONTAINS used for participant array queries
+ *    - Leverage Postgres indexes for efficient queries
+ *    - pg jsonb containment (@>) used for participant array queries
  * 
  * 10. Security Considerations:
  *     - Permission checks on all conversation operations

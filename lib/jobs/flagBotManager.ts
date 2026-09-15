@@ -38,6 +38,7 @@ import {
   shouldResetFlag,
   initializeFlagSystem,
 } from '@/lib/flagBotService';
+import { checkHoldMilestone } from '@/lib/flagBonusService';
 
 /**
  * Job execution statistics
@@ -89,6 +90,12 @@ const FLAG_BOT_JOB_CONFIG = {
   interval: 30 * 60 * 1000, // 30 minutes in milliseconds
   // interval: 2 * 60 * 1000, // 2 minutes for testing - UNCOMMENT FOR TESTING
 };
+
+/** FID-20260914-002: doc §354-362 — 12-hour maximum hold, auto-drop at the
+ *  limit. The drop previously existed only in the never-scheduled cron
+ *  route (app/api/cron/flag-bot-movement), so a human holder could keep the
+ *  flag indefinitely. */
+const FLAG_HOLD_LIMIT_MS = 12 * 60 * 60 * 1000;
 
 // ============================================================
 // MAIN JOB HANDLER
@@ -159,10 +166,52 @@ async function flagBotManagerJob(): Promise<number> {
         operationsPerformed++;
         console.log('[Flag Bot Job] ✅ Flag system initialized');
       } else {
-        // Player holds flag - skip movement
-        console.log(
-          `[Flag Bot Job] 👤 Player holds flag: ${flagDoc[0].currentHolderUsername} - skipping movement`
-        );
+        // FID-20260914-002: the 12h hold-limit drop — it existed only in the
+        // never-scheduled cron route, so a human holder could keep the flag
+        // indefinitely (operator observed ~3 days). Mirrors the cron route's
+        // flags update + milestone grant (app/api/cron/flag-bot-movement).
+        const holderName = String(flagDoc[0].currentHolder ?? '');
+        const lastCapturedAt = flagDoc[0].lastCapturedAt
+          ? new Date(flagDoc[0].lastCapturedAt).getTime()
+          : 0;
+        if (Date.now() - lastCapturedAt >= FLAG_HOLD_LIMIT_MS) {
+          const milestone = await checkHoldMilestone();
+          const [holderRow] = await db
+            .select({ x: players.currentPositionX, y: players.currentPositionY })
+            .from(players)
+            .where(eq(players.username, holderName))
+            .limit(1);
+          await db
+            .update(flags)
+            .set({
+              currentHolder: null,
+              currentHolderUsername: null,
+              spawnX: holderRow ? Number(holderRow.x ?? 75) : 75,
+              spawnY: holderRow ? Number(holderRow.y ?? 75) : 75,
+              lastCapturedAt: null,
+              challengeChallenger: null,
+              challengeStartedAt: null,
+              challengeEndsAt: null,
+              sessionEarningsMetal: 0,
+              sessionEarningsEnergy: 0,
+              fleeCount: 0,
+              graceUntil: null,
+              lastFleeAt: null,
+              fleeDestinationX: null,
+              fleeDestinationY: null,
+              milestone12hAwarded: 0,
+            })
+            .where(eq(flags.id, flagDoc[0].id));
+          state.jobStats.resetCount++;
+          operationsPerformed++;
+          console.log(
+            `[Flag Bot Job] 🏳️ 12h hold limit reached — flag auto-dropped from ${holderName} (milestone granted: ${milestone.granted})`
+          );
+        } else {
+          console.log(
+            `[Flag Bot Job] 👤 Player holds flag: ${flagDoc[0].currentHolderUsername} - skipping movement`
+          );
+        }
       }
     }
 
