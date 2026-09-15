@@ -5,6 +5,19 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Added — ladder-truth CI gate (FID-20260915-006a follow-through)
+
+- New test (`__tests__/lib/ladderTruth.test.ts` + scanner
+  `scripts/ladderTruth.ts`) parses the documented bot tier tables out of
+  `lib/botService.ts` source comments — resource multipliers (2 sites),
+  base defense (2 sites), player level brackets — and asserts each documented
+  value equals the live function output (`getResourceRange`,
+  `getBotDefenseForTier`, `getPlayerLevelBonus`). A comment-only edit that
+  drifts from code now fails CI; a formula change without a doc update fails
+  too. Site-count guards make a deleted table fail loudly; truth spot-pins
+  keep the scanner honest. Drill-verified: a corrupted comment value fails
+  2 tests and restores clean. `getBotDefenseForTier` exported for the gate.
+
 ### Docs — FID-20260915-006a: bot tier-ladder comment drift corrected
 
 - Comments in `botService.ts` (file header + `getResourceRange`) claimed the

@@ -755,7 +755,7 @@ function getBotTierForZone(zone: number): number {
  * @param tier Bot tier (1-7)
  * @returns Base defense value
  */
-function getBotDefenseForTier(tier: number): number {
+export function getBotDefenseForTier(tier: number): number {
   // Progressive defense scaling — computed values (FID-20260915-006a: the
   // old comment quoted pre-scale values 150–9600; this ×0.1 line has always
   // produced the numbers below):
