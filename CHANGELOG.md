@@ -5,6 +5,10 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Fixed — FID-20260915-008 (PvP counter-suppression softening, infantry-scoped)
+
+- Defender counter is now `max(5, DEF − attackerSTR/3)` for PvP infantry (was `/2`); the 0-loss glass-cannon farm ends at 30% DEF share (40% counters 14k R1, 50% 45k), wins flip toward balanced armies, the pre-existing stall keeps its repelled outcome. Attacker strike and every PvE path (garrison tuning, incident replay) are byte-identical; PvE suites pass unmodified.
+
 ### Changed — ladder-truth gate extended to every documented game-math table (FID-20260915-007)
 
 - **Four new ladders** (10 new documented sites, 65 new cells): regeneration-rate (4 sites — the rate table + three range summaries, actuals **engine-derived** as tick(0) ÷ spawner-max), unit-cost curve (game.types roster counts, BALANCING PHILOSOPHY table ↔ `TIER_UNLOCK_REQUIREMENTS`, slot ladder 1/3/7/15/30), build-rate (header intervals ↔ `BUILD_RATES`, Ghost pinned at the docs' one-decimal precision — 0.67 is a rounded 1/1.5), army composition (header bullets + table comments ↔ `ARMY_COMPOSITION`, bare `50/50` rows parsed as str-first).
