@@ -13,8 +13,11 @@
  *   The 10 HP floor applies ONLY to zero-power units (the old flat 10/15
  *   by-category scale is retired).
  * - Base damage per round = max(5, AttackerSTR - DefenderDEF/2) for the
- *   attacker, max(5, DefenderDEF - AttackerSTR/2) for the defender, with
- *   level-gap protection past a 20-level gap (-5% per level above 20,
+ *   attacker, max(5, DefenderDEF - AttackerSTR/2) for the defender - except
+ *   PvP infantry, where the defender counter uses /3 (FID-20260915-008:
+ *   suppression knee at 1/3 DEF-share so glass cannons bleed against mixed
+ *   armies; raids keep /2 and their tuned pacing), with level-gap
+ *   protection past a 20-level gap (-5% per level above 20,
  *   minimum 25% of calculated damage).
  * - Every strike is then multiplied by the army-balance dealt/taken
  *   multipliers (computed from raw pre-bonus stats), plus the flag-bearer
@@ -196,8 +199,13 @@ function calculateCombatStats(units: Unit[]): { totalSTR: number; totalDEF: numb
 /**
  * Calculate damage dealt per round with level gap protection
  * Attacker damage = max(5, AttackerSTR - DefenderDEF/2)
- * Defender damage = max(5, DefenderDEF - AttackerSTR/2)
- * 
+ * Defender damage = max(5, DefenderDEF - AttackerSTR/divisor)
+ *
+ * FID-20260915-008: the counter divisor is 3 for PvP infantry (softened
+ * suppression knee: counters revive at DEF-share ≥ 1/3 instead of 1/2, so
+ * glass cannons can no longer farm mixed armies for free) and 2 everywhere
+ * else (raids/factories keep their FID-002/003-tuned pacing).
+ *
  * LEVEL GAP PROTECTION:
  * - If level difference > 20, damage is capped with progressive reduction
  * - Reduction: 5% per level above 20 (e.g., 30-level gap = 50% damage)
@@ -214,9 +222,10 @@ function calculateDamage(
   attackerSTR: number,
   defenderDEF: number,
   attackerLevel: number,
-  defenderLevel: number
+  defenderLevel: number,
+  divisor = 2
 ): number {
-  const baseDamage = attackerSTR - defenderDEF / 2;
+  const baseDamage = attackerSTR - defenderDEF / divisor;
   const levelGap = Math.abs(attackerLevel - defenderLevel);
   
   // Apply level gap protection if gap > 20 levels
@@ -393,6 +402,11 @@ export async function resolveBattle(
   const attackerCasualties: Unit[] = [];
   const defenderCasualties: Unit[] = [];
 
+  // FID-20260915-008: counter divisor by battle type — 3 for PvP infantry
+  // (suppression knee at 1/3 DEF-share), 2 everywhere else so raid/factory
+  // pacing (FID-002/003) and their pinned suites stay byte-identical.
+  const counterDivisor = battleType === BattleType.Infantry ? 3 : 2;
+
   // Battle loop — FID-20260915-001 Phase 1: SEQUENTIAL resolution. The attacker
   // strikes first; a defender whose HP reaches 0 never counter-attacks. The old
   // simultaneous strike zeroed BOTH pools in one round → outcome Draw →
@@ -419,7 +433,7 @@ export async function resolveBattle(
     let attackerHPDeducted = 0;
     if (defenderHP > 0) {
       defenderDamage = Math.max(5, Math.floor(
-        calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel) * defenderDealtMul * defenderTakenMul
+        calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel, counterDivisor) * defenderDealtMul * defenderTakenMul
       ));
       attackerHPDeducted = Math.min(defenderDamage, attackerPoolAtRoundStart);
       attackerHP = attackerPoolAtRoundStart - attackerHPDeducted;
@@ -1394,7 +1408,8 @@ function playerRowToPlayer(row: typeof players.$inferSelect): Player {
  * - Attacker Damage = max(5, AttackerSTR - DefenderDEF/2), then × balance
  *   dealt/taken multipliers (+ flag/doctrine stacks); level-gap protection
  *   past a 20-level gap
- * - Defender Damage = max(5, DefenderDEF - AttackerSTR/2), same adjustments
+ * - Defender Damage = max(5, DefenderDEF - AttackerSTR/2), same adjustments —
+ *   except PvP infantry, which counters at AttackerSTR/3 (FID-20260915-008)
  * - Minimum 5 damage per strike; sequential resolution (dead sides never
  *   counter); 100-round cap = repelled raid (DefenderWin)
  *

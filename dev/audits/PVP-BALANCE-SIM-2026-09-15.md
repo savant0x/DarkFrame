@@ -100,3 +100,15 @@ control run flagged those; corrected design, second run passes.
 ```bash
 npx tsx -r dotenv/config scripts/simulatePvpBalance.ts [1|3|5]
 ```
+
+## Addendum — FID-20260915-008 re-measurement (Infantry counter /3, tiers 1/3/5)
+
+Suppression sweep (tier-invariant — identical cells at 1/3/5): the 0-loss
+farm now ends at 30% share; 40% counters 14k R1 (6.9% attacker losses),
+50% counters 45k (22.7%), 70% counters 76k (38.1%). League: monoStr 50.3%
+avg lost (was 42.6); mixed 67–77% (was 66–72) — the gap narrowed and, more
+importantly, wins flipped TOWARD balance (even/nearOpt 9 wins ON vs 7/6 OFF;
+skew60/skew55 pay for their CRITICAL/IMBALANCED bands). No flips favor
+mono-STR; the single STALL cell keeps its DefenderWin/repelled outcome;
+neutral control bit-identical at all tiers. Farming mixed armies now costs —
+glass is viable, no longer free.

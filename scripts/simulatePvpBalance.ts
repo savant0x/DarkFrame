@@ -247,8 +247,10 @@ async function main() {
   console.log(`\nNEUTRAL CONTROL (bal53→bal53, both BALANCED ×1.0): ${controlFails === 0 ? 'PASS — seam ON ≡ OFF bit-identical' : `FAIL in ${controlFails} cells`}`);
 
   // Suppression sweep: mono-STR attacker vs defender DEF-share ladder at equal
-  // pool. counter = DEF − attackerSTR/2 (min 5) ⇒ defenders with DEF ≤ STR/2
-  // of a mono-STR attacker counter ~nothing. Quantifies the dead zone.
+  // pool. Pre-FID-008: counter = DEF − attackerSTR/2 (min 5) ⇒ defenders
+  // with DEF ≤ STR/2 countered ~nothing (0-loss farm to 50% share).
+  // Post-FID-008 (Infantry): counter = DEF − attackerSTR/3 ⇒ knee at 1/3
+  // share (40% cell counters 14k R1). Quantifies the dead zone before/after.
   console.log('\nSUPPRESSION SWEEP — mono-STR attacker (200k STR, seam ON) vs defender DEF share:');
   console.log('  DEF-share  D-STR    D-DEF   band         outcome        rnd  A-pool-lost  counter-R1');
   for (const share of [0, 0.1, 0.2, 0.3, 0.4, 0.45, 0.49, 0.5, 0.55, 0.6, 0.7]) {
