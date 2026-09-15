@@ -8,7 +8,7 @@
 **Filename:** `FID-20260915-002-tier-sim-garrison-def-floor.md`
 **ID:** FID-20260915-002
 **Severity:** HIGH (synthesized-garrison raids were free wins at every tier mismatch)
-**Status:** verified (closure on commit per G2)
+**Status:** closed (commit `f7f0921`, canonical: PR #45)
 **Created:** 2026-09-15
 
 ---

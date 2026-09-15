@@ -8,7 +8,7 @@
 **Filename:** `FID-20260915-003-endgame-pacing-tier-ladder.md`
 **ID:** FID-20260915-003
 **Severity:** MEDIUM (endgame bases fell in 2 rounds at 15% cost — no pacing)
-**Status:** verified (closure on commit per G2)
+**Status:** closed (commit `f7f0921`, canonical: PR #45)
 **Created:** 2026-09-15
 
 ---
