@@ -70,20 +70,25 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Delete all flags for this player
     const result = await db.collection('playerFlags').deleteMany({ username });
 
-    // Log admin action
+    // Log admin action — mod_log column keys. The legacy Mongo doc keys resolve to
+    // no column post-pivot (NOT NULL moderator_id/target_id/created_at rendered as
+    // `default` and the insert 500'd AFTER the flags were already cleared — same
+    // class as the ban-player audit fix, FID-20260914-004 live sweep).
     await db.collection('adminLogs').insertOne({
-      timestamp: new Date(),
-      adminUsername: adminUser.username,
-      actionType: 'CLEAR_FLAGS',
-      targetUsername: username,
-      details: {
+      moderatorId: adminUser.username,
+      action: 'CLEAR_FLAGS',
+      targetId: username,
+      details: JSON.stringify({
+        adminUsername: adminUser.username,
+        targetUsername: username,
         flagsCleared: result.deletedCount,
         previousFlags: currentFlags.map((f: Record<string, unknown>) => ({
           flagType: f.flagType,
           severity: f.severity,
           timestamp: f.timestamp
         }))
-      }
+      }),
+      createdAt: new Date(),
     });
 
     log.info('Flags cleared successfully', {

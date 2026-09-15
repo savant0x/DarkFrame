@@ -77,11 +77,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       ? new Date(bannedAt.getTime() + durationDays * 24 * 60 * 60 * 1000)
       : null; // null = permanent ban
 
-    // Create ban record
+    // Create ban record. The moderation table requires playerId/moderatorId
+    // (NOT NULL); the account-ban domain keys (username/bannedBy) are carried
+    // alongside per the schema's shared-table contract. Missing keys made every
+    // ban 500 on the insert (found by the FID-20260914-004 live sweep).
     const banRecord = {
+      playerId: username,
+      moderatorId: user.username,
       username,
       bannedBy: user.username,
       bannedAt,
+      // created_at is NOT NULL with no default (shared channel/account table) —
+      // third missing key from the same pg-pivot defect.
+      createdAt: bannedAt,
       expiresAt,
       reason: reason.trim(),
       isPermanent: !durationDays,
@@ -119,21 +127,29 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       );
     }
 
-    // Log admin action
+    // Log admin action — mod_log column keys. The legacy Mongo doc keys
+    // (adminUsername/targetUsername/timestamp) resolve to NO column post-pivot,
+    // so NOT NULL moderator_id/target_id/created_at rendered as drizzle `default`
+    // and every ban 500'd after applying the ban (found by the FID-20260914-004
+    // live sweep). Legacy fields preserved in details.
     const adminLogs = db.collection('adminLogs');
     await adminLogs.insertOne({
-      adminUsername: user.username,
+      moderatorId: user.username,
       action: 'BAN_PLAYER',
-      targetUsername: username,
+      targetId: username,
       reason: reason.trim(),
-      durationDays: durationDays || 'permanent',
-      timestamp: new Date(),
-      metadata: {
-        playerTier: (player as Player & { tier?: number }).tier ?? null,
-        playerRank: player.rank,
-        playerResources: player.resources,
-        autoResolvedFlags: autoResolveFlags
-      }
+      details: JSON.stringify({
+        adminUsername: user.username,
+        targetUsername: username,
+        durationDays: durationDays || 'permanent',
+        metadata: {
+          playerTier: (player as Player & { tier?: number }).tier ?? null,
+          playerRank: player.rank,
+          playerResources: player.resources,
+          autoResolvedFlags: autoResolveFlags
+        }
+      }),
+      createdAt: new Date(),
     });
 
     log.info('Player banned successfully', {
@@ -237,13 +253,15 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       }
     );
 
-    // Log admin action
+    // Log admin action — mod_log column keys (same legacy-keys 500 as BAN_PLAYER;
+    // fixed in the same sweep pass).
     const adminLogs = db.collection('adminLogs');
     await adminLogs.insertOne({
-      adminUsername: user.username,
+      moderatorId: user.username,
       action: 'UNBAN_PLAYER',
-      targetUsername: username,
-      timestamp: new Date()
+      targetId: username,
+      details: JSON.stringify({ adminUsername: user.username, targetUsername: username }),
+      createdAt: new Date(),
     });
 
     log.info('Player unbanned successfully', {

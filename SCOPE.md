@@ -445,6 +445,62 @@ Explicitly NOT approved: findings in files outside the WIP-touched set (next bat
 
 ---
 
+### Session 2026-09-14 (004) — FID-20260914-004 converged (shim hardening spec)
+
+Operator instruction: "Build and converge the shim-hardening FID: replace the dead `$pull`
+SQL with the verified `jsonb_agg` rewrite and add conditional-update semantics to the
+compat seam."
+
+Approved items:
+
+- [x] RED evidence pass: `$pull`/`modifiedCount`/`deletedCount`/`$addToSet` consumer
+      censuses repo-wide; shim handler bodies re-read (`$pull`, `$addToSet`, `$push`,
+      `$inc`, `updateOne`/`updateMany`/`deleteOne`/`deleteMany`/`bulkWrite`, upsert
+      gating, `findOneAndUpdate`); `.returning()` precedent census (10+ sites);
+      scripted-mock test idiom verified
+- [x] Ground-truth findings: `$pull` = latent guaranteed-500 (zero live callers, type
+      still advertises it); unconditional counts lie to seven live branches + three
+      reporting sites; `$addToSet` = unconditional append (third defect found in-family);
+      upsert phantom-insert suspicion checked and CLEARED (gated)
+- [x] FID-20260914-004 written and Perfection-Looped to `converged` on loop 2 (deep
+      audit: 1 GREEN refinement — upsert insert branches included in honest counting —
+      plus 1 probe hardening — JSON-null element case; 4 probes cleared with evidence;
+      gates re-run as Method-1 proof: tsc 0 / eslint 0 / vitest 747/1/0, zero drift)
+- [x] Implementation NOT started (§7 not-started) — gated on operator direction
+
+No other work is approved. Bookkeeping commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (005) — FID-20260914-004 implemented (shim hardening)
+
+Operator instruction: "Implement converged FID-20260914-004: honest update/delete counts
+via .returning(), the jsonb_agg $pull rewrite, and real $addToSet semantics — full gates
+and evidence."
+
+Approved items:
+
+- [x] Honest counts: updateOne/updateMany/deleteOne/deleteMany report real affected-row
+      counts via bare `.returning()`; empty-set updates honestly return 0; upsert insert
+      branches count returned rows; bulkWrite sums the real per-op results
+- [x] `$pull` → probe-verified `jsonb_agg` deep-equality rewrite (one shape for object
+      and scalar operands); `$addToSet` → containment-guarded append (`@>` over a
+      one-element array) — duplicate tiers impossible for tierUnlockService
+- [x] 13 unit tests via a scripted drizzle harness (`__tests__/lib/fakeDrizzle.ts`);
+      probe extended to live-verify every shipped fragment (exit 0) incl. the JSON-null
+      element case; live seam verification (`scripts/verifyShimSemanticsLive.ts`) exit 0:
+      honest-failure branch proven (non-matching filter → 0), `$pull` removes exactly the
+      matching unit from `players.units`, `$addToSet` present-tier does not duplicate
+- [x] Implementation discoveries disclosed: the upsert `onConflictDoNothing` branch is
+      dead code (gated on its own negation); the abandon route's count branch is
+      defense-in-depth behind its findOne pre-check
+- [x] Gates: tsc 0 · eslint 0 · vitest 760/1 skipped/0 failures (+13 over 747); zero
+      caller edits (Law 4: the seven count branches gain live paths unchanged)
+
+No other work is approved. `fix(shim)` commit presented, not executed (G1 default).
+
+---
+
 ## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
 
 **Outcome (2026-09-07):** both fixes applied and verified — `lib/__tests__/redis.test.ts` gained the `vi.hoisted` env pin (REDIS_URL='disabled', UPSTASH=''; documented rationale in-file); `__tests__/lib/flagHolderSurvival.test.ts` fake retyped `unknown`→`Table` (import + `tableName` + `from` + `update`/`delete`/`insert` + the `setTableNameResolver` setter — the first pass missed the setter and tsc caught it at (90,22)). Evidence: `vitest run lib/__tests__/redis.test.ts` = **16/16** (fallback path visibly exercised — "[RateLimiter] Redis unavailable, allowing request" in the no-fallback test); `vitest run __tests__/lib/flagHolderSurvival.test.ts` = 3/3; full `npx vitest run` = **354 passed / 0 failed / 1 skipped**; `npx tsc --noEmit` = **exit 0** (recorded clean baseline restored). Residual (pre-existing, not touched): 2 `no-unused-vars` eslint errors in flagHolderSurvival.test.ts (`players`/`flags` imported but never referenced — present in session 001's baseline lint output).
@@ -650,6 +706,7 @@ operator decides whether each item is added to scope.
 | 34 | ~~**Mongo-era `ObjectId` lingers in domain types**~~ **→ RESOLVED 2026-09-07 (session 006, operator-directed "migrate the Mongo-era ObjectId _id fields out of the domain types"):** all 10 types files migrated — `ObjectId` → `string` for every `_id` (18 interfaces: clan ×5 + messaging ×2 + referral + tutorial ×2 + wmd/defense ×4 + wmd/intelligence ×5 + wmd/missile + wmd/notification ×2 + wmd/research), plus `BotConfig.summonedBy` → `string` (runtime already writes a username string) and `ReferralRecord.referrerPlayerId` → `string` (runtime already writes a username); all 10 `mongodb` type imports removed. Runtime was already string-based everywhere (verified before editing: `messagingService` maps `_id: row.id`, `botSummoningService` casts `summonedBy?: string`, admin referrals page carries its own `_id: string` interface), so fallout was zero. `lib/mongodb.ts`'s local `ObjectId` shim is untouched (it is the compat layer, not a domain type). `clanActivityService`'s `ClanActivityWithStringId` bridge type — created specifically to work around this stale contract — deleted; service now uses `ClanActivity` directly | 2026-09-07 (session 005) | Closed (resolved) |
 | 35 | ~~**JoinClanModal filter UI is decorative**~~ **→ RESOLVED 2026-09-07 (session 006, operator-directed "fix the JoinClanModal filter UI by extending /api/clan/search with its filter params"):** route extended with `minLevel`/`maxLevel` (clamped 1–50, on `level_current_level`), `minMembers`/`maxMembers` (jsonb_array_length on members), `publicOnly=true` → `settings_requires_approval = 0`, plus `recruitingOnly=true` → `settings_is_recruiting = 1` (the modal's "Public Only" toggle honestly maps to approval-free join; recruiting flag added so the schema's isRecruiting setting is reachable). Modal now sends `q` (was `name`, which the route never read). Bounds clamped so hostile input degrades to a wide filter, not an error | 2026-09-07 (session 005) | Closed (resolved) |
 | 36 | **Repo-wide `no-explicit-any` census. Session-005 original: 336 across 78 files (lib/ 226 — worst: clanDistributionService 21, queryOptimization 19, beerBaseAnalytics 15, tutorialService 14, rankingService 11, botScannerService 10, clanChatService 10; __tests__/ 36; components/ 30; app/ 12; types/ 7; hooks/ 3; scripts/ 15; vitest.setup.ts 7). **Correction 2026-09-08 (session 008-001): the census tool replaced counts on grouping-key collision, so its totals were understatements; with the tool fixed and cross-validated (348 = raw eslint 348), the true post-006 baseline was 369, not 322.** Post batch 1 (clanDistributionService 21→0, 2026-09-08): **348 across 86 files** — next worst: queryOptimization 19, beerBaseAnalytics 15, rankingService 11, botScannerService 10, clanChatService 10, friends test suites 36. `dev/` and root `scripts/*.mjs` are eslint-exempt (config override). Burn-down continues on operator direction | 2026-09-07 (session 005); corrected 2026-09-08 (session 008-001) | Open (campaign in progress) |
+| 37 | **Compat-seam hardening (FID-20260914-004, status `converged`):** (a) the shim's `$pull` emits SQL this engine rejects (`operator does not exist: jsonb - jsonb`, probe-verified 2026-09-14) — zero live callers since FID-20260914-003 removed the last, but the type advertises a guaranteed-500 operator; (b) `updateOne`/`updateMany`/`deleteOne`/`deleteMany`/`bulkWrite` return unconditional counts, so seven live failure branches (ban-player, factory abandon/upgrade, build-unit batch integrity, greeting) and three `deletedCount` reporting sites read fictional numbers; (c) `$addToSet` is an unconditional append (duplicate tiers possible in `tierUnlockService`). Fix specified: probe-verified `jsonb_agg` rewrite for `$pull`, `.returning()`-based honest counts (in-repo idiom, 10+ precedents), containment-guarded `$addToSet` — zero caller edits required. | 2026-09-14 (SESSION-2026-09-14-004, banked by FID-20260914-003); implemented 2026-09-14 (SESSION-2026-09-14-005) | Closed (resolved by FID-20260914-004 implementation — honest counts live-verified incl. the honest-failure branch, $pull rewrite live-proven, $addToSet no-duplicate verified; FID closes on commit per G2) |
 | 30 | **Gate-baseline divergence:** repo gates no longer match the ledger's 2026-09-06 "tsc 0 / eslint clean / 341 green" — live: tsc 1 error (`__tests__/lib/flagHolderSurvival.test.ts`, committed `4674b73`), eslint **460 errors / 3 warnings** (incl. re-appeared `any`s in friends suites previously burn-downed), vitest **12 failed** (all `lib/__tests__/redis.test.ts`). The tree also carries an uncommitted parallel session's WIP (20 modified files: clan panels, friends/messaging tests, messagingService, websocket handlers; untracked `scripts/nn-fixany.mjs`, `scripts/nn-lintreport.mjs`, `lib/errorMessage.ts`, `docs/llms-*`; `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` deleted). Attribution and disposition were operator decisions — session 2026-09-07 (001) touched nothing beyond its approved 2-line fix **→ RESOLVED 2026-09-07 (SESSION-2026-09-07-002): operator reviewed the WIP and chose fix+commit+gitignore — defect repaired, WIP committed as 4 path-scoped commits (`0e82eb5`, `8be0bde`, `de914fa`, `8051813`), scraped llms docs gitignored (kept local), nn-*.mjs codemod scripts left untracked pending operator call** | 2026-09-07 (sessions 001–002) | Closed (resolved) |
 
 ---

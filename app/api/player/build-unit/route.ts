@@ -360,10 +360,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const updateResult = await playersCollection.updateOne(
       { username: username },
       {
-        // FID-20260909-033: plain entry array — the former `{ $each: … }` cast
-        // would persist the operand verbatim (same blob class as FID-032 §G).
-        // Entries also carry quantity so the PlayerUnit contract holds.
-        $push: { units: newUnits.map((u) => ({ ...u, quantity: validated.quantity })) },
+        // FID-20260909-033 amendment (FID-20260914-004 live sweep): the plain-array
+        // operand appended as ONE nested element ([[u1,u2,u3]]) — Mongo parity appends
+        // arrays whole — AND the full quantity stamping would have triple-counted a
+        // flat append. The seam's $each path is probe-verified (pushOperandAndPower
+        // suite + live shim verification), so N per-unit entries with quantity: 1 is
+        // the correct shape (matches the /api/factory variant's quantity-folded
+        // entries; totals sum strength × quantity correctly either way).
+        $push: { units: { $each: newUnits.map((u) => ({ ...u, quantity: 1 })) } },
         $inc: {
           'resources.metal': -totalMetalCost,
           'resources.energy': -totalEnergyCost

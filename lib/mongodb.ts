@@ -713,7 +713,15 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
   for (const [key, value] of Object.entries(update.$pull ?? {})) {
     const column = columns[key];
     if (column) {
-      payload[key] = sql`coalesce(${column}, '[]'::jsonb) - ${JSON.stringify(value)}::jsonb`;
+      // FID-20260914-004: the previous fragment (`col - operand::jsonb`) used pg's
+      // jsonb `-` operator, which this engine REJECTS for jsonb - jsonb (read-only
+      // probe: "operator does not exist: jsonb - jsonb") — every $pull was a
+      // guaranteed 500. Replacement (probe-verified): rebuild the array with
+      // jsonb_agg over elements NOT structurally equal to the operand (jsonb <>
+      // is deep equality; jsonb_array_elements never yields SQL NULL, so the
+      // comparison is total), coalescing to '[]' when nothing remains. Object and
+      // scalar operands share the one shape — no operand-type branching.
+      payload[key] = sql`coalesce((SELECT jsonb_agg(e) FROM jsonb_array_elements(coalesce(${column}, '[]'::jsonb)) e WHERE e <> ${JSON.stringify(value)}::jsonb), '[]'::jsonb)`;
       hasOps = true;
     }
   }
@@ -752,7 +760,13 @@ function buildSetPayload(table: PgTable, update: MongoUpdate): Record<string, Se
   for (const [key, value] of Object.entries(update.$addToSet ?? {})) {
     const column = columns[key];
     if (column) {
-      payload[key] = sql`coalesce(${column}, '[]'::jsonb) || ${JSON.stringify([value])}::jsonb`;
+      // FID-20260914-004: real set semantics. The old fragment was an unconditional
+      // append (identical to the $push handler), so re-unlocking an already-unlocked
+      // tier duplicated the entry (tierUnlockService $addToSet unlockedTiers). The
+      // containment probe @> over a one-element array is deep equality for scalars
+      // AND objects; the value is appended only when absent.
+      const element = sql`${JSON.stringify([value])}::jsonb`;
+      payload[key] = sql`CASE WHEN coalesce(${column}, '[]'::jsonb) @> ${element} THEN coalesce(${column}, '[]'::jsonb) ELSE coalesce(${column}, '[]'::jsonb) || ${element} END`;
       hasOps = true;
     }
   }
@@ -1311,31 +1325,48 @@ export class Collection<T = Record<string, unknown>> {
       // target exists, upsert atomically via onConflictDoUpdate.
       const conflictTarget = getConflictTarget(this.name, t);
       if (conflictTarget && setPayload && !hasSqlFragments(setPayload) && Object.keys(normalizedInsert).length > 0) {
-        await drizzleDb
+        // FID-20260914-004: honest counts on the upsert branches too — a
+        // conflict-do-nothing insert that inserted 0 rows previously reported 1.
+        const inserted = await drizzleDb
           .insert(t)
           .values(normalizedInsert)
-          .onConflictDoUpdate({ target: conflictTarget, set: normalizedInsert });
-        return { modifiedCount: 1 };
+          .onConflictDoUpdate({ target: conflictTarget, set: normalizedInsert })
+          .returning();
+        return { modifiedCount: inserted.length };
       }
       if (conflictTarget && !setPayload && !hasSqlFragments(normalizedInsert) && Object.keys(normalizedInsert).length > 0) {
-        await drizzleDb
+        const inserted = await drizzleDb
           .insert(t)
           .values(normalizedInsert)
-          .onConflictDoNothing({ target: conflictTarget });
-        return { modifiedCount: 1 };
+          .onConflictDoNothing({ target: conflictTarget })
+          .returning();
+        return { modifiedCount: inserted.length };
       }
       const existing = w
         ? await drizzleDb.select().from(t).where(w).limit(1)
         : await drizzleDb.select().from(t).limit(1);
       if (existing.length === 0) {
-        await drizzleDb.insert(t).values(normalizedInsert);
-        return { modifiedCount: 1 };
+        // FID-20260914-004: honest counts on every insert branch (a failure here
+        // throws, so rows.length is 1 on the only success path).
+        const inserted = await drizzleDb.insert(t).values(normalizedInsert).returning();
+        return { modifiedCount: inserted.length };
       }
     }
     if (setPayload) {
-      await drizzleDb.update(t).set(setPayload).where(w);
+      // FID-20260914-004: honest counts. The previous unconditional `modifiedCount: 1`
+      // lied to seven live failure branches (ban-player integrity, factory
+      // abandon/upgrade, build-unit's batch check, greeting) — a filter matching
+      // nothing reported success. Bare `.returning()` counts affected rows exactly
+      // (postgres yields one row per affected row) with no per-table PK discovery,
+      // and composes with the SQL-fragment payloads ($inc/$push/$pull rebinds).
+      // SEMANTICS NOTE: this counts MATCHED rows; Mongo's modifiedCount counts
+      // documents actually CHANGED (a no-op $set counts 0 there). Every current
+      // consumer checks `=== 0` / `< expected` (matched-row semantics) — recorded
+      // in the FID §5 Known residual.
+      const rows = await drizzleDb.update(t).set(setPayload).where(w).returning();
+      return { modifiedCount: rows.length };
     }
-    return { modifiedCount: 1 };
+    return { modifiedCount: 0 };
   }
 
   async updateMany(filter: MongoFilter, update: MongoUpdate): Promise<{ modifiedCount: number }> {
@@ -1344,23 +1375,30 @@ export class Collection<T = Record<string, unknown>> {
     const w = buildWhere(t, filter);
     const setPayload = buildSetPayload(t, update);
     if (setPayload) {
-      await drizzleDb.update(t).set(setPayload).where(w);
+      // FID-20260914-004: honest count (see updateOne) — updateMany with an empty
+      // set payload honestly reports 0 rather than a fictional 1.
+      const rows = await drizzleDb.update(t).set(setPayload).where(w).returning();
+      return { modifiedCount: rows.length };
     }
-    return { modifiedCount: 1 };
+    return { modifiedCount: 0 };
   }
 
   async deleteOne(filter: MongoFilter): Promise<{ deletedCount: number }> {
     const t = this.table();
     if (!t) return { deletedCount: 0 };
-    await drizzleDb.delete(t).where(buildWhere(t, filter));
-    return { deletedCount: 1 };
+    // FID-20260914-004: honest count — the previous unconditional 1 fed admin
+    // analytics (`beerBaseAnalytics` spawnsDeleted/defeatsDeleted, history purge
+    // reporting) fictional numbers.
+    const rows = await drizzleDb.delete(t).where(buildWhere(t, filter)).returning();
+    return { deletedCount: rows.length };
   }
 
   async deleteMany(filter: MongoFilter): Promise<{ deletedCount: number }> {
     const t = this.table();
     if (!t) return { deletedCount: 0 };
-    await drizzleDb.delete(t).where(buildWhere(t, filter));
-    return { deletedCount: 1 };
+    // FID-20260914-004: honest count (see deleteOne).
+    const rows = await drizzleDb.delete(t).where(buildWhere(t, filter)).returning();
+    return { deletedCount: rows.length };
   }
 
   async countDocuments(filter: MongoFilter = {}): Promise<number> {

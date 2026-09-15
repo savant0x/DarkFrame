@@ -67,29 +67,121 @@ async function main(): Promise<void> {
       : 'probe: unexpected scalar-operand behavior — re-inspect'
   );
 
-  // The verified replacement shape for the shim-hardening follow-up: rebuild the
-  // array with jsonb_agg over elements NOT deep-equal to the operand.
+  // ── FID-20260914-004: the SHIPPED shim fragments (post-implementation) ──
+  // The shim now emits exactly these shapes; each is verified against the live
+  // engine so the shipped SQL is machine-proven, not hand-asserted.
+
+  // (1) Shipped $pull shape, object operand over the units array.
   let rewriteOk = false;
   try {
     const rewrite = await db.execute(
       sql`SELECT coalesce((SELECT jsonb_agg(e) FROM jsonb_array_elements(${arr}) e WHERE e <> ${unitOperand}), '[]'::jsonb) AS remaining`
     );
-    const rewriteRows = rewrite.rows as Array<{ remaining: unknown }>; 
-    const rem = rewriteRows[0]?.remaining;
+    const rem = (rewrite.rows as Array<{ remaining: unknown }>)[0]?.remaining;
     rewriteOk =
       Array.isArray(rem) &&
       rem.length === 1 &&
       (rem[0] as { unitId?: string }).unitId === 'U2';
     console.log(
       rewriteOk
-        ? 'probe: jsonb_agg rewrite CONFIRMED — drop-in $pull replacement for the shim-hardening follow-up'
-        : 'probe: jsonb_agg rewrite produced an unexpected shape — re-inspect before adopting'
+        ? 'probe: shipped $pull (object operand) CONFIRMED — jsonb_agg deep-equality removal'
+        : 'probe: shipped $pull (object operand) unexpected shape — re-inspect'
     );
   } catch (err) {
-    console.log('probe: jsonb_agg rewrite probe failed:', err instanceof Error ? err.message : String(err));
+    console.log('probe: shipped $pull (object operand) failed:', err instanceof Error ? err.message : String(err));
   }
 
-  process.exit(removedStructurally && rewriteOk ? 0 : 1);
+  // (2) Shipped $pull shape, scalar operand (match → removed; no-match → kept).
+  let pullScalarOk = false;
+  try {
+    const scalarArr = sql`'["alpha","beta"]'::jsonb`;
+    const alpha = sql`'"alpha"'::jsonb`;
+    const r = await db.execute(
+      sql`SELECT coalesce((SELECT jsonb_agg(e) FROM jsonb_array_elements(${scalarArr}) e WHERE e <> ${alpha}), '[]'::jsonb) AS remaining`
+    );
+    const rem = (r.rows as Array<{ remaining: unknown }>)[0]?.remaining;
+    pullScalarOk = Array.isArray(rem) && rem.length === 1 && rem[0] === 'beta';
+    console.log(
+      pullScalarOk
+        ? 'probe: shipped $pull (scalar operand) CONFIRMED'
+        : `probe: shipped $pull (scalar operand) unexpected: ${JSON.stringify(rem)}`
+    );
+  } catch (err) {
+    console.log('probe: shipped $pull (scalar operand) failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // (3) JSON-null element case (FID-004 loop-2 probe hardening): JSON null in the
+  // array is the jsonb value 'null' (never SQL NULL), so `e <> operand` is total
+  // and the null element is PRESERVED, not dropped.
+  let nullElementOk = false;
+  try {
+    const nullArr = sql`'["alpha", null, "beta"]'::jsonb`;
+    const alpha = sql`'"alpha"'::jsonb`;
+    const r = await db.execute(
+      sql`SELECT coalesce((SELECT jsonb_agg(e) FROM jsonb_array_elements(${nullArr}) e WHERE e <> ${alpha}), '[]'::jsonb) AS remaining`
+    );
+    const rem = (r.rows as Array<{ remaining: unknown }>)[0]?.remaining;
+    nullElementOk =
+      Array.isArray(rem) && rem.length === 2 && rem[0] === null && rem[1] === 'beta';
+    console.log(
+      nullElementOk
+        ? 'probe: JSON-null element preserved through the $pull rewrite CONFIRMED'
+        : `probe: JSON-null element case unexpected: ${JSON.stringify(rem)}`
+    );
+  } catch (err) {
+    console.log('probe: JSON-null element case failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // (4) Shipped $addToSet shape: containment guard — absent appends, present
+  // (scalar or object, deep equality) leaves the array untouched.
+  let addToSetOk = false;
+  try {
+    const setBase = sql`'["x","y"]'::jsonb`;
+    const elZ = sql`'["z"]'::jsonb`;
+    const elY = sql`'["y"]'::jsonb`;
+    const absent = await db.execute(
+      sql`SELECT (CASE WHEN coalesce(${setBase}, '[]'::jsonb) @> ${elZ} THEN coalesce(${setBase}, '[]'::jsonb) ELSE coalesce(${setBase}, '[]'::jsonb) || ${elZ} END) AS out`
+    );
+    const present = await db.execute(
+      sql`SELECT (CASE WHEN coalesce(${setBase}, '[]'::jsonb) @> ${elY} THEN coalesce(${setBase}, '[]'::jsonb) ELSE coalesce(${setBase}, '[]'::jsonb) || ${elY} END) AS out`
+    );
+    const objBase = sql`'[{"a":1}]'::jsonb`;
+    const objSame = sql`'[{"a":1}]'::jsonb`;
+    const objDiff = sql`'[{"a":2}]'::jsonb`;
+    const objPresent = await db.execute(
+      sql`SELECT (CASE WHEN coalesce(${objBase}, '[]'::jsonb) @> ${objSame} THEN coalesce(${objBase}, '[]'::jsonb) ELSE coalesce(${objBase}, '[]'::jsonb) || ${objSame} END) AS out`
+    );
+    const objAbsent = await db.execute(
+      sql`SELECT (CASE WHEN coalesce(${objBase}, '[]'::jsonb) @> ${objDiff} THEN coalesce(${objBase}, '[]'::jsonb) ELSE coalesce(${objBase}, '[]'::jsonb) || ${objDiff} END) AS out`
+    );
+    const a = (absent.rows as Array<{ out: unknown }>)[0]?.out;
+    const p = (present.rows as Array<{ out: unknown }>)[0]?.out;
+    const op = (objPresent.rows as Array<{ out: unknown }>)[0]?.out;
+    const oa = (objAbsent.rows as Array<{ out: unknown }>)[0]?.out;
+    addToSetOk =
+      Array.isArray(a) && a.length === 3 && a[2] === 'z' &&
+      Array.isArray(p) && p.length === 2 &&
+      Array.isArray(op) && op.length === 1 &&
+      Array.isArray(oa) && oa.length === 2;
+    console.log(
+      addToSetOk
+        ? 'probe: shipped $addToSet containment guard CONFIRMED (scalar + object, absent/present)'
+        : `probe: shipped $addToSet guard unexpected: ${JSON.stringify({ a, p, op, oa })}`
+    );
+  } catch (err) {
+    console.log('probe: shipped $addToSet guard failed:', err instanceof Error ? err.message : String(err));
+  }
+
+  // Exit semantics (fixed from the FID-003 era, whose pipe masked the true code):
+  // 0 iff every SHIPPED fragment is verified live. The legacy jsonb-minus probes
+  // above are documentation of the pre-FID-004 dead shape and no longer gate exit.
+  const allShippedOk = rewriteOk && pullScalarOk && nullElementOk && addToSetOk;
+  console.log(
+    allShippedOk
+      ? 'probe: ALL SHIPPED FRAGMENTS VERIFIED (FID-20260914-004)'
+      : 'probe: SHIPPED FRAGMENT VERIFICATION FAILED'
+  );
+  process.exit(allShippedOk ? 0 : 1);
 }
 
 void main();
