@@ -332,3 +332,7 @@ All notable changes to DarkFrame are documented here. Format based on
 - **Two live falsehoods corrected** (the new gate's first catch, before it even shipped): both regen summaries said "5-20% per hour" while Boss regenerates at 2% — now "2-20%" in all four sites; UNIT_CONFIGS' "all 40 units (5 tiers × 8)" now scoped truthfully to 65 units (40-unit blueprint-derived core + 25 SPEC/PRESTIGE).
 - `BUILD_RATES`/`ARMY_COMPOSITION` exported from botGrowthEngine (pure data; botArmyCaps.test.ts already behavior-pins caps/age — scope respected).
 - Drill-proven: comment-only edits to the regen table (drill E), the botService range summary (drill F), and the philosophy table (drill G) each fail the gate (2/2/2 tests), restored green after each. Coverage arithmetic asserted in-test (a parser silently skipping the bare 50/50 row shape is itself caught).
+### Added — property-based regen-engine regression suite
+
+- 14 property tests sweeping all 42 spec×tier configs (`__tests__/lib/regenEngineProperties.test.ts`) pinning the four regen semantics: never-below-current (plus over-cap clamp-down), revival from zero with the linear identity **derived from the engine itself** (`regen := tick(0)` — no mirrored rate table to drift), cap clamping through regen / growth-write / composed path (mocked 70/20/10 rolls), and NaN-free lookups incl. the Boss 120,000/h anchor. Mutation-drilled: absorbing-zero / clamp-removal / Boss-entry-deletion / negative-regen each fail the suite (4/4/1/8 tests); engine pristine after restore. Guards FID-20260915-005/-006/-006a semantics.
+
