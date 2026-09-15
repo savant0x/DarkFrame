@@ -5,6 +5,10 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Docs — bulk archival of 10 stale-closed FIDs (dev/audit, no code)
+
+- Archived to `dev/fids/archive/` with ground-truth cross-checks (code/SCOPE/CHANGELOG all confirm the work shipped): FID-20260403-001 (historical code review), FID-20260903-001 (mongodb seam typing — `lib/mongodb.ts` live, tsc 0), FID-20260903-002 (WMD schema — `lib/db/schema/wmd.ts` + migrations live), FID-20260904-004 (hotkey invariant — registry live), FID-20260909-026 (bank race/canvas — atomicity test live), FID-20260909-033 (catalog unification — canonical roster + test live), FID-20260913-001 (vitest jsdom — suite green since), FID-20260914-001/-002 (transport toggle + raid audit — both implemented per session records), FID-20260915-004 (balance-in-combat — SCOPE row 42, commit 049459b). Plus relocated misfiled `AUDIT-20260908-PHASE6` from `dev/fids/` to `dev/audits/`.
+
 ### Fixed — FID-20260915-008 (PvP counter-suppression softening, infantry-scoped)
 
 - Defender counter is now `max(5, DEF − attackerSTR/3)` for PvP infantry (was `/2`); the 0-loss glass-cannon farm ends at 30% DEF share (40% counters 14k R1, 50% 45k), wins flip toward balanced armies, the pre-existing stall keeps its repelled outcome. Attacker strike and every PvE path (garrison tuning, incident replay) are byte-identical; PvE suites pass unmodified.
