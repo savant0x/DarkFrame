@@ -8,7 +8,7 @@
 **Filename:** `FID-20260915-004-balance-combat-vault-caps-pill.md`
 **ID:** FID-20260915-004
 **Severity:** HIGH (economy + combat honesty; operator-reported with live evidence BATTLE-17894/12:56)
-**Status:** implemented (closure on commit per G2)
+**Status:** closed (commit `049459b`, canonical: PR #47)
 **Created:** 2026-09-15
 
 ---
