@@ -1,6 +1,6 @@
 # FID-20260915-006: linear bot-vault regen + hoarder capacity tier
 
-**Severity:** HIGH · **Status:** implemented (verified live) · **Created:** 2026-09-15
+**Severity:** HIGH · **Status:** closed (canonical `2681571`, PR #49) · **Created:** 2026-09-15
 
 **Convergence evidence:** `dev/audits/BOT-VAULT-ECONOMY-2026-09-15.md` (Monte Carlo:
 current curve is an absorbing-zero one-week economy — map loot 1.30M/day → 0 by
@@ -72,3 +72,11 @@ Side benefit: beer bases spawn at 3×U — under hoarder-style 3× caps the
   shared-cap agreement across regen/growth/loot seams.
 - Full gates: tsc · lint · vitest.
 - Live: census → one `runGrowthCycle()` on dev → census again → 7/7 > 0.
+
+## Status
+
+**CLOSED per G2** — shipped as commit `2681571` (rebase-merged via PR #49,
+2026-09-15). Verification record: 8 unit pins + live acceptance gate (7/7
+revival) + three-hoarder player-path jackpot driver
+(`scripts/e2eHoarderJackpot.ts`) + re-measured Monte Carlo on shipped code
+(2.73M/day flat = 2.24M × 1.22 hoarder-3×, audit addendum).
