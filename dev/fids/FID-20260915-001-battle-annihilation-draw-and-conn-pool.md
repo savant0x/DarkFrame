@@ -163,7 +163,7 @@ battle row preserves the full pre-battle `attacker_units` snapshot.
 
 - **Gates:** [x] typecheck 0 · [x] lint 0 · [x] tests pass (794/1 skipped) · [x] live route re-verified (both legs)
 - **Status:** CLOSED — all four phases implemented, live-verified, and committed.
-- **Commit hash (G2):** Phases 1–2 + restore: `4237f51` (umbrella multi-stream commit, 2026-09-15; pre-merge hash — canonical: PR #41). Phase 3 + write-back fix: _pending commit (canonical pointer to be added at push)_
+- **Commit hash (G2):** Phases 1–2 + restore: `4237f51` (umbrella multi-stream commit, 2026-09-15; pre-merge hash — canonical: PR #41). Phase 3 + write-back fix: `c8b27e3` (pre-merge `2426cf4`; canonical: PR #43)
 - **Staging plan:** `lib/battleService.ts`, `__tests__/lib/battleResolution.test.ts`, `__tests__/lib/baseRaidFidelity.test.ts`, `scripts/e2eBattleRebalance.ts`, `docs/design/BASE_RAID_BALANCE.md`, this FID, `SCOPE.md`, session record, `CHANGELOG.md`
 
 ---
