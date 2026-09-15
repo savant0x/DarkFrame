@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Pre-commit hook — ladder-truth gate for the botService-family game-math tables.
+#
+# Contract: a commit touching any file that carries a documented game-math
+# table (lib/botService.ts, lib/botGrowthEngine.ts, types/game.types.ts) or
+# the gate itself (scripts/ladderTruth.ts, __tests__/lib/ladderTruth.test.ts)
+# must pass the ladder-truth test BEFORE the commit forms. The FID-20260915-006a
+# drift lived in comments for months because nothing executed them between
+# edit and push — this hook moves that check to commit time.
+#
+# Accuracy: the gate runs against the STAGED tree, not the working tree.
+#   - Fast path: if the worktree matches the index for the trigger set, the
+#     test runs in place.
+#   - Accurate path: on partial staging (index ≠ worktree) the staged tree is
+#     materialized into a temporary worktree (git write-tree + git archive,
+#     node_modules linked) and the suite runs there — drifted hunks cannot
+#     hide behind uncommitted fixes in the same file.
+#
+# Bypass semantics (matching commit-msg/pre-push): `git commit --no-verify`
+# skips this hook. The backstop is CI — the same test runs in the vitest
+# suite, so a bypassed commit still fails PR checks.
+#
+# Wired through the repository's core.hooksPath (.githooks, see package.json
+# "prepare"). Exit codes: 0 clean/skip · 1 drift refused · 2 harness error.
+
+set -uo pipefail
+
+TRIGGER_PATHS=(
+  lib/botService.ts
+  lib/botGrowthEngine.ts
+  types/game.types.ts
+  scripts/ladderTruth.ts
+  __tests__/lib/ladderTruth.test.ts
+)
+TEST_PATH="__tests__/lib/ladderTruth.test.ts"
+
+staged_trigger() {
+  local f
+  for f in "${TRIGGER_PATHS[@]}"; do
+    if git diff --cached --name-only -- "$f" | grep -q .; then return 0; fi
+  done
+  return 1
+}
+
+if ! staged_trigger; then
+  echo "✅ pre-commit: no ladder-truth source files staged — gate skipped"
+  exit 0
+fi
+
+echo "🔍 pre-commit: ladder-truth sources staged — running the gate…"
+
+run_gate() { # $1 = directory to run the suite in
+  (cd "$1" && CI=1 npx vitest run "$TEST_PATH" 2>&1 | tail -25)
+}
+
+if git diff --quiet -- "${TRIGGER_PATHS[@]}"; then
+  # Fast path: worktree == index for every trigger file → test in place.
+  OUT="$(run_gate "$PWD")"
+else
+  echo "🔍 pre-commit: partial staging detected — materializing the staged tree…"
+  TREE="$(git write-tree)" || {
+    echo "❌ pre-commit: cannot resolve the staged tree (unmerged index?)" >&2
+    exit 2
+  }
+  TMPWT="$(mktemp -d)"
+  cleanup() { rm -rf "$TMPWT"; }
+  trap cleanup EXIT
+  git archive "$TREE" | tar -x -C "$TMPWT" || {
+    echo "❌ pre-commit: failed to materialize the staged tree" >&2
+    exit 2
+  }
+  [ -f "$TMPWT/$TEST_PATH" ] || {
+    echo "❌ pre-commit: staged tree is missing $TEST_PATH" >&2
+    exit 2
+  }
+  # Link node_modules (junction on Windows — no admin rights needed).
+  case "$(uname -s)" in
+    MINGW* | MSYS* | CYGWIN*)
+      cmd //c mklink //J "$(cygpath -w "$TMPWT/node_modules")" "$(cygpath -w "$PWD/node_modules")" >/dev/null 2>&1
+      ;;
+    *)
+      ln -s "$PWD/node_modules" "$TMPWT/node_modules"
+      ;;
+  esac
+  [ -e "$TMPWT/node_modules/.bin/vitest" ] || {
+    echo "❌ pre-commit: node_modules link failed — cannot run the gate" >&2
+    exit 2
+  }
+  OUT="$(run_gate "$TMPWT")"
+fi
+
+if printf '%s' "$OUT" | grep -qE 'Test Files  1 passed'; then
+  echo "✅ pre-commit: ladder truth holds — documented tables match code"
+  exit 0
+fi
+
+echo "❌ pre-commit: documented game-math tables drifted from code — commit refused" >&2
+printf '%s\n' "$OUT" >&2
+echo "   Fix the drift (comment or code), or use --no-verify only when explicitly" >&2
+echo "   authorized — CI runs the same gate and will fail the PR." >&2
+exit 1
