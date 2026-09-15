@@ -5,6 +5,33 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Changed — FID-20260915-003 (endgame raid pacing)
+
+- Tier-multiplier ladder on the synthesized-garrison weight floor
+  (`GARRISON_TIER_MULT` 1.0→1.5): top-tier bases now force multi-round endgame
+  raids with real proportional losses (measured 3 rounds / 80–95% for the
+  biggest raiders) while low tiers stay near-flat. The operator-proposed
+  `GARRISON_SIZE_CAP` raise was swept and **falsified as a difficulty knob**
+  (identical outcomes at 60/150/300/600 — the floor distributes across any unit
+  count). Bot tier now resolves from `bot_config.tier` (canonical spawner
+  field); the legacy b[WMSEUL] username marker matched nothing live and
+  silently degraded every bot — including tier-scaled XP/RP — to tier 1.
+- Live E2E (`scripts/e2eEndgamePacing.ts`): tier-6 base vs 220k raider → 3
+  rounds / 95% losses, survivors intact; single-unit raid honestly repelled;
+  a real raid as `fame` landed 2 rounds / 8.7% losses with the army fully
+  accounted for.
+
+### Fixed — FID-20260915-002 (tier-sim: garrison counter wired to the wrong stat)
+
+- Tier-mismatch simulation (`scripts/simulateCombatTiers.ts`, runs the real engine)
+  proved the synthesized-garrison weight-class floor was routed into STR — a stat the
+  counter formula never reads (defender damage = DEF − attackerSTR/2). Fresh-base raids
+  were free wins at every mismatch (0–9% losses). The floor now lands on DEF
+  (`GARRISON_DEF_RATIO = 0.65` → 0.15×attackerSTR counter per round) with a small STR HP
+  pad (0.2). Post-fix: 13–15% attacker losses at every mismatch, rounds scale with
+  defender tier. Findings + remaining open flags (real-garrison floor, stall band, doc
+  drift) in `dev/audits/COMBAT-TIER-SIM-2026-09-15.md`.
+
 ### Fixed — FID-20260915-001 Phase 3 (combat rebalance converged + two army-wipe bugs)
 
 - Battle HP scale is now power-proportional (`strength + defense` per unit;

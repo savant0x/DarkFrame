@@ -98,17 +98,38 @@ function _armySize(units: PlayerUnit[]): number {
 /**
  * FID-20260914-002: garrison balance knobs — docs/design/BASE_RAID_BALANCE.md
  * is the tuning source of truth (edit the doc + these constants together).
- * The weight-class ratio is load-bearing: the damage formula's defender term
- * is `defSTR − attackerSTR/2`, so a fixed-STR garrison can never hurt a
- * larger attacker beyond the 5-damage floor (the root cause of zero attacker
- * losses — raids ended in 1 round, 5 < one unit's 10 HP).
+ * The weight-class floor is load-bearing: the damage formula's defender term is
+ * `defenderDEF − attackerSTR/2` (battleService.calculateDamage is called with
+ * the DEFENSE stat as the defender's damage source — garrison STR never
+ * counters), so a fixed-DEF garrison can never hurt a larger attacker beyond
+ * the 5-damage floor. The floor must therefore land on DEF, and exceed 0.5 ×
+ * attackerSTR before the counter rises above the floor at all:
+ *   counter/round = (DEF_RATIO − 0.5) × attackerSTR  →  0.15 × attackerSTR
+ * GARRISON_STR_RATIO pads the HP pool only (per-unit HP = strength + defense).
+ * FID-20260915 tier-sim (dev/audits/COMBAT-TIER-SIM-2026-09-15.md Flag 1): the
+ * pre-fix floor routed the full ratio into STR, which only inflated garrison
+ * HP — synthesized-garrison raids were free wins at every tier mismatch.
  */
 const GARRISON_DEF = 20;
 const GARRISON_STR = 10;
 const GARRISON_SIZE_DIVISOR = 20;
 const GARRISON_SIZE_FLOOR = 8;
 const GARRISON_SIZE_CAP = 60;
-const GARRISON_STR_RATIO = 0.6;
+const GARRISON_STR_RATIO = 0.2;
+const GARRISON_DEF_RATIO = 0.65;
+/**
+ * FID-20260915-003 (endgame pacing): tier multiplier ladder on the weight
+ * floor. Measured tuning curve (scripts/simulateCombatTiers.ts Matrix 4 —
+ * 220k STR endgame raider vs fresh top-tier synth): ×1.0–1.3 → 2-round wins
+ * at 15–33% losses; ×1.4–1.5 → the multi-round band (3 rounds, 80–95%
+ * losses); ≥×1.6 → the raider is annihilated. The ladder keeps low tiers
+ * near flat and lands the top markers (bU/bL) in the multi-round band.
+ * NOTE: GARRISON_SIZE_CAP was swept for this same goal and proved cosmetic —
+ * the weight floor distributes across ANY unit count, so cap 60/150/300/600
+ * produced byte-identical outcomes (only per-unit stats shrink). Difficulty
+ * is tuned by this ladder, not by the cap.
+ */
+const GARRISON_TIER_MULT: Record<number, number> = { 1: 1.0, 2: 1.05, 3: 1.1, 4: 1.2, 5: 1.35, 6: 1.5 };
 
 function synthesizeGarrison(
   base: { username: string; totalDefense?: number | null; currentPositionX?: number | null; currentPositionY?: number | null; createdAt?: Date | null } & Record<string, unknown>,
@@ -118,16 +139,21 @@ function synthesizeGarrison(
   if (baseUnits.length > 0) return baseUnits.flatMap((pu) => playerUnitToUnits(pu, base.username));
   const totalDefense = Number(base.totalDefense) || 150; // T1 scalar default (botService getBotDefenseForTier)
   const unitCount = Math.min(GARRISON_SIZE_CAP, Math.max(GARRISON_SIZE_FLOOR, Math.ceil(totalDefense / GARRISON_SIZE_DIVISOR)));
-  // Weight-class floor: total STR ≥ ceil(attackerSTR × RATIO), redistributed
-  // across the units so the garrison deals proportional damage every round
-  // (docs/design/BASE_RAID_BALANCE.md tuning table).
-  const strengthFloor = Math.ceil(attackerSTR * GARRISON_STR_RATIO);
+  // Weight-class floor: DEF ≥ ceil(attackerSTR × DEF_RATIO) drives the
+  // counter-attack (see the knob comment); STR ≥ ceil(attackerSTR × STR_RATIO)
+  // pads the HP pool so the fight lasts ~2 rounds. Both redistributed across
+  // the units, scaled by the base's tier ladder (docs/design/BASE_RAID_BALANCE.md).
+  const tierIdx = resolveBotTier(base);
+  const tierMult = GARRISON_TIER_MULT[tierIdx] ?? 1;
+  const strengthFloor = Math.ceil(attackerSTR * GARRISON_STR_RATIO * tierMult);
+  const defenseFloor = Math.ceil(attackerSTR * GARRISON_DEF_RATIO * tierMult);
   const perUnitSTR = Math.max(GARRISON_STR, Math.ceil(strengthFloor / unitCount));
+  const perUnitDEF = Math.max(GARRISON_DEF, Math.ceil(defenseFloor / unitCount));
   return Array.from({ length: unitCount }, (_, i) => ({
     id: `${base.username}-garrison-${i}`,
     type: UnitType.T1_Rifleman,
     strength: perUnitSTR,
-    defense: GARRISON_DEF,
+    defense: perUnitDEF,
     producedAt: { x: Number(base.currentPositionX) || 0, y: Number(base.currentPositionY) || 0 },
     producedDate: base.createdAt ?? new Date(),
     owner: base.username,
@@ -138,6 +164,21 @@ function synthesizeGarrison(
 function baseTierIndex(username: string): number {
   const t = (/^b([WMSEUL])\d{12}$/.exec(username)?.[1] ?? 'W');
   return { W: 1, M: 2, S: 3, E: 4, U: 5, L: 6 }[t] ?? 1;
+}
+
+/**
+ * FID-20260915-003: canonical bot tier — `bot_config.tier` is the spawner's
+ * field (beerBaseService sets tier = rank, clamped 1..6; botTierResync maintains
+ * it). The b[WMSEUL] username marker is the legacy encoding and matches NOTHING
+ * on the live map (bot usernames are name-shaped, e.g. "Rusted_Depot"), so the
+ * marker path silently degraded every live bot to tier 1 — both for the pacing
+ * ladder and for tier-scaled XP/RP. Marker stays as fallback for rows that
+ * somehow predate bot_config.
+ */
+function resolveBotTier(base: { username: string; botConfig?: unknown }): number {
+  const cfgTier = Number((base.botConfig as Record<string, unknown> | null | undefined)?.tier);
+  if (Number.isFinite(cfgTier) && cfgTier >= 1) return Math.min(6, Math.round(cfgTier));
+  return baseTierIndex(base.username);
 }
 
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
@@ -362,7 +403,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     if (battleLog.outcome === 'ATTACKER_WIN') {
       // FID-090: loot + XP were computed and stamped onto the battleLog BEFORE
       // persist (above); here we only credit and do the post-victory state.
-      const tierNumber = baseTierIndex(defender);
+      const tierNumber = resolveBotTier(base as { username: string; botConfig?: unknown });
 
       // Credit the attacker (codebase pattern: BigInt math, Number() write —
       // schema columns are drizzle integer(); harvest + factory use the same).
