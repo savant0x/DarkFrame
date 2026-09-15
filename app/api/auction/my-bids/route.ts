@@ -92,12 +92,25 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const totalCount = await auctionsCollection.countDocuments(query);
 
     // Get paginated results
-    const auctions = await auctionsCollection
-      .find(query)
-      .sort({ 'bids.timestamp': -1 }) // Most recent bid first
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .toArray();
+    // FID-20260914-003 (finding 8): the previous `.sort({ 'bids.timestamp': -1 })`
+    // sorted on a stale dot-path (the domain field is `bidTime`, and the shim only
+    // maps top-level sort keys anyway) — ordering silently degraded to DB natural
+    // order. The ordering key is per-member data (the caller's own highest
+    // bidTime), so it is computed in-route: fetch the (game-scale small) match
+    // set, sort by it, then apply pagination in JS — sorting after slicing would
+    // only order within a page.
+    const allMatching = await auctionsCollection.find(query).toArray();
+
+    const newestOwnBidTime = (auction: AuctionListing): number => {
+      const times = auction.bids
+        .filter((bid) => bid.bidderUsername === username)
+        .map((bid) => new Date(bid.bidTime).getTime())
+        .filter((t) => !Number.isNaN(t));
+      return times.length > 0 ? Math.max(...times) : 0;
+    };
+    allMatching.sort((a, b) => newestOwnBidTime(b) - newestOwnBidTime(a));
+
+    const auctions = allMatching.slice((page - 1) * limit, (page - 1) * limit + limit);
 
     // Transform results to include user's bid and winning status
     const bids = auctions.map((auction) => {
