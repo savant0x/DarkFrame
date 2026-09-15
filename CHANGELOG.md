@@ -3,6 +3,26 @@
 All notable changes to DarkFrame are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); dates are session dates (America/New_York).
 
+## [Unreleased] — 2026-09-14 session
+
+### Fixed — FID-20260914-003 (auction escrow correctness)
+
+- Buyout no longer forfeits the outbid leader's escrowed bid: claim-first close
+  (`findOneAndUpdate` Active→Sold) + fresh-pair leader refund; leader-is-buyer is
+  charged only the remainder; concurrent bid/buyout cannot double-pay (lost claims
+  refund immediately; delivery failure rolls the close back).
+- Unit listings escrow for real: unit snapshot frozen into `item.unitSnapshot` and
+  removed from the seller's army at listing; delivery is buyer-side; cancel/expire/
+  transfer-failure refunds return the unit (legacy no-snapshot rows keep a fallback).
+- Tradeable-item listings rejected before any fee/lock (`TRADEABLE_NOT_TRADEABLE_YET`);
+  my-bids now orders by the caller's own latest `bidTime` (stale `bids.timestamp`
+  dot-path removed). A read-only probe proved the shim's `$pull` SQL invalid on this
+  engine (`jsonb - jsonb` absent) — escrow uses `$set` array rebuilds; the verified
+  `jsonb_agg` rewrite is banked for the shim-hardening follow-up (FID-20260914-004).
+- Verified live end-to-end over real HTTP + postgres (`scripts/e2eAuctionLedger.ts`):
+  every escrow ledger entry balances; conservation ΣΔ = −250 = exactly the two fees.
+  Regression suite 736 → 747 passed; tsc 0, eslint 0.
+
 ## [Unreleased] — 2026-09-05/06 session
 
 ### Fixed — FID-20260906-011 (chat delete dead-wire)
