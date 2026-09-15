@@ -51,6 +51,7 @@
 
 import { connectToDatabase, type DocumentValue } from './mongodb';
 import { getNestById } from './botNestService';
+import { getResourceRange } from './botService'; // FID-20260915-004: vault-cap source of truth (no cycle: botService never imports this module)
 import type { Player, PlayerUnit, UnitType } from '@/types/game.types';
 import { UNIT_CONFIGS, UnitTier } from '@/types/game.types';
 
@@ -255,8 +256,8 @@ function regenerateBotResources(bot: Player): { metal: number; energy: number; f
       food: 0 
     };
   }
-  
-  const { specialization } = bot.botConfig;
+
+  const { specialization, tier } = bot.botConfig;
   const regenKey = specialization.charAt(0).toUpperCase() + specialization.slice(1) as keyof typeof REGENERATION_RATES;
   const regenRate = REGENERATION_RATES[regenKey];
   
@@ -268,9 +269,18 @@ function regenerateBotResources(bot: Player): { metal: number; energy: number; f
   const energyRegen = Math.floor(currentEnergy * regenRate);
   const foodRegen = 0; // Food not used in this system
   
+  // FID-20260915-004 Fix C: vault cap. Growth is compound (+5–15% on 70% of
+  // hourly ticks) with NO ceiling — live registry showed T1 bots at 1.5B metal
+  // after months of uptime, and raid loot = vault × beer-multiplier turned that
+  // into a 452M single-raid payout. Cap = 2× the spawner's per-tier maximum
+  // (getResourceRange is the balance source of truth; static import is safe —
+  // botService never imports this module).
+  const range = getResourceRange(specialization, tier ?? 1);
+  const vaultCap = range.max * 2;
+  
   return {
-    metal: currentMetal + metalRegen,
-    energy: currentEnergy + energyRegen,
+    metal: Math.min(currentMetal + metalRegen, vaultCap),
+    energy: Math.min(currentEnergy + energyRegen, vaultCap),
     food: foodRegen,
   };
 }
