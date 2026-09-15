@@ -5,6 +5,47 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Docs — FID-20260915-006a: bot tier-ladder comment drift corrected
+
+- Comments in `botService.ts` (file header + `getResourceRange`) claimed the
+  tier-multiplier ladder ran 0.75→3.0×; the formula has always computed
+  0.5 + tier × 0.25 = **0.75→2.25×** (T5–T7 were overstated as 2.0/2.5/3.0).
+- The defense ladder quotes (150→9600) were pre-scale values; the
+  `(100+50t)·2^(t−1)·0.1` function has always produced **15→2880**. The boss
+  block's "192,000 total" inherits the 10× error (real: 2,880 × 20 = 57,600).
+- Same corrections in the attack-route garrison comment and a historical-note
+  banner on `BASE_RAID_BALANCE.md`'s worked example (its totalDefense column
+  predates both the ladder and the ×0.1 rescale). Code behavior unchanged —
+  comments and docs now equal code truth, verified by executing the formulas.
+
+### Changed — FID-20260915-006: linear bot-vault regen + hoarder capacity tier
+
+- Bot vault regen is now LINEAR (`rate × spawner max` per hour) instead of a
+  percentage of current. The old curve made 0 absorbing — the raid win path
+  zeroes a defeated bot's vault, so raided bots stayed dead forever (live
+  census: 7/54 bots at 0/0, all raid-killed; map loot collapsed to zero within
+  a month of modest raid pressure). Linear regen revives them on the next
+  tick with no migration and makes raid income sustainable (~15× per audit).
+- New shared `getVaultCap()` (botService): 2× spawner max for all specializations,
+  3× for Hoarders (jackpot identity). Consumed by the regen clamp, the growth
+  write clamp, the raid loot cap, and the resync tooling — they can no longer
+  drift. At-cap loot values are unchanged for non-hoarders.
+- Live acceptance gate PASSED: 7 dead bots → one growth cycle → 0 dead.
+- Player-path jackpot verified live on three hoarders: declared-metal raids
+  paid 323,739 / 352,804 / 411,713 (each above the old 300,000 2× cap; 3× cap
+  = 450,000), the bots' energy survived (FID-005), and growth cycles regrew
+  metal from 0 with a constant +7,500 linear step.
+
+### Fixed — FID-20260915-005 (defeat bookkeeping precision + growth clamp)
+
+- Raid defeat bookkeeping now zeroes ONLY the stockpile(s) the raid actually
+  looted, mirroring the declared-resource loot rule: a declared-metal raid
+  preserves the bot's energy (and vice versa); undeclared raids still wipe
+  both. Previously both vaults were zeroed regardless.
+- The growth cycle's 70/20/10 pattern write is clamped to the vault cap (the
+  same clamp the regen step applies). Previously growth (up to ×1.15) wrote
+  above cap and stored vaults idled 1–15% over cap until the next tick.
+
 ### Added — combat balance surfaced on the StatsPanel
 
 - New "Dealt / Taken" row under the Military Power panel's Balance status shows

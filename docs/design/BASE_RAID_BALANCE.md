@@ -53,6 +53,13 @@ losses at any attacker size, no unwinnable tiers.
 
 ## Tuning targets (default constants, 50-unit attacker: STR 750, HP ~600)
 
+<!-- FID-20260915-006a: this worked example predates the FID-003 tier ladder and
+     quotes spawner base-defense values that were later rescaled ×0.1 (real
+     spawner output is T1=15 … T7=2880 before spec multipliers). The garrison
+     knobs below are governed by ATTACKER STR (weight floor), not these
+     scalars, so the table's shape remains illustrative; the absolute
+     totalDefense column labels are historical. -->
+
 | | T1 base (totalDefense 150) | T7 base (totalDefense 9600) |
 |---|---|---|
 | Garrison size | 8 units | 60 units (capped) |

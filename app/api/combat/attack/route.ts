@@ -91,7 +91,8 @@ function _armySize(units: PlayerUnit[]): number {
  * with 0 HP. Synthesize a defense-only garrison proportional to the base's stored
  * scalar totalDefense: DEF 20/unit, HP 15/DEF-unit (battleService constants).
  * Difficulty therefore scales with whatever totalDefense the spawner wrote
- * (botService tiers T1→T7 write 150→9600 before spec multipliers). Capped so an
+ * (botService tiers T1→T7 write 15→2880 before spec multipliers — corrected
+ * FID-20260915-006a; the old comment quoted pre-scale values). Capped so an
  * anomalous row can't spawn an unbounded army.
  * Takes the drizzle players row (loosely typed — the DB projection is the truth).
  */
@@ -383,11 +384,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       // spawner max) — an at-cap vault pays exactly its cap × multiplier.
       let vaultCap = Number.POSITIVE_INFINITY;
       try {
-        const { getResourceRange } = await import('@/lib/botService');
-        vaultCap = getResourceRange(
-          ((base.botConfig as Record<string, unknown> | null)?.specialization as Parameters<typeof getResourceRange>[0]) ?? 'Balanced',
+        const { getVaultCap } = await import('@/lib/botService');
+        vaultCap = getVaultCap(
+          ((base.botConfig as Record<string, unknown> | null)?.specialization as Parameters<typeof getVaultCap>[0]) ?? 'Balanced',
           Number((base.botConfig as Record<string, unknown> | null)?.tier) || 1
-        ).max * 2;
+        ); // FID-20260915-006: shared cap (2×; hoarders 3×) — agrees with regen/growth clamps
       } catch { /* uncapped fallback (never fail the raid on a config read) */ }
       lootMetal = resource && resource !== 'metal' ? 0 : Math.floor(Math.min(Number(base.resourcesMetal || 0), vaultCap) * multiplier);
       lootEnergy = resource && resource !== 'energy' ? 0 : Math.floor(Math.min(Number(base.resourcesEnergy || 0), vaultCap) * multiplier);
@@ -471,8 +472,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
       // 3) Post-victory base state. Beer Bases are removed entirely (tile
       //    claim released — FID-20260909-030). Regular bots are Full
-      //    Permanence: resources zeroed, defeat/reputation bookkeeping, and
-      //    the regen timer reset so the growth cycle rebuilds them.
+      //    Permanence: only the stockpiles the raid actually took are zeroed
+      //    (FID-20260915-005 — mirrors the loot rule above: declared resource
+      //    or both when undeclared), defeat/reputation bookkeeping, and the
+      //    regen timer reset so the growth cycle rebuilds them.
       if (isBeerBase) {
         try {
           await removeBeerBase(defender);
@@ -493,8 +496,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           } as unknown as BotConfig;
           await db.update(players)
             .set({
-              resourcesMetal: 0,
-              resourcesEnergy: 0,
+              // FID-20260915-005: zero ONLY the looted stockpile. lootMetal/
+              // lootEnergy are min(vault, cap) × mult per resource, so
+              // lootX > 0 ⟺ that stockpile was raided; the untouched one
+              // keeps its value (previously BOTH were wiped regardless of
+              // the declared resource).
+              resourcesMetal: lootMetal > 0 ? 0 : Number(base.resourcesMetal || 0),
+              resourcesEnergy: lootEnergy > 0 ? 0 : Number(base.resourcesEnergy || 0),
               botConfig,
             })
             .where(eq(players.username, defender));
