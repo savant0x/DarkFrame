@@ -5,6 +5,15 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Added — combat balance surfaced on the StatsPanel
+
+- New "Dealt / Taken" row under the Military Power panel's Balance status shows
+  the exact per-strike multipliers the engine applies to your army
+  (`damageDealtMultiplier` / `damageTakenMultiplier` — e.g. CRITICAL ×0.80 / ×1.30).
+  The numbers are computed from the same raw STR/DEF the engine uses, so the
+  panel is a truthful preview of the next fight, not the display-only ×0.50
+  power figure that previously carried all the signaling.
+
 ### Fixed — FID-20260915-004 (deep audit: balance-in-combat, garrison floor, economy caps, factory pill)
 
 - Army balance finally executes in combat: every strike in `resolveBattle` is

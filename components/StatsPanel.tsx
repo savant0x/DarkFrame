@@ -498,6 +498,26 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
             }
           />
         )}
+        {player.balanceEffects && (
+          <Row
+            label="Dealt / Taken"
+            value={
+              <span
+                title="Per-strike combat multipliers (FID-20260915-004): your army deals ×first, incoming strikes hit it ×second — composed with the enemy's own band each exchange."
+                style={{
+                  color:
+                    player.balanceEffects.damageDealtMultiplier < 1 || player.balanceEffects.damageTakenMultiplier > 1
+                      ? 'var(--nn-amber)'
+                      : player.balanceEffects.damageDealtMultiplier > 1 || player.balanceEffects.damageTakenMultiplier < 1
+                        ? 'var(--nn-green)'
+                        : 'var(--nn-text-secondary)',
+                }}
+              >
+                ×{player.balanceEffects.damageDealtMultiplier.toFixed(2)} / ×{player.balanceEffects.damageTakenMultiplier.toFixed(2)}
+              </span>
+            }
+          />
+        )}
         {powerData ? (
           <Row
             label="Combat Power"
