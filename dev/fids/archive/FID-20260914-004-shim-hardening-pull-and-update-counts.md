@@ -8,7 +8,7 @@
 **Filename:** `FID-20260914-004-shim-hardening-pull-and-update-counts.md`
 **ID:** FID-20260914-004
 **Severity:** HIGH
-**Status:** converged
+**Status:** closed
 **Created:** 2026-09-14
 
 ---
@@ -211,11 +211,11 @@ Evidence (gates, 2026-09-14, post-sweep-fixes): tsc 0 · eslint 0 · vitest 760/
 0 failures — unchanged from the implementation baseline. Sweep exit 0 (23/23).
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass (760/1 skipped/0 fail) · [x] call-graph proven (zero caller edits; seven branches gain live paths)
-- **Commit hash (G2 — required for `closed`):** _pending commit (presented plan: `fix(shim)` path-scoped)_
+- **Commit hash (G2 — required for `closed`):** `f075a85` — `fix(shim): real update/delete counts, working $pull, true $addToSet (FID-20260914-004)` (path-scoped: 13 files — shim, 2 new test files, 3 sweep-fixed routes, 5 verification scripts, FID, SCOPE surgical, session record)
 - **Staging plan (path-scoped, G3/G4):** `lib/mongodb.ts`, `__tests__/lib/shimUpdateSemantics.test.ts`, `__tests__/lib/fakeDrizzle.ts`, `scripts/probePullObjectOperand.ts`, `scripts/verifyShimSemanticsLive.ts`, `scripts/cleanupShimVerify.ts`, `scripts/sweepHonestBranchRoutes.ts`, `app/api/admin/ban-player/route.ts`, `app/api/admin/anti-cheat/clear-flags/route.ts`, `app/api/player/build-unit/route.ts` (sweep-driven fixes), the FID doc, `SCOPE.md`, `dev/session-summaries/SESSION-2026-09-14-005.md`
 - **Commit message (G8):** `fix(shim): real update/delete counts, working $pull, true $addToSet (FID-20260914-004)`
 - **Archive:** on close — move to `dev/fids/archive/`, CHANGELOG entry, session-summary log.
 
 ---
 
-**Final status:** verified (implemented + live-verified 2026-09-14; closes on commit per G2)
+**Final status:** closed (implemented + live-verified 2026-09-14; committed as `f075a85` 2026-09-14; closed per G2)

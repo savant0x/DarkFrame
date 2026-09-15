@@ -5,6 +5,26 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-14 session
 
+### Fixed — FID-20260914-004 (compat-seam hardening)
+
+- The Mongo→pg compat seam counts honestly: `updateOne`/`updateMany`/`deleteOne`/
+  `deleteMany`/`bulkWrite` and the upsert insert branches report real affected-row
+  counts via `.returning()` — seven integrity branches (ban-player, factory
+  abandon/upgrade, build-unit batch slots, greeting) and three analytics reporting
+  sites gain live failure paths with zero caller edits.
+- `$pull` rewritten to the probe-verified `jsonb_agg` deep-equality form (the old
+  `jsonb - jsonb` operator does not exist on this engine — every `$pull` was a
+  guaranteed 500); `$addToSet` gains real set semantics via a containment guard
+  (duplicate tier unlocks no longer possible).
+- Live honest-branch route sweep (23/23) surfaced and fixed two pre-existing defects:
+  ban-player + clear-flags audit inserts 500'd AFTER applying their action (legacy
+  Mongo doc keys resolve to no `mod_log` column; fixed to column keys with the legacy
+  payload preserved in `details`), and player build-unit's `$push` corrupted
+  `players.units` (plain-array operand appended as one nested element; now the
+  probe-verified `{ $each }` shape with per-unit `quantity: 1`).
+- Probe + live seam verification exit 0; regression suite 747 → 760 passed;
+  tsc 0, eslint 0. Closed as `f075a85`.
+
 ### Fixed — FID-20260914-003 (auction escrow correctness)
 
 - Buyout no longer forfeits the outbid leader's escrowed bid: claim-first close
