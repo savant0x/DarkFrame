@@ -34,9 +34,11 @@ import { createBotPlayer } from '@/lib/botService';
 import { mapDomainPlayerToRow } from '@/lib/playerService';
 
 /**
- * Summoning configuration
+ * Summoning configuration — exported for the row-51 contract test
+ * (__tests__/lib/headerTruthPins.test.ts), which pins the player-facing
+ * header promises (1.5× resources, 168h cooldown) to these constants.
  */
-const SUMMONING_CONFIG = {
+export const SUMMONING_CONFIG = {
   BOT_COUNT: 5,
   SPAWN_RADIUS: 20,
   RESOURCE_MULTIPLIER: 1.5,

@@ -10,11 +10,13 @@
  * RANKING FORMULA:
  * effectivePower = (totalStrength + totalDefense) × balanceMultiplier
  * 
- * BALANCE MULTIPLIERS:
- * - Critical (<0.7 ratio): 0.5x
+ * BALANCE MULTIPLIERS (effective bands — the ratio is min/max so it never
+ * exceeds 1; band resolution lives in balanceService.getBalanceEffects,
+ * the table below is a mirror, pinned by __tests__/lib/headerTruthPins.test.ts):
+ * - Critical (ratio < 0.7): 0.5x
  * - Imbalanced (0.7-0.85): 0.8x
- * - Balanced (0.85-1.15): 1.0x
- * - Optimal (0.95-1.05): 1.1x
+ * - Balanced (0.85-0.95): 1.0x
+ * - Optimal (0.95-1.0): 1.1x
  * 
  * KEY FEATURES:
  * - Efficient MongoDB aggregation pipeline for top N rankings
@@ -109,10 +111,10 @@ export interface LeaderboardData {
  * 
  * @example
  * const power = calculateEffectivePower({
- *   totalStrength: 5000,
- *   totalDefense: 3000
+ *   totalStrength: 4000,
+ *   totalDefense: 5000
  * });
- * // Returns: 6400 (8000 × 0.8 for imbalanced army)
+ * // Returns: 7200 (9000 × 0.8 for imbalanced army, ratio 0.8)
  */
 export function calculateEffectivePower(player: {
   totalStrength: number;
