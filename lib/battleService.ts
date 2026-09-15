@@ -35,6 +35,7 @@ import {
 } from '@/types';
 import { awardXP, XPAction } from './xpService';
 import { trackBattleWon } from './statTrackingService';
+import { calculateBalanceEffects, type BalanceEffects } from './balanceService';
 
 /**
  * Convert PlayerUnit (inventory) to Unit (combat)
@@ -253,6 +254,13 @@ export interface ResolveBattleOptions {
   defenderLevel?: number;
   /** Winner takes 10–15% of loser's casualties as own units (PvP only). */
   applyCasualties?: boolean;
+  /**
+   * FID-20260915-004: test overrides for the army-balance effects. Production
+   * computes them from the RAW stats (pre-flag/pre-doctrine) inside resolveBattle;
+   * tests pin exact CRITICAL/IMBALANCED numbers via these overrides.
+   */
+  attackerBalance?: BalanceEffects;
+  defenderBalance?: BalanceEffects;
 }
 
 /**
@@ -296,6 +304,21 @@ export async function resolveBattle(
   // Calculate initial combat stats
   const attackerStats = calculateCombatStats(attackerUnits);
   const defenderStats = calculateCombatStats(defenderUnits);
+
+  // FID-20260915-004: army-balance enters combat. The balance suite
+  // (lib/balanceService.ts: CRITICAL power ×0.5 / dealt ×0.8 / taken ×1.3,
+  // IMBALANCED ×0.8/×0.9/×1.15, OPTIMAL 1.1/1.05/0.95) previously fed ONLY
+  // display surfaces (StatsPanel, leaderboard, combat power) — the engine used
+  // full raw STR no matter what the UI threatened (live proof: a CRITICAL
+  // ×0.50 raider's R1 strike was EXACTLY rawSTR − def/2). Computed from the RAW
+  // stats here (pre-flag/pre-doctrine = true army balance), pure function, no
+  // persistence dependency; battle damage consumes dealt/taken only.
+  const attackerBalance = options.attackerBalance ?? calculateBalanceEffects(attackerStats.totalSTR, attackerStats.totalDEF);
+  const defenderBalance = options.defenderBalance ?? calculateBalanceEffects(defenderStats.totalSTR, defenderStats.totalDEF);
+  const attackerDealtMul = attackerBalance.damageDealtMultiplier;
+  const attackerTakenMul = defenderBalance.damageTakenMultiplier;
+  const defenderDealtMul = defenderBalance.damageDealtMultiplier;
+  const defenderTakenMul = attackerBalance.damageTakenMultiplier;
 
   // FID-20260906-001 §5.4: Flag bearer fights at +25% unit STR/DEF (doc bonus
   // stack). Applied here — the single combat-resolution seam — so every battle
@@ -369,16 +392,20 @@ export async function resolveBattle(
     const attackerPoolAtRoundStart = attackerHP;
     const defenderPoolAtRoundStart = defenderHP;
 
-    // Attacker strike (WITH LEVEL GAP PROTECTION)
-    const attackerDamage = calculateDamage(attackerStats.totalSTR, defenderStats.totalDEF, attackerLevel, defenderLevel);
+    // Attacker strike (WITH LEVEL GAP PROTECTION + FID-20260915-004 balance)
+    const attackerDamage = Math.max(5, Math.floor(
+      calculateDamage(attackerStats.totalSTR, defenderStats.totalDEF, attackerLevel, defenderLevel) * attackerDealtMul * attackerTakenMul
+    ));
     const defenderHPDeducted = Math.min(attackerDamage, defenderPoolAtRoundStart);
     defenderHP = defenderPoolAtRoundStart - defenderHPDeducted;
 
-    // Defender counter-strikes only while alive
+    // Defender counter-strikes only while alive (balance-adjusted, same seam)
     let defenderDamage = 0;
     let attackerHPDeducted = 0;
     if (defenderHP > 0) {
-      defenderDamage = calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel);
+      defenderDamage = Math.max(5, Math.floor(
+        calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel) * defenderDealtMul * defenderTakenMul
+      ));
       attackerHPDeducted = Math.min(defenderDamage, attackerPoolAtRoundStart);
       attackerHP = attackerPoolAtRoundStart - attackerHPDeducted;
     }

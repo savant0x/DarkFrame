@@ -5,6 +5,24 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Fixed — FID-20260915-004 (deep audit: balance-in-combat, garrison floor, economy caps, factory pill)
+
+- Army balance finally executes in combat: every strike in `resolveBattle` is
+  multiplied by the attacker's damage-dealt and the defender's damage-taken
+  balance multipliers (CRITICAL 0.8/1.3 … OPTIMAL 1.05/0.95). Previously the
+  whole suite fed display surfaces only — a CRITICAL ×0.50 raider's strike was
+  provably raw STR − DEF/2. Mono-axis armies (pure offense or pure defense)
+  are punished on both sides — the designed anti-glass-cannon tax.
+- The weight-class floor now covers REAL regrown garrisons (previously only
+  synthesized fresh ones): supplemental ephemeral reinforcement units raise a
+  base's DEF to the tier-ladder target, so overmatched raiders can no longer
+  kill the garrison inside their own strike phase and take a zero-loss free
+  win (live-proven hole: 0 losses + 452M loot from a tier-2 bot).
+- Economy caps: bot vault growth clamps at 2× the spawner's per-tier maximum;
+  raid loot is capped the same way; one-time resync drained 8.8B from 45
+  bloated vaults (Devil_Agent 2.12B → 0.2M). Player balances untouched.
+- Unit Factory cards now show an owned-count pill (×N, top-right) per unit.
+
 ### Changed — FID-20260915-003 (endgame raid pacing)
 
 - Tier-multiplier ladder on the synthesized-garrison weight floor

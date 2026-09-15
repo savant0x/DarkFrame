@@ -106,6 +106,14 @@ export default function UnitBuildPanelEnhanced({
   if (!isOpen) return null;
 
   const unlockedTiers = player?.unlockedTiers || [UnitTier.Tier1];
+
+  // FID-20260915-004 Fix D: owned counts per unit type (the factory cards
+  // previously showed no indication of what the player already has).
+  const ownedByType: Partial<Record<UnitType, number>> = {};
+  for (const pu of (player?.units ?? []) as Array<{ unitType?: string; quantity?: number }>) {
+    const q = Number(pu.quantity) || 0;
+    if (q > 0 && pu.unitType) ownedByType[pu.unitType as UnitType] = (ownedByType[pu.unitType as UnitType] || 0) + q;
+  }
   const isTierUnlocked = (tier: UnitTier) => unlockedTiers.includes(tier);
 
   /**
@@ -315,12 +323,19 @@ export default function UnitBuildPanelEnhanced({
                 const canBuild = affordable && enoughSlots && !loading && isTierUnlocked(selectedTier);
 
                 return (
-                  <div key={unitType} className={`border-2 rounded-none p-4 ${getTierColor(selectedTier)}`}>
+                  <div key={unitType} className={`relative border-2 rounded-none p-4 ${getTierColor(selectedTier)}`}>
                     {/* Unit Header */}
                     <div className="text-center mb-3">
                       <h4 className="text-lg font-bold text-[color:var(--nn-text-primary)]">{config.name}</h4>
                       <p className="text-sm text-[color:var(--nn-text-secondary)]">Tier {selectedTier}</p>
                     </div>
+
+                    {/* FID-20260915-004: owned-count pill (top-right) */}
+                    {(ownedByType[unitType] ?? 0) > 0 && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 text-xs font-bold rounded-full bg-[color:var(--nn-cyan)] text-[color:var(--nn-void)]">
+                        ×{ownedByType[unitType]!.toLocaleString()}
+                      </span>
+                    )}
 
                     {/* Stats */}
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 mb-3 space-y-1">
@@ -466,12 +481,19 @@ export default function UnitBuildPanelEnhanced({
                 const canBuild = affordable && enoughSlots && !loading && isTierUnlocked(selectedTier);
 
                 return (
-                  <div key={unitType} className={`border-2 rounded-none p-4 ${getTierColor(selectedTier)}`}>
+                  <div key={unitType} className={`relative border-2 rounded-none p-4 ${getTierColor(selectedTier)}`}>
                     {/* Unit Header */}
                     <div className="text-center mb-3">
                       <h4 className="text-lg font-bold text-[color:var(--nn-text-primary)]">{config.name}</h4>
                       <p className="text-sm text-[color:var(--nn-text-secondary)]">Tier {selectedTier}</p>
                     </div>
+
+                    {/* FID-20260915-004: owned-count pill (top-right) */}
+                    {(ownedByType[unitType] ?? 0) > 0 && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 text-xs font-bold rounded-full bg-[color:var(--nn-cyan)] text-[color:var(--nn-void)]">
+                        ×{ownedByType[unitType]!.toLocaleString()}
+                      </span>
+                    )}
 
                     {/* Stats */}
                     <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] rounded-none p-3 mb-3 space-y-1">

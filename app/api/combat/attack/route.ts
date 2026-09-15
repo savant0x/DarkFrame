@@ -136,7 +136,7 @@ function synthesizeGarrison(
   baseUnits: PlayerUnit[],
   attackerSTR: number
 ): Unit[] {
-  if (baseUnits.length > 0) return baseUnits.flatMap((pu) => playerUnitToUnits(pu, base.username));
+  if (baseUnits.length > 0) return reinforceRealGarrison(base, baseUnits, attackerSTR);
   const totalDefense = Number(base.totalDefense) || 150; // T1 scalar default (botService getBotDefenseForTier)
   const unitCount = Math.min(GARRISON_SIZE_CAP, Math.max(GARRISON_SIZE_FLOOR, Math.ceil(totalDefense / GARRISON_SIZE_DIVISOR)));
   // Weight-class floor: DEF ≥ ceil(attackerSTR × DEF_RATIO) drives the
@@ -158,6 +158,47 @@ function synthesizeGarrison(
     producedDate: base.createdAt ?? new Date(),
     owner: base.username,
   }));
+}
+
+/**
+ * FID-20260915-004 Fix B: real regrown garrisons get the SAME weight-class
+ * treatment as synthesized ones. Pre-fix, a real garrison's DEF was fixed at
+ * spawn+regrowth — an overmatched raider killed it inside his own strike phase
+ * and sequential resolution meant it NEVER countered (dead defenders don't
+ * strike) — live proof: BATTLE 12:56 raid, garrison DEF 184,090, counter 0.
+ * Supplemental reinforcement units (ephemeral, battle-scoped, never persisted)
+ * bring total DEF up to the ladder target; STR deficit gets a small pad.
+ */
+function reinforceRealGarrison(
+  base: { username: string } & Record<string, unknown>,
+  baseUnits: PlayerUnit[],
+  attackerSTR: number
+): Unit[] {
+  const units = baseUnits.flatMap((pu) => playerUnitToUnits(pu, base.username));
+  const tierIdx = resolveBotTier(base);
+  const mult = GARRISON_TIER_MULT[tierIdx] ?? 1;
+  const defTarget = Math.ceil(attackerSTR * GARRISON_DEF_RATIO * mult);
+  const strTarget = Math.ceil(attackerSTR * GARRISON_STR_RATIO * mult);
+  const curDEF = units.reduce((t, u) => t + u.defense, 0);
+  const curSTR = units.reduce((t, u) => t + u.strength, 0);
+  const produced = { x: Number(base.currentPositionX) || 0, y: Number(base.currentPositionY) || 0 };
+  const producedDate = (base as { createdAt?: Date | null }).createdAt ?? new Date();
+  const defDeficit = Math.max(0, defTarget - curDEF);
+  const strDeficit = Math.max(0, strTarget - curSTR);
+  // Folded T1 walls (DEF 100) / militia (STR 90) — canonical catalog stats.
+  if (defDeficit > 0) {
+    const n = Math.ceil(defDeficit / 100);
+    for (let i = 0; i < n; i++) {
+      units.push({ id: `${base.username}-reinforce-d${i}`, type: UnitType.T1_Barricade, strength: 0, defense: 100, producedAt: produced, producedDate, owner: base.username });
+    }
+  }
+  if (strDeficit > 0) {
+    const n = Math.ceil(strDeficit / 90);
+    for (let i = 0; i < n; i++) {
+      units.push({ id: `${base.username}-reinforce-s${i}`, type: UnitType.T1_Militia, strength: 90, defense: 0, producedAt: produced, producedDate, owner: base.username });
+    }
+  }
+  return units;
 }
 
 /** Tier index from the base username marker (bW/bM/bS/bE/bU/bL). */
@@ -335,8 +376,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       // FID-038 D4: the raid's declared resource selects the stockpile.
       const config = await getBeerBaseConfig();
       const multiplier = isBeerBase ? Math.max(1, config.resourceMultiplier || 3) : 1;
-      lootMetal = resource && resource !== 'metal' ? 0 : Math.floor(Number(base.resourcesMetal || 0) * multiplier);
-      lootEnergy = resource && resource !== 'energy' ? 0 : Math.floor(Number(base.resourcesEnergy || 0) * multiplier);
+      // FID-20260915-004 Fix C: loot cap. Uncapped vault × multiplier produced
+      // the 452M single-raid payout; cap per-resource loot at the bot's own tier
+      // ceiling × the beer multiplier so the multiplier stays but the vault
+      // scale can't. Ceiling shared with the growth-engine vault cap (2×
+      // spawner max) — an at-cap vault pays exactly its cap × multiplier.
+      let vaultCap = Number.POSITIVE_INFINITY;
+      try {
+        const { getResourceRange } = await import('@/lib/botService');
+        vaultCap = getResourceRange(
+          ((base.botConfig as Record<string, unknown> | null)?.specialization as Parameters<typeof getResourceRange>[0]) ?? 'Balanced',
+          Number((base.botConfig as Record<string, unknown> | null)?.tier) || 1
+        ).max * 2;
+      } catch { /* uncapped fallback (never fail the raid on a config read) */ }
+      lootMetal = resource && resource !== 'metal' ? 0 : Math.floor(Math.min(Number(base.resourcesMetal || 0), vaultCap) * multiplier);
+      lootEnergy = resource && resource !== 'energy' ? 0 : Math.floor(Math.min(Number(base.resourcesEnergy || 0), vaultCap) * multiplier);
       const stolen = lootMetal + lootEnergy;
       if (stolen > 0) {
         battleLog.resourcesStolen = {

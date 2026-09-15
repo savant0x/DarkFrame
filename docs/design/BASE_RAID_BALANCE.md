@@ -61,11 +61,34 @@ losses at any attacker size, no unwinnable tiers.
 | Rounds | ~1 | ~3+ (50-unit armies are repelled) |
 | Attacker losses | ~8 units (~16%) | army annihilated — T7 requires a bigger force |
 
-Fine-tuning: raise `GARRISON_STR_RATIO` for riskier raids (0.75 → ~25%
-losses/round); lower it toward 0.5 to return to the old safe raids; raise
-`GARRISON_SIZE_CAP` for longer battles and larger defender casualty counts.
-The weight-class floor self-scales with the attacker, so no per-tier table is
-required — one ratio governs all tiers.
+Fine-tuning: raise `GARRISON_DEF_RATIO` for riskier raids (the counter knob);
+raise `GARRISON_TIER_MULT[6]` toward 1.6 for boss-tier endgame walls (≥1.6
+annihilates the raider). `GARRISON_SIZE_CAP` is NOT a difficulty knob — it was
+swept (FID-20260915-003 Matrix 4) and proved cosmetic: the weight floor
+distributes across any unit count.
+
+## FID-20260915-004 addendum: real garrisons + army balance + economy caps
+
+- **The weight-class floor now governs REAL regrown garrisons too** (Fix B):
+  `reinforceRealGarrison` supplements a base's actual units with ephemeral
+  T1_BARRICADE walls (DEF 100) / T1_MILITIA pads (STR 90) to the same ladder
+  target the synthesis path uses. Pre-fix, an overmatched raider killed a real
+  garrison inside his own strike phase — sequential resolution meant it never
+  countered (live proof: BATTLE-17894's rerun, garrison DEF 184,090, counter 0,
+  0 attacker losses, 452M loot).
+- **Army balance now executes in combat** (engine seam in `resolveBattle`):
+  every strike is multiplied by the attacker's `damageDealtMultiplier` and the
+  defender's `damageTakenMultiplier` (CRITICAL 0.8/1.3, IMBALANCED 0.9/1.15,
+  BALANCED 1.0/1.0, OPTIMAL 1.05/0.95). Mono-axis armies are punished on BOTH
+  sides — pure-offense raiders strike softer and absorb harder. The StatsPanel
+  ×0.50 threat is finally real. `powerMultiplier` remains display/leaderboard-
+  only by design; `slotRegenMultiplier` still has no consumer (dead knob,
+  recorded).
+- **Economy caps**: bot vaults clamp at 2× their specialization/tier spawner
+  maximum (`getResourceRange` — one source of truth for growth and loot); raid
+  loot is capped at the same ceiling × beer multiplier; a one-time resync
+  (`scripts/resyncBotVaults.ts`) drained 8.8B from 45 bloated vaults. Player
+  balances were never touched.
 
 ## Out of scope
 

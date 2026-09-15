@@ -95,29 +95,32 @@ describe('FID-20260915-001 battle resolution semantics', () => {
     expect(log.defender.unitsLost).toBe(2570);
   });
 
-  it('INCIDENT REPLAY (BATTLE-17894 exact shape): a 4-round Pyrrhic victory — the raid pays ~70%, nobody is annihilated', async () => {
+  it('INCIDENT REPLAY (BATTLE-17894 exact shape): a 4-round Pyrrhic victory — the raid pays ~73%, nobody is annihilated', async () => {
     // The live incident: attacker 10,725 × STR 100 (pool 1,072,500) vs a
     // garrison of ~1.84M STR / ~788K DEF (pool 6673×393 = 2,622,489). Old code:
     // both pools zeroed in R1 → DRAW → 17,398 units wiped on both sides.
     // Converged-scale trace (deterministic; DEF-counter per the service's
-    // armor-shoots-back rule):
-    //   R1..R3: attacker deals 1,072,500 − 393,707 = 678,793/round into the
-    //   garrison pool; the garrison counters 787,414 − 536,250 = 251,164/round
-    //   (killing floor(251,164/100) = 2,511 infantry each round); R4 empties
-    //   the garrison pool before it can counter again.
-    //   → AttackerWin in 4 rounds, attacker pays 7,533/10,725 ≈ 70.2% —
+    // armor-shoots-back rule) PLUS FID-20260915-004 army balance: BOTH sides are
+    // CRITICAL here (attacker ratio 0 — mono-STR; defender ratio 787414/1835075
+    // ≈ 0.43), so each strike composes dealt×taken = 0.8×1.3 = 1.04:
+    //   R1..R3: attacker deals floor((1,072,500 − 393,707) × 1.04) = 705,944/round
+    //   into the garrison pool; the garrison counters floor(251,164 × 1.04) =
+    //   261,210/round (killing 2,612 infantry each round); R4 empties the
+    //   garrison pool before it can counter again.
+    //   → AttackerWin in 4 rounds, attacker pays 7,836/10,725 ≈ 73.1% —
     //   "if I attacked way higher than my STR, I should've got wrecked":
-    //   wrecked, proportionally — never DRAW-annihilated.
+    //   wrecked, proportionally — never DRAW-annihilated. Mono-axis armies pay
+    //   MORE under balance (both CRITICAL) — the designed anti-glass-cannon tax.
     const attacker = army(10725, 100, 0);            // STR 1,072,500 · pool 1,072,500
     const defender = army(6673, 275, 118);           // STR 1,835,075 · DEF 787,414 · pool 2,622,489
-    const expectedR1Damage = 1072500 - Math.floor(787414 / 2);
+    const expectedR1Damage = Math.floor((1072500 - Math.floor(787414 / 2)) * 1.04);
     const log = await resolveBattle(attacker, defender, 'fame', 'Hex_Lord_655', 'BASE_RAID' as never);
     expect(log.outcome).toBe(BattleOutcome.AttackerWin);
     expect(log.rounds).toHaveLength(4);
-    expect(log.rounds[0].attackerDamage).toBe(expectedR1Damage); // STR − DEF/2
-    expect(log.attacker.unitsLost).toBe(7533);       // 2,511 × 3 counter rounds
+    expect(log.rounds[0].attackerDamage).toBe(expectedR1Damage); // (STR − DEF/2) × balance
+    expect(log.attacker.unitsLost).toBe(7836);       // 2,612 × 3 counter rounds
     expect(log.defender.unitsLost).toBe(6673);       // garrison destroyed, honestly
-    expect(10725 - log.attacker.unitsLost).toBe(3192); // survivors walk home
+    expect(10725 - log.attacker.unitsLost).toBe(2889); // survivors walk home
   });
 
   it('defender victory still possible when it survives and kills the attacker', async () => {
@@ -130,5 +133,44 @@ describe('FID-20260915-001 battle resolution semantics', () => {
     expect(log.outcome).toBe(BattleOutcome.DefenderWin);
     expect(log.attacker.unitsLost).toBe(1);
     expect(log.defender.unitsLost).toBe(0);
+  });
+});
+
+describe('FID-20260915-004 army-balance combat seam', () => {
+  it('a CRITICAL out-of-balance raider strikes at ×0.8 dealt (the UI ×0.50 finally executes)', async () => {
+    // fame's live shape: mono-STR attacker (ratio 0 → CRITICAL: dealt 0.8,
+    // taken 1.3) vs a BALANCED defender (ratio 0.9 → inside 0.85–1.15 but
+    // outside OPTIMAL: 1.0/1.0).
+    // R1 strike = floor((1,000 − 135/2) × 0.8 × 1.0) = floor(932 × 0.8) = 745.
+    // Pre-FID the engine used raw 932 — the balance UI was display-only.
+    const attacker = army(10, 100, 0);   // STR 1,000 · DEF 0 → CRITICAL
+    const defender = army(3, 50, 45);    // STR 150 · DEF 135 → BALANCED (pool 285)
+    const log = await resolveBattle(attacker, defender, 'atk', 'def', 'BASE_RAID' as never, { x: 0, y: 0 }, { applyCasualties: false });
+    expect(log.rounds[0].attackerDamage).toBe(745); // (1000 − 67) × 0.8
+    expect(log.rounds[0].defenderDamage).toBe(0);   // garrison pool emptied in R1
+  });
+
+  it('OPTIMAL armies on both sides compose dealt × taken (1.05 × 0.95)', async () => {
+    // ratio 1.0 = OPTIMAL band (0.95–1.05): dealt 1.05, taken 0.95 — BOTH sides.
+    // Attacker strike: floor((500 − 50) × 1.05 × 0.95) = floor(450 × 0.9975) = 448.
+    // Defender counter: 0 — the strike (448) exceeds the defender's 200 pool, and
+    // dead defenders never strike (FID-20260915-001 rule).
+    const attacker = army(10, 50, 50);   // STR 500 · DEF 500 → OPTIMAL
+    const defender = army(2, 50, 50);    // STR 100 · DEF 100 → OPTIMAL (pool 200)
+    const log = await resolveBattle(attacker, defender, 'atk', 'def', 'BASE_RAID' as never, { x: 0, y: 0 }, { applyCasualties: false });
+    expect(log.rounds[0].attackerDamage).toBe(448);
+    expect(log.rounds[0].defenderDamage).toBe(0);
+  });
+
+  it('balance overrides win over auto-computed effects (test seam + future callers)', async () => {
+    // Same CRITICAL attacker, forced BALANCED (dealt 1.0) via the option;
+    // defender ratio 0.9 → BALANCED band (OPTIMAL is exactly 0.95–1.05),
+    // taken 1.0: floor((1000 − 67) × 1.0 × 1.0) = 932 (the raw pre-balance
+    // number — proving the override replaced the CRITICAL ×0.8).
+    const attacker = army(10, 100, 0);
+    const defender = army(3, 50, 45);
+    const balanced = { ratio: 1.0, status: 'BALANCED' as const, powerMultiplier: 1.0, damageTakenMultiplier: 1.0, damageDealtMultiplier: 1.0, gatheringMultiplier: 1.0, slotRegenMultiplier: 1.0, effectivePower: 1000, warnings: [], bonuses: [], recommendation: '' };
+    const log = await resolveBattle(attacker, defender, 'atk', 'def', 'BASE_RAID' as never, { x: 0, y: 0 }, { applyCasualties: false, attackerBalance: balanced });
+    expect(log.rounds[0].attackerDamage).toBe(932);
   });
 });
