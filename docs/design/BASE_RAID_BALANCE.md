@@ -10,9 +10,20 @@ matching constants.
 
 - Damage/round: `max(5, floor(attackerSTR − defenderDEF/2))` (defender
   symmetric), level-gap protection above 20 levels (−5%/level, floor 25%).
-- Unit HP: STR units 10 HP, DEF units 15 HP.
-- Casualties/round: `floor(damage / avgHPPerUnit)` of the loser's survivors.
-- Battles cap at 100 rounds (forced draw).
+- Unit HP (**FID-20260915-001 Phase 3, power-proportional**):
+  `strength + defense` per unit (zero-power units floor at 10). Previously
+  flat 10/15 by category — a scale on which army pools (hundreds) evaporated
+  against per-round damage (hundreds–thousands), so every battle resolved in
+  round 1 and the annihilation-DRAW incident class (BATTLE-17894) was the
+  norm. Under the unified rule an army's pool equals its total power
+  projection: mirror matches fight ~2 rounds at any tier, tanky garrisons
+  fight multi-round, overreached raids die fast. Casualties stay proportional
+  to the HP actually deducted; sequential resolution (Phase 1) means dead
+  defenders never counter-attack; the 100-round cap is a Draw safety net
+  (structurally unreachable under this scale).
+- The raid path's type-tally write-back drains casualties ACROSS a type's
+  entries (per-entry subtraction annihilated multi-entry armies — caught by
+  live verification, same fix in the PvP decrementer).
 
 ## The garrison model
 
@@ -26,7 +37,7 @@ winnable and keeping casualty counts believable (not 500 phantom units).
 | Garrison unit HP | (derived) | 10 | battleService `HP_PER_STR_UNIT` — garrison units are STR-class (`strength > 0`), so 10 HP each; derived, not tunable via a constant |
 | Garrison unit STR | `GARRISON_STR` | 10 | garrison STR = units × this |
 | Size divisor | `GARRISON_SIZE_DIVISOR` | 20 | units = ceil(totalDefense / this) |
-| Size cap | `GARRISON_SIZE_CAP` | 60 | max units per battle |
+| Size cap | `GARRISON_SIZE_CAP` | 60 | max units per battle; ALSO the resistance ceiling — raiders above ≈75×garrisonSize STR out-damage any capped garrison in R1 (pool scales with the 60 units' STR+DEF), so longer/harder endgame fights raise this, not the HP scale |
 | Weight-class ratio | `GARRISON_STR_RATIO` | 0.6 | garrison total STR ≥ ceil(attackerSTR × this) |
 
 **Weight-class matching (the load-bearing knob).** The damage formula's

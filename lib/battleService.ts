@@ -115,10 +115,23 @@ function unitsToPlayerUnits(units: Unit[], ownerPlayerUnits: PlayerUnit[]): Play
 }
 
 /**
- * HP contribution constants
+ * HP contribution — FID-20260915-001 Phase 3 (converged rebalance).
+ *
+ * Per-unit HP = strength + defense (power-proportional), replacing the old
+ * flat 10/15-by-category scale. Under the flat scale the army HP pool was
+ * 10–15 HP/unit against damage of hundreds–thousands per unit, so every
+ * battle resolved in round 1 and the incident class (BATTLE-17894) was the
+ * norm. The unified rule restores scale: an army's pool equals its total
+ * power projection, so
+ *   - mirror matches resolve in ~2 rounds at ANY tech tier,
+ *   - tanky DEF garrisons (their HP now scales with defense) produce real
+ *     multi-round fights instead of evaporating,
+ *   - overreached raids (damage ≫ pool) still die fast — correctly.
+ * Consequence recorded in the FID: a 100-round stalemate is structurally
+ * unreachable under this scale (both sides floored at min damage still
+ * resolve in ≤2 rounds); the round cap is retained as a Draw safety net.
  */
-const HP_PER_STR_UNIT = 10;  // Offensive units are glass cannons
-const HP_PER_DEF_UNIT = 15;  // Defensive units have more HP
+const HP_PER_STR_UNIT = 10;  // legacy floor for zero-power units (old flat scale: 10 STR-class / 15 DEF-class — retired by Phase 3)
 
 /**
  * Unit capture constants
@@ -137,12 +150,16 @@ const RESOURCE_THEFT_CAP = 25000; // max resources stolen in a single raid
 
 /**
  * Calculate total HP for a set of units
- * STR units: 10 HP each
- * DEF units: 15 HP each
+ * FID-20260915-001 Phase 3: HP = strength + defense per unit (power-
+ * proportional). A zero-power unit (strength 0 AND defense 0) keeps the
+ * legacy 10 HP floor so degenerate fixtures can't create unkillable or
+ * instant-dead armies.
  */
 function calculateTotalHP(units: Unit[]): number {
   return units.reduce((total, unit) => {
-    const hpValue = unit.strength > 0 ? HP_PER_STR_UNIT : HP_PER_DEF_UNIT;
+    const hpValue = unit.strength + unit.defense > 0
+      ? unit.strength + unit.defense
+      : HP_PER_STR_UNIT;
     return total + hpValue;
   }, 0);
 }
@@ -950,19 +967,28 @@ export async function applyAttackerCasualties(battleLog: BattleLog): Promise<voi
   const attacker: Player = playerRowToPlayer(attackerResult);
 
   // Per-type decrement (same helper semantics as applyBattleResults).
+  // FID-20260915-001 Phase 3 live-verification fix: the tally is the TOTAL
+  // killed of each type across the army — drain it across the type's entries
+  // (front-to-back; resolveBattle's random selection makes order irrelevant).
+  // The previous code subtracted the total from EVERY entry of the type, so
+  // any multi-entry army lost entryCount × killed units (live E2E: a 400×1
+  // infantry army lost ALL 400 to 225 casualties).
   const byType = battleLog.attacker.casualtiesByType;
+  const remainingByType: Partial<Record<UnitType, number>> = { ...(byType ?? {}) };
   let remaining = battleLog.attacker.unitsLost;
   const finalUnits: PlayerUnit[] = (attacker.units ?? []).flatMap((pu: PlayerUnit) => {
     if (byType && Object.keys(byType).length > 0) {
-      const killed = byType[pu.unitType] ?? 0;
-      const newQty = pu.quantity - Math.min(killed, pu.quantity);
-      return newQty > 0 ? [{ ...pu, quantity: newQty }] : [];
+      const remainingOfType = remainingByType[pu.unitType] ?? 0;
+      if (remainingOfType <= 0) return [pu];
+      const take = Math.min(pu.quantity, remainingOfType);
+      remainingByType[pu.unitType] = remainingOfType - take;
+      return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [];
     }
     // Legacy-log fallback: drain front-to-back.
     const take = Math.min(pu.quantity, remaining);
     remaining -= take;
     return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [pu];
-  }) as PlayerUnit[];
+  }).filter((pu: PlayerUnit) => pu.quantity > 0) as PlayerUnit[];
 
   const newStats = calculatePlayerUnitStats(finalUnits);
   await db.update(players)
@@ -988,6 +1014,10 @@ async function applyBattleResults(battleLog: BattleLog): Promise<void> {
 
   // FID-20260912-093: faithful per-type decrement. Returns the surviving
   // PlayerUnit[] after subtracting each type's casualties from its group.
+  // FID-20260915-001 Phase 3 live-verification fix: the tally is the TOTAL
+  // killed of each type — drain it ACROSS the type's entries (front-to-back),
+  // never per-entry (the old per-entry subtraction annihilated multi-entry
+  // armies: N entries × K casualties removed instead of K).
   const decrementByCasualties = (
     army: PlayerUnit[],
     lost: number,
@@ -1002,11 +1032,14 @@ async function applyBattleResults(battleLog: BattleLog): Promise<void> {
         return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [pu];
       }).filter(pu => pu.quantity > 0) as PlayerUnit[];
     }
+    const remainingByType: Partial<Record<UnitType, number>> = { ...byType };
     return army.flatMap(pu => {
-      const killed = byType[pu.unitType] ?? 0;
-      const newQty = pu.quantity - Math.min(killed, pu.quantity);
-      return newQty > 0 ? [{ ...pu, quantity: newQty }] : [];
-    }) as PlayerUnit[];
+      const remainingOfType = remainingByType[pu.unitType] ?? 0;
+      if (remainingOfType <= 0) return [pu];
+      const take = Math.min(pu.quantity, remainingOfType);
+      remainingByType[pu.unitType] = remainingOfType - take;
+      return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [];
+    }).filter(pu => pu.quantity > 0) as PlayerUnit[];
   };
 
   const attackerFinalFromLosses = decrementByCasualties(
