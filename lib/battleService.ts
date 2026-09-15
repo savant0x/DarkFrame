@@ -8,14 +8,29 @@
  * Base attacks (home base raids), and enhanced Factory battles. Uses HP-based
  * combat resolution with unit capture mechanics and resource theft.
  * 
- * COMBAT MECHANICS:
- * - Each unit contributes to total HP pool (STR units = 10 HP each, DEF units = 15 HP each)
- * - Damage dealt per round = (AttackerSTR - DefenderDEF/2) for attacker
- * - Damage dealt per round = (DefenderDEF - AttackerSTR/2) for defender
- * - Battle continues until one side reaches 0 HP
- * - HP loss translates to unit casualties (distributed across unit types)
- * - Winners capture 10-15% of defeated enemy units
- * - Base attacks allow 20% resource theft (capped)
+ * COMBAT MECHANICS (live rules — FID-20260915-001 Phase 3 + FID-20260915-004):
+ * - Per-unit HP is power-proportional: HP = strength + defense per unit.
+ *   The 10 HP floor applies ONLY to zero-power units (the old flat 10/15
+ *   by-category scale is retired).
+ * - Base damage per round = max(5, AttackerSTR - DefenderDEF/2) for the
+ *   attacker, max(5, DefenderDEF - AttackerSTR/2) for the defender, with
+ *   level-gap protection past a 20-level gap (-5% per level above 20,
+ *   minimum 25% of calculated damage).
+ * - Every strike is then multiplied by the army-balance dealt/taken
+ *   multipliers (computed from raw pre-bonus stats), plus the flag-bearer
+ *   +25% and doctrine bonus stacks where present.
+ * - Resolution is SEQUENTIAL: the attacker strikes first and a side at
+ *   0 HP never counter-attacks. Casualties come from HP actually deducted
+ *   (overkill clamped), never raw damage. The 100-round cap is a REPELLED
+ *   raid (DefenderWin); Draw survives only as the degenerate-input guard.
+ * - HP loss translates to unit casualties (randomly distributed, permanent;
+ *   a destroyed side's remaining units count as casualties).
+ * - Winners capture 10-15% of defeated enemy units in PvP only — PvE base
+ *   raids opt out (loot IS the reward, garrisons don't teleport).
+ * - PvP base attacks steal 20% of the chosen resource (capped at 25,000)
+ *   on victory. Bot-raid loot follows the raid route's declared-resource,
+ *   vault-cap, and preserve-looted-axis rules (FID-20260915-004/-005),
+ *   not this seam.
  */
 
 import { db } from '@/lib/db';
@@ -1370,34 +1385,40 @@ function playerRowToPlayer(row: typeof players.$inferSelect): Player {
 /**
  * COMBAT SYSTEM:
  * 
- * HP CALCULATION:
- * - STR units: 10 HP each (glass cannons)
- * - DEF units: 15 HP each (tanks)
+ * HP CALCULATION (FID-20260915-001 Phase 3):
+ * - Per-unit HP = strength + defense (power-proportional pool)
+ * - Zero-power units keep the legacy 10 HP floor
  * - Total army HP = sum of all unit HP
- * 
+ *
  * DAMAGE FORMULA:
- * - Attacker Damage = max(5, AttackerSTR - DefenderDEF/2)
- * - Defender Damage = max(5, DefenderDEF - AttackerSTR/2)
- * - Minimum 5 damage ensures battles don't stalemate
- * 
+ * - Attacker Damage = max(5, AttackerSTR - DefenderDEF/2), then × balance
+ *   dealt/taken multipliers (+ flag/doctrine stacks); level-gap protection
+ *   past a 20-level gap
+ * - Defender Damage = max(5, DefenderDEF - AttackerSTR/2), same adjustments
+ * - Minimum 5 damage per strike; sequential resolution (dead sides never
+ *   counter); 100-round cap = repelled raid (DefenderWin)
+ *
  * UNIT CASUALTIES:
- * - HP loss converts to unit deaths
+ * - HP actually deducted converts to unit deaths (overkill clamped)
  * - Deaths distributed randomly (battle chaos)
  * - Casualties permanent (units removed from army)
- * 
- * UNIT CAPTURE:
+ * - Destroyed side's remainder counts as casualties (no phantom armies)
+ *
+ * UNIT CAPTURE (PvP only):
  * - Winner captures 10-15% of defeated units
  * - Captured units change ownership
+ * - PvE base raids opt out — loot is the reward
  * - Adds strategic value to winning battles
- * 
- * RESOURCE THEFT (Base Attacks Only):
- * - Attacker steals 20% of chosen resource
+ *
+ * RESOURCE THEFT (PvP Base Attacks Only):
+ * - Attacker steals 20% of chosen resource, capped at 25,000
  * - Only on attacker victory
+ * - Bot-raid loot uses the raid route's declared-resource + vault-cap rules
  * - Encourages base defense preparation
- * 
- * XP INTEGRATION:
- * - Infantry Win: +150 XP | Loss: +25 XP
- * - Base Win: +200 XP | Loss: +30 XP
- * - Defense Success: +75 XP
+ *
+ * XP INTEGRATION (values live in xpService XP_VALUES):
+ * - Infantry Win: +300 XP | Loss: +50 XP
+ * - Base Win: +400 XP | Loss: +60 XP
+ * - Defense Success: +150 XP
  * - Both sides earn XP (participation rewards)
  */

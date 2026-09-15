@@ -8,22 +8,22 @@
  * cost calculations, and stat improvements. Factories can be upgraded
  * from Level 1 to Level 10 with exponentially increasing costs.
  * 
- * UPGRADE FORMULA:
- * - Metal Cost = 1000 × (1.5^level)
- * - Energy Cost = 500 × (1.5^level)
- * - Max Slots = 5000 + ((level - 1) × 500)
- * - Regen Rate = 416.67 + ((level - 1) × 41.67) slots/hour
- * 
+ * UPGRADE FORMULA (FID-072 curve — pinned by __tests__/lib/factoryCurves.test.ts):
+ * - Metal Cost = 2500 × (1.5^targetLevel)
+ * - Energy Cost = 1250 × (1.5^targetLevel)
+ * - Max Slots = 400 + ((level - 1) × 150)
+ * - Regen Rate = 30 + ((level - 1) × 10) slots/hour
+ *
  * SLOT PROGRESSION:
- * Level 1: 5,000 slots (416.67/hr) - 12h full regen
- * Level 5: 7,000 slots (583.33/hr) - 12h full regen
- * Level 10: 9,500 slots (791.67/hr) - 12h full regen
- * 
+ * Level 1: 400 slots (30/hr) - ~13.3h full regen
+ * Level 5: 1,000 slots (70/hr) - ~14.3h full regen
+ * Level 10: 1,750 slots (120/hr) - ~14.6h full regen
+ *
  * COST PROGRESSION:
- * Level 1→2: 1,500 metal + 750 energy
- * Level 5→6: 11,391 metal + 5,695 energy
- * Level 9→10: 76,699 metal + 38,349 energy
- * Total to Level 10: ~169,000 metal + ~84,500 energy
+ * Level 1→2: 5,625 metal + 2,812 energy
+ * Level 5→6: 28,476 metal + 14,238 energy
+ * Level 9→10: 144,162 metal + 72,081 energy
+ * Total to Level 10: ~421,234 metal + ~210,616 energy
  * 
  * KEY FEATURES:
  * - Exponential cost scaling (1.5x multiplier)
@@ -92,7 +92,7 @@ export interface UpgradeCost {
  * 
  * @example
  * const cost = calculateUpgradeCost(1);
- * // Returns: { metal: 1500, energy: 750, level: 2 }
+ * // Returns: { metal: 5625, energy: 2812, level: 2 }
  */
 export function calculateUpgradeCost(currentLevel: number): UpgradeCost {
   if (currentLevel < FACTORY_UPGRADE.MIN_LEVEL || currentLevel >= FACTORY_UPGRADE.MAX_LEVEL) {
@@ -119,7 +119,7 @@ export function calculateUpgradeCost(currentLevel: number): UpgradeCost {
  * 
  * @example
  * const totalCost = calculateCumulativeCost(10);
- * // Returns: { metal: 169000, energy: 84500, level: 10 }
+ * // Returns: { metal: 421234, energy: 210616, level: 10 }
  */
 export function calculateCumulativeCost(targetLevel: number): UpgradeCost {
   if (targetLevel < FACTORY_UPGRADE.MIN_LEVEL + 1 || targetLevel > FACTORY_UPGRADE.MAX_LEVEL) {
@@ -150,7 +150,7 @@ export function calculateCumulativeCost(targetLevel: number): UpgradeCost {
  * 
  * @example
  * const stats = getFactoryStats(5);
- * // Returns: { level: 5, maxSlots: 20, regenRate: 1.5 }
+ * // Returns: { level: 5, maxSlots: 1000, regenRate: 70, strengthBonus: 25, defenseBonus: 25 }
  */
 export function getFactoryStats(level: number): FactoryStats {
   if (level < FACTORY_UPGRADE.MIN_LEVEL || level > FACTORY_UPGRADE.MAX_LEVEL) {
@@ -349,7 +349,7 @@ export function formatFactoryLevel(level: number): string {
  * @example
  * const cost = calculateUpgradeCost(5);
  * const display = formatUpgradeCost(cost);
- * // Returns: "11,391 M + 5,695 E"
+ * // Returns: "28,476 M + 14,238 E"
  */
 export function formatUpgradeCost(cost: UpgradeCost): string {
   return `${cost.metal.toLocaleString()} M + ${cost.energy.toLocaleString()} E`;
@@ -359,14 +359,13 @@ export function formatUpgradeCost(cost: UpgradeCost): string {
  * IMPLEMENTATION NOTES:
  * 
  * 1. Cost Formula: Exponential scaling ensures meaningful progression
- *    - Early levels are affordable (1.5K for Level 2)
- *    - Late levels are expensive (76K for Level 10)
- *    - Total investment to max is significant (~169K + 84K)
- * 
- * 2. Stats Formula: Linear scaling provides predictable growth
- *    - Slots: +2 per level (10 → 30)
- *    - Regen: +0.1/hour per level (1.0 → 2.0)
- *    - Level 10 factory produces nearly 2x faster
+ *    - Early levels are real purchases (5,625 metal for Level 2)
+ *    - Late levels are projects (144,162 metal for Level 10)
+ *    - Total investment to max is significant (~421K metal + ~211K energy)
+ *
+ * 2. Stats Formula: Linear slot/regen growth on the FID-072 scarcity curve
+ *    - Slots: +150 per level (400 → 1,750)
+ *    - Regen: +10/hour per level (30 → 120)
  * 
  * 3. Strategic Implications:
  *    - Players must choose which factories to upgrade
