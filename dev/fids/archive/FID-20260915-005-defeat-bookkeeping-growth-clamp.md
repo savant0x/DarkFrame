@@ -1,6 +1,6 @@
 # FID-20260915-005: defeat bookkeeping precision + growth clamp
 
-**Severity:** MEDIUM · **Status:** implemented · **Created:** 2026-09-15
+**Severity:** MEDIUM · **Status:** closed (canonical `2681571`, PR #49) · **Created:** 2026-09-15
 
 ## Summary
 
@@ -44,4 +44,7 @@ Two refinements from the bot-vault economy audit (row 44), shipped together:
 
 ## Status
 
-Implemented, uncommitted — pending commit with the session's next stream.
+**CLOSED per G2** — shipped as commit `2681571` (rebase-merged via PR #49,
+2026-09-15). Verification record: 10 contract tests + live three-hoarder
+driver (`scripts/e2eHoarderJackpot.ts`) proving the preserve-axis rule
+against the production route.
