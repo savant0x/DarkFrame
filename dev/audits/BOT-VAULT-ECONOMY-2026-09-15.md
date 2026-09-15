@@ -201,3 +201,38 @@ while preserved energy climbed toward the cap (307,500 → 347,220 → 395,735).
 The vault map now shows hoarders holding above the old 2× cap (Mega_Love_148
 at 253,570 metal vs the 225,000 T1 2× cap). Driver:
 `scripts/e2eHoarderJackpot.ts`.
+
+## Re-measurement addendum 2 — raid-pressure stress sweep (2026-09-15)
+
+**Question: at how many raids/bot/day does the map start starving?**
+Driver: `scripts/simulateVaultPressure.ts` (shipped engine tick, real rate
+table via zeroed-vault `regenerateBotResources`, aggressive raids — both axes
+looted — with intra-day windows so P>1/day is honest; 5-day warmup discarded;
+P=0.5 anchor reproduces the undeclared re-measurement row, 5.39M vs 5.49M).
+
+**Answer: there is no starvation knee in the shipped economy — it saturates.**
+Loot plateaus at the supply ceiling ≈ **10.7M/day combined** (Σ 24 × real
+rate table × spawner-max, both axes; T2-hoarder entry 7,500/h matches the
+live raid evidence) and decay stays 98–103% at every pressure:
+
+| P (raids/bot/day) | 0.25 | 0.5 | 1 | 1.5 | 2 | 3 | 5 | 8 | 12 | 20 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 30d day-30 loot | 2.70M | 5.27M | 10.40M | 10.93M | 12.49M | 13.74M | 12.80M | 12.08M | 11.71M | 11.47M |
+| decay d30/d1 | 103% | 98% | 100% | 99% | 100% | 100% | 100% | 100% | 100% | 100% |
+| per-raid take | 282k | 272k | 267k | 187k | 160k | 117k | 66k | 39k | 25k | 15k |
+
+Under linear regen the map is a **renewable income stream**: even 20 raids
+per bot per day (an implausible hammering) yields 11.5M/day forever, with
+per-raid take flooring at ~15k because a raided bot pays only what regrew
+since its last raid. The legacy counterfactual **starves**: knee at ≤0.5
+raids/bot/day (decay → 0%, per-raid take → 0 by day 7) — the absorbing-zero
+death spiral. The contrast is the economic case for FID-006, now quantified
+per pressure level.
+
+One refinement for a future pass: pressure modeled uniformly across the
+population; a location-concentration model (many players camping one region)
+would still saturate locally — per-bot regen is pressure-independent — but
+tier-mix skew (which tiers absorb the camping) would shift the plateau mix.
+Plateau composition (raider-heavy at P≤1 as full vaults drain, ghost-
+regen-dominated at P≥8 as regen floor takes over) is printed by the driver.
+Original band (0.5 r/b/d): 2.73M/day declared-single-axis; undeclared 5.45M.
