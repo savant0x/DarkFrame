@@ -72,9 +72,9 @@ Cleared suspicions: presence gating (position persists), zero-power math, legacy
 ## 6. Closure
 
 - **Gates:** [x] typecheck 0 · [x] lint 0 · [x] tests pass · [x] live-verified both directions
-- **Commit hash (G2):** _pending commit (presented plan: `fix(game)` path-scoped)_
+- **Commit hash (G2):** `20597c6` (umbrella multi-stream commit, 2026-09-15)
 - **Staging plan:** `app/game/page.tsx`, this FID, `SCOPE.md`, `dev/session-summaries/SESSION-2026-09-14-007.md`
 
 ---
 
-**Final status:** verified (implemented + live-verified 2026-09-14; closes on commit per G2)
+**Final status:** closed (commit `20597c6`)

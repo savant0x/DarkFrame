@@ -130,7 +130,7 @@ battle row preserves the full pre-battle `attacker_units` snapshot.
 ## 6. Closure
 
 - **Gates:** [x] typecheck 0 · [x] lint 0 · [x] tests pass · [x] live route re-verified
-- **Commit hash (G2):** _pending commit_
+- **Commit hash (G2):** `20597c6` (umbrella multi-stream commit, 2026-09-15 — Phases 1–2 + restore; Phase 3 rebalance remains an open proposal awaiting operator approval)
 - **Staging plan:** `lib/battleService.ts`, the new tests, the restore script, this FID, `SCOPE.md`, session record
 
 ---

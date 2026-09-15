@@ -94,9 +94,9 @@ probes deleted after use (evidence preserved in this record).
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 · [x] lint 0 · [x] tests pass (763/1 skipped/0 fail) · [x] live-verified
-- **Commit hash (G2):** _pending commit (presented plan: `perf(battle-logs)` path-scoped)_
+- **Commit hash (G2):** `20597c6` (umbrella multi-stream commit, 2026-09-15)
 - **Staging plan:** `app/api/battle-logs/route.ts`, `__tests__/api/battle-logs.contract.test.ts`, this FID, `SCOPE.md`, `dev/session-summaries/SESSION-2026-09-14-006.md`
 
 ---
 
-**Final status:** verified (implemented + live-verified 2026-09-14; closes on commit per G2)
+**Final status:** closed (commit `20597c6`)
