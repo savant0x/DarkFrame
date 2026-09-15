@@ -51,7 +51,7 @@
 
 import { connectToDatabase, type DocumentValue } from './mongodb';
 import { getNestById } from './botNestService';
-import { getResourceRange } from './botService'; // FID-20260915-004: vault-cap source of truth (no cycle: botService never imports this module)
+import { getResourceRange, getVaultCap } from './botService'; // FID-20260915-004/-006: vault-cap source of truth (no cycle: botService never imports this module)
 import type { Player, PlayerUnit, UnitType } from '@/types/game.types';
 import { UNIT_CONFIGS, UnitTier } from '@/types/game.types';
 
@@ -66,7 +66,8 @@ const REGENERATION_RATES = {
   Fortress: 0.10,  // 10% per hour - moderate regeneration
   Raider: 0.15,    // 15% per hour - faster regeneration for aggressive play
   Ghost: 0.20,     // 20% per hour - fastest regeneration for hit-and-run
-  Balanced: 0.10,  // 10% per hour - balanced regeneration (aligned with botService)
+  Balanced: 0.10,  // 10% per hour - balanced regeneration
+  Boss: 0.02,      // 2% per hour - slowest regen (carried from the deleted botService duplicate; FID-20260915-006a)
 } as const;
 
 /**
@@ -248,7 +249,7 @@ function calculateTotalDEF(units: PlayerUnit[]): number {
  * @param bot - Bot to regenerate resources for
  * @returns Updated resource values
  */
-function regenerateBotResources(bot: Player): { metal: number; energy: number; food: number } {
+export function regenerateBotResources(bot: Player): { metal: number; energy: number; food: number } {
   if (!bot.botConfig) {
     return { 
       metal: bot.resources?.metal || 0, 
@@ -259,24 +260,30 @@ function regenerateBotResources(bot: Player): { metal: number; energy: number; f
 
   const { specialization, tier } = bot.botConfig;
   const regenKey = specialization.charAt(0).toUpperCase() + specialization.slice(1) as keyof typeof REGENERATION_RATES;
-  const regenRate = REGENERATION_RATES[regenKey];
+  // FID-20260915-006a: NaN guard — an unknown specialization used to yield
+  // undefined × rangeMax = NaN and poison the vault write. Boss's 0.02 rate
+  // moved here from the deleted botService duplicate; anything else falls
+  // back to the Balanced rate instead of NaN.
+  const regenRate: number = (REGENERATION_RATES as Record<string, number>)[regenKey] ?? 0.10;
   
   const currentMetal = bot.resources?.metal || 0;
   const currentEnergy = bot.resources?.energy || 0;
   
-  // Calculate regenerated amounts (percentage of current resources)
-  const metalRegen = Math.floor(currentMetal * regenRate);
-  const energyRegen = Math.floor(currentEnergy * regenRate);
+  // FID-20260915-006: LINEAR regen — rate × spawner max per hour, not a
+  // percentage of current. The old curve (v × (1 + rate)) made 0 absorbing:
+  // the raid win path zeroes the vault, so a raided bot regenerated 0 forever
+  // (live census: 7/54 bots dead-both, all raid-killed). Linear revives them
+  // on the next tick with no migration, and makes map loot sustainable
+  // (audit: 2.24M/day indefinitely vs dead-in-a-week).
+  const rangeMax = getResourceRange(specialization, tier ?? 1).max;
+  const metalRegen = Math.floor(regenRate * rangeMax);
+  const energyRegen = Math.floor(regenRate * rangeMax);
   const foodRegen = 0; // Food not used in this system
   
-  // FID-20260915-004 Fix C: vault cap. Growth is compound (+5–15% on 70% of
-  // hourly ticks) with NO ceiling — live registry showed T1 bots at 1.5B metal
-  // after months of uptime, and raid loot = vault × beer-multiplier turned that
-  // into a 452M single-raid payout. Cap = 2× the spawner's per-tier maximum
-  // (getResourceRange is the balance source of truth; static import is safe —
-  // botService never imports this module).
-  const range = getResourceRange(specialization, tier ?? 1);
-  const vaultCap = range.max * 2;
+  // FID-20260915-004 Fix C, refactored by -006: vault cap via the shared
+  // helper (2× spawner max; hoarders 3× — jackpot identity). One source so
+  // regen clamp, growth clamp, and the raid loot cap cannot drift.
+  const vaultCap = getVaultCap(specialization, tier ?? 1);
   
   return {
     metal: Math.min(currentMetal + metalRegen, vaultCap),
@@ -286,13 +293,24 @@ function regenerateBotResources(bot: Player): { metal: number; energy: number; f
 }
 
 /**
+ * FID-20260915-005: resolve the post-growth vault write. Clamps the grown
+ * value to the vault cap (the regen step's clamp) and returns null when the
+ * write would be a no-op (grown equals the regenerated base — the cycle skips
+ * unchanged columns). Pure; exported for the growth-clamp contract test.
+ */
+export function nextGrownVault(grown: number, regenerated: number, cap: number): number | null {
+  const clamped = Math.min(grown, cap);
+  return clamped !== regenerated ? clamped : null;
+}
+
+/**
  * Apply growth pattern to bot resources (70% grow, 20% stay, 10% decrease)
  * 
  * @param current - Current resource amount
  * @param specialization - Bot specialization type
  * @returns Modified resource amount
  */
-function applyGrowthPattern(current: number, _specialization: string): number {
+export function applyGrowthPattern(current: number, _specialization: string): number {
   const roll = Math.random();
   
   if (roll < 0.70) {
@@ -437,13 +455,22 @@ export async function runGrowthCycle(): Promise<{
           regenerated++;
         }
         
-        // 2. Apply Growth Pattern (70/20/10)
+        // 2. Apply Growth Pattern (70/20/10) — FID-20260915-005: the grown
+        // write is clamped to the same vault cap the regen step uses.
+        // Previously growth (up to ×1.15) wrote ABOVE the cap and the clamp
+        // only re-applied on the next tick's regen — vaults idled 1–15% over
+        // cap (cosmetic for loot, which caps at the route, but the stored
+        // state lied). Same resourceRange as regenerateBotResources.
         if (bot.botConfig) {
+          const { specialization, tier } = bot.botConfig;
+          const growthCap = getVaultCap(specialization, tier ?? 1); // FID-20260915-006: shared cap (hoarder 3×)
           const grownMetal = applyGrowthPattern(regeneratedResources.metal, bot.botConfig.specialization);
           const grownEnergy = applyGrowthPattern(regeneratedResources.energy, bot.botConfig.specialization);
           
-          if (grownMetal !== regeneratedResources.metal) updates['resources.metal'] = grownMetal;
-          if (grownEnergy !== regeneratedResources.energy) updates['resources.energy'] = grownEnergy;
+          const grownMetalWrite = nextGrownVault(grownMetal, regeneratedResources.metal, growthCap);
+          if (grownMetalWrite !== null) updates['resources.metal'] = grownMetalWrite;
+          const grownEnergyWrite = nextGrownVault(grownEnergy, regeneratedResources.energy, growthCap);
+          if (grownEnergyWrite !== null) updates['resources.energy'] = grownEnergyWrite;
         }
         
         // 3. Movement System

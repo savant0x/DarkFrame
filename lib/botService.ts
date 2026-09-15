@@ -9,14 +9,16 @@
  * Full Permanence Model: Bots stay on map permanently, regenerate resources hourly (5-20% by type).
  * Beer Bases despawn when defeated and respawn weekly at random locations.
  * 
- * EXPANDED BOT TIER SYSTEM (7 Tiers):
- * - Tier 1 (Level 1-10): 0.75x resources, 150 base defense
- * - Tier 2 (Level 11-20): 1.0x resources, 300 base defense
- * - Tier 3 (Level 21-30): 1.25x resources, 600 base defense
- * - Tier 4 (Level 31-40): 1.5x resources, 1,200 base defense
- * - Tier 5 (Level 41-50): 2.0x resources, 2,400 base defense
- * - Tier 6 (Level 51-60): 2.5x resources, 4,800 base defense
- * - Tier 7 (Level 61+): 3.0x resources, 9,600 base defense
+ * EXPANDED BOT TIER SYSTEM (7 Tiers) — values below are CODE truth
+ * (corrected FID-20260915-006a: the resource ladder previously overstated
+ * T5–T7 as 2.0/2.5/3.0×; the defense ladder quoted pre-scale values 150–9600):
+ * - Tier 1 (Level 1-10): 0.75x resources, 15 base defense
+ * - Tier 2 (Level 11-20): 1.0x resources, 40 base defense
+ * - Tier 3 (Level 21-30): 1.25x resources, 100 base defense
+ * - Tier 4 (Level 31-40): 1.5x resources, 240 base defense
+ * - Tier 5 (Level 41-50): 1.75x resources, 560 base defense
+ * - Tier 6 (Level 51-60): 2.0x resources, 1,280 base defense
+ * - Tier 7 (Level 61+): 2.25x resources, 2,880 base defense
  * 
  * DYNAMIC RESOURCE SCALING (NEW - Phase 6):
  * - Player level bonuses: +25% per 10-level bracket (capped at Bracket 6 = +150%)
@@ -32,7 +34,7 @@
  * 
  * BOSS BOT SYSTEM (NEW - Phase 7):
  * - Specialization: BotSpecialization.Boss (1% spawn rate via getRandomSpecialization())
- * - Stats: 4M-6M resources (fixed, no tier scaling), 200K+ defense (20x multiplier)
+ * - Stats: 4M-6M resources (fixed, no tier scaling), ≈57.6K defense (20x multiplier on the T7 base 2,880)
  * - Behavior: Stationary (doesn't move), 2% regen/hour (50 hours to full)
  * - Tier: Fixed at Tier 7 (Level 65), Legendary reputation, 5M bounty value
  * - Purpose: Elite rare encounters requiring coordinated attacks from high-level players
@@ -281,13 +283,26 @@ export function getResourceRange(specialization: BotSpecialization, tier: number
   }
   
   // Expanded tier multipliers (7 tiers matching player level brackets)
-  // T1 (1-10): 0.75x, T2 (11-20): 1.0x, T3 (21-30): 1.25x, T4 (31-40): 1.5x, T5 (41-50): 2.0x, T6 (51-60): 2.5x, T7 (61+): 3.0x
-  const tierMultiplier = 0.5 + (tier * 0.25); // Progressive scaling up to T7 = 3.0x
+  // T1: 0.75x, T2: 1.0x, T3: 1.25x, T4: 1.5x, T5: 1.75x, T6: 2.0x, T7: 2.25x
+  // (FID-20260915-006a: comment previously claimed 2.0/2.5/3.0 at T5–T7 —
+  // this formula has always computed 0.5 + tier × 0.25; comments now match.)
+  const tierMultiplier = 0.5 + (tier * 0.25); // Progressive scaling up to T7 = 2.25x
 
   return {
     min: Math.floor(range.min * tierMultiplier),
     max: Math.floor(range.max * tierMultiplier)
   };
+}
+
+/**
+ * FID-20260915-006: the vault ceiling for a bot — 2 × spawner max for every
+ * specialization except Hoarder (3 × — jackpot identity, audit row 44/44a).
+ * Single source of truth: the regen clamp (botGrowthEngine), the growth-write
+ * clamp (FID-20260915-005), the raid loot cap (combat/attack route), and the
+ * vault resync tooling all consume THIS — they cannot drift apart.
+ */
+export function getVaultCap(specialization: BotSpecialization, tier: number): number {
+  return getResourceRange(specialization, tier).max * (specialization === BotSpecialization.Hoarder ? 3 : 2);
 }
 
 /**
@@ -365,29 +380,10 @@ export function getBotResourcesForPlayer(
 }
 
 /**
- * Get resource regeneration rate per hour based on specialization
- * Full Permanence: Bots regenerate resources after defeat instead of despawning
- * 
- * @param specialization Bot type
- * @returns Percentage of max resources to regenerate per hour (0.05-0.20)
- */
-export function getRegenerationRate(specialization: BotSpecialization): number {
-  const rates = {
-    [BotSpecialization.Hoarder]: 0.05,    // 5% per hour (20 hours to full)
-    [BotSpecialization.Fortress]: 0.10,   // 10% per hour (10 hours to full)
-    [BotSpecialization.Raider]: 0.15,     // 15% per hour (6.7 hours to full)
-    [BotSpecialization.Ghost]: 0.20,      // 20% per hour (5 hours to full)
-    [BotSpecialization.Balanced]: 0.10,   // 10% per hour (10 hours to full)
-    [BotSpecialization.Boss]: 0.02        // 2% per hour (50 hours to full) - NEW: Phase 7
-  };
-  return rates[specialization];
-}
-
-/**
  * Calculate defense multiplier based on specialization
  * 
  * @param specialization Bot type
- * @returns Defense multiplier (0.5x - 3.0x)
+ * @returns Defense multiplier (0.5x - 20x: Boss is 20x; all other specs 0.5–3.0)
  */
 export function getDefenseMultiplier(specialization: BotSpecialization): number {
   const multipliers = {
@@ -760,8 +756,10 @@ function getBotTierForZone(zone: number): number {
  * @returns Base defense value
  */
 function getBotDefenseForTier(tier: number): number {
-  // Progressive defense scaling
-  // T1: 150, T2: 300, T3: 600, T4: 1200, T5: 2400, T6: 4800, T7: 9600
+  // Progressive defense scaling — computed values (FID-20260915-006a: the
+  // old comment quoted pre-scale values 150–9600; this ×0.1 line has always
+  // produced the numbers below):
+  // T1: 15, T2: 40, T3: 100, T4: 240, T5: 560, T6: 1280, T7: 2880
   const baseDefense = 100 + (tier * 50);
   const scalingFactor = Math.pow(2, tier - 1); // Exponential: 1, 2, 4, 8, 16, 32, 64
   return Math.floor(baseDefense * scalingFactor * 0.1); // Scale down by 0.1 to get reasonable values
@@ -830,9 +828,9 @@ export async function createBossBot(
       permanentBase: true // Bosses are permanent high-value targets
   };
 
-  const baseDefense = getBotDefenseForTier(7); // T7: 9,600 base defense
+  const baseDefense = getBotDefenseForTier(7); // T7: 2,880 base defense
   const defenseMultiplier = getDefenseMultiplier(BotSpecialization.Boss); // 20x multiplier
-  const totalDefense = Math.floor(baseDefense * defenseMultiplier); // 192,000 defense
+  const totalDefense = Math.floor(baseDefense * defenseMultiplier); // 57,600 defense
 
   const bossPlayer: Partial<Player> = {
     username: generateBossName(), // BOSS- prefixed, themed, 20-char budget enforced
@@ -874,38 +872,12 @@ export async function createBossBot(
   return bossPlayer;
 }
 
-/**
- * Regenerate bot resources based on time elapsed and specialization
- * Full Permanence: Called hourly to restore resources after defeats
- * 
- * @param bot Bot player to regenerate
- * @returns Updated resource amounts
- */
-export async function regenerateBotResources(bot: Player): Promise<{ metal: number; energy: number }> {
-  if (!bot.isBot || !bot.botConfig) {
-    throw new Error('regenerateBotResources called on non-bot player');
-  }
-
-  const now = new Date();
-  const lastRegen = bot.botConfig.lastResourceRegen || bot.botConfig.lastGrowth;
-  const hoursSinceRegen = (now.getTime() - lastRegen.getTime()) / (1000 * 60 * 60);
-  
-  if (hoursSinceRegen < 1) {
-    return bot.resources; // Not enough time passed
-  }
-
-  const regenRate = getRegenerationRate(bot.botConfig.specialization);
-  const resourceRange = getResourceRange(bot.botConfig.specialization, bot.botConfig.tier);
-  const maxResources = bot.botConfig.isSpecialBase ? resourceRange.max * 3 : resourceRange.max;
-  
-  const hoursToRegen = Math.floor(hoursSinceRegen);
-  const regenAmount = Math.floor(maxResources * regenRate * hoursToRegen);
-  
-  const newMetal = Math.min(bot.resources.metal + regenAmount, maxResources);
-  const newEnergy = Math.min(bot.resources.energy + regenAmount, maxResources);
-  
-  return { metal: newMetal, energy: newEnergy };
-}
+// FID-20260915-006a: an async regenerateBotResources duplicate lived here and
+// is now deleted. It was dead code (zero callers — the canonical engine version
+// in botGrowthEngine feeds runGrowthCycle), carried PRE-linear regen semantics
+// and a stale range.max cap, and its export collided with the engine's in the
+// lib/index.ts barrel (TS2308). The engine implementation is the single source
+// of truth; its Boss rate now includes the 0.02 carried from the deleted table.
 
 // ============================================================
 // BEER BASE SYSTEM

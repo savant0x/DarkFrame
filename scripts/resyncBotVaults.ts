@@ -8,7 +8,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { connectToDatabase } from '@/lib/mongodb';
-import { getResourceRange } from '@/lib/botService';
+import { getVaultCap } from '@/lib/botService'; // FID-20260915-006: shared cap (hoarder 3×)
 import { BotSpecialization } from '@/types/game.types';
 
 async function main(): Promise<void> {
@@ -29,7 +29,7 @@ async function main(): Promise<void> {
   for (const bot of rows) {
     const spec = (bot.bot_config?.specialization as BotSpecialization) ?? BotSpecialization.Balanced;
     const tier = Number(bot.bot_config?.tier) || 1;
-    const cap = getResourceRange(spec, tier).max * 2;
+    const cap = getVaultCap(spec, tier);
     const before = Number(bot.resources_metal || 0) + Number(bot.resources_energy || 0);
     const newMetal = Math.min(Number(bot.resources_metal || 0), cap);
     const newEnergy = Math.min(Number(bot.resources_energy || 0), cap);
