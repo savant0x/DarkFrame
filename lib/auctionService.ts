@@ -17,7 +17,8 @@ import {
   AUCTION_CONFIG,
   AuctionSearchFilters,
 } from '@/types/auction.types';
-import { Player } from '@/types/game.types';
+import type { DocumentValue } from './mongodb';
+import { Player, PlayerUnit } from '@/types/game.types';
 import { logger } from './logger';
 import { notifyAuctionEvent } from './auctionNotification';
 
@@ -149,7 +150,12 @@ export async function createAuctionListing(
       auctionId,
       sellerUsername,
       // sellerClan: seller.clan, // TODO: Enable in Phase 5 when clans are implemented
-      item: request.item,
+      // Unit escrow (FID-20260914-003): freeze the listed unit into the listing.
+      // The SERVICE owns the snapshot — the route's zod schema strips unknown
+      // keys and any client-supplied value is overwritten here.
+      item: itemValidation.escrowedUnit
+        ? { ...request.item, unitSnapshot: itemValidation.escrowedUnit }
+        : request.item,
       startingBid: request.startingBid,
       currentBid: request.startingBid,
       buyoutPrice: request.buyoutPrice,
@@ -169,14 +175,18 @@ export async function createAuctionListing(
     await auctionsCollection.insertOne(auction);
 
     // Deduct listing fee and lock item
-    // Merge the listing fee into the item-lock $inc (fee + locked amount share the
+    // Merge the listing fee into the item-lock write (fee + locked amount share the
     // resources_metal column). Spreading lockUpdate OVER $inc REPLACED the fee entry,
     // so sellers never actually paid the listing fee (live-verified: 10 metal refund).
+    // FID-20260914-003: the lock write may ALSO carry $set (unit escrow removes the
+    // unit from the seller's army) — merge it through or the escrow is dropped.
     const lockInc = (itemValidation.lockUpdate?.$inc ?? {}) as Record<string, number>;
+    const lockSet = itemValidation.lockUpdate?.$set as Record<string, DocumentValue> | undefined;
     await playersCollection.updateOne(
       { username: sellerUsername },
       {
-        $inc: { resources_metal: -listingFee, ...lockInc }
+        $inc: { resources_metal: -listingFee, ...lockInc },
+        ...(lockSet ? { $set: lockSet } : {}),
       }
     );
 
@@ -204,7 +214,13 @@ export async function createAuctionListing(
 async function validateAndLockItem(
   player: Player,
   item: AuctionItem
-): Promise<{ success: boolean; message: string; error?: string; lockUpdate?: MongoUpdate }> {
+): Promise<{
+  success: boolean;
+  message: string;
+  error?: string;
+  lockUpdate?: MongoUpdate;
+  escrowedUnit?: PlayerUnit;
+}> {
   
   if (item.itemType === AuctionItemType.Unit) {
     // Validate unit ownership
@@ -217,15 +233,23 @@ async function validateAndLockItem(
       return { success: false, message: 'Unit not found', error: 'UNIT_NOT_FOUND' };
     }
 
-    // TODO: Check if unit is already locked in another auction or battle
-    
+    // ESCROW (FID-20260914-003): the unit leaves the seller's army at listing
+    // time — the same pattern as the resource branch's $inc. The old positional
+    // `units.$[unit].locked` $set was a silent no-op on the shim (dotted $set
+    // maps only on doc-tables; players has no doc column), so one unit could be
+    // listed in several live auctions. The full PlayerUnit is snapshotted into
+    // the listing (item.unitSnapshot): the escrow record for delivery AND
+    // refunds, frozen from stat drift while listed. lockUpdate.$set writes the
+    // seller's units array minus the listed unit (direct column — resolves).
     return {
       success: true,
-      message: 'Unit validated',
+      message: 'Unit validated and escrowed',
       lockUpdate: {
-        $set: { [`units.$[unit].locked`]: true }
+        $set: {
+          units: player.units.filter((u) => u.unitId !== item.unitId),
+        },
       },
-      // Note: In production, implement proper array filter for specific unit
+      escrowedUnit: unit,
     };
 
   } else if (item.itemType === AuctionItemType.Resource) {
@@ -255,27 +279,14 @@ async function validateAndLockItem(
     };
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
-    // Validate tradeable items
-    if (!item.tradeableItemQuantity) {
-      return { success: false, message: 'Tradeable item quantity required', error: 'INVALID_ITEM' };
-    }
-
-    const tradeableItems = player.inventory?.items.filter((i) => i.type === 'TRADEABLE_ITEM') || [];
-    const totalCount = tradeableItems.reduce((sum, i) => sum + (i.quantity || 1), 0);
-
-    if (totalCount < item.tradeableItemQuantity) {
-      return {
-        success: false,
-        message: 'Insufficient tradeable items',
-        error: 'INSUFFICIENT_ITEMS'
-      };
-    }
-
-    // TODO: Implement proper tradeable item locking
+    // GATE (FID-20260914-003, finding 5): tradeable-item listings were accepted
+    // end-to-end while transferAuctionItem's branch for them is an empty TODO —
+    // the buyer paid fees and received nothing. Blocked at the front door until
+    // real inventory transfer ships (Phase 5); the UI option is already disabled.
     return {
-      success: true,
-      message: 'Tradeable items validated',
-      lockUpdate: {}
+      success: false,
+      message: 'Tradeable item listings are not available yet (coming in a later phase)',
+      error: 'TRADEABLE_NOT_TRADEABLE_YET'
     };
   }
 
@@ -350,9 +361,6 @@ export async function placeBid(
 
     // ESCROW: deduct the bid from the bidder immediately (FID-20260912-065).
     // Previously bids were honor-system — winners could be broke at settlement.
-    // The previous highest bidder's escrow is released below, after the auction
-    // row records the new leader (two sequential $inc ops, no transaction in the
-    // seam; each is idempotent-safe under this call pattern).
     await playersCollection.updateOne(
       { username: bidderUsername },
       { $inc: { resources_metal: -request.bidAmount } }
@@ -373,9 +381,18 @@ export async function placeBid(
     const updatedBids = auction.bids.map((b: AuctionBid) => ({ ...b, isWinning: false }));
     updatedBids.push(newBid);
 
-    // Update auction
-    await auctionsCollection.updateOne(
-      { auctionId: request.auctionId },
+    // LEADER CLAIM (FID-20260914-003): the leader transition is conditional on
+    // the row STILL being active AND still carrying the leader pair we validated
+    // against. The shim's updateOne reports modifiedCount unconditionally, so
+    // the claim is arbitrated by findOneAndUpdate (findOne → updateOne; null =
+    // a concurrent buyout/settlement closed the row between validation and now).
+    const claimed = await auctionsCollection.findOneAndUpdate(
+      {
+        auctionId: request.auctionId,
+        status: AuctionStatus.Active,
+        currentBid: auction.currentBid,
+        highestBidder: auction.highestBidder ?? null,
+      },
       {
         $set: {
           currentBid: request.bidAmount,
@@ -385,8 +402,24 @@ export async function placeBid(
       }
     );
 
+    if (!claimed) {
+      // Lost the race (bought out / settled mid-bid): refund THIS bidder's fresh
+      // escrow. The outbid leader was never touched — no other wallet moved.
+      await playersCollection.updateOne(
+        { username: bidderUsername },
+        { $inc: { resources_metal: request.bidAmount } }
+      );
+      return {
+        success: false,
+        message: 'Auction is no longer active',
+        error: 'AUCTION_NOT_ACTIVE'
+      };
+    }
+
     // Outbid release: refund the previous leader's escrowed bid (their money was
-    // held since their own placeBid). Zero when no prior bids existed.
+    // held since their own placeBid). The claim's pair filter guarantees exactly
+    // one bidder transitioned from (leader, currentBid) to us, so this release
+    // runs exactly once per outbid event. Zero when no prior bids existed.
     const previousBidder = auction.highestBidder;
     const previousAmount = auction.currentBid;
     if (previousBidder && previousAmount > 0) {
@@ -479,6 +512,36 @@ export async function buyoutAuction(
       };
     }
 
+    // CLAIM-FIRST CLOSE (FID-20260914-003, finding 4): flip status Active→Sold
+    // BEFORE any money or goods move. The shim's updateOne reports modifiedCount
+    // unconditionally, so the claim is arbitrated by findOneAndUpdate: null = a
+    // concurrent buyout/settlement won the row — every later competitor fails
+    // validation (status no longer Active). This is the exactly-once gate for
+    // every write below.
+    const claim = await auctionsCollection.findOneAndUpdate(
+      { auctionId, status: AuctionStatus.Active },
+      {
+        $set: {
+          status: AuctionStatus.Sold,
+          closedAt: new Date(),
+          settled: true,
+          settledAt: new Date(),
+          finalPrice: auction.buyoutPrice,
+          winnerUsername: buyerUsername
+        }
+      }
+    );
+    if (!claim) {
+      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
+    }
+
+    // FRESH re-read: the leader under the JUST-CLOSED row. A concurrent placeBid
+    // may have become leader after our earlier findOne — their escrow is the one
+    // actually held against this auction, so the fresh leader is the honest one.
+    const closedAuction = (await auctionsCollection.findOne({ auctionId })) ?? claim;
+    const leader = closedAuction.highestBidder;
+    const leaderAmount = closedAuction.currentBid ?? 0;
+
     // Calculate fees
     const saleFeeAmount = Math.floor(auction.buyoutPrice * auction.saleFee);
     const sellerReceives = auction.buyoutPrice - saleFeeAmount;
@@ -491,6 +554,21 @@ export async function buyoutAuction(
     );
 
     if (!transferResult.success) {
+      // Roll back the claim so the row stays Active (settlement and other buyers
+      // can proceed); leader escrow untouched — nobody paid yet.
+      await auctionsCollection.updateOne(
+        { auctionId },
+        {
+          $set: {
+            status: AuctionStatus.Active,
+            settled: false,
+            settledAt: null,
+            closedAt: null,
+            finalPrice: null,
+            winnerUsername: null
+          }
+        }
+      );
       return {
         success: false,
         message: transferResult.message,
@@ -498,16 +576,33 @@ export async function buyoutAuction(
       };
     }
 
-    // Transfer money (buyer pays, seller receives minus fee)
-    await playersCollection.updateOne(
-      { username: buyerUsername },
-      { $inc: { resources_metal: -auction.buyoutPrice } }
-    );
-
+    // Seller receives price minus fee.
     await playersCollection.updateOne(
       { username: auction.sellerUsername },
       { $inc: { resources_metal: sellerReceives } }
     );
+
+    // Leader resolution (FID-20260914-003): the previous leader's escrowed bid
+    // comes OUT of this close exactly once (the claim gates re-entry).
+    // - Different player → their metal is refunded; it was never part of this
+    //   sale (pre-FID buyout forfeited it silently).
+    // - Leader IS the buyer → their escrow IS the payment: charge only the
+    //   remainder. (buyout > currentBid by validation, so the remainder is > 0;
+    //   the guard keeps the ledger honest regardless.)
+    if (leader && leaderAmount > 0 && leader !== buyerUsername) {
+      await playersCollection.updateOne(
+        { username: leader },
+        { $inc: { resources_metal: leaderAmount } }
+      );
+    }
+    const buyerCharge =
+      leader === buyerUsername ? auction.buyoutPrice - leaderAmount : auction.buyoutPrice;
+    if (buyerCharge > 0) {
+      await playersCollection.updateOne(
+        { username: buyerUsername },
+        { $inc: { resources_metal: -buyerCharge } }
+      );
+    }
 
     void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
       auctionId,
@@ -522,22 +617,7 @@ export async function buyoutAuction(
       counterparty: auction.sellerUsername,
     });
 
-    // Update auction status
-    await auctionsCollection.updateOne(
-      { auctionId },
-      {
-        $set: {
-          status: AuctionStatus.Sold,
-          closedAt: new Date(),
-          settled: true,
-          settledAt: new Date(),
-          finalPrice: auction.buyoutPrice,
-          winnerUsername: buyerUsername
-        }
-      }
-    );
-
-    // Create trade history
+    // Create trade history (status/winner/finalPrice were set by the claim above)
     const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
     const trade: TradeHistory = {
       tradeId,
@@ -583,19 +663,29 @@ async function transferAuctionItem(
   const playersCollection = await getCollection<Player>('players');
 
   if (item.itemType === AuctionItemType.Unit) {
-    // Transfer unit
-    const seller = await playersCollection.findOne({ username: fromUsername });
-    const unit = seller?.units.find((u) => u.unitId === item.unitId);
-    
+    // Deliver the ESCROWED unit (FID-20260914-003). With unit escrow the goods
+    // left the seller at listing time — delivery is a buyer-side $push of the
+    // snapshotted object. The old seller-side $pull is GONE: the live probe
+    // (scripts/probePullObjectOperand.ts) proved the shim's $pull SQL is invalid
+    // on this engine (no jsonb - jsonb operator), so it could never execute.
+    // Legacy (pre-escrow) listings still find the unit in the seller's army and
+    // remove it via a $set array rebuild — the same idiom placeBid uses for bids.
+    const seller = item.unitSnapshot
+      ? null
+      : await playersCollection.findOne({ username: fromUsername });
+    const unit: PlayerUnit | undefined =
+      item.unitSnapshot ?? seller?.units.find((u) => u.unitId === item.unitId);
+
     if (!unit) {
       return { success: false, message: 'Unit not found', error: 'UNIT_NOT_FOUND' };
     }
 
-    // Remove from seller
-    await playersCollection.updateOne(
-      { username: fromUsername },
-      { $pull: { units: { unitId: item.unitId } } }
-    );
+    if (!item.unitSnapshot && seller) {
+      await playersCollection.updateOne(
+        { username: fromUsername },
+        { $set: { units: seller.units.filter((u) => u.unitId !== item.unitId) } }
+      );
+    }
 
     // Add to buyer
     await playersCollection.updateOne(
@@ -663,9 +753,12 @@ export async function cancelAuction(
       };
     }
 
-    // Update status
-    await auctionsCollection.updateOne(
-      { auctionId },
+    // CLAIM the close (FID-20260914-003): refunds may only be paid by the writer
+    // that flips the row. The old code updated status unconditionally and then
+    // refunded — two concurrent cancels (double-click) would pay the escrow
+    // twice. findOneAndUpdate arbitrates: null = someone else closed it first.
+    const claim = await auctionsCollection.findOneAndUpdate(
+      { auctionId, status: AuctionStatus.Active },
       {
         $set: {
           status: AuctionStatus.Cancelled,
@@ -675,15 +768,24 @@ export async function cancelAuction(
         }
       }
     );
+    if (!claim) {
+      return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
+    }
 
-    // Refund escrowed resources to the seller (FID-20260912-065). Listing locks
-    // the goods via a negative $inc; cancellation previously kept the money —
-    // sellers paid the listing fee AND lost the escrowed resources.
+    // Refund escrowed goods to the seller (FID-20260912-065 resources,
+    // FID-20260914-003 units). Listing removed the goods from the seller's
+    // wallet/army; cancellation returns them exactly once (claim-guarded above).
     if (auction.item.itemType === AuctionItemType.Resource && (auction.item.resourceAmount ?? 0) > 0) {
       const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
       await playersCollection.updateOne(
         { username: sellerUsername },
         { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
+      );
+    }
+    if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
+      await playersCollection.updateOne(
+        { username: sellerUsername },
+        { $push: { units: auction.item.unitSnapshot } }
       );
     }
     void notifyAuctionEvent('refund_seller', sellerUsername, {
@@ -848,8 +950,8 @@ async function settleExpiredAuction(
   const hasBids = auction.bids.length > 0 && !!auction.highestBidder;
 
   if (!hasBids) {
-    // Expired unsold: refund escrowed resources (units/items were validated-only
-    // locks — nothing to refund until per-unit locking ships).
+    // Expired unsold: refund escrowed goods (FID-20260912-065 resources,
+    // FID-20260914-003 units — the escrowed unit returns to the seller's army).
     if (
       auction.item.itemType === AuctionItemType.Resource &&
       (auction.item.resourceAmount ?? 0) > 0
@@ -858,6 +960,12 @@ async function settleExpiredAuction(
       await playersCollection.updateOne(
         { username: auction.sellerUsername },
         { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
+      );
+    }
+    if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
+      await playersCollection.updateOne(
+        { username: auction.sellerUsername },
+        { $push: { units: auction.item.unitSnapshot } }
       );
     }
     void notifyAuctionEvent('expired_seller', auction.sellerUsername, {
@@ -899,6 +1007,12 @@ async function settleExpiredAuction(
       await playersCollection.updateOne(
         { username: auction.sellerUsername },
         { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
+      );
+    }
+    if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
+      await playersCollection.updateOne(
+        { username: auction.sellerUsername },
+        { $push: { units: auction.item.unitSnapshot } }
       );
     }
     await auctionsCollection.updateOne(

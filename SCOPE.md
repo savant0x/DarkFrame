@@ -6,7 +6,7 @@
 > recorded in the Operator-Confirmed section below.
 
 **Protocol:** `dev/echo-v0.1.2-single-agent.md` (v0.1.2-single-agent — the sole authoritative protocol per operator decision 2026-09-01)
-**Last updated:** 2026-09-08 (session 002 — FID-20260908-001..005 implemented + live migrations 0018/0019 applied; FID-006 Wave A next)
+**Last updated:** 2026-09-14 (sessions 001–003 — FID-20260914-001/-002 stream completed; SCOPE #25 corrected, FID-20260914-003 converged + implemented)
 
 ---
 
@@ -520,6 +520,95 @@ framer-motion 0 and legacy utility classes 0 in all four redesigned files.
 
 No other work is approved. The #36 commit plan from session 008-001 remains presented/pending separately.
 
+### Session 2026-09-14 (001) — Complete the uncommitted FID-20260914-001/-002 work stream
+
+Operator instruction: "Pick up the uncommitted FID-20260914-001/-002 work stream, finish
+whatever is incomplete, and present the full verification evidence."
+
+Interpreted scope (per the Scope Boundary section — presented via the audit itself; every
+change below was FID-contract completion, not new scope):
+
+- [x] Audit the WIP tree: attribute every modified file to its FID (FID-20260914-001
+      troop-transport: schemas/move-route/antiCheat/GameContext/MovementControls/CSS/tests;
+      FID-20260914-002 issues 1/2/3/6: logs-route, attack-route, flagBotManager, vercel.json;
+      issue 4's route existed untracked — `app/api/flag/drop/`; the FID-20260913-001 vitest
+      fix and the FID-20260912-093b server migration wiring were pre-stream and left intact)
+- [x] Repair corruption: column-0 `} else {` in `lib/jobs/flagBotManager.ts` (a syntax
+      hazard the gates alone could not flag — the tree compiled) and the malformed brace in
+      `vercel.json` (JSON still parsed; indent restored, JSON-parse verified)
+- [x] Align the garrison size floor with the FID's `clamp(…, 8, 60)` contract
+      (`GARRISON_SIZE_FLOOR = 8` replacing the pre-stream `Math.max(1, …)`)
+- [x] Correct `docs/design/BASE_RAID_BALANCE.md`: the `GARRISON_HP = 15` knob is phantom
+      (battleService derives HP from `strength > 0` → garrison units are STR-class = 10 HP);
+      doc now marks HP derived and the T1 tuning row fixed (120→80 HP)
+- [x] Complete issue 4's missing UI half: Drop button in FlagTrackerPanel's bearer
+      self-view (hidden during an active steal channel) + `handleFlagDrop` on the game page
+      wired to the existing untracked route
+- [x] FID-20260914-002 updated analyzed → verified (Implementation Evidence + Resolution
+      sections with tool evidence; stray `{}` EOF artifact removed)
+- [x] Gates re-run: tsc 0 · eslint 0 · vitest 736/1/0 (75 files + 1 skip)
+
+No other work is approved. Commits are presented, not executed (G1 default).
+
+### Session 2026-09-14 (002) — SCOPE #25 ground-truth correction + auction FID (converged)
+
+Operator instruction: "Build the FID for the auction persistence rebuild (SCOPE #25) and
+converge it through the Perfection Loop."
+
+Approved items:
+
+- [x] RED evidence pass: `lib/auctionService.ts` 0-EOF (1018 lines), auctions + trade_history
+      schema, shim doc-sync sections (`lib/mongodb.ts`), my-bids route, create-route validation
+      surface, settlement job wiring, FID template + number allocation (003 on 2026-09-14)
+- [x] Ground-truth verification of #25's claims against the codebase (FID Ground-Truth rule):
+      the rebuild already exists (migration 0008 bridge + shim seam + FID-20260912-065 escrow/
+      settlement) — the ledger row is corrected above, not silently absorbed
+- [x] FID-20260914-003 written and Perfection-Looped to `converged` on loop 1 (double audit:
+      gates re-run — tsc 0 / eslint 0 / vitest 736/1/0 — plus full claim re-read), specifying
+      five residual defects and the seam-completion fix (buyout leader refund, unit escrow,
+      tradeable gate, sort fix, `$pull` probe)
+- [x] Implementation explicitly NOT started (Section 7: not-started) — gated on operator
+      direction, per the FID-20260902-001 precedent
+
+No other work is approved. Bookkeeping commit presented, not executed (G1 default).
+
+---
+
+### Session 2026-09-14 (003) — FID-20260914-003 implemented (auction escrow correctness)
+
+Operator instruction: "Implement converged FID-20260914-003: buyout leader refund with
+claim-first close, unit escrow, tradeable gate, my-bids sort — full gates and evidence."
+
+Approved items:
+
+- [x] §5 GREEN (Option A) shipped: buyout claim-first close (conditional
+      `findOneAndUpdate` Active→Sold) + fresh-pair leader refund (leader-as-buyer
+      diff-charged; lost claim pays nothing; delivery failure rolls the claim back);
+      placeBid leader transition claim-conditional with exactly-once outbid release;
+      unit escrow (snapshot in `item.unitSnapshot`, seller array rebuilt at listing,
+      buyer-side `$push` delivery, refunds in cancel/settle paths); tradeable create
+      gate (`TRADEABLE_NOT_TRADEABLE_YET`); my-bids in-route ordering by own bidTime
+- [x] §5 `$pull` probe executed (read-only SELECT probe,
+      `scripts/probePullObjectOperand.ts`): verdict SHARPER than the FID suspected —
+      the shim's `$pull` SQL is invalid on this engine (`operator does not exist:
+      jsonb - jsonb`, object AND scalar operands); the old unit transfer's seller-side
+      `$pull` could never execute. Verified `jsonb_agg` rewrite banked for the
+      shim-hardening follow-up. Unit escrow uses `$set` rebuilds, never `$pull`
+- [x] Two implementation discoveries fixed en route (same defect classes the FID
+      documents): (a) `cancelAuction`'s refund was not claim-guarded — concurrent
+      cancels double-paid; now claim-first with regression tests; (b) the listing
+      fee-merge carried only `$inc`, silently dropping the escrow `$set` — caught by
+      the new regression test, merge now carries `$set` through
+- [x] Ground-Truth note: the FID's modal row needed NO edit — the TradeableItem
+      option is already disabled in HEAD ("Items · Phase 5"); verification recorded,
+      no performative churn
+- [x] Regression suite grown 736 → 747 passed (19/19 in the auction suite); gates:
+      tsc 0 · eslint 0 · vitest 747/1 skipped/0 failures; FID §7/§8 filled, status
+      `verified` (closes on commit per G2); SCOPE #25 row annotated + closed
+
+No other work is approved. `fix(auction)` commit presented, not executed (G1 default).
+
+
 ---
 
 ## [OPEN-OUT-OF-SCOPE] — Discovered, Awaiting Operator Decision
@@ -553,7 +642,7 @@ operator decides whether each item is added to scope.
 | 22 | Three admin endpoints called by `components/admin/PlayerDetailModal.tsx` no longer exist (deleted in the Mongo→pg pivot): `/api/admin/player-tracking/activity`, `/api/admin/player-tracking/sessions`, `/api/admin/anti-cheat/player-flags` (+ `/api/admin/anti-cheat/ban` unverified). Modal now degrades gracefully, but the tabs stay empty until the endpoints are rebuilt or the UI trimmed. | 2026-09-03 (SESSION-2026-09-03-003) | Open (out of scope; awaiting operator FID approval) |
 | 23 | `PORT=0` in the operator's shell environment makes the custom server bind port 0 (`server.ts` reads `process.env.PORT \|\| '3000'`; `'0'` is truthy) — banner prints `localhost:0`, nothing listens on a real port. Workaround in use: launch with explicit `PORT=3002`. Permanent fix needs an operator-environment decision (where the var is exported). | 2026-09-04 (SESSION-2026-09-03-003) | Open (environment-side; agent-side workaround in place) |
 | 24 | **Systematic Mongo-era audit (full findings in SESSION-2026-09-04-002 §Audit).** Shim core is sound (countDocuments/$or/$inc/$push live-verified; #21's crash claim is STALE — BeerBase count works, returns 0). Real defects found: **(a)** 22 unresolved collection names → shim silently no-ops (`users`, `clan_territories`, 13×`wmd_*` in seed+APIs, `tutorial_progress`, `ActionLog`, `adminLogs`, `playerAchievements`, `tradeHistory`, `players_temp`, `system_logs`, `tutorial_action_tracking`) — writes vanish, reads empty, no error; **(b)** `aggregate()` ignores its pipeline and returns raw rows — 7 consumers silently wrong (antiCheatDetector, rankingService, achievement-stats, clan/leaderboard, stats, referral cron); **(c)** dot-path `$inc` at 8+ sites (auctionService payments/refunds, statTrackingService) silently no-op — auction money never moves; **(d)** boolean `$set` values (`read: true` wmd/notifications ×2, `units.$[unit].locked` auctionService) crash smallint columns; **(e)** `chatService` inserts 36-char `randomUUID` into `chat_messages.id` varchar(24) — chat sends crash; **(f)** multi-key `sort()` specs honor only the first key (referral leaderboard, build-unit); **(g)** 9 `@ts-nocheck` admin routes hide their DB seams; **(h)** BeerBase respawner job has NO scheduler registration (functions exist; only manual endpoints call them); **(i)** `lib/queryOptimization.ts` deadMongo module (excluded from tsc). | 2026-09-04 (SESSION-2026-09-04-002) | Open (awaiting operator approval to fix) |
-| 25 | **Auction persistence never worked on pg.** The domain doc written by `auctionService` (`auctionId`, `sellerUsername`, `item`, `bids[]`, `startingBid`, …) shares no keys with the pivot `auctions` table (`id` varchar(24) PK, `seller_id` varchar(20) NOT NULL, `item_data` jsonb, `starting_price`, …): every insert violates NOT NULL (seller_id) and the domain's read paths (`findOne({ auctionId })`, `auction.bids`, `sellerUsername`) address nonexistent columns. Table is empty — zero listings have ever persisted. The $inc economy fixes (listing fee, buyout, payout) are real but reach a table that listings can't enter. Needs a feature-level rebuild: either map the domain doc into the table (new columns + bid storage) or rewrite the service on drizzle. | 2026-09-04 (SESSION-2026-09-04-002) | Open (feature-level work; operator decision needed on approach) |
+| 25 | **Auction persistence never worked on pg.** The domain doc written by `auctionService` (`auctionId`, `sellerUsername`, `item`, `bids[]`, `startingBid`, …) shares no keys with the pivot `auctions` table (`id` varchar(24) PK, `seller_id` varchar(20) NOT NULL, `item_data` jsonb, `starting_price`, …): every insert violates NOT NULL (seller_id) and the domain's read paths (`findOne({ auctionId })`, `auction.bids`, `sellerUsername`) address nonexistent columns. Table is empty — zero listings have ever persisted. The $inc economy fixes (listing fee, buyout, payout) are real but reach a table that listings can't enter. Needs a feature-level rebuild: either map the domain doc into the table (new columns + bid storage) or rewrite the service on drizzle. **→ Update 2026-09-14 (SESSION-2026-09-14-002): the row was STALE — the rebuild already landed (migration 0008 `doc` jsonb domain bridge + mirrored columns; shim `syncAuctionDocFields`/`shapeRowAuctions` doc⇄column sync, "completes the #25 seam"; FID-20260912-065 escrow + settlement engine, tested and job-wired). Five residual defects (buyout forfeits the outbid leader's escrow; TradeableItem listings accepted but can never deliver; unit escrow a silent no-op; my-bids stale dot-path sort; `$pull` object-operand semantic unverified) are specified in FID-20260914-003 (status `converged`) — implementation gated on the operator's go-ahead. → Update 2026-09-14 (SESSION-2026-09-14-003): IMPLEMENTED — buyout claim-first close with pair-guarded leader refund, unit escrow via snapshot + array-rebuild, tradeable create gate, my-bids in-route ordering; the `$pull` probe proved the shim's `$pull` SQL invalid on this engine (no `jsonb - jsonb`) and the `jsonb_agg` rewrite is banked for the shim-hardening follow-up. Gates: tsc 0 · eslint 0 · vitest 747/1 skipped/0 fail. FID status `verified`; closes on commit (G2).** | 2026-09-04 (SESSION-2026-09-04-002); corrected + implemented 2026-09-14 | Closed (resolved by FID-20260914-003 implementation; FID closes on commit per G2) |
 | 29 | Pre-existing U+FFFD mojibake in ~14 docs/archive files (decorative prose emoji mangled, e.g. `## �🔴`, `Status: � HIGH`) — cosmetic doc damage, zero runtime impact | 2026-09-07 (session 001) | Out of current scope; batch doc cleanup is an operator decision |
 | 31 | ~~**FundDistributionPanel PERCENTAGE/DIRECT_GRANT requests don't match the distribute route contract**~~ **→ RESOLVED 2026-09-07 (session 005, operator-approved):** request building rewritten to the route contract — PERCENTAGE sends `percentageMap` (username→percentage; service resolves keys as usernames and enforces Σ=100), DIRECT_GRANT sends `grants: [{playerId: username, [resourceType]: amount}]`. Verified against `distributeByPercentage`/`directGrant` signatures before writing; tsc 0, file eslint 0 | 2026-09-07 (session 004) | Closed (resolved) |
 | 32 | ~~**`components/clan/JoinClanModal.tsx` types its state `Clan[]` but feeds it the `/api/clan/search` DTO**~~ **→ RESOLVED 2026-09-07 (session 005, operator-directed):** retyped to `ClanSearchResult` (the search route's documented DTO); 4 crash sites fixed (`clan.members.length` ×3 → `memberCount`, `clan.level.currentLevel` → `level`, `clan.stats.totalPower` → `tag`, `clan.members.find(...)` → `leaderUsername`); dead gates removed (`settings?.minLevelToJoin` — not in DTO; level gate is server-enforced on join); join request aligned to the route's auth-based contract (no `username` in body). **Residual:** the modal's filter UI (name/minLevel/maxLevel/minMembers/maxMembers/publicOnly) sends params the route ignores (route only reads `q`/`page`/`limit`) — filters are decorative until the route grows those parameters | 2026-09-07 (session 004) | Closed (resolved); filter-param gap recorded as #35 |
@@ -668,6 +757,12 @@ Every step of the approved plan carries an explicit status (`implemented | block
 | Session 2026-09-07 (006): latent defect fixed via typing — `getPlayerGameState` read phantom `factories.units`/`factories.tier` columns (always undefined → unitCounts always `{}`, every factory tier 'WEAK'); now counts `players.units` (real PlayerUnit[] jsonb) and derives tier from the documented level band | implemented |
 | Session 2026-09-08 (001): #36 batch 1 — clanDistributionService 21 `any` sites remediated (typed column maps + boundary helpers from the survived session-006 edit) and completed with a boundary-typed row mapper + validating jsonb parse + payload guards; role literals → `ClanRole` | implemented (tsc 0; file eslint 0; vitest 354/0/1 — see SESSION-2026-09-08-001) |
 | Session 2026-09-08 (001): nn-anycensus.mjs collision bug repaired (set → accumulate, full-path key); baseline corrected 322 → 369 (broken-tool understatement) | implemented (cross-validated: fixed tool 348 = raw eslint 348) |
+| Session 2026-09-14 (001): WIP audit — every modified file attributed to its FID; pre-stream FID-093b/vitest-fix work identified and left intact | implemented |
+| Session 2026-09-14 (001): flagBotManager column-0 brace + vercel.json indent corruptions repaired (grep + JSON-parse verified) | implemented |
+| Session 2026-09-14 (001): garrison size floor aligned to the FID contract (GARRISON_SIZE_FLOOR = 8); BASE_RAID_BALANCE.md HP knob corrected to derived-10 | implemented |
+| Session 2026-09-14 (001): issue 4 UI half wired (FlagTrackerPanel Drop button + game-page handleFlagDrop) | implemented (tsc 0; eslint 0; vitest 736/1/0) |
+| Session 2026-09-14 (002): SCOPE #25 ground-truth verification + ledger correction (rebuild exists; row annotated) | implemented |
+| Session 2026-09-14 (002): FID-20260914-003 written + Perfection Loop to `converged` (five residual defects; GREEN = seam completion; audit pass on loop 1) | implemented (gates re-verified: tsc 0, eslint 0, vitest 736/1/0) |
 
 Verification evidence for the `implemented` statuses is recorded in
 `dev/session-summaries/SESSION-2026-09-01-001.md` and `dev/session-summaries/SESSION-2026-09-02-001.md`.

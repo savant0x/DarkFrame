@@ -4,7 +4,7 @@
  * @overview Auction House type definitions for P2P trading system
  */
 
-import { UnitType } from './game.types';
+import { UnitType, PlayerUnit } from './game.types';
 
 /**
  * Types of items that can be auctioned
@@ -51,6 +51,16 @@ export interface AuctionItem {
   
   // For tradeable items
   tradeableItemQuantity?: number;
+
+  /**
+   * Escrow snapshot of the listed unit (FID-20260914-003). Captured at listing
+   * time — the unit leaves the seller's `units` array when the listing is
+   * created, so this frozen copy is the only record of the goods in escrow and
+   * the source of truth for delivery and refunds. Absent on legacy listings
+   * created before unit escrow shipped (those fall back to a seller-side
+   * lookup at transfer time).
+   */
+  unitSnapshot?: PlayerUnit;
 }
 
 /**
