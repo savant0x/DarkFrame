@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/admin/jobs-status.test.ts
  * @overview FID-20260909-035 jobs-status panel + FID-20260909-036 lifecycle

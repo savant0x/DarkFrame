@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * beerBaseService Tests
  * Created: 2025-10-23

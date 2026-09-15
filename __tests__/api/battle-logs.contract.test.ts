@@ -21,13 +21,21 @@ import { NextRequest } from 'next/server';
 
 const { mockDb } = vi.hoisted(() => {
   const mockDb = {
-    // select() with NO args = the rows query (chains where→orderBy→limit→offset);
-    // select({count}) = the count query (awaits .where() directly — no orderBy).
+    // select() with NO args or a multi-key projection = the rows query (chains
+    // where→orderBy→limit→offset); select({count}) = the count query (awaits
+    // .where() directly — no orderBy). The one-key {count} projection is the
+    // discriminator (the rows projection carries the page's ~27 mapped fields).
     __isCount: false,
     __rows: [] as unknown[],
     __count: 0,
+    __projections: [] as unknown[],
     select: (projection?: unknown) => {
-      mockDb.__isCount = projection != null;
+      mockDb.__projections.push(projection);
+      mockDb.__isCount =
+        projection != null &&
+        typeof projection === 'object' &&
+        Object.keys(projection as object).length === 1 &&
+        'count' in (projection as object);
       return mockDb;
     },
     from: () => mockDb,
@@ -146,6 +154,7 @@ beforeEach(() => {
   mockDb.__rows = [];
   mockDb.__count = 0;
   mockDb.__isCount = false;
+  mockDb.__projections = [];
 });
 
 describe('GET /api/battle-logs ⇄ battle-logs page contract (FID-080)', () => {
@@ -222,5 +231,46 @@ describe('GET /api/battle-logs ⇄ battle-logs page contract (FID-080)', () => {
   it('validation: missing username and bad type are 400s the page never sees', async () => {
     expect((await GET(request('type=attack'))).status).toBe(400);
     expect((await GET(request('username=fame&type=nonsense'))).status).toBe(400);
+  });
+
+  // ── Perf contract (2026-09-14): SELECT * toasted the giant report columns ─
+  // attacker_units ≈ 48 KB and defender_units up to ~125 KB compressed per row
+  // made every page fetch ~19 s on a 26-row table. The rows query must project
+  // only the mapped fields — never the three giants.
+  it('rows projection excludes the giant report columns (attackerUnits/defenderUnits/rounds)', async () => {
+    scriptDb([dbRow()], 1);
+    await GET(request('username=fame&type=attack&page=1&limit=20'));
+    const rowsProjection = mockDb.__projections.find(
+      (p) => p !== null && typeof p === 'object' && Object.keys(p as object).length > 1
+    ) as Record<string, unknown> | undefined;
+    expect(rowsProjection).toBeDefined();
+    for (const giant of ['attackerUnits', 'defenderUnits', 'rounds']) {
+      expect(giant in (rowsProjection as object)).toBe(false);
+    }
+  });
+
+  it('captured-unit documents collapse to per-type summaries (raw arrays hit 242 KB/log)', async () => {
+    const unit = (id: string) => ({ id, unitType: 'INFANTRY', type: 'INFANTRY', owner: 'fame', strength: 100, defense: 0 });
+    scriptDb(
+      [dbRow({ unitsCapturedDefenderCaptured: [unit('a'), unit('b'), { id: 'c', type: 'SCOUT' }], unitsCapturedAttackerCaptured: null })],
+      1
+    );
+    const res = await GET(request('username=fame&type=attack&page=1'));
+    const body = await res.json();
+    // Page renders only .length ("N unit group(s)") — groups keep the count truthful.
+    expect(body.logs[0].defenderUnitsCaptured).toEqual([
+      { unitType: 'INFANTRY', count: 2 },
+      { unitType: 'SCOUT', count: 1 },
+    ]);
+    expect(body.logs[0].attackerUnitsCaptured).toEqual([]);
+  });
+
+  it('land-mines: honest empty envelope with NO database query (no writer yet)', async () => {
+    scriptDb([dbRow()], 1); // would leak rows if the short-circuit were bypassed
+    const res = await GET(request('username=fame&type=land-mines&page=1'));
+    const body = await res.json();
+    expectEnvelopeMatchesPageContract(body, 'land-mines');
+    expect(body.logs).toEqual([]);
+    expect(mockDb.__projections).toHaveLength(0); // short-circuit never touched the db
   });
 });

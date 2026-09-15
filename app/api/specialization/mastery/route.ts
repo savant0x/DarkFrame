@@ -160,6 +160,16 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       });
     }
 
+    // FID-20260914-008 Phase 2: mastery XP is EARNED server-side (+10 per
+    // doctrine-matching unit build, +25 per battle won — the stat-tracking hooks).
+    // The old shape let any authenticated session grant itself unbounded XP
+    // (audit item 3, open exploit); the direct POST is now admin-only.
+    if (!user.isAdmin) {
+      return createErrorResponse(ErrorCode.ADMIN_ACCESS_REQUIRED, {
+        message: 'Mastery XP is granted automatically by building specialized units and winning battles.'
+      });
+    }
+
     const username = user.username;
 
     // Validate request

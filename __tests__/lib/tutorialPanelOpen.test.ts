@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-094 — OPEN_PANEL wiring tests.
  *

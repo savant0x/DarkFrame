@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/research/rp-unlock.test.ts
  * @overview FID-20260909-029 §2.2 regression — the /api/research Mongo-zombie

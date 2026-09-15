@@ -9,7 +9,15 @@
 
 import '@testing-library/jest-dom';
 import { vi, afterAll } from 'vitest';
-import { TextEncoder as NodeTextEncoder, TextDecoder as NodeTextDecoder } from 'util';
+// FID-20260913-001: NO node-builtin import may live in this file. Under the
+// jsdom environment, vite's browser-compat layer externalizes node builtins to
+// the stub id "__vite-browser-external"; vitest 4.1.2's toBuiltin() reverse-maps
+// that stub via id.slice(24) → "" and returns the literal specifier "node:",
+// which Node rejects — every jsdom suite then dies at collection with
+// "No such built-in module: node:" (75/76 files). Both the bare 'util' and the
+// prefixed 'node:util' forms hit the same path (verified: the externalization
+// warning names the import either way). The old TextEncoder/TextDecoder
+// polyfill was therefore removed — see the marker below.
 
 // Set test environment
 (process.env as Record<string, string>).NODE_ENV = 'test';
@@ -42,14 +50,11 @@ Object.assign(globalThis, {
   },
 });
 
-// Polyfill TextEncoder/TextDecoder for jsdom environment
-const globalWithEncoders = globalThis as Record<string, unknown>;
-if (!globalWithEncoders.TextEncoder) {
-  globalWithEncoders.TextEncoder = NodeTextEncoder;
-}
-if (!globalWithEncoders.TextDecoder) {
-  globalWithEncoders.TextDecoder = NodeTextDecoder;
-}
+// TextEncoder/TextDecoder polyfill REMOVED (FID-20260913-001): Node has shipped
+// both as globals since v11 and the jsdom environment does not remove them, so
+// the `if (!globalThis.TextEncoder)` guard could never fire — the polyfill was
+// dead weight on this toolchain, while its 'util' import killed every jsdom
+// suite at collection (see the FID note above).
 
 // In-memory MongoDB is OPT-IN (TEST_MONGO_MEMORY=1).
 // The runtime DB is the compat layer over drizzle (DATABASE_URL) — nothing in the

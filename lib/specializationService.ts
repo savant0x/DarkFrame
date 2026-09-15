@@ -21,7 +21,7 @@
 
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { eq, sql, and, gte } from 'drizzle-orm';
+import { eq, sql, and, gte, inArray } from 'drizzle-orm';
 import { logger } from './logger';
 import { triggerAchievementCheck } from './statTrackingService';
 
@@ -129,6 +129,122 @@ export const MASTERY_MILESTONES = {
   75: { bonusPercent: 15, description: '+15% bonus stats, 4th specialized unit unlocked' },
   100: { bonusPercent: 20, description: '+20% bonus stats, 5th specialized unit unlocked, prestige available' }
 };
+
+/**
+ * FID-20260914-008 Phase 2 (economy knobs, pinned per the converged plan):
+ * server-side mastery XP per matching-category unit build / battle won.
+ * At 100 XP/level: a build every ~10 units climbs one level, a battle won
+ * every 4 — small, tunable, and only reachable by playing.
+ */
+export const MASTERY_XP_UNIT_BUILD = 10;
+export const MASTERY_XP_BATTLE_WON = 25;
+
+/**
+ * FID-20260914-008 Phase 1: the effective doctrine bonuses a player's
+ * specialization grants, resolved ONCE and consumed at exactly the seams the
+ * converged plan names (never baked into stored unit stats — respec-safe):
+ *
+ *   - `strMul`/`defMul`: army power / combat resolution (multiplicative on the
+ *     aggregate, joining the existing bonus stack — see resolveBattle).
+ *   - `metalCostMul`/`energyCostMul`: unit build cost (all three cost sites).
+ *
+ * Mastery amplifies the STAT multipliers only (milestones +5/+10/+15/+20%,
+ * highest-reached applies), never the cost discounts — the config's own
+ * milestone text scopes the bonus to "specialized units" stats.
+ */
+export interface DoctrineBonuses {
+  strMul: number;
+  defMul: number;
+  metalCostMul: number;
+  energyCostMul: number;
+}
+
+export const NEUTRAL_DOCTRINE_BONUSES: DoctrineBonuses = {
+  strMul: 1,
+  defMul: 1,
+  metalCostMul: 1,
+  energyCostMul: 1,
+};
+
+export function masteryAmplificationPercent(masteryLevel: number): number {
+  let bonus = 0;
+  for (const [threshold, milestone] of Object.entries(MASTERY_MILESTONES)) {
+    if (masteryLevel >= Number(threshold)) {
+      bonus = Math.max(bonus, milestone.bonusPercent);
+    }
+  }
+  return bonus;
+}
+
+export function getDoctrineBonuses(specialization: unknown): DoctrineBonuses {
+  const spec = specialization as Specialization | null;
+  const doctrine = spec?.doctrine;
+  if (!doctrine || doctrine === SpecializationDoctrine.None) {
+    return NEUTRAL_DOCTRINE_BONUSES;
+  }
+  // The config's bonuses are a per-doctrine union (Offensive/Defensive/Tactical
+  // each carry a different key set) — resolve through an explicit partial record
+  // so every axis reads as number | undefined and falls back to neutral.
+  const bonuses: Partial<Record<
+    'strengthMultiplier' | 'defenseMultiplier' | 'balancedMultiplier' | 'metalCostMultiplier' | 'energyCostMultiplier',
+    number
+  >> | undefined = SPECIALIZATION_CONFIG[doctrine as keyof typeof SPECIALIZATION_CONFIG]?.bonuses;
+  if (!bonuses) {
+    return NEUTRAL_DOCTRINE_BONUSES;
+  }
+  const amp = 1 + masteryAmplificationPercent(spec?.masteryLevel ?? 0) / 100;
+  // Tactical's balancedMultiplier applies to BOTH stat axes; Offensive/Defensive
+  // each boost their own. Unknown keys fall back to neutral per axis.
+  const strBase = bonuses.strengthMultiplier ?? bonuses.balancedMultiplier ?? 1;
+  const defBase = bonuses.defenseMultiplier ?? bonuses.balancedMultiplier ?? 1;
+  return {
+    strMul: strBase * amp,
+    defMul: defBase * amp,
+    metalCostMul: bonuses.metalCostMultiplier ?? 1,
+    energyCostMul: bonuses.energyCostMultiplier ?? 1,
+  };
+}
+
+/**
+ * Slim single-column read for the cost seams (build routes / produceUnit): one
+ * select of the specialization column, resolved through getDoctrineBonuses.
+ *
+ * Fail-soft to NEUTRAL bonuses: the doctrine bonus stack joins the same class
+ * as resolveBattle's flag check — an unreadable specialization (db hiccup,
+ * scripted test harness) must never fail a build or battle. FID-20260914-008
+ * Phase 1; mirrors the statTrackingService mastery hooks' catch idiom.
+ */
+export async function getPlayerDoctrineBonuses(username: string): Promise<DoctrineBonuses> {
+  try {
+    const rows = await db
+      .select({ specialization: players.specialization })
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1);
+    return getDoctrineBonuses(rows[0]?.specialization ?? null);
+  } catch {
+    return NEUTRAL_DOCTRINE_BONUSES;
+  }
+}
+
+/**
+ * Batch read for the combat seam (resolveBattle resolves both sides in one query).
+ * Missing players simply resolve neutral.
+ */
+export async function getDoctrineBonusesForUsernames(
+  usernames: string[]
+): Promise<Record<string, DoctrineBonuses>> {
+  const out: Record<string, DoctrineBonuses> = {};
+  if (usernames.length === 0) return out;
+  const rows = await db
+    .select({ username: players.username, specialization: players.specialization })
+    .from(players)
+    .where(inArray(players.username, usernames));
+  for (const r of rows) {
+    out[r.username] = getDoctrineBonuses(r.specialization);
+  }
+  return out;
+}
 
 /**
  * Check if player can choose a specialization
@@ -259,7 +375,11 @@ export async function chooseSpecialization(
   };
 
   await db.update(players).set({
-    rpHistory: sql`JSON_ARRAY_APPEND(COALESCE(${players.rpHistory}, '[]'), '$', ${JSON.stringify(rpHistoryEntry)})`
+    // FID-20260914-008 Phase 0: the MySQL JSON_ARRAY_APPEND remnant cannot execute
+    // on Postgres ("JSON_ARRAY_APPEND(...) does not exist") — every choose 500'd
+    // AFTER deducting RP and applying the doctrine (partial-apply, live-probed).
+    // pg jsonb append per the in-repo precedent (referralService referralTitles).
+    rpHistory: sql`coalesce(${players.rpHistory}, '[]'::jsonb) || ${JSON.stringify([rpHistoryEntry])}::jsonb`
   }).where(eq(players.username, playerId));
 
   logger.success('Specialization chosen', { username: playerId, doctrine, rpSpent: config.unlockCost });
@@ -414,7 +534,9 @@ export async function respecSpecialization(
     }
   };
 
-  // Update specialization (keep mastery progress, reset to 0 for new spec)
+  // Update specialization (FID-20260914-008 Phase 3: comment fixed — mastery
+  // progress RESETS on respec, it is not kept; the respecialization starts a
+  // fresh mastery grind for the new doctrine).
   const updatedSpecialization: Specialization = {
     doctrine: newDoctrine,
     selectedAt: new Date(),
@@ -457,6 +579,19 @@ export async function respecSpecialization(
   const updatedPlayer = updatedPlayerRows[0];
   const updatedResources = updatedPlayer ? { metal: Number(updatedPlayer.resourcesMetal), energy: Number(updatedPlayer.resourcesEnergy) } : null;
 
+  // FID-20260914-008 Phase 3: respec writes its rpHistory ledger entry (the
+  // ledger hole from the audit table, item 8) — same pg jsonb append as the
+  // choose flow, keyed to the post-deduction balance.
+  const respecRpEntry = {
+    amount: -RESPEC_CONFIG.rpCost,
+    reason: `Respec: ${oldConfig.name} → ${newConfig.name}`,
+    timestamp: new Date(),
+    balance: updatedPlayer?.researchPoints || 0
+  };
+  await db.update(players).set({
+    rpHistory: sql`coalesce(${players.rpHistory}, '[]'::jsonb) || ${JSON.stringify([respecRpEntry])}::jsonb`
+  }).where(eq(players.username, playerId));
+
   return {
     success: true,
     message: `Successfully respecialized from ${oldConfig.name} to ${newConfig.name}!`,
@@ -478,7 +613,8 @@ export async function respecSpecialization(
 export async function awardMasteryXP(
   playerId: string,
   xpAmount: number,
-  reason: string
+  reason: string,
+  counter?: { field: 'totalUnitsBuilt' | 'totalBattlesWon'; by: number }
 ): Promise<{
   success: boolean;
   message: string;
@@ -521,6 +657,18 @@ export async function awardMasteryXP(
     }
   }).where(eq(players.username, playerId));
 
+  // FID-20260914-008 Phase 2: the doctrine counters on the doc (totalUnitsBuilt /
+  // totalBattlesWon) finally accrue — atomic jsonb_set increment, not read-modify-write.
+  if (counter && counter.by > 0) {
+    await db.update(players).set({
+      specialization: sql`jsonb_set(
+        coalesce(${players.specialization}, '{}'::jsonb),
+        {${counter.field}},
+        coalesce((coalesce(${players.specialization}, '{}'::jsonb)->>'${counter.field}')::int, 0) + ${counter.by}
+      )`
+    }).where(eq(players.username, playerId));
+  }
+
   // Check achievements if mastery level changed or hit 100%
   if (leveledUp || newMasteryLevel === 100) {
     await triggerAchievementCheck(playerId);
@@ -545,6 +693,44 @@ export async function awardMasteryXP(
     leveledUp,
     milestonesReached
   };
+}
+
+/**
+ * FID-20260914-008 Phase 2: build-category mastery gate. Only builds matching the
+ * doctrine's unit focus earn mastery XP — Offensive = strength units, Defensive =
+ * defense units, Tactical = balanced doctrine (every build counts). Callers that
+ * don't know the category (legacy hooks) default to matching: the XP is
+ * server-granted and bounded by real builds, so the default is a generosity
+ * choice, not an exploit surface.
+ */
+export async function awardBuildMasteryXP(
+  playerId: string,
+  quantity: number,
+  xpPerUnit: number,
+  unitCategory?: 'strength' | 'defense'
+): Promise<{ success: boolean; message: string }> {
+  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const spec = playerRows[0]?.specialization as Specialization | null;
+  const doctrine = spec?.doctrine;
+  if (!doctrine || doctrine === SpecializationDoctrine.None) {
+    return { success: false, message: 'Player has no specialization' };
+  }
+  const matches
+    = doctrine === SpecializationDoctrine.Tactical
+      ? true // balanced doctrine: hybrid units all count
+      : doctrine === SpecializationDoctrine.Offensive
+        ? unitCategory === 'strength'
+        : doctrine === SpecializationDoctrine.Defensive
+          ? unitCategory === 'defense'
+          : unitCategory === undefined; // unknown doctrine shape: legacy default
+  if (!matches) {
+    return { success: false, message: 'Unit category does not match the doctrine focus' };
+  }
+  const result = await awardMasteryXP(playerId, xpPerUnit * quantity, 'specialized units built', {
+    field: 'totalUnitsBuilt',
+    by: quantity,
+  });
+  return { success: result.success, message: result.message };
 }
 
 /**

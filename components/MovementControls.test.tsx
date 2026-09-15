@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import MovementControls from './MovementControls';
 import { useGameContext } from '@/context/GameContext';
@@ -336,6 +336,46 @@ describe('MovementControls', () => {
       fireEvent.click(refreshButton);
       
       expect(mockMovePlayer).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Troop Transport toggle (FID-20260914-001)', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('hides the toggle when the tech is not owned', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        json: async () => ({ success: true, unlockedTechnologies: ['advanced-mining'] }),
+      }));
+      render(<MovementControls />);
+      await waitFor(() =>
+        expect(screen.queryByTitle(/Troop Transport/i)).not.toBeInTheDocument()
+      );
+    });
+
+    it('shows the toggle for owners and switches move range on click', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+        json: async () => ({ success: true, unlockedTechnologies: ['troop-transport'] }),
+      }));
+      render(<MovementControls />);
+      const toggle = await screen.findByTitle(/Troop Transport/i);
+
+      // Owned but inactive: 1-space moves (steps omitted, server default)
+      fireEvent.click(screen.getByTitle(/North \(/i));
+      expect(mockMovePlayer).toHaveBeenLastCalledWith(MovementDirection.North);
+
+      // Activate: 5-space moves
+      fireEvent.click(toggle);
+      expect(toggle.getAttribute('aria-pressed')).toBe('true');
+      fireEvent.click(screen.getByTitle(/North \(/i));
+      expect(mockMovePlayer).toHaveBeenLastCalledWith(MovementDirection.North, 5);
+
+      // Deactivate: back to 1-space moves
+      fireEvent.click(toggle);
+      expect(toggle.getAttribute('aria-pressed')).toBe('false');
+      fireEvent.click(screen.getByTitle(/North \(/i));
+      expect(mockMovePlayer).toHaveBeenLastCalledWith(MovementDirection.North);
     });
   });
 });

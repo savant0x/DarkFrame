@@ -43,10 +43,14 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
 
     const milestones = await Promise.all(
       milestoneThresholds.map(async (threshold) => {
+        // FID-20260914-008 Phase 3: MySQL JSON_EXTRACT cannot execute on this
+        // Postgres engine (same dead-SQL class as the shim's legacy $pull) —
+        // replaced with the pg jsonb equivalent over the writer's actual shape
+        // (metadata JSON-stringified, threshold under key 'threshold').
         const result = await db.execute(sql`
           SELECT COUNT(*) as count FROM rpTransactions
           WHERE source = 'harvest_milestone'
-            AND JSON_EXTRACT(metadata, '$.threshold') = ${threshold}
+            AND (metadata->>'threshold')::int = ${threshold}
         `);
 
         const completions = (result as unknown as Array<{ count?: number }>)[0]?.count || 0;

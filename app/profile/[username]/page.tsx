@@ -206,13 +206,35 @@ export default function PublicProfilePage() {
           )}
         </Section>
 
-        {/* Combat record */}
+        {/* Combat record — FID-20260914-007: live-computed from battle_logs;
+            panel layout mirrors ProfileView's Battle Statistics wells. */}
         {profile.battleStats ? (
-          <Section title="Combat Record" meta="Raw Ledger">
-            <div className="nn-well flex-col items-stretch">
-              <pre className="text-xs nn-text-secondary whitespace-pre-wrap font-mono">
-                {JSON.stringify(profile.battleStats, null, 2)}
-              </pre>
+          <Section title="Combat Record" meta="Lifetime Combat Record">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="nn-well flex-col items-stretch">
+                <div className="nn-stat__lab mb-2">Infantry Battles</div>
+                <p className="nn-num font-bold text-[color:var(--nn-text-primary)]">
+                  {profile.battleStats.infantryAttacks.initiated} initiated
+                </p>
+                <p className="nn-footnote nn-text-green">{profile.battleStats.infantryAttacks.won} won</p>
+                <p className="nn-footnote nn-text-magenta">{profile.battleStats.infantryAttacks.lost} lost</p>
+              </div>
+              <div className="nn-well flex-col items-stretch">
+                <div className="nn-stat__lab mb-2">Base Attacks</div>
+                <p className="nn-num font-bold text-[color:var(--nn-text-primary)]">
+                  {profile.battleStats.baseAttacks.initiated} initiated
+                </p>
+                <p className="nn-footnote nn-text-green">{profile.battleStats.baseAttacks.won} won</p>
+                <p className="nn-footnote nn-text-magenta">{profile.battleStats.baseAttacks.lost} lost</p>
+              </div>
+              <div className="nn-well flex-col items-stretch">
+                <div className="nn-stat__lab mb-2">Base Defenses</div>
+                <p className="nn-num font-bold text-[color:var(--nn-text-primary)]">
+                  {profile.battleStats.baseDefenses.total} total
+                </p>
+                <p className="nn-footnote nn-text-green">{profile.battleStats.baseDefenses.won} defended</p>
+                <p className="nn-footnote nn-text-magenta">{profile.battleStats.baseDefenses.lost} breached</p>
+              </div>
             </div>
           </Section>
         ) : null}

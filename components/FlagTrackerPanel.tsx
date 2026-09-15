@@ -60,6 +60,9 @@ interface FlagTrackerPanelProps {
   /** Callback when viewer (challenger) claims at channel end */
   onClaim?: () => void;
 
+  /** FID-20260914-002 Issue 4: callback when the bearer drops the Flag voluntarily */
+  onDrop?: () => void;
+
   /** Compact mode for mobile */
   compact?: boolean;
 
@@ -123,6 +126,7 @@ export default function FlagTrackerPanel({
   onChallenge,
   onFlee,
   onClaim,
+  onDrop,
   compact = false,
   playerUsername
 }: FlagTrackerPanelProps) {
@@ -330,6 +334,22 @@ export default function FlagTrackerPanel({
                 are <b>disabled</b>. Harvesting, movement, and shrine boosts stay enabled.
               </span>
             </div>
+
+            {/* FID-20260914-002 Issue 4: voluntary drop — bearer-only action.
+                Hidden during an active steal channel (the channel owns the
+                flag's fate; flee/auto-loss settles it). The server mirrors the
+                bearer-only gate. */}
+            {!challenge && (
+              <button
+                onClick={() => onDrop && onDrop()}
+                className="nn-btn nn-btn--ghost"
+                style={{ width: 'calc(100% - 24px)', margin: '0 12px 8px' }}
+                title="Drop the Flag at your position — it becomes unclaimed (first claim wins) and all bearer bonuses end"
+              >
+                <Flag />
+                Drop the Flag
+              </button>
+            )}
 
             {/* Hold duration */}
             <div className="nn-row">

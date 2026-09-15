@@ -20,6 +20,7 @@ import { Factory, AttackResult, Unit, UnitType, InventoryItem, TutorialInventory
 import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
 import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';
+import { getPlayerDoctrineBonuses } from './specializationService';
 
 const ATTACK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between attacks
 const UNIT_COST_METAL = 100;
@@ -251,9 +252,14 @@ export async function calculatePlayerPower(username: string): Promise<number> {
   power += (p.rank || 1) * 10;
   
   // Add power from player's total military strength (PRIMARY POWER SOURCE)
-  // totalStrength comes from all units' STR stats combined
+  // totalStrength comes from all units' STR stats combined.
+  // FID-20260914-008 Phase 1: the doctrine STR multiplier joins this term
+  // (Offensive/Tactical raise effective power; Defensive's DEF bonus applies at
+  // the battle-resolution seam instead — resolveBattle — since power here has
+  // never counted DEF). Mastery amplification is baked into the multiplier.
   if (p.totalStrength) {
-    power += p.totalStrength;
+    const doctrine = await getPlayerDoctrineBonuses(username);
+    power += Math.floor(p.totalStrength * doctrine.strMul);
   }
   
   // Add power from units held in inventoryItems (secondary bonus)
@@ -508,11 +514,17 @@ export async function produceUnit(
   
   const player = playerResult[0];
   
+  // FID-20260914-008 Phase 1: doctrine cost discounts apply here too — produceUnit
+  // is one of the three cost seams named by the converged plan.
+  const doctrine = await getPlayerDoctrineBonuses(username);
+  const metalCost = Math.max(1, Math.ceil(UNIT_COST_METAL * doctrine.metalCostMul));
+  const energyCost = Math.max(1, Math.ceil(UNIT_COST_ENERGY * doctrine.energyCostMul));
+  
   // Check resources
-  if ((player.resourcesMetal || 0) < UNIT_COST_METAL || (player.resourcesEnergy || 0) < UNIT_COST_ENERGY) {
+  if ((player.resourcesMetal || 0) < metalCost || (player.resourcesEnergy || 0) < energyCost) {
     return {
       success: false,
-      message: `Insufficient resources. Need ${UNIT_COST_METAL} Metal and ${UNIT_COST_ENERGY} Energy`
+      message: `Insufficient resources. Need ${metalCost} Metal and ${energyCost} Energy`
     };
   }
   
@@ -531,8 +543,8 @@ export async function produceUnit(
   const inventory = parseInventory(player.inventoryItems);
   inventory.push(unit);
 
-  const newMetal = BigInt(player.resourcesMetal || 0) - BigInt(UNIT_COST_METAL);
-  const newEnergy = BigInt(player.resourcesEnergy || 0) - BigInt(UNIT_COST_ENERGY);
+  const newMetal = BigInt(player.resourcesMetal || 0) - BigInt(metalCost);
+  const newEnergy = BigInt(player.resourcesEnergy || 0) - BigInt(energyCost);
 
   await db.update(players)
     .set({
@@ -560,7 +572,7 @@ export async function produceUnit(
   
   return {
     success: true,
-    message: `Unit produced successfully!\n\nCost: ${UNIT_COST_METAL} Metal + ${UNIT_COST_ENERGY} Energy\nSlots used: ${currentUsedSlots + 1}/${factory.slots}`,
+    message: `Unit produced successfully!\n\nCost: ${metalCost} Metal + ${energyCost} Energy\nSlots used: ${currentUsedSlots + 1}/${factory.slots}`,
     unit
   };
 }

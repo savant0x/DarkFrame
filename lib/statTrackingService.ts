@@ -69,6 +69,19 @@ export async function trackBattleWon(playerId: string) {
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
+
+  // FID-20260914-008 Phase 2: earnable mastery — every battle won grants
+  // server-side mastery XP (never client-granted). Dynamic import: the
+  // specialization service statically imports THIS module (triggerAchievementCheck).
+  try {
+    const { awardMasteryXP, MASTERY_XP_BATTLE_WON } = await import('./specializationService');
+    await awardMasteryXP(playerId, MASTERY_XP_BATTLE_WON, 'battle won', {
+      field: 'totalBattlesWon',
+      by: 1,
+    });
+  } catch {
+    // Mastery XP is never load-bearing for the battle result.
+  }
 }
 
 /**
@@ -76,8 +89,15 @@ export async function trackBattleWon(playerId: string) {
  * 
  * @param playerId - Player username
  * @param quantity - Number of units built
+ * @param unitCategory - Blueprint category of the built unit ('strength'/'defense')
+ *   — mastery XP only accrues for units matching the player's doctrine (Offensive
+ *   = strength, Defensive = defense, Tactical = balanced units, i.e. any build).
  */
-export async function trackUnitBuilt(playerId: string, quantity: number = 1) {
+export async function trackUnitBuilt(
+  playerId: string,
+  quantity: number = 1,
+  unitCategory?: 'strength' | 'defense'
+) {
   await ensureStatsExist(playerId);
   
   const playersCollection = await getCollection('players');
@@ -88,6 +108,16 @@ export async function trackUnitBuilt(playerId: string, quantity: number = 1) {
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
+
+  // FID-20260914-008 Phase 2: earnable mastery — +10 per matching-category unit.
+  // Tactical counts every build (balanced doctrine); matching is decided inside
+  // the service so the doctrine table stays the single source of truth.
+  try {
+    const { awardBuildMasteryXP, MASTERY_XP_UNIT_BUILD } = await import('./specializationService');
+    await awardBuildMasteryXP(playerId, quantity, MASTERY_XP_UNIT_BUILD, unitCategory);
+  } catch {
+    // Mastery XP is never load-bearing for the build result.
+  }
 }
 
 /**

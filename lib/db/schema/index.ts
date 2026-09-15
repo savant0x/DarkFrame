@@ -58,3 +58,4 @@ export {
   beerBaseSpawnEvents,
   beerBaseDefeatEvents,
 } from './config';
+export { playerLevelHistory } from './playerHistory';

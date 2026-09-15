@@ -32,25 +32,29 @@ export async function GET(request: NextRequest) {
     logger.info('Starting daily player snapshot...');
 
     const db = await connectToDatabase();
-    const playersCollection = db.collection<Player & { _id: string; level?: number }>('players');
+    const playersCollection = db.collection<Player & { _id: string; username: string; level?: number }>('players');
 
-    // Get all active players (logged in within last 30 days)
+    // FID-20260914-009 Phase B: the old filter used `lastActive` — a field no
+    // players column stores, so the shim matched nothing and the cron found 0
+    // players every run (compounding the unmapped-collection insert loss).
+    // The real activity column is last_login_date (players.lastLoginDate).
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const activePlayers = await playersCollection.find({
-      lastActive: { $gte: thirtyDaysAgo }
+      lastLoginDate: { $gte: thirtyDaysAgo }
     }).toArray();
 
     logger.info(`Found ${activePlayers.length} active players to snapshot`);
 
-    // Capture snapshot for each player
+    // Capture snapshot for each player — keyed by username (stable; the
+    // snapshot table's PK. The Mongo-era _id died with the pivot).
     let successCount = 0;
     let errorCount = 0;
 
     for (const player of activePlayers) {
       try {
-        await capturePlayerSnapshot(player._id.toString(), player.level);
+        await capturePlayerSnapshot(player.username, player.level);
         successCount++;
       } catch (error) {
         errorCount++;
@@ -98,13 +102,15 @@ export async function POST(_request: NextRequest) {
 
     // Re-use GET logic
     const db = await connectToDatabase();
-    const playersCollection = db.collection<Player & { _id: string; level?: number }>('players');
+    const playersCollection = db.collection<Player & { _id: string; username: string; level?: number }>('players');
 
+    // FID-20260914-009 Phase B: lastActive was a phantom field (no column);
+    // lastLoginDate is the real activity source (see GET).
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const activePlayers = await playersCollection.find({
-      lastActive: { $gte: thirtyDaysAgo }
+      lastLoginDate: { $gte: thirtyDaysAgo }
     }).toArray();
 
     let successCount = 0;
@@ -112,7 +118,7 @@ export async function POST(_request: NextRequest) {
 
     for (const player of activePlayers) {
       try {
-        await capturePlayerSnapshot(player._id.toString(), player.level);
+        await capturePlayerSnapshot(player.username, player.level);
         successCount++;
       } catch (error) {
         errorCount++;

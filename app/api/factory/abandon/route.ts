@@ -32,7 +32,13 @@
  * - Slots reset to base capacity (10)
  * - usedSlots reset to 0
  * - Defense unchanged (tile property)
- * - All player units at factory are LOST
+ *
+ * FID-20260914-009 Phase A: the former "units at the factory are lost"
+ * accounting was removed. It queried the unmapped `units` collection (every
+ * call silently no-oped on the shim) against a contract the live data
+ * contradicts: units are a global army in players.units and carry no factory
+ * stationing coordinates (0/57 players have producedAt), so there is nothing
+ * per-factory to lose. Abandon costs the factory, never the army.
  * 
  * USE CASES:
  * - Player at 10-factory limit wants to claim better location
@@ -46,7 +52,7 @@ import { verifyAuth } from '@/lib/authMiddleware';
 import { connectToDatabase } from '@/lib/mongodb';
 import { getFactoryStats, FACTORY_UPGRADE } from '@/lib/factoryUpgradeService';
 import { recountPlayerFactoryCount } from '@/lib/factoryService';
-import { Factory, Unit, Player } from '@/types/game.types';
+import { Factory } from '@/types/game.types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -76,8 +82,8 @@ export async function POST(request: NextRequest) {
     // Connect to database
     const db = await connectToDatabase();
     const factoriesCollection = db.collection<Factory>('factories');
-    const playersCollection = db.collection<Player>('players');
-    const unitsCollection = db.collection<Unit>('units');
+    // FID-20260914-009 Phase A: no players/units handles — the "units at
+    // factory" model they served never existed in the live data (see header).
 
     // Find the factory
     const factory = await factoriesCollection.findOne({
@@ -102,13 +108,6 @@ export async function POST(request: NextRequest) {
 
     // Get base stats for Level 1 factory
     const baseStats = getFactoryStats(FACTORY_UPGRADE.MIN_LEVEL);
-
-    // Count units at this factory (they will be lost)
-    const unitsAtFactory = await unitsCollection.countDocuments({
-      owner: username,
-      factoryX: factoryX,
-      factoryY: factoryY
-    });
 
     // Reset factory to unclaimed state
     const now = new Date();
@@ -137,47 +136,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Delete all units that were produced at this factory
-    // This is intentional - abandoning a factory loses all its units
-    let unitsLost = 0;
-    let strLost = 0;
-    let defLost = 0;
-
-    if (unitsAtFactory > 0) {
-      const unitsToDelete = await unitsCollection
-        .find({
-          owner: username,
-          factoryX: factoryX,
-          factoryY: factoryY
-        })
-        .toArray();
-
-      // Calculate total STR/DEF lost
-      for (const unit of unitsToDelete) {
-        strLost += unit.strength || 0;
-        defLost += unit.defense || 0;
-      }
-
-      // Delete units
-      const deleteResult = await unitsCollection.deleteMany({
-        owner: username,
-        factoryX: factoryX,
-        factoryY: factoryY
-      });
-
-      unitsLost = deleteResult.deletedCount;
-
-      // Update player's total strength and defense
-      await playersCollection.updateOne(
-        { username },
-        {
-          $inc: {
-            totalStrength: -strLost,
-            totalDefense: -defLost
-          }
-        }
-      );
-    }
+    // FID-20260914-009 Phase A: no unit deletions or STR/DEF deductions here.
+    // The old block hit the unmapped `units` collection (silent no-op: counted
+    // 0, deleted 0) and deducted totals that were never written — while the
+    // player's REAL army in players.units was never touched. Units survive
+    // abandon; the factory reset is the entire cost.
 
     // Count remaining factories owned by player — and persist the count to
     // players.factory_count, which no ownership transition used to maintain
@@ -191,21 +154,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Build response message
-    let message = `Factory abandoned successfully. You now own ${factoriesOwned}/${FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER} factories.`;
-    if (unitsLost > 0) {
-      message += ` Warning: ${unitsLost} units were lost (${strLost} STR, ${defLost} DEF).`;
-    }
+    const message = `Factory abandoned successfully. You now own ${factoriesOwned}/${FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER} factories. Your units are unaffected.`;
 
     return NextResponse.json({
       success: true,
       message,
       factory: resetFactory,
-      factoriesOwned,
-      unitsLost: {
-        count: unitsLost,
-        strength: strLost,
-        defense: defLost
-      }
+      factoriesOwned
     });
 
   } catch (error) {
@@ -227,8 +182,8 @@ export async function POST(request: NextRequest) {
  * 1. Abandon Consequences:
  *    - Factory becomes immediately claimable by anyone
  *    - All upgrade progress lost (no refund)
- *    - All units produced at factory are deleted
- *    - Player's STR/DEF totals updated accordingly
+ *    - Player units are NOT affected (army is global in players.units —
+ *      FID-20260914-009 Phase A removed the obsolete per-factory accounting)
  * 
  * 2. Strategic Considerations:
  *    - Abandoning is permanent and costly
@@ -236,11 +191,10 @@ export async function POST(request: NextRequest) {
  *    - High-level factories represent significant investment
  *    - UI should show confirmation dialog before abandoning
  * 
- * 3. Unit Handling:
- *    - Units are tracked by factory coordinates
- *    - Abandoning factory deletes all its units
- *    - Player's total army stats are recalculated
- *    - Response includes units lost count for feedback
+ * 3. Unit Handling (FID-20260914-009 Phase A):
+ *    - Units live in players.units as a global army — no per-factory stationing
+ *    - Abandoning a factory never touches the army
+ *    - The old unmapped-collection accounting silently no-oped and is removed
  * 
  * 4. Factory Limit Management:
  *    - Abandoning frees a factory slot (if at 10 limit)

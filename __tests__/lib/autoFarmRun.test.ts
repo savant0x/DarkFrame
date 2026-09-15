@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-078 — server-backed AutoFarm run persistence contract tests.
  *

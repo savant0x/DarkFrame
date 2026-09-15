@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-081 — Beer Base units-healing + roster contract tests.
  *

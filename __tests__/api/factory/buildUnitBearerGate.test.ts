@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-077 — bearer-restriction enforcement parity.
  *

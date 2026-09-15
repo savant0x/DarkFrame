@@ -31,7 +31,7 @@ export interface GameContextState {
   setPlayer: (player: SanitizedPlayer | null | ((prev: SanitizedPlayer | null) => SanitizedPlayer | null)) => void;
   setCurrentTile: (tile: Tile | null) => void;
   updateTileOnly: (x: number, y: number) => Promise<void>;
-  movePlayer: (direction: MovementDirection) => Promise<void>;
+  movePlayer: (direction: MovementDirection, steps?: number) => Promise<void>;
   refreshGameState: () => Promise<void>;
   refreshPlayer: () => Promise<void>;
   logout: () => void;
@@ -243,7 +243,10 @@ export function GameProvider({ children }: GameProviderProps) {
    * Move player in specified direction
    */
   // Stable handler identities (FID-20260909-024): live player read via ref.
-  const movePlayer = useCallback(async function movePlayer(direction: MovementDirection) {
+  const movePlayer = useCallback(async function movePlayer(
+    direction: MovementDirection,
+    steps?: number
+  ) {
     if (!playerRef.current) {
       setError('No player logged in');
       return;
@@ -261,6 +264,9 @@ export function GameProvider({ children }: GameProviderProps) {
         body: JSON.stringify({
           username: playerRef.current.username,
           direction,
+          // FID-20260914-001: troop-transport multi-step — omitted entirely on
+          // the default path so pre-existing request bodies stay byte-identical.
+          ...(steps && steps > 1 ? { steps } : {}),
         }),
       });
 

@@ -302,6 +302,26 @@ export async function resolveBattle(
     // Never fail battle resolution because of the flag check.
   }
 
+  // FID-20260914-008 Phase 1: doctrine bonuses join the SAME bonus stack as the
+  // flag bearer (loop-2's anti-double-apply decision) — one batch read for both
+  // sides; stat multipliers already include mastery amplification.
+  try {
+    const { getDoctrineBonusesForUsernames } = await import('@/lib/specializationService');
+    const doctrineMap = await getDoctrineBonusesForUsernames([attackerName, defenderName]);
+    const attackerDoctrine = doctrineMap[attackerName];
+    const defenderDoctrine = doctrineMap[defenderName];
+    if (attackerDoctrine) {
+      attackerStats.totalSTR = Math.floor(attackerStats.totalSTR * attackerDoctrine.strMul);
+      attackerStats.totalDEF = Math.floor(attackerStats.totalDEF * attackerDoctrine.defMul);
+    }
+    if (defenderDoctrine) {
+      defenderStats.totalSTR = Math.floor(defenderStats.totalSTR * defenderDoctrine.strMul);
+      defenderStats.totalDEF = Math.floor(defenderStats.totalDEF * defenderDoctrine.defMul);
+    }
+  } catch {
+    // Never fail battle resolution because of the doctrine read.
+  }
+
   let attackerHP = calculateTotalHP(attackerUnits);
   let defenderHP = calculateTotalHP(defenderUnits);
 
@@ -318,26 +338,55 @@ export async function resolveBattle(
   const attackerCasualties: Unit[] = [];
   const defenderCasualties: Unit[] = [];
 
-  // Battle loop
+  // Battle loop — FID-20260915-001 Phase 1: SEQUENTIAL resolution. The attacker
+  // strikes first; a defender whose HP reaches 0 never counter-attacks. The old
+  // simultaneous strike zeroed BOTH pools in one round → outcome Draw →
+  // applyBattleResults charged FULL casualties to both sides (live incident
+  // BATTLE-17894: 10,725 attacker units and 6,673 defender units all wiped).
+  // Casualties are computed from the HP actually deducted (clamped to the
+  // target's pool), never raw overkill damage.
+  let repelled = false;
   while (attackerHP > 0 && defenderHP > 0 && roundNumber < 100) {
     roundNumber++;
 
-    // Calculate damage for this round WITH LEVEL GAP PROTECTION
+    const attackerPoolAtRoundStart = attackerHP;
+    const defenderPoolAtRoundStart = defenderHP;
+
+    // Attacker strike (WITH LEVEL GAP PROTECTION)
     const attackerDamage = calculateDamage(attackerStats.totalSTR, defenderStats.totalDEF, attackerLevel, defenderLevel);
-    const defenderDamage = calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel);
+    const defenderHPDeducted = Math.min(attackerDamage, defenderPoolAtRoundStart);
+    defenderHP = defenderPoolAtRoundStart - defenderHPDeducted;
 
-    // Apply damage
-    defenderHP = Math.max(0, defenderHP - attackerDamage);
-    attackerHP = Math.max(0, attackerHP - defenderDamage);
+    // Defender counter-strikes only while alive
+    let defenderDamage = 0;
+    let attackerHPDeducted = 0;
+    if (defenderHP > 0) {
+      defenderDamage = calculateDamage(defenderStats.totalDEF, attackerStats.totalSTR, defenderLevel, attackerLevel);
+      attackerHPDeducted = Math.min(defenderDamage, attackerPoolAtRoundStart);
+      attackerHP = attackerPoolAtRoundStart - attackerHPDeducted;
+    }
 
-    // Calculate unit losses for this round
-    const attackerLosses = calculateUnitLosses(defenderDamage, attackerSurvivors);
-    const defenderLosses = calculateUnitLosses(attackerDamage, defenderSurvivors);
+    // Calculate unit losses from HP actually deducted (never raw overkill)
+    const attackerLosses = calculateUnitLosses(attackerHPDeducted, attackerSurvivors);
+    const defenderLosses = calculateUnitLosses(defenderHPDeducted, defenderSurvivors);
 
     attackerCasualties.push(...attackerLosses.casualties);
     defenderCasualties.push(...defenderLosses.casualties);
     attackerSurvivors = attackerLosses.survivors;
     defenderSurvivors = defenderLosses.survivors;
+
+    // FID-20260915-001: a side whose HP pool reached 0 is DESTROYED — its
+    // remaining units are casualties. Without this, per-round kill counts floor
+    // independently and an army can die with zero recorded losses, leaving
+    // applyBattleResults holding a phantom army for a defeated side.
+    if (defenderHP === 0 && defenderSurvivors.length > 0) {
+      defenderCasualties.push(...defenderSurvivors);
+      defenderSurvivors = [];
+    }
+    if (attackerHP === 0 && attackerSurvivors.length > 0) {
+      attackerCasualties.push(...attackerSurvivors);
+      attackerSurvivors = [];
+    }
 
     // Record round
     rounds.push({
@@ -350,16 +399,23 @@ export async function resolveBattle(
       defenderUnitsLost: defenderLosses.casualties.length
     });
 
-    // Safety limit
+    // Safety limit — a capped battle is a REPELLED raid (defender holds).
     if (roundNumber >= 100) {
-      console.warn('⚠️ Battle exceeded 100 rounds, forcing draw');
+      repelled = true;
+      console.warn('⚠️ Battle exceeded 100 rounds — raid repelled (defender holds)');
       break;
     }
   }
 
   // Determine outcome
   let outcome: BattleOutcome;
-  if (attackerHP > 0 && defenderHP === 0) {
+  if (repelled) {
+    // FID-20260915-001: the 100-round cap previously forced a Draw whose
+    // applyBattleResults path charged FULL casualties to both sides. A stalemate
+    // is a successful defense: the attacker keeps its accrued casualties, the
+    // defender holds the base. Draw remains only as the degenerate-input guard.
+    outcome = BattleOutcome.DefenderWin;
+  } else if (attackerHP > 0 && defenderHP === 0) {
     outcome = BattleOutcome.AttackerWin;
   } else if (defenderHP > 0 && attackerHP === 0) {
     outcome = BattleOutcome.DefenderWin;

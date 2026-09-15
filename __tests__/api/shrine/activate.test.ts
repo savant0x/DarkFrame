@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/shrine/activate.test.ts
  * @overview FID-20260909-028 §2.4 runtime probe — the shrine buff apply path.

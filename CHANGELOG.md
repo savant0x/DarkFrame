@@ -43,6 +43,33 @@ All notable changes to DarkFrame are documented here. Format based on
   every escrow ledger entry balances; conservation ΣΔ = −250 = exactly the two fees.
   Regression suite 736 → 747 passed; tsc 0, eslint 0.
 
+## [Unreleased] — 2026-09-13 session
+
+### Fixed — FID-20260913-001 (vitest jsdom suite dead)
+
+- Every vitest suite using the jsdom environment (75 of 76 files) died at
+  collection with `No such built-in module: node:` — vite 8.0.3 externalizes
+  node builtins to the bare `__vite-browser-external` stub and vitest 4.1.2's
+  `toBuiltin()` reverse-maps it via `slice(24)` → `""` → literal `node:`,
+  which Node rejects (ERR_UNKNOWN_BUILTIN_MODULE). Removed the dead
+  TextEncoder/TextDecoder polyfill from `vitest.setup.ts` (the trigger —
+  Node ≥11 ships both as globals, so the guard could never fire), added
+  `// @vitest-environment node` to 25 server-side test files whose import
+  chains pull node builtins (pg, drizzle, mongodb, socket.io), and replaced
+  the hardcoded ISO week in `beerBaseScheduler.test.ts` with
+  `getISOWeek(new Date())` (exported from the manager). Suite went from
+  75 failed files / 2 tests to 75 passed / 734 tests / 0 failures; tsc 0,
+  eslint 0.
+
+### Removed — root bloat cleanup (operator-approved)
+
+- Deleted ~8.6MB of untracked runtime/lint/test logs, dump files, the
+  malformed `D:devDarkFramefix_sub.ps1`, orphaned one-off scripts, and the
+  `__temp_patches/` + `.freebuff/` temp dirs from the repo root (`.freebuff/`
+  was tracked; the rest were never committed). Two dev-server logs
+  (`df-094.log`, `df-094.err.log`) remain file-locked by the running
+  process — delete after stopping it.
+
 ## [Unreleased] — 2026-09-05/06 session
 
 ### Fixed — FID-20260906-011 (chat delete dead-wire)

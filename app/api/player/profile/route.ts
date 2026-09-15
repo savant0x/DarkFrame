@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollection } from '@/lib/mongodb';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { Player } from '@/types';
+import { computeBattleStats, toPanelBattleStats } from '@/lib/battleStatsService';
 
 /**
  * GET /api/player/profile
@@ -57,11 +58,9 @@ export async function GET(_request: NextRequest) {
         y: player.base.y,
         greeting: player.baseGreeting || ''
       },
-      battleStats: player.battleStats || {
-        infantryAttacks: { initiated: 0, won: 0, lost: 0 },
-        baseAttacks: { initiated: 0, won: 0, lost: 0 },
-        baseDefenses: { total: 0, won: 0, lost: 0 }
-      },
+      // FID-20260914-007: computed live from battle_logs — the battle_stats
+      // column had NO writer, so every profile showed zeros forever.
+      battleStats: toPanelBattleStats(await computeBattleStats(username)),
       achievements: player.achievements || [],
       joinedAt: player.createdAt || new Date().toISOString()
     };

@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/factory/build-unit-units-shape.test.ts
  * @overview FID-20260909-032 §2-G regression tests — the units write shape.

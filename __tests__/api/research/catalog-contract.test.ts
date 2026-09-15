@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * @file __tests__/api/research/catalog-contract.test.ts
  * @overview FID-20260912-058 T1 contract — "the route sells exactly what the

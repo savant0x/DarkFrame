@@ -18,7 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import {
   User, Trophy, BarChart3, Zap, LogOut,
-  Settings, Clock, Users, Shield, Sparkles, Flag, Mail, UserPlus, Crosshair
+  Settings, Clock, Users, Shield, Sparkles, Flag, Mail, UserPlus, Crosshair, Medal
 } from 'lucide-react';
 
 interface TopNavBarProps {
@@ -310,6 +310,19 @@ export default function TopNavBar({
             title={player.vip ? 'VIP Member - View Benefits' : 'Upgrade to VIP for 2x Speed'}
             accent="vip"
           />
+
+          {/* FID-20260914-008 Phase 3: the specialization page was unreachable —
+              no nav entry existed anywhere (audit item 5). Level-gated like Clans
+              to match the L15 doctrine-unlock contract. */}
+          {player.level >= 15 && (
+            <NavItem
+              label="Doctrine"
+              icon={<Medal className="h-3.5 w-3.5" />}
+              onClick={() => router.push('/game/specialization')}
+              title="Choose your combat doctrine (Level 15+)"
+              accent="vip"
+            />
+          )}
 
           {/* WMD threat slot — pulses magenta only when armed/alerted */}
           <button

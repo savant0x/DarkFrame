@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * FID-20260912-091 — tutorial diagnostic wiring contract tests.
  *
