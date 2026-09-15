@@ -23,7 +23,7 @@ All notable changes to DarkFrame are documented here. Format based on
   `players.units` (plain-array operand appended as one nested element; now the
   probe-verified `{ $each }` shape with per-unit `quantity: 1`).
 - Probe + live seam verification exit 0; regression suite 747 → 760 passed;
-  tsc 0, eslint 0. Closed as `f075a85`.
+  tsc 0, eslint 0. Closed as `f21f6f1` (pre-merge hash; canonical: PR #41).
 
 ### Fixed — FID-20260914-003 (auction escrow correctness)
 

@@ -78,7 +78,7 @@ player-facing infantry attack.
 ## 6. Closure
 
 - **Gates:** [x] typecheck 0 · [x] lint 0 · [x] tests pass (769/1 skipped/0 fail) · [x] live-verified
-- **Commit hash (G2):** `20597c6` (umbrella multi-stream commit, 2026-09-15)
+- **Commit hash (G2):** `4237f51` (umbrella multi-stream commit, 2026-09-15; pre-merge hash — canonical: PR #41)
 - **Staging plan:** `lib/battleStatsService.ts`, `app/api/player/profile/route.ts`,
   `app/api/profile/[username]/route.ts`, `app/profile/[username]/page.tsx`,
   `__tests__/lib/battleStatsService.test.ts`, this FID, `SCOPE.md`,
@@ -86,4 +86,4 @@ player-facing infantry attack.
 
 ---
 
-**Final status:** closed (commit `20597c6`)
+**Final status:** closed (commit `4237f51`, pre-merge hash; canonical: PR #41)

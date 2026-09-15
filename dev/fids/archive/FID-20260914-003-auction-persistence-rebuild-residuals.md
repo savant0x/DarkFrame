@@ -8,7 +8,7 @@
 **Filename:** `FID-20260914-003-auction-persistence-rebuild-residuals.md`
 **ID:** FID-20260914-003
 **Severity:** HIGH
-**Status:** closed (implemented 2026-09-14; committed `7d51fc9` per G2)
+**Status:** closed (implemented 2026-09-14; committed `e860b4a` per G2 (pre-merge hash; canonical: PR #41))
 **Created:** 2026-09-14
 
 ---
@@ -160,7 +160,7 @@ settlement tests.
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass (747/1 skipped/0 fail) · [x] call-graph proven
-- **Commit hash (G2 — required for `closed`):** `7d51fc9` — `fix(auction): escrow refunds, unit escrow, tradeable gate (FID-20260914-003)`
+- **Commit hash (G2 — required for `closed`):** `e860b4a` (pre-merge hash; canonical: PR #41) — `fix(auction): escrow refunds, unit escrow, tradeable gate (FID-20260914-003)`
 - **Staging plan (path-scoped, G3/G4):** `git add lib/auctionService.ts app/api/auction/my-bids/route.ts types/auction.types.ts scripts/probePullObjectOperand.ts __tests__/lib/auctionSettlement.test.ts dev/fids/FID-20260914-003-*.md`
 - **Commit message (G8):** `fix(auction): escrow refunds, unit escrow, tradeable gate (FID-20260914-003)`
 - **Archive:** on close — move to `dev/fids/archive/`, CHANGELOG entry, session-summary log.
@@ -168,7 +168,7 @@ settlement tests.
 
 ---
 
-**Final status:** closed (implemented + live-E2E verified; commit `7d51fc9`)
+**Final status:** closed (implemented + live-E2E verified; commit `e860b4a`; canonical: PR #41)
 
 ### Post-closure verification addendum (2026-09-14, session 011)
 

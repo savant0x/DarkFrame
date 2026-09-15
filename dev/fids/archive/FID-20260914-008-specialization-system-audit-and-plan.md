@@ -110,7 +110,7 @@ with evidence. No further actionable improvements — **converged in 2 of 10 ite
 ## 6. Closure
 
 - **Gates:** [x] typecheck 0 · [x] lint 0 · [x] tests pass · [x] Phase 0 live-verified both directions · [x] Phases 1–3 implemented + live-verified 2026-09-15
-- **Commit hash (G2):** `20597c6` (umbrella multi-stream commit, 2026-09-15)
+- **Commit hash (G2):** `4237f51` (umbrella multi-stream commit, 2026-09-15; pre-merge hash — canonical: PR #41)
 - **Staging plan:** `lib/specializationService.ts`, `lib/factoryService.ts`, `lib/battleService.ts` (doctrine-seam hunk), both build routes, `lib/statTrackingService.ts`, mastery route, milestone-stats route, `components/TopNavBar.tsx`, `docs/ARCHITECTURE.md`, `__tests__/lib/specializationDoctrine.test.ts`, `scripts/probeDoctrineSeams.ts`, `scripts/cleanupDoctrineProbe.ts`, this FID, `SCOPE.md`, `dev/session-summaries/SESSION-2026-09-14-009.md`
 
 ---
@@ -129,4 +129,4 @@ not silently changed):** the 48h respec cooldown anchors only to `spec.lastRespe
 choose never sets it, so the first respec is always immediately available (the docs' letter says
 "since last respec" and the code matches; economically harmless at 50 RP + 100k resources).
 Recommendation: anchor the cooldown at choose (`lastRespecAt = selectedAt`) in a follow-up.
-**Final status:** closed (commit `20597c6`)
+**Final status:** closed (commit `4237f51`, pre-merge hash; canonical: PR #41)
