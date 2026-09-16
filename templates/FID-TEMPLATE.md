@@ -22,6 +22,10 @@
   - On close: move to dev/fids/archive/, append a CHANGELOG.md entry, log the
     archival in the session summary. Closed FIDs must not remain in dev/fids/.
     Archival happens ONLY at `closed` — never at `loop-complete`.
+  - Law 16: before writing `closed` (or any ledger closure — SCOPE rows included),
+    run a FRESH artifact-verification probe and paste its output: the artifact must
+    exist AND do what the closure claims. Never close from memory, from another
+    row's wording, or from a plan's claim.
   - Evidence rule: every stage claim must be backed by pasted tool output.
     Self-reporting ("I believe this works") is prohibited.
   - Attribution rule: NO Author field, no agent names, no signatures. The

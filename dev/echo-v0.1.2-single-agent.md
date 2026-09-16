@@ -54,16 +54,16 @@ complexity routing to avoid unnecessary overhead on simple tasks.**
 
 ---
 
-## The 15 Laws
+## The 16 Laws
 
-Laws 1-4 are the Immutable Process Laws governing workflow. Laws 5-15 are the Extended Code Laws governing quality.
+Laws 1-4 are the Immutable Process Laws governing workflow. Laws 5-16 are the Extended Code Laws governing quality.
 
 ### Activation Tiers
 
 | Tier         | Laws                    | When Active                        | Config Flag            |
 | ------------ | ----------------------- | ---------------------------------- | ---------------------- |
 | **Core**     | 1-4 (Immutable Process) | ALWAYS — no exceptions             | —                      |
-| **Extended** | 5-15 (Code Quality)     | When `strict_mode: true` (default) | `protocol.strict_mode` |
+| **Extended** | 5-16 (Code Quality)     | When `strict_mode: true` (default) | `protocol.strict_mode` |
 
 - **Core laws** are non-negotiable and always enforced regardless of config.
 - **Extended laws** are enforced when `strict_mode: true`. Set to `false` ONLY for interactive debugging sessions with
@@ -86,7 +86,7 @@ Laws 1-4 are the Immutable Process Laws governing workflow. Laws 5-15 are the Ex
 "it's not what we're working on." Discovery of an issue is NOT permission to drop it — only the operator can close an
 out-of-scope item, and only after it has been presented.
 
-### Laws 5-15: The Extended Code Laws
+### Laws 5-16: The Extended Code Laws
 
 | #      | Law                                                               | Why                                                                           |
 | ------ | ----------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -99,7 +99,9 @@ out-of-scope item, and only after it has been presented.
 | **11** | Follow discovered patterns EXACTLY                                | Inconsistency                                                                 |
 | **12** | Never expose sensitive data in logs/errors                        | Security breach                                                               |
 | **13** | Utility-first, universal logic                                    | Duplication is debugging debt                                                 |
-| **14** | All error paths handled                                           | Every fallible operation must have its error propagated or explicitly handled |
+| **14** | All error paths handled                                           | Every fallible operation must have its error propagated or explicitly h
+| **15** | Build stays clean                                                 | Zero errors, zero warnings after every edit                            
+| **16** | Every ledger closure requires a fresh artifact-verification probe | Stale-open rows hide completed work and misdirect operator decisions   andled |
 | **15** | Build stays clean                                                 | Zero errors, zero warnings after every edit                                   |
 
 #### Law 13: Utility-First, Universal Logic
@@ -119,6 +121,29 @@ IF a pattern appears twice → extract it into a shared utility.
 THINK: Is this a special case of something more general?
    If yes → build the general version. Use it everywhere.
 ```
+
+#### Law 16: Every Ledger Closure Requires a Fresh Artifact-Verification Probe
+
+**Never write `Closed` from memory, from another row's wording, or from a plan's claim.
+Verify the artifact exists and does what the closure says — this session, with a tool.**
+
+Motivation (2026-09-16): a survey found SEVEN SCOPE rows sitting `Open`/`Partial` whose
+work had actually shipped — stale dispositions misdirected the operator's priorities and
+nearly triggered duplicate work. A closure written without a probe is a guess wearing a
+status label.
+
+```text
+BEFORE flipping any tracking row (SCOPE row, FID status, checklist) to Closed:
+1. NAME the artifact the closure claims: file, symbol, route, commit, or doc section.
+2. PROBE it fresh: ls/test -f, grep the symbol/route, git show the hash — output pasted.
+3. CHECK it does the thing, not just that it exists (a stub is not a closure).
+4. ONLY THEN write the disposition — cite the probe's evidence in the cell.
+IF the probe fails → the row stays open and the mismatch is recorded, not papered over.
+NEVER clone a disposition cell from another row (the copy inherits its staleness).
+```
+
+Same rule governs the reverse direction: a row that reads `Open` with no recent probe is
+a hypothesis, not a fact — survey every open row by probing before acting on it.
 
 ---
 
