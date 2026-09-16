@@ -203,16 +203,15 @@ Invoke-RestMethod -Uri "http://localhost:3000/api/auth/logout" -Method POST
 
 ---
 
-## 📊 MongoDB Verification
+## 📊 Database Verification
 
 Check the database to verify data is stored correctly:
 
-1. Open MongoDB Compass or Atlas
-2. Connect to your database
-3. View the `players` collection
-4. Verify:
+1. Connect to the Postgres database (`DATABASE_URL` in `.env.local`)
+2. View the `players` table
+3. Verify:
    - [ ] `email` field exists on new players
-   - [ ] `password` field is a bcrypt hash (starts with `$2b$10$`)
+   - [ ] `password` field is a bcrypt hash (starts with `$2b$`)
    - [ ] Emails are stored in lowercase
    - [ ] No duplicate emails exist
 
@@ -237,7 +236,7 @@ Authentication system is working correctly if:
 ## 🚨 If Something Doesn't Work
 
 ### Issue: "Cannot read properties of null"
-**Solution**: Make sure MongoDB is connected and `.env.local` has correct `MONGODB_URI`
+**Solution**: Make sure Postgres is reachable and `.env.local` has correct `DATABASE_URL`
 
 ### Issue: "Invalid token"
 **Solution**: Check that `JWT_SECRET` is set in `.env.local`
@@ -249,7 +248,7 @@ Authentication system is working correctly if:
 **Solution**: These are false positives (JSX type errors). Code compiles fine.
 
 ### Issue: Cookie not persisting
-**Solution**: Check browser DevTools → Application → Cookies. Should see `auth-token` with 7-day expiry.
+**Solution**: Check browser DevTools → Application → Cookies. Should see `darkframe_session` with 7-day expiry.
 
 ---
 

@@ -1,13 +1,11 @@
 # 🏗️ DarkFrame - Technical Architecture
 
 > System design, technology decisions, and implementation patterns.
-> **Status (2026-09-15 audit):** header/stack/counts below are current.
-> Deeper sections retain their October-2025 text and are pending re-audit
-> where they describe pre-pivot (MongoDB-era) topology.
+> **Status (2026-09-16 audit):** current — Postgres/Drizzle throughout.
 
-**Last Updated:** September 15, 2026
+**Last Updated:** September 16, 2026
 **System Status:** Live — Postgres-backed persistent world, all gates green
-**Code Volume:** ~856 tests green; 180+ API routes; ~90 game services
+**Code Volume:** 865 tests passing; 235 API routes; 116 lib modules
 
 ---
 
@@ -60,7 +58,7 @@ legacy service call shapes and is being retired incrementally.)
 - **Code Quality:** ESLint with Next.js configuration
 - **Type Checking:** TypeScript compiler (strict mode)
 - **Version Control:** Git + GitHub
-- **Development System:** ECHO v5.1 (Anti-Drift Expert Coder)
+- **Development System:** ECHO protocol (FID-tracked, gated changes)
 - **Project Management:** /dev folder ecosystem with FID tracking
 
 ---
@@ -96,34 +94,19 @@ darkframe/
 │   ├── *Panel.tsx             # Feature-specific panels
 │   └── index.ts               # Barrel exports
 │
-├── lib/                        # Business logic layer
-│   ├── services/              # 29+ service modules
-│   │   ├── playerService.ts
-│   │   ├── battleService.ts
-│   │   ├── clanService.ts
-│   │   └── ...
-│   ├── wmd/                   # WMD system services
-│   │   ├── researchService.ts (650 lines)
-│   │   ├── spyService.ts     (1,716 lines)
-│   │   ├── missileService.ts
-│   │   ├── defenseService.ts
-│   │   └── ...
-│   ├── db/                    # Database schemas
-│   │   ├── schemas/
-│   │   │   └── wmd.schema.ts  (812 lines, 12 collections)
-│   │   └── seeds/
-│   ├── mongodb.ts             # MongoDB connection singleton
+├── lib/                        # Business logic layer (~116 modules)
+│   ├── battleService.ts, clanService.ts, ...  # Flat service modules
+│   ├── wmd/                   # WMD system services (research, missile,
+│   │                          # defense, spy, sabotage, treasury, …)
+│   ├── db/                    # Drizzle schema (17 table modules) + connection
+│   ├── mongodb.ts             # Compat shim for legacy call shapes (retiring)
 │   ├── logger.ts              # Structured logging
 │   └── index.ts               # Barrel exports
 │
 ├── types/                      # TypeScript definitions
 │   ├── game.types.ts          # Core game types
-│   ├── wmd/                   # WMD type system (3,683 lines)
-│   │   ├── missile.types.ts   (638 lines)
-│   │   ├── defense.types.ts   (724 lines)
-│   │   ├── intelligence.types.ts (912 lines)
-│   │   ├── research.types.ts  (921 lines)
-│   │   └── notification.types.ts (635 lines)
+│   ├── wmd/                   # WMD types (research single-track, missile,
+│   │                          # defense, intelligence, notification)
 │   └── index.ts
 │
 ├── dev/                        # Development tracking
@@ -143,105 +126,60 @@ darkframe/
 
 ## 🗄️ **Database Architecture**
 
-### MongoDB Collections (14+)
+### Postgres Tables (60+, Drizzle ORM)
 
-**Core Game Collections:**
-- `tiles` - 22,500 map tiles (150×150 grid)
-- `players` - Player accounts with credentials & stats
-- `battleLogs` - Combat history with detailed results
-- `achievements` - Player achievement tracking
-- `discoveries` - Ancient technology unlocks
+Schema lives in `lib/db/schema/` (one module per domain: `players`,
+`tiles`, `factories`, `clans`, `messages`, `referrals`, `tutorial`, `wmd`,
+…). Connection in `lib/db/connection.ts` (Drizzle over `pg` Pool,
+fail-fast on missing `DATABASE_URL`). Migrations under `drizzle/`.
 
-**Social & Economy Collections:**
-- `clans` - Clan data with levels & buffs
-- `clan_members` - Clan membership with roles
-- `clan_territories` - Territory control grid
-- `clan_wars` - Active and historical clan wars
-- `auctions` - Auction listings with bidding
-
-**Automation & Monetization:**
-- `vip_purchases` - VIP transaction history
-- `auto_farm_settings` - Player automation configs
-
-**WMD System Collections (12 - Phase 1):**
-- `wmd_research` - Player tech tree progress
-- `wmd_missiles` - Active missile inventory
-- `wmd_defense` - Defense battery deployments
-- `wmd_spies` - Intelligence network
-- `wmd_missions` - Active spy missions
-- `wmd_votes` - Clan voting records
-- `wmd_notifications` - Event notifications
-- `wmd_launch_cooldowns` - Attack rate limiting
-- `wmd_sabotage_logs` - Sabotage history
-- `wmd_intel_reports` - Gathered intelligence
-- `wmd_retaliation_windows` - Counter-attack timing
-- `wmd_consequences` - Global event tracking
+**Core domains:**
+- World & players: tiles (22,500 map tiles, 150×150 grid), players,
+  factories, battle logs, achievements
+- Social & economy: clans (+ members, territories, wars, bank, chat),
+  auctions, referrals, messages/conversations
+- Systems: tutorial progress/action tracking, WMD research/missiles/
+  defense/spies, VIP/subscriptions, moderation, notifications
 
 ### Index Strategy
-- **Compound indexes** on all query patterns
+- **Compound indexes** on all query patterns (declared in migrations)
 - **Unique indexes** on usernames, emails, coordinates
 - **Performance target:** <50ms at 95th percentile
-- **Query optimization:** All critical paths use indexes (verified via MCP scan)
 
 ---
 
 ## 🔌 **API Architecture**
 
-### API Route Categories (60+ endpoints)
+### API Route Categories (235 routes — category prefixes, not an
+exhaustive list; see `app/api/` for the full tree)
 
 **Authentication & Players:**
-- `POST /api/register` - Create new account
-- `POST /api/login` - Authenticate user
+- `POST /api/auth/register` - Create new account
+- `POST /api/auth/login` - Authenticate user
 - `GET /api/player` - Get player data
-- `GET /api/player/stats` - Player statistics
 
 **Core Gameplay:**
 - `POST /api/move` - Move player (9 directions)
 - `POST /api/harvest` - Gather resources
 - `GET /api/tile` - Current tile information
-- `POST /api/cave/loot` - Explore caves
 
 **Combat & Factories:**
 - `POST /api/battle/attack` - Initiate combat
-- `GET /api/battle/logs` - Combat history
-- `POST /api/factory/attack` - Capture factory
-- `POST /api/factory/upgrade` - Upgrade factory
 - `POST /api/factory/build-unit` - Produce units
 
 **Progression:**
 - `POST /api/specialization/choose` - Select class
 - `GET /api/specialization/mastery` - Mastery status (earned server-side: +10 per doctrine-matching unit build, +25 per battle won; direct POST is admin-only)
-- `GET /api/achievements` - List achievements
-- `POST /api/achievements/claim` - Claim rewards
-- `GET /api/discoveries` - Technology unlocks
 
-**Economy:**
-- `POST /api/balance/deposit` - Bank resources
-- `POST /api/balance/withdraw` - Withdraw resources
-- `POST /api/auction/listings` - Create/browse auctions
-- `POST /api/auction/bid` - Place bid
-
-**Social:**
+**Social & Economy:**
 - `POST /api/clan/create` - Create clan
 - `POST /api/clan/join` - Join clan
-- `POST /api/clan/war/declare` - Declare war
-- `POST /api/clan/territory/capture` - Capture territory
+- Auction, bank, referral, messaging, and tutorial routes follow the same
+  `app/api/<domain>/...` layout (see the category directories in `app/api/`)
 
-**Automation:**
-- `POST /api/auto-farm/toggle` - Enable/disable
-- `GET /api/auto-farm/stats` - View performance
-
-**Monetization:**
-- `POST /api/vip/purchase` - Buy VIP package
-- `GET /api/vip/status` - Check VIP status
-
-**WMD System (Phase 2 - Planned):**
-- Research: 4 endpoints
-- Missiles: 6 endpoints
-- Defense: 5 endpoints
-- Intelligence: 6 endpoints
-- Voting: 4 endpoints
-- Notifications: 1 endpoint
+**WMD System (live):**
+- 7 route files under `app/api/wmd/` covering research, missiles, defense,
+  and intelligence (single-track W1 system, not the old 3-track plan)
 
 ### Authentication Flow
 ```
@@ -277,10 +215,12 @@ Request → middleware.ts (JWT validation) → API Route → Service Layer → D
 **Rationale:** Clean imports, better code organization  
 **Pattern:** `import { service } from '@/lib'` instead of deep paths
 
-### 6. **MongoDB Connection Singleton**
-**Decision:** Single connection pool via singleton pattern  
+### 6. **Postgres Connection via Drizzle**
+**Decision:** Single shared `pg` Pool behind the Drizzle client  
 **Rationale:** Connection reuse, resource efficiency  
-**Implementation:** `/lib/mongodb.ts` with lazy initialization
+**Implementation:** `lib/db/connection.ts` (lazy Pool, fail-fast without
+`DATABASE_URL`); `lib/mongodb.ts` remains only as a compat shim for legacy
+call shapes and is being retired incrementally
 
 ### 7. **12-Hour Resource Resets**
 **Decision:** Split 24-hour harvesting into two 12-hour periods  
@@ -304,7 +244,8 @@ Request → middleware.ts (JWT validation) → API Route → Service Layer → D
 
 ### OWASP Top 10 Compliance
 - **Input validation** on all user inputs
-- **SQL injection prevention** via MongoDB driver (no raw queries)
+- **SQL injection prevention** via Drizzle parameterized queries (no raw
+  string-interpolated SQL in routes)
 - **XSS prevention** via React's built-in escaping
 - **CSRF protection** via SameSite cookie attributes
 - **Sensitive data exposure** prevented in logs
@@ -322,8 +263,7 @@ Request → middleware.ts (JWT validation) → API Route → Service Layer → D
 ### Database Performance
 - **Compound indexes** on all query patterns
 - **Query performance monitoring** (<50ms target)
-- **Connection pooling** via MongoDB driver
-- **Lean queries** for read-only operations
+- **Connection pooling** via shared `pg` Pool (`lib/db/connection.ts`)
 
 ### Frontend Performance
 - **React.memo** on expensive components (planned)
@@ -342,13 +282,13 @@ Request → middleware.ts (JWT validation) → API Route → Service Layer → D
 ## 📊 **Code Quality Metrics**
 
 ### Current Status
-- **TypeScript Errors:** 0 (maintained throughout)
-- **Lines of Code:** ~45,000+ production code
-- **Files Created:** 150+ files
-- **Test Coverage:** Manual validation (automated suite planned)
+- **TypeScript Errors:** 0 (`npx tsc --noEmit`)
+- **Lint:** 0 (`npm run lint`)
+- **Tests:** 865 passing, 1 skipped (`npx vitest run`)
+- **Build:** clean (`npm run build`)
 - **Documentation:** JSDoc on all public functions
 
-### ECHO v5.1 Standards
+### ECHO Standards
 - **Complete implementations** (no pseudo-code)
 - **Modern syntax** (const/let, arrow functions, async/await)
 - **Comprehensive docs** (OVERVIEW sections, inline comments)
@@ -360,51 +300,49 @@ Request → middleware.ts (JWT validation) → API Route → Service Layer → D
 ## 🔄 **Development Workflow**
 
 ### Feature Development Process
-1. **Planning** - Create FID, define acceptance criteria
-2. **Implementation** - Follow ECHO v5.1 standards
-3. **Documentation** - JSDoc + inline comments
-4. **Testing** - Manual validation + TypeScript checks
-5. **Tracking** - Update /dev files with metrics
+1. **Plan** - Open a FID in `dev/fids/`, define acceptance criteria
+2. **Implement** - Follow the repo's coding standards
+3. **Document** - JSDoc + inline comments
+4. **Verify** - `npx tsc --noEmit`, `npm run lint`, `npx vitest run`
+   (plus `npm run build` for build-affecting changes)
+5. **Track** - Update SCOPE.md and CHANGELOG.md
 
 ### Quality Gates
-- **Pre-flight:** Compliance check, context load, dependency analysis
-- **Mid-flight:** Real-time standards monitoring
-- **Post-flight:** Audit, lessons capture, metrics update
+- **Pre-commit:** hook runs the gate suite (see `.githooks/`)
+- **No broken builds:** zero errors, zero warnings before push
 
 ---
 
-## 🎯 **WMD System Architecture** (Phase 1 Complete)
+## 🎯 **WMD System Architecture** (W1 single track, live)
 
-### Type System (3,683 lines)
-- **missile.types.ts** - 5 warhead types, assembly mechanics
-- **defense.types.ts** - 5 battery tiers, interception logic
-- **intelligence.types.ts** - 10 mission types, sabotage engine
-- **research.types.ts** - 30 techs, 3 tracks, prerequisites
-- **notification.types.ts** - 19 event types, WebSocket patterns
+### Research Track (600k RP total, 10 tiers)
+- **Definition:** `types/wmd/research.types.ts` — `WMD_RESEARCH_TRACK`,
+  `TOTAL_RP_REQUIRED` (sums the tier `rpCost` values), missile / defense /
+  intelligence domains as categories of the one track
+- **Service:** `lib/wmd/researchService.ts` — tech unlocks, RP spending via
+  `spendResearchPoints`
 
-### Service Layer (5,096 lines)
-- **researchService.ts** (650 lines) - Tech tree, RP spending
-- **spyService.ts** (1,716 lines) - Intel operations, sabotage
-- **missileService.ts** (309 lines) - Assembly, launch
-- **defenseService.ts** (326 lines) - Batteries, interception
-- **clanVotingService.ts** (496 lines) - Democratic voting
-- **clanTreasuryWMDService.ts** (495 lines) - Treasury integration
-- **clanConsequencesService.ts** (503 lines) - Attack consequences
+### Service Layer
+- **missileService.ts** — assembly, launch
+- **defenseService.ts** — batteries, interception
+- **spyService.ts** — intel operations, sabotage
+- **sabotageEngine.ts, damageCalculator.ts, targetingValidator.ts** —
+  combat math and eligibility
+- **clanVotingService.ts, clanTreasuryWMDService.ts,
+  clanConsequencesService.ts** — clan integration
 
-### Database Schema (1,577 lines)
-- **12 collections** with JSON validation
-- **60+ optimized indexes** for query performance
-- **Complete field validation** and type enforcement
+### Database Schema
+- WMD tables in `lib/db/schema/wmd.ts`, migrated under `drizzle/`
 
 ---
 
 ## 📚 **Related Documentation**
 
-- **[README.md](README.md)** - Project overview
-- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development log & metrics
-- **[ROADMAP.md](ROADMAP.md)** - Feature roadmap
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[README.md](../README.md)** - Project overview
+- **[CHANGELOG.md](../CHANGELOG.md)** - Version history
+- **[SCOPE.md](../SCOPE.md)** - Scope ledger
+- **[RP_ECONOMY_GUIDE.md](RP_ECONOMY_GUIDE.md)** - RP economy v2
 
 ---
 
-*Last Updated: October 23, 2025*
+*Last Updated: September 16, 2026*

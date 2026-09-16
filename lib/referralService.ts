@@ -87,7 +87,8 @@ export async function validateReferralCode(code: string): Promise<ReferralCodeVa
  * - Total target: 5M resources at 100 referrals (~2-3 hours farming value)
  * 
  * VIP Strategy: 30-day cap enforced, front-loaded in early milestones
- * RP Strategy: ~12k total (0.45% of WMD tree = meaningful starter progression)
+ * RP Strategy: ~8.9k total at 100 referrals (~1.5% of the 600k-RP W1 WMD
+ * track, TOTAL_RP_REQUIRED in types/wmd/research.types.ts) = starter progression
  */
 export const REFERRAL_MILESTONES: ReferralMilestone[] = [
   {
@@ -214,7 +215,7 @@ export const REFERRAL_MILESTONES: ReferralMilestone[] = [
  * Base: 10k metal/energy per referral
  * Progressive multiplier: 1.05x per referral, CAPPED at 2.0x (reached ~referral #15)
  * VIP: CAPPED at 30 days total (enforced via currentVIPDays parameter)
- * RP: 15 per referral for meaningful WMD progression (~12k total at 100)
+ * RP: 15 per referral, scaled by the same progressive factor (~8.9k total at 100 with milestones)
  */
 export function calculateReferralReward(
   referralCount: number,

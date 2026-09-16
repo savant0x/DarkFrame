@@ -2,20 +2,19 @@
 
 ## Quick Start
 
-### Option 1: Automated (Recommended)
+### Option 1: Next.js Dev Server
 ```bash
 npm run dev
 ```
-This will automatically:
-- Fix Windows PATH issues
-- Start the development server on `http://localhost:3000`
-- Start the Stripe webhook listener
+Starts the Next.js dev server (webpack) on `http://localhost:3000`.
 
-### Option 2: Server Only
+### Option 2: Custom Server (Next + Socket.io + Jobs)
 ```bash
-npm run dev:only
+npm run dev:server
 ```
-Use this if you don't need Stripe webhook testing.
+Runs `server.ts`: Next.js + Socket.io on one port, plus the background-job
+schedulers. Use this when testing realtime messaging, jobs, or anything
+outside plain page rendering. Stripe webhooks still need a separate listener.
 
 ### Option 3: Manual (Two Terminals)
 **Terminal 1 - Server:**
@@ -32,20 +31,20 @@ npm run stripe:listen
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | **Primary:** Start server + Stripe webhooks (auto-fixes Windows PATH) |
-| `npm run dev:only` | Server only (no webhooks) |
-| `npm run dev:concurrent` | Raw concurrently command (may fail on Windows without PATH fix) |
+| `npm run dev` | Next.js dev server (webpack) on port 3000 |
+| `npm run dev:server` | Custom server: Next + Socket.io + background jobs |
+| `scripts/start-dev.ps1` (or `.bat`) | PATH-safe launcher: dev:server + stripe:listen |
 | `npm run stripe:listen` | Stripe webhook listener only |
 | `npm run stripe:trigger:checkout` | Test checkout.session.completed event |
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
-| `npm test` | Run tests |
+| `npm run lint` | Run ESLint |
+| `npm run test:ci` | Run test suite once (vitest) |
 
 ## Windows PATH Issue
 
-If you see `Error: spawn cmd.exe ENOENT`, the main `dev` script now automatically fixes this by adding `C:\Windows\System32` to PATH before running.
-
-**Alternative:** Run this in PowerShell before any npm command:
+If you see `Error: spawn cmd.exe ENOENT`, `C:\Windows\System32` is missing
+from PATH. No npm script fixes this automatically — repair your environment:
 ```powershell
 $env:PATH += ";C:\Windows\System32"
 ```
@@ -71,7 +70,7 @@ Ensure `.env.local` contains:
 STRIPE_SECRET_KEY=sk_test_...
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-MONGODB_URI=mongodb://...
+DATABASE_URL=postgresql://user:password@host:5432/darkframe
 
 # Redis Configuration (Optional - for rate limiting)
 # Development: Use local Redis or leave unset (falls back to in-memory)
@@ -125,7 +124,7 @@ redis-cli ping
 ## Troubleshooting
 
 **Problem:** `npm run dev` still fails with ENOENT  
-**Solution:** Use `npm run dev:only` for just the server, or run webhook listener separately
+**Solution:** Fix `C:\Windows\System32` on PATH (see above), or use `npm run dev:server` for just the custom server
 
 **Problem:** Stripe events not being received  
 **Solution:** Check that webhook listener shows "Ready!" and server is running on port 3000

@@ -14,16 +14,11 @@
 
 ### **One Command to Rule Them All:**
 ```powershell
-npm run dev:stripe
+.\scripts\start-dev.ps1
 ```
 
-This automatically:
-- ✅ Starts your development server
-- ✅ Starts Stripe webhook listener
-- ✅ Shows both outputs side-by-side with color coding
-- ✅ Automatically updates `.env.local` with webhook secret (first run)
-
-**That's it!** Your server and webhook listener are now running together.
+This starts the custom server (`npm run dev:server`) plus the Stripe
+webhook listener (`npm run stripe:listen`) with the Windows PATH fix.
 
 ---
 
@@ -91,13 +86,13 @@ Press Enter to open the browser (^C to quit)
 
 **Terminal 1 (Keep this running):**
 ```powershell
-cd D:\dev\DarkFrame
+cd C:\Users\spenc\dev\DarkFrame
 npm run dev
 ```
 
 **Expected output:**
 ```
-▲ Next.js 14.x.x
+▲ Next.js 16.x.x
 - Local:        http://localhost:3000
 - ready started server on 0.0.0.0:3000
 ```
@@ -108,7 +103,7 @@ npm run dev
 
 **Terminal 2 (New PowerShell window):**
 ```powershell
-cd D:\dev\DarkFrame
+cd C:\Users\spenc\dev\DarkFrame
 
 # Forward all webhook events to local endpoint
 stripe listen --forward-to localhost:3000/api/stripe/webhook
@@ -147,7 +142,7 @@ npm run dev
 
 **Terminal 3 (New PowerShell window):**
 ```powershell
-cd D:\dev\DarkFrame
+cd C:\Users\spenc\dev\DarkFrame
 
 # Test checkout completion event
 stripe trigger checkout.session.completed
@@ -209,16 +204,11 @@ VIP granted successfully: {...}
 Payment transaction recorded: {...}
 ```
 
-**Check MongoDB:**
-```javascript
-// In MongoDB Compass or mongosh
-db.users.findOne({ username: "yourUsername" })
-// Should show:
-// - vip: true
-// - vipExpiration: <date>
-// - vipTier: "MONTHLY" (or selected tier)
-// - stripeCustomerId: "cus_..."
-// - stripeSubscriptionId: "sub_..."
+**Check Postgres:**
+```sql
+-- players table: vip flags + stripe ids on your test user
+SELECT username, vip, "vipExpiration", "stripeCustomerId", "stripeSubscriptionId"
+FROM players WHERE username = 'yourUsername';
 ```
 
 **Check Game UI:**
@@ -259,7 +249,7 @@ https://dashboard.stripe.com/test/webhooks
 **Solution:**
 - Check Terminal 1 for error logs
 - Verify metadata in checkout session (userId, tier, username)
-- Check MongoDB connection is active
+- Check Postgres connection is active (DATABASE_URL)
 - Ensure grantVIP() function has no errors
 
 ### Problem: Stripe CLI not forwarding events

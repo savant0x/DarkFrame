@@ -15,7 +15,8 @@
  * - Environment variables loaded via tsx --env-file=.env.local
  * 
  * Usage:
- * - Development: `npm run dev` (uses tsx --env-file=.env.local)
+ * - Development (Next only): `npm run dev`
+ * - Development (Next + Socket.io + jobs): `npm run dev:server`
  * - Production: `npm run build` then `npm run start`
  * 
  * Architecture:

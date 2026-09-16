@@ -58,7 +58,8 @@ Claim your daily reward every 24 hours:
 | Day 1 | 100 RP | 0 RP | 100 RP |
 | Day 2 | 100 RP | +10 RP | 110 RP |
 | Day 3 | 100 RP | +20 RP | 120 RP |
-| Day 7+ | 100 RP | +60 RP | **160 RP** (streak bonus caps at 7 days) |
+| Day 7 | 100 RP | +60 RP | 160 RP |
+| Day 8+ | 100 RP | +70 RP | **170 RP** (streak bonus caps here) |
 
 ⚠️ **Streak breaks** if you don't log in within 24 hours.
 
@@ -219,7 +220,7 @@ VIP subscription provides **+50% RP on ALL sources**:
 
 1. **Never Miss Daily Login**
    - Set a reminder to claim daily reward
-   - Maintain 7-day streak for maximum bonus (170 RP → 255 VIP)
+   - Maintain your streak past day 7 for the maximum bonus (170 RP → 255 VIP, capped from day 8+)
 
 2. **Prioritize Full Sweeps**
    - 4,300 RP/day is the bulk of steady earnings

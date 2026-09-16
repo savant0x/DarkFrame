@@ -24,14 +24,14 @@ Real-time combat · Clan warfare · Player-driven economy · One hostile 150×15
 
 ## 🌍 The World
 
-DarkFrame drops every player onto a shared **22,500-tile map** — nine terrain types, no instancing, no safe zones. Gather metal and energy by day, defend what you've built by night, and remember one rule of the wasteland: **if you can reach it, you can lose it.**
+DarkFrame drops every player onto a shared **22,500-tile map** — nine terrain types, no instancing. Gather metal and energy by day, defend what you've built by night, and remember one rule of the wasteland: **if you can reach it, you can lose it.**
 
 <div align="center">
 
 | 🗺️ | 🎮 | ⚔️ | 🏰 |
 |:---:|:---:|:---:|:---:|
-| **150 × 150 persistent world** | **8-direction movement** | **Server-enforced combat** | **Clans & alliances** |
-| 22,500 tiles · 9 terrain types · edge wrap-around | `QWEASDZXC` grid movement · reserved keys · zero misclicks | position-checked attacks · factories · flag warfare · WMDs | treasury · territory income · diplomacy |
+| **150 × 150 persistent world** | **8-direction movement** | **Server-resolved combat** | **Clans & alliances** |
+| 22,500 tiles · 9 terrain types · edge wrap-around | `QWEASDZXC` grid movement · reserved keys · zero misclicks | battle engine · factories · flag warfare · WMDs | treasury · territory income · diplomacy |
 
 </div>
 
@@ -42,11 +42,11 @@ DarkFrame drops every player onto a shared **22,500-tile map** — nine terrain 
 | | System | What it does |
 |:---:|---|---|
 | ⛏️ | **Gathering** | Harvest metal & energy fields; auto-farm with live telemetry |
-| 🏭 | **Factories** | Produce units through sequential build slots; honest scarcity curve (400–1,750 slots) |
-| 🍺 | **Beer Bases** | Roaming high-reward targets with power-band calibration. Their army, strength, and loot are **hidden until you walk up and scan them** — intel is earned, not given |
-| 🚩 | **Flag Warfare** | Channel-and-flee steals (no HP battles); bearer bonus stack; 12h milestone |
-| ☢️ | **WMDs** | Strategic weapons for clan-scale warfare (revived: real damage engine, lazy-tick scheduler) |
-| 🏦 | **Banking** | Deposits, loans, interest — the economy has a spine |
+| 🏭 | **Factories** | Produce units through sequential build slots; honest scarcity curve (400 slots at L1 → 1,750 at L10) |
+| 🎯 | **Beer Bases** | Weekly-respawning high-reward targets with power-band calibration, surfaced by the bot scanner (50-tile radius) — intel is earned, not given |
+| 🚩 | **Flag Warfare** | Channel-and-flee steals (no HP battles); bearer bonus stack; 12h hold milestone |
+| ☢️ | **WMDs** | Strategic weapons for clan-scale warfare (real damage engine, scheduled ticks) |
+| 🏦 | **Banking** | Deposits, withdrawals, exchange, plus clan treasury with distributions |
 | 🔨 | **Auction House** | Player-to-player trading with fee economics and real unit/money escrow |
 | 🎓 | **Progression** | XP power curve · research points (census-anchored milestones) · doctrine specializations · mastery · achievements · VIP tiers |
 | 💬 | **Social** | Global & clan chat, friends, DMs, bounties, referrals |
@@ -87,7 +87,6 @@ PORT=3000
 REDIS_URL=redis://localhost:6379
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-LOG_LEVEL=info
 ```
 
 ### 3 · Initialize
@@ -118,7 +117,6 @@ Open **http://localhost:3000** and log in.
 | `npm run dev` | Next.js dev server only |
 | `npm run db:setup` | Generate map + owner account (idempotent) |
 | `npm run map:rebuild` | ⚠️ **Destructive** — wipe & regenerate the map (`--yes` required) |
-| `npm run create-indexes` | Create DB performance indexes |
 | `npm run test:ci` | Full test suite (Vitest, 865 tests) |
 | `npm run lint` | ESLint (0 errors; `no-console` + import guards enforced) |
 | `npx tsc --noEmit` | TypeScript check (0 errors, strict) |
@@ -137,14 +135,17 @@ Open **http://localhost:3000** and log in.
 
 | | | |
 |:---|:---:|:---|
-| <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><br/><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><br/><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd> | 🧭 | Move — 8 directions (<kbd>S</kbd> stops) |
-| <kbd>G</kbd> / <kbd>⇧Shift+V</kbd> | ⛏️ | Harvest field / harvest cave & forest |
-| <kbd>R</kbd> | ⚔️ | Attack factory *(you must stand on it)* |
+| <kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><br/><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><br/><kbd>Z</kbd><kbd>X</kbd><kbd>C</kbd> | 🧭 | Move — 8 directions (<kbd>S</kbd> holds position) |
+| <kbd>G</kbd> / <kbd>F</kbd> | ⛏️ | Harvest field / harvest cave & forest |
+| <kbd>R</kbd> | ⚔️ | Attack factory |
 | <kbd>⇧Shift+E</kbd> | 🍺 | Beer Bases panel |
-| <kbd>B</kbd> · <kbd>N</kbd> · <kbd>U</kbd> | 🏛️ | Bank · Shrine · Unit build *(tile-gated)* |
-| <kbd>⇧Shift+C</kbd> / <kbd>L</kbd> | 👥 | Clan view / leaderboards |
-| <kbd>⇧Shift+X</kbd> / <kbd>⇧Shift+D</kbd> | 🤖 | Bot scanner / Discovery log |
-| <kbd>I</kbd> / <kbd>⇧Shift+P</kbd> | 🎒 | Inventory / Progression |
+| <kbd>B</kbd> · <kbd>N</kbd> · <kbd>U</kbd> | 🏛️ | Bank · Shrine · Unit build |
+| <kbd>M</kbd> · <kbd>T</kbd> · <kbd>H</kbd> · <kbd>V</kbd> | 🛠️ | Factory mgmt · Tier unlock · Auction house · Achievements |
+| <kbd>O</kbd> · <kbd>J</kbd> · <kbd>Y</kbd> | 🎯 | Bounty board · Bot magnet · Bot summoning |
+| <kbd>⇧Shift+C</kbd> / <kbd>L</kbd> / <kbd>P</kbd> | 👥 | Clan view / clan leaderboard / player leaderboard |
+| <kbd>⇧Shift+X</kbd> / <kbd>⇧Shift+F</kbd> / <kbd>⇧Shift+S</kbd> | 🤖 | Bot scanner / auto-farm toggle / auto-farm stats |
+
+Full list with every binding (and rebind UI) in the admin Hotkey Manager.
 
 </div>
 
@@ -154,17 +155,17 @@ Open **http://localhost:3000** and log in.
 
 ```
 DarkFrame/
-├── app/                 Next.js App Router — pages & 230+ API routes
+├── app/                 Next.js App Router — pages & 235 API routes
 ├── components/          Game canvas, panels, admin modals (NEON NOIR token system)
-├── lib/                 ~90 game services · Drizzle schema + migrations · jobs · websocket
+├── lib/                 ~110 game services · Drizzle schema + connection · jobs · websocket
 ├── types/               Shared TypeScript contracts (single-source catalogs)
 ├── scripts/             Setup, E2E drivers & economy simulators (run the real engine)
-├── docs/                Player + design docs (audited 2026-09-15; history in dev/archives/)
+├── docs/                Player + design docs (audited 2026-09-16; history in dev/archives/)
 ├── dev/                 Working notes — sessions, FIDs + archive, audits, protocol
 └── SCOPE.md             Authoritative scope & audit trail
 ```
 
-**Stack:** Next.js 16 (App Router) · React 18 · TypeScript strict · custom Node server hosting Next + Socket.io + scheduled jobs · PostgreSQL via Drizzle ORM · JWT auth (`jose`, bcrypt) · Stripe subscriptions · Redis rate-limiting · Sentry · Vitest
+**Stack:** Next.js 16 (App Router) · React 19 · TypeScript strict · custom Node server hosting Next + Socket.io + scheduled jobs · PostgreSQL via Drizzle ORM · JWT auth (`jose`, bcrypt) · Stripe subscriptions · Redis rate-limiting · Sentry · Vitest
 
 ---
 
@@ -189,6 +190,19 @@ game-math tables are CI-pinned (comment drift fails the suite).
 | [`CHANGELOG.md`](CHANGELOG.md) | Release-by-release record of what shipped |
 | [`dev/session-summaries/`](dev/session-summaries/) | Per-session engineering records |
 | [`dev/fids/archive/`](dev/fids/archive/) | Closed feature/bug records with evidence |
+
+**Player & operator guides live in [`docs/`](docs/):**
+
+| Guide | Covers |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System design, stack, live API layout |
+| [`docs/DEV_SETUP.md`](docs/DEV_SETUP.md) | Dev servers, scripts, Windows PATH fix |
+| [`docs/RP_ECONOMY_GUIDE.md`](docs/RP_ECONOMY_GUIDE.md) | Earning & spending research points |
+| [`docs/REFERRAL_SYSTEM_GUIDE.md`](docs/REFERRAL_SYSTEM_GUIDE.md) | Referral rewards & validation |
+| [`docs/MESSAGING_SYSTEM.md`](docs/MESSAGING_SYSTEM.md) | DMs, channels, Socket.io events |
+| [`docs/TUTORIAL_SYSTEM.md`](docs/TUTORIAL_SYSTEM.md) | Tutorial quests & schema |
+| [`docs/STRIPE_LOCAL_TESTING.md`](docs/STRIPE_LOCAL_TESTING.md) | Webhook testing with the Stripe CLI |
+| [`docs/TESTING_GUIDE.md`](docs/TESTING_GUIDE.md) | Auth & gameplay test walkthroughs |
 
 > **Note on the DB layer:** Postgres is authoritative. A Mongo-style API shim (`lib/mongodb.ts`) bridges service code left over from earlier pivots and is being retired incrementally. Known rough edges are tracked openly in `SCOPE.md` — nothing is silently broken.
 

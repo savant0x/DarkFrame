@@ -1,5 +1,9 @@
 # 🎁 DarkFrame Referral System - Complete Guide
 
+> **Status (2026-09-16 audit):** reward numbers reconciled to
+> `lib/referralService.ts` + the 600k-RP W1 WMD track; persistence is
+> Postgres/Drizzle (`referrals` table, see `lib/db/schema/referrals.ts`).
+
 **Version:** 1.0  
 **Created:** 2025-10-24  
 **Feature ID:** FID-20251024-001  
@@ -35,7 +39,7 @@ The DarkFrame Referral System rewards players for inviting friends to join the g
 | Metric | Value | Notes |
 |--------|-------|-------|
 | **Total Resources (100 referrals)** | ~5M metal/energy | Equals 2-3 hours of active farming |
-| **Total RP (100 referrals)** | ~15,000 RP | ~2.5% of the WMD track (600k RP) |
+| **Total RP (100 referrals)** | ~8,900 RP | ~1.5% of the W1 WMD track (600k RP) |
 | **VIP Days Cap** | 30 days maximum | Hard capped to prevent exploitation |
 | **Progressive Cap** | 2.0x at 15 referrals | Prevents late-game escalation |
 | **Welcome Package** | 50k/50k + bonuses | Generous new player onboarding |
@@ -49,16 +53,16 @@ The DarkFrame Referral System rewards players for inviting friends to join the g
 ```
 Metal:     10,000 × progressive multiplier
 Energy:    10,000 × progressive multiplier  
-RP:        15 (flat, no multiplier)
-XP:        2,000 (flat)
+RP:        15 × progressive multiplier (same 1.05^n curve, 2.0x cap)
+XP:        2,000 × progressive multiplier
 VIP Days:  1 day (capped at 30 total)
 ```
 
 ### Progressive Scaling
 
 - **Formula:** `multiplier = min(1.05^referralCount, 2.0)`
-- **Cap Reached:** 15th referral (2.0x multiplier)
-- **Example:** 15th referral gives 20,000 metal + 20,000 energy
+- **Cap Reached:** ~16th referral (1.05^15 crosses 2.0x; 15th pays ~1.98x)
+- **Example:** 15th referral gives ~19,799 metal + ~19,799 energy
 
 ### Milestone Bonuses
 
@@ -352,60 +356,50 @@ Manually invalidate a referral.
 
 ### Database Schema
 
-#### `referrals` Collection
+#### `referrals` Table
 
 ```typescript
 {
-  _id: ObjectId,
-  referrerPlayerId: ObjectId,
-  referrerUsername: string,
-  newPlayerUsername: string,
-  newPlayerEmail: string,
-  referralCode: string,
-  validated: boolean,
+  id: varchar(24),               // PK
+  referrerCode: varchar(20),
+  referrerUsername: varchar(20), // FK → players.username
+  referrerPlayerId: varchar(24),
+  newPlayerUsername: varchar(20),
+  newPlayerEmail: varchar(255),
+  newPlayerIP: varchar(45),      // Anti-abuse
+  signupDate: Date,
   validationDate?: Date,
-  flagged?: boolean,
+  validated: 0 | 1,
+  loginCount: number,
+  lastLogin?: Date,
+  daysActive: number,
+  rewardsClaimed: 0 | 1,
+  rewardsDataMetal: number,
+  rewardsDataEnergy: number,
+  rewardsDataRp: number,
+  rewardsDataXp: number,
+  rewardsDataVipDays: number,
+  rewardsDataSpecialReward?: string,
+  rewardsDataMilestone?: number,
+  welcomePackageGiven: 0 | 1,
+  flaggedForAbuse: 0 | 1,
+  invalidated: 0 | 1,            // Admin invalidation marker
   flagReason?: string,
-  ipAddress?: string,
-  validationDetails: {
-    loginCount: number,
-    lastLogin?: Date
-  },
-  rewardsData: {
-    metal: number,
-    energy: number,
-    rp: number,
-    xp: number,
-    vipDays: number
-  },
-  rewardsClaimed: boolean,
+  adminNotes?: string,           // text
   createdAt: Date,
-  updatedAt: Date
+  updatedAt: Date,
 }
 ```
 
-#### Player Schema Extensions
+Full definition (columns, indexes): `lib/db/schema/referrals.ts`.
 
-```typescript
-{
-  referralCode?: string,
-  referredBy?: string,
-  totalReferrals?: number,
-  pendingReferrals?: number,
-  validatedReferrals?: number,
-  referralTitles?: string[],
-  referralBadges?: string[],
-  referralMilestonesReached?: number[],
-  referralRewardsEarned?: {
-    metal: number,
-    energy: number,
-    rp: number,
-    xp: number,
-    vipDays: number
-  },
-  lastReferralValidated?: Date
-}
-```
+#### Player Table Extensions
+
+Referral state lives on the `players` row (`referralCode`, `referredBy`,
+`totalReferrals`, `pendingReferrals`, `referralRewardsMetal/Energy/Rp/Xp/VipDays`,
+`referralTitles`, `referralBadges`, `referralMilestonesReached`,
+`lastReferralValidated`).
+Full definition: `lib/db/schema/players.ts`.
 
 ### Validation Logic
 
@@ -440,20 +434,14 @@ Manually invalidate a referral.
 
 ### 1. Database Setup
 
-Ensure MongoDB indexes for performance:
-
-```javascript
-db.referrals.createIndex({ referrerPlayerId: 1 });
-db.referrals.createIndex({ newPlayerEmail: 1 });
-db.referrals.createIndex({ referralCode: 1 }, { unique: true });
-db.referrals.createIndex({ createdAt: 1 });
-db.referrals.createIndex({ validated: 1 });
-```
+Indexes ship with the schema — see `lib/db/schema/referrals.ts`
+(referrer + validated, new-player, signup-date, validated + date).
+Apply migrations; no manual index setup.
 
 ### 2. Environment Variables
 
 ```bash
-MONGODB_URI=mongodb://localhost:27017/darkframe
+DATABASE_URL=postgresql://user:password@host:5432/darkframe
 ```
 
 ### 3. Cron Job Setup
@@ -514,10 +502,10 @@ import { calculateReferralReward, getNextMilestone } from '@/lib/referralService
 // Test progressive scaling
 test('Progressive reward scaling', () => {
   const reward1 = calculateReferralReward(1, 1.0, 0);
-  expect(reward1.metal).toBe(10500); // 10k × 1.05
+  expect(reward1.metal).toBe(10000); // 10k × 1.05^0 (first referral, no ramp yet)
 
   const reward15 = calculateReferralReward(15, 1.0, 0);
-  expect(reward15.metal).toBe(20000); // 10k × 2.0 (capped)
+  expect(reward15.metal).toBe(19799); // 10k × 1.05^14 (cap 2.0x hits ~referral 16)
 });
 
 // Test VIP cap
@@ -589,7 +577,7 @@ expect(validateData.valid).toBe(true);
 **Symptoms:** Referral stuck in "pending" status after 7 days
 
 **Checks:**
-1. Verify player has 4+ logins: Check `validationDetails.loginCount` in database
+1. Verify player has 4+ logins: Check `login_count` on the `referrals` row
 2. Check if flagged: Look for `flagged: true` field
 3. Run cron manually: `npm run validate-referrals`
 4. Check cron logs: `/var/log/darkframe-cron.log`
@@ -604,7 +592,7 @@ expect(validateData.valid).toBe(true);
 
 **Checks:**
 1. Check `rewardsClaimed` field in referral record
-2. Verify `referralRewardsEarned` on referrer's player record
+2. Verify `referral_rewards_*` columns on the referrer's `players` row
 3. Check for errors in cron log
 
 **Solution:**
@@ -629,7 +617,7 @@ expect(validateData.valid).toBe(true);
 
 **Checks:**
 1. Check current `vipExpiration` on player record
-2. Verify `referralRewardsEarned.vipDays` count
+2. Verify `referral_rewards_vip_days` count
 3. Check if VIP cap (30 days) reached
 
 **Solution:**
@@ -651,32 +639,26 @@ expect(validateData.valid).toBe(true);
 ### Recommended Queries
 
 **Top 10 Recruiters:**
-```javascript
-db.players.find(
-  { validatedReferrals: { $gte: 1 } }
-).sort({ validatedReferrals: -1 }).limit(10);
+```sql
+SELECT username, total_referrals FROM players
+WHERE total_referrals >= 1
+ORDER BY total_referrals DESC LIMIT 10;
 ```
 
 **Pending Validations:**
-```javascript
-db.referrals.count({ validated: false, flagged: { $ne: true } });
+```sql
+SELECT COUNT(*) FROM referrals
+WHERE validated = 0 AND flagged_for_abuse <> 1;
 ```
 
 **Flagged Referrals:**
-```javascript
-db.referrals.find({ flagged: true });
+```sql
+SELECT * FROM referrals WHERE flagged_for_abuse = 1;
 ```
 
 **Validation Success Rate:**
-```javascript
-db.referrals.aggregate([
-  {
-    $group: {
-      _id: "$validated",
-      count: { $sum: 1 }
-    }
-  }
-]);
+```sql
+SELECT validated, COUNT(*) FROM referrals GROUP BY validated;
 ```
 
 ---
@@ -719,7 +701,7 @@ db.referrals.aggregate([
 - ✅ 8 milestone bonuses
 - ✅ Welcome package (50k/50k)
 - ✅ VIP cap at 30 days
-- ✅ RP balanced at 15k total (~0.55% WMD tree)
+- ✅ RP balanced at ~8.9k total (~1.5% of the 600k-RP W1 WMD track)
 - ✅ Admin panel with flagging and manual validation
 - ✅ Daily auto-validation cron job
 - ✅ Complete UI integration (dashboard, leaderboard, profile)

@@ -1,11 +1,8 @@
 # 🎓 Interactive Tutorial System
 
-> **Status (2026-09-15 audit):** quest structure + backend references below are
-> the October-2025 design; the live system has since gained nearest-cave
-> resolution (no hardcoded coordinates), CUSTOM-step server evaluation,
-> beer-base hooks, panel-open reporting, and a Postgres backing store. The
-> step list is conceptually right; coordinates, counts, and storage details
-> marked below were corrected where they were provably false.
+> **Status (2026-09-16 audit):** current — Postgres/Drizzle backing store
+> (`tutorial_progress` / `tutorial_action_tracking`, see
+> `lib/db/schema/tutorial.ts`).
 
 ## Overview
 
@@ -81,7 +78,6 @@ components/tutorial/
   ├── TutorialQuestPanel.tsx     # Mini quest tracker (250+ lines)
   └── index.ts                   # Component exports
 app/api/tutorial/route.ts        # REST API endpoints (240+ lines)
-scripts/setup-tutorial-indexes.js # MongoDB index setup
 ```
 
 **Total:** ~1,437 lines of production-ready code
@@ -95,45 +91,15 @@ scripts/setup-tutorial-indexes.js # MongoDB index setup
 npm install react-joyride @types/react-joyride
 ```
 
-### 2. MongoDB Indexes
-Run these commands in MongoDB shell or Compass:
+### 2. Database Indexes
+Indexes ship with the schema — see `lib/db/schema/tutorial.ts`:
+- Unique `(player_id)` on `tutorial_progress`
+- `(tutorial_complete, completed_at)`, `(current_quest_id, tutorial_skipped)`
+- Unique `(player_id, step_id)` on `tutorial_action_tracking`
+- `(last_updated)` for cleanup queries
 
-```javascript
-use darkframe;
-
-// Unique index on playerId
-db.tutorial_progress.createIndex(
-  { playerId: 1 }, 
-  { unique: true, name: "playerId_unique" }
-);
-
-// Analytics index
-db.tutorial_progress.createIndex(
-  { tutorialComplete: 1 }, 
-  { name: "tutorialComplete_index" }
-);
-
-// Cleanup index
-db.tutorial_progress.createIndex(
-  { lastUpdated: 1 }, 
-  { name: "lastUpdated_index" }
-);
-
-// Compound index for active queries
-db.tutorial_progress.createIndex(
-  { tutorialComplete: 1, currentQuestId: 1 }, 
-  { name: "active_tutorial_index" }
-);
-
-// Verify
-db.tutorial_progress.getIndexes();
-```
-
-**OR** run the setup script:
-```bash
-node scripts/setup-tutorial-indexes.js
-```
-*(Displays commands to run manually)*
+No setup script is needed (the old `scripts/setup-tutorial-indexes.js`
+one-shot was archived).
 
 ### 3. Game Integration (Already Complete)
 - ✅ `TutorialOverlay` added to `app/game/page.tsx`
@@ -160,23 +126,23 @@ export const DEFAULT_TUTORIAL_CONFIG: TutorialConfig = {
 
 ---
 
-## 📊 MongoDB Schema
+## 📊 Postgres Schema
 
-### Collection: `tutorial_progress`
+### Table: `tutorial_progress`
 
 ```typescript
 {
-  _id: ObjectId,
-  playerId: string,              // Player username or _id
-  currentQuestId?: string,       // Active quest ID
+  id: varchar(24),               // PK
+  playerId: varchar(20),         // Player username (unique)
+  currentQuestId?: varchar(50),  // Active quest ID
   currentStepIndex: number,      // Current step (0-indexed)
-  completedQuests: string[],     // Completed quest IDs
-  completedSteps: string[],      // Completed step IDs
-  skippedQuests: string[],       // Skipped quest IDs
-  claimedRewards: string[],      // Claimed reward IDs
-  tutorialSkipped: boolean,      // Full tutorial skip
-  tutorialComplete: boolean,     // All quests done
-  startedAt: Date,               // Start timestamp
+  completedQuests: string[],     // jsonb — completed quest IDs
+  completedSteps: string[],      // jsonb — completed step IDs
+  skippedQuests: string[],       // jsonb — skipped quest IDs
+  claimedRewards: string[],      // jsonb — claimed reward IDs
+  tutorialSkipped: 0 | 1,        // Full tutorial skip
+  tutorialComplete: 0 | 1,       // All quests done
+  startedAt: Date,               // Tutorial start
   completedAt?: Date,            // Completion timestamp
   lastUpdated: Date,             // Last update
   totalStepsCompleted: number,   // Progress metric
@@ -184,11 +150,20 @@ export const DEFAULT_TUTORIAL_CONFIG: TutorialConfig = {
 }
 ```
 
-**Indexes:**
-- `{ playerId: 1 }` - Unique
-- `{ tutorialComplete: 1 }` - Analytics
-- `{ lastUpdated: 1 }` - Cleanup
-- `{ tutorialComplete: 1, currentQuestId: 1 }` - Active queries
+### Table: `tutorial_action_tracking`
+
+```typescript
+{
+  id: varchar(24),               // PK
+  playerId: varchar(20),         // Player username
+  stepId: varchar(50),           // Step ID (unique per player)
+  actionType: varchar(160),      // MOVE/HARVEST/ATTACK/etc + count state
+  completed: 0 | 1,
+  lastUpdated: Date,
+}
+```
+
+Full definition (columns, indexes): `lib/db/schema/tutorial.ts`.
 
 ---
 
@@ -290,14 +265,13 @@ Persistent mini-tracker in bottom-right corner.
 
 ## 🧪 Testing Checklist
 
-- [ ] **Database Setup**: Run MongoDB index creation commands
 - [ ] **New Player Flow**: Create fresh account, verify tutorial auto-starts
 - [ ] **Quest Progression**: Complete all 6 quests, verify rewards awarded
 - [ ] **Skip Functionality**: Test quest skip and full tutorial skip
 - [ ] **Restart**: Test tutorial restart from settings
 - [ ] **Progress Persistence**: Refresh page mid-tutorial, verify state maintained
 - [ ] **Edge Cases**: Test with level 6+ player, verify tutorial hidden
-- [ ] **Analytics**: Check `tutorial_progress` collection for data accuracy
+- [ ] **Analytics**: Check `tutorial_progress` table for data accuracy
 
 ---
 
@@ -310,51 +284,23 @@ Persistent mini-tracker in bottom-right corner.
 - Step-by-step completion: >90% for required quests
 - Player retention (D1): >70%
 
-**Analytics Queries:**
+**Analytics Queries (Postgres):**
 
-```javascript
-// Completion rate
-db.tutorial_progress.aggregate([
-  {
-    $group: {
-      _id: null,
-      total: { $sum: 1 },
-      completed: {
-        $sum: { $cond: [{ $eq: ["$tutorialComplete", true] }, 1, 0] }
-      }
-    }
-  },
-  {
-    $project: {
-      completionRate: {
-        $multiply: [{ $divide: ["$completed", "$total"] }, 100]
-      }
-    }
-  }
-]);
+```sql
+-- Completion rate
+SELECT COUNT(*) AS total,
+       SUM(tutorial_complete) AS completed,
+       100.0 * SUM(tutorial_complete) / COUNT(*) AS completion_rate
+FROM tutorial_progress;
 
-// Average steps completed
-db.tutorial_progress.aggregate([
-  {
-    $group: {
-      _id: null,
-      avgSteps: { $avg: "$totalStepsCompleted" }
-    }
-  }
-]);
+-- Average steps completed
+SELECT AVG(total_steps_completed) AS avg_steps FROM tutorial_progress;
 
-// Skip rate
-db.tutorial_progress.aggregate([
-  {
-    $group: {
-      _id: null,
-      total: { $sum: 1 },
-      skipped: {
-        $sum: { $cond: [{ $eq: ["$tutorialSkipped", true] }, 1, 0] }
-      }
-    }
-  }
-]);
+-- Skip rate
+SELECT COUNT(*) AS total,
+       SUM(tutorial_skipped) AS skipped,
+       100.0 * SUM(tutorial_skipped) / COUNT(*) AS skip_rate
+FROM tutorial_progress;
 ```
 
 ---
@@ -365,22 +311,22 @@ db.tutorial_progress.aggregate([
 - Check `DEFAULT_TUTORIAL_CONFIG.enabled` is `true`
 - Verify player level is between `minimumLevel` and `maximumLevel`
 - Check browser console for errors
-- Verify MongoDB connection is active
+- Verify Postgres connection is active
 
 ### Progress not saving
-- Ensure MongoDB indexes are created
-- Check `tutorial_progress` collection exists
+- Ensure migrations are applied (`tutorial_progress` table exists)
+- Check `tutorial_progress` table exists
 - Verify API routes return 200 status
 - Check browser network tab for failed requests
 
 ### Rewards not distributed
 - Verify reward integration functions in `lib/tutorialService.ts`
-- Check player collection has `metal`, `oil`, `experience` fields
+- Check player row has `resources_metal`, `resources_energy`, `xp` fields
 - Implement item/achievement reward handlers (marked TODO)
 
 ### Performance issues
-- Verify MongoDB indexes are active: `db.tutorial_progress.getIndexes()`
-- Check query execution plans: `.explain("executionStats")`
+- Verify indexes exist (see `lib/db/schema/tutorial.ts`)
+- Check slow-query logging for the tutorial endpoints
 - Reduce `TutorialQuestPanel` refresh interval if needed (default: 5s)
 
 ---
@@ -416,14 +362,13 @@ db.tutorial_progress.aggregate([
 
 ## 📚 Documentation
 
-**Related Files:**
-- `dev/FID-20251025-101_IMPLEMENTATION_SUMMARY.md` - Complete implementation details
-- `dev/COMMUNITY_BUILDING_MASTER_PLAN.md` - Full sprint roadmap
-- `dev/NPM_PACKAGES_RECOMMENDATIONS.md` - Package justifications
+**Related code:**
+- `types/tutorial.types.ts` — quest/step types, `DEFAULT_TUTORIAL_CONFIG`
+- `lib/tutorialService.ts` — quest chains & business logic
+- `lib/db/schema/tutorial.ts` — Postgres tables & indexes
 
 **External Resources:**
 - [react-joyride Documentation](https://docs.react-joyride.com/)
-- [MongoDB Indexes Guide](https://docs.mongodb.com/manual/indexes/)
 - [Next.js API Routes](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
 
 ---
@@ -433,11 +378,9 @@ db.tutorial_progress.aggregate([
 - [x] NPM packages installed (react-joyride)
 - [x] TypeScript files created (no compile errors)
 - [x] Components integrated into game UI
-- [ ] MongoDB indexes created in production database
+- [x] Postgres tables migrated (`tutorial_progress`, `tutorial_action_tracking`)
 - [ ] Tutorial tested with real player account
 - [ ] Analytics queries validated
-- [ ] README updated with tutorial section
-- [ ] CHANGELOG updated with release notes
 
 ---
 
@@ -445,8 +388,8 @@ db.tutorial_progress.aggregate([
 
 For issues or questions:
 1. Check this documentation first
-2. Review `dev/FID-20251025-101_IMPLEMENTATION_SUMMARY.md`
-3. Search MongoDB logs for errors
+2. Review `lib/tutorialService.ts` inline docs
+3. Search server logs for errors
 4. Check browser console for client-side errors
 5. Verify API routes with Postman/curl
 

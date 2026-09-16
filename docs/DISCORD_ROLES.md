@@ -106,11 +106,4 @@ References (project files with feature evidence)
 - Factories: components/FactoryButton.tsx, components/FactoryManagementPanel.tsx, UnitBuildPanelEnhanced.tsx, lib/factoryUpgradeService.ts
 - Tech Tree: app/tech-tree/page.tsx, app/api/research
 - Bots & AI: types/botConfig.types.ts, app/api/admin/bot-spawn, bot-regen, bot-stats
-- Clan Systems: COMPLETE_CLAN_SYSTEM_PLAN.md, components/ClanChatPanel.tsx
-
-Next Steps
-
-- If this draft looks good, I'll commit it to docs/DISCORD_ROLES.md and update the todo list.
-- I can also generate example Arcane dashboard values and channel permission snippets.
-
--- End of Document
+- Clan Systems: types/clan.types.ts, components/ClanChatPanel.tsx

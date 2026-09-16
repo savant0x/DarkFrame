@@ -1,9 +1,7 @@
 # Private Messaging System - Complete Documentation
 
-> **Status (2026-09-15 audit):** features below are live; the persistence
-> backend is Postgres/Drizzle (not MongoDB) and setup sections referencing
-> Mongo Atlas/Compass/`MONGODB_URI` are historical. Socket.io delivery,
-> panels, and API shapes are as documented.
+> **Status (2026-09-16 audit):** current — Postgres/Drizzle persistence
+> (`conversations` / `messages`, see `lib/db/schema/messages.ts`).
 
 **Feature ID:** FID-20251025-102
 **Created:** October 25, 2025
@@ -31,7 +29,7 @@
 
 ## 🎯 Overview
 
-The Private Messaging System provides a complete real-time communication platform for DarkFrame players. It combines **persistent MongoDB storage** with **real-time Socket.io delivery**, enabling both instant chat and traditional messaging functionality.
+The Private Messaging System provides a complete real-time communication platform for DarkFrame players. It combines **persistent Postgres storage** with **real-time Socket.io delivery**, enabling both instant chat and traditional messaging functionality.
 
 ### Key Capabilities
 
@@ -39,14 +37,17 @@ The Private Messaging System provides a complete real-time communication platfor
 - **Rich Features**: Emoji picker, typing indicators, read receipts, message search
 - **Security First**: Profanity filtering, rate limiting (20 msgs/min), input validation
 - **Responsive Design**: Split-pane (desktop) and stacked (mobile) layouts
-- **Performance**: Optimized MongoDB indexes for fast queries
+- **Performance**: Indexed Postgres tables for fast queries
 
 ### Technology Stack
 
-- **Frontend**: React, Next.js 15, TypeScript, Tailwind CSS
+- **Frontend**: React, Next.js 16, TypeScript, Tailwind CSS
 - **Real-time**: Socket.io (custom HTTP server with JWT auth)
-- **Storage**: MongoDB (conversations + messages collections)
-- **Packages**: @emoji-mart/react, bad-words, linkify-react, react-mentions, string-similarity
+- **Storage**: Postgres/Drizzle (`conversations` / `messages` tables —
+  see Database Schema below)
+- **Packages**: bad-words, linkify-react, linkifyjs, react-mentions
+  (installed — see `package.json`; `@emoji-mart` and `string-similarity`
+  are NOT installed)
 
 ---
 
@@ -72,7 +73,8 @@ The Private Messaging System provides a complete real-time communication platfor
 - Conversation list sorted by most recent activity
 
 ✅ **Rich Text Features**
-- Emoji picker with 1000+ emojis (@emoji-mart)
+- Emoji quick-insert row (built-in; `@emoji-mart` was removed as
+  React-19-incompatible — see `components/messaging/MessageThread.tsx`)
 - URL auto-linking with previews
 - @mention support (react-mentions)
 - Character counter (1000 char limit)
@@ -80,7 +82,7 @@ The Private Messaging System provides a complete real-time communication platfor
 
 ✅ **Content Moderation**
 - Profanity filtering (bad-words library)
-- Spam detection (string-similarity)
+- Spam control via rate limiting (20 msgs/min; no similarity library installed)
 - Rate limiting (20 messages per minute per user)
 - Input validation and sanitization
 
@@ -137,17 +139,18 @@ The Private Messaging System provides a complete real-time communication platfor
 └────────────────────────────────────────┼────────────────────┘
                                          │
                     ┌────────────────────┼────────────────────┐
-                    │    MongoDB Driver  │                    │
+                    │    Drizzle → Postgres │                   │
                     └────────────────────┼────────────────────┘
                                          │
 ┌────────────────────────────────────────┼────────────────────┐
 │                   DATABASE             │                    │
 ├────────────────────────────────────────┼────────────────────┤
-│  MongoDB Collections                   │                    │
+│  Postgres Tables                       │                    │
 │  ├── conversations (metadata)          │                    │
-│  │   └── Indexes: participants, updatedAt                   │
+│  │   └── Index: updated_at                                    │
 │  └── messages (content)                │                    │
-│      └── Indexes: conversationId, senderId+recipientId     │
+│      └── Indexes: (conversation_id, created_at),              │
+│          (recipient_id, status)                               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -156,7 +159,7 @@ The Private Messaging System provides a complete real-time communication platfor
 **Sending a Message:**
 1. User types in MessageThread → clicks Send
 2. MessageThread POST to `/api/messages` → returns message object
-3. API route calls `messagingService.sendMessage()` → saves to MongoDB
+3. API route calls `messagingService.sendMessage()` → saves to Postgres
 4. Client emits Socket.io `message:send` event
 5. Server `handleMessageSend()` validates → broadcasts `message:receive` to recipient
 6. Recipient's MessageThread receives event → updates UI instantly
@@ -175,7 +178,7 @@ The Private Messaging System provides a complete real-time communication platfor
 ### Prerequisites
 
 - Node.js 18+ installed
-- MongoDB Atlas account or local MongoDB instance
+- Postgres database reachable (`DATABASE_URL` in `.env.local`)
 - NPM packages installed (see package.json)
 
 ### Installation Steps
@@ -183,34 +186,25 @@ The Private Messaging System provides a complete real-time communication platfor
 **1. Install Dependencies**
 
 ```bash
-npm install @emoji-mart/react @emoji-mart/data bad-words linkify-react linkifyjs react-mentions string-similarity web-push
-npm install --save-dev @types/string-similarity @types/web-push
+npm install bad-words linkify-react linkifyjs react-mentions
 ```
+
+> Do not add other packages: `@emoji-mart/react`, `@emoji-mart/data`,
+> `string-similarity`, and `web-push` (+ `@types/*`) are not installed or
+> imported — the emoji row is built in and spam control is rate limiting.
 
 **2. Environment Variables**
 
 Add to `.env.local`:
 
 ```env
-MONGODB_URI=REDACTED_MONGO_URI_username:password@cluster.mongodb.net/darkframe?retryWrites=true&w=majority
+DATABASE_URL=postgresql://user:password@host:5432/darkframe
 ```
 
-**3. Create MongoDB Indexes**
+**3. Apply Migrations**
 
-Run the automated setup script:
-
-```bash
-node scripts/setup-messaging-indexes.js
-```
-
-Expected output:
-```
-✅ Successfully created 7 new indexes!
-```
-
-Verify indexes in MongoDB Atlas or MongoDB Compass:
-- **conversations**: `participants_index`, `participants_updated_index`, `updated_at_index`
-- **messages**: `conversation_messages_index`, `sender_recipient_index`, `status_index`, `created_at_index`
+Messaging tables (`conversations`, `messages`) and their indexes ship in
+`lib/db/schema/messages.ts` — apply migrations, no manual index setup.
 
 **4. Start Development Server**
 
@@ -226,7 +220,7 @@ Server will start on `http://localhost:3000` with Socket.io enabled.
 2. Login as User B in incognito window → Navigate to `/messages`
 3. User A sends message to User B
 4. Verify real-time delivery
-5. Check MongoDB to confirm persistence
+5. Query Postgres (`messages` table) to confirm persistence
 
 ---
 
@@ -719,7 +713,7 @@ interface MessageThreadProps {
 
 **Features:**
 - Message history with pagination
-- Emoji picker (1000+ emojis)
+- Emoji quick-insert row (built-in, not `@emoji-mart`)
 - Typing indicators (placeholder for Socket.io)
 - Character counter (1000 max)
 - Auto-scroll to bottom
@@ -749,53 +743,62 @@ Navigate to `/messages` in authenticated session. Uses `useGameContext()` for pl
 
 ## 💾 Database Schema
 
-### `conversations` Collection
+### `conversations` Table
 
 ```typescript
 {
-  _id: ObjectId;
-  participants: string[]; // Array of usernames [player1, player2]
-  lastMessage: {
-    content: string;
-    senderId: string;
-    createdAt: Date;
-    status: 'sent' | 'delivered' | 'read';
-  };
-  unreadCount: {
-    [playerId: string]: number; // Unread messages per participant
-  };
-  createdAt: Date; // Conversation creation timestamp
-  updatedAt: Date; // Last activity timestamp
+  id: varchar(24);               // PK
+  participants: string[];        // jsonb — [player1, player2]
+  participantDetails?: object;   // jsonb
+  lastMessageContent?: string;   // Last message text (≤1000 chars)
+  lastMessageSenderId?: string;
+  lastMessageCreatedAt?: Date;
+  lastMessageStatus?: string;    // sent | delivered | read
+  unreadCount: { [playerId: string]: number }; // jsonb
+  createdAt: Date;
+  updatedAt: Date;
+  isArchived?: { [playerId: string]: boolean };  // jsonb
+  isPinned?: { [playerId: string]: boolean };    // jsonb
+  metadataTotalMessages?: number;
+  metadataFirstMessageAt?: Date;
+  metadataMuteUntil?: { [playerId: string]: string }; // jsonb
 }
 ```
 
-**Indexes:**
-1. `participants` (ascending) - Fast lookup by participant
-2. `participants + updatedAt` (compound) - Sorted conversation list
-3. `updatedAt` (descending) - Time-based sorting
+**Index:** `updated_at` (sorted conversation list)
 
 ---
 
-### `messages` Collection
+### `messages` Table
 
 ```typescript
 {
-  _id: ObjectId;
-  conversationId: ObjectId; // Reference to conversation
-  senderId: string; // Sender's username
-  recipientId: string; // Recipient's username
-  content: string; // Message text (1-1000 chars)
-  status: 'sent' | 'delivered' | 'read'; // Delivery status
-  createdAt: Date; // Message timestamp
-  readAt?: Date; // When message was read (optional)
+  id: varchar(24);               // PK
+  conversationId: varchar(24);   // FK → conversations.id
+  senderId: string;              // Sender's username
+  recipientId: string;           // Recipient's username
+  content: string;               // text — player messages zod-capped at
+                                 // 1000 chars; system (battle-report)
+                                 // messages may exceed it
+  contentType: string;           // text | system | notification
+  status: string;                // sent | delivered | read
+  createdAt: Date;
+  readAt?: Date;
+  editedAt?: Date;
+  deletedAt?: Date;              // Soft delete
+  metadataOriginalContent?: string;
+  metadataEditHistory?: Array<{ content: string; editedAt: Date }>;
+  metadataSystemType?: string;   // achievement | battle | trade
+  metadataRelatedEntityId?: string;
 }
 ```
 
 **Indexes:**
-1. `conversationId + createdAt` (compound) - Paginated history
-2. `senderId + recipientId` (compound) - Direct message queries
-3. `status` (sparse) - Filter by status
-4. `createdAt` (descending) - Time-based queries
+1. `(conversation_id, created_at)` — paginated history
+2. `(recipient_id, status)` — unread filtering
+3. `(deleted_at)` — soft-delete filtering
+
+Full definition: `lib/db/schema/messages.ts`.
 
 ---
 
@@ -875,7 +878,7 @@ Replace in-memory storage with Redis for distributed rate limiting.
 **User Validation:**
 - Cannot send messages to self
 - Sender and recipient must be non-empty strings
-- MongoDB ObjectId validation for conversationId
+- ID validation: `conversationId` must reference an existing `conversations.id`
 
 **Example:**
 ```typescript
@@ -896,21 +899,15 @@ if (senderId === recipientId) {
 
 ## ⚡ Performance Optimization
 
-### MongoDB Indexes
+### Postgres Indexes
 
 **Impact:** 10-100x faster queries
 
-**Created Indexes:**
-- `participants_index`: O(1) conversation lookup
-- `participants_updated_index`: Sorted conversation list
-- `conversation_messages_index`: Efficient pagination
-- `sender_recipient_index`: Direct message queries
-- `status_index`: Unread message filtering
-
-**Verification:**
-```bash
-node scripts/setup-messaging-indexes.js
-```
+**Declared Indexes** (`lib/db/schema/messages.ts`):
+- `conversations_updated_at_idx`: sorted conversation list
+- `messages_conversation_created_idx`: efficient pagination
+- `messages_recipient_status_idx`: unread message filtering
+- `messages_deleted_at_idx`: soft-delete filtering
 
 ---
 
@@ -919,13 +916,14 @@ node scripts/setup-messaging-indexes.js
 **Default:** 50 messages per page  
 **Maximum:** 100 messages per page
 
-**Implementation:**
+**Implementation** (`getMessageHistory` in `lib/messagingService.ts`):
 ```typescript
-const messages = await db.collection('messages')
-  .find({ conversationId })
-  .sort({ createdAt: -1 })
-  .limit(limit)
-  .toArray();
+const results = await db
+  .select()
+  .from(messages)
+  .where(and(...conditions))   // conversation + not soft-deleted + cursor
+  .orderBy(desc(messages.createdAt))
+  .limit(limit + 1);           // +1 probes hasMore
 ```
 
 **Load More:**
@@ -1010,31 +1008,27 @@ console.log('Connection state:', connectionState);
 **Solutions:**
 - **Wait:** Rate limit resets after 1 minute
 - **Check spam:** Ensure not accidentally clicking Send multiple times
-- **Development:** Temporarily increase limit in `lib/messagingService.ts`:
+- **Development:** Temporarily raise the limit in `lib/messagingService.ts`:
   ```typescript
-  const RATE_LIMIT_MAX = 50; // Increase for testing
+  const config = {
+    ...
+    rateLimitPerMinute: 50, // dev-only bump (default 20)
+  };
   ```
 
 ---
 
-### Issue: MongoDB indexes missing
+### Issue: Slow queries or timeouts
 
 **Symptoms:** Slow query performance, timeout errors
 
 **Diagnosis:**
-```bash
-node scripts/setup-messaging-indexes.js
-```
-
-Look for output like:
-```
-⏭️  Index "participants_index" already exists - skipping
-```
+- Confirm migrations are applied (indexes ship in
+  `lib/db/schema/messages.ts`)
+- Check slow-query logging on the messaging endpoints
 
 **Solutions:**
-- **Run setup:** `node scripts/setup-messaging-indexes.js`
-- **Verify in MongoDB Compass:** Check indexes tab for collections
-- **Manual creation:** See script for index definitions
+- Re-apply migrations; never hand-create indexes outside them
 
 ---
 
@@ -1043,16 +1037,10 @@ Look for output like:
 **Symptoms:** Legitimate messages blocked
 
 **Solutions:**
-- **Remove word from blocklist:**
-  ```typescript
-  // lib/messagingService.ts
-  filter.removeWords('word1', 'word2');
-  ```
-- **Disable filter (development only):**
-  ```typescript
-  // lib/messagingService.ts
-  const ENABLE_PROFANITY_FILTER = false;
-  ```
+- **Review the blocklist:** profanity filtering runs through the `bad-words`
+  `Filter` in `lib/messagingService.ts` (`profanityFilter.clean`)
+- **Disable filter (development only):** set `profanityFilter: false` in the
+  `validateMessage` config in `lib/messagingService.ts`
 
 ---
 
@@ -1074,22 +1062,14 @@ Look for output like:
 
 ### Issue: Emoji picker not loading
 
-**Symptoms:** Blank emoji picker or console errors
+**Symptoms:** Blank emoji row or console errors
 
 **Solutions:**
-- **Verify packages:**
-  ```bash
-  npm list @emoji-mart/react @emoji-mart/data
-  ```
-- **Reinstall:**
-  ```bash
-  npm install @emoji-mart/react @emoji-mart/data --force
-  ```
-- **Check imports:**
-  ```typescript
-  import data from '@emoji-mart/data';
-  import Picker from '@emoji-mart/react';
-  ```
+- The picker is a built-in quick-insert row (`MessageThread.tsx`) —
+  `@emoji-mart/react` / `@emoji-mart/data` are NOT installed (removed as
+  React-19-incompatible). Do not `npm install` them.
+- **Check imports:** emoji UI lives in `components/messaging/MessageThread.tsx`;
+  there is no external emoji package to verify or reinstall.
 
 ---
 
@@ -1109,7 +1089,7 @@ Look for output like:
 - [ ] Message pinning
 - [ ] Conversation archiving
 - [ ] Conversation muting
-- [ ] Desktop notifications (web-push)
+- [ ] Desktop notifications (future — `web-push` is NOT installed)
 - [ ] Mobile push notifications
 
 **Phase 3: Rich Media**
@@ -1156,20 +1136,18 @@ Look for output like:
 - WebSocket connection uptime
 - API response times
 
-**MongoDB Queries:**
-```javascript
-// Total messages
-db.messages.countDocuments({});
+**Postgres Queries:**
+```sql
+-- Total messages
+SELECT COUNT(*) FROM messages;
 
-// Messages today
-db.messages.countDocuments({
-  createdAt: { $gte: new Date(new Date().setHours(0,0,0,0)) }
-});
+-- Messages today
+SELECT COUNT(*) FROM messages
+WHERE created_at >= date_trunc('day', NOW());
 
-// Active conversations (last 7 days)
-db.conversations.countDocuments({
-  updatedAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
-});
+-- Active conversations (last 7 days)
+SELECT COUNT(*) FROM conversations
+WHERE updated_at >= NOW() - INTERVAL '7 days';
 ```
 
 ---
@@ -1204,18 +1182,16 @@ db.conversations.countDocuments({
 - Complete type system (types/messaging.types.ts)
 - Core messaging service with profanity filtering and rate limiting
 - MessageInbox component with search and filters
-- MessageThread component with emoji picker
+- MessageThread component with built-in emoji quick-insert
 - 3 REST API routes (send, fetch, mark read)
 - 6 Socket.io event handlers (send, read, typing, join/leave)
 - Messages page with responsive layout
-- MongoDB indexes for performance
+- Postgres indexes for performance (`lib/db/schema/messages.ts`)
 - Comprehensive documentation
 
 📊 **Statistics:**
-- Total lines of code: 3,900+
-- Files created/modified: 14
 - TypeScript errors: 0
-- MongoDB indexes: 7
+- Postgres indexes: 4 (declared in schema)
 - Socket.io events: 12 (6 client→server, 6 server→client)
 - API endpoints: 4
 
@@ -1228,6 +1204,6 @@ db.conversations.countDocuments({
 
 **End of Documentation**
 
-*Last Updated: October 25, 2025*  
+*Last Updated: September 16, 2026*  
 *Feature ID: FID-20251025-102*  
 *Version: 1.0.0*

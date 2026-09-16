@@ -72,4 +72,4 @@ Currently detected:
 
 ---
 
-**Server:** http://localhost:3002
+**Server:** http://localhost:3000
