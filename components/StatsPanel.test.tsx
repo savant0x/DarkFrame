@@ -81,6 +81,8 @@ const mockRouter: AppRouterInstance = {
   push: vi.fn(),
   replace: vi.fn(),
   prefetch: vi.fn(),
+  // Next 16.3: bfcache restore id (required on the type; unused by tests)
+  bfcacheId: 'test-bfcache-id',
 };
 
 describe('StatsPanel', () => {
@@ -457,6 +459,44 @@ describe('StatsPanel', () => {
       render(<StatsPanel />);
       
       expect(screen.queryByTestId('xp-progress-bar')).not.toBeInTheDocument();
+    });
+  });
+
+  // FID-20260916-002 UI: self-side protection countdown on the Player Info card.
+  describe('Protection Countdown', () => {
+    it('shows the protection row with remaining time while a window is active', () => {
+      const protectedPlayer = {
+        ...mockPlayer,
+        protectionUntil: new Date(Date.now() + 48 * 3_600_000) as Date,
+      };
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: protectedPlayer }));
+
+      render(<StatsPanel />);
+
+      expect(screen.getByText('Protection')).toBeInTheDocument();
+      // 48h remaining renders as "2d 0h" (day+hour precision above 48h stays at
+      // the boundary; just inside it, hours+minutes would show — both pinned via regex)
+      expect(screen.getByText(/^[23]d \d{1,2}h$|^4[78]h \d{1,2}m$/)).toBeInTheDocument();
+    });
+
+    it('renders no protection row when no window exists (default fixture)', () => {
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: mockPlayer }));
+
+      render(<StatsPanel />);
+
+      expect(screen.queryByText('Protection')).not.toBeInTheDocument();
+    });
+
+    it('renders no protection row for an expired window', () => {
+      const expiredPlayer = {
+        ...mockPlayer,
+        protectionUntil: new Date(Date.now() - 60_000) as Date,
+      };
+      vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: expiredPlayer }));
+
+      render(<StatsPanel />);
+
+      expect(screen.queryByText('Protection')).not.toBeInTheDocument();
     });
   });
 });

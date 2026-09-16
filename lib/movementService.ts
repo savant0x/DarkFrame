@@ -70,13 +70,22 @@ export async function getTileAt(x: number, y: number): Promise<Tile | null> {
     if (tile.occupiedByBase && tile.baseOwner) {
       try {
         const [owner] = await db
-          .select({ level: players.level, isSpecialBase: players.isSpecialBase })
+          .select({
+            level: players.level,
+            isSpecialBase: players.isSpecialBase,
+            // FID-20260916-002 UI: protection expiry rides with the owner intel
+            // so raid CTAs can grey out client-side (server still refuses).
+            protectionUntil: players.protectionUntil,
+          })
           .from(players)
           .where(eq(players.username, tile.baseOwner))
           .limit(1);
         if (owner) {
           (tile as { baseLevel?: number }).baseLevel = owner.level;
           if (owner.isSpecialBase) (tile as { isBeerBase?: boolean }).isBeerBase = true;
+          (tile as { baseProtected?: boolean; baseProtectionUntil?: Date | null }).baseProtected =
+            owner.protectionUntil != null && new Date(owner.protectionUntil).getTime() > Date.now();
+          (tile as { baseProtectionUntil?: Date | null }).baseProtectionUntil = owner.protectionUntil;
         }
       } catch {
         // non-critical: tile still returns without intel

@@ -30,12 +30,13 @@ import { GAME_CONSTANTS } from '@/types';
 import { estimateHarvestExpected } from '@/lib/harvestEstimate';
 
 import { useCountUp, useIsMobile } from '@/hooks';
+import { formatProtectionRemaining } from '@/lib/protectionDisplay';
 
 import {
   User, MapPin, Swords, Scale,
   Users, Trophy, Zap, Wrench,
   Clock, TrendingUp, Star, Sparkles, Package, Mountain,
-  Gift, Crown, Flag
+  Gift, Crown, Flag, Shield
 } from 'lucide-react';
 
 /** `/api/player/stats` payload slice consumed here (FID-20260909-025).
@@ -96,10 +97,11 @@ function HudPanel({ accent, variant, icon, title, meta, padded, children }: {
   );
 }
 
-/** Labeled data row per sample `.row`: quiet Inter label, Orbitron value. */
-function Row({ icon, label, value }: { icon?: ReactNode; label: string; value: ReactNode }) {
+/** Labeled data row per sample `.row`: quiet Inter label, Orbitron value.
+ *  Optional `title` puts a native tooltip on the whole row (FID-20260916-002 UI). */
+function Row({ icon, label, value, title }: { icon?: ReactNode; label: string; value: ReactNode; title?: string }) {
   return (
-    <div className="nn-row">
+    <div className="nn-row" title={title}>
       <span className="nn-row__label">{icon}{label}</span>
       <span className="nn-row__value nn-num">{value}</span>
     </div>
@@ -195,6 +197,19 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
 
     fetchClanTag();
   }, [player?.clanId]);
+
+  // FID-20260916-002 UI: protection countdown re-renders every 30s while a
+  // window exists (stops when it doesn't — no timer for the 95% of players
+  // outside a window). Tick-only state (value never read); formatting stays
+  // pure in lib/protectionDisplay.formatProtectionRemaining.
+  const [, setProtectionTick] = useState(0);
+  useEffect(() => {
+    if (!player?.protectionUntil) return;
+    const interval = setInterval(() => setProtectionTick((t) => t + 1), 30_000);
+    setProtectionTick(1); // re-format immediately when a window first appears
+    return () => clearInterval(interval);
+  }, [player?.protectionUntil]);
+  const protectionRemaining = formatProtectionRemaining(player?.protectionUntil, Date.now());
 
   // Update shrine boost timers every second
   useEffect(() => {
@@ -372,6 +387,17 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
             )
           }
         />
+
+        {/* FID-20260916-002 UI: new-player protection countdown — rendered only
+            while a window is active. Green = the shield working for you. */}
+        {protectionRemaining && (
+          <Row
+            icon={<Shield />}
+            label="Protection"
+            value={<span style={{ color: 'var(--nn-green)' }}>{protectionRemaining}</span>}
+            title={`New-player protection active — you cannot be attacked until ${new Date(player.protectionUntil!).toLocaleString()}. Attacking another player voids it immediately.`}
+          />
+        )}
 
         {/* Clan Row */}
         <Row

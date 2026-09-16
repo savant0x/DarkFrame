@@ -15,7 +15,8 @@
 import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Home, Skull, Flag } from 'lucide-react';
+import { Home, Skull, Flag, ShieldOff } from 'lucide-react';
+import { formatProtectionRemaining } from '@/lib/protectionDisplay';
 import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
@@ -320,7 +321,6 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player]);
   
   // Determine if this tile is the player's base (YOUR base)
@@ -1074,23 +1074,39 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               through the game page's combat handler. */}
           {isEnemyBase && onAttackClick && (
             /* FID-20260910-038 D4: the doc's resource choice — raid the METAL
-               or the ENERGY stockpile. Two CTAs instead of one blind button. */
-            <div className="flex gap-2" data-tutorial="attack-button">
-              <button
-                onClick={() => onAttackClick('metal')}
-                disabled={isAttacking}
-                className="nn-btn nn-btn--danger flex-1 py-3 text-base"
+               or the ENERGY stockpile. Two CTAs instead of one blind button.
+               FID-20260916-002 UI: grey out while the owner is inside their
+               new-player protection window — the honest countdown replaces
+               the CTAs (the server refuses these raids regardless). */
+            tile.baseProtected ? (
+              <div
+                className="nn-well flex items-center gap-2"
+                style={{ margin: 0, justifyContent: 'center' }}
+                title="New players are shielded from attacks during their first 72 hours. Come back later."
               >
-                {isAttacking ? 'RAIDING…' : 'ATTACK · METAL'}
-              </button>
-              <button
-                onClick={() => onAttackClick('energy')}
-                disabled={isAttacking}
-                className="nn-btn nn-btn--danger flex-1 py-3 text-base"
-              >
-                {isAttacking ? 'RAIDING…' : 'ATTACK · ENERGY'}
-              </button>
-            </div>
+                <ShieldOff style={{ width: 14, height: 14, flex: 'none', color: 'var(--nn-text-tertiary)' }} />
+                <span className="nn-lab" style={{ margin: 0 }}>
+                  Shielded · {formatProtectionRemaining(tile.baseProtectionUntil) ?? 'protected'}
+                </span>
+              </div>
+            ) : (
+              <div className="flex gap-2" data-tutorial="attack-button">
+                <button
+                  onClick={() => onAttackClick('metal')}
+                  disabled={isAttacking}
+                  className="nn-btn nn-btn--danger flex-1 py-3 text-base"
+                >
+                  {isAttacking ? 'RAIDING…' : 'ATTACK · METAL'}
+                </button>
+                <button
+                  onClick={() => onAttackClick('energy')}
+                  disabled={isAttacking}
+                  className="nn-btn nn-btn--danger flex-1 py-3 text-base"
+                >
+                  {isAttacking ? 'RAIDING…' : 'ATTACK · ENERGY'}
+                </button>
+              </div>
+            )
           )}
         </div>
       </div>
