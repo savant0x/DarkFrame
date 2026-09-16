@@ -21,7 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
 import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';
 import { getPlayerDoctrineBonuses } from './specializationService';
-import { protectionActive, PROTECTION_REFUSAL_REASON } from './playerProtection'; // FID-20260916-002
+import { protectionActive, PROTECTION_REFUSAL_REASON, voidProtectionOnAggression } from './playerProtection'; // FID-20260916-002 / -008
 
 const ATTACK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between attacks
 const UNIT_COST_METAL = 100;
@@ -377,9 +377,14 @@ export async function attackFactory(
   // FID-20260916-002: factories owned by protected players cannot be captured
   // (wild factories and bot owners carry a NULL window — protectionActive is
   // false, so this is a strict no-op for every pre-existing capture path).
+  // FID-20260916-008: this select now also feeds the pvpCapture flag — the
+  // capture of a REAL player's (existing, non-bot) factory is committed
+  // outgoing PvP and voids the attacker's own window below; wild (no owner)
+  // and bot-owned factories are pure PvE and never forfeit.
+  let pvpCapture = false;
   if (factory.owner) {
     const [ownerRow] = await db
-      .select({ protectionUntil: players.protectionUntil })
+      .select({ protectionUntil: players.protectionUntil, isBot: players.isBot })
       .from(players)
       .where(eq(players.username, factory.owner))
       .limit(1);
@@ -392,6 +397,7 @@ export async function attackFactory(
         captured: false
       };
     }
+    pvpCapture = !!ownerRow && !ownerRow.isBot;
   }
   
   // Enforce max factories per player before capture attempt
@@ -423,6 +429,15 @@ export async function attackFactory(
         captured: false
       };
     }
+  }
+  
+  // FID-20260916-008: void at commit — after every refusal precondition
+  // (own-factory, protected owner, max-factories, cooldown) and BEFORE the
+  // power roll: a refused or cooldown-blocked attempt never forfeits, a
+  // committed capture attempt always does (roll-independent, mirroring the
+  // FID-004/-007 placements). Gated on pvpCapture so PvE captures stay clean.
+  if (pvpCapture) {
+    await voidProtectionOnAggression(username);
   }
   
   // Calculate power

@@ -21,6 +21,7 @@ import { logAttack } from '@/lib/activityLogger';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { protectionActive, PROTECTION_REFUSAL_REASON, voidProtectionOnAggression } from '@/lib/playerProtection'; // FID-20260916-008
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.battle);
 
@@ -67,6 +68,25 @@ const handler = rateLimiter(async (req: NextRequest) => {
     }
     
     log.debug('Resolving battle', { attacker, defender, location: factoryLocation });
+    
+    // FID-20260916-008: protection parity for this (currently client-unwired)
+    // route. The beer-base prefix contract below marks bot defenders; real
+    // usernames get the FID-002 target-side refusal, and initiating a PvP
+    // battle voids the attacker's own window at the committed-action point
+    // (route-level only — resolveBattle is shared with the live beer-base
+    // raid and MUST stay seam-free).
+    const isBeerBaseDefender = defender.startsWith('🍺BeerBase-') || /^b[WMSEUL]\d{12}$/.test(defender);
+    if (!isBeerBaseDefender) {
+      const [defenderRow] = await db
+        .select({ protectionUntil: players.protectionUntil })
+        .from(players)
+        .where(eq(players.username, defender))
+        .limit(1);
+      if (defenderRow && protectionActive(defenderRow.protectionUntil)) {
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: PROTECTION_REFUSAL_REASON });
+      }
+      await voidProtectionOnAggression(auth.username);
+    }
     
     const battleLog = await resolveBattle(
       attackerUnits,
