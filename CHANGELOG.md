@@ -7,6 +7,12 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Added — FID-20260916-004/-005: protection forfeit on WMD launch + war-clan join; WMD launch target validation (closed, commits `2cf2f8a`/`d3c5cd2`)
+
+- FID-20260916-004 (Option B per FID-20260916-003): `launchMissile` voids the launcher's protection window after the missile's exists+READY preconditions, before effects; `joinClan` voids the joiner's window only when the target clan is at ACTIVE war (fail-open on war-lookup outage — onboarding never blocks). Infantry-route comment corrected: `validateTargeting` had zero production callers.
+- FID-20260916-005: launch accepted any username with no target validation — nonexistent targets consumed built warheads for zero damage (impact no-op, weapon still terminal), and no production code ever consulted target-side protection, so the 72h shield did not stop incoming WMD strikes. The dormant `validateTargeting` is revived at the launch seam (self-target, existence, protection, level ≥ 10 floor kept by operator decision, own-clan), between the READY check and the FID-004 void: refusals leave the missile READY and never forfeit; valid targets commit and void as before.
+- Verification: 11 seam pins (6 -004 + 5 -005, refusal classes assert no flip + no void); tsc 0 / eslint 0-0 / vitest 908+1skip; live probes 5/5 (-005 driver) + 4/4 (-004 driver, patched with a real target fixture since -005 now correctly refuses its historical dummy).
+
 ### Added — FID-20260916-002: new-player 72h protection window (closed, commit `0d18a93`)
 
 - Registration stamps `protection_until` = now+72h (`createPlayerWithAuth`; new `lib/playerProtection.ts`: window constant, pure `protectionActive` predicate, `voidProtectionOnAggression` helper). Infantry route refuses protected targets with a server reason; `executeInfantryAttack` voids the attacker's own window on initiation (service-level, bots-only `executeBaseAttack` untouched); `attackFactory` refuses capture of protected owners' factories. `protectionUntil` typed on the domain `Player` and allowlisted in the sanitizer (client surfacing shipped separately).

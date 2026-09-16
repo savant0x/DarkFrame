@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-004-protection-forfeit-enforcement-wmd-clanwar.md`
 **ID:** FID-20260916-004
 **Severity:** HIGH
-**Status:** verified
+**Status:** closed
 **Created:** 2026-09-16
 
 **Decides:** FID-20260916-003 §Operator decision (Option B, recorded 2026-09-16). This FID
@@ -133,10 +133,10 @@ Pass-2 verdict: zero actionable improvements remain → status `loop-complete`.
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass (903+1skip, 6 new pins) · [x] call-graph proven (three void sites total) · [x] live probes 4/4
-- **Commit hash (G2 — required for `closed`):** `<hash>`
-- **Staging plan (path-scoped, G1 — FID only at this stage):** `git add dev/fids/FID-20260916-004-protection-forfeit-enforcement-wmd-clanwar.md dev/session-summaries/SESSION-2026-09-16-008.md SCOPE.md`
+- **Commit hash (G2 — required for `closed`):** `2cf2f8a`
+- **Staging plan (path-scoped, G1 — FID only at this stage):** superseded — implementation committed per the SESSION-2026-09-16-010 plan
 - **Commit message (G8):** `docs(fid): Option B enforcement spec loop-complete — WMD launch void + war-clan join void (FID-20260916-004)`
 
 ---
 
-**Final status:** verified (implemented + gates green + live probes 4/4, 2026-09-16; `closed` awaits the G2 commit hash)
+**Final status:** closed (implemented + verified 2026-09-16; closed on commit `2cf2f8a`, archived 2026-09-16)

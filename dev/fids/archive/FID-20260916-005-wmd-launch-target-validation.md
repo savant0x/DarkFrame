@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-005-wmd-launch-target-validation.md`
 **ID:** FID-20260916-005
 **Severity:** HIGH
-**Status:** verified
+**Status:** closed
 **Created:** 2026-09-16
 
 **Provenance:** `[OPEN-OUT-OF-SCOPE]` discovery from FID-20260916-004 (RED finding 1), elevated
@@ -116,10 +116,10 @@ CONVERGENCE criterion met — plan final, zero open findings.
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass · [x] call-graph proven
-- **Commit hash (G2 — required for `closed`):** `<hash>`
-- **Staging plan (path-scoped, G1 — doc only at this stage):** `git add dev/fids/FID-20260916-005-wmd-launch-target-validation.md dev/session-summaries/SESSION-2026-09-16-011.md SCOPE.md`
+- **Commit hash (G2 — required for `closed`):** `d3c5cd2`
+- **Staging plan (path-scoped, G1 — doc only at this stage):** superseded — implementation committed per the SESSION-2026-09-16-012 plan
 - **Commit message (G8):** `docs(fid): WMD launch accepts any username — shield-bypass + dud-waste findings (FID-20260916-005)`
 
 ---
 
-**Final status:** created
+**Final status:** closed (implemented + verified 2026-09-16; closed on commit `d3c5cd2`, archived 2026-09-16)
