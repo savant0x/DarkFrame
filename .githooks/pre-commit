@@ -50,7 +50,9 @@ fi
 echo "🔍 pre-commit: ladder-truth sources staged — running the gate…"
 
 run_gate() { # $1 = directory to run the suite in
-  (cd "$1" && CI=1 npx vitest run "$TEST_PATH" 2>&1 | tail -25)
+  # vitest 4 colorizes the summary line (ANSI SGR), which defeated the plain
+  # 'Test Files  1 passed' matcher below — strip ANSI before matching.
+  (cd "$1" && NO_COLOR=1 CI=1 npx vitest run "$TEST_PATH" 2>&1 | tail -25 | sed 's/\x1b\[[0-9;]*m//g')
 }
 
 if git diff --quiet -- "${TRIGGER_PATHS[@]}"; then
