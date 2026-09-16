@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-007-spy-sabotage-protection-enforcement.md`
 **ID:** FID-20260916-007
 **Severity:** HIGH
-**Status:** verified
+**Status:** closed (2026-09-16, commit `cf7437a`)
 **Created:** 2026-09-16
 
 **Provenance:** FID-20260916-006 audit, Gap 1 (HIGH). Grounding for this spec found two
@@ -119,9 +119,9 @@ CONVERGENCE criterion met — plan final, zero open findings.
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 · [x] lint 0/0 · [x] tests pass · [x] call-graph proven
-- **Commit hash (G2):** `<hash>`
-- **Staging plan (G1):** `git add dev/fids/FID-20260916-007-spy-sabotage-protection-enforcement.md dev/session-summaries/SESSION-2026-09-16-014.md SCOPE.md`
-- **Commit message (G8):** `docs(fid): spy sabotage protection enforcement spec loop-complete — pipeline repair + void/refusal seams (FID-20260916-007)`
+- **Commit hash (G2):** `cf7437a`
+- **Staging plan (G1):** superseded — the batch landed under the operator directive `feat: spy sabotage protection — route repair, operator binding, owner-derived targets, void at commit (FID-20260916-007)` (`cf7437a`), which folded the implementation code, the spec FID, session 017, and SCOPE row #66 into one commit.
+- **Commit message (G8):** superseded by the G1 note above (the loop-complete doc-batch message was never used as-is).
 
 ---
 

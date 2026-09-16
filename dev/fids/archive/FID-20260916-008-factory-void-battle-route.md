@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-008-factory-void-battle-route.md`
 **ID:** FID-20260916-008
 **Severity:** MEDIUM
-**Status:** verified (implemented 2026-09-16 on operator go-ahead; closed awaits G2 hash)
+**Status:** closed (2026-09-16, commit `e9bf162`)
 **Created:** 2026-09-16
 
 **Provenance:** FID-20260916-006 audit Gaps 2 & 3 (the two remaining enforcement items after
@@ -121,10 +121,10 @@ CONVERGENCE criterion met — plan final, zero open findings.
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 · [ ] lint 0/0 · [ ] tests pass · [ ] call-graph proven
-- **Commit hash (G2):** `<hash>`
-- **Staging plan (G1):** `git add dev/fids/FID-20260916-008-factory-void-battle-route.md dev/session-summaries/SESSION-2026-09-16-016.md SCOPE.md`
-- **Commit message (G8):** `docs(fid): factory-capture void + latent battle-route protection spec loop-complete (FID-20260916-008)`
+- **Gates:** [x] typecheck 0 · [x] lint 0/0 · [x] tests pass · [x] call-graph proven
+- **Commit hash (G2):** `e9bf162`
+- **Staging plan (G1):** superseded — the batch landed under the operator directive `feat: factory-capture protection void + latent battle-route refusal+void (FID-20260916-008)` (`e9bf162`), which folded the implementation code, the spec FID, sessions 016/018, and SCOPE row #67 into one commit.
+- **Commit message (G8):** superseded by the G1 note above (the loop-complete doc-batch message was never used as-is).
 
 ---
 

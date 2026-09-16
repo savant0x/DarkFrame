@@ -7,6 +7,13 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Added — FID-20260916-006/-007/-008: protection parity completed across all PvP surfaces (closed, commits `cf7437a`/`e9bf162`)
+
+- FID-20260916-006 audit dispositioned every surface that touches another player; D1 (recon intel) and D2 (flag steal) ratified as intentionally open — information and proximity-contest surfaces never void the shield.
+- FID-20260916-007: repaired the broken sabotage pipeline (route call was transposed and the ownership assertion was unsatisfiable — live sabotage always refused), added operator binding, owner-derived target resolution, protection refusal, and the 4th void site at commit in `executeSabotage`; disclosed in-scope fix of a pre-existing `wmd_sabotage_operations.id varchar(24)` overflow the repair exposed.
+- FID-20260916-008: factory capture now voids the attacker's window on player-owned targets only (`pvpCapture` — wild/bot stays pure PvE); the latent `/api/battle/attack` route gained both seams (beer-base defenders skip, shared `resolveBattle` untouched).
+- Verification: 11 seam pins (6 -007 + 5 -008, roll-independent), live probes 4/4 + 6/6 against the real DB, tsc 0 · eslint 0/0 · vitest 919+1skip.
+
 ### Added — FID-20260916-004/-005: protection forfeit on WMD launch + war-clan join; WMD launch target validation (closed, commits `2cf2f8a`/`d3c5cd2`)
 
 - FID-20260916-004 (Option B per FID-20260916-003): `launchMissile` voids the launcher's protection window after the missile's exists+READY preconditions, before effects; `joinClan` voids the joiner's window only when the target clan is at ACTIVE war (fail-open on war-lookup outage — onboarding never blocks). Infantry-route comment corrected: `validateTargeting` had zero production callers.
