@@ -8,8 +8,13 @@
 **Filename:** `FID-20260906-005-ui-modernization.md`
 **ID:** FID-20260906-005
 **Severity:** MEDIUM (product quality; three live correctness bugs found and fixed during the audit)
-**Status:** fixed
+**Status:** closed
 **Created:** 2026-09-06
+
+> Close-out note (2026-09-15 audit): T0 fixes + approved phases shipped;
+> remaining T5 menu SUPERSEDED — operator personally rebuilt the entire game
+> UI. Standing operator rule: UI files are operator-owned; do not modify any
+> UI surface without an explicit order.
 
 ---
 
