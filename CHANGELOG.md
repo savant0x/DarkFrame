@@ -7,6 +7,11 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Added — FID-20260916-010: three missing player-side endpoints rebuilt (closed, commit `2d9e05f`)
+
+- The feature-survey census (SCOPE #69) found three player-facing panels calling endpoints that did not exist: DiscoveryLogPanel (`/api/discoveries`), FriendsList's online section (`/api/friends/online`), and FriendActionsMenu's block action (`/api/friends/block`). All three rebuilt as thin adapters over existing services — domain→client shape-mapping for discoveries (enum case, epoch ms, by-category totals), presence via `user_presence` (60s chat-heartbeat TTL), session-caller-only block with the sibling typed-error mapping.
+- 12 pins; tsc 0 · eslint 0/0 · vitest 931+1skip. FID archived to `dev/fids/archive/`.
+
 ### Fixed — FID-20260916-009: protection window expiry shifted by the host UTC offset (live defect; D1/D2/D3)
 
 - The `protection_until` column was timezone-naive: node-pg parses naive literals as local time, so on non-UTC hosts every window read back inflated (+4h on EDT) and expired late. Migration `0032` converts it to `timestamptz` (`USING (col AT TIME ZONE 'UTC')` — no stored instant shifts); the round-trip probe proved +14,400,000 ms → 0 ms.

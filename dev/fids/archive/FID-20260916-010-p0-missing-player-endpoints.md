@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-010-p0-missing-player-endpoints.md`
 **ID:** FID-20260916-010
 **Severity:** HIGH (player-facing breakage today)
-**Status:** loop-complete
+**Status:** closed (2026-09-16, commit `2d9e05f` — implemented + verified)
 **Created:** 2026-09-16
 
 ---
@@ -128,10 +128,10 @@ route call sites in tests now pass it explicitly. One genuine lint catch: an unu
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass · [x] call-graph proven
-- **Commit hash (G2):** `<hash>`
-- **Staging plan (G1):** `git add app/api/discoveries app/api/friends/online app/api/friends/block __tests__/api/p0MissingEndpoints.test.ts dev/fids/FID-20260916-010-p0-missing-player-endpoints.md dev/session-summaries/SESSION-2026-09-16-024.md SCOPE.md`
+- **Commit hash (G2):** `2d9e05f`
+- **Staging plan (G1):** superseded — the implementation commit folded code + spec + session + ledger row into one (commit `2d9e05f`, 7 files)
 - **Commit message (G8):** `fix: rebuild three missing player-side endpoints — discoveries, friends online, friends block (FID-20260916-010)`
 
 ---
 
-**Final status:** loop-complete
+**Final status:** closed (commit `2d9e05f`)
