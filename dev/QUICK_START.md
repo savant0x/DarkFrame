@@ -1,80 +1,62 @@
 # 🚀 Quick Start — DarkFrame Development
 
-**Last Updated:** 2026-09-02 (audited reality refresh — see `dev/session-summaries/SESSION-2026-09-02-002.md`)
-**Overall Progress:** Post-migration recovery phase — build currently broken, decision queue pending
-**Active Work:** None — resume pointer at the bottom
+**Last Updated:** 2026-09-15 (all gates green; 0 open FIDs)
+**Overall Progress:** Playable — combat rebalance + economy v2 shipped
+**Active Work:** None — pick the next system from `SCOPE.md`
 
 ---
 
-## 📊 Current State (audited 2026-09-02)
+## 📊 Current State (2026-09-15)
 
 | Gate | Status |
 | ---- | ------ |
-| `npx tsc --noEmit` | ❌ 2,039 errors (exit 1) — DB dialect split: Postgres connection layer vs 14 MySQL-dialect schema files |
-| `npm run lint` | ⚠️ Functional (`eslint .`) — 1,836 findings (down from 2,010); burn-down in progress |
-| `npm run test:ci` | ✅ Green — 333 passed + 1 env-gated skip, ~34s (fixed 2026-09-02, SESSION-2026-09-02-006) |
-| Git | ⚠️ ~5 months uncommitted (284 files, +17,553/−30,761) — the working tree is the only copy |
-| Secrets | ✅ Creds out of the repo (`.env.local`, git-ignored) · ⚠️ provider rotation still pending |
+| `npx tsc --noEmit` | ✅ 0 errors |
+| `npm run lint` | ✅ 0 errors, 0 warnings |
+| `npm run test:ci` | ✅ Green — 865 passed + 1 skipped, ~18s |
+| Git | ✅ `main`, pushed, tree clean — direct-push workflow (no PR flow) |
+| Secrets | ✅ Creds out of the repo (`.env.local`, git-ignored) |
 | Protocol | ✅ ECHO v0.1.2 single-agent sole authority (`dev/echo-v0.1.2-single-agent.md`) |
 
-**Resume here:** read `dev/session-summaries/` (latest file), then `SCOPE.md` — the decision queue at the
-bottom of `SCOPE.md` is the authoritative next-actions list.
+**Resume here:** read `dev/session-summaries/` (latest file), then `SCOPE.md`.
 
 ---
 
-## 🧭 Decision queue (from `SCOPE.md`)
+## 🛠 Stack (verified against `package.json`, 2026-09-15)
 
-1. **Rotate DB credentials** at SkySQL (security)
-2. **DB direction** — finish Postgres/Supabase pivot vs revert to MariaDB (unblocks all 2,039 errors)
-3. Lint-finding burn-down (test stabilization **done** 2026-09-02)
-4. Commit strategy for the uncommitted work
+- Next.js 16 + React 19, TypeScript strict (0 errors)
+- Drizzle ORM + PostgreSQL (`pg`); a Mongo-flavored compat shim (`lib/mongodb.ts`)
+  bridges legacy call shapes and retires incrementally
+- Socket.io realtime (endless bounded-backoff reconnect) · Stripe payments ·
+  jose (Edge-safe JWT) · Redis-optional caching
+- Custom Node server (`server.ts`): Next + Socket.io + hourly jobs
+  (growth, factory raids, settlement, respawns)
 
----
-
-## 🛠 Stack (verified against `package.json`, 2026-09-02)
-
-- Next.js ^16.1.7 + React ^18.3.1, TypeScript (strict)
-- Drizzle ORM ^0.45.2 — **both** `mysql2` ^3.20.0 and `pg` ^8.20.0 installed (the split)
-- Socket.io ^4.8.1 (messaging; `ABLY_*` env vars prepared but no `ably` SDK installed)
-- Stripe ^19.1.0 payments · jose ^6.1.0 (Edge-safe JWT) · `supabase` ^2.95.2 (CLI, devDependencies)
-- DB config: `DB_*` env vars in git-ignored `.env.local`, loaded fail-fast by `drizzle.config.ts`
-
-**Project:** tile-based persistent multiplayer strategy game · 150×150 map · 184 API routes ·
-134 components · 90 top-level services in `lib/` (+25 WMD, 14 websocket)
+**Project:** tile-based persistent multiplayer strategy game · 150×150 map ·
+235 API routes · ~90 services in `lib/` · NEON NOIR token UI (operator-owned —
+do not touch UI without an explicit order)
 
 ---
 
 ## 🔧 Development Commands
 
 ```bash
-# Start development (dev server)
-npm run dev                 # node scripts/dev-start.js
-
-# TypeScript check — currently FAILING (2,043 errors)
-npx tsc --noEmit
-
-# Lint — runs; 1,836 findings (1,833 errors / 3 warnings), down from 2,010
-npm run lint
-
-# Tests — GREEN (fixed 2026-09-02: full run 336 passed + 1 skipped in 33.6s)
-npm test                    # vitest
-
-# Initialize map (if needed)
-npm run init-map            # node -r dotenv/config scripts/runInitMap.js
+npm run dev:server        # full game server (Next + Socket.io + jobs)
+npm run dev               # Next.js only (UI work, no realtime/jobs)
+npx tsc --noEmit          # types — must be 0
+npm run lint              # style — must be 0
+npm run test:ci           # behavior — must be green (865 tests)
+npm run db:setup          # generate map + owner account (idempotent)
 ```
 
-Do not trust the old "0 errors ✅" claims in historical docs — see the audit trail:
-`dev/session-summaries/SESSION-2026-09-01-002.md` (exploration + health gates) and
-`dev/session-summaries/SESSION-2026-09-02-002.md` (doc refresh).
+A pre-commit hook runs the ladder-truth gate when game-math sources are
+staged. Documented game-math tables are CI-pinned — comment drift fails tests.
 
 ---
 
 ## 📂 Key Files
 
 - `SCOPE.md` — approved scope + decision queue (start here)
-- `dev/progress.md` — FID-20260403-002 corrected status
-- `dev/issues.md` — audited blocker list
-- `MONGODB_TO_MARIADB_SCHEMA_MAPPING.md` — historical mapping reference (superseded banner inside;
-  describes the abandoned intermediate MariaDB direction, not the current Postgres-flavored split)
+- `CHANGELOG.md` — what shipped, per session
 - `dev/session-summaries/` — session audit trail
-- `dev/completed.md`, `dev/archive/` — historical records (intentionally not rewritten)
+- `dev/fids/archive/` — closed FIDs with evidence (0 open)
+- `docs/` — player + design docs (audited 2026-09-15)

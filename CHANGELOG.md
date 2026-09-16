@@ -3,7 +3,13 @@
 All notable changes to DarkFrame are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); dates are session dates (America/New_York).
 
-## [Unreleased] — 2026-09-15 session
+## 2026-09-15 session
+
+### Fixed — FID-20260912-060 B1/B2/B4 + FID-20260912-061 R2/R4 (battle-RP pacing closed)
+
+- B1 daily battle envelope (`applyBattleEnvelope`, inside `awardRP` so no battle site bypasses it): first 10 victorious battle awards/player/day pay full, then 20% (25 base floor), fail-open. B2 saturating level term (`saturatingBattleRP`: L1→110, L5→144, L14→201, L65→292, asymptote 300) wired at the raid site — max-level bots stop being a lottery. B4 `defenseRpEligible`: defense RP only vs higher-or-equal attackers, both PvP branches. Contract suite (9 tests); B3 suite intact; gates green.
+- R2 doctrine stated on the growth engine (levels are spawn-time brackets, never regrown); R4 Beer Base display levels normalized to the tier ladder (rank→L5/15/25/35/45/55, deterministic).
+- Docs: `RP_ECONOMY_GUIDE.md` re-audited to shipped v2 truth (5-rung milestones, 4,300/day envelope, catalog prices, unit tiers, battle rules, VIP math); `ARCHITECTURE.md` stack rewritten (Next 16/React 19/TW4/Postgres); tutorial/messaging stale-backend banners + worst falsehoods fixed; 14 dead progress notes relocated to `dev/archives/2026-09-15-docs-cleanup/`, 10MB scraped llms docs + empty ideas file removed; `dev/QUICK_START.md` refreshed; README rewritten to current state.
 
 ### Docs — open-FID audit close-out: 33 completed + 1 superseded archived (operator-accepted audit)
 
@@ -206,7 +212,7 @@ All notable changes to DarkFrame are documented here. Format based on
   every escrow ledger entry balances; conservation ΣΔ = −250 = exactly the two fees.
   Regression suite 736 → 747 passed; tsc 0, eslint 0.
 
-## [Unreleased] — 2026-09-13 session
+## 2026-09-13 session
 
 ### Fixed — FID-20260913-001 (vitest jsdom suite dead)
 
@@ -233,7 +239,7 @@ All notable changes to DarkFrame are documented here. Format based on
   (`df-094.log`, `df-094.err.log`) remain file-locked by the running
   process — delete after stopping it.
 
-## [Unreleased] — 2026-09-05/06 session
+## 2026-09-05/06 session
 
 ### Fixed — FID-20260906-011 (chat delete dead-wire)
 - Chat message delete always failed: the client sent `messageId` in a DELETE body
@@ -351,7 +357,7 @@ All notable changes to DarkFrame are documented here. Format based on
 - Gates at close: tsc 0 · 341 tests green · app/api lint 0 · censuses zero (nocheck, mocks,
   TestUser, dead-wire).
 
-## [Unreleased] — 2026-09-04 session
+## 2026-09-04 session
 - Initial Postgres migration effort, GitHub repo sanitization (secret scrub + history rewrite),
   README redesign, Vercel deployment pipeline bring-up (lazy DB connection for build-time
   env isolation), production DB connection fixes.

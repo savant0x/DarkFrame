@@ -12,7 +12,7 @@ Real-time combat · Clan warfare · Player-driven economy · One hostile 150×15
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Drizzle_ORM-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://orm.drizzle.team/)
 [![Socket.io](https://img.shields.io/badge/Realtime-Socket.io-white?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
-[![Tests](https://img.shields.io/badge/Vitest-333_passing-6DA55F?style=for-the-badge&logo=vitest&logoColor=white)](#-development)
+[![Tests](https://img.shields.io/badge/Vitest-865_passing-6DA55F?style=for-the-badge&logo=vitest&logoColor=white)](#-development)
 
 [About](#-the-world) · [Quick Start](#-quick-start) · [Systems](#-core-systems) · [Controls](#-controls) · [Development](#-development) · [Status](#-status)
 
@@ -42,13 +42,13 @@ DarkFrame drops every player onto a shared **22,500-tile map** — nine terrain 
 | | System | What it does |
 |:---:|---|---|
 | ⛏️ | **Gathering** | Harvest metal & energy fields; auto-farm with live telemetry |
-| 🏭 | **Factories** | Produce units through sequential build slots |
-| 🍺 | **Beer Bases** | Roaming high-reward targets. Their army, strength, and loot are **hidden until you walk up and scan them** — intel is earned, not given |
-| 🚩 | **Flag Warfare** | Capture and move the flag; bots contest it around the clock |
-| ☢️ | **WMDs** | Strategic weapons for clan-scale warfare |
+| 🏭 | **Factories** | Produce units through sequential build slots; honest scarcity curve (400–1,750 slots) |
+| 🍺 | **Beer Bases** | Roaming high-reward targets with power-band calibration. Their army, strength, and loot are **hidden until you walk up and scan them** — intel is earned, not given |
+| 🚩 | **Flag Warfare** | Channel-and-flee steals (no HP battles); bearer bonus stack; 12h milestone |
+| ☢️ | **WMDs** | Strategic weapons for clan-scale warfare (revived: real damage engine, lazy-tick scheduler) |
 | 🏦 | **Banking** | Deposits, loans, interest — the economy has a spine |
-| 🔨 | **Auction House** | Player-to-player trading with fee economics |
-| 🎓 | **Progression** | XP levels · research points · doctrine specializations · mastery · achievements · VIP tiers |
+| 🔨 | **Auction House** | Player-to-player trading with fee economics and real unit/money escrow |
+| 🎓 | **Progression** | XP power curve · research points (census-anchored milestones) · doctrine specializations · mastery · achievements · VIP tiers |
 | 💬 | **Social** | Global & clan chat, friends, DMs, bounties, referrals |
 | 🛡️ | **Moderation** | Player inspection, session/activity tracking, flags & bans |
 
@@ -119,9 +119,9 @@ Open **http://localhost:3000** and log in.
 | `npm run db:setup` | Generate map + owner account (idempotent) |
 | `npm run map:rebuild` | ⚠️ **Destructive** — wipe & regenerate the map (`--yes` required) |
 | `npm run create-indexes` | Create DB performance indexes |
-| `npm run test:ci` | Full test suite (Vitest) |
-| `npm run lint` | ESLint |
-| `npx tsc --noEmit` | TypeScript check |
+| `npm run test:ci` | Full test suite (Vitest, 865 tests) |
+| `npm run lint` | ESLint (0 errors; `no-console` + import guards enforced) |
+| `npx tsc --noEmit` | TypeScript check (0 errors, strict) |
 | `npm run stripe:listen` | Stripe webhook forwarding (expects `C:\stripe\stripe.exe`) |
 | `npm run validate-referrals` | Referral validation cron |
 
@@ -154,14 +154,13 @@ Open **http://localhost:3000** and log in.
 
 ```
 DarkFrame/
-├── app/                 Next.js App Router — pages & 180+ API routes
-├── components/          Game canvas, panels, admin modals
-├── lib/                 ~90 game services · Drizzle schema · jobs · websocket
-│   └── db/migrations/   SQL migrations
-├── types/               Shared TypeScript contracts
-├── scripts/             Setup & maintenance utilities
-├── docs/                Historical design docs
-├── dev/                 Working notes — sessions, FIDs, protocol, architecture
+├── app/                 Next.js App Router — pages & 230+ API routes
+├── components/          Game canvas, panels, admin modals (NEON NOIR token system)
+├── lib/                 ~90 game services · Drizzle schema + migrations · jobs · websocket
+├── types/               Shared TypeScript contracts (single-source catalogs)
+├── scripts/             Setup, E2E drivers & economy simulators (run the real engine)
+├── docs/                Player + design docs (audited 2026-09-15; history in dev/archives/)
+├── dev/                 Working notes — sessions, FIDs + archive, audits, protocol
 └── SCOPE.md             Authoritative scope & audit trail
 ```
 
@@ -173,19 +172,23 @@ DarkFrame/
 
 ```bash
 # verify your change before pushing — all three gates must pass
-npx tsc --noEmit        # types
-npm run lint            # style
-npm run test:ci         # behavior (333 tests)
+npx tsc --noEmit        # types (0 errors)
+npm run lint            # style (0 errors)
+npm run test:ci         # behavior (865 tests)
 ```
+
+**Workflow:** direct to `main` — no PR flow. A pre-commit hook runs the
+ladder-truth gate whenever game-math sources are staged; documented
+game-math tables are CI-pinned (comment drift fails the suite).
 
 **Project docs live in [`dev/`](dev/):**
 
 | Doc | Read it for |
 | --- | --- |
-| [`dev/QUICK_START.md`](dev/QUICK_START.md) | Current build-gate status |
 | [`SCOPE.md`](SCOPE.md) | Every change — what, why, when — plus the open decision queue |
+| [`CHANGELOG.md`](CHANGELOG.md) | Release-by-release record of what shipped |
 | [`dev/session-summaries/`](dev/session-summaries/) | Per-session engineering records |
-| [`dev/architecture.md`](dev/architecture.md) | System design |
+| [`dev/fids/archive/`](dev/fids/archive/) | Closed feature/bug records with evidence |
 
 > **Note on the DB layer:** Postgres is authoritative. A Mongo-style API shim (`lib/mongodb.ts`) bridges service code left over from earlier pivots and is being retired incrementally. Known rough edges are tracked openly in `SCOPE.md` — nothing is silently broken.
 
@@ -195,9 +198,13 @@ npm run test:ci         # behavior (333 tests)
 
 <div align="center">
 
-**⚠️ UNDER ACTIVE DEVELOPMENT**
+**✅ PLAYABLE — GATES GREEN**
 
-Playable in dev · systems landing weekly · expect rough edges.
+Combat rebalance shipped (sequential resolution, power-proportional HP,
+balance executes in-combat) · economy v2 live (census-anchored milestones,
+shared tech catalog, 600k WMD track, battle-RP pacing) · bot vaults regrow
+linearly · 0 open FIDs · tsc 0 / lint 0 / 865 tests green.
+
 Honest, per-session progress in [`SCOPE.md`](SCOPE.md) — no marketing numbers.
 
 </div>

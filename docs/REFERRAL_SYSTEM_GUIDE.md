@@ -35,7 +35,7 @@ The DarkFrame Referral System rewards players for inviting friends to join the g
 | Metric | Value | Notes |
 |--------|-------|-------|
 | **Total Resources (100 referrals)** | ~5M metal/energy | Equals 2-3 hours of active farming |
-| **Total RP (100 referrals)** | ~15,000 RP | 0.55% of complete WMD tree (2.7M RP) |
+| **Total RP (100 referrals)** | ~15,000 RP | ~2.5% of the WMD track (600k RP) |
 | **VIP Days Cap** | 30 days maximum | Hard capped to prevent exploitation |
 | **Progressive Cap** | 2.0x at 15 referrals | Prevents late-game escalation |
 | **Welcome Package** | 50k/50k + bonuses | Generous new player onboarding |

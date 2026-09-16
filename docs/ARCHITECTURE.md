@@ -1,10 +1,13 @@
 # 🏗️ DarkFrame - Technical Architecture
 
-> System design, technology decisions, and implementation patterns
+> System design, technology decisions, and implementation patterns.
+> **Status (2026-09-15 audit):** header/stack/counts below are current.
+> Deeper sections retain their October-2025 text and are pending re-audit
+> where they describe pre-pivot (MongoDB-era) topology.
 
-**Last Updated:** October 23, 2025  
-**System Status:** Production-ready core + WMD foundation  
-**Code Volume:** ~45,000 lines across 150+ files
+**Last Updated:** September 15, 2026
+**System Status:** Live — Postgres-backed persistent world, all gates green
+**Code Volume:** ~856 tests green; 180+ API routes; ~90 game services
 
 ---
 
@@ -15,37 +18,39 @@ DarkFrame follows a **three-tier architecture** with strict separation of concer
 ```
 ┌─────────────────────────────────────────┐
 │     PRESENTATION LAYER (React/Next.js)   │
-│  35+ Components + Context API State     │
+│  130+ Components + Context API State     │
 └─────────────────────────────────────────┘
-                    ↓
+                     ↓
 ┌─────────────────────────────────────────┐
 │   APPLICATION LAYER (Next.js API Routes) │
-│  60+ Endpoints + 29 Service Modules     │
+│  180+ Endpoints + ~90 Service Modules    │
 └─────────────────────────────────────────┘
-                    ↓
+                     ↓
 ┌─────────────────────────────────────────┐
-│      DATA LAYER (MongoDB Atlas)          │
-│   14+ Collections + Optimized Indexes    │
+│   DATA LAYER (PostgreSQL via Drizzle)    │
+│  60+ Tables + Migrations + Compat Seam   │
 └─────────────────────────────────────────┘
 ```
+(CUSTOM Node server hosts Next.js + Socket.io + scheduled jobs in one
+process; Vercel serverless for routes. A Mongo-flavored compat shim bridges
+legacy service call shapes and is being retired incrementally.)
 
 ---
 
 ## 🔧 **Technology Stack**
 
 ### Frontend Technologies
-- **Framework:** Next.js 15.0.2 with App Router
+- **Framework:** Next.js 16 (App Router, webpack build)
 - **Language:** TypeScript 5 (strict mode, 0 errors maintained)
-- **UI Library:** React 18.3.1 (functional components only)
-- **Styling:** Tailwind CSS 3.4.1 with custom color palette
+- **UI Library:** React 19 (functional components only)
+- **Styling:** Tailwind CSS 4 + NEON NOIR token system
 - **State Management:** React Context API (GameContext)
-- **Notifications:** Custom toast service with React state
+- **Notifications:** Server-reason toasts (structured error envelopes)
 
 ### Backend Technologies
-- **Runtime:** Node.js (API routes) + Edge Runtime (middleware)
-- **API Framework:** Next.js API Routes (serverless architecture)
-- **Database:** MongoDB Atlas (cloud-hosted, 14+ collections)
-- **Database Driver:** MongoDB Node.js Driver 6.10.0
+- **Runtime:** Custom Node server (Next + Socket.io + cron jobs)
+- **API Framework:** Next.js API Routes
+- **Database:** PostgreSQL (Supabase-managed; Drizzle ORM, migrated schema)
 - **Authentication:** JWT with jose library (Edge-compatible)
 - **Password Security:** bcrypt 6.0.0 (API routes only)
 - **Logging:** Custom structured logger with ISO timestamps

@@ -1,5 +1,12 @@
 # 🎓 Interactive Tutorial System
 
+> **Status (2026-09-15 audit):** quest structure + backend references below are
+> the October-2025 design; the live system has since gained nearest-cave
+> resolution (no hardcoded coordinates), CUSTOM-step server evaluation,
+> beer-base hooks, panel-open reporting, and a Postgres backing store. The
+> step list is conceptually right; coordinates, counts, and storage details
+> marked below were corrected where they were provably false.
+
 ## Overview
 
 The **Interactive Tutorial Quest System** guides new players through DarkFrame's core mechanics with an engaging, reward-driven experience designed to increase tutorial completion from 70% to 85%.
@@ -7,7 +14,8 @@ The **Interactive Tutorial Quest System** guides new players through DarkFrame's
 **Key Features:**
 - 6 progressive quest chains with 17 total steps
 - Interactive element highlighting using react-joyride
-- Real-time progress tracking in MongoDB
+- Real-time progress tracking in Postgres (`tutorial_progress` /
+  `tutorial_action_tracking` tables)
 - Persistent mini-quest tracker panel
 - Optional quest skipping with confirmation
 - Reward distribution (Metal, Oil, XP, Items, Achievements)
@@ -27,7 +35,7 @@ The **Interactive Tutorial Quest System** guides new players through DarkFrame's
 ### Quest 2: Cave Discovery (Required)
 **Steps:**
 1. Learn about caves (auto-completes after 5s)
-2. Navigate to cave at **(20, 40)**
+2. Navigate to the nearest cave (resolved live — no fixed coordinates)
 3. Press F to harvest → **LEGENDARY Digger** (+50% harvest speed)
 4. Open inventory (I key) to see the digger
 

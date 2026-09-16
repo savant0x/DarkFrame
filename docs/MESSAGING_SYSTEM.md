@@ -1,9 +1,14 @@
 # Private Messaging System - Complete Documentation
 
-**Feature ID:** FID-20251025-102  
-**Created:** October 25, 2025  
-**Status:** ✅ COMPLETED  
-**Version:** 1.0.0
+> **Status (2026-09-15 audit):** features below are live; the persistence
+> backend is Postgres/Drizzle (not MongoDB) and setup sections referencing
+> Mongo Atlas/Compass/`MONGODB_URI` are historical. Socket.io delivery,
+> panels, and API shapes are as documented.
+
+**Feature ID:** FID-20251025-102
+**Created:** October 25, 2025
+**Status:** ✅ COMPLETED
+**Version:** 1.0.0 (backend: Postgres/Drizzle as of the pivot)
 
 ---
 

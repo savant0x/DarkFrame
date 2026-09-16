@@ -9,6 +9,10 @@
  * 
  * KEY FEATURES:
  * - Full Permanence: Bots regenerate resources hourly (2-20% by type — Boss 2%; FID-20260915-007 corrected)
+ * - Levels are spawn-time zone brackets, not progression (FID-20260912-061
+ *   R2): regular bots pin L5/15/25/35/45/55/65 by zone tier, Beer Bases the
+ *   same ladder by rank (tiers 1-6); NOTHING in the growth path writes level.
+ *   Difficulty lives in armies, resources, and power tiers — never in level.
  * - Unit Building: Bots build BOTH STR and DEF armies that scale with age/tier
  * - Growth Patterns: 70% grow, 20% stable, 10% decrease for dynamic economy
  * - Movement System: Raiders roam, Ghosts teleport, others stationary

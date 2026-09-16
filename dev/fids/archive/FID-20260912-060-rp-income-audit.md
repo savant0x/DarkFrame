@@ -3,6 +3,12 @@
 **Filename:** `FID-20260912-060-rp-income-audit.md`
 **ID:** FID-20260912-060
 **Severity:** MEDIUM
+**Status:** closed
+**Created:** 2026-09-12
+
+**Filename:** `FID-20260912-060-rp-income-audit.md`
+**ID:** FID-20260912-060
+**Severity:** MEDIUM
 **Status:** fixed
 **Created:** 2026-09-12
 
@@ -98,6 +104,20 @@ intended pacing, and nothing scales away from the design again.
 > enforces a 25,000/day base-earnings cap across all sources (admin bypass,
 > UTC-day ledger, fail-open). The unbounded raid loop is contained at the
 > backstop; B1+B2 remain open as pacing refinements.
+>
+> **Status update (2026-09-15, operator: complete all): B1 + B2 + B4 SHIPPED**
+> (commit `59b86c8`):
+> - B1 `applyBattleEnvelope()` in `researchPointService.ts` — count of today's
+>   `source='battle'` rptransactions per player (<10 → full; else 20%, floor
+>   25 base), fail-open, inside `awardRP` so no battle call site can bypass it.
+> - B2 `saturatingBattleRP()` — `100 + round(200×(1−e^(−L/20)))`, wired at the
+>   raid site (`app/api/combat/attack`). Arithmetic correction to the proposal
+>   row above: the true values are L5→144, L14→**201** (not 228), L65→292 —
+>   the formula is as specified, the row's mental math was off.
+> - B4 `defenseRpEligible()` — both PvP DefenderWin branches skip RP when the
+>   attacker is weaker than the defender.
+> - Tests: `__tests__/lib/battleRpEnvelope.test.ts` (9). Gates: tsc 0 · lint 0 ·
+>   vitest 865/1 (existing B3 suite 8/8 intact).
 
 ---
 

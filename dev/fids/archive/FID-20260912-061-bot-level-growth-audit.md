@@ -3,11 +3,13 @@
 **Filename:** `FID-20260912-061-bot-level-growth-audit.md`
 **ID:** FID-20260912-061
 **Severity:** MEDIUM
-**Status:** fixed
+**Status:** closed
 **Created:** 2026-09-12
 
-> Status note (2026-09-15): R1 (7-tier army caps) shipped; R2/R4 design
-> decisions open, R3 cross-refs FID-060 B1+B2 (operator-open).
+> Close-out note (2026-09-15): R1 shipped earlier; R2+R4 SHIPPED now —
+> growth-engine header states the spawn-bracket doctrine, Beer Base display
+> levels normalized to the tier ladder (rank→L5/15/25/35/45/55, deterministic).
+> Commit with the B1/B2/B4 bundle.
 
 **Date:** 2026-09-12 · **Follows:** FID-060 (income audit, proposed B1+B2) ·
 **Question posed:** "Should botGrowthManager keep scaling bots to L65+, and what

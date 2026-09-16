@@ -1199,30 +1199,37 @@ export async function spawnBeerBase(): Promise<string> {
   bot.base = position;
   bot.currentPosition = position;
   
-  // Set appropriate level based on power tier
+  // Display level follows the SAME tier brackets as regular bots
+  // (FID-20260912-061 R4: levels are spawn-time zone/tier brackets, not a
+  // progression stat — L5/15/25/35/45/55 for tiers 1-6; beer rank IS the
+  // PowerTier index, so rank maps directly. The old per-tier random bands
+  // (1-5/5-10/…/40-60) decorrelated display level from tier and from the
+  // regular ladder for no benefit; B2 raid RP is saturating so the shift is
+  // payout-neutral within noise).
+  const TIER_LEVELS = [5, 15, 25, 35, 45, 55];
   switch (powerTier) {
     case PowerTier.Weak:
-      bot.level = 1 + Math.floor(Math.random() * 5); // 1-5
+      bot.level = TIER_LEVELS[0];
       bot.rank = 1;
       break;
     case PowerTier.Mid:
-      bot.level = 5 + Math.floor(Math.random() * 5); // 5-10
+      bot.level = TIER_LEVELS[1];
       bot.rank = 2;
       break;
     case PowerTier.Strong:
-      bot.level = 10 + Math.floor(Math.random() * 10); // 10-20
+      bot.level = TIER_LEVELS[2];
       bot.rank = 3;
       break;
     case PowerTier.Elite:
-      bot.level = 20 + Math.floor(Math.random() * 10); // 20-30
+      bot.level = TIER_LEVELS[3];
       bot.rank = 4;
       break;
     case PowerTier.Ultra:
-      bot.level = 30 + Math.floor(Math.random() * 10); // 30-40
+      bot.level = TIER_LEVELS[4];
       bot.rank = 5;
       break;
     case PowerTier.Legendary:
-      bot.level = 40 + Math.floor(Math.random() * 20); // 40-60
+      bot.level = TIER_LEVELS[5];
       bot.rank = 6;
       break;
   }

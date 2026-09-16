@@ -1,7 +1,9 @@
 # 💰 Research Points (RP) Economy Guide
 
-> **Last Updated:** October 20, 2025  
-> **Game Version:** v2.0 (RP System Overhaul)
+> **Last Updated:** September 15, 2026 — re-audited against shipped code
+> (Milestones v2, RP Economy v2, battle envelope). Replaces all v2.0 figures.
+>
+> **Game Version:** v3.0 (RP Economy v2)
 
 ---
 
@@ -33,18 +35,20 @@ RP is earned through **normal gameplay** and cannot be lost (only spent on unloc
 ## 💎 **How to Earn RP**
 
 ### **Daily Harvest Milestones** 🌾
-Complete harvests to hit daily milestones. **Resets every 24 hours** with map reset.
+Complete harvests to hit milestones. **Two half-day periods** (AM/PM reset);
+every rung is reachable by a dedicated human (rungs sit at 20–100% of the
+~5,300-harvest period ceiling).
 
 | Threshold | RP Reward | Cumulative |
 |-----------|-----------|------------|
-| 1,000 harvests | 500 RP | 500 RP |
-| 2,500 harvests | 750 RP | 1,250 RP |
-| 5,000 harvests | 1,000 RP | 2,250 RP |
-| 10,000 harvests | 1,500 RP | 3,750 RP |
-| 15,000 harvests | 1,250 RP | 5,000 RP |
-| **22,500 harvests** | **1,000 RP** | **6,000 RP** |
+| 1,000 harvests | 200 RP | 200 RP |
+| 2,000 harvests | 300 RP | 500 RP |
+| 3,000 harvests | 400 RP | 900 RP |
+| 4,000 harvests | 500 RP | 1,400 RP |
+| **5,000 harvests** | **750 RP** | **2,150 RP** |
 
-✅ **Full map completion = 6,000 RP/day** (9,000 RP for VIP)
+✅ **Full sweep = 2,150 RP per period = 4,300 RP/day** (6,450 VIP, 12,900
+VIP flag-bearer best case)
 
 ### **Daily Login Streaks** 📅
 Claim your daily reward every 24 hours:
@@ -54,7 +58,7 @@ Claim your daily reward every 24 hours:
 | Day 1 | 100 RP | 0 RP | 100 RP |
 | Day 2 | 100 RP | +10 RP | 110 RP |
 | Day 3 | 100 RP | +20 RP | 120 RP |
-| Day 7+ | 100 RP | +70 RP | **170 RP** |
+| Day 7+ | 100 RP | +60 RP | **160 RP** (streak bonus caps at 7 days) |
 
 ⚠️ **Streak breaks** if you don't log in within 24 hours.
 
@@ -72,6 +76,12 @@ Win battles to earn RP based on opponent strength:
 
 - **Infantry Battle Win:** 100 RP base + 20 RP per level advantage
 - **Base Raid Win:** 150 RP base + 20 RP per level advantage
+- **Bot-Base Raid Win:** saturating level curve — `100 + 200×(1−e^(−level/20))`
+  (≈144 at L5, ≈201 at L14, ≈292 at L65, capped at 300)
+- **Defense Wins** pay only against higher-or-equal level attackers
+  (no farming weaker players for passive RP)
+- **Daily battle envelope:** the first 10 victorious battles/day pay full
+  formula, then 20% (25 RP floor) — plus the global 25,000 RP/day backstop
 - **Example:** Defeating a player 5 levels above you = 100 + (5 × 20) = **200 RP**
 
 ### **Achievement Unlocks** 🏆
@@ -101,18 +111,17 @@ Track and steal enemy flags for territory control:
 | T3 | 5,000 RP | Advanced tracking (5 tile radius) |
 | T4 | 15,000 RP | Full map tracking + bonuses (VIP only) |
 
-### **Tech Tree Unlocks**
-- **Bot Hunter:** 2,500 RP - Scan for bot concentrations
-- **Bot Magnet:** 5,000 RP - Create bot spawn zones (3 max)
-- **Fast Travel:** 10,000 RP - Teleport to saved waypoints
-- **Bot Summoning Circle:** 15,000 RP - Summon bots to your area
+### **Tech Tree Unlocks** (one shared catalog — UI sells exactly this)
+- **Advanced Mining:** 3,000 RP · **Fortification:** 4,500 RP
+- **Bot Hunter:** 5,000 RP · **Advanced Tracking:** 8,000 RP
+- **Bot Magnet:** 12,000 RP · **Tactical Warfare:** 15,000 RP
+- **Concentration Zones:** 18,000 RP · **Bot Summoning Circle:** 25,000 RP
+- **Fast Travel Network:** 30,000 RP (full line: 127,500 RP)
 
-### **Unit Tier Unlocks**
-- **Tier 2:** 1,000 RP
-- **Tier 3:** 2,500 RP
-- **Tier 4:** 5,000 RP
-- **Tier 5:** 10,000 RP
-- **Tier 6:** 25,000 RP
+### **Unit Tier Unlocks** (level + RP per tier)
+- **Tier 1:** Level 1 + 0 RP · **Tier 2:** Level 5 + 5 RP
+- **Tier 3:** Level 10 + 15 RP · **Tier 4:** Level 20 + 30 RP
+- **Tier 5:** Level 30 + 50 RP
 
 ---
 
@@ -124,19 +133,19 @@ VIP subscription provides **+50% RP on ALL sources**:
 
 | Activity | Free Player | VIP Player |
 |----------|-------------|------------|
-| Full Map Harvest | 6,000 RP | **9,000 RP** |
-| 7-Day Login Streak | 170 RP | **255 RP** |
+| Full Sweep Harvest | 4,300 RP | **6,450 RP** |
+| 7-Day Login Streak | 160 RP | **240 RP** |
 | Level 100 Gained | 500 RP | **750 RP** |
-| 5 Battle Wins | 750 RP | **1,125 RP** |
-| **TOTAL/DAY** | **7,420 RP** | **11,130 RP** |
+| 5 Battle Wins | ~750 RP | **~1,125 RP** |
+| **TOTAL/DAY** | **~5,700 RP** | **~8,500 RP** |
 
 ### **VIP Timeline Advantage**
-- **100k RP Goal:**
-  - Free: 8-17 days
-  - VIP: **6-11 days** (30-40% faster)
+- **100k RP Goal (milestone income only):**
+  - Free: ~23 days (4,300/day)
+  - VIP: **~16 days** (6,450/day — ~30% faster)
 
 ### **Additional VIP Perks**
-- 2x Auto-Farm Speed (5.6 hours vs 11.6 hours for full map)
+- 2x Auto-Farm Speed (5.6 hours vs 11.6 hours for a full sweep)
 - +20% bonus RP on shop purchases
 - Priority access to new features
 
@@ -145,26 +154,26 @@ VIP subscription provides **+50% RP on ALL sources**:
 ## 🎯 **Daily Harvest Milestones**
 
 ### **Understanding the System**
-- Milestones track **total harvests per day** (resets with map reset)
+- Milestones track **total harvests per half-day period** (AM/PM reset)
 - No wasted harvests - every tile counts toward milestones
 - Progress saved even if you stop mid-way
 
 ### **Efficient Farming Strategies**
 
-**1. Auto-Farm Full Map** (Recommended)
-- **Basic Players:** 11.6 hours for 6,000 RP
-- **VIP Players:** 5.6 hours for 9,000 RP
+**1. Auto-Farm Full Sweep** (Recommended)
+- **Basic Players:** 11.6 hours for 4,300 RP
+- **VIP Players:** 5.6 hours for 6,450 RP
 - Set auto-farm overnight and wake up to max RP
 
 **2. Casual Play** (~1-2 hours)
 - Target: 2,500-5,000 harvests
-- Earnings: 1,250-2,250 RP
+- Earnings: 500-2,150 RP
 - Perfect for players with limited time
 
 **3. Rush Strategy** (Hardcore)
-- Complete 2 full maps per day (max with 1 reset)
-- Earnings: 12,000 RP/day (18,000 RP VIP)
-- Achieves 100k RP in 5-8 days
+- Complete 2 full periods per day (max with AM/PM resets)
+- Earnings: 8,600 RP/day (12,900 RP VIP)
+- Achieves 100k RP in ~12 days (8 VIP)
 
 ---
 
@@ -190,17 +199,17 @@ VIP subscription provides **+50% RP on ALL sources**:
 - **Flag T3:** 1 day (4,000+ RP surplus)
 - **Flag T4:** 2 days (achievable)
 
-### **100k RP Milestone**
+### **100k RP Milestone** (milestone income only)
 
 **Active Player Scenarios:**
-1. **Optimal Play:** 8-10 days (full map + all bonuses daily)
-2. **Realistic Play:** 12-17 days (accounting for missed days)
-3. **Casual Play:** 30-45 days (partial maps, fewer bonuses)
+1. **Optimal Play:** ~23 days (full sweep + all bonuses daily)
+2. **Realistic Play:** ~4 weeks (accounting for missed days)
+3. **Casual Play:** 2-3 months (partial sweeps, fewer bonuses)
 
 **VIP Player Scenarios:**
-1. **Optimal Play:** 6-8 days (full map + all bonuses daily)
-2. **Realistic Play:** 9-13 days (accounting for missed days)
-3. **Casual Play:** 20-30 days (partial maps, fewer bonuses)
+1. **Optimal Play:** ~16 days (full sweep + all bonuses daily)
+2. **Realistic Play:** ~3 weeks (accounting for missed days)
+3. **Casual Play:** 6-10 weeks (partial sweeps, fewer bonuses)
 
 ---
 
@@ -212,13 +221,13 @@ VIP subscription provides **+50% RP on ALL sources**:
    - Set a reminder to claim daily reward
    - Maintain 7-day streak for maximum bonus (170 RP → 255 VIP)
 
-2. **Prioritize Full Map Completion**
-   - 6,000 RP/day is 80-90% of daily earnings
+2. **Prioritize Full Sweeps**
+   - 4,300 RP/day is the bulk of steady earnings
    - Use auto-farm to complete overnight
 
 3. **Battle Strategically**
    - Target higher-level opponents for bonus RP
-   - 5-10 battles/day = 500-1,500 extra RP
+   - First 10 wins/day pay full; beyond that 20% (25 RP floor)
 
 4. **Level Up Efficiently**
    - Higher levels = more RP per level-up
@@ -249,7 +258,7 @@ VIP subscription provides **+50% RP on ALL sources**:
 1. Save for **Flag T4** (15,000 RP + VIP)
 2. Unlock **Fast Travel** (10,000 RP)
 3. Max out **Tier 6 Units** (25,000 RP)
-4. Complete **Tech Tree** (50,000+ RP total)
+4. Complete **Tech Tree** (127,500 RP total for all 9 techs)
 
 ---
 
@@ -259,22 +268,22 @@ VIP subscription provides **+50% RP on ALL sources**:
 **A:** No! RP can only be spent on unlocks, never lost through battles or deaths.
 
 ### **Q: Does RP carry over after map reset?**
-**A:** Yes! Your total RP balance is permanent. Only daily harvest milestones reset.
+**A:** Yes! Your total RP balance is permanent. Only the half-day harvest milestone progress resets (AM/PM periods).
 
 ### **Q: Can I earn RP offline?**
 **A:** No, but you can use auto-farm to harvest while AFK. Daily login requires manual claim.
 
 ### **Q: Is buying RP required to progress?**
-**A:** No! Free players can earn 6,000-12,000 RP/day. All content is accessible without spending.
+**A:** No! Free players can earn 4,300-12,900 RP/day. All content is accessible without spending.
 
 ### **Q: What happens if I miss a milestone threshold?**
-**A:** Nothing bad! Milestones are cumulative. If you hit 10k harvests, you get all rewards up to that point (500+750+1000+1500 = 3,750 RP).
+**A:** Nothing bad! Milestones are cumulative within each half-day period. If you hit 5,000 harvests, you get all rewards up to that point (200+300+400+500+750 = 2,150 RP).
 
 ### **Q: Do harvest milestones reset at midnight?**
-**A:** No, they reset with the map reset (every 24 hours from first reset of the day).
+**A:** No, they reset with the AM/PM half-day periods (two scoring windows per day).
 
-### **Q: Can I complete 2 full maps in one day?**
-**A:** Yes! There's 1 manual reset per day, so you can farm 2 full maps = 12,000 RP (18,000 VIP).
+### **Q: Can I complete 2 full sweeps in one day?**
+**A:** Yes! There are 2 half-day periods, so you can earn 2 × 2,150 = 4,300 RP base (6,450 VIP, 12,900 stacked best case).
 
 ### **Q: What's the best value: VIP or buying RP?**
 **A:** VIP is better long-term. $9.99/month VIP gives +50% RP forever vs one-time RP purchases.
