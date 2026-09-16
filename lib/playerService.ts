@@ -339,55 +339,6 @@ export async function findAndClaimSpawnTile(ownerUsername?: string): Promise<typ
   }
 }
 
-export async function createPlayer(username: string): Promise<Player> {
-  try {
-    if (!username || username.trim().length === 0) throw new Error('Username cannot be empty');
-    if (username.length < 3 || username.length > 20) throw new Error('Username must be between 3 and 20 characters');
-    const exists = await usernameExists(username);
-    if (exists) throw new Error('Username already taken');
-    const spawnTile = await findAndClaimSpawnTile(username.trim());
-    if (!spawnTile) throw new Error('No available spawn locations');
-    const newPlayer = {
-      username: username.trim(),
-      email: '',
-      password: '',
-      baseX: spawnTile.x,
-      baseY: spawnTile.y,
-      currentPositionX: spawnTile.x,
-      currentPositionY: spawnTile.y,
-      resourcesMetal: GAME_CONSTANTS.STARTING_RESOURCES.metal,
-      resourcesEnergy: GAME_CONSTANTS.STARTING_RESOURCES.energy,
-      bankMetal: 0,
-      bankEnergy: 0,
-      rank: 1,
-      inventoryItems: [],
-      inventoryCapacity: GAME_CONSTANTS.HARVEST.DEFAULT_INVENTORY_CAPACITY,
-      inventoryMetalDiggerCount: 0,
-      inventoryEnergyDiggerCount: 0,
-      gatheringBonusMetalBonus: '0',
-      gatheringBonusEnergyBonus: '0',
-      shrineBoosts: [],
-      units: [],
-      totalStrength: 0,
-      totalDefense: 0,
-      xp: 0,
-      level: 1,
-      researchPoints: 0,
-      unlockedTiers: [UnitTier.Tier1],
-      createdAt: new Date(),
-    };
-    await db.insert(players).values(newPlayer);
-    console.log('Created player: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');
-    // Return the full domain Player: read the freshly-inserted row through the
-    // single mapping path (private read — the creator owns the new row).
-    const [row] = await db.select().from(players).where(eq(players.username, username.trim())).limit(1);
-    if (!row) throw new Error('Player creation failed: row not found after insert');
-    return mapRowToPlayer(row);
-  } catch (error) {
-    console.error('Error creating player:', error);
-    throw error;
-  }
-}
 
 export async function emailInUse(email: string): Promise<boolean> {
   try {

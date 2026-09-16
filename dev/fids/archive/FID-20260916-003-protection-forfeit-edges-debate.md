@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-003-protection-forfeit-edges-debate.md`
 **ID:** FID-20260916-003
 **Severity:** MEDIUM
-**Status:** analyzed
+**Status:** closed (2026-09-16 — Option B ratified and fully implemented via FID-20260916-004, commit `2cf2f8a`)
 **Created:** 2026-09-16
 
 ---
@@ -118,3 +118,11 @@ FID that specifies the chosen option's enforcement seams.
 **Next step:** enforcement spec (seams, refusal/void placement, tests) in a follow-up FID that runs the Perfection Loop; implementation gated on its `loop-complete` + operator go-ahead.
 
 **Final status:** analyzed (debate complete; Option B recorded 2026-09-16 — implementation via follow-up FID)
+
+**Closure note (2026-09-16, operator directive "fix with the most robust option"):** Option B is
+now implemented in full — the WMD-launch void and the war-clan-join void both shipped in
+FID-20260916-004 (commit `2cf2f8a`) with seam pins and live probes, and that FID is closed.
+The harvest edge stands as ratified: **no forfeit, no gate** — no contested-tile harvest
+mechanic exists, and inventing one to gate would be the less robust choice; if tile ownership
+is ever built, this policy table must be consulted at design time (per §5). Nothing further
+is owed by this FID.

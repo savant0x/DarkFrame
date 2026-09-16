@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema/players';
 import { WarheadType } from '@/types/wmd';
+import { protectionActive, PROTECTION_REFUSAL_REASON } from '@/lib/playerProtection'; // FID-20260916-009 D1
 
 export interface TargetingValidation {
   isValid: boolean;
@@ -34,8 +35,10 @@ export async function validateTargeting(
     return { isValid: false, errors, warnings };
   }
   
-  if (target.protectionUntil && new Date(target.protectionUntil) > new Date()) {
-    errors.push('Target is under protection');
+  // FID-20260916-009 D1: canonical predicate + parity message — replaces the
+  // hand-rolled comparison and the divergent refusal text.
+  if (protectionActive(target.protectionUntil)) {
+    errors.push(PROTECTION_REFUSAL_REASON);
   }
   
   if (target.level < 10) {

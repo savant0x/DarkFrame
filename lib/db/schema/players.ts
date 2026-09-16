@@ -98,7 +98,10 @@ export const players = pgTable('players', {
 	lastReferralValidated: timestamp('last_referral_validated'),
 	referralMilestonesReached: jsonb('referral_milestones_reached').$type<number[]>(),
 	signupIP: varchar('signup_ip', { length: 45 }),
-	protectionUntil: timestamp('protection_until'),
+	// FID-20260916-009 D2: timestamptz — removes the timezone-naive hazard for
+	// non-pg writers/SQL-side comparisons. Existing naive values are UTC (node-pg
+	// wrote them); the migration reinterprets them with AT TIME ZONE 'UTC'.
+	protectionUntil: timestamp('protection_until', { withTimezone: true }),
 	createdAt: timestamp('created_at').defaultNow(),
 	// Account-ban gate columns (written by admin ban flow, read at login). smallint 0/1.
 	banned: smallint('banned').default(0),

@@ -7,6 +7,12 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Fixed — FID-20260916-009: protection window expiry shifted by the host UTC offset (live defect; D1/D2/D3)
+
+- The `protection_until` column was timezone-naive: node-pg parses naive literals as local time, so on non-UTC hosts every window read back inflated (+4h on EDT) and expired late. Migration `0032` converts it to `timestamptz` (`USING (col AT TIME ZONE 'UTC')` — no stored instant shifts); the round-trip probe proved +14,400,000 ms → 0 ms.
+- Predicate-drift refactor: `movementService` and `wmd/targetingValidator` now use the canonical `protectionActive` (refusal message parity included); the dead no-auth `createPlayer` (silent unprotected-account minter) is deleted.
+- Gates: tsc 0 · eslint 0/0 · vitest 919+1skip. SCOPE ledger truth-sweep: rows #22/#23/#24/#36/#44/#51 re-verified closed with evidence; FID-003 closed (Option B implemented via -004).
+
 ### Added — FID-20260916-006/-007/-008: protection parity completed across all PvP surfaces (closed, commits `cf7437a`/`e9bf162`)
 
 - FID-20260916-006 audit dispositioned every surface that touches another player; D1 (recon intel) and D2 (flag steal) ratified as intentionally open — information and proximity-contest surfaces never void the shield.

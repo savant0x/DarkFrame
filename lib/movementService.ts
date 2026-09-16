@@ -14,6 +14,7 @@ import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { getPlayer, getPlayerSlim, type SanitizedPlayer } from './playerService';
 import { calculateNewPosition } from '@/utils/coordinates';
+import { protectionActive } from './playerProtection'; // FID-20260916-009 D1: canonical predicate (was hand-rolled)
 import { Tile, MovementDirection, HarvestRecord } from '@/types';
 
 /**
@@ -83,8 +84,11 @@ export async function getTileAt(x: number, y: number): Promise<Tile | null> {
         if (owner) {
           (tile as { baseLevel?: number }).baseLevel = owner.level;
           if (owner.isSpecialBase) (tile as { isBeerBase?: boolean }).isBeerBase = true;
+          // FID-20260916-009 D1: canonical predicate — replaces the hand-rolled
+          // `!= null && new Date(...) > Date.now()` copy (degrade-open by design,
+          // not by JS comparison accident).
           (tile as { baseProtected?: boolean; baseProtectionUntil?: Date | null }).baseProtected =
-            owner.protectionUntil != null && new Date(owner.protectionUntil).getTime() > Date.now();
+            protectionActive(owner.protectionUntil);
           (tile as { baseProtectionUntil?: Date | null }).baseProtectionUntil = owner.protectionUntil;
         }
       } catch {
