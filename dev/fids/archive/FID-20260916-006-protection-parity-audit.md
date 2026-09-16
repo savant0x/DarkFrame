@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-006-protection-parity-audit.md`
 **ID:** FID-20260916-006
 **Severity:** HIGH (aggregate: one HIGH gap live-reachable)
-**Status:** created
+**Status:** closed (2026-09-16, commit `99ba521` — audit delivered; D1/D2 ratified final; enforcement shipped via -007/-008)
 **Created:** 2026-09-16
 
 **Provenance:** operator directive — audit the remaining PvP surfaces (factory attack,
@@ -79,20 +79,20 @@ Not yet run — filed at `created` as an audit deliverable. Loop on operator dir
 ## 8. Closure
 
 - **Gates:** [x] every surface enumerated by route+service+client sweep · [x] all claims file:line tool-verified · [x] reachability checked
-- **Commit hash (G2):** `<hash>`
-- **Staging plan (G1):** `git add dev/fids/FID-20260916-006-protection-parity-audit.md dev/session-summaries/SESSION-2026-09-16-013.md SCOPE.md`
+- **Commit hash (G2):** `99ba521` (audit + decision log; enforcement executed via -007 `cf7437a` / -008 `e9bf162`)
+- **Staging plan (G1):** superseded — the audit rode its content commit (`99ba521`); closure edits ride the ratification commit per session 027
 - **Commit message (G8):** `docs(fid): protection parity audit — 3 live gaps (spy sabotage HIGH) + 2 policy calls (FID-20260916-006)`
 
 ## 9. Decision Log (operator, 2026-09-16 — structured ask)
 
 | # | Question | Decision | Rationale (as ratified) |
 | - | -------- | -------- | ----------------------- |
-| D1 | Do spy **recon missions** (information ops) interact with the protection window? | **Intel stays open — no code change.** Protected players can run recon and be scouted; nobody forfeits. | The principle line is destruction, not information: intel harms no one tangibly. Consistent with the beer-base cleanliness precedent and keeps onboarding open. |
-| D2 | Does the **Flag steal** minigame interact with protection? | **Open both ways — no code change.** Protected players may hold and be stolen from, and may challenge. | Possession of a contested server object = accepted contest. The challenge is proximity-driven, not player-targeted — the minigame's own rules already govern it, as with bots-only base raids. |
+| D1 | Do spy **recon missions** (information ops) interact with the protection window? | **Intel stays open — no code change. RATIFIED FINAL 2026-09-16 (session 027).** Protected players can run recon and be scouted; nobody forfeits. | The principle line is destruction, not information: intel harms no one tangibly. Consistent with the beer-base cleanliness precedent and keeps onboarding open. |
+| D2 | Does the **Flag steal** minigame interact with protection? | **Open both ways — no code change. RATIFIED FINAL 2026-09-16 (session 027).** Protected players may hold and be stolen from, and may challenge. | Possession of a contested server object = accepted contest. The challenge is proximity-driven, not player-targeted — the minigame's own rules already govern it, as with bots-only base raids. |
 | — | Erratum | -006 §2's spy-sabotage row said "live-reachable"; FID-20260916-007 grounding proved the pipeline **broken** (transposed route call + unsatisfiable ownership assertion) — harm latent, feature dead. Enforcement + repair specced in FID-20260916-007 (`loop-complete`). | Ground truth over first report. |
 
-Enforcement remaining after this log: factory-capture void + latent battle-route pin (follow-up FID pending); sabotage = -007.
+Enforcement after this log (all executed): sabotage = -007 (closed `cf7437a`); factory-capture void + latent battle-route = -008 (closed `e9bf162`). Nothing remains open from this audit.
 
 ---
 
-**Final status:** created (audit deliverable; decision log recorded 2026-09-16 — D1/D2 no-code, enforcement via -007 + pending factory/battle FID)
+**Final status:** closed (commit `99ba521` — audit + ratified decision log; every enforcement follow-up shipped and closed)
