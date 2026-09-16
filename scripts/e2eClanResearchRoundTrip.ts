@@ -109,7 +109,7 @@ async function main(): Promise<void> {
   if (!node) throw new Error('mil_combat_1 missing from tree');
   console.log(`node cost=${node.cost}; fund=${fundBeforeUnlock}`);
   const unlocked = await unlockResearch(CLAN_ID, LEADER, 'mil_combat_1');
-  console.log(`unlocked: ${unlocked.research.name}; newTotal=${unlocked.newTotal}`);
+  console.log(`unlocked: ${unlocked.research.name}`); // note: unlock's return carries research + totalBonuses, not a newTotal (cosmetic log fixed at typecheck)
   const [clanAfter] = await db.select({ techs: clans.researchUnlockedTechs, researchResearchPoints: clans.researchResearchPoints })
     .from(clans).where(eq(clans.id, CLAN_ID));
   console.log(`techs now: ${JSON.stringify(clanAfter.techs)}; fund now: ${clanAfter.researchResearchPoints}`);

@@ -63,3 +63,19 @@ fire), with the protection parity message + skill-floor refusals surfaced verbat
 "latent" verdict above was re-probed for dynamic construction (template literals, variable
 paths) before landing here. `clan/research/contribute` showed 1 ref — from the route's own
 file; re-verified zero UI callers.
+
+---
+
+## Erratum (2026-09-16, session 030 — re-verification pass)
+
+- **P3 specialization verdict STALE:** "zero bonus consumers" was true at audit time
+  (2026-09-14) but is false now. `battleService:374` consumes doctrine bonuses in
+  `resolveBattle` (STR/DEF multipliers, mastery-amplified via
+  `masteryAmplificationPercent` at specializationService:195), `factoryService:262,555`
+  applies cost multipliers, and `statTrackingService:77,116` awards mastery XP on
+  battle wins / unit builds. The choose-flow stays; no wiring work needed.
+- **Tutorial "dead seam" refined:** the tutorial ends by DESIGN through action
+  tracking — `track-action` auto-completes steps at target and the overlay handles
+  `result.tutorialComplete`; `skipTutorial` (via `/decline`) also sets the flag.
+  `POST /api/tutorial/complete` (0 UI callers) is a likely-redundant legacy path —
+  deletion candidate pending a writer census, not a feature to build.
