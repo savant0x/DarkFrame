@@ -635,6 +635,16 @@ function battleLogToDbInsert(battleLog: BattleLog) {
 }
 
 /**
+ * FID-20260912-060 B4: defense RP is earned only against higher-or-equal
+ * level attackers. Repelling a stronger attacker is an upset worth rewarding;
+ * farming weaker attackers for passive RP is not. Pure — pinned by
+ * __tests__/lib/battleRpEnvelope.test.ts.
+ */
+export function defenseRpEligible(attackerLevel: number, defenderLevel: number): boolean {
+  return attackerLevel >= defenderLevel;
+}
+
+/**
  * Execute Infantry Battle (Player vs Player direct combat)
  * 
  * @param attackerId - Attacker username
@@ -737,7 +747,11 @@ export async function executeInfantryAttack(
         console.log(`⚔️ Battle RP awarded! ${attackerId} earned ${result.rpAwarded} RP for defeating ${defenderId}`);
       }
     } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
-      // Base RP: 100, +20 per attacker level above defender
+      // Base RP: 100, +20 per attacker level above defender.
+      // FID-20260912-060 B4: no defense RP for farming weaker attackers.
+      if (!defenseRpEligible(attacker.level, defender.level)) {
+        console.log(`🛡️ No defense RP: ${defenderId} (L${defender.level}) repelled weaker ${attackerId} (L${attacker.level})`);
+      } else {
       const levelDifference = Math.max(0, attacker.level - defender.level);
       const rpAmount = 100 + (levelDifference * 20);
       
@@ -756,6 +770,7 @@ export async function executeInfantryAttack(
       
       if (result.success) {
         console.log(`🛡️ Battle RP awarded! ${defenderId} earned ${result.rpAwarded} RP for defending against ${attackerId}`);
+      }
       }
     }
   } catch (error) {
@@ -915,7 +930,11 @@ export async function executeBaseAttack(
         console.log(`🏰 Base Raid RP awarded! ${attackerId} earned ${result.rpAwarded} RP for raiding ${defenderId}'s base`);
       }
     } else if (battleLog.outcome === BattleOutcome.DefenderWin) {
-      // Base RP: 150, +20 per attacker level above defender
+      // Base RP: 150, +20 per attacker level above defender.
+      // FID-20260912-060 B4: no defense RP for farming weaker attackers.
+      if (!defenseRpEligible(attacker.level, defender.level)) {
+        console.log(`🏰 No defense RP: ${defenderId} (L${defender.level}) repelled weaker ${attackerId} (L${attacker.level})`);
+      } else {
       const levelDifference = Math.max(0, attacker.level - defender.level);
       const rpAmount = 150 + (levelDifference * 20);
       
@@ -934,6 +953,7 @@ export async function executeBaseAttack(
       
       if (result.success) {
         console.log(`🏰 Base Defense RP awarded! ${defenderId} earned ${result.rpAwarded} RP for defending their base`);
+      }
       }
     }
   } catch (error) {

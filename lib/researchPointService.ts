@@ -157,6 +157,67 @@ export const VIP_RP_MULTIPLIER = 1.5;
  */
 export const DAILY_RP_CAP = 25000;
 
+// ============================================================================
+// BATTLE RP PACING (FID-20260912-060 B1 + B2 — the unbounded-raid fix)
+// ============================================================================
+
+/**
+ * B1: daily battle envelope. The first BATTLE_FULL_PAYOUT_WINS_PER_DAY
+ * victorious battle awards per player per UTC day pay the full formula;
+ * beyond that, battle RP pays BATTLE_DIMINISHED_RATE (hard floor
+ * BATTLE_DIMINISHED_FLOOR base RP). Caps battle income at roughly the
+ * milestone envelope scale instead of letting raid loops print RP.
+ *
+ * Counting note: every `source = 'battle'` awardRP call in the codebase is
+ * a victory (attacker-win or successful defense — no call site awards battle
+ * RP for a loss), so counting battle-source rows counts victories. If a
+ * loss-paying call site ever appears, the count inflates conservatively
+ * (earlier throttling — the safe direction).
+ */
+export const BATTLE_FULL_PAYOUT_WINS_PER_DAY = 10;
+export const BATTLE_DIMINISHED_RATE = 0.2;
+export const BATTLE_DIMINISHED_FLOOR = 25;
+
+/**
+ * B2: saturating level term for bot-base raid RP. The old `100 + level × 20`
+ * spread 15× across live bot levels (L5 → 200, L65 → 1,400) on an input
+ * (bot level) that auto-inflates with the zone ladder. The saturating curve
+ * pays L1 → 110, L5 → 144, L14 → 201, L65 → 292, asymptote 300 — max-level
+ * bots stop being a lottery while low tiers stay meaningful.
+ */
+export function saturatingBattleRP(defenderLevel: number): number {
+  const lvl = Math.max(0, Math.floor(defenderLevel || 0));
+  return 100 + Math.round(200 * (1 - Math.exp(-lvl / 20)));
+}
+
+/**
+ * Resolve today's battle payout for a victory: full formula inside the
+ * envelope, throttled beyond it. Fail-open (ledger outage → full amount),
+ * mirroring the B3 backstop philosophy — pacing must never break rewards.
+ */
+export async function applyBattleEnvelope(
+  playerUsername: string,
+  baseAmount: number
+): Promise<{ base: number; throttled: boolean }> {
+  try {
+    const midnight = getRPDayKey() + 'T00:00:00.000Z';
+    const rows = await db.execute(sql`
+      SELECT COUNT(*) AS battlewins FROM rptransactions
+      WHERE playerusername = ${playerUsername} AND source = 'battle' AND timestamp >= ${midnight}
+    `);
+    const wins = Number(rows.rows[0]?.battlewins || 0);
+    if (wins < BATTLE_FULL_PAYOUT_WINS_PER_DAY) return { base: baseAmount, throttled: false };
+    const throttled = Math.max(BATTLE_DIMINISHED_FLOOR, Math.floor(baseAmount * BATTLE_DIMINISHED_RATE));
+    console.warn(
+      `[researchPointService] Battle envelope: ${playerUsername} at ${wins} wins today, ${baseAmount} → ${throttled} base RP`
+    );
+    return { base: throttled, throttled: true };
+  } catch (envelopeError) {
+    console.error('[researchPointService] Battle envelope check failed (failing open):', envelopeError);
+    return { base: baseAmount, throttled: false };
+  }
+}
+
 /**
  * UTC day key for the daily cap ledger (e.g. "2026-09-12").
  * UTC is deliberate: deterministic across server timezones and matches the
@@ -217,6 +278,14 @@ export async function awardRP(
   }
 
   try {
+    // FID-20260912-060 B1: battle envelope resolves BEFORE anything else —
+    // victories beyond the daily count pay the throttled base into the
+    // normal B3/VIP/flag flow below.
+    let requestBase = amount;
+    if (source === 'battle') {
+      requestBase = (await applyBattleEnvelope(playerUsername, amount)).base;
+    }
+
     // Fetch player to check VIP status
     const playerRows = await db.select({
       researchPoints: players.researchPoints,
@@ -245,7 +314,7 @@ export async function awardRP(
     // the granted amount as normal. 'admin' bypasses entirely (operators
     // grant exact amounts).
     let dailyCapRemaining: number | undefined;
-    let grantedBase = amount;
+    let grantedBase = requestBase;
     if (source !== 'admin') {
       try {
         const dayKey = getRPDayKey();
@@ -268,9 +337,9 @@ export async function awardRP(
           };
         }
 
-        if (amount > dailyCapRemaining) {
+        if (requestBase > dailyCapRemaining) {
           console.warn(
-            `[researchPointService] Daily RP cap clamp: ${playerUsername} requested ${amount}, granted ${dailyCapRemaining} (${source})`
+            `[researchPointService] Daily RP cap clamp: ${playerUsername} requested ${requestBase}, granted ${dailyCapRemaining} (${source})`
           );
           grantedBase = dailyCapRemaining;
         }

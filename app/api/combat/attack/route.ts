@@ -413,16 +413,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       // FID-20260911-044: PvE battles now pay battle RP — the RP overhaul
       // (FID-20251020-RP-OVERHAUL) listed battle rewards as a core source, but
       // only the PvP infantry path ever awarded it; raiding bots/Beer Bases
-      // (the dominant combat activity) paid zero RP. Scale by base level:
-      // 100 base + 20 per defender level (same shape as the PvP formula).
+      // (the dominant combat activity) paid zero RP. FID-20260912-060 B2:
+      // saturating level term (100 + 200×(1−e^(−L/20))) — max-level bots stop
+      // being a lottery while low tiers stay meaningful.
       // FID-20260914-002: awarded BEFORE persist so the report can state it
       // (it previously happened after persist — the winner received RP no
       // report ever mentioned).
       try {
-        const { awardRP } = await import('@/lib/researchPointService');
+        const { awardRP, saturatingBattleRP } = await import('@/lib/researchPointService');
         const rpResult = await awardRP(
           auth.username,
-          100 + (base.level ?? 1) * 20,
+          saturatingBattleRP(base.level ?? 1),
           'battle',
           `Victory against ${defender} (Base Raid)`,
           { battleType: 'base', defenderLevel: base.level ?? 1, beerBase: isBeerBase }
