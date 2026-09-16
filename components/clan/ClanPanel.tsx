@@ -63,6 +63,7 @@ import ClanBankPanel from './ClanBankPanel';
 import ClanTerritoryPanel from './ClanTerritoryPanel';
 import ClanWarfarePanel from './ClanWarfarePanel';
 import ClanChatPanel from './ClanChatPanel';
+import ClanResearchPanel from './ClanResearchPanel';
 
 interface ClanPanelProps {
   isOpen: boolean;
@@ -427,7 +428,12 @@ function ClanManagementView({
           />
         )}
         {activeTab === 'research' && (
-          <ComingSoonTab feature="Clan Research" />
+          /* FID-20260916-012: live research panel replaces the ComingSoonTab placeholder */
+          <ClanResearchPanel
+            clanId={clanData._id?.toString() || player.clanId || ''}
+            currentUserRole={playerRole}
+            onRefresh={onRefresh}
+          />
         )}
         {activeTab === 'perks' && (
           <ComingSoonTab feature="Clan Perks" />

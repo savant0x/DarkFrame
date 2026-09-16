@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-012-clan-research-panel.md`
 **ID:** FID-20260916-012
 **Severity:** HIGH (largest unreached system; cooperative sink fully built, zero player reach)
-**Status:** loop-complete
+**Status:** verified (2026-09-16 — implemented on operator go-ahead; closed awaits G2 hash)
 **Created:** 2026-09-16
 
 ---
@@ -107,15 +107,34 @@ receving `clanId` + `playerRole`; no other byte changes.
 
 ## 7. Implementation Record (only after status reaches `loop-complete`, with operator go-ahead)
 
-- [ ] GET `/api/clan/research/state` thin route
-- [ ] `ClanResearchPanel.tsx`: fund header, node cards, contribute flow, unlock flow
-- [ ] `ClanPanel.tsx` placeholder swap
-- [ ] Pins: state contract (4 nodes, fund balance), contribute/unlock request bodies,
-      verbatim error surfacing, presentational role gate
-- [ ] Gates: tsc 0 · eslint 0/0 · vitest full suite green
-- [ ] Live probe: state read on a real clan + contribute→unlock round-trip on a probe
-      clan (dev DB), errors verbatim
+- [x] GET `/api/clan/research/state` thin route
+- [x] `ClanResearchPanel.tsx`: fund header, node cards, contribute flow, unlock flow
+- [x] `ClanPanel.tsx` placeholder swap
+- [x] Pins: state contract (4 nodes, fund balance), contribute/unlock request bodies,
+      verbatim error surfacing, presentational role gate (3 route + 6 component pins)
+- [x] Gates: tsc 0 · eslint 0/0 · vitest full suite green
+- [x] Live probe: state read on a probe clan + contribute→unlock round-trip (dev DB),
+      errors verbatim (scripts/e2eClanResearchRoundTrip.ts, 4/4 stages, exit 0)
 - [ ] §8 hash, SCOPE row, session record
+
+**Implementation evidence (2026-09-16):**
+- `GET /api/clan/research/state` — `requireClanMembership` → `getResearchTree`, tree
+  returned verbatim; no role data exposed (server re-gates at unlock time).
+- `components/clan/ClanResearchPanel.tsx` — fund header, single MILITARY-honest list
+  (C1 preserved), node cards in three states (unlocked/available/locked), contribute
+  (numeric amount, client-side positivity check, server errors via toast verbatim),
+  unlock (presentational officer gate; disabled with explanatory title for others).
+- `ClanPanel.tsx` — placeholder swapped for the panel with `clanId`, `playerRole`,
+  `onRefresh` (refreshes the clan-level fund display the panel cannot reach).
+- Gates: tsc 0 · eslint 0/0 · vitest **951+1skip** (9 new pins) · live probe 4/4
+  stages, exit 0: tree shape, contribute math exact, unlock drains fund by cost +
+  records the tech, member refusal verbatim.
+- Disclosures: (1) the member contribute probe exposed the fund-coverage reality —
+  node 1 costs 5000 while a member holds 800, so the driver adds a leader top-up
+  step before unlock (probe logic, no product code change); (2) running the gates
+  here caught that the FID-011 probe driver had never been typechecked (written
+  after its batch's tsc run; `pool` import + `SpyRank` typing fixed in this batch,
+  probe re-run green) — full `tsc --noEmit` before every batch is now non-negotiable.
 
 ## 8. Closure
 
