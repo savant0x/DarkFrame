@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-011-sabotage-ui-panel.md`
 **ID:** FID-20260916-011
 **Severity:** HIGH
-**Status:** verified (2026-09-16 — implemented on operator go-ahead; closed awaits G2 hash)
+**Status:** closed (2026-09-16, commit `0446629` — implemented + verified)
 **Created:** 2026-09-16
 
 ---
@@ -160,5 +160,5 @@ gate is presentational only — the server refuses anyway).
 
 ## 8. Closure
 
-- **Commit hash (G2):** —
-- **Gates (G1):** —
+- **Commit hash (G2):** `0446629`
+- **Gates (G1):** tsc 0 · eslint 0/0 · vitest 942+1skip (11 new pins) · live probe 3/3 stages, exit 0 (see §7 evidence)

@@ -7,6 +7,11 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Added — FID-20260916-011: sabotage UI — target → victim preview → fire (closed, commit `0446629`)
+
+- Sabotage finally reaches players: a shared `sabotageMath` module (difficulty/detection tables + formulas — the service delegates, the route and panel import), a `type=sabotage-targets` enumeration GET whose victim derivation mirrors `resolveSabotageTarget` exactly (owner username / clan leader per asset, `protectionActive` per row), and a third Sabotage tab in WMDIntelligencePanel driving operator → target → preview (victim, shield state, computed success/detection, void warning) → fire, with server refusals surfaced verbatim and no client-side pre-filtering.
+- 11 pins; tsc 0 · eslint 0/0 · vitest 942+1skip. Live probe 3/3: seeded shielded victim flagged in enumeration, preview math matched the fire path bit-for-bit, protected-target fire refused with the parity constant verbatim, spy left AVAILABLE.
+
 ### Added — FID-20260916-010: three missing player-side endpoints rebuilt (closed, commit `2d9e05f`)
 
 - The feature-survey census (SCOPE #69) found three player-facing panels calling endpoints that did not exist: DiscoveryLogPanel (`/api/discoveries`), FriendsList's online section (`/api/friends/online`), and FriendActionsMenu's block action (`/api/friends/block`). All three rebuilt as thin adapters over existing services — domain→client shape-mapping for discoveries (enum case, epoch ms, by-category totals), presence via `user_presence` (60s chat-heartbeat TTL), session-caller-only block with the sibling typed-error mapping.
