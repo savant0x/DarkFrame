@@ -3,6 +3,10 @@
  * @created 2025-10-22
  * @updated 2026-09-08 (FID-20260908-009: NEON NOIR redesign — nn-panel/nn-tabchip/
  * nn-chip/nn-row token structure; spy/mission flow logic byte-preserved)
+ * @updated 2026-09-16 (FID-20260916-011: sabotage view — target → victim preview →
+ * fire flow over the pinned FID-20260916-007 seam; success/detection math imported
+ * from the shared sabotageMath module, server refusals surfaced verbatim, no
+ * client-side refusal pre-filtering)
  * @overview WMD Spy Network & Intelligence Operations Panel
  *
  * OVERVIEW:
@@ -16,11 +20,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Eye } from 'lucide-react';
+import { Eye, Crosshair } from 'lucide-react';
 import { useWebSocketContext } from '@/context/WebSocketContext';
 import { showSuccess, showError, showInfo } from '@/lib/toastService';
 import { extractApiError } from '@/lib/apiClient';
 import type { WMDSpyMissionCompletePayload } from '@/types/websocket';
+import {
+  sabotageSuccessChance,
+  sabotageDetectionRisk,
+  SABOTAGE_SKILL_FLOOR,
+  type SabotageTargetType,
+} from '@/lib/wmd/sabotageMath';
 
 interface Spy {
   spyId: string;
@@ -42,14 +52,62 @@ interface Mission {
   completesAt?: Date;
 }
 
+/** Sabotage-capable spy as the selector consumes it (subset of the spies GET payload). */
+interface SabotageSpy {
+  spyId: string;
+  codename: string;
+  status: string;
+  skills: {
+    stealth: number;
+    hacking: number;
+    sabotage: number;
+    intelligence: number;
+  };
+}
+
+/** Mirrors SabotageTargetOption from lib/wmd/sabotageTargets (route payload shape). */
+interface SabotageTarget {
+  targetType: SabotageTargetType;
+  targetId: string;
+  label: string;
+  victimKind: 'PLAYER' | 'CLAN';
+  victimId: string;
+  victimUsername: string | null;
+  protected: boolean;
+  difficulty: number;
+  detectionRisk: number;
+}
+
+interface SabotageTargetsPayload {
+  success: boolean;
+  missiles?: SabotageTarget[];
+  batteries?: SabotageTarget[];
+  research?: SabotageTarget[];
+}
+
+const SABOTAGE_TYPES: SabotageTargetType[] = ['MISSILE', 'DEFENSE_BATTERY', 'RESEARCH'];
+
 export default function WMDIntelligencePanel() {
   const [spies, setSpies] = useState<Spy[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'spies' | 'missions'>('spies');
+  const [view, setView] = useState<'spies' | 'missions' | 'sabotage'>('spies');
   const [selectedSpec, setSelectedSpec] = useState('SURVEILLANCE');
   const [targetId, setTargetId] = useState('');
   const { socket, isConnected } = useWebSocketContext();
+
+  // FID-20260916-011: sabotage flow state
+  const [sabSpies, setSabSpies] = useState<SabotageSpy[]>([]);
+  const [sabSpyId, setSabSpyId] = useState('');
+  const [sabType, setSabType] = useState<SabotageTargetType>('MISSILE');
+  const [sabTargets, setSabTargets] = useState<Record<SabotageTargetType, SabotageTarget[]>>({
+    MISSILE: [],
+    DEFENSE_BATTERY: [],
+    RESEARCH: [],
+  });
+  const [sabTargetId, setSabTargetId] = useState('');
+  const [sabResult, setSabResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [firing, setFiring] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -57,7 +115,7 @@ export default function WMDIntelligencePanel() {
       const data = await res.json();
       if (data.success) {
         if (view === 'spies') setSpies(data.spies);
-        else setMissions(data.missions);
+        else if (view === 'missions') setMissions(data.missions);
       }
     } catch (error) {
       console.error('Failed to fetch intelligence data:', error);
@@ -71,6 +129,49 @@ export default function WMDIntelligencePanel() {
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [view, fetchData]);
+
+  // FID-20260916-011: the sabotage view polls no list — spies are fetched on
+  // entry, targets on spy selection and after each fire.
+  const fetchSabSpies = useCallback(async () => {
+    try {
+      const res = await fetch('/api/wmd/intelligence?type=spies');
+      const data = await res.json();
+      if (data.success) setSabSpies(data.spies);
+    } catch (error) {
+      console.error('Failed to fetch spies for sabotage:', error);
+    }
+  }, []);
+
+  const fetchSabTargets = useCallback(async (spyId: string) => {
+    try {
+      const res = await fetch(`/api/wmd/intelligence?type=sabotage-targets&spyId=${encodeURIComponent(spyId)}`);
+      const data: SabotageTargetsPayload = await res.json();
+      if (data.success) {
+        setSabTargets({
+          MISSILE: data.missiles ?? [],
+          DEFENSE_BATTERY: data.batteries ?? [],
+          RESEARCH: data.research ?? [],
+        });
+      } else {
+        showError(typeof data === 'object' ? 'Failed to enumerate sabotage targets' : 'Failed');
+      }
+    } catch (error) {
+      console.error('Failed to fetch sabotage targets:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'sabotage') {
+      fetchSabSpies();
+    }
+  }, [view, fetchSabSpies]);
+
+  const selectSabSpy = (spyId: string) => {
+    setSabSpyId(spyId);
+    setSabTargetId('');
+    setSabResult(null);
+    fetchSabTargets(spyId);
+  };
 
   // WebSocket event subscriptions
   useEffect(() => {
@@ -167,6 +268,46 @@ export default function WMDIntelligencePanel() {
     }
   };
 
+  // FID-20260916-011: fire the pinned seam. The server's message — success or
+  // refusal — is surfaced verbatim; this UI never pre-filters refusals.
+  const fireSabotage = async () => {
+    if (!sabSpyId || !sabTargetId) {
+      showError('Select a spy and a target first');
+      return;
+    }
+    setFiring(true);
+    setSabResult(null);
+    try {
+      const res = await fetch('/api/wmd/intelligence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sabotage',
+          spyId: sabSpyId,
+          targetType: sabType,
+          targetId: sabTargetId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess('Sabotage operation executed');
+        setSabResult({ ok: true, message: data.message });
+      } else {
+        const message = typeof data.error === 'string' ? data.error : extractApiError(data, res.status);
+        showError(message);
+        setSabResult({ ok: false, message });
+      }
+      // The spy may now be COMPROMISED and the target lists stale — refresh both.
+      fetchSabSpies();
+      fetchSabTargets(sabSpyId);
+    } catch (error) {
+      showError('Error executing sabotage');
+      console.error('Error executing sabotage:', error);
+    } finally {
+      setFiring(false);
+    }
+  };
+
   const getStatusChip = (status: string) => {
     switch (status) {
       case 'AVAILABLE': return 'nn-chip nn-chip--green';
@@ -186,6 +327,15 @@ export default function WMDIntelligencePanel() {
   }
 
   const availableSpies = spies.filter(s => s.status === 'AVAILABLE').length;
+
+  // FID-20260916-011: presentational gate only — the server enforces the same
+  // floor (and everything else) at fire time.
+  const capableSabSpies = sabSpies.filter(
+    s => s.status === 'AVAILABLE' && (s.skills?.sabotage ?? 0) >= SABOTAGE_SKILL_FLOOR
+  );
+  const selectedSabSpy = capableSabSpies.find(s => s.spyId === sabSpyId);
+  const sabOptions = sabTargets[sabType];
+  const selectedTarget = sabOptions.find(t => t.targetId === sabTargetId);
 
   return (
     <div className="space-y-6">
@@ -208,6 +358,13 @@ export default function WMDIntelligencePanel() {
             className={`nn-ptab ${view === 'missions' ? 'on' : ''}`}
           >
             Missions
+          </button>
+          <button
+            onClick={() => setView('sabotage')}
+            data-selected={view === 'sabotage'}
+            className={`nn-ptab ${view === 'sabotage' ? 'on' : ''}`}
+          >
+            Sabotage
           </button>
         </div>
         <button onClick={runCounterIntel} className="nn-abtn nn-abtn--amber">
@@ -311,6 +468,135 @@ export default function WMDIntelligencePanel() {
           {missions.length === 0 && (
             <div className="text-center py-12">
               <p className="nn-lab">No active missions</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sabotage View — FID-20260916-011: target → victim preview → fire */}
+      {view === 'sabotage' && (
+        <div className="space-y-4">
+          {/* Step 1 — operator */}
+          <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+            <div className="nn-panel__header">
+              <span className="nn-panel__title">1 · Operator</span>
+              <span className="nn-panel__meta">sabotage ≥ {SABOTAGE_SKILL_FLOOR}</span>
+            </div>
+            <div className="nn-panel__body flex flex-wrap gap-2">
+              {capableSabSpies.map((spy) => (
+                <button
+                  key={spy.spyId}
+                  onClick={() => selectSabSpy(spy.spyId)}
+                  data-selected={sabSpyId === spy.spyId}
+                  className={`nn-tabchip ${sabSpyId === spy.spyId ? 'nn-tabchip--on' : ''}`}
+                >
+                  {spy.codename} · sab {spy.skills.sabotage} / stl {spy.skills.stealth}
+                </button>
+              ))}
+              {capableSabSpies.length === 0 && (
+                <p className="nn-lab">No sabotage-capable spies available (skill ≥ {SABOTAGE_SKILL_FLOOR})</p>
+              )}
+            </div>
+          </div>
+
+          {/* Step 2 — target */}
+          {sabSpyId && (
+            <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}>
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">2 · Target</span>
+                <span className="nn-panel__meta">{sabType.toLowerCase()}</span>
+              </div>
+              <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="flex flex-wrap gap-2">
+                  {SABOTAGE_TYPES.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => { setSabType(t); setSabTargetId(''); }}
+                      data-selected={sabType === t}
+                      className={`nn-tabchip ${sabType === t ? 'nn-tabchip--on' : ''}`}
+                    >
+                      {t.toLowerCase().replace('_', ' ')} ({sabTargets[t].length})
+                    </button>
+                  ))}
+                </div>
+                <select
+                  value={sabTargetId}
+                  onChange={(e) => setSabTargetId(e.target.value)}
+                  className="nn-input w-full"
+                >
+                  <option value="">Select target…</option>
+                  {sabOptions.map((t) => (
+                    <option key={t.targetId} value={t.targetId}>
+                      {t.label} — victim: {t.victimUsername ?? t.victimId}{t.protected ? ' [PROTECTED]' : ''}
+                    </option>
+                  ))}
+                </select>
+                {sabOptions.length === 0 && (
+                  <p className="nn-lab">No {sabType.toLowerCase().replace('_', ' ')} targets listed</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 3 — preview + fire */}
+          {selectedTarget && selectedSabSpy && (
+            <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-magenta)' } as React.CSSProperties}>
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">3 · Preview &amp; Fire</span>
+                <span className="nn-panel__meta">{selectedTarget.targetType.toLowerCase()}</span>
+              </div>
+              <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div className="flex justify-between">
+                  <span className="nn-lab">Victim ({selectedTarget.victimKind.toLowerCase()})</span>
+                  <span style={{ fontSize: 12 }}>{selectedTarget.victimUsername ?? selectedTarget.victimId}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="nn-lab">Protection</span>
+                  {selectedTarget.protected ? (
+                    <span className="nn-chip nn-chip--magenta" style={{ fontSize: 12 }}>SHIELDED — fire will be refused</span>
+                  ) : (
+                    <span className="nn-chip nn-chip--green" style={{ fontSize: 12 }}>none</span>
+                  )}
+                </div>
+                <div className="flex justify-between">
+                  <span className="nn-lab">Success chance</span>
+                  <span className="nn-num nn-text-green" style={{ fontSize: 12 }}>
+                    {Math.round(sabotageSuccessChance(selectedSabSpy.skills.sabotage, selectedTarget.targetType) * 100)}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="nn-lab">Detection risk</span>
+                  <span className="nn-num nn-text-magenta" style={{ fontSize: 12 }}>
+                    {Math.round(sabotageDetectionRisk(selectedSabSpy.skills.stealth, selectedTarget.targetType) * 100)}%
+                  </span>
+                </div>
+                <p className="nn-footnote" style={{ marginTop: 6 }}>
+                  Firing commits the operation and voids your remaining new-player protection window — regardless of the outcome.
+                </p>
+                <button
+                  onClick={fireSabotage}
+                  disabled={firing}
+                  className="nn-abtn nn-abtn--magenta w-full"
+                  style={{ marginTop: 6 }}
+                >
+                  <Crosshair className="h-4 w-4 mr-1" />
+                  {firing ? 'Executing…' : 'Execute Sabotage'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Result — server message surfaced verbatim (success or refusal) */}
+          {sabResult && (
+            <div className="nn-panel" style={{ '--nn-accent': sabResult.ok ? 'var(--nn-green)' : 'var(--nn-magenta)' } as React.CSSProperties}>
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">{sabResult.ok ? 'Operation result' : 'Refused'}</span>
+              </div>
+              <div className="nn-panel__body">
+                <p className={sabResult.ok ? 'nn-text-green' : 'nn-text-magenta'} style={{ fontSize: 12 }}>
+                  {sabResult.message}
+                </p>
+              </div>
             </div>
           )}
         </div>

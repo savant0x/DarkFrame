@@ -28,6 +28,8 @@ import {
   getPlayerSpies,
   getPlayerMissions,
 } from '@/lib/wmd/spyService';
+import { getSabotageTargets } from '@/lib/wmd/sabotageTargets';
+import { isSabotageTargetType } from '@/lib/wmd/sabotageMath';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
 import {
@@ -63,7 +65,7 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     const type = searchParams.get('type') || 'spies';
     
     if (type === 'spies') {
-      const spies = await getPlayerSpies(auth.playerId);
+      const spies = await getPlayerSpies(auth.playerId, undefined, [auth.playerId]);
       return NextResponse.json({ success: true, spies });
     }
     
@@ -71,9 +73,35 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       const missions = await getPlayerMissions(auth.playerId);
       return NextResponse.json({ success: true, missions });
     }
-    
+
+    // FID-20260916-011: enumeration for the sabotage flow's target step.
+    // Read-only; scoping + skill floor enforced inside the service, refusals
+    // at fire time remain server-side in executeSabotage.
+    if (type === 'sabotage-targets') {
+      const spyId = searchParams.get('spyId');
+      if (!spyId) {
+        return NextResponse.json(
+          { error: 'Missing required parameter: spyId' },
+          { status: 400 }
+        );
+      }
+      const result = await getSabotageTargets(spyId);
+      if (!result.success) {
+        return NextResponse.json(
+          { error: result.message ?? 'Failed to enumerate sabotage targets' },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        missiles: result.missiles,
+        batteries: result.batteries,
+        research: result.research,
+      });
+    }
+
     return NextResponse.json(
-      { error: 'Invalid type. Use "spies" or "missions"' },
+      { error: 'Invalid type. Use "spies", "missions", or "sabotage-targets"' },
       { status: 400 }
     );
   } catch (error) {
@@ -211,6 +239,15 @@ export async function POST(req: NextRequest) {
       if (!spyId || !targetId || !targetType) {
         return NextResponse.json(
           { error: 'Missing required fields: spyId, targetId, targetType' },
+          { status: 400 }
+        );
+      }
+
+      // FID-20260916-011: reject malformed type values up front so the
+      // service's switch cannot be probed with arbitrary strings.
+      if (!isSabotageTargetType(targetType)) {
+        return NextResponse.json(
+          { error: 'Invalid targetType. Use "MISSILE", "DEFENSE_BATTERY", or "RESEARCH"' },
           { status: 400 }
         );
       }

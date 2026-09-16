@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-011-sabotage-ui-panel.md`
 **ID:** FID-20260916-011
 **Severity:** HIGH
-**Status:** loop-complete
+**Status:** verified (2026-09-16 — implemented on operator go-ahead; closed awaits G2 hash)
 **Created:** 2026-09-16
 
 ---
@@ -122,16 +122,41 @@ gate is presentational only — the server refuses anyway).
 
 ## 7. Implementation Record (only after status reaches `loop-complete`, with operator go-ahead)
 
-- [ ] GET `type=sabotage-targets` enumeration with per-type victim identity
-- [ ] Difficulty/detection constants exported from service (single source of truth)
-- [ ] Panel `sabotage` view: target selection → preview → fire
-- [ ] Result area surfaces server messages verbatim (success + refusal)
-- [ ] Pins: route enumeration shapes (3 target types + empty-state), preview
+- [x] GET `type=sabotage-targets` enumeration with per-type victim identity
+- [x] Difficulty/detection constants exported from service (single source of truth)
+- [x] Panel `sabotage` view: target selection → preview → fire
+- [x] Result area surfaces server messages verbatim (success + refusal)
+- [x] Pins: route enumeration shapes (3 target types + empty-state), preview
       computation, fire request body contract
-- [ ] Gates: tsc 0 · eslint 0/0 · vitest full suite green
-- [ ] Live probe: enumerate → preview math → fire refusal path (protected target)
+- [x] Gates: tsc 0 · eslint 0/0 · vitest full suite green
+- [x] Live probe: enumerate → preview math → fire refusal path (protected target)
       against dev DB
 - [ ] §8 hash, SCOPE row, session record
+
+**Implementation evidence (2026-09-16):**
+- Shared math landed as a new DB-free module `lib/wmd/sabotageMath.ts` (difficulty /
+  detection tables + success/detection formulas + skill floor + type guard); the
+  service DELEGATES to it and the route + client panel import it — a stronger shape
+  than "export from service": no server modules in the browser bundle.
+- New enumeration service `lib/wmd/sabotageTargets.ts` → `getSabotageTargets(spyId)`;
+  victim derivation mirrors `resolveSabotageTarget` exactly (missile owner →
+  players.username; battery → clan → leader; research → owner), `protectionActive`
+  per row. Listing is GLOBAL per §5 ("every sabotagable asset") — matches the fire
+  path, which validates any existing asset; the spy read enforces the skill floor.
+- Route: GET `type=sabotage-targets` (400 without `spyId`, service refusal messages
+  verbatim); invalid-type message updated; POST sabotage now rejects malformed
+  `targetType` before the service switch; spies GET scoped via the new `operators`
+  param (`[auth.playerId]`).
+- Panel: third `Sabotage` tab; operator → target → preview+fire; preview shows
+  victim, shield state, computed success/detection, and the void warning; result
+  area renders server messages verbatim; no client-side refusal pre-filtering.
+- Gates: tsc 0 · eslint 0/0 · vitest **942+1skip** (11 new pins) · live probe
+  3/3 stages (`scripts/e2eSabotageUiFlow.ts`, exit 0): enumeration derived the
+  victim + `protected=true` from a seeded shielded missile, preview math matched
+  the fire-path formula bit-for-bit, fire refused with the parity constant
+  verbatim and left the spy AVAILABLE. Two probe-driver iterations disclosed:
+  varchar(20) username overflow (base36 stamps now), then an exit-path restructure
+  (single pool owner, no top-level await).
 
 ## 8. Closure
 

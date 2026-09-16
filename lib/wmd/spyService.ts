@@ -64,6 +64,8 @@ import {
   calculateSuccessChance
 } from '@/types/wmd';
 import type { SpyAgent, SpySpecialization, SpyStatus } from '@/types/wmd';
+// FID-20260916-011: shared sabotage math (difficulty/detection tables) — delegate, never copy.
+import { getSabotageDifficulty, sabotageDetectionRisk } from './sabotageMath';
 
 /** Sabotage target categories accepted by the sabotage pipeline. */
 type SabotageTargetType = 'MISSILE' | 'DEFENSE_BATTERY' | 'RESEARCH';
@@ -688,15 +690,19 @@ export async function getSpy(spyId: string): Promise<SpyAgent | null> {
 
 export async function getPlayerSpies(
   playerId: string,
-  statusFilter?: SpyStatus
+  statusFilter?: SpyStatus,
+  operators: string[] = []
 ): Promise<SpyAgent[]> {
   try {
+    const ownerCondition = operators.length
+      ? and(eq(wmdSpies.ownerId, playerId), inArray(wmdSpies.ownerId, operators))
+      : eq(wmdSpies.ownerId, playerId);
     const results = statusFilter
       ? await db.select().from(wmdSpies)
-          .where(and(eq(wmdSpies.ownerId, playerId), eq(wmdSpies.status, statusFilter)))
+          .where(and(ownerCondition, eq(wmdSpies.status, statusFilter)))
           .orderBy(desc(wmdSpies.recruitedAt))
       : await db.select().from(wmdSpies)
-          .where(eq(wmdSpies.ownerId, playerId))
+          .where(ownerCondition)
           .orderBy(desc(wmdSpies.recruitedAt));
     return results.map(mapDrizzleSpyToAgent);
     
@@ -1222,23 +1228,14 @@ async function deductTrainingCosts(playerId: string, intensity: 'BASIC' | 'ADVAN
 }
 
 function getSabotageTargetDifficulty(targetType: SabotageTargetType): number {
-  const difficulties: Record<SabotageTargetType, number> = {
-    'MISSILE': 0.2,
-    'DEFENSE_BATTERY': 0.3,
-    'RESEARCH': 0.4,
-  };
-  return difficulties[targetType];
+  // FID-20260916-011: single source of truth lives in sabotageMath (importable
+  // by the enumeration route and the client preview); delegate, never copy.
+  return getSabotageDifficulty(targetType);
 }
 
 function getSabotageDetectionRisk(targetType: SabotageTargetType, stealthSkill: number): number {
-  const baseRisk: Record<SabotageTargetType, number> = {
-    'MISSILE': 0.4,
-    'DEFENSE_BATTERY': 0.5,
-    'RESEARCH': 0.6,
-  };
-  
-  const risk = baseRisk[targetType] - (stealthSkill / 200);
-  return Math.max(0.1, Math.min(0.9, risk));
+  // FID-20260916-011: delegated to sabotageMath — identical clamp + formula.
+  return sabotageDetectionRisk(stealthSkill, targetType);
 }
 
 /**
