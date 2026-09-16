@@ -153,3 +153,26 @@ Each row is independently approvable. Rows cite the measured finding that justif
   sub-FID; no code touched. **CONVERGED — zero open findings.** Awaiting operator approval.
 
 **Status:** CONVERGED (loop pass 3) — awaiting operator approval of P1–P10.
+
+---
+
+## 8. Disposition addendum (2026-09-16, ground-truth sweep + operator decision)
+
+Every proposal verified against the codebase before disposition:
+
+| Proposal | Ground truth (2026-09-16) |
+| -------- | ------------------------- |
+| P1 | SHIPPED — `lib/xpService.ts:198` `500 × level^1.35` (header documents the 2026-09-08 XP-fix lineage) |
+| P2 | SHIPPED — `lib/xpService.ts:171,207` ×1.15 endgame branch |
+| P3 | REJECTED by operator decision (2026-09-16) — harvest XP stays flat (`XP_REWARDS.HARVEST_RESOURCE: 20`, `lib/xpService.ts:83`) |
+| P4 | SUPERSEDED in code — `lib/researchPointService.ts:122` replaces the doc-era "7,750 RP full-map" figure with the current milestone/cap table (DAILY_RP_CAP 25,000) |
+| P5 | REJECTED by operator decision (2026-09-16) — no rarity STR-per-cost scaling; the rebalance was executed by the operator's parallel agent session (2026-09-15 combat/vault/pacing work) |
+| P6 | SHIPPED — `app/api/combat/attack/route.ts` (base raids), `app/api/factory/attack/route.ts` (capture) |
+| P7 | SHIPPED — attack route :379/:393–394 (`resourceMultiplier` in the loot path) |
+| P8/P9 | SHIPPED — WMD ladder re-priced (`types/wmd/research.types.ts` 42k–78k per tech, curated totals) |
+| P10 | SHIPPED — `lib/battleService.ts:165` per-raid theft ceiling, cites this FID by ID |
+
+**Operator record:** the balance work was completed outside this FID by the operator's
+parallel agent session (2026-09-15); P3 and P5 are declined, not pending. No open rows
+remain from this FID. Status field was already `closed`; this addendum is the
+paper-trail the sweep required.

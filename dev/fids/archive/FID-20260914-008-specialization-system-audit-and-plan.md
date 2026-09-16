@@ -8,7 +8,7 @@
 **Filename:** `FID-20260914-008-specialization-system-audit-and-plan.md`
 **ID:** FID-20260914-008
 **Severity:** HIGH (choose-flow 500 with partial apply; core promise non-functional)
-**Status:** converged (Phase 0 implemented + live-verified; Phases 1–3 gated)
+**Status:** closed (Phases 1–3 implemented + live-verified 2026-09-15 — see addendum. Status field corrected 2026-09-16 from stale `converged`.)
 **Created:** 2026-09-14
 
 ---

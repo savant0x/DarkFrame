@@ -12,10 +12,8 @@
 **Filename:** `FID-20260904-005-postgres-pivot-systemic-audit.md`
 **ID:** FID-20260904-005
 **Severity:** CRITICAL
-**Status:** converged (Perfection Loop passes 1–4 complete: pass 1 FAIL→SELF-CORRECT,
-passes 2–3 corrections applied and verified, pass 4 = zero actionable findings →
-convergence. Implementation authorized per §8 decisions; §7 record to be filled at
-IMPLEMENT.)
+**Status:** closed (phases 1–4 implemented + live-verified; closed 2026-09-06 — see §7/§9.
+Status field corrected 2026-09-16 from stale `converged` per the ground-truth FID sweep.)
 **Created:** 2026-09-04
 
 ---

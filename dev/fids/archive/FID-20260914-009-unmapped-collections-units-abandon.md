@@ -8,7 +8,7 @@
 **Filename:** `FID-20260914-009-unmapped-collections-units-abandon.md`
 **ID:** FID-20260914-009
 **Severity:** HIGH (silent data-loss illusion + dead cron writes; no crash)
-**Status:** converged
+**Status:** closed (Phases A+B implemented + live-verified 2026-09-15 — see addendum. Status field corrected 2026-09-16 from stale `converged`.)
 **Created:** 2026-09-14
 
 ---

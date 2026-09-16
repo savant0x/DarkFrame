@@ -10,7 +10,7 @@
 **Filename:** `FID-20260905-001-admin-gate-unification-de-mock-lint-zero.md`
 **ID:** FID-20260905-001
 **Severity:** HIGH
-**Status:** converged
+**Status:** closed (batches 1–4 + §7.1–§7.3 implemented; closed 2026-09-06 — see §8. Status field corrected 2026-09-16 from stale `converged`.)
 **Created:** 2026-09-05
 
 ---
