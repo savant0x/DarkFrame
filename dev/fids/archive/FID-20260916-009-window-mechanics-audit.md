@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-009-window-mechanics-audit.md`
 **ID:** FID-20260916-009
 **Severity:** MEDIUM (aggregate — no enforcement hole; drift + latent schema hazard)
-**Status:** verified (2026-09-16 — D1/D2/D3 executed on operator go-ahead; closed awaits G2 hash)
+**Status:** closed (2026-09-16, commit `a324cee` — implemented + verified)
 **Created:** 2026-09-16
 
 ---
@@ -187,7 +187,7 @@ behavior-preserving by design (message parity is asserted via the shared constan
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 · [ ] lint 0/0 · [ ] tests pass · [ ] call-graph proven
-- **Commit hash (G2):** `<hash>`
-- **Staging plan (G1):** `git add dev/fids/FID-20260916-009-window-mechanics-audit.md dev/session-summaries/SESSION-2026-09-16-020.md SCOPE.md`
-- **Commit message (G8):** `docs(fid): window-mechanics audit — no enforcement hole; predicate-drift refactor + timestamptz migration recommended (FID-20260916-009)`
+- **Gates:** [x] typecheck 0 · [x] lint 0/0 · [x] tests pass · [x] call-graph proven
+- **Commit hash (G2):** `a324cee`
+- **Staging plan (G1):** superseded — the implementation commit folded the FID, sessions 020/021, the ledger row, and the code/migration into one (commit `a324cee`, 13 files)
+- **Commit message (G8):** `fix: protection window expiry shifted by host UTC offset — timestamptz, canonical predicate everywhere, dead createPlayer removed (FID-20260916-009)`
