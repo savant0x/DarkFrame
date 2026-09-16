@@ -11,6 +11,7 @@ import { eq, and, isNull, sql } from 'drizzle-orm';
 import { GAME_CONSTANTS, UnitTier } from '@/types';
 import type { Player, PlayerInventory } from '@/types/game.types';
 import { sanitizePlayer, type SanitizedPlayer } from '@/lib/playerSanitize';
+import { newPlayerProtectionUntil } from '@/lib/playerProtection'; // FID-20260916-002
 export type { SanitizedPlayer } from '@/lib/playerSanitize';
 
 /**
@@ -456,6 +457,10 @@ export async function createPlayerWithAuth(username: string, email: string, hash
       researchPoints: 0,
       unlockedTiers: [UnitTier.Tier1],
       createdAt: new Date(),
+      // FID-20260916-002: the dormant `protection_until` column gains its only
+      // writer — a 72h window set at registration. Expiry is purely time-derived;
+      // outgoing PvP (infantry path) voids it early via voidProtectionOnAggression.
+      protectionUntil: newPlayerProtectionUntil(),
     };
     await db.insert(players).values(newPlayer);
     console.log('Created player with auth: ' + username + ' at (' + spawnTile.x + ', ' + spawnTile.y + ')');

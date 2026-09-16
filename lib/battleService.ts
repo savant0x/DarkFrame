@@ -54,6 +54,7 @@ import {
 import { awardXP, XPAction } from './xpService';
 import { trackBattleWon } from './statTrackingService';
 import { calculateBalanceEffects, type BalanceEffects } from './balanceService';
+import { voidProtectionOnAggression } from './playerProtection'; // FID-20260916-002
 
 /**
  * Convert PlayerUnit (inventory) to Unit (combat)
@@ -664,6 +665,14 @@ export async function executeInfantryAttack(
   if (!attackerResult || !defenderResult) {
     throw new Error('Player not found');
   }
+
+  // FID-20260916-002: aggression voids the attacker's own protection window —
+  // a protected player's first outgoing PvP attack clears it immediately
+  // (closes the shield-for-aggression vector; unprotected attacker = honest
+  // no-op one-row update). Infantry is the only reachable PvP surface —
+  // executeBaseAttack is intentionally NOT a void site (base raids are
+  // bots-only by route contract).
+  await voidProtectionOnAggression(attackerId);
 
   const attacker: Player = playerRowToPlayer(attackerResult);
   const defender: Player = playerRowToPlayer(defenderResult);

@@ -60,6 +60,10 @@ const PUBLIC_FIELDS = [
   'currentPositionY',
   'currentHp',
   'maxHp',
+  // FID-20260916-002: new-player protection window expiry — non-sensitive
+  // (attackers and protected players both need the honest remaining time; any
+  // client display is operator-owned UI work outside the FID's scope).
+  'protectionUntil',
   // economy
   'resources',
   'bank',

@@ -28,6 +28,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { executeInfantryAttack } from '@/lib/battleService';
 import { verifyPresence } from '@/lib/presenceCheck';
+import { protectionActive, PROTECTION_REFUSAL_REASON } from '@/lib/playerProtection'; // FID-20260916-002
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -96,12 +97,22 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Presence: PvP requires standing on the defender's tile. Both positions
     // come from the DB — the client cannot claim a location.
     const [defenderRow] = await db
-      .select({ x: players.currentPositionX, y: players.currentPositionY })
+      .select({ x: players.currentPositionX, y: players.currentPositionY, protectionUntil: players.protectionUntil })
       .from(players)
       .where(eq(players.username, validated.targetUsername))
       .limit(1);
     if (!defenderRow) {
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target player not found' });
+    }
+    // FID-20260916-002: new-player protection — protected targets refuse all
+    // incoming PvP with a server reason (the WMD path enforces the same column
+    // via targetingValidator; base raids are bots-only by route contract).
+    if (protectionActive(defenderRow.protectionUntil)) {
+      log.debug('Infantry combat blocked: target under new-player protection', {
+        attacker: attackerId,
+        target: validated.targetUsername
+      });
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: PROTECTION_REFUSAL_REASON });
     }
     const presence = await verifyPresence(attackerId, { x: Number(defenderRow.x), y: Number(defenderRow.y) });
     if (!presence.ok) {

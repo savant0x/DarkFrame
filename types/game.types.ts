@@ -79,6 +79,11 @@ export interface Tile {
   isBeerBase?: boolean;
   /** Owner's level — present on ANY occupied tile; drives the enemy tier image. */
   baseLevel?: number;
+  /** FID-20260916-002 UI: owner is inside their new-player protection window —
+   *  incoming raid CTAs grey out client-side; the server refuses regardless. */
+  baseProtected?: boolean;
+  /** Protection window expiry of the tile's base owner (display only). */
+  baseProtectionUntil?: Date | string | null;
   lastHarvestedBy?: HarvestRecord[];
   bankType?: BankType;
   hasFlagBearer?: boolean;
@@ -488,6 +493,9 @@ export interface Player {
   lastStreakReward?: Date; // Last time daily login reward was claimed
   currentHP?: number; // Current HP for flag bearer defense (defaults to maxHP)
   maxHP?: number; // Maximum HP for flag bearer defense (defaults to 1000)
+  // FID-20260916-002: new-player protection window expiry (set at registration,
+  // voided on outgoing PvP; purely time-derived — never a stickable flag).
+  protectionUntil?: Date | null;
   lastFlagAttack?: Date; // Last time player attacked flag bearer (60s cooldown)
   referralCode?: string; // Unique referral code (e.g., "DF-A7K9X2M5")
   referralLink?: string; // Full referral URL

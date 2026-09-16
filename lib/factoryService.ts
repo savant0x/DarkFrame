@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { awardXP, XPAction } from './xpService';
 import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';
 import { getPlayerDoctrineBonuses } from './specializationService';
+import { protectionActive, PROTECTION_REFUSAL_REASON } from './playerProtection'; // FID-20260916-002
 
 const ATTACK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between attacks
 const UNIT_COST_METAL = 100;
@@ -371,6 +372,26 @@ export async function attackFactory(
       factoryDefense: factory.defense,
       captured: false
     };
+  }
+  
+  // FID-20260916-002: factories owned by protected players cannot be captured
+  // (wild factories and bot owners carry a NULL window — protectionActive is
+  // false, so this is a strict no-op for every pre-existing capture path).
+  if (factory.owner) {
+    const [ownerRow] = await db
+      .select({ protectionUntil: players.protectionUntil })
+      .from(players)
+      .where(eq(players.username, factory.owner))
+      .limit(1);
+    if (ownerRow && protectionActive(ownerRow.protectionUntil)) {
+      return {
+        success: false,
+        message: PROTECTION_REFUSAL_REASON,
+        playerPower: 0,
+        factoryDefense: factory.defense,
+        captured: false
+      };
+    }
   }
   
   // Enforce max factories per player before capture attempt
