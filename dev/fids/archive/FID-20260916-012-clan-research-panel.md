@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-012-clan-research-panel.md`
 **ID:** FID-20260916-012
 **Severity:** HIGH (largest unreached system; cooperative sink fully built, zero player reach)
-**Status:** verified (2026-09-16 — implemented on operator go-ahead; closed awaits G2 hash)
+**Status:** closed (2026-09-16, commit `afcb92e` — implemented + verified)
 **Created:** 2026-09-16
 
 ---
@@ -138,5 +138,5 @@ receving `clanId` + `playerRole`; no other byte changes.
 
 ## 8. Closure
 
-- **Commit hash (G2):** —
-- **Gates (G1):** —
+- **Commit hash (G2):** `afcb92e`
+- **Gates (G1):** tsc 0 · eslint 0/0 · vitest 951+1skip (9 new pins) · live round-trip probe 4/4 stages, exit 0 (see §7 evidence)

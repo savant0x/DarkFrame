@@ -7,6 +7,11 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Added — FID-20260916-012: clan research panel — contribute/unlock UI (closed, commit `afcb92e`)
+
+- The research tab's ComingSoonTab placeholder is replaced by the real panel: a thin `GET /api/clan/research/state` (`requireClanMembership` → `getResearchTree`, tree verbatim, no role data exposed), a fund header over the shared `researchResearchPoints` balance, a single MILITARY-honest node list (the FID-20260912-058 C1 cut preserved — 4 nodes, no fake branch tabs over empty arrays), contribute spending personal `researchPoints` into the clan fund, and unlock buttons gated presentationally for officers while the server remains the sole authority (`Insufficient permissions` surfaced verbatim).
+- 9 pins (3 route + 6 component); tsc 0 · eslint 0/0 · vitest 951+1skip. Live round-trip probe 4/4: C1 shape verified live, contribute math exact (member 800→300, fund 0→500), unlock drains the fund by exactly the node cost and records the tech, member refusal verbatim.
+
 ### Added — FID-20260916-011: sabotage UI — target → victim preview → fire (closed, commit `0446629`)
 
 - Sabotage finally reaches players: a shared `sabotageMath` module (difficulty/detection tables + formulas — the service delegates, the route and panel import), a `type=sabotage-targets` enumeration GET whose victim derivation mirrors `resolveSabotageTarget` exactly (owner username / clan leader per asset, `protectionActive` per row), and a third Sabotage tab in WMDIntelligencePanel driving operator → target → preview (victim, shield state, computed success/detection, void warning) → fire, with server refusals surfaced verbatim and no client-side pre-filtering.
