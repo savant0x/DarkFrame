@@ -43,8 +43,24 @@ while read -r localRef localSha remoteRef remoteSha; do
   fi
 
   echo "🔍 pre-push: scanning ${range} for unauthorized agent attribution..."
-  for sha in $(git rev-list --reverse "$range" 2>/dev/null); do
-    message="$(git log -1 --format=%B "$sha" 2>/dev/null || true)"
+  # Fail-closed enumeration (hardened 2026-09-16): a rev-list failure used to be
+  # swallowed by 2>/dev/null, leaving violations=0 — a scan error printed the
+  # green 'clean' line and exited 0 (same defect class as the pre-commit gate's
+  # matcher: tool failure impersonating a pass). Empty output with exit 0 is the
+  # legitimate zero-commits case and still passes.
+  commit_list="$(git rev-list --reverse "$range")"
+  revlist_status=$?
+  if [ "$revlist_status" -ne 0 ]; then
+    echo "❌ pre-push: cannot enumerate ${range} (git rev-list exit ${revlist_status}) — refusing the push" >&2
+    exit 2
+  fi
+  for sha in $commit_list; do
+    message="$(git log -1 --format=%B "$sha")"
+    log_status=$?
+    if [ "$log_status" -ne 0 ]; then
+      echo "❌ pre-push: cannot read message of ${sha} (git log exit ${log_status}) — refusing the push" >&2
+      exit 2
+    fi
     hits="$(watermark_lines "$message")"
     if [ -n "$hits" ]; then
       echo "❌ pre-push: commit ${sha} carries a disallowed agent watermark:" >&2
