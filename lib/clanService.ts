@@ -28,6 +28,7 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { generateId } from '@/lib/utils';
+import { voidProtectionOnAggression } from '@/lib/playerProtection'; // FID-20260916-004
 import {
   Clan,
   ClanMember,
@@ -524,6 +525,23 @@ export async function joinClan(
     throw new Error('Player is already in a clan');
   }
   
+  // FID-20260916-004 (Option B, per FID-20260916-003): joining a clan that is
+  // at ACTIVE war is war by proxy — void the joiner's new-player protection
+  // window at the committed-action point (every throwing precondition above
+  // has passed; a failed check throws before any forfeit). Neutral clans stay
+  // open to shielded newcomers. Fail-open on war-lookup outage by design: an
+  // infrastructure error must never block onboarding; the void also fires
+  // later at the member's own first outgoing PvP (infantry seam).
+  try {
+    const { getActiveWars } = await import('./clanWarfareService');
+    const activeWars = await getActiveWars(invitation.clan_id);
+    if (activeWars.length > 0) {
+      await voidProtectionOnAggression(playerId); // username-keyed (see players UPDATE below)
+    }
+  } catch {
+    // war-state lookup failure: join proceeds with the shield intact
+  }
+
   // Create new member object
   const newMember: ClanMember = {
     playerId,

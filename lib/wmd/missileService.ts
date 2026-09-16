@@ -8,6 +8,7 @@
 import { eq, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { missiles } from '@/lib/db/schema/wmd';
+import { voidProtectionOnAggression } from '@/lib/playerProtection'; // FID-20260916-004
 
 /** The real shape stored in the `missiles` table. */
 type MissileRow = typeof missiles.$inferSelect;
@@ -204,6 +205,14 @@ export async function launchMissile(
     if (missile.status !== MissileStatus.READY) {
       return { success: false, message: 'Missile not ready for launch' };
     }
+    
+    // FID-20260916-004 (Option B, per FID-20260916-003): a WMD launch is
+    // unambiguous outgoing aggression — void the launcher's new-player
+    // protection window at the committed-action point (after the missile's own
+    // preconditions pass, before effects). Username-keyed helper; a
+    // not-found/not-ready missile never reaches this line, so no forfeit
+    // occurs without a committed launch.
+    await voidProtectionOnAggression(launchedBy);
     
     const warheadConfig = WARHEAD_CONFIGS[missile.warheadType as WarheadType];
     const flightTime = warheadConfig.flightTime;

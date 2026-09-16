@@ -105,8 +105,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target player not found' });
     }
     // FID-20260916-002: new-player protection — protected targets refuse all
-    // incoming PvP with a server reason (the WMD path enforces the same column
-    // via targetingValidator; base raids are bots-only by route contract).
+    // incoming PvP with a server reason. Base raids are bots-only by route
+    // contract; outgoing WMD launches void the launcher's own window at the
+    // missileService seam (FID-20260916-004 — the earlier note that
+    // targetingValidator enforced this at launch was false: it has no
+    // production callers and is target-side only).
     if (protectionActive(defenderRow.protectionUntil)) {
       log.debug('Infantry combat blocked: target under new-player protection', {
         attacker: attackerId,
