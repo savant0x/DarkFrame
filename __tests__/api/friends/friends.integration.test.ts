@@ -129,7 +129,6 @@ describe.skipIf(!RUN_LIVE_DB_TESTS)('Friend API - Live Integration', () => {
     const postRes = await PostFriend(postReq);
     if (postRes.status !== 201) {
       const errBody = await postRes.json();
-      // eslint-disable-next-line no-console
       console.log('POST /api/friends error:', postRes.status, errBody);
     }
     expect(postRes.status).toBe(201);
@@ -158,7 +157,6 @@ describe.skipIf(!RUN_LIVE_DB_TESTS)('Friend API - Live Integration', () => {
     const patchRes = await PatchFriendAction(patchReq, { params: Promise.resolve({ id: requestId }) });
     if (patchRes.status !== 200) {
       const errBody = await patchRes.json();
-      // eslint-disable-next-line no-console
       console.log('PATCH /api/friends/:id error:', patchRes.status, errBody);
     }
     expect(patchRes.status).toBe(200);

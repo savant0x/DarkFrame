@@ -64,8 +64,7 @@ export default function CreateClanModal({ isOpen, onClose, onSuccess }: CreateCl
   // Form state (FID-20260909-028 §2.3: `tag` is REQUIRED by CreateClanSchema —
   // the old form never sent one, so every submit died in validation. The
   // phantom isPublic/minLevel/minPower fields are gone: the schema strips them,
-  // the clans table has no such columns, and join policy is a leader setting
-  // per docs/COMPLETE_CLAN_SYSTEM_PLAN.md's settings model.)
+  // the clans table has no such columns, and join policy is a leader setting.)
   const [formData, setFormData] = useState({
     name: '',
     tag: '',

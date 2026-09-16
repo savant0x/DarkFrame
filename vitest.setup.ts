@@ -73,18 +73,15 @@ if (process.env.TEST_MONGO_MEMORY === '1') {
     process.env.MONGODB_URI = uri;
     // Optionally set DB name for helpers that read it
     if (!process.env.MONGODB_DB) process.env.MONGODB_DB = 'darkframe-test';
-    // eslint-disable-next-line no-console
     console.log(`✅ In-memory MongoDB started for tests: ${uri}`);
   } catch (err) {
     // Fallback to localhost only if memory server fails to start
     if (!process.env.MONGODB_URI) {
       process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/darkframe-test';
     }
-    // eslint-disable-next-line no-console
     console.warn('⚠️ mongodb-memory-server failed to start, falling back to localhost:', err);
   }
 } else {
-  // eslint-disable-next-line no-console
   console.log('ℹ️ In-memory MongoDB disabled (set TEST_MONGO_MEMORY=1 to enable)');
 }
 // Ensure JWT secret is set for tests that generate real tokens
@@ -111,10 +108,8 @@ if (typeof window !== 'undefined') {
     if (__memoryMongo) {
       try {
         await (__memoryMongo as { stop: () => Promise<void> }).stop();
-        // eslint-disable-next-line no-console
         console.log('🧹 In-memory MongoDB stopped');
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn('⚠️ Failed to stop in-memory MongoDB:', e);
       }
     }

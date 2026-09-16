@@ -15,7 +15,6 @@
  *
  * Run: npx tsx --env-file=.env.local scripts/verify-rp-sources.ts [defender]
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Client } from 'pg';
 import { SignJWT } from 'jose';

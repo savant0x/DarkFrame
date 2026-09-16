@@ -42,6 +42,7 @@ export default function LoginPage() {
         // Hard navigation, not router.push: GameContext (mounted in the root layout)
         // runs its session check exactly once per mount. A soft push would reuse the
         // pre-login "no session" state and bounce straight back to /login.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intentional full reload (see above)
         window.location.href = '/game';
       } else {
         // Extract message from error object (API returns {code, message, timestamp, stack})

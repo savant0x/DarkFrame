@@ -632,7 +632,6 @@ export default function ChatPanel({
 
     // Scroll to bottom when switching channels
     setTimeout(() => scrollToBottom(), 100);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel, messages]);
 
   /**
