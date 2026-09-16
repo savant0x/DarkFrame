@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-007-spy-sabotage-protection-enforcement.md`
 **ID:** FID-20260916-007
 **Severity:** HIGH
-**Status:** loop-complete
+**Status:** verified
 **Created:** 2026-09-16
 
 **Provenance:** FID-20260916-006 audit, Gap 1 (HIGH). Grounding for this spec found two
@@ -105,11 +105,20 @@ CONVERGENCE criterion met — plan final, zero open findings.
 
 ## 7. Implementation Record
 
-- **Status:** not-started — gated on operator go-ahead under the amended vocabulary.
+- **Status:** implemented + verified 2026-09-16 (operator go-ahead).
+- **Route repair** (`app/api/wmd/intelligence/route.ts:225`): call now signature-ordered `(spyId, targetType, targetId, auth.playerId)` with the transposition documented in-code.
+- **Operator binding** (`spyService:499`): `spy.ownerId !== operatorId` refuses `Not your spy` before all other work — hijack closed, void can never hit an innocent owner.
+- **Owner-derived validation** (`resolveSabotageTarget`, `spyService:1234+`): victim resolved FROM the asset — missile `ownerId` / battery `clanId → clans.leaderId` / research row `playerId` — returning the owner's protection window; missing asset/owner and DB errors fail **closed** (new `clans` import is the only schema addition).
+- **Target refusal** (`spyService:522`): protected victims get `PROTECTION_REFUSAL_REASON` (parity). **Void at commit** (`spyService:532`): `voidProtectionOnAggression(spy.ownerUsername)` after every precondition, before the roll — the codebase's **4th void site** (battleService, clanService, missileService, spyService).
+- **Record correction** (`spyService:555+`): the sabotage record now describes the derived victim, not the caller-asserted id.
+- **Pins 6/6** (`__tests__/lib/spySabotageProtection.test.ts`): protected refusal (no void, no record), commit+void (roll-independent), hijack refusal, missing-asset no-forfeit, skill-floor ordering, unavailable ordering. Gates: tsc 0 · eslint 0/0 · vitest **914+1skip**.
+- **Live probes 4/4** (`scripts/e2eSpySabotageProtection.ts`, real DB): protected victim refused with operator window intact; unprotected victim committed + operator voided (window NULL); hijack refused with zero writes; 0 fixture residual.
+- **Disclosed pre-existing fix:** the record insert always overflowed `wmd_sabotage_operations.id varchar(24)` (base-10 `wso_<13-digit>_<9>` = 27 chars) — never reachable while the broken validator refused every op. Base-36 epoch id (22 chars) applied in-scope with an in-code disclosure comment; without it the repaired pipeline could not persist.
+- **Reachability honesty:** no production client sends `action: 'sabotage'` (`WMDIntelligencePanel` only sends `action: 'mission'`, RECONNAISSANCE with a username target) — the pipeline is server-mounted but UI-dormant. Enforcement is in place for the day a UI ships; surfacing sabotage in the panel is a separate product decision outside this FID.
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 · [ ] lint 0/0 · [ ] tests pass · [ ] call-graph proven
+- **Gates:** [x] typecheck 0 · [x] lint 0/0 · [x] tests pass · [x] call-graph proven
 - **Commit hash (G2):** `<hash>`
 - **Staging plan (G1):** `git add dev/fids/FID-20260916-007-spy-sabotage-protection-enforcement.md dev/session-summaries/SESSION-2026-09-16-014.md SCOPE.md`
 - **Commit message (G8):** `docs(fid): spy sabotage protection enforcement spec loop-complete — pipeline repair + void/refusal seams (FID-20260916-007)`

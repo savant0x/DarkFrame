@@ -46,6 +46,7 @@ import {
   wmdDefenseBatteries,
 } from '@/lib/db/schema/wmd';
 import { players } from '@/lib/db/schema/players';
+import { clans } from '@/lib/db/schema/clans'; // FID-20260916-007: battery owner derivation (clan -> leader)
 import {
   MissionType,
   MissionStatus,
@@ -93,6 +94,11 @@ import {
   WMDPurchaseType,
 } from './clanTreasuryWMDService';
 import { getPlayerResearch } from './researchService';
+import {
+  protectionActive,
+  voidProtectionOnAggression,
+  PROTECTION_REFUSAL_REASON,
+} from '../playerProtection'; // FID-20260916-007: target refusal + operator void at commit
 
 
 interface CounterIntelResult {
@@ -477,12 +483,20 @@ export async function executeSabotage(
   spyId: string,
   targetType: 'MISSILE' | 'DEFENSE_BATTERY' | 'RESEARCH',
   targetId: string,
-  targetPlayerId: string
+  operatorId: string
 ): Promise<{ success: boolean; message: string; damage?: SabotageDamage }> {
   try {
     const spy = await getSpy(spyId);
     if (!spy) {
       return { success: false, message: 'Spy not found' };
+    }
+    
+    // FID-20260916-007: operator binding — the caller must own the spy.
+    // getSpy never bound ownership (any authenticated session could operate
+    // another player's agent), and this refusal is what guarantees the void
+    // below can never fire on a hijacked spy's innocent owner.
+    if (spy.ownerId !== operatorId) {
+      return { success: false, message: 'Not your spy' };
     }
     
     if (spy.status !== 'AVAILABLE') {
@@ -493,10 +507,29 @@ export async function executeSabotage(
       return { success: false, message: 'Spy lacks sufficient sabotage skills (minimum 30)' };
     }
     
-    const targetExists = await validateSabotageTarget(targetType, targetId, targetPlayerId);
-    if (!targetExists) {
+    // FID-20260916-007: owner-derived validation. The historical signature
+    // demanded the CALLER assert the victim's identity, which the route filled
+    // with auth.playerId — unsatisfiable by construction (the operator never
+    // owns the victim's missile). The validator now resolves the victim FROM
+    // the target asset and returns the owner username.
+    const target = await resolveSabotageTarget(targetType, targetId);
+    if (!target.ok) {
       return { success: false, message: 'Invalid sabotage target' };
     }
+    
+    // FID-20260916-007: target-side protection refusal (parity with infantry /
+    // factory / WMD-launch messages).
+    if (target.protectionUntil !== null && protectionActive(target.protectionUntil)) {
+      return { success: false, message: PROTECTION_REFUSAL_REASON };
+    }
+    
+    // FID-20260916-007: void at commit — execution is the committed action
+    // regardless of the success roll (mirrors the FID-004 placement: after
+    // every refusal precondition, before effects). The operator binding above
+    // guarantees this hits the spy's own owner, never a hijacked victim. The
+    // spies row's ownerUsername is the signup-immutable identity, so the
+    // denormalized column is a safe void source.
+    await voidProtectionOnAggression(spy.ownerUsername);
     
     const baseSuccess = spy.skills.sabotage / 100;
     const targetDifficulty = getSabotageTargetDifficulty(targetType);
@@ -514,10 +547,19 @@ export async function executeSabotage(
     }
     
     const sabotageId = `sabotage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const targetUsername = await getPlayerUsername(targetPlayerId);
+    // FID-20260916-007: the record describes the VICTIM (derived from the
+    // asset), not the caller — the historical code wrote the caller-asserted
+    // id here.
+    const targetUsername = target.ownerUsername ?? 'Unknown';
     
     const sabotageRecord = {
-      id: `wso_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      // FID-20260916-007 disclosure: the historical base-10 id (wso_<13-digit
+      // epoch>_<9>) is 27 chars and overflows this table's varchar(24) id —
+      // never observed because the broken validator refused every operation
+      // before this insert was reachable. Base-36 epoch (22 chars) fixes it
+      // in-scope so the repaired pipeline can actually persist; recorded in
+      // the FID as a pre-existing defect exposed by the repair.
+      id: `wso_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`,
       sabotageId,
       spyId,
       spyCodename: spy.codename,
@@ -525,7 +567,7 @@ export async function executeSabotage(
       operatorUsername: spy.ownerUsername,
       targetType,
       targetId,
-      targetPlayerId,
+      targetPlayerId: target.ownerId ?? '',
       targetUsername,
       success: success ? 1 : 0,
       detected: detected ? 1 : 0,
@@ -1199,40 +1241,83 @@ function getSabotageDetectionRisk(targetType: SabotageTargetType, stealthSkill: 
   return Math.max(0.1, Math.min(0.9, risk));
 }
 
-async function validateSabotageTarget(
+/**
+ * FID-20260916-007: owner-derived sabotage-target validation.
+ *
+ * The historical `validateSabotageTarget` required the CALLER to assert the
+ * victim's identity and matched the asset only if its owner equaled that
+ * assertion — unsatisfiable for the live route, which passed the operator's
+ * own id. This resolver instead identifies the victim FROM the asset:
+ *   MISSILE          -> missiles.ownerId -> players.username
+ *   DEFENSE_BATTERY  -> wmd_defense_batteries.clanId -> clans.leaderId -> players
+ *   RESEARCH         -> player_research.playerId -> players.username
+ * and returns the owner's protection window so executeSabotage can refuse
+ * protected victims before any committed action. Missing asset or owner
+ * resolves to not-found (refusal); DB errors fail closed (refusal).
+ */
+async function resolveSabotageTarget(
   targetType: string,
-  targetId: string,
-  targetPlayerId: string
-): Promise<boolean> {
+  targetId: string
+): Promise<{ ok: boolean; ownerId: string | null; ownerUsername: string | null; protectionUntil: Date | string | null }> {
   try {
+    let ownerRow: { username: string; protectionUntil: Date | string | null } | undefined;
+    const notFound = { ok: false, ownerId: null, ownerUsername: null, protectionUntil: null } as const;
+
     switch (targetType) {
       case 'MISSILE': {
-        const result = await db.select()
+        const [missile] = await db.select({ ownerId: missiles.ownerId })
           .from(missiles)
-          .where(and(eq(missiles.missileId, targetId), eq(missiles.ownerId, targetPlayerId)))
+          .where(eq(missiles.missileId, targetId))
           .limit(1);
-        return !!result[0];
+        if (!missile) return notFound;
+        [ownerRow] = await db.select({ username: players.username, protectionUntil: players.protectionUntil })
+          .from(players)
+          .where(eq(players.username, missile.ownerId))
+          .limit(1);
+        break;
       }
       case 'DEFENSE_BATTERY': {
-        const result = await db.select()
+        const [battery] = await db.select({ clanId: wmdDefenseBatteries.clanId })
           .from(wmdDefenseBatteries)
-          .where(and(eq(wmdDefenseBatteries.batteryId, targetId), eq(wmdDefenseBatteries.clanId, targetPlayerId)))
+          .where(eq(wmdDefenseBatteries.batteryId, targetId))
           .limit(1);
-        return !!result[0];
+        if (!battery) return notFound;
+        const [clan] = await db.select({ leaderId: clans.leaderId })
+          .from(clans)
+          .where(eq(clans.id, battery.clanId))
+          .limit(1);
+        if (!clan) return notFound;
+        [ownerRow] = await db.select({ username: players.username, protectionUntil: players.protectionUntil })
+          .from(players)
+          .where(eq(players.username, clan.leaderId))
+          .limit(1);
+        break;
       }
       case 'RESEARCH': {
-        const result = await db.select()
+        const [research] = await db.select({ playerId: playerResearch.playerId })
           .from(playerResearch)
-          .where(eq(playerResearch.playerId, targetPlayerId))
+          .where(eq(playerResearch.id, targetId))
           .limit(1);
-        return !!result[0];
+        if (!research) return notFound;
+        [ownerRow] = await db.select({ username: players.username, protectionUntil: players.protectionUntil })
+          .from(players)
+          .where(eq(players.username, research.playerId))
+          .limit(1);
+        break;
       }
       default:
-        return false;
+        return notFound;
     }
+
+    if (!ownerRow) return notFound;
+    // players is username-keyed (no surrogate id column): the asset ownerId
+    // columns store the username, so ownerId here IS the username.
+    return { ok: true, ownerId: ownerRow.username, ownerUsername: ownerRow.username, protectionUntil: ownerRow.protectionUntil };
   } catch (error) {
-    console.error('Error validating sabotage target:', error);
-    return false;
+    // Fail closed: a lookup outage refuses the operation (conservative for a
+    // weapon-adjacent pipeline), matching the -005 precedent.
+    console.error('Error resolving sabotage target:', error);
+    return { ok: false, ownerId: null, ownerUsername: null, protectionUntil: null };
   }
 }
 

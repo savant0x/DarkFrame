@@ -215,10 +215,17 @@ export async function POST(req: NextRequest) {
         );
       }
       
+      // FID-20260916-007: the historical call passed (targetId, targetType)
+      // transposed against executeSabotage's (targetType, targetId) signature —
+      // the asset id landed in the type slot, the type string in the id slot,
+      // and validateSabotageTarget's switch never matched (every live operation
+      // refused "Invalid sabotage target"). Repaired to signature order; the
+      // 4th arg is the OPERATOR (session caller) — the service derives the
+      // victim from the target asset itself.
       const result = await executeSabotage(
         spyId,
-        targetId,
         targetType,
+        targetId,
         auth.playerId
       );
       
