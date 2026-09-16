@@ -72,6 +72,14 @@ vi.mock('@/lib/db/schema/wmd', () => ({
   missiles: h.missilesTable,
 }));
 
+// FID-20260916-005: the revived targetingValidator imports the players table
+// from the module path (not the barrel), so alias it to the same Symbol the
+// barrel mock uses — one shared rows map, two import surfaces.
+vi.mock('@/lib/db/schema/players', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  players: h.playersTable,
+}));
+
 vi.mock('@/lib/clanWarfareService', () => ({
   getActiveWars: vi.fn(),
 }));
@@ -101,6 +109,9 @@ beforeEach(() => {
 describe('FID-20260916-004 seam 1: launchMissile voids on committed launch only', () => {
   it('pin 1 — voids the launcher window after the READY check passes', async () => {
     h.selectResults.set(h.missilesTable, [readyMissile]);
+    // FID-20260916-005: validation now precedes the void, so the target row
+    // must satisfy the revived validator (exists, unprotected, level >= 10).
+    h.selectResults.set(h.playersTable, [{ username: 'targetUser', level: 12, protectionUntil: null, clanId: null }]);
 
     const result = await launchMissile('m1', 'targetUser', 'launcherUser');
 
@@ -186,5 +197,77 @@ describe('FID-20260916-004 seam 2: joinClan voids on ACTIVE-war clan only', () =
 
     expect(result.success).toBe(true);
     expect(voidedUpdates()).toHaveLength(0);
+  });
+});
+
+describe('FID-20260916-005 seam: launchMissile validates the target before committing', () => {
+  /** Launch flipped the missile to LAUNCHED (the committed effect). */
+  const missileFlipped = () =>
+    h.updates.some((u) => u.table === h.missilesTable && u.set.status === MissileStatus.LAUNCHED);
+
+  it('pin 7 — refuses a nonexistent target; missile stays READY and no void', async () => {
+    h.selectResults.set(h.missilesTable, [readyMissile]);
+    h.selectResults.set(h.playersTable, []); // target read comes up empty
+
+    const result = await launchMissile('m1', 'ghostUser', 'launcherUser');
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('Target not found');
+    expect(missileFlipped()).toBe(false);
+    expect(voidedUpdates()).toHaveLength(0);
+  });
+
+  it('pin 8 — refuses a PROTECTED target (the shield-bypass fix); no flip, no void', async () => {
+    h.selectResults.set(h.missilesTable, [readyMissile]);
+    h.selectResults.set(h.playersTable, [
+      {
+        username: 'targetUser',
+        level: 12,
+        protectionUntil: new Date(Date.now() + 3_600_000).toISOString(),
+        clanId: null,
+      },
+    ]);
+
+    const result = await launchMissile('m1', 'targetUser', 'launcherUser');
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('protection');
+    expect(missileFlipped()).toBe(false);
+    expect(voidedUpdates()).toHaveLength(0);
+  });
+
+  it('pin 9 — refuses a sub-floor target (level < 10); no flip, no void', async () => {
+    h.selectResults.set(h.missilesTable, [readyMissile]);
+    h.selectResults.set(h.playersTable, [{ username: 'targetUser', level: 5, protectionUntil: null, clanId: null }]);
+
+    const result = await launchMissile('m1', 'targetUser', 'launcherUser');
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('level 10');
+    expect(missileFlipped()).toBe(false);
+    expect(voidedUpdates()).toHaveLength(0);
+  });
+
+  it('pin 10 — refuses self-targeting; no flip, no void', async () => {
+    h.selectResults.set(h.missilesTable, [readyMissile]);
+    h.selectResults.set(h.playersTable, [{ username: 'launcherUser', level: 30, protectionUntil: null, clanId: null }]);
+
+    const result = await launchMissile('m1', 'launcherUser', 'launcherUser');
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('yourself');
+    expect(missileFlipped()).toBe(false);
+    expect(voidedUpdates()).toHaveLength(0);
+  });
+
+  it('pin 11 — valid target: launch commits AND the FID-004 void still fires (ordering)', async () => {
+    h.selectResults.set(h.missilesTable, [readyMissile]);
+    h.selectResults.set(h.playersTable, [{ username: 'targetUser', level: 12, protectionUntil: null, clanId: null }]);
+
+    const result = await launchMissile('m1', 'targetUser', 'launcherUser');
+
+    expect(result.success).toBe(true);
+    expect(missileFlipped()).toBe(true);
+    expect(voidedUpdates()).toHaveLength(1); // committed launch -> forfeit, unchanged from FID-004
   });
 });

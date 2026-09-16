@@ -25,8 +25,13 @@ const TS = Date.now().toString(36);
 const LAUNCHER = `svc_wmd_${TS}`; // protected → launches → voided
 const JOINER_WAR = `svc_war_${TS}`; // protected → joins war clan → voided
 const JOINER_NEUTRAL = `svc_neu_${TS}`; // protected → joins neutral clan → intact
+// FID-20260916-005: launchMissile now validates the target (self, existence,
+// protection, level >= 10, own-clan) — probe 1 needs a real, unprotected,
+// level-25 target instead of the historical svc_bot_dummy never-inserted user.
 const CLAN_WAR = `svc_clanwar_${TS}`;
 const CLAN_NEUTRAL = `svc_clanneu_${TS}`;
+
+const TARGET = `svc_tgt_${TS}`; // valid WMD target: level 25, no protection
 
 const results: Array<{ name: string; ok: boolean; detail: string }> = [];
 function check(name: string, ok: boolean, detail = ''): void {
@@ -61,6 +66,12 @@ async function insertPlayer(username: string): Promise<void> {
   });
 }
 
+/** FID-20260916-005: a target the revived validator accepts (unprotected, level >= 10). */
+async function insertValidTarget(username: string): Promise<void> {
+  await insertPlayer(username);
+  await db.update(players).set({ protectionUntil: null, level: 25 }).where(eq(players.username, username));
+}
+
 async function insertClan(name: string, tag: string): Promise<string> {
   const [row] = await db
     .insert(clans)
@@ -87,7 +98,7 @@ async function cleanup(state: { missileIds: string[]; clanIds: string[] }): Prom
     await db.delete(clans).where(inArray(clans.id, state.clanIds));
   }
   await db.delete(players).where(
-    inArray(players.username, [LAUNCHER, JOINER_WAR, JOINER_NEUTRAL])
+    inArray(players.username, [LAUNCHER, JOINER_WAR, JOINER_NEUTRAL, TARGET])
   );
 }
 
@@ -99,6 +110,7 @@ async function main(): Promise<void> {
     await insertPlayer(LAUNCHER);
     await insertPlayer(JOINER_WAR);
     await insertPlayer(JOINER_NEUTRAL);
+    await insertValidTarget(TARGET);
     const warClanId = await insertClan(CLAN_WAR, `W${TS.slice(-5)}`.toUpperCase());
     state.clanIds.push(warClanId); // incremental: a later failure must not leak earlier fixtures
     const neutralClanId = await insertClan(CLAN_NEUTRAL, `N${TS.slice(-5)}`.toUpperCase());
@@ -125,7 +137,7 @@ async function main(): Promise<void> {
     // launchMissile resolves the missile by its PRIMARY KEY (missiles.id), not
     // the business missile_id column — pass the id exactly as inserted.
     const missilePk = `m${TS}`.slice(0, 24);
-    const launched = await launchMissile(missilePk, 'svc_bot_dummy', LAUNCHER);
+    const launched = await launchMissile(missilePk, TARGET, LAUNCHER);
     const launcherProtection = await protectionOf(LAUNCHER);
     check(
       'WMD launch by protected account → success + void fired',
@@ -171,7 +183,7 @@ async function main(): Promise<void> {
     const residual = await db
       .select({ username: players.username })
       .from(players)
-      .where(inArray(players.username, [LAUNCHER, JOINER_WAR, JOINER_NEUTRAL]));
+      .where(inArray(players.username, [LAUNCHER, JOINER_WAR, JOINER_NEUTRAL, TARGET]));
     check('cleanup: fixture residual = 0', residual.length === 0, `${residual.length} rows left`);
     console.log(`\n=== ${results.filter((r) => r.ok).length}/${results.length} probes passed ===\n`);
   }

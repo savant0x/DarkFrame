@@ -9,6 +9,7 @@ import { eq, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { missiles } from '@/lib/db/schema/wmd';
 import { voidProtectionOnAggression } from '@/lib/playerProtection'; // FID-20260916-004
+import { validateTargeting } from './targetingValidator'; // FID-20260916-005
 
 /** The real shape stored in the `missiles` table. */
 type MissileRow = typeof missiles.$inferSelect;
@@ -206,12 +207,29 @@ export async function launchMissile(
       return { success: false, message: 'Missile not ready for launch' };
     }
     
+    // FID-20260916-005: validate the TARGET before any committed action. Until
+    // this seam, launchMissile validated only the missile — any username string
+    // launched fine, a nonexistent target consumed a built warhead for zero
+    // damage (missileTracker no-ops the impact), and no production code ever
+    // consulted target-side protection, so the FID-002 new-player shield did
+    // not stop incoming WMD strikes. The dormant validator is revived here
+    // (self-target, existence, protection, level >= 10 — floor kept by
+    // operator decision 2026-09-16 — own-clan). It runs BEFORE the FID-004
+    // aggression void: an invalid target refuses while the missile stays READY
+    // and the launcher's shield is untouched (no committed action, no
+    // forfeit). Validation fails closed (DB outage -> refused launch).
+    const targeting = await validateTargeting(launchedBy, targetId, missile.warheadType as WarheadType);
+    if (!targeting.isValid) {
+      return { success: false, message: `Launch refused: ${targeting.errors.join('; ')}` };
+    }
+    
     // FID-20260916-004 (Option B, per FID-20260916-003): a WMD launch is
     // unambiguous outgoing aggression — void the launcher's new-player
     // protection window at the committed-action point (after the missile's own
-    // preconditions pass, before effects). Username-keyed helper; a
-    // not-found/not-ready missile never reaches this line, so no forfeit
-    // occurs without a committed launch.
+    // preconditions and the FID-20260916-005 target validation pass, before
+    // effects). Username-keyed helper; a not-found/not-ready missile or a
+    // refused target never reaches this line, so no forfeit occurs without a
+    // committed launch.
     await voidProtectionOnAggression(launchedBy);
     
     const warheadConfig = WARHEAD_CONFIGS[missile.warheadType as WarheadType];

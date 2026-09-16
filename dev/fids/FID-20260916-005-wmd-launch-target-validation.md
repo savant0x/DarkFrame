@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-005-wmd-launch-target-validation.md`
 **ID:** FID-20260916-005
 **Severity:** HIGH
-**Status:** created
+**Status:** verified
 **Created:** 2026-09-16
 
 **Provenance:** `[OPEN-OUT-OF-SCOPE]` discovery from FID-20260916-004 (RED finding 1), elevated
@@ -72,23 +72,50 @@ seam is the only gate the target ever faces; it has none.
   launcher's shield — no committed aggression), load the target row and enforce:
   1. target exists → else `{ success: false, message: 'Target not found' }` (missile stays READY — not consumed);
   2. `protectionActive(target.protectionUntil)` → else-refusal with `PROTECTION_REFUSAL_REASON` (parity with infantry);
-  3. level-floor rule (validator's level ≥ 10) — **operator call**: keep the documented floor or drop it; recorded as the one open decision.
+  3. level-floor rule (validator's level ≥ 10) — **kept** (operator decision 2026-09-16, structured ask: "Keep the floor"); validator revives as written, contract unchanged.
 - **Alternatives considered:** validating in the route (rejected — service chokepoint covers all callers, matches FID-002/-004 precedent); validating at impact time in the cron (rejected — too late, weapon already committed and broadcast); deleting the dead validator and documenting WMDs as unvalidated (rejected — leaves the shield bypass).
 - **Verification plan (post-loop):** 6–8 seam pins (refusals leave missile READY + no void; valid target commits + voids per FID-004), live probes per the FID-004 driver pattern; gates tsc/lint/vitest + reachability greps.
 
 ## 6. Audit Record
 
-Not yet run — this FID is filed at `created` with RED evidence tool-verified today. The
-Perfection Loop (RED re-verify + GREEN audit) runs on operator directive, per the amended
-vocabulary.
+**Pass 1 — RED re-verification (executed 2026-09-16, live tool evidence):** all six findings
+re-confirmed against the post-FID-004 tree: route :239-242 still forwards `validated.targetId`
+after a name-only select; `launchMissile` (:191-235) validates only exists+READY, now with the
+FID-004 void between READY check and status flip; `validateTargeting` callers remain definition
++ e2e script only; `applyDamage` no-op-then-terminal on missing target re-read at :136-140;
+`grep -c protection missileTracker.ts` → 0. No corrections required.
+
+**Pass 2 — GREEN audit (executed 2026-09-16):**
+- **Ordering audit (committed-action principle):** validation must sit between the READY check
+  and the FID-004 void — an invalid target refuses with the missile still READY and *no*
+  forfeit, since no committed action occurred. A refusal path that voided would let any
+  account burn its own shield on an impossible launch (self-grief). Pinned in tests.
+- **Contract audit:** the dormant validator's five rules are coherent and complete for the
+  seam (self-target, existence, protection, level ≥ 10 — kept by operator decision — own-clan);
+  no gaps found, no new policy invented.
+- **Failure-mode audit:** validator's `getPlayerData` swallows DB errors as not-found →
+  target validation fails **closed** (launch refused on outage — conservative for a weapon).
+  The own-clan rule fetches the launcher through the same helper; on outage that single rule
+  degrades open while existence/protection/level remain enforced. Accepted and recorded.
+- **Graph audit:** new import edge `missileService → targetingValidator` is acyclic (validator
+  imports db/schema/types only); `WarheadType` already imported at the seam for the existing
+  cast.
+
+CONVERGENCE criterion met — plan final, zero open findings.
 
 ## 7. Implementation Record
 
-- **Status:** not-started — gated on loop `loop-complete` + operator go-ahead.
+- **Status:** implemented + verified 2026-09-16 (directive: commit queued batches, then start implementation — loop ran under the same directive).
+- **Seam:** `launchMissile` (`lib/wmd/missileService.ts`) — target validation sits between the missile's READY check and the FID-004 aggression void. Invalid targets refuse (`Launch refused: <rule errors>`) with the missile still READY and **no forfeit** (no committed action); valid targets commit and void exactly as before.
+- **Validator revived as written** (`lib/wmd/targetingValidator.ts` — first production callers ever): self-target refusal, target existence, protection (`Target is under protection`), level ≥ 10 (floor kept by operator decision), own-clan refusal. Import edge `missileService → targetingValidator` is acyclic.
+- **Pins:** 5 new in `__tests__/lib/playerProtection.seams.test.ts` (pins 7–11: ghost, protected, sub-floor, self-target, valid-target ordering; every refusal class asserts no missile flip and no void). All 6 pre-existing -004 pins unchanged and green — pin 1's fixture gained a validator-satisfying target row (validation now precedes the void).
+- **Live probes 5/5** (`scripts/e2eWmdTargetValidation.ts`, real DB): protected/nonexistent/sub-floor targets refuse with missile READY + launcher shield intact; valid target launches (status LAUNCHED) + void fires; 0 fixture residual. The committed FID-004 driver was patched first — its probe 1 launched at a never-inserted dummy user, which -005 now (correctly) refuses — and re-ran 4/4 green after the patch.
+- **Gates:** tsc 0 · eslint 0/0 (touched files) · vitest **908 passed / 1 skipped** (903 → 908).
+- **Residual honesty note:** the validator's `getPlayerData` swallows DB errors as not-found → target validation fails closed (launch refused on outage — conservative for a weapon); the own-clan rule degrades open on the same outage while existence/protection/level stay enforced. Recorded in §6, accepted.
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 errors · [ ] lint 0 errors/0 warnings · [ ] tests pass · [ ] call-graph proven
+- **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass · [x] call-graph proven
 - **Commit hash (G2 — required for `closed`):** `<hash>`
 - **Staging plan (path-scoped, G1 — doc only at this stage):** `git add dev/fids/FID-20260916-005-wmd-launch-target-validation.md dev/session-summaries/SESSION-2026-09-16-011.md SCOPE.md`
 - **Commit message (G8):** `docs(fid): WMD launch accepts any username — shield-bypass + dud-waste findings (FID-20260916-005)`
