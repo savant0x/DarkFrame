@@ -5,6 +5,11 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Docs — open-FID audit close-out: 33 completed + 1 superseded archived (operator-accepted audit)
+
+- Verified each file 0-EOF against live code (seams, routes, tests, token penetration, gates): FID-20260906-004, FID-20260906-012, FID-20260908-001–021 (001 closed as implemented-then-superseded — its tracking contract was replaced by the JSON quest architecture; 002 XP curve, 003 power sanitize, 004 factory count, 005 reconnect backoff, 006 umbrella + Waves A/B/C surfaces, 007 register, 008 tech-tree, 009 WMD, 010 clans, 011 game shell, 012 help, 013 dead-kit, 014 referrals, 015 profile/messages, 016 import guard, 017 admin, 018 map, 019 leaderboard/shop, 020 long tail with fresh 0-site census, 021 lint program), FID-20260909-022–024/027–032.
+- Remaining open: FID-20260912-060 B1/B2/B4 + FID-20260912-061 R2/R4 (confirmed still pending — no envelope/saturating-curve/defense-gate/bracket-doc in code) and FID-20260906-005 (`fixed`, T5 gated).
+
 ### Docs — FID compliance audit: 62 stale-closed archived with ground-truth checks (SCOPE-55)
 
 - Full `dev/fids/` audit (97 active): filename format ratified to repo practice (`FID-YYYYMMDD-NNN`, template + `protocol.config.yaml` corrected — the `YYYY-MMDD` sketch matched zero filed FIDs); uppercase statuses normalized (`CONVERGED`→`converged` ×4); `DRAFT`/`in_progress`/unparseable statuses resolved; missing required metadata (Filename/ID/Severity/Status/Created) restored on every touched file; zero attribution fields repo-wide.
