@@ -83,6 +83,16 @@ Not yet run — filed at `created` as an audit deliverable. Loop on operator dir
 - **Staging plan (G1):** `git add dev/fids/FID-20260916-006-protection-parity-audit.md dev/session-summaries/SESSION-2026-09-16-013.md SCOPE.md`
 - **Commit message (G8):** `docs(fid): protection parity audit — 3 live gaps (spy sabotage HIGH) + 2 policy calls (FID-20260916-006)`
 
+## 9. Decision Log (operator, 2026-09-16 — structured ask)
+
+| # | Question | Decision | Rationale (as ratified) |
+| - | -------- | -------- | ----------------------- |
+| D1 | Do spy **recon missions** (information ops) interact with the protection window? | **Intel stays open — no code change.** Protected players can run recon and be scouted; nobody forfeits. | The principle line is destruction, not information: intel harms no one tangibly. Consistent with the beer-base cleanliness precedent and keeps onboarding open. |
+| D2 | Does the **Flag steal** minigame interact with protection? | **Open both ways — no code change.** Protected players may hold and be stolen from, and may challenge. | Possession of a contested server object = accepted contest. The challenge is proximity-driven, not player-targeted — the minigame's own rules already govern it, as with bots-only base raids. |
+| — | Erratum | -006 §2's spy-sabotage row said "live-reachable"; FID-20260916-007 grounding proved the pipeline **broken** (transposed route call + unsatisfiable ownership assertion) — harm latent, feature dead. Enforcement + repair specced in FID-20260916-007 (`loop-complete`). | Ground truth over first report. |
+
+Enforcement remaining after this log: factory-capture void + latent battle-route pin (follow-up FID pending); sabotage = -007.
+
 ---
 
-**Final status:** created
+**Final status:** created (audit deliverable; decision log recorded 2026-09-16 — D1/D2 no-code, enforcement via -007 + pending factory/battle FID)
