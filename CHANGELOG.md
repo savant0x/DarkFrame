@@ -1,9 +1,11 @@
 # Changelog
 
-All notable changes to DarkFrame are documented here. Format based on
-[Keep a Changelog](https://keepachangelog.com/); dates are session dates (America/New_York).
+DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
+(base-10 iteration counter; current: `VERSION` file). Every entry below
+shipped on `main` — there is no Unreleased section; merged means released.
+Older sessions predate versioning adoption and are kept as dated history.
 
-## 2026-09-15 session
+## [0.0.1] — 2026-09-15 session
 
 ### Fixed — FID-20260912-060 B1/B2/B4 + FID-20260912-061 R2/R4 (battle-RP pacing closed)
 
@@ -212,7 +214,13 @@ All notable changes to DarkFrame are documented here. Format based on
   every escrow ledger entry balances; conservation ΣΔ = −250 = exactly the two fees.
   Regression suite 736 → 747 passed; tsc 0, eslint 0.
 
-## 2026-09-13 session
+## History — pre-versioning sessions (kept verbatim)
+
+### May 2026 era (26 commits, Mongo-era game — `git log --since=2026-05-01 --until=2026-09-01`)
+
+Multi-phase archetype battle rewrite; gather→build→battle repair; shrine/chat/flag/auto-farm UI fixes; enterprise quality audit (80+ issues); phased test rewrite, cleanup, performance passes; structured-logger migration across API routes. Dormant late May → September, then the Postgres pivot (below).
+
+### 2026-09-13 session
 
 ### Fixed — FID-20260913-001 (vitest jsdom suite dead)
 
@@ -239,7 +247,7 @@ All notable changes to DarkFrame are documented here. Format based on
   (`df-094.log`, `df-094.err.log`) remain file-locked by the running
   process — delete after stopping it.
 
-## 2026-09-05/06 session
+### 2026-09-05/06 session
 
 ### Fixed — FID-20260906-011 (chat delete dead-wire)
 - Chat message delete always failed: the client sent `messageId` in a DELETE body
@@ -357,7 +365,7 @@ All notable changes to DarkFrame are documented here. Format based on
 - Gates at close: tsc 0 · 341 tests green · app/api lint 0 · censuses zero (nocheck, mocks,
   TestUser, dead-wire).
 
-## 2026-09-04 session
+### 2026-09-04 session
 - Initial Postgres migration effort, GitHub repo sanitization (secret scrub + history rewrite),
   README redesign, Vercel deployment pipeline bring-up (lazy DB connection for build-time
   env isolation), production DB connection fixes.

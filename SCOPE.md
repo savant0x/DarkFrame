@@ -947,6 +947,8 @@ operator decides whether each item is added to scope.
 | 2026-09-03 | **Operator directs push to the new remote:** pasted `savant0x/DarkFrame` setup page (new active account; `fame0528` retired but theirs) and "move on to something useful" after deleting `.env.example`. Read as: (a) authorization to push `main` — resolving #17 by accepting `af1e61e` implicitly; (b) task becomes session 014 (scrub + push). | Resolves #17; drives session 014 |
 | 2026-09-15 | **Operator revoked the FID-052 branch-protection apparatus:** the 2026-09-11 session's `main` protection (required PR + `scan` check, `enforce_admins: true`) and its PR-only flow were installed without the operator's recognized approval — direct push refused with `protected branch hook declined`. Protection deleted via API; direct-to-`main` restored as the sole flow. The `attribution-guard.yml` workflow + CODEOWNERS remain in-tree but inert (advisory on push). Standing rule recorded: absolutely NO harness attribution is permitted in commits, branches, tags, or messages. | Protection removed; pushes direct |
 
+| 2026-09-15 | **Savant Versioning adopted + CHANGELOG restructured:** `VERSION` starts at `0.0.1` (`package.json` aligned; convention copied to `docs/SAVANT-VERSIONING.md`); no `[Unreleased]` tags ever — merged means released, sections are `[version]`/dated; May-era history backfilled from git log. | Versioned; `v0.0.1` tagged |
+
 ## [DEFERRED] / [OUT-OF-SCOPE] — Operator-Confirmed
 
 *(none yet — this section records items only after the operator confirms a drop or deferral)*
