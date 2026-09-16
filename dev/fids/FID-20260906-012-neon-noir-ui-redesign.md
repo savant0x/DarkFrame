@@ -8,7 +8,7 @@
 **Filename:** `FID-20260906-012-neon-noir-ui-redesign.md`
 **ID:** FID-20260906-012
 **Severity:** HIGH (full product redesign; unreleased game = zero-migration-cost window)
-**Status:** DRAFT — pending operator approval of design direction
+**Status:** converged
 **Created:** 2026-09-06
 
 ---

@@ -5,6 +5,12 @@ All notable changes to DarkFrame are documented here. Format based on
 
 ## [Unreleased] — 2026-09-15 session
 
+### Docs — FID compliance audit: 62 stale-closed archived with ground-truth checks (SCOPE-55)
+
+- Full `dev/fids/` audit (97 active): filename format ratified to repo practice (`FID-YYYYMMDD-NNN`, template + `protocol.config.yaml` corrected — the `YYYY-MMDD` sketch matched zero filed FIDs); uppercase statuses normalized (`CONVERGED`→`converged` ×4); `DRAFT`/`in_progress`/unparseable statuses resolved; missing required metadata (Filename/ID/Severity/Status/Created) restored on every touched file; zero attribution fields repo-wide.
+- Archived with per-file code-anchor verification (routes/services/tests/migrations confirmed live): FID-20260902-001 (pg pivot), FID-20260904-005 (audit umbrella), FID-20260906-001/-002/-003/-006/-009/-010/-006a, FID-20260909-025/-034/-035, FID-20260910-037–040, FID-20260911-041–055, FID-20260912-056–059, FID-20260912-062–064/071–094, FID-20260915-001. Two rename-drift notes recorded in-file (063 `extractNewPosition`→`extractMovePosition`).
+- Still active (35): 32 `converged` plans (09-08 neon waves, 09-09 batches — compliant, awaiting implementation) + 3 `fixed` with operator-open remainders (FID-20260906-005 menu T5 gated; FID-20260912-060 B1/B2/B4; FID-20260912-061 R2/R4).
+
 ### Docs — bulk archival of 10 stale-closed FIDs (dev/audit, no code)
 
 - Archived to `dev/fids/archive/` with ground-truth cross-checks (code/SCOPE/CHANGELOG all confirm the work shipped): FID-20260403-001 (historical code review), FID-20260903-001 (mongodb seam typing — `lib/mongodb.ts` live, tsc 0), FID-20260903-002 (WMD schema — `lib/db/schema/wmd.ts` + migrations live), FID-20260904-004 (hotkey invariant — registry live), FID-20260909-026 (bank race/canvas — atomicity test live), FID-20260909-033 (catalog unification — canonical roster + test live), FID-20260913-001 (vitest jsdom — suite green since), FID-20260914-001/-002 (transport toggle + raid audit — both implemented per session records), FID-20260915-004 (balance-in-combat — SCOPE row 42, commit 049459b). Plus relocated misfiled `AUDIT-20260908-PHASE6` from `dev/fids/` to `dev/audits/`.

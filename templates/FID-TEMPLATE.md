@@ -1,10 +1,12 @@
-# FID-YYYY-MMDD-NNN: {Title — kebab-case in filename, Title Case here}
+# FID-YYYYMMDD-NNN: {Title — kebab-case in filename, Title Case here}
 
 <!--
   ECHO Protocol v0.1.2 (single-agent) — FID Template.
 
   Usage rules (from dev/echo-v0.1.2-single-agent.md):
-  - Save as: dev/fids/FID-YYYY-MMDD-NNN-{kebab-case-title}.md
+  - Save as: dev/fids/FID-YYYYMMDD-NNN-{kebab-case-title}.md
+    (established repo practice, ratified 2026-09-15: 8-digit date, no dashes.
+    The protocol text's YYYY-MMDD sketch never matched any filed FID.)
     Scan dev/fids/ AND dev/fids/archive/ to allocate the next available NNN on the
     date; never reuse a number on the same date.
   - Allowed statuses: created | analyzed | fixed | verified | converged | closed
@@ -27,8 +29,8 @@
     execute git — it prepares the path-scoped staging plan for the operator.
 -->
 
-**Filename:** `FID-YYYY-MMDD-NNN-{kebab-case-title}.md`
-**ID:** FID-YYYY-MMDD-NNN
+**Filename:** `FID-YYYYMMDD-NNN-{kebab-case-title}.md`
+**ID:** FID-YYYYMMDD-NNN
 **Severity:** CRITICAL | HIGH | MEDIUM | LOW
 **Status:** created
 **Created:** YYYY-MM-DD

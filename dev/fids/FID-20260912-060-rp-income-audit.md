@@ -1,5 +1,15 @@
 # FID-20260912-060 — Measured Audit: RP Income Side (Battle / Login / Level-Up)
 
+**Filename:** `FID-20260912-060-rp-income-audit.md`
+**ID:** FID-20260912-060
+**Severity:** MEDIUM
+**Status:** fixed
+**Created:** 2026-09-12
+
+> Status note (2026-09-15): audit + B3 backstop shipped (DAILY_RP_CAP live);
+> B1 battle envelope + B2 saturating level term + B4 defense gate remain
+> operator-open pacing refinements.
+
 **Date:** 2026-09-12 · **Follows:** FID-056 (milestones), FID-057 (sinks), FID-058/059
 (v2 implementation) · **Stance:** docs are inputs, not law — every income number
 judged against measured live data and the v2 curve we just shipped.

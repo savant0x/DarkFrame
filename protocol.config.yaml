@@ -73,7 +73,7 @@ single_agent:
     # FID rules (FID Lifecycle)
     # -----------------------------------------------------------------
     fid:
-      filename_format: "FID-YYYY-MMDD-NNN-{kebab-case-title}.md"
+      filename_format: "FID-YYYYMMDD-NNN-{kebab-case-title}.md"
       allowed_statuses: [created, analyzed, fixed, verified, converged, closed]
       live_location: dev/fids             # FIDs live ONLY here while active
       archive_on_close: true              # move to dev/fids/archive + CHANGELOG entry + session log

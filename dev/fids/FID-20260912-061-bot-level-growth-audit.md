@@ -1,5 +1,14 @@
 # FID-20260912-061 — Measured Audit: Bot Level Growth & What Levels Should Mean
 
+**Filename:** `FID-20260912-061-bot-level-growth-audit.md`
+**ID:** FID-20260912-061
+**Severity:** MEDIUM
+**Status:** fixed
+**Created:** 2026-09-12
+
+> Status note (2026-09-15): R1 (7-tier army caps) shipped; R2/R4 design
+> decisions open, R3 cross-refs FID-060 B1+B2 (operator-open).
+
 **Date:** 2026-09-12 · **Follows:** FID-060 (income audit, proposed B1+B2) ·
 **Question posed:** "Should botGrowthManager keep scaling bots to L65+, and what
 should levels mean for difficulty once battle RP stops depending on them?"
