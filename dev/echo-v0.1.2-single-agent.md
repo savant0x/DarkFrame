@@ -3,6 +3,12 @@
 > **This is the ECHO Protocol adapted for single-agent operation.**
 > For the harness-bound version with 10-agent roster, see `savant-code/ECHO.md` (v0.2.0).
 > **Version:** 0.1.2-single-agent | **Status:** ACTIVE | **Non-Negotiable: YES**
+>
+> **Amendment 2026-09-16 (operator):** the FID status formerly named `converged` is renamed
+> **`loop-complete`** — the Perfection Loop (which runs ONLY on the FID document) has fully
+> completed and the plan is final, **pending implementation**. The old name wrongly implied
+> code had converged; implementation is a completely separate step with its own approval.
+> Archival happens only at `closed`. See Vocabulary and FID Lifecycle below.
 
 ---
 
@@ -38,7 +44,7 @@ complexity routing to avoid unnecessary overhead on simple tasks.**
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **FID**                 | Feature Implementation Document — tracks bugs, architectural issues, and improvements through resolution                  |
 | **Perfection Loop**     | The iterative fix/verify cycle that runs on the FID document — not the code                                               |
-| **FID-Bound Execution** | For complex tasks, code is written only after the FID converges. For simple tasks, write directly and verify immediately. |
+| **FID-Bound Execution** | For complex tasks, code is written only after the FID is loop-complete (plan final, operator go-ahead). For simple tasks, write directly and verify immediately. |
 | **Levenshtein Metric**  | 10% character-change cap per pass to prevent oscillation                                                                  |
 | **Baseline**            | Reference code state showing intended patterns                                                                            |
 | **Honest Assessment**   | Verifiable output-based evaluation vs. self-reporting                                                                     |
@@ -168,8 +174,8 @@ begins only after the FID converges.
 | **GREEN**        | RED complete    | Fix issues with MINIMAL changes. All questions answered. Most robust defaults chosen.                                                                                                                              | All fixes documented in FID          |
 | **AUDIT**        | GREEN complete  | Double-audit: verify change with two independent methods. Evidence must come from tool output. For any FID that adds a new function or new config field, grep for callers. Zero production callers = FID rejected. | Audit passes/fails                   |
 | **SELF-CORRECT** | AUDIT failed    | Address audit findings, update GREEN section of FID                                                                                                                                                                | Corrections applied                  |
-| **COMPLETE**     | AUDIT passed    | Close FID. Move to archive. Update CHANGELOG.                                                                                                                                                                      | Loop ends. Ready for implementation. |
-| **IMPLEMENT**    | COMPLETE        | Write the actual code based on the converged FID.                                                                                                                                                                  | Code written, verified, tests pass.  |
+| **COMPLETE**     | AUDIT passed    | Mark the FID `loop-complete` (plan final, pending implementation). Do NOT archive — archival happens only at `closed`.                                                                                                                                                                      | Loop ends. Ready for implementation. |
+| **IMPLEMENT**    | COMPLETE        | Write the actual code per the final plan (status `loop-complete`); on G2 commit, close.                                                                                                                                                                  | Code written, verified, tests pass.  |
 
 ### Circuit Breaker Rules
 
@@ -210,11 +216,11 @@ Step 1:  Detect issue → Create FID (RED)
 Step 2:  Propose fix → Document solution in FID (GREEN)
 Step 3:  Verify solution → Double-audit the FID (AUDIT)
 Step 4a: If audit fails → Revise FID (SELF-CORRECT → back to GREEN)
-Step 4b: If audit passes → Close FID (COMPLETE)
+Step 4b: If audit passes → Plan final (status `loop-complete`; FSM state COMPLETE)
 
 --- ONLY NOW DOES CODE GET WRITTEN ---
 
-Step 5:  Implement the fix specified in the converged FID
+Step 5:  Implement the fix specified in the loop-complete FID (operator go-ahead)
 Step 6:  Audit the implementation (not the FID — the code)
 Step 7:  If implementation audit fails → revise, re-audit
 Step 8:  Implementation passes → done
@@ -240,7 +246,7 @@ never be an internal, invisible reclassification.
 
 1. Create `SCOPE.md` at the repository root. List every approved work item as a checked box. This is the authoritative
    "approved scope" — if an item is not in `SCOPE.md`, it was not approved.
-2. If the task arrives as a loose instruction (not a converged FID), the agent MUST first write the interpreted scope
+2. If the task arrives as a loose instruction (not a loop-complete FID), the agent MUST first write the interpreted scope
    into `SCOPE.md` and present it for confirmation before proceeding. The operator's go-ahead (or explicit confirmation)
    converts interpreted scope into approved scope.
 
@@ -277,10 +283,14 @@ works" is not verification.
 FIDs (Feature Implementation Documents) track discovered issues through resolution:
 
 ```text
-Created → Analyzed → Fixed → Verified → Closed → Archived
-   │         │         │         │          │         │
-   └─────────┴─────────┴─────────┴──────────┴─────────┘
+Created → Analyzed → LOOP-COMPLETE → Implemented → Closed → Archived
+   │         │            │               │            │         │
+   └─────────┴────────────┴───────────────┴────────────┴─────────┘
         All stages require evidence
+
+  loop-complete = the Perfection Loop has fully completed on the FID DOCUMENT;
+  the plan is final and pending implementation. No code written yet.
+  (`fixed` / `verified` are intermediate statuses for partially-executed work.)
 ```
 
 ### FID Format
@@ -288,14 +298,23 @@ Created → Analyzed → Fixed → Verified → Closed → Archived
 Use `templates/FID-TEMPLATE.md` as the exact template. Required metadata fields: **Filename**, **ID**, **Severity**,
 **Status**, **Created**, **Author**.
 
-Allowed status values: `created | analyzed | fixed | verified | converged | closed`.
+Allowed status values: `created | analyzed | fixed | verified | loop-complete | closed`.
 
-- `converged` — FID document is complete and Perfection Loop-passed, but
-  implementation has **not** started. The plan is approved; code is not
-  written.
+- `loop-complete` — The Perfection Loop has fully completed **on this FID document**:
+  the plan is final and **pending implementation**. No code has been written;
+  implementation (and its approval) is a completely separate step. This is a stop
+  point, not a completion claim.
 - `closed` — Implementation exists in the codebase **and** gates pass.
   Requires implementation evidence (commit SHA or file:line ranges + grep
   match). A `closed` FID with no code violates the Ground-Truth rule.
+  Archival (`dev/fids/archive/`) happens ONLY at `closed` — never at
+  `loop-complete`.
+
+**Legacy status strings (renamed 2026-09-16):** archived FIDs may carry the retired
+label `converged` (= today's `loop-complete`: plan final, pending implementation) or
+stray `implemented` / `IMPLEMENTED` / `COMPLETED` / `complete` (= today's `closed`,
+when backed by a G2 commit hash). Historical synonyms — do not re-open archived
+files to rewrite them.
 
 FIDs are Markdown files that live ONLY in `dev/fids/`. NEVER create top-level directories such as `fids/`, `archive/`,
 or any path that shadows canonical ECHO paths.

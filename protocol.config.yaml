@@ -26,6 +26,7 @@ single_agent:
   protocol:
     name: ECHO
     version: "0.1.2"
+    amendment_2026_09_16: status vocabulary — `converged` renamed `loop-complete` (see spec doc)
     spec_document: dev/echo-v0.1.2-single-agent.md
     status: ACTIVE
     non_negotiable: true
@@ -74,7 +75,18 @@ single_agent:
     # -----------------------------------------------------------------
     fid:
       filename_format: "FID-YYYYMMDD-NNN-{kebab-case-title}.md"
-      allowed_statuses: [created, analyzed, fixed, verified, converged, closed]
+      allowed_statuses: [created, analyzed, fixed, verified, loop-complete, closed]
+      # loop-complete (renamed 2026-09-16 from the retired `converged`): the Perfection
+      # Loop has fully completed on the FID DOCUMENT — plan final, pending
+      # implementation; no code written, implementation is a separate approval step.
+      # Archival happens only at `closed`. Legacy synonyms in archived files:
+      # `converged` -> loop-complete; `implemented`/`COMPLETED`/`complete` -> closed
+      # (when backed by a G2 commit hash).
+      status_legacy_synonyms:
+        converged: loop-complete
+        implemented: closed
+        COMPLETED: closed
+        complete: closed
       live_location: dev/fids             # FIDs live ONLY here while active
       archive_on_close: true              # move to dev/fids/archive + CHANGELOG entry + session log
       number_allocation: scan             # scan live + archive for next NNN on the date; never reuse

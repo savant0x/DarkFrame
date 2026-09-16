@@ -9,14 +9,19 @@
     The protocol text's YYYY-MMDD sketch never matched any filed FID.)
     Scan dev/fids/ AND dev/fids/archive/ to allocate the next available NNN on the
     date; never reuse a number on the same date.
-  - Allowed statuses: created | analyzed | fixed | verified | converged | closed
-    * converged = FID document is complete and Perfection Loop-passed, but
-      implementation has NOT started. The plan is approved; code is not written.
+  - Allowed statuses: created | analyzed | fixed | verified | loop-complete | closed
+    * loop-complete = the Perfection Loop has fully completed ON THIS FID DOCUMENT:
+      the plan is final and pending implementation. No code has been written;
+      implementation (and its approval) is a completely separate step. This is a
+      stop point, not a completion claim. (Renamed 2026-09-16 from the retired
+      `converged`, which wrongly implied code had converged. Archived FIDs keep
+      their historical labels — do not rewrite them.)
     * closed = implementation exists in the codebase AND gates pass. Requires
       implementation evidence (commit hash or file:line ranges + grep match).
       A `closed` FID with no code violates the Ground-Truth rule.
   - On close: move to dev/fids/archive/, append a CHANGELOG.md entry, log the
     archival in the session summary. Closed FIDs must not remain in dev/fids/.
+    Archival happens ONLY at `closed` — never at `loop-complete`.
   - Evidence rule: every stage claim must be backed by pasted tool output.
     Self-reporting ("I believe this works") is prohibited.
   - Attribution rule: NO Author field, no agent names, no signatures. The
@@ -96,11 +101,12 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 | Method 1: static analysis (typecheck/lint/tests) | | | pass/fail |
 | Method 2: manual re-read against this FID | | | pass/fail |
 
-- Audit outcome: PASS → status `converged` | FAIL → SELF-CORRECT: update Section 5, re-run audit.
+- Audit outcome: PASS → status `loop-complete` (the LOOP converged; the status says what
+  happened to the DOCUMENT, not the code) | FAIL → SELF-CORRECT: update Section 5, re-run audit.
 - Circuit breakers: track change % per pass (10% cap), convergence (<2% delta across 2 passes), oscillation
   (same issue 3×), hard stop (10 iterations). Flag for review at 5 iterations without convergence.
 
-## 7. Implementation Record (only after status reaches `converged`)
+## 7. Implementation Record (only after status reaches `loop-complete`, with operator go-ahead)
 
 Code is written ONLY after the FID converges. Record what was actually built, not what was planned.
 
