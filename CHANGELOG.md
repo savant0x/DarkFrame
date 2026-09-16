@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.1] — 2026-09-16 session
+
+### Added — FID-20260916-002: new-player 72h protection window (closed, commit `0d18a93`)
+
+- Registration stamps `protection_until` = now+72h (`createPlayerWithAuth`; new `lib/playerProtection.ts`: window constant, pure `protectionActive` predicate, `voidProtectionOnAggression` helper). Infantry route refuses protected targets with a server reason; `executeInfantryAttack` voids the attacker's own window on initiation (service-level, bots-only `executeBaseAttack` untouched); `attackFactory` refuses capture of protected owners' factories. `protectionUntil` typed on the domain `Player` and allowlisted in the sanitizer (client surfacing shipped separately).
+- Verification: 14 unit pins; gates tsc 0 / eslint 0-0 / vitest 883+1skip at implementation; **live probes 7/7** on PORT=3002 (window Δ=71.999h, infantry 400 refusal, WMD target-side refusal with zero WMD code change, aggression void persisted NULL, factory refusal, bots-only base-raid negative control, zero fixture residual).
+- Follow-up FID-20260916-003 (`analyzed`): forfeit edges debated — operator chose Option B (WMD launch voids; clan join voids only into ACTIVE-war clans); enforcement spec pending.
+
 ## [0.0.1] — 2026-09-15 session
 
 ### Fixed — FID-20260912-060 B1/B2/B4 + FID-20260912-061 R2/R4 (battle-RP pacing closed)
@@ -212,7 +220,17 @@ Older sessions predate versioning adoption and are kept as dated history.
   `jsonb_agg` rewrite is banked for the shim-hardening follow-up (FID-20260914-004).
 - Verified live end-to-end over real HTTP + postgres (`scripts/e2eAuctionLedger.ts`):
   every escrow ledger entry balances; conservation ΣΔ = −250 = exactly the two fees.
-  Regression suite 736 → 747 passed; tsc 0, eslint 0.
+   Regression suite 736 → 747 passed; tsc 0, eslint 0.
+
+### Changed - FID-20260916-001 (remove dead Mongo index tooling)
+
+- Deleted `scripts/createIndexes.ts` (Mongo-driver index script for a database
+  that no longer exists; zero live callers) and removed the `create-indexes`
+  npm script. Postgres indexes remain owned by `lib/db/schema/*` + migrations.
+  Shim census banked in the FID: ~20 live `lib/` consumers of `lib/mongodb.ts`
+  plus 4 scripts + `server.ts` — full shim retirement is a phased epic,
+  explicitly deferred, not silently dropped. Gates green (tsc 0, lint 0,
+  865 tests).
 
 ## History — pre-versioning sessions (kept verbatim)
 
