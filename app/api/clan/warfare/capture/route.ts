@@ -1,28 +1,31 @@
 /**
  * @file app/api/clan/warfare/capture/route.ts
  * @created 2025-10-18
- * @updated 2025-01-23 (FID-20251023-001: Auth deduplication + JSDoc)
- * 
+ * @updated 2026-09-17 (FID-20260916-013: A3 error mapping + contract docstring)
+ *
  * OVERVIEW:
- * POST endpoint for capturing enemy territory during an active war. Validates war status,
- * territory ownership, and permissions. Integrates with warfare service for capture logic
- * including success rate calculation based on defense bonuses.
- * 
+ * POST endpoint for capturing enemy territory during an active war. The service
+ * layer resolves the capture as a CONTESTED roll between real armies:
+ * attacker clan army power (Σ strength × quantity, ±15% jitter) vs defender
+ * clan army power floored at CAPTURE_BASE_WALL, scaled by the tile's adjacency
+ * defense bonus (+10%/adjacent tile, max +50%). The 25k M/E treasury fee is
+ * paid win or lose; captures are capped at 3/day per clan per war.
+ *
  * ROUTES:
  * - POST /api/clan/warfare/capture - Attempt to capture enemy territory
- * 
+ *
  * AUTHENTICATION:
  * - requireClanMembership() - Must be clan member
  * - Permission check in service layer (Officer, Co-Leader, Leader only)
- * 
+ *
  * BUSINESS RULES:
- * - Active war must exist between attacker and defender clans
- * - Territory must be owned by target clan
- * - Capture success rate: 70% base, reduced by defense bonuses
- * - Defense bonus impact: 50% of enemy defense bonus reduces capture rate
- * - Minimum 30% capture rate guaranteed
+ * - Active war must exist (attacker direction) between the two clans
+ * - Territory must be owned by the target clan
+ * - Treasury fee (CAPTURE_COST_METAL/ENERGY) paid win or lose
+ * - Daily cap: CAPTURES_PER_CLAN_PER_DAY attempts per clan per war
+ * - success ≡ captured: a repelled attempt returns success:false (200 OK),
+ *   awards the defender CAPTURE_REPEL_POINTS, and the attacker still pays
  * - Permissions: Officer, Co-Leader, or Leader only
- * - Failed captures are logged but don't transfer territory
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -32,41 +35,43 @@ import { captureTerritory } from '@/lib/clanWarfareService';
 
 /**
  * POST /api/clan/warfare/capture
- * Attempt to capture enemy territory during active war
- * 
+ * Attempt to capture enemy territory during an active war.
+ *
  * @param request - NextRequest with auth cookie and body data
  * @returns NextResponse with capture result or error
- * 
- * @example
- * POST /api/clan/warfare/capture
- * Body: { targetClanId: "676a1b2c3d4e5f6a7b8c9d0e", tileX: 10, tileY: 15 }
- * Response (success): {
- *   success: true,
- *   territory: { tileX: 10, tileY: 15, clanId: "..." },
- *   defenseBonus: 20,
- *   message: "Successfully captured territory (10, 15)!"
- * }
- * 
+ *
  * @example
  * POST /api/clan/warfare/capture
  * Body: { targetClanId: "...", tileX: 10, tileY: 15 }
- * Response (failed capture): {
+ * Response (captured): {
+ *   success: true,
+ *   territory: { tileX: 10, tileY: 15, clanId: "..." },
+ *   defenseBonus: 20,
+ *   message: "Territory (10, 15) captured!"
+ * }
+ *
+ * @example
+ * POST /api/clan/warfare/capture
+ * Body: { targetClanId: "...", tileX: 10, tileY: 15 }
+ * Response (repelled — 200, success:false; defender +1 war point):
+ * {
  *   success: false,
  *   defenseBonus: 40,
- *   message: "Failed to capture territory. Enemy defense bonus: 40%"
+ *   message: "Capture repelled — defense bonus 40% (attempt 1/3 today). ..."
  * }
- * 
- * @throws {400} Invalid coords, no active war, territory not owned by target
+ *
+ * @throws {400} Business rules: no active war, territory not owned by target,
+ *               insufficient treasury, daily capture limit reached
  * @throws {401} Not authenticated
- * @throws {403} Insufficient permissions (not Officer/Co-Leader/Leader)
- * @throws {404} Player or clan not found
- * @throws {500} Server error
+ * @throws {403} Not Officer/Co-Leader/Leader, or not a clan member
+ * @throws {404} Capturing or target clan not found
+ * @throws {500} Unexpected server error
  */
 export async function POST(request: NextRequest) {
   try {
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
-    
+
     const { auth, clanId } = result;
 
     // Parse and validate request body
@@ -94,7 +99,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Attempt territory capture via service (handles permissions, war validation, success rate)
+    // Attempt territory capture via service (permissions, war validation,
+    // contested army-power resolution, treasury fee, daily cap)
     const captureResult = await captureTerritory(
       clanId,
       targetClanId,
@@ -103,43 +109,40 @@ export async function POST(request: NextRequest) {
       auth.username
     );
 
-    // Return result (success can be true or false - both are 200 OK)
+    // Captured and repelled are both 200 OK — success mirrors `captured`.
     return NextResponse.json({
       success: captureResult.success,
       territory: captureResult.territory,
       defenseBonus: captureResult.defenseBonus,
       message: captureResult.message,
     });
-
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error capturing territory:', error);
 
-    // Permission errors
-    if ((error instanceof Error ? error.message : String(error)).includes('permission') || (error instanceof Error ? error.message : String(error)).includes('Officer')) {
-      return NextResponse.json(
-        { success: false, message: error instanceof Error ? error.message : String(error) },
-        { status: 403 }
-      );
-    }
-
-    // Business rule violations
+    // 403 — role gate (requireRole) and membership refusals
     if (
-      (error instanceof Error ? error.message : String(error)).includes('No active war') ||
-      (error instanceof Error ? error.message : String(error)).includes('not owned by target') ||
-      (error instanceof Error ? error.message : String(error)).includes('territory not owned')
+      message.includes('Only Leaders') ||
+      message.includes('Officer') ||
+      message.includes('not in clan')
     ) {
-      return NextResponse.json(
-        { success: false, message: error instanceof Error ? error.message : String(error) },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message }, { status: 403 });
     }
 
-    // Not found errors
-    if ((error instanceof Error ? error.message : String(error)).includes('not found')) {
-      return NextResponse.json(
-        { success: false, message: error instanceof Error ? error.message : String(error) },
-        { status: 404 }
-      );
+    // 400 — client-fixable business rules: war state, ownership, treasury
+    // refusal, daily cap (FID-20260916-013 A3: these surfaced as 500s before)
+    if (
+      message.includes('No active war') ||
+      message.includes('not owned by target') ||
+      message.includes('Capture costs') ||
+      message.includes('Daily capture limit')
+    ) {
+      return NextResponse.json({ success: false, message }, { status: 400 });
+    }
+
+    // 404 — referenced resources missing
+    if (message.includes('not found')) {
+      return NextResponse.json({ success: false, message }, { status: 404 });
     }
 
     return NextResponse.json(
@@ -148,53 +151,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-/**
- * Implementation Notes:
- * 
- * Success vs Capture Success:
- * - API call can succeed (200 OK) even if capture fails (defenses held)
- * - result.success indicates whether territory was actually captured
- * - Both outcomes return 200 status code with different success values
- * 
- * Capture Mechanics:
- * - Base 70% success rate
- * - Enemy defense bonus reduces rate: successRate = 0.7 - (defenseBonus / 100) * 0.5
- * - Example: 40% defense → 70% - (40 * 0.5) = 50% capture rate
- * - Minimum 30% capture rate (max defense 50% → 45% capture rate)
- * 
- * Response Handling:
- * Successful Capture (success: true):
- * - territory: { tileX, tileY, clanId }
- * - defenseBonus: Enemy's defense percentage
- * - message: "Successfully captured territory (x, y)!"
- * 
- * Failed Capture (success: false):
- * - territory: undefined
- * - defenseBonus: Enemy's defense percentage that caused failure
- * - message: "Failed to capture territory. Enemy defense bonus: X%"
- * 
- * Error Categorization:
- * - 400: Business rule violations (no war, wrong territory, invalid input)
- * - 403: Permission denied (not Officer+)
- * - 404: Resource not found (player, clans)
- * - 500: Unexpected server errors
- * 
- * Coordinate Validation:
- * - Validates both tileX and tileY are integers
- * - Service layer checks territory exists at coordinates
- * - Service validates territory ownership
- * 
- * War Validation:
- * - Service checks for ACTIVE war (not DECLARED or ENDED)
- * - Both attacker→defender and defender→attacker wars are checked
- * - Clear error message if no active war exists
- * 
- * Future Enhancements:
- * - Battle simulation for capture attempts (unit-based combat)
- * - Multiple capture attempts per turn/timeframe
- * - Capture cooldowns (prevent spam)
- * - Territory value system (strategic vs resource territories)
- * - Siege mechanics (weaken defenses over time)
- * - Counter-attack opportunities for defenders
- */

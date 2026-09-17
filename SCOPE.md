@@ -747,6 +747,47 @@ No other work is approved. `fix(profile)` commit presented, not executed (G1 def
 
 ---
 
+### Session 2026-09-16 (035) — Territory-capture full redesign: design review + FID-013 re-plan (Perfection Loop)
+
+Operator directive: "the initial design for territory capture probably needs a complete redesign. Review what docs outline
+the feature, tell me if you see any issues we need to address" — then "yes, let's redesign it properly and fully. Get
+creative. Also if you want, we can even run a gemini deep research prompt to enhance this idea and figure out solid
+addiction loops to embed directly."
+
+Interpreted scope (presented via the design review turn; operator go-ahead received):
+
+- [x] Design review of the feature's outlining docs vs probed codebase reality (ENHANCED_WARFARE_DESIGN.md,
+      clanWarfareService, capture routes, territoryService economy, alliance/config services) — findings presented
+      (doc-vs-reality contradictions A1-A4; design flaws B1 war shape, B2 defender agency, B3 level-not-army strength,
+      B4 no frontline; missing promised systems C1-C5; bookkeeping)
+- [x] Record the design-review session in SCOPE.md; correct the stale row-74 disposition (Law 16 probe: FID-013
+      re-read 0-EOF, status `analyzed`, NOT CONVERGED — confirmed before this edit)
+- [x] Run the Perfection Loop on FID-20260916-013 — **final form per operator ruling:** the simple points war IS the
+      design (War Engine v2 already ships it — battleService:976-1002 score feed, factoryService +1 captures, panel
+      score display, score-based settlement). Loop ran 7 passes; loop-complete on the minimal plan
+- [x] Implementation (go-ahead received 2026-09-17): executed end-to-end per FID §5 — session-034 scaffolding
+      reverted; `computeClanArmyPower` (Σ strength×quantity over member units, 100-cap); A1/A2/A3 repairs; +2/+1
+      scoring (in-transaction `sql` increments); army-vs-army capture formula (defender power floored at the 5,000
+      wall, × adjacency); TERRITORY_CLAIMED/LOST feed events on capture; settle-first-by-points precedence;
+      multi-war `getCaptureTargets`; capture POST route contract rewrite (A3 map + docstring); targets route
+      multi-war shape; ClanTerritoryPanel War Captures section (multi-war list, confirm-then-fire POST, verbatim
+      toasts, cap-aware disable); 16 new pins across clanWarfareV2.test.ts + ClanTerritoryPanel.warfare.test.tsx.
+      Gates (fresh, post-final-edit): `npx tsc --noEmit` → 0 · `npm run lint` → 0 · `npm run test:ci` → 966 passed /
+      1 skipped (baseline 951+1). Law-4 reachability greps per §5 all ≥1 production hit. Commit pending (G1 —
+      operator executes; G2 hash on close)
+- [x] **Operator ruling (2026-09-16, final):** research artifacts (both `docs/research/PBBG *.md` passes) are
+      **direction, not law** — design derives from DarkFrame's own systems. Applied first as a full re-derivation
+      (passes 5–6), then superseded by the operator's final ruling: the siege redesign itself was over-built and is
+      **DISCARDED**; FID-20260916-014 (follow-on systems) **DELETED** (rm verified); both research files remain on
+      disk as precedent notes only, binding nothing
+- [x] ~~FID-20260916-014 filed (follow-on systems)~~ → **DELETED by operator ruling** (siege design discarded; the
+      file was removed — `ls dev/fids/` shows only FID-013 + archive). FID-013 final scope: scoring unification
+      (+2 capture / +1 repel to defender as point events; settlement compares total points first, captures become
+      displayed stats), capture-flow repair (A1 treasury corruption, A2 repel-as-success, A3 refusals→500,
+      strength from attacker army power replacing the level curve, scoped C1 transaction hardening), capture UI +
+      multi-war target enumeration. No migrations, no new tables, no new jobs. Implemented 2026-09-17 (see the
+      implementation bullet above); closure pending commit (G2)
+
 ### Session 2026-09-14 (009) — Specialization audit: built but inert; Phase 0 fixed, plan converged
 
 Operator directive: audit whether the Specialization system is built; if not, review the
@@ -1092,4 +1133,4 @@ Verification evidence for the `implemented` statuses is recorded in
 | 71 | **Sabotage UI FID filed (FID-20260916-011)** | WMDIntelligencePanel target → victim preview → fire flow over the pinned -007 seam; new GET enumeration + difficulty/detection constants exported. Awaiting go-ahead to implement. | 2026-09-16 | Verified (implemented on operator go-ahead: sabotageMath shared module + getSabotageTargets enumeration + route branch + panel target→preview→fire flow; 11 pins; tsc 0 / eslint 0/0 / vitest 942+1skip; live probe 3/3 with parity refusal verbatim) → **Closed (commit `0446629` — implemented + verified; archived)** |
 | 72 | **Clan research panel FID filed (FID-20260916-012):** contribute/unlock UI over the live backend — survey erratum recorded (tab exists as ComingSoonTab; zero client callers; NO GET state endpoint exists; tree is 4 MILITARY nodes post-C1-cut). GREEN: thin state GET + ClanResearchPanel + placeholder swap; C1 cut preserved; server gates not duplicated. | 2026-09-16 | Verified (implemented on operator go-ahead: state GET + ClanResearchPanel + placeholder swap; 9 pins; tsc 0 / eslint 0/0 / vitest 951+1skip; live round-trip probe 4/4 — tree shape, contribute math, unlock fund-drain + tech record, member role refusal verbatim; also repaired the untypechecked FID-011 probe driver) → **Closed (commit `afcb92e` — implemented + verified; archived)** |
 | 73 | **Post-survey re-verification (P2/P3 drift check):** territory capture route live, 0 UI callers, natural home ClanTerritoryPanel (war-gated server-side); shrine extend = real small UI gap, sacrifice-vs-activate needs 5-min disambiguation (likely dead twin), /status redundant (panel reads player.shrineBoosts); tutorial /complete = deletion candidate (ends by design via track-action + decline — erratum recorded in survey artifact); P3 specialization verdict FLIPPED — doctrine bonuses live in battle + factory + mastery XP chain, no action needed. | 2026-09-16 | Closed (survey updated; recommendations: territory-capture FID next, shrine-extend small, two deletion candidates) |
-| 74 | **Territory-capture UI FID filed** — FID-20260916-013 (dead capture route + strength-0 latent defect + target-tile enumeration GET + ClanTerritoryPanel capture flow) | Survey P2 | FID filed, loop-complete; implementation gated on go-ahead |
+| 74 | **Territory-capture FID filed** — FID-20260916-013 (dead capture route + strength-0 latent defect + target-tile enumeration GET + ClanTerritoryPanel capture flow) | Survey P2 | ~~FID filed, loop-complete; implementation gated on go-ahead~~ → SUPERSEDED 2026-09-16 (session 034/035): final audit downgraded FID to `analyzed`/NOT CONVERGED (balance gate D5, transaction redesign, multi-war enumeration); operator directed full mechanic redesign from first principles — see the session 2026-09-16 (035) entry above |

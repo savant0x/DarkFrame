@@ -20,7 +20,7 @@
  */
 
 import { db } from '@/lib/db';
-import { clans, clanWars, modLog } from '@/lib/db/schema';
+import { clans, clanWars, modLog, players } from '@/lib/db/schema';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { generateId } from '@/lib/utils';
 import { logClanActivity } from '@/lib/clanActivityService';
@@ -60,6 +60,9 @@ export const WAR_CONSTANTS = {
   CAPTURE_COST_ENERGY: 25000,
   CAPTURES_PER_CLAN_PER_DAY: 3,
   CAPTURE_JITTER: 0.15, // ±15% strength jitter on contested captures
+  CAPTURE_WIN_POINTS: 2, // war points for a successful capture (FID-20260916-013)
+  CAPTURE_REPEL_POINTS: 1, // war points to the defender for repelling (FID-20260916-013)
+  CAPTURE_BASE_WALL: 5000, // wall floor for an armyless defender (shipped scale)
   TRUCE_BOTH_WINDOW_HOURS: 24, // both-proposed truce resolves immediately
   UNILATERAL_TRUCE_AFTER_DAYS: 7, // one side can force truce after a week of war
 } as const;
@@ -372,6 +375,39 @@ export async function recordWarFactoryCapture(
 // Contested capture (war-gated, strength-based, treasury-priced)
 // ---------------------------------------------------------------------------
 
+/**
+ * FID-20260916-013 — attacker strength is the clan's real army power: the
+ * same Σ(strength × quantity) aggregation the battle engine uses across all
+ * member armies (battleService idiom). Level is not a combat stat; armies are.
+ * Member scan capped at 100, matching the service's notification fan-out cap.
+ */
+export async function computeClanArmyPower(clanId: string): Promise<number> {
+  if (!clanId) return 0;
+  const clan = await loadClan(clanId);
+  if (!clan) return 0;
+  const memberIds = (clan.members ?? [])
+    .map((m) => m.playerId)
+    .filter(Boolean)
+    .slice(0, 100);
+  if (memberIds.length === 0) return 0;
+  const rows = await db
+    .select({ units: players.units })
+    .from(players)
+    .where(inArray(players.username, memberIds));
+  let total = 0;
+  for (const row of rows) {
+    for (const unit of asUnitList(row.units)) {
+      total += Number(unit.strength ?? 0) * Number(unit.quantity ?? 0);
+    }
+  }
+  return total;
+}
+
+/** jsonb trust boundary: players.units is a PlayerUnit[] array or null. */
+function asUnitList(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
+}
+
 function clanDefenseBonus(territories: ClanWarfareRow['territories'], tileX: number, tileY: number): number {
   // Adjacency-based defense: +10% per adjacent own tile, max +50%
   // (mirrors territoryService.getDefenseBonus without its Mongo-shaped input).
@@ -440,11 +476,13 @@ export async function attemptTerritoryCapture(
     throw new Error(`Capture costs ${cost.metal} metal + ${cost.energy} energy from the treasury (have ${treasury.metal}/${treasury.energy})`);
   }
 
-  // Contested resolution: attacker STR (+jitter) vs defense bonus scale.
-  // Defense 0% => effective 5k; +50% (max adjacency) => 7.5k equivalent wall
-  // plus jitter — level-appropriate clan armies win, weak clans fail.
+  // Contested resolution (FID-20260916-013): real armies on both sides —
+  // attacker clan power (+jitter) vs defender clan power floored at the
+  // shipped base wall, scaled by the existing adjacency bonus.
   const defenseBonus = clanDefenseBonus(territories, tileX, tileY);
-  const defensePower = 5000 * (1 + defenseBonus / 100);
+  const defenderPower = await computeClanArmyPower(targetClanId);
+  const defensePower =
+    Math.max(defenderPower, WAR_CONSTANTS.CAPTURE_BASE_WALL) * (1 + defenseBonus / 100);
   const jitteredAttack = attackerStrength * (1 + (Math.random() * 2 - 1) * WAR_CONSTANTS.CAPTURE_JITTER);
   const captured = jitteredAttack >= defensePower;
 
@@ -458,7 +496,12 @@ export async function attemptTerritoryCapture(
         .where(eq(clans.id, clanId));
       await tx
         .update(clanWars)
-        .set({ captureDay: day, attackerCapturesToday: newToday, updatedAt: new Date() })
+        .set({
+          captureDay: day,
+          attackerCapturesToday: newToday,
+          defenderScore: sql`${clanWars.defenderScore} + ${WAR_CONSTANTS.CAPTURE_REPEL_POINTS}`,
+          updatedAt: new Date(),
+        })
         .where(eq(clanWars.warId, war.warId));
     });
     return {
@@ -482,11 +525,11 @@ export async function attemptTerritoryCapture(
   const defenderTerritories = asTerritories(territories);
 
   await db.transaction(async (tx) => {
+    // A1 fix (FID-20260916-013): the attacker pays; the defender's treasury is
+    // never touched — only territory ownership and its stat counter move.
     await tx
       .update(clans)
       .set({
-        bankTreasuryMetal: treasury.metal - cost.metal,
-        bankTreasuryEnergy: treasury.energy - cost.energy,
         territories: defenderTerritories.filter((t) => !(t.tileX === tileX && t.tileY === tileY)),
         statsTotalTerritories: Math.max(0, (targetClan.statsTotalTerritories || 0) - 1),
       })
@@ -495,6 +538,8 @@ export async function attemptTerritoryCapture(
     await tx
       .update(clans)
       .set({
+        bankTreasuryMetal: treasury.metal - cost.metal,
+        bankTreasuryEnergy: treasury.energy - cost.energy,
         territories: [...attackerTerritories, newTerritory],
         statsTotalTerritories: (clan.statsTotalTerritories || 0) + 1,
       })
@@ -506,12 +551,28 @@ export async function attemptTerritoryCapture(
         captureDay: day,
         attackerCapturesToday: newToday,
         attackerCaptures: sql`${clanWars.attackerCaptures} + 1`,
+        attackerScore: sql`${clanWars.attackerScore} + ${WAR_CONSTANTS.CAPTURE_WIN_POINTS}`,
         updatedAt: new Date(),
       })
       .where(eq(clanWars.warId, war.warId));
   });
 
   await awardClanXP(clanId, 'territory_claim', 1, playerId).catch(() => undefined);
+
+  // FID-20260916-013: capture outcomes are visible in both clans' activity feeds
+  // (TERRITORY_CLAIMED/LOST — the same events territory claims already emit).
+  await logClanActivity(clanId, ClanActivityType.TERRITORY_CLAIMED, playerId, {
+    warId: war.warId,
+    tileX,
+    tileY,
+    targetClanId,
+  }).catch(() => undefined);
+  await logClanActivity(targetClanId, ClanActivityType.TERRITORY_LOST, undefined, {
+    warId: war.warId,
+    tileX,
+    tileY,
+    attackerClanId: clanId,
+  }).catch(() => undefined);
   await modLogWar(playerId, targetClanId, 'TERRITORY_CAPTURED', `Captured (${tileX}, ${tileY}) in war ${war.warId}`, {
     warId: war.warId,
     tileX,
@@ -604,14 +665,13 @@ export async function settleDueWars(): Promise<{
   for (const war of due) {
     let outcome: 'ATTACKER_WIN' | 'DEFENDER_WIN' | 'TRUCE';
     let winnerClanId: string | null;
-    if (war.attackerCaptures > war.defenderCaptures) {
-      outcome = 'ATTACKER_WIN';
-      winnerClanId = war.attackerClanId;
-    } else if (war.defenderCaptures > war.attackerCaptures) {
-      outcome = 'DEFENDER_WIN';
-      winnerClanId = war.defenderClanId;
-    } else if (war.attackerScore !== war.defenderScore) {
+    // FID-20260916-013: total points decide the war (operator model); capture
+    // counts are displayed stats and serve only as a tiebreak.
+    if (war.attackerScore !== war.defenderScore) {
       outcome = war.attackerScore > war.defenderScore ? 'ATTACKER_WIN' : 'DEFENDER_WIN';
+      winnerClanId = outcome === 'ATTACKER_WIN' ? war.attackerClanId : war.defenderClanId;
+    } else if (war.attackerCaptures !== war.defenderCaptures) {
+      outcome = war.attackerCaptures > war.defenderCaptures ? 'ATTACKER_WIN' : 'DEFENDER_WIN';
       winnerClanId = outcome === 'ATTACKER_WIN' ? war.attackerClanId : war.defenderClanId;
     } else {
       outcome = 'TRUCE';
@@ -802,13 +862,91 @@ export async function captureTerritory(
   tileY: number,
   playerId: string
 ): Promise<{ success: boolean; territory?: { tileX: number; tileY: number; clanId: string }; defenseBonus?: number; message: string }> {
-  const result = await attemptTerritoryCapture(clanId, targetClanId, tileX, tileY, playerId, 0);
+  // FID-20260916-013 §5.1: route-level captures used to pass attackerStrength 0
+  // (guaranteed repel at full treasury cost). Derive strength from the capturing
+  // clan's level on the same 5000-base scale the defense wall uses.
+  const capturingClan = await loadClan(clanId);
+  if (!capturingClan) throw new Error('Capturing clan not found');
+  // FID-20260916-013: strength is the clan's real army power (computeClanArmyPower)
+  // — armies, not levels, decide contested captures.
+  const strength = await computeClanArmyPower(clanId);
+  const result = await attemptTerritoryCapture(clanId, targetClanId, tileX, tileY, playerId, strength);
+  // A2 fix: the route contract is success ≡ captured — a repel must not surface
+  // to the UI as a success. Low-level service shape unchanged for direct callers.
   return {
-    success: result.success,
+    success: result.captured,
     territory: result.captured ? { tileX, tileY, clanId } : undefined,
     defenseBonus: result.defenseBonus,
     message: result.message,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Capture target enumeration (FID-20260916-013 §5.2 — read-only UI feed)
+// ---------------------------------------------------------------------------
+
+export interface CaptureTarget {
+  tileX: number;
+  tileY: number;
+  defenseBonus: number;
+}
+
+/** One outgoing ACTIVE war with its capturable enemy tiles. */
+export interface WarCaptureTargets {
+  warId: string;
+  defenderClanId: string;
+  defenderTag: string;
+  capturesToday: number;
+  capturesCap: number;
+  targets: CaptureTarget[];
+}
+
+/**
+ * Enumerate ALL of the caller's outgoing ACTIVE wars with the defender's
+ * territory tiles for the capture UI (FID-20260916-013). Declarations enforce
+ * per-pair uniqueness only, so a clan can hold several outgoing wars — an
+ * unordered limit(1) would hide all but one of them. Read-only: no treasury
+ * or daily-cap interaction. defenseBonus per tile mirrors
+ * attemptTerritoryCapture's adjacency math exactly, so the UI previews what
+ * the server will resolve.
+ */
+export async function getCaptureTargets(clanId: string): Promise<{ activeWars: WarCaptureTargets[] }> {
+  const wars = await db
+    .select()
+    .from(clanWars)
+    .where(
+      and(
+        eq(clanWars.status, 'ACTIVE'),
+        eq(clanWars.attackerClanId, clanId)
+      )
+    )
+    .orderBy(desc(clanWars.declaredAt));
+
+  const activeWars: WarCaptureTargets[] = [];
+  for (const war of wars) {
+    const defender = await loadClan(war.defenderClanId);
+    if (!defender) continue;
+
+    const territories = defender.territories || [];
+    const targets: CaptureTarget[] = territories.map((t) => ({
+      tileX: t.tileX,
+      tileY: t.tileY,
+      defenseBonus: clanDefenseBonus(territories, t.tileX, t.tileY),
+    }));
+
+    const day = todayKey();
+    const capturesToday = war.captureDay === day ? war.attackerCapturesToday : 0;
+    activeWars.push({
+      warId: war.warId,
+      defenderClanId: war.defenderClanId,
+      defenderTag: war.defenderTag,
+      capturesToday,
+      capturesCap: WAR_CONSTANTS.CAPTURES_PER_CLAN_PER_DAY,
+      targets,
+    });
+  }
+
+  return { activeWars };
 }
 
 export async function endWar(warId: string, outcome: 'WIN' | 'LOSS' | 'TRUCE', _endedBy: string): Promise<WarWithMeta | null> {

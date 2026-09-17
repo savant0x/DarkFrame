@@ -23,6 +23,9 @@
  * - Permission-based claiming (canManageTerritories)
  * - Real-time territory count updates
  * - Integration with warfare system
+ * - FID-20260916-013: War Captures section — enumerate ALL outgoing ACTIVE
+ *   wars (GET /api/clan/warfare/capture/targets), per-tile capture actions
+ *   (POST /api/clan/warfare/capture) gated to Officer+ (server mirror).
  */
 
 'use client';
@@ -30,21 +33,57 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getErrorMessage } from '@/lib/errorMessage';
 
-import { 
-  MapPin, 
-  Map, 
-  Shield, 
-  Coins, 
-  Plus, 
-  Trash2, 
+import {
+  MapPin,
+  Map,
+  Shield,
+  Coins,
+  Plus,
+  Trash2,
   Search,
-
+  Swords,
+  Clock,
   AlertTriangle,
   CheckCircle2
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { Clan, ClanTerritory } from '@/types/clan.types';
+import type { Clan, ClanTerritory, ClanRole as ClanRoleType } from '@/types/clan.types';
 import { ClanRole, ROLE_PERMISSIONS } from '@/types/clan.types';
+
+/**
+ * FID-20260916-013 §5.3 — capture-permission gate.
+ *
+ * The server's requireRole hardcodes ['LEADER','CO_LEADER','OFFICER'] — OFFICER
+ * CAN capture even though ROLE_PERMISSIONS.canManageWars is false for OFFICER.
+ * This presentational gate keys on OFFICER-or-above to mirror the server
+ * exactly, not canManageWars.
+ */
+function canCapture(role: ClanRoleType): boolean {
+  return role === ClanRole.LEADER || role === ClanRole.CO_LEADER || role === ClanRole.OFFICER;
+}
+
+/** Mirrors clanWarfareService.CaptureTarget (wire shape of the targets route). */
+interface CaptureTarget {
+  tileX: number;
+  tileY: number;
+  defenseBonus: number;
+}
+
+/** Mirrors clanWarfareService.WarCaptureTargets — one outgoing ACTIVE war. */
+interface WarCaptureTargets {
+  warId: string;
+  defenderClanId: string;
+  defenderTag: string;
+  capturesToday: number;
+  capturesCap: number;
+  targets: CaptureTarget[];
+}
+
+/** Wire shape of GET /api/clan/warfare/capture/targets (this section's data source). */
+interface CaptureTargetsResponse {
+  success: boolean;
+  activeWars: WarCaptureTargets[];
+}
 
 
 interface ClanTerritoryPanelProps {
@@ -62,9 +101,13 @@ export default function ClanTerritoryPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [warTargets, setWarTargets] = useState<WarCaptureTargets[]>([]);
+  const [captureLoading, setCaptureLoading] = useState(true);
+  const [busyWarId, setBusyWarId] = useState<string | null>(null);
 
-  // Permission check
+  // Permission checks
   const canManage = ROLE_PERMISSIONS[currentUserRole].canManageTerritories;
+  const canWarCapture = canCapture(currentUserRole);
 
   /**
    * Fetches all territories owned by the clan
@@ -89,6 +132,30 @@ export default function ClanTerritoryPanel({
   useEffect(() => {
     fetchTerritories();
   }, [fetchTerritories]);
+
+  /**
+   * FID-20260916-013 §5.3 — fetches ALL outgoing ACTIVE wars with capturable
+   * enemy tiles. Empty array = no wars: rendered as guidance, not an error.
+   */
+  const fetchCaptureTargets = useCallback(async () => {
+    setCaptureLoading(true);
+    try {
+      const response = await fetch('/api/clan/warfare/capture/targets');
+      if (!response.ok) throw new Error('Failed to fetch capture targets');
+      const data: CaptureTargetsResponse = await response.json();
+      setWarTargets(data.activeWars || []);
+    } catch (error) {
+      console.error('Error fetching capture targets:', error);
+      toast.error('Failed to load war capture targets');
+      setWarTargets([]);
+    } finally {
+      setCaptureLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCaptureTargets();
+  }, [fetchCaptureTargets]);
 
   /**
    * Filters territories based on search query
@@ -205,6 +272,81 @@ export default function ClanTerritoryPanel({
         </div>
       )}
 
+      {/* War Captures (FID-20260916-013 §5.3) — data source: GET /api/clan/warfare/capture/targets */}
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <Swords className="w-4 h-4 text-[color:var(--nn-magenta)]" />
+          <h3 className="text-sm font-semibold text-[color:var(--nn-text-primary)] uppercase tracking-wide">
+            War Captures
+          </h3>
+        </div>
+        {captureLoading ? (
+          <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-4 text-center nn-text-secondary text-sm">
+            Loading war targets...
+          </div>
+        ) : warTargets.length === 0 ? (
+          <div className="nn-surface border border-[color:var(--nn-glass-border)] rounded-none p-4 nn-text-secondary text-sm">
+            No active wars. Declare war from the Warfare panel to capture enemy territory.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {warTargets.map((war) => (
+              <div
+                key={war.warId}
+                className="nn-surface border border-[color-mix(in_oklab,var(--nn-magenta)_50%,transparent)] rounded-none p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="nn-chip nn-chip--magenta text-xs">vs [{war.defenderTag}]</span>
+                    <span className="text-xs nn-text-secondary">
+                      Captures today: {war.capturesToday}/{war.capturesCap}
+                    </span>
+                  </div>
+                  <span className="text-xs nn-text-secondary flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Settles 48h after declaration
+                  </span>
+                </div>
+                {canWarCapture ? (
+                  war.targets.length === 0 ? (
+                    <p className="text-xs nn-text-secondary">Enemy clan holds no territory.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {war.targets.map((tile) => {
+                        const capped = war.capturesToday >= war.capturesCap;
+                        return (
+                          <button
+                            key={`${tile.tileX}-${tile.tileY}`}
+                            onClick={() => handleCapture(war, tile)}
+                            disabled={busyWarId === war.warId || capped}
+                            className="nn-btn nn-btn--ghost text-xs"
+                            title={
+                              capped
+                                ? `Capture (${tile.tileX}, ${tile.tileY}) — daily capture limit reached`
+                                : `Capture (${tile.tileX}, ${tile.tileY}) — treasury cost paid win or lose`
+                            }
+                          >
+                            <MapPin className="w-3 h-3" />
+                            ({tile.tileX}, {tile.tileY})
+                            <span className="nn-chip nn-chip--green ml-1">+{tile.defenseBonus}% def</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : (
+                  <p className="text-xs nn-text-secondary">
+                    Only Officers and above can capture enemy territory.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="nn-divider" />
+
       {/* Claim Territory Modal */}
       {showClaimModal && (
         <ClaimTerritoryModal
@@ -218,6 +360,49 @@ export default function ClanTerritoryPanel({
       )}
     </div>
   );
+
+  /**
+   * FID-20260916-013 §5.3 — attempts a contested capture.
+   * The server's message is always surfaced verbatim: captures toast success,
+   * repels toast as errors (success:false), refusals arrive as 4xx messages.
+   */
+  async function handleCapture(war: WarCaptureTargets, tile: CaptureTarget) {
+    // Confirm-then-fire (FID §5): the treasury fee is paid win or lose.
+    const confirmed = window.confirm(
+      `Capture territory at (${tile.tileX}, ${tile.tileY}) from [${war.defenderTag}]? The treasury cost is paid win or lose (+${tile.defenseBonus}% defense).`
+    );
+    if (!confirmed) return;
+
+    setBusyWarId(war.warId);
+    try {
+      const response = await fetch('/api/clan/warfare/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetClanId: war.defenderClanId,
+          tileX: tile.tileX,
+          tileY: tile.tileY
+        })
+      });
+      const data = await response.json().catch(() => null);
+      if (data?.message) {
+        if (data.success) {
+          toast.success(data.message);
+        } else {
+          toast.error(data.message);
+        }
+      } else if (!response.ok) {
+        toast.error('Capture attempt failed');
+      }
+      await fetchCaptureTargets();
+      await onRefresh();
+    } catch (error) {
+      console.error('Error capturing territory:', error);
+      toast.error(getErrorMessage(error) || 'Capture attempt failed');
+    } finally {
+      setBusyWarId(null);
+    }
+  }
 
   /**
    * Handles unclaiming/abandoning a territory
