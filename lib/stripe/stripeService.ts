@@ -53,7 +53,7 @@ const getStripeClient = (): Stripe => {
   }
   
   return new Stripe(secretKey, {
-    apiVersion: '2025-10-29.clover', // Latest stable API version
+    apiVersion: '2026-08-26.dahlia', // Pinned floor for stripe SDK v22 types
     typescript: true,
   });
 };
