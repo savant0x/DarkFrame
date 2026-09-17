@@ -1,127 +1,97 @@
 /**
- * API Route: Player Inventory
- * Created: 2025-01-19
- * 
- * OVERVIEW:
- * Provides player inventory data including items, resources, and equipment.
- * Returns empty inventory structure if player not found or has no items.
+ * @file app/api/player/inventory/route.ts
+ * @created 2025-01-19 (Mongo era)
+ * @rewritten 2026-09-17 (FID-20260917-008)
+ * @overview GET the authenticated player's inventory from PostgreSQL.
+ *
+ * History: this route survived the pg pivot on the Mongo stack — it
+ * authenticated off a `playerId` cookie nothing sets anymore and queried
+ * `clientPromise`/`db.collection('players')`, so every call 401'd while
+ * InventoryPanel's `if (response.ok)` guard hid the failure (FID-20260917-008;
+ * surfaced live during the session-046 clan-UI verification).
+ *
+ * Contract (matched to the sole consumer, components/InventoryPanel.tsx:180 —
+ * the panel does `setInventory(data)` directly, so the payload is UNWRAPPED):
+ *   200 → {
+ *     capacity, items: InventoryItem[] (mixed jsonb rides along unfiltered —
+ *       Unit entries belong to other subsystems and the panel's own filters
+ *       simply never match them),
+ *     gatheringBonus: { metalBonus, energyBonus },   // pg numerics → numbers
+ *     metalDiggerCount, energyDiggerCount,
+ *     activeBoosts: { gatheringBoost, expiresAt },   // expiresAt: ISO string | null
+ *   }
+ *   The legacy `resources`/`equipment` response fields were never consumed by
+ *   any client and are not reconstructed.
+ *
+ * Auth: requireAuth on darkframe_session (house idiom, cf. app/api/clan/[id]).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
-import type { Player } from '@/types/game.types';
-import { withRequestLogging, createRouteLogger } from '@/lib';
+import { eq } from 'drizzle-orm';
+import {
+  requireAuth,
+  createErrorResponse,
+  createErrorFromException,
+  ErrorCode,
+  withRequestLogging,
+} from '@/lib';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
 
-/**
- * GET /api/player/inventory
- * Fetches the authenticated player's inventory
- */
 export const GET = withRequestLogging(async (request: NextRequest) => {
-  const log = createRouteLogger('PlayerInventoryAPI');
-  const endTimer = log.time('fetchPlayerInventory');
-  
   try {
-    const playerId = request.cookies.get('playerId')?.value;
-
-    if (!playerId) {
-      log.warn('Unauthenticated inventory request');
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) {
+      return auth;
     }
 
-    log.debug('Fetching player inventory', { playerId });
+    const rows = await db
+      .select({
+        inventoryItems: players.inventoryItems,
+        inventoryCapacity: players.inventoryCapacity,
+        inventoryMetalDiggerCount: players.inventoryMetalDiggerCount,
+        inventoryEnergyDiggerCount: players.inventoryEnergyDiggerCount,
+        gatheringBonusMetalBonus: players.gatheringBonusMetalBonus,
+        gatheringBonusEnergyBonus: players.gatheringBonusEnergyBonus,
+        activeBoostsGatheringBoost: players.activeBoostsGatheringBoost,
+        activeBoostsExpiresAt: players.activeBoostsExpiresAt,
+      })
+      .from(players)
+      .where(eq(players.username, auth.playerId))
+      .limit(1);
 
-    const client = await clientPromise;
-    const db = client.db('darkframe');
-    
-    const player = await db.collection<Player>('players').findOne(
-      { username: playerId },
-      { projection: { inventory: 1 } }
-    );
-
-    if (!player) {
-      log.warn('Player not found for inventory', { playerId });
-      return NextResponse.json(
-        { error: 'Player not found' },
-        { status: 404 }
-      );
+    const row = rows[0];
+    if (!row) {
+      // requireAuth resolved the session via the same row, so this is a
+      // mid-request deletion race — not a normal "not found" path.
+      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND);
     }
 
-    // Return inventory or empty structure if none exists
-    const inventory = player.inventory || {
-      items: [],
-      resources: [],
-      equipment: {
-        weapon: null,
-        armor: null,
-        accessory: null
-      },
-      capacity: 100,
-      used: 0,
+    return NextResponse.json({
+      capacity: row.inventoryCapacity,
+      items: row.inventoryItems ?? [],
       gatheringBonus: {
-        metalBonus: 0,
-        energyBonus: 0
+        // pg numeric columns arrive as strings — the panel does arithmetic
+        // and renders these as percentages, so parse before shipping.
+        metalBonus: parseFloat(row.gatheringBonusMetalBonus),
+        energyBonus: parseFloat(row.gatheringBonusEnergyBonus),
       },
+      metalDiggerCount: row.inventoryMetalDiggerCount,
+      energyDiggerCount: row.inventoryEnergyDiggerCount,
       activeBoosts: {
-        gatheringBoost: null,
-        expiresAt: null
+        gatheringBoost:
+          row.activeBoostsGatheringBoost === null
+            ? null
+            : parseFloat(row.activeBoostsGatheringBoost),
+        // The client feeds expiresAt straight into new Date(...) — ship an
+        // ISO string, never a Date object (Next would serialize it but the
+        // explicit toISOString pins the wire format).
+        expiresAt: row.activeBoostsExpiresAt
+          ? row.activeBoostsExpiresAt.toISOString()
+          : null,
       },
-      metalDiggerCount: 0,
-      energyDiggerCount: 0
-    };
-
-    // Ensure gatheringBonus exists (for older player records)
-    if (!inventory.gatheringBonus) {
-      inventory.gatheringBonus = {
-        metalBonus: 0,
-        energyBonus: 0
-      };
-    }
-
-    // Ensure activeBoosts exists (for older player records)
-    if (!inventory.activeBoosts) {
-      inventory.activeBoosts = {
-        gatheringBoost: null,
-        expiresAt: null
-      };
-    }
-
-    // Ensure digger counts exist (for older player records)
-    if (typeof inventory.metalDiggerCount === 'undefined') {
-      inventory.metalDiggerCount = 0;
-    }
-    if (typeof inventory.energyDiggerCount === 'undefined') {
-      inventory.energyDiggerCount = 0;
-    }
-
-    log.info('Player inventory fetched', { 
-      playerId, 
-      itemCount: inventory.items?.length || 0, 
-      resourceCount: inventory.resources?.length || 0,
-      usedCapacity: inventory.used || 0,
-      totalCapacity: inventory.capacity || 100
     });
-
-    return NextResponse.json(inventory);
-
   } catch (error) {
-    log.error('Failed to fetch player inventory', error as Error);
-    return NextResponse.json(
-      { error: 'Failed to fetch inventory' },
-      { status: 500 }
-    );
-  } finally {
-    endTimer();
+    return createErrorFromException(error);
   }
 });
-
-/**
- * IMPLEMENTATION NOTES:
- * - Returns structured inventory data with items, resources, and equipment
- * - Gracefully handles missing inventory by returning empty structure
- * - Authentication via playerId cookie
- * - TODO: Add inventory update endpoints (POST/PUT) when needed
- * - TODO: Add inventory capacity management
- */
