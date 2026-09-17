@@ -38,6 +38,7 @@ import {
   Swords, 
   Beaker, 
   Sparkles,
+  Handshake,
   UserPlus,
   LogOut,
   Info,
@@ -64,6 +65,9 @@ import ClanTerritoryPanel from './ClanTerritoryPanel';
 import ClanWarfarePanel from './ClanWarfarePanel';
 import ClanChatPanel from './ClanChatPanel';
 import ClanResearchPanel from './ClanResearchPanel';
+// FID-20260917-010: the diplomacy UI existed with five live routes but was
+// mounted nowhere — reachable at last via the Alliances tab.
+import { AlliancePanel } from '@/components/AlliancePanel';
 
 interface ClanPanelProps {
   isOpen: boolean;
@@ -288,7 +292,7 @@ interface ClanManagementViewProps {
   onRefresh: () => void;
 }
 
-type ClanTab = 'overview' | 'members' | 'bank' | 'territory' | 'warfare' | 'social' | 'research' | 'perks';
+type ClanTab = 'overview' | 'members' | 'bank' | 'territory' | 'warfare' | 'social' | 'alliances' | 'research' | 'perks';
 
 function ClanManagementView({
   player,
@@ -363,12 +367,18 @@ function ClanManagementView({
           active={activeTab === 'social'}
           onClick={() => setActiveTab('social')}
         />
+        {/* FID-20260917-010: AlliancePanel (complete UI + five live routes) was mounted nowhere */}
+        <TabButton
+          icon={<Handshake className="w-4 h-4" />}
+          label="Alliances"
+          active={activeTab === 'alliances'}
+          onClick={() => setActiveTab('alliances')}
+        />
         <TabButton
           icon={<Beaker className="w-4 h-4" />}
           label="Research"
           active={activeTab === 'research'}
           onClick={() => setActiveTab('research')}
-          disabled
         />
         <TabButton
           icon={<Sparkles className="w-4 h-4" />}
@@ -425,6 +435,18 @@ function ClanManagementView({
             clanId={clanData._id?.toString() || player.clanId || ''}
             currentUserId={player.username}
             currentUserRole={playerRole}
+          />
+        )}
+        {/* FID-20260917-010: first-ever mount of the alliance diplomacy UI.
+            treasuryMetal rides the sanctioned /api/clan/[id] payload
+            (rowToClan maps bankTreasuryMetal -> bank.treasury.metal). */}
+        {activeTab === 'alliances' && (
+          <AlliancePanel
+            clanId={clanData._id?.toString() || player.clanId || ''}
+            playerId={player.username}
+            role={playerRole}
+            clanName={clanData.name}
+            treasuryMetal={clanData.bank?.treasury?.metal ?? 0}
           />
         )}
         {activeTab === 'research' && (
