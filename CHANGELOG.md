@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.6] — 2026-09-17 session
+
+### Fixed — FID-20260917-004: abandon rewire + player-log view (closed, commit `ef64421`)
+
+- The repo-wide dead-route census (237 routes) left two true orphans, both operator-ratified Keep-and-wire: `handleAbandon` now calls the canonical `POST /api/factory/abandon` (was the superset twin `/release` in single mode), with `productionRate: 1` reset parity added; both false "DELETE ALL UNITS" strings corrected to FID-20260914-009 truth (units are unaffected by abandon).
+- New `PlayerLogPanel` (all/activity/battle tabs, plain-JSON contract, combat-stats wells, outcome coloring, empty/loading/error states) hosted on the own-profile page — `GET /api/logs/player/[id]` has its first caller; both census orphans now live, zero dead routes remain.
+- 6 component pins; gates tsc 0 / eslint 0 / vitest 995+1skip (baseline 989 + 6). Filing artifact: SCOPE rows 76–77; finding record FID-20260917-005 (shrine-extend premise dissolved) rode the same session.
+
 ## [0.0.4] — 2026-09-17 session
 
 ### Fixed — FID-20260917-002: shrine dead-economy cleanup + trade parity + presence enforcement (closed, commit `b11c370`)

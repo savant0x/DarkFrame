@@ -1,6 +1,6 @@
 # FID-20260917-004 — Abandon rewire + player-log view (dead-twin sweep resolutions)
 
-**Status:** `implemented`
+**Status:** `closed (commit `ef64421`)`
 **Session:** 2026-09-17 (post-FID-003)
 **Origin:** Repo-wide dead-route census (237 routes → 2 true orphans). Operator ratified: `factory/abandon` = Keep + rewire UI; `logs/player/[id]` = Keep + wire UI.
 
@@ -62,4 +62,10 @@ No schema, route-contract, or auth changes. `getPlayerCombatStatistics` shape re
 
 ## Audit record
 
-(filled at closure)
+Closed 2026-09-17 (session 041) on operator go-ahead. Batch hash: `ef64421`
+(7 files, +475/−5: 4 implementation paths, 1 test suite, the FID itself, SCOPE rows
+76+77 hunk-staged via index reconstruction — row 78 held back). Gates re-verified
+fresh this session before commit: tsc 0 · eslint 0 (all 5 code paths) ·
+PlayerLogPanel pins 6/6; full-suite 995+1skip recorded at implementation and
+unchanged by commit. Law-4 reachability and sweep-closure claims audited against
+the implementation record — both accurate. Archived at closure.
