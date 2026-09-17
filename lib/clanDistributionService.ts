@@ -33,6 +33,7 @@
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { withClanTreasuryLock } from '@/lib/db/treasuryLock';
 import { ClanRole, type ClanMember } from '@/types/clan.types';
 
 
@@ -317,7 +318,19 @@ export async function distributeEqualSplit(
     await db.update(players).set(playerResourceIncrement(resourceType, amount)).where(eq(players.username, member.playerId));
   }
   
-  await db.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
+  // FID-20260917-001: joins the shared lock envelope; sufficiency re-checked
+  // against the LOCKED row before the (already relative-SQL) decrement.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedBalance = Number(
+      resourceType === 'metal' ? locked.bankTreasuryMetal
+      : resourceType === 'energy' ? locked.bankTreasuryEnergy
+      : locked.bankTreasuryResearchPoints
+    ) || 0;
+    if (lockedBalance < totalAmount) {
+      throw new Error(`Insufficient ${resourceType} in clan bank (have ${lockedBalance}, need ${totalAmount})`);
+    }
+    await tx.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
+  });
   
   const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributor = distributorRows[0];
@@ -420,7 +433,19 @@ export async function distributeByPercentage(
     await db.update(players).set(playerResourceIncrement(resourceType, remainder)).where(eq(players.username, recipients[0].playerId));
   }
   
-  await db.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
+  // FID-20260917-001: joins the shared lock envelope; sufficiency re-checked
+  // against the LOCKED row before the (already relative-SQL) decrement.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedBalance = Number(
+      resourceType === 'metal' ? locked.bankTreasuryMetal
+      : resourceType === 'energy' ? locked.bankTreasuryEnergy
+      : locked.bankTreasuryResearchPoints
+    ) || 0;
+    if (lockedBalance < totalAmount) {
+      throw new Error(`Insufficient ${resourceType} in clan bank (have ${lockedBalance}, need ${totalAmount})`);
+    }
+    await tx.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
+  });
   
   const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributor = distributorRows[0];
@@ -541,7 +566,19 @@ export async function distributeByMerit(
     await db.update(players).set(playerResourceIncrement(resourceType, remainder)).where(eq(players.username, recipients[0].playerId));
   }
   
-  await db.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
+  // FID-20260917-001: joins the shared lock envelope; sufficiency re-checked
+  // against the LOCKED row before the (already relative-SQL) decrement.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedBalance = Number(
+      resourceType === 'metal' ? locked.bankTreasuryMetal
+      : resourceType === 'energy' ? locked.bankTreasuryEnergy
+      : locked.bankTreasuryResearchPoints
+    ) || 0;
+    if (lockedBalance < totalAmount) {
+      throw new Error(`Insufficient ${resourceType} in clan bank (have ${lockedBalance}, need ${totalAmount})`);
+    }
+    await tx.update(clans).set(clanTreasuryDecrement(resourceType, totalAmount)).where(eq(clans.id, clanId));
+  });
   
   const distributorPlayerRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributorPlayer = distributorPlayerRows[0];
@@ -669,7 +706,20 @@ export async function directGrant(
   if (totalEnergy > 0) clanUpdates.bankTreasuryEnergy = sql`${clans.bankTreasuryEnergy} - ${totalEnergy}`;
   if (totalRP > 0) clanUpdates.bankTreasuryResearchPoints = sql`${clans.bankTreasuryResearchPoints} - ${totalRP}`;
   
-  await db.update(clans).set(clanUpdates).where(eq(clans.id, clanId));
+  // FID-20260917-001: joins the shared lock envelope; sufficiency re-checked
+  // against the LOCKED row before the (already relative-SQL) decrements.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    if (totalMetal > 0 && (Number(locked.bankTreasuryMetal) || 0) < totalMetal) {
+      throw new Error(`Insufficient metal in clan bank (have ${Number(locked.bankTreasuryMetal) || 0}, need ${totalMetal})`);
+    }
+    if (totalEnergy > 0 && (Number(locked.bankTreasuryEnergy) || 0) < totalEnergy) {
+      throw new Error(`Insufficient energy in clan bank (have ${Number(locked.bankTreasuryEnergy) || 0}, need ${totalEnergy})`);
+    }
+    if (totalRP > 0 && (Number(locked.bankTreasuryResearchPoints) || 0) < totalRP) {
+      throw new Error(`Insufficient RP in clan bank (have ${Number(locked.bankTreasuryResearchPoints) || 0}, need ${totalRP})`);
+    }
+    await tx.update(clans).set(clanUpdates).where(eq(clans.id, clanId));
+  });
   
   const distributorRows = await db.select().from(players).where(eq(players.username, distributorId)).limit(1);
   const distributor = distributorRows[0];

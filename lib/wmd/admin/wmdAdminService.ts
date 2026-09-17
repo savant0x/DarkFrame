@@ -34,6 +34,7 @@ import { ClanBankTransactionType } from '@/types/clan.types';
 import type { ClanBankTransaction } from '@/types/clan.types';
 import { MissionStatus } from '@/types/wmd';
 import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { withClanTreasuryLock, treasuryDelta } from '@/lib/db/treasuryLock';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -245,20 +246,25 @@ export async function emergencyDisarmMissile(
     const clanRows = await db.select().from(clans).where(eq(clans.id, missile.ownerClanId)).limit(1);
     const clan = clanRows[0];
     if (clan) {
-      const existingHistory = clan.bankTransactions || [];
-      const bankHistory: ClanBankTransaction[] = [...existingHistory, {
-        transactionId: crypto.randomUUID().replace(/-/g, '').slice(0, 24),
-        type: ClanBankTransactionType.ADMIN_REFUND,
-        amount: { metal: refundAmount, energy: 0 },
-        description: `Missile ${missileId} admin-disarmed: ${reason}`,
-        timestamp: new Date(),
-      }].slice(-100);
+      // FID-20260917-001: refund credit is relative SQL under the clan row lock;
+      // the jsonb transaction append reads the locked row. (ownerClanId is
+      // narrowed by the checks above; captured to a const so TS keeps it.)
+      const ownerClanId: string = missile.ownerClanId;
+      await withClanTreasuryLock(ownerClanId, async (tx, locked) => {
+        const existingHistory = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
+        const bankHistory: ClanBankTransaction[] = [...existingHistory, {
+          transactionId: crypto.randomUUID().replace(/-/g, '').slice(0, 24),
+          type: ClanBankTransactionType.ADMIN_REFUND,
+          amount: { metal: refundAmount, energy: 0 },
+          description: `Missile ${missileId} admin-disarmed: ${reason}`,
+          timestamp: new Date(),
+        }].slice(-100);
 
-      await db.update(clans).set({
-        bankTreasuryMetal: Number(clan.bankTreasuryMetal) + Math.floor(refundAmount * 0.4),
-        bankTreasuryEnergy: Number(clan.bankTreasuryEnergy) + Math.floor(refundAmount * 0.6),
-        bankTransactions: bankHistory,
-      }).where(eq(clans.id, missile.ownerClanId));
+        await tx.update(clans).set({
+          ...treasuryDelta({ metal: Math.floor(refundAmount * 0.4), energy: Math.floor(refundAmount * 0.6) }),
+          bankTransactions: bankHistory,
+        }).where(eq(clans.id, ownerClanId));
+      });
     }
   }
 

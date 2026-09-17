@@ -29,6 +29,7 @@
 import { eq, sql, and, ne } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema';
+import { withClanTreasuryLock, treasuryDelta } from '@/lib/db/treasuryLock';
 import { logClanActivity } from '@/lib/clanActivityService';
 import { ClanActivityType, ClanBankTransactionType } from '@/types/clan.types';
 import type { ClanBankTransaction, ClanTerritory } from '@/types/clan.types';
@@ -219,28 +220,44 @@ export async function claimTerritory(
     );
   }
 
-  // Create territory object
-  const newTerritory: ClanTerritory = {
-    clanId,
-    tileX: x,
-    tileY: y,
-    claimedAt: new Date(),
-    claimedBy: playerId,
-    defenseBonus: getDefenseBonus(clanId, x, y, currentTerritories.map((t) => ({ x: t.tileX, y: t.tileY }))),
-  };
+  // Create territory object (FID-20260917-001: final territory shape is built
+  // from the LOCKED row inside the transaction below)
+  // Deduct cost and add territory — locked, re-validated, relative SQL.
+  // The pre-checks above are fail-fast previews; this block is authoritative.
+  const newTerritory = await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedTerritories = (locked.territories as ClanTerritory[] | undefined) || [];
+    if (lockedTerritories.some((t) => t.tileX === x && t.tileY === y)) {
+      throw new Error('Territory already claimed by your clan');
+    }
+    if (lockedTerritories.length >= maxTerritories) {
+      throw new Error(`Territory limit reached (${maxTerritories} for level ${clanLevel})`);
+    }
+    const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+    const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+    if (lockedMetal < finalCostMetal) {
+      throw new Error(`Insufficient metal in clan bank (need ${finalCostMetal}, have ${lockedMetal})`);
+    }
+    if (lockedEnergy < finalCostEnergy) {
+      throw new Error(`Insufficient energy in clan bank (need ${finalCostEnergy}, have ${lockedEnergy})`);
+    }
 
-  // Deduct cost and add territory
-  const updatedTerritories = [...currentTerritories, newTerritory];
-  const newStatsTotalTerritories = (clanRow.statsTotalTerritories || 0) + 1;
-  const newBankMetal = BigInt(bankMetal) - BigInt(finalCostMetal);
-  const newBankEnergy = BigInt(bankEnergy) - BigInt(finalCostEnergy);
+    const lockedNewTerritory: ClanTerritory = {
+      clanId,
+      tileX: x,
+      tileY: y,
+      claimedAt: new Date(),
+      claimedBy: playerId,
+      defenseBonus: getDefenseBonus(clanId, x, y, lockedTerritories.map((t) => ({ x: t.tileX, y: t.tileY }))),
+    };
 
-  await db.update(clans).set({
-    territories: updatedTerritories,
-    statsTotalTerritories: newStatsTotalTerritories,
-    bankTreasuryMetal: Number(newBankMetal),
-    bankTreasuryEnergy: Number(newBankEnergy),
-  }).where(eq(clans.id, clanId));
+    await tx.update(clans).set({
+      territories: [...lockedTerritories, lockedNewTerritory],
+      statsTotalTerritories: sql`${clans.statsTotalTerritories} + 1`,
+      ...treasuryDelta({ metal: -finalCostMetal, energy: -finalCostEnergy }),
+    }).where(eq(clans.id, clanId));
+
+    return lockedNewTerritory;
+  });
 
   // Log activity (SCOPE #16: legacy divergent-column insert converted to the
   // canonical activity service so territory rows stop being written to the wrong columns)
@@ -709,31 +726,48 @@ export async function collectDailyTerritoryIncome(
     // Calculate income
     const clanLevel = clanRow.levelCurrentLevel || 1;
     const income = calculateDailyPassiveIncome(clanLevel, territoryCount);
-    
-    // Update clan bank
-    const newBankMetal = Number(clanRow.bankTreasuryMetal) + income.metalPerDay;
-    const newBankEnergy = Number(clanRow.bankTreasuryEnergy) + income.energyPerDay;
-    
-    // Update bank transactions (transaction now conforms to ClanBankTransaction)
-    const bankTransactions = clanRow.bankTransactions || [];
-    const newTransaction: ClanBankTransaction = {
-      transactionId: crypto.randomUUID().replace(/-/g, '').slice(0, 24),
-      type: ClanBankTransactionType.TERRITORY_INCOME,
-      amount: {
-        metal: income.metalPerDay,
-        energy: income.energyPerDay,
-      },
-      timestamp: now,
-      description: `Daily territory income from ${territoryCount} territories (${income.perTerritory} M/E per territory)`,
-    };
-    const updatedTransactions = [...bankTransactions, newTransaction];
 
-    await db.update(clans).set({
-      bankTreasuryMetal: newBankMetal,
-      bankTreasuryEnergy: newBankEnergy,
-      bankTransactions: updatedTransactions,
-      lastTerritoryIncomeCollection: now,
-    }).where(eq(clans.id, clanId));
+    // FID-20260917-001: the whole collect runs under the clan row lock and the
+    // double-collection guard re-checks the LOCKED row — two concurrent calls
+    // can no longer both pass the check-then-act window and double-pay.
+    const collected = await withClanTreasuryLock(clanId, async (tx, locked) => {
+      const lockedLastCollection = (locked.lastTerritoryIncomeCollection as Date | string | null) ?? null;
+      if (lockedLastCollection && new Date(lockedLastCollection) >= todayStart) {
+        return { paid: false as const };
+      }
+
+      // jsonb transaction append from the locked row (same-clan writers serialize).
+      const lockedTransactions = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
+      const newTransaction: ClanBankTransaction = {
+        transactionId: crypto.randomUUID().replace(/-/g, '').slice(0, 24),
+        type: ClanBankTransactionType.TERRITORY_INCOME,
+        amount: {
+          metal: income.metalPerDay,
+          energy: income.energyPerDay,
+        },
+        timestamp: now,
+        description: `Daily territory income from ${territoryCount} territories (${income.perTerritory} M/E per territory)`,
+      };
+
+      await tx.update(clans).set({
+        ...treasuryDelta({ metal: income.metalPerDay, energy: income.energyPerDay }),
+        bankTransactions: [...lockedTransactions, newTransaction],
+        lastTerritoryIncomeCollection: now,
+      }).where(eq(clans.id, clanId));
+
+      return { paid: true as const };
+    });
+
+    if (!collected.paid) {
+      return {
+        success: false,
+        metalCollected: 0,
+        energyCollected: 0,
+        territoryCount,
+        timestamp: now,
+        message: 'Income already collected today',
+      };
+    }
 
     // Log activity (SCOPE #16: converted to the canonical activity service)
     await logClanActivity(clanId, ClanActivityType.TERRITORY_INCOME_COLLECTED, undefined, {

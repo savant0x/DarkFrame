@@ -32,6 +32,7 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import type { clans as clansTable } from '@/lib/db/schema';
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
+import { withClanTreasuryLock, treasuryDelta, playerResourceDelta } from '@/lib/db/treasuryLock';
 import {
   Clan,
   ClanBank,
@@ -234,20 +235,35 @@ export async function depositToBank(
     description: `${member.username} deposited resources to bank`,
   };
   
-  const updatedTransactions = [...(clan.bank.transactions || []), transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
-  
-  await db.update(clans).set({
-    bankTreasuryMetal: Number(BigInt(clan.bank.treasury.metal + depositMetal)),
-    bankTreasuryEnergy: Number(BigInt(clan.bank.treasury.energy + depositEnergy)),
-    bankTreasuryResearchPoints: clan.bank.treasury.researchPoints + depositRP,
-    bankTransactions: updatedTransactions,
-  }).where(eq(clans.id, clanId));
-  
-  await db.update(players).set({
-    resourcesMetal: Number(player.resourcesMetal) - depositMetal,
-    resourcesEnergy: Number(player.resourcesEnergy) - depositEnergy,
-    researchPoints: player.researchPoints - depositRP,
-  }).where(eq(players.username, playerId));
+
+  // FID-20260917-001: capacity re-validated against the LOCKED row; treasury
+  // credit and the paired player debit are one atomic transaction (previously
+  // two separate updates — a mid-flight failure minted or vaporized resources).
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+    const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+    const lockedRP = Number(locked.bankTreasuryResearchPoints) || 0;
+    if (lockedMetal + depositMetal > capacity) {
+      throw new Error(`Metal capacity exceeded. Current: ${lockedMetal}, Capacity: ${capacity}`);
+    }
+    if (lockedEnergy + depositEnergy > capacity) {
+      throw new Error(`Energy capacity exceeded. Current: ${lockedEnergy}, Capacity: ${capacity}`);
+    }
+    if (lockedRP + depositRP > capacity) {
+      throw new Error(`Research Points capacity exceeded. Current: ${lockedRP}, Capacity: ${capacity}`);
+    }
+    const lockedTransactions = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
+    const merged = [...lockedTransactions, transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
+
+    await tx.update(clans).set({
+      ...treasuryDelta({ metal: depositMetal, energy: depositEnergy, researchPoints: depositRP }),
+      bankTransactions: merged,
+    }).where(eq(clans.id, clanId));
+
+    await tx.update(players).set(
+      playerResourceDelta({ metal: -depositMetal, energy: -depositEnergy, researchPoints: -depositRP })
+    ).where(eq(players.username, playerId));
+  });
   
   await logClanActivity(clanId, ClanActivityType.BANK_DEPOSIT, playerId, {
     resources,
@@ -332,23 +348,37 @@ export async function withdrawFromBank(
     description: `${member.username} withdrew resources from bank`,
   };
   
-  const updatedTransactions = [...(clan.bank.transactions || []), transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
-  
-  await db.update(clans).set({
-    bankTreasuryMetal: Number(BigInt(clan.bank.treasury.metal - withdrawMetal)),
-    bankTreasuryEnergy: Number(BigInt(clan.bank.treasury.energy - withdrawEnergy)),
-    bankTreasuryResearchPoints: clan.bank.treasury.researchPoints - withdrawRP,
-    bankTransactions: updatedTransactions,
-  }).where(eq(clans.id, clanId));
-  
+
   const player = await getPlayerById(playerId);
-  if (player) {
-    await db.update(players).set({
-      resourcesMetal: Number(player.resourcesMetal) + withdrawMetal,
-      resourcesEnergy: Number(player.resourcesEnergy) + withdrawEnergy,
-      researchPoints: player.researchPoints + withdrawRP,
-    }).where(eq(players.username, playerId));
-  }
+  // FID-20260917-001: sufficiency re-validated against the LOCKED row; treasury
+  // debit and the paired player credit are one atomic transaction.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+    const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+    const lockedRP = Number(locked.bankTreasuryResearchPoints) || 0;
+    if (withdrawMetal > lockedMetal) {
+      throw new Error(`Insufficient Metal in bank. Available: ${lockedMetal}`);
+    }
+    if (withdrawEnergy > lockedEnergy) {
+      throw new Error(`Insufficient Energy in bank. Available: ${lockedEnergy}`);
+    }
+    if (withdrawRP > lockedRP) {
+      throw new Error(`Insufficient Research Points in bank. Available: ${lockedRP}`);
+    }
+    const lockedTransactions = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
+    const merged = [...lockedTransactions, transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
+
+    await tx.update(clans).set({
+      ...treasuryDelta({ metal: -withdrawMetal, energy: -withdrawEnergy, researchPoints: -withdrawRP }),
+      bankTransactions: merged,
+    }).where(eq(clans.id, clanId));
+
+    if (player) {
+      await tx.update(players).set(
+        playerResourceDelta({ metal: withdrawMetal, energy: withdrawEnergy, researchPoints: withdrawRP })
+      ).where(eq(players.username, playerId));
+    }
+  });
   
   await logClanActivity(clanId, ClanActivityType.BANK_WITHDRAWAL, playerId, {
     resources,
@@ -476,14 +506,32 @@ export async function collectTax(
     description: `Tax collected from ${member.username}'s harvest (${taxRate}%)`,
   };
   
-  const updatedTransactions = [...(clan.bank.transactions || []), transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
   
-  const updateFields: PgUpdateSetSource<typeof clans> = {
-    bankTransactions: updatedTransactions,
-  };
-  updateFields[`bankTreasury${resourceType === 'metal' ? 'Metal' : 'Energy'}`] = currentAmount + taxAmount;
-  
-  await db.update(clans).set(updateFields).where(eq(clans.id, clanId));
+  // FID-20260917-001: capacity re-validated against the LOCKED row; tax credit
+  // is relative SQL under the clan row lock (this site was missed by the
+  // original census grep — dynamic-key write — and folded in per §5's uniform
+  // idiom; see FID §7 mid-flight finding).
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedAmount = Number(
+      resourceType === 'metal' ? locked.bankTreasuryMetal : locked.bankTreasuryEnergy
+    ) || 0;
+    if (lockedAmount + taxAmount > capacity) {
+      return 0; // caller contract: 0 = not collected
+    }
+    const lockedTransactions = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
+    const merged = [...lockedTransactions, transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
+
+    const updateFields: PgUpdateSetSource<typeof clans> = {
+      bankTransactions: merged,
+    };
+    if (resourceType === 'metal') {
+      Object.assign(updateFields, treasuryDelta({ metal: taxAmount }));
+    } else {
+      Object.assign(updateFields, treasuryDelta({ energy: taxAmount }));
+    }
+
+    await tx.update(clans).set(updateFields).where(eq(clans.id, clanId));
+  });
   
   await logClanActivity(clanId, ClanActivityType.TAX_COLLECTED, playerId, {
     amount: taxAmount,
@@ -569,16 +617,32 @@ export async function upgradeBankCapacity(
     description: `Bank upgraded to level ${newLevel}`,
   };
   
-  const updatedTransactions = [...(clan.bank.transactions || []), transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
-  
-  await db.update(clans).set({
-    bankTreasuryMetal: Number(BigInt(bankMetal - upgradeCost.metal)),
-    bankTreasuryEnergy: Number(BigInt(bankEnergy - upgradeCost.energy)),
-    bankTreasuryResearchPoints: bankRP - upgradeCost.rp,
-    bankUpgradeLevel: newLevel,
-    bankCapacity: Number(BigInt(newCapacity)),
-    bankTransactions: updatedTransactions,
-  }).where(eq(clans.id, clanId));
+
+  // FID-20260917-001: level/cost re-validated against the LOCKED row; debit is
+  // relative SQL and the jsonb append reads the locked row.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+    const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+    const lockedRP = Number(locked.bankTreasuryResearchPoints) || 0;
+    if (lockedMetal < upgradeCost.metal) {
+      throw new Error(`Insufficient Metal in bank. Need: ${upgradeCost.metal}, Have: ${lockedMetal}`);
+    }
+    if (lockedEnergy < upgradeCost.energy) {
+      throw new Error(`Insufficient Energy in bank. Need: ${upgradeCost.energy}, Have: ${lockedEnergy}`);
+    }
+    if (lockedRP < upgradeCost.rp) {
+      throw new Error(`Insufficient RP in bank. Need: ${upgradeCost.rp}, Have: ${lockedRP}`);
+    }
+    const lockedTransactions = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
+    const merged = [...lockedTransactions, transaction].slice(-CLAN_BANK_CONSTANTS.TRANSACTION_HISTORY_LIMIT);
+
+    await tx.update(clans).set({
+      ...treasuryDelta({ metal: -upgradeCost.metal, energy: -upgradeCost.energy, researchPoints: -upgradeCost.rp }),
+      bankUpgradeLevel: newLevel,
+      bankCapacity: Number(BigInt(newCapacity)),
+      bankTransactions: merged,
+    }).where(eq(clans.id, clanId));
+  });
   
   await logClanActivity(clanId, ClanActivityType.BANK_UPGRADED, playerId, {
     newLevel,

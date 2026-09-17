@@ -8,6 +8,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema/clans';
+import { withClanTreasuryLock, treasuryDelta } from '@/lib/db/treasuryLock';
 import { ClanBankTransactionType } from '@/types/clan.types';
 import type { ClanBankTransaction } from '@/types/clan.types';
 
@@ -150,14 +151,22 @@ export async function deductWMDCost(
       description,
     };
 
-    const existingTransactions = clan.bankTransactions || [];
-    const updatedTransactions = [...existingTransactions, bankTransaction].slice(-100);
+    // FID-20260917-001: funds re-validated against the LOCKED row (the earlier
+    // validation is a fail-fast preview); debit is relative SQL; the jsonb
+    // transaction append reads the locked row.
+    await withClanTreasuryLock(clanId, async (tx, locked) => {
+      const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+      const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+      if (lockedMetal < cost.metal || lockedEnergy < cost.energy) {
+        throw new Error('Insufficient clan treasury for WMD purchase');
+      }
+      const existingTransactions = (locked.bankTransactions as ClanBankTransaction[] | undefined) || [];
 
-    await db.update(clans).set({
-      bankTreasuryMetal: Number(clan.bankTreasuryMetal) - cost.metal,
-      bankTreasuryEnergy: Number(clan.bankTreasuryEnergy) - cost.energy,
-      bankTransactions: updatedTransactions,
-    }).where(eq(clans.id, clanId));
+      await tx.update(clans).set({
+        ...treasuryDelta({ metal: -cost.metal, energy: -cost.energy }),
+        bankTransactions: [...existingTransactions, bankTransaction].slice(-100),
+      }).where(eq(clans.id, clanId));
+    });
 
     const remainingTreasury = {
       metal: Number(clan.bankTreasuryMetal) - cost.metal,

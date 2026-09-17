@@ -29,6 +29,7 @@ import type { ClanTerritory } from '@/types/clan.types';
 import { notifySystem } from '@/lib/battleNotification';
 import { awardRP } from '@/lib/researchPointService';
 import { awardClanXP } from '@/lib/clanLevelService';
+import { withClanTreasuryLock, treasuryDelta } from '@/lib/db/treasuryLock';
 
 /** Territories as stored in the clans.territories jsonb (loose row shape -> canonical type). */
 function asTerritories(raw: ClanWarfareRow['territories'] | ClanTerritory[] | undefined): ClanTerritory[] {
@@ -252,13 +253,17 @@ export async function declareWar(
   const warId = `WAR-${Date.now()}-${generateId()}`;
 
   // Atomic: treasury debit + war row + mod_log entry.
-  await db.transaction(async (tx) => {
+  // FID-20260917-001: the pre-checks above are a fail-fast preview; the debit
+  // re-validates against the LOCKED row and uses relative SQL.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+    const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+    if (lockedMetal < cost.metal) throw new Error(`Insufficient Metal (need ${cost.metal}, have ${lockedMetal})`);
+    if (lockedEnergy < cost.energy) throw new Error(`Insufficient Energy (need ${cost.energy}, have ${lockedEnergy})`);
+
     await tx
       .update(clans)
-      .set({
-        bankTreasuryMetal: treasury.metal - cost.metal,
-        bankTreasuryEnergy: treasury.energy - cost.energy,
-      })
+      .set(treasuryDelta({ metal: -cost.metal, energy: -cost.energy }))
       .where(eq(clans.id, clanId));
 
     await tx.insert(clanWars).values({
@@ -490,9 +495,10 @@ export async function attemptTerritoryCapture(
 
   if (!captured) {
     await db.transaction(async (tx) => {
+      // FID-20260917-001: relative SQL debit (composes with concurrent writers).
       await tx
         .update(clans)
-        .set({ bankTreasuryMetal: treasury.metal - cost.metal, bankTreasuryEnergy: treasury.energy - cost.energy })
+        .set(treasuryDelta({ metal: -cost.metal, energy: -cost.energy }))
         .where(eq(clans.id, clanId));
       await tx
         .update(clanWars)
@@ -531,17 +537,17 @@ export async function attemptTerritoryCapture(
       .update(clans)
       .set({
         territories: defenderTerritories.filter((t) => !(t.tileX === tileX && t.tileY === tileY)),
-        statsTotalTerritories: Math.max(0, (targetClan.statsTotalTerritories || 0) - 1),
+        statsTotalTerritories: sql`GREATEST(0, ${clans.statsTotalTerritories} - 1)`,
       })
       .where(eq(clans.id, targetClanId));
 
+    // FID-20260917-001: relative SQL debit (composes with concurrent writers).
     await tx
       .update(clans)
       .set({
-        bankTreasuryMetal: treasury.metal - cost.metal,
-        bankTreasuryEnergy: treasury.energy - cost.energy,
+        ...treasuryDelta({ metal: -cost.metal, energy: -cost.energy }),
         territories: [...attackerTerritories, newTerritory],
-        statsTotalTerritories: (clan.statsTotalTerritories || 0) + 1,
+        statsTotalTerritories: sql`${clans.statsTotalTerritories} + 1`,
       })
       .where(eq(clans.id, clanId));
 
@@ -713,23 +719,23 @@ export async function settleWar(
         rp: Math.floor(((loser.researchResearchPoints || 0) * WAR_CONSTANTS.WAR_SPOILS_RP_PERCENT) / 100),
       };
 
-      const winnerTreasury = treasuryOf(winner);
       await db.transaction(async (tx) => {
+        // FID-20260917-001: relative SQL on both sides — spoils transfer
+        // conserves funds under any interleaving. The spoils PERCENTAGE still
+        // derives from the pre-transaction snapshot (disclosed in the FID).
         await tx
           .update(clans)
           .set({
-            bankTreasuryMetal: loserTreasury.metal - spoils!.metal,
-            bankTreasuryEnergy: loserTreasury.energy - spoils!.energy,
-            statsWarsLost: (loser.statsWarsLost || 0) + 1,
+            ...treasuryDelta({ metal: -spoils!.metal, energy: -spoils!.energy }),
+            statsWarsLost: sql`${clans.statsWarsLost} + 1`,
           })
           .where(eq(clans.id, loserClanId));
 
         await tx
           .update(clans)
           .set({
-            bankTreasuryMetal: winnerTreasury.metal + spoils!.metal,
-            bankTreasuryEnergy: winnerTreasury.energy + spoils!.energy,
-            statsWarsWon: (winner.statsWarsWon || 0) + 1,
+            ...treasuryDelta({ metal: spoils!.metal, energy: spoils!.energy }),
+            statsWarsWon: sql`${clans.statsWarsWon} + 1`,
           })
           .where(eq(clans.id, winnerClanId));
       });

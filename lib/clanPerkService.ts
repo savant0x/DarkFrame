@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { withClanTreasuryLock, treasuryDelta } from '@/lib/db/treasuryLock';
 import {
   Clan,
   ClanPerk,
@@ -81,16 +82,34 @@ export async function activatePerk(
     activatedBy: playerId,
   };
 
-  const updatedPerks = [...clan.activePerks, activatedPerk];
+  // FID-20260917-001: balances re-validated against the LOCKED row (the checks
+  // above are a fail-fast preview); debit is relative SQL; activePerks jsonb is
+  // read from the locked row so same-clan perk writes serialize.
+  await withClanTreasuryLock(clanId, async (tx, locked) => {
+    const lockedMetal = Number(locked.bankTreasuryMetal) || 0;
+    const lockedEnergy = Number(locked.bankTreasuryEnergy) || 0;
+    const lockedRP = Number(locked.bankTreasuryResearchPoints) || 0;
+    if (lockedMetal < metal) {
+      throw new Error(`Insufficient metal in bank (need ${metal}, have ${lockedMetal})`);
+    }
+    if (lockedEnergy < energy) {
+      throw new Error(`Insufficient energy in bank (need ${energy}, have ${lockedEnergy})`);
+    }
+    if (lockedRP < researchPoints) {
+      throw new Error(`Insufficient RP in bank (need ${researchPoints}, have ${lockedRP})`);
+    }
+    const lockedPerks = (locked.activePerks as typeof clan.activePerks | undefined) || [];
+    if (lockedPerks.length >= CLAN_PERK_LIMITS.MAX_ACTIVE_PERKS) {
+      throw new Error(`Maximum active perks reached (${CLAN_PERK_LIMITS.MAX_ACTIVE_PERKS}). Deactivate a perk first.`);
+    }
 
-  await db.update(clans)
-    .set({
-      activePerks: updatedPerks,
-      bankTreasuryMetal: Number(BigInt(Number(clan.bank.treasury.metal) - metal)),
-      bankTreasuryEnergy: Number(BigInt(Number(clan.bank.treasury.energy) - energy)),
-      bankTreasuryResearchPoints: clan.bank.treasury.researchPoints - researchPoints,
-    })
-    .where(eq(clans.id, clanId));
+    await tx.update(clans)
+      .set({
+        activePerks: [...lockedPerks, activatedPerk],
+        ...treasuryDelta({ metal: -metal, energy: -energy, researchPoints: -researchPoints }),
+      })
+      .where(eq(clans.id, clanId));
+  });
 
   await logPerkActivity(clanId, playerId, 'activate', perkId, perk.name);
 
@@ -142,11 +161,16 @@ export async function deactivatePerk(
 
   const updatedPerks = clan.activePerks.filter((p) => p.id !== perkId);
 
-  await db.update(clans)
-    .set({
-      activePerks: updatedPerks,
-    })
-    .where(eq(clans.id, clanId));
+  // FID-20260917-001: no treasury columns here, but the activePerks jsonb write
+  // joins the lock envelope so same-clan perk writers serialize with deposits,
+  // claims, and captures touching the same row.
+  await withClanTreasuryLock(clanId, async (tx) => {
+    await tx.update(clans)
+      .set({
+        activePerks: updatedPerks,
+      })
+      .where(eq(clans.id, clanId));
+  });
 
   await logPerkActivity(clanId, playerId, 'deactivate', perkId, activePerk.name);
 

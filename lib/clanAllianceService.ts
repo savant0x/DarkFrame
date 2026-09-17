@@ -33,6 +33,7 @@
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { withClanTreasuryLock } from '@/lib/db/treasuryLock';
 
 
 export enum AllianceType {
@@ -220,11 +221,18 @@ export async function proposeAlliance(
     throw new Error(`Insufficient funds. Need ${cost.metal} metal, ${cost.energy} energy`);
   }
   
+  // FID-20260917-001: joins the shared lock envelope; sufficiency re-checked
+  // against the LOCKED row before the (already relative-SQL) debit.
   if (cost.metal > 0 || cost.energy > 0) {
-    await db.update(clans).set({
-      bankTreasuryMetal: sql`${clans.bankTreasuryMetal} - ${cost.metal}`,
-      bankTreasuryEnergy: sql`${clans.bankTreasuryEnergy} - ${cost.energy}`,
-    }).where(eq(clans.id, proposingClanId));
+    await withClanTreasuryLock(proposingClanId, async (tx, locked) => {
+      if ((Number(locked.bankTreasuryMetal) || 0) < cost.metal || (Number(locked.bankTreasuryEnergy) || 0) < cost.energy) {
+        throw new Error(`Insufficient funds. Need ${cost.metal} metal, ${cost.energy} energy`);
+      }
+      await tx.update(clans).set({
+        bankTreasuryMetal: sql`${clans.bankTreasuryMetal} - ${cost.metal}`,
+        bankTreasuryEnergy: sql`${clans.bankTreasuryEnergy} - ${cost.energy}`,
+      }).where(eq(clans.id, proposingClanId));
+    });
   }
   
   const proposerRows = await db.select().from(players).where(eq(players.username, proposedBy)).limit(1);
@@ -327,11 +335,18 @@ export async function acceptAlliance(
     throw new Error(`Insufficient funds. Need ${cost.metal} metal, ${cost.energy} energy`);
   }
   
+  // FID-20260917-001: joins the shared lock envelope; sufficiency re-checked
+  // against the LOCKED row before the (already relative-SQL) debit.
   if (cost.metal > 0 || cost.energy > 0) {
-    await db.update(clans).set({
-      bankTreasuryMetal: sql`${clans.bankTreasuryMetal} - ${cost.metal}`,
-      bankTreasuryEnergy: sql`${clans.bankTreasuryEnergy} - ${cost.energy}`,
-    }).where(eq(clans.id, acceptingClanId));
+    await withClanTreasuryLock(acceptingClanId, async (tx, locked) => {
+      if ((Number(locked.bankTreasuryMetal) || 0) < cost.metal || (Number(locked.bankTreasuryEnergy) || 0) < cost.energy) {
+        throw new Error(`Insufficient funds. Need ${cost.metal} metal, ${cost.energy} energy`);
+      }
+      await tx.update(clans).set({
+        bankTreasuryMetal: sql`${clans.bankTreasuryMetal} - ${cost.metal}`,
+        bankTreasuryEnergy: sql`${clans.bankTreasuryEnergy} - ${cost.energy}`,
+      }).where(eq(clans.id, acceptingClanId));
+    });
   }
   
   await db.execute(sql`
