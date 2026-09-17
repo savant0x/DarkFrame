@@ -1,5 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // SESSION-2026-09-17-039: pin the workspace root explicitly. Stray
+  // package.json/package-lock.json in the user's HOME directory made Next's
+  // lockfile inference pick the home dir as workspace root ("Next.js ignored
+  // package-lock.json in C:\Users\spenc because it would include your home
+  // directory" on every dev/build start). Verified against next@16.3.5
+  // server/config.js: an explicit root here skips BOTH inference warnings
+  // (home-dir boundary + duplicated-lockfiles) in BOTH bundler modes — the key
+  // doubles as turbopack.root; never set the two to different values.
+  outputFileTracingRoot: __dirname,
+
   // NOTE: This repo lives on an exFAT volume, which cannot store symlinks/junctions.
   // - Turbopack requires junction points for its build harness, so it PANICS here.
   //   Always build with `next build --webpack` (the package.json scripts do this).
