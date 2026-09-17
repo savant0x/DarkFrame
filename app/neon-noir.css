@@ -1921,6 +1921,21 @@ span.nn-panel__icon > svg {
   background: color-mix(in oklab, var(--nn-void) 70%, transparent);
   border: 1px solid color-mix(in oklab, var(--nn-violet) 50%, transparent);
 }
+/* Base indicator pills (own/enemy) — same void-backing method as the bottom
+   status strip and the violet badge: raw neon text on translucent tint is
+   invisible over bright artwork; the dark fill restores legibility. */
+.nn-viewport__badge--green {
+  color: var(--nn-green);
+  background: color-mix(in oklab, var(--nn-void) 72%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-green) 55%, transparent);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--nn-green) 25%, transparent);
+}
+.nn-viewport__badge--magenta {
+  color: var(--nn-magenta);
+  background: color-mix(in oklab, var(--nn-void) 72%, transparent);
+  border: 1px solid color-mix(in oklab, var(--nn-magenta) 55%, transparent);
+  box-shadow: 0 0 14px color-mix(in oklab, var(--nn-magenta) 25%, transparent);
+}
 .nn-attack__edge {
   border: 3px solid color-mix(in oklab, var(--nn-magenta) 75%, transparent);
   box-shadow: 0 0 50px color-mix(in oklab, var(--nn-magenta) 70%, transparent);

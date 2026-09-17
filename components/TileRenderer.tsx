@@ -459,7 +459,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
         {isPlayerBase && !baseImageError && baseImagePath && (
           <Image
             src={baseImagePath}
-            alt={`Rank ${playerRank} base`}
+            alt={`Level ${player?.level || 1} base`}
             fill
             sizes="(min-width: 0px) 42rem"
             className="object-cover z-10"
@@ -517,10 +517,8 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             so an enemy base never reads as friendly territory (FID-20260909-036). */}
         {tile.occupiedByBase && (
           <div
-            className={`absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-none border px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider shadow-[0_0_14px_color-mix(in_oklab,var(--nn-green)_25%,transparent)] ${
-              isEnemyBase
-                ? 'border-[color-mix(in_oklab,var(--nn-magenta)_55%,transparent)] bg-[color-mix(in_oklab,var(--nn-magenta)_16%,transparent)] text-[color:var(--nn-magenta)]'
-                : 'border-[color-mix(in_oklab,var(--nn-green)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-green)_14%,transparent)] text-[color:var(--nn-green)]'
+            className={`absolute right-4 top-4 z-20 flex items-center gap-1.5 rounded-none px-3 py-1 font-orbitron text-xs font-bold uppercase tracking-wider ${
+              isEnemyBase ? 'nn-viewport__badge--magenta' : 'nn-viewport__badge--green'
             }`}
           >
             {isEnemyBase ? (
@@ -531,7 +529,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               </>
             ) : (
               <>
-                <Home className="h-3.5 w-3.5" /> Base {playerRank > 1 ? `(Rank ${playerRank})` : ''}
+                <Home className="h-3.5 w-3.5" /> Base {playerRank > 1 ? `(Rank ${playerRank})` : ''} · LV {player?.level || 1}
               </>
             )}
           </div>

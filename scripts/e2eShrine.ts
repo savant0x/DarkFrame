@@ -82,7 +82,7 @@ async function probeRow(
   const r = await db.execute(
     sql`SELECT inventory_items, shrine_boosts, stats FROM players WHERE username = ${u}`
   );
-  return (r.rows as Array<ProbeRow>)[0];
+  return (r.rows as unknown as Array<ProbeRow>)[0];
 }
 
 function tradeCount(row: ProbeRow): number {
