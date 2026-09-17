@@ -747,6 +747,19 @@ No other work is approved. `fix(profile)` commit presented, not executed (G1 def
 
 ---
 
+### Session 2026-09-17 (035, cont.) — C1 follow-on FID filed: clan-treasury snapshot-writer hardening
+
+- [x] **FID-20260917-001 filed** (`dev/fids/FID-20260917-001-clan-treasury-snapshot-writer-hardening.md`,
+      status loop-complete, implementation gated on go-ahead). Scope honored FID-013's explicit C1 carve-out and
+      widened it with fresh probes: the snapshot-writer class is 12 sites across 7 services (claim/income,
+      deposit/withdraw/upgrade, perk activation, WMD purchase + admin refund, FID-013's own residual debits) —
+      vs the already-safe relative-`sql` idiom in alliance/distribution services. GREEN: shared
+      `withClanTreasuryLock` helper (`.for('update')` availability verified against drizzle 0.45.2 select.d.ts:586
+      — zero current usages, flagged new idiom) + relative-SQL arithmetic everywhere. Honest caveat recorded:
+      jsonb transaction-log appends stay read-modify-write inside the lock (same-clan serialized; disclosed in
+      Five Questions Q3, not hidden). First-ever test coverage for this class planned
+      (__tests__/lib/treasuryConcurrency.test.ts). Fresh gates baseline recorded: tsc 0 · lint 0 · 966+1skip
+
 ### Session 2026-09-16 (035) — Territory-capture full redesign: design review + FID-013 re-plan (Perfection Loop)
 
 Operator directive: "the initial design for territory capture probably needs a complete redesign. Review what docs outline
