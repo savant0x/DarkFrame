@@ -82,6 +82,8 @@ tsc 0 (after honoring the five-prop interface) · eslint 0 · full suite
 
 ## 8. Closure
 
-- **Gates:** — filled at closure on operator go-ahead.
-- **Commit hash (G2):** — filled at closure.
+- **Gates:** [x] 3 mount pins · [x] tsc 0 (after honoring the five-prop
+  interface) · [x] eslint 0 · [x] census 0 · [x] suite 1020+1skip.
+- **Commit hash (G2):** `296b48c` (batch carried the SCOPE rows 86-87 mojibake
+  repair, 12 seqs).
 - **Post-commit:** FID archived; SCOPE row 88 → Closed; CHANGELOG; VERSION.

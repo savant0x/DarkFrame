@@ -128,6 +128,6 @@ remained at implementation time. Status: **loop-complete**.
 
 - **Gates:** [x] 5 pins green · [x] live probe 3/3 exit 0 · [x] live server 200
   with real cookie · [x] tsc 0 · [x] eslint 0 · [x] vitest 1004+1skip
-- **Commit hash (G2):** — filled at closure on operator go-ahead.
+- **Commit hash (G2):** `90f7f5f` (implementation batch; closure batch fills row 83's disposition).
 - **Post-commit:** FID archived; SCOPE row 83 → Closed (in-place substitution);
   CHANGELOG entry; VERSION bump.

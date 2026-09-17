@@ -146,6 +146,8 @@ live probe 5/5 exit 0 (mongoId-NULL clone) · census exit 0 (push gate intact).
 
 ## 8. Closure
 
-- **Gates:** — filled at closure on operator go-ahead.
-- **Commit hash (G2):** — filled at closure.
+- **Gates:** [x] 13 pins (6 WHERE-key + 5 webhook behavioral + 2 double-run oracle)
+  · [x] live probe 5/5 exit 0 on a mongoId-NULL clone · [x] tsc 0 · [x] eslint 0
+  (6 files) · [x] vitest 1017+1skip at oracle time · [x] census 0.
+- **Commit hash (G2):** `70e6b2d`.
 - **Post-commit:** FID archived; SCOPE row 86 → Closed; CHANGELOG; VERSION.

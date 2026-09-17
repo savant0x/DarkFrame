@@ -5,6 +5,24 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.9] — 2026-09-17 session
+
+### Fixed — FID-20260917-008: /api/player/inventory migrated to pg (closed, commit `90f7f5f`)
+
+- The route InventoryPanel fetches every game load had survived the pg pivot on the Mongo stack — dead `playerId`-cookie auth + `clientPromise` query, 401 for every player since the pivot, silently collapsed to an empty inventory by the panel's `response.ok` guard. Rewritten on `requireAuth` (darkframe_session) + drizzle: the exact unwrapped InventoryData contract (numerics parsed, `expiresAt` ISO string). 5 pins; live probe 3/3 against a real player row (47 items).
+
+### Fixed — FID-20260917-009: Stripe VIP money path re-keyed to username + webhook false-success killed (closed, commit `70e6b2d`)
+
+- All four money functions (`grantVIP`/`revokeVIP`/`extendVIP`/`checkVIPStatus`) looked up `players.mongoId` — NULL for 100% of players — while checkout embeds username: the grant path was dead for everyone, and the webhook logged "VIP granted successfully" on failure while recording the payment (Stripe got 200, never retried; money captured, no VIP, no error). Lookups now key on `players.username`; a failed grant throws (→ 500 → Stripe retries) at three sites (checkout + the two previously-swallowed renewal/cancellation paths) and never records the payment; handlers moved to `lib/stripe/webhookHandlers.ts` (route = transport + signature verification). Evidence includes the double-run oracle — real handlers → real service → real drizzle expressions evaluated in-memory — proving the grant lands in state on delivery and redelivery, bystander untouched; live probe 5/5 on a mongoId-NULL clone.
+
+### Added — FID-20260917-010: unreachable clan UI mounted (closed, commit `296b48c`)
+
+- AlliancePanel (complete diplomacy UI + five live `/api/clan/alliance/*` routes) had zero importers — mounted as ClanPanel's Alliances tab with the full five-prop contract (`treasuryMetal` rides the sanctioned `/api/clan/[id]` payload). Mount-surface probe also found FID-20260916-012's ClanResearchPanel mounted behind a disabled tab since it shipped — unblocked. First mount-level render pins (real ClanPanel under jsdom).
+
+### Added — pre-push census gate (commit `79293ac`)
+
+- The inverted route census (FID-20260917-007 tool) now runs as Gate 1 of pre-push: called-but-never-built endpoints can no longer merge silently, and the gate also catches route deletions that orphan existing callers. Fail-closed on MISSING and UNPARSED; drilled end-to-end on a hermetic local bare remote (clean push accepted, poisoned push refused exit 1).
+
 ## [0.0.8] — 2026-09-17 session
 
 ### Fixed — FID-20260917-007: inverted route census + two more never-built caller rewires (closed, commit `9d75ae4`)
