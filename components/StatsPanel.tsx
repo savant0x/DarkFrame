@@ -185,10 +185,13 @@ export default function StatsPanel({ onClanClick, onReferralsClick, onFactoryMan
       }
 
       try {
-        const response = await fetch(`/api/clan?clanId=${player.clanId}`);
+        // FID-20260917-007: was `/api/clan?clanId=…` — a route that never existed
+        // (found by the inverted route census); rewired to the canonical detail
+        // route built in FID-20260917-006.
+        const response = await fetch(`/api/clan/${player.clanId}`);
         if (response.ok) {
           const data = await response.json();
-          setClanTag(data.tag || null);
+          setClanTag(data.clan?.tag || null);
         }
       } catch (error) {
         console.error('Failed to fetch clan tag:', error);

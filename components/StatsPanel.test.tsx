@@ -272,7 +272,7 @@ describe('StatsPanel', () => {
 
       (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ tag: 'EW' }),
+        json: async () => ({ success: true, clan: { name: 'Elite Warriors', tag: 'EW' } }),
       });
 
       vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithClan }));
@@ -285,7 +285,7 @@ describe('StatsPanel', () => {
       
       // Should fetch clan tag
       await waitFor(() => {
-        expect(global.fetch).toHaveBeenCalledWith('/api/clan?clanId=clan123');
+        expect(global.fetch).toHaveBeenCalledWith('/api/clan/clan123');
       });
     });
 
@@ -298,7 +298,7 @@ describe('StatsPanel', () => {
 
       (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ tag: 'EW' }),
+        json: async () => ({ success: true, clan: { name: 'Elite Warriors', tag: 'EW' } }),
       });
 
       vi.mocked(useGameContext).mockReturnValue(makeCtx({ player: playerWithClan }));
