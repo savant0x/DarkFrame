@@ -13,3 +13,17 @@ export * from './formatting';
 
 // Re-export auto-farm engine utilities
 export * from './autoFarmEngine';
+
+// Re-export shrine helpers (durations, rarity) — completes the barrel so
+// '@/utils' offers every utils module (formatting.ts already documents
+// '@/utils' as an import path). Explicit list: shrineHelpers' formatDuration
+// would collide with formatting's (TS2308) — the formatting one wins the
+// barrel; shrine callers import '@/utils/shrineHelpers' directly (as today).
+export {
+  RARITY_DURATION_MINUTES,
+  MAX_BUFF_DURATION_HOURS,
+  calculateDuration,
+  estimateDuration,
+  itemsForMaxDuration,
+  getRarityColor,
+} from './shrineHelpers';

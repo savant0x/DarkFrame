@@ -7,6 +7,11 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.1] — 2026-09-16 session
 
+### Fixed — daily-login streak bonus
+
+- Streak bonus is now +10 RP per consecutive day beyond day 1, hard-capped at +70 RP (reached at streak day 8+). Day 7 pays 160 RP base-streak (previously 170 at day 7 under the off-by-one cap); day 8+ pays the 170 max as documented.
+- Curve extracted as a pure function (`calculateStreakBonus`) pinned by unit tests (day 1 zero, +10/day ramp, cap binding at day 8, non-finite inputs pay zero).
+
 ### Added — FID-20260916-012: clan research panel — contribute/unlock UI (closed, commit `afcb92e`)
 
 - The research tab's ComingSoonTab placeholder is replaced by the real panel: a thin `GET /api/clan/research/state` (`requireClanMembership` → `getResearchTree`, tree verbatim, no role data exposed), a fund header over the shared `researchResearchPoints` balance, a single MILITARY-honest node list (the FID-20260912-058 C1 cut preserved — 4 nodes, no fake branch tabs over empty arrays), contribute spending personal `researchPoints` into the clan fund, and unlock buttons gated presentationally for officers while the server remains the sole authority (`Insufficient permissions` surfaced verbatim).

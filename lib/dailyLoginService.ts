@@ -10,7 +10,8 @@
  * 
  * REWARD STRUCTURE:
  * - Base Daily RP: 100 RP per day
- * - Streak Bonus: +10 RP per consecutive day (capped at 7 days = +70 RP max)
+ * - Streak Bonus: +10 RP per consecutive day beyond day 1, capped at +70 RP
+ *   (cap reached at streak day 8+)
  * - VIP Bonus: +50% on all daily login RP (applied via awardRP)
  * - Maximum Daily Login RP: 170 RP (255 RP for VIP with +50% bonus)
  * 
@@ -18,7 +19,8 @@
  * - Day 1: 100 RP base
  * - Day 2: 100 RP base + 10 RP streak = 110 RP
  * - Day 3: 100 RP base + 20 RP streak = 120 RP
- * - Day 7+: 100 RP base + 70 RP streak = 170 RP (capped)
+ * - Day 7: 100 RP base + 60 RP streak = 160 RP
+ * - Day 8+: 100 RP base + 70 RP streak = 170 RP (capped)
  * - Miss 24 hours: Streak resets to 0
  * 
  * DATABASE SCHEMA:
@@ -41,8 +43,11 @@ const BASE_DAILY_RP = 100;
 /** RP bonus per consecutive day */
 const STREAK_BONUS_PER_DAY = 10;
 
-/** Maximum streak days for bonus calculation (7 days = +70 RP max) */
+/** Maximum streak days tracked for display/bonus input (uncapped streak still counts) */
 const MAX_STREAK_DAYS = 7;
+
+/** Hard cap on the streak bonus RP (+70 reached at streak day 8+) */
+const MAX_STREAK_BONUS = 70;
 
 /** Hours until streak breaks (24 hours = 1 day) */
 const STREAK_BREAK_HOURS = 24;
@@ -80,6 +85,16 @@ export interface LoginStatus {
 // ============================================================================
 // CORE FUNCTIONS
 // ============================================================================
+
+/**
+ * Pure streak-bonus curve (operator-accepted design): +10 RP per consecutive
+ * day beyond day 1, hard-capped at +70 RP (reached at streak day 8+).
+ * Extracted pure so the curve is unit-pinned without touching the database.
+ */
+export function calculateStreakBonus(streakDays: number): number {
+  if (!Number.isFinite(streakDays) || streakDays < 1) return 0;
+  return Math.min((Math.floor(streakDays) - 1) * STREAK_BONUS_PER_DAY, MAX_STREAK_BONUS);
+}
 
 /**
  * Check and award daily login reward
@@ -155,8 +170,8 @@ export async function checkDailyLogin(username: string): Promise<DailyLoginResul
     // Cap streak at maximum for bonus calculation
     const effectiveStreak = Math.min(newStreak, MAX_STREAK_DAYS);
     
-    // Calculate RP reward: base + streak bonus
-    const streakBonus = (effectiveStreak - 1) * STREAK_BONUS_PER_DAY; // Day 1 = 0 bonus
+    // Calculate RP reward: base + streak bonus (pure curve, pinned by unit test)
+    const streakBonus = calculateStreakBonus(newStreak);
     const totalRP = BASE_DAILY_RP + streakBonus;
 
     // Award RP via researchPointService (applies VIP bonus automatically)
@@ -379,7 +394,7 @@ export async function resetLoginStreak(username: string): Promise<boolean> {
  * 
  * 5. VIP Benefits:
  *    - VIP automatically gets +50% daily login RP via awardRP function
- *    - Example: 7-day streak = 170 RP base, 255 RP for VIP
+ * - Example: 8-day streak = 170 RP base, 255 RP for VIP
  * 
  * FUTURE ENHANCEMENTS:
  * - Milestone rewards (7 days, 30 days, 90 days)
