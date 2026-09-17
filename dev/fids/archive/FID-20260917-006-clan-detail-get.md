@@ -1,6 +1,6 @@
 # FID-20260917-006 — Clan detail GET: the 404 behind "Failed to load clan data"
 
-**Status:** `implemented (this session)`
+**Status:** `closed (commit `22f5889`)`
 **Session:** 2026-09-17 (043)
 **Origin:** Operator bug report with screenshot: created a clan ("Savant"), clicking it
 from the sidebar spins forever and toasts "Failed to load clan data".
@@ -74,3 +74,13 @@ all pinned. No open findings; header set at filing time (no lag defect).
 - The **immediate operator unblock**: the dev server was down at report time; after
   restart, the sidebar clan view loads (probe-verified contract).
 - Batch uncommitted per convention; footer-free plan in session 043.
+
+## 8. Closure
+
+- **Gates:** [x] tsc 0 · [x] eslint 0 · [x] vitest 999+1skip (baseline 995+1, +4 pins) ·
+  [x] live probe 4/4 exit 0 (CONTRACT / 404 / 401 / CLEANUP, DIAG sign-verify line recorded)
+- **Commit hash (G2):** `22f5889` — committed 2026-09-17 on operator go-ahead;
+  6 files, +486; staged set owner-checked before commit (6 paths, SCOPE row 80 only).
+- **Post-commit:** FID archived; SCOPE row 80 → Closed; CHANGELOG [0.0.7]; VERSION 0.0.7.
+- **Operator follow-up:** restart the dev server to serve the fixed route (server was
+  down at report time); clan sidebar + modal then load with no client change needed.

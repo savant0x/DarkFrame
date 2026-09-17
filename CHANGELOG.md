@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.7] — 2026-09-17 session
+
+### Fixed — FID-20260917-006: clan detail GET rebuilt (closed, commit `22f5889`)
+
+- The clan sidebar view and the clan modal have both called `GET /api/clan/[id]` since 2025-10-19, but the route never existed (no deletion in history — the client was written against a planned endpoint that never shipped), so every clan-page load 404'd into "Failed to load clan data".
+- The route now exists: `requireAuth` → `getClanById` → `{ success, clan }` with the full clan shape the UI consumes (inline members for the role gate, level for the header, settings, stats), house error envelopes (`CLAN_NOT_FOUND` 404), any-signed-in-player authorization (join previews need it; payload is public-class).
+- 4 pins including the exact consumer reads; live probe 4/4 exit 0 against the dev DB (contract 200 / 404 envelope / 401 pass-through / cleanup). Class note recorded: the 237-route dead-route census covered existing-but-uncalled routes — this was called-but-never-built, the inverse class.
+
 ## [0.0.6] — 2026-09-17 session
 
 ### Fixed — FID-20260917-004: abandon rewire + player-log view (closed, commit `ef64421`)
