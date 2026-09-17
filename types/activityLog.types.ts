@@ -83,10 +83,9 @@ export enum ActionType {
   UNIT_DISBAND = 'unit_disband',
   UNIT_UPGRADE = 'unit_upgrade',
   
-  // SHRINE (3 types)
-  SHRINE_VISIT = 'shrine_visit',
-  SHRINE_BOOST = 'shrine_boost',
-  SHRINE_COMPLETE = 'shrine_complete',
+  // SHRINE (0 types — the route family logs nothing by design; the visit/boost
+  // mappings were removed 2026-09-17: they pointed at routes that never existed,
+  // and SHRINE_COMPLETE was never written by any code)
   
   // DISCOVERY (2 types)
   DISCOVERY_FOUND = 'discovery_found',

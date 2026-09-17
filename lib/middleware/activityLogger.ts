@@ -85,10 +85,6 @@ const ROUTE_ACTION_MAP: Record<string, ActionType> = {
   '/api/units/disband': ActionType.UNIT_DISBAND,
   '/api/units/upgrade': ActionType.UNIT_UPGRADE,
   
-  // Shrine routes
-  '/api/shrine/visit': ActionType.SHRINE_VISIT,
-  '/api/shrine/boost': ActionType.SHRINE_BOOST,
-  
   // Discovery routes
   '/api/discovery/status': ActionType.DISCOVERY_VIEW,
   
