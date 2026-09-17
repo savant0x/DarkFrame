@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.8] — 2026-09-17 session
+
+### Fixed — FID-20260917-007: inverted route census + two more never-built caller rewires (closed, commit `9d75ae4`)
+
+- The inverse of the 237-route dead-route census: every client fetch URL must resolve to an existing app/api route. New standing tool `scripts/invertedRouteCensus.cjs` (302 call sites vs 238 routes; comment-stripped, interpolation sentinels for template-literals, documented waivers, exit-1 gate).
+- Found the FID-006 class twice more: `GET /api/clan?clanId=` called by StatsPanel (clan tag) and TopNavBar (nav clan badge) never existed, and both callers' silent `response.ok` guards hid the 404s — those UI elements never rendered for anyone. Both rewired to the canonical `GET /api/clan/[id]` from FID-006 (that route now serves 4 callers); no twin endpoint minted.
+- Two candidates verified as waived false positives (VIP `${action}` resolves to real literal child routes `grant`/`revoke`; a commented JSDoc example) — structurally handled, not hand-waived. Census exit 0; gates tsc 0 / eslint 0 / vitest 999+1skip.
+
 ## [0.0.7] — 2026-09-17 session
 
 ### Fixed — FID-20260917-006: clan detail GET rebuilt (closed, commit `22f5889`)

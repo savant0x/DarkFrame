@@ -1,6 +1,6 @@
 # FID-20260917-007 — Inverted route census: called-but-never-built sweep + two rewires
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (commit `9d75ae4`)`
 **Session:** 2026-09-17 (045)
 **Origin:** Operator directive after FID-20260917-006: "Run the inverted route census:
 every client fetch's URL must resolve to an existing app/api route — file the FID for
@@ -78,3 +78,12 @@ No open findings.
 - The census is repeatable: `node scripts/invertedRouteCensus.cjs` (exit 1 = new
   called-but-never-built endpoint or a stale waiver — both demand eyes).
 - Batch uncommitted per convention; footer-free plan in session 045.
+
+## 8. Closure
+
+- **Gates:** [x] census exit 0 (MISSING 0 · UNPARSED 0 · WAIVED 1 documented) ·
+  [x] tsc 0 · [x] eslint 0 · [x] vitest 999+1skip (pins updated in place)
+- **Commit hash (G2):** `9d75ae4` — committed 2026-09-17 on operator go-ahead;
+  7 files, +310/−8; staged set owner-checked (7 paths, SCOPE row 81 only).
+- **Post-commit:** FID archived; SCOPE row 81 → Closed (in-place substitution);
+  CHANGELOG [0.0.8]; VERSION 0.0.8.
