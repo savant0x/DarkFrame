@@ -79,3 +79,13 @@ file; re-verified zero UI callers.
   `result.tutorialComplete`; `skipTutorial` (via `/decline`) also sets the flag.
   `POST /api/tutorial/complete` (0 UI callers) is a likely-redundant legacy path —
   deletion candidate pending a writer census, not a feature to build.
+
+## Erratum — 2026-09-17 (session 040): shrine-extend finding superseded
+
+The "Extend (`/api/shrine/extend`): 0 UI callers — a real small gap" finding in the
+Shrine section above is superseded: FID-20260917-002 (landed `b11c370`, E2E-verified
+`7f95217`) proved the live panel already extends boosts via `/activate` ("Replace /
+Extend", 8h cap) and the operator deleted `/extend` as a dead second economy alongside
+`/sacrifice`. The shrine system now has exactly two routes (`activate`, `boost-all`),
+both client-wired. This closes the survey's shrine line the same way the tutorial
+`/complete` line remained open — as recorded in SCOPE row 78.
