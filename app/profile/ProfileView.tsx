@@ -21,6 +21,7 @@ import { RichTextEditor } from '@/components/ui';
 import { SafeHtmlRenderer } from '@/components/SafeHtmlRenderer';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import PlayerLogPanel from '@/components/PlayerLogPanel'; // FID-20260917-004: activates /api/logs/player/[id]
 
 interface ProfilePageProps {
   embedded?: boolean; // When true, renders without standalone page wrapper
@@ -365,6 +366,9 @@ export default function ProfilePage({ embedded = false }: ProfilePageProps) {
                 )}
               </div>
             </div>
+
+            {/* Commander Log (FID-20260917-004) — self-scoped combined activity+battle view */}
+            <PlayerLogPanel username={player.username} />
 
             {/* Battle Stats */}
             {profileData.battleStats && (

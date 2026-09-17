@@ -122,6 +122,9 @@ export async function POST(request: NextRequest) {
           lastSlotRegen: now,
           lastAttackedBy: null,
           lastAttackTime: null,
+          // FID-20260917-004: parity with /release — reset the display-only
+          // production rate so abandoned tiles don't carry stale values.
+          productionRate: 1,
           // FID-20260909-032 §7: the factory forgets its owner and its spend.
           investedMetal: 0,
           investedEnergy: 0

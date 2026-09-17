@@ -111,12 +111,14 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
     }
   };
 
+  // FID-20260917-004: calls the canonical /api/factory/abandon (previously the
+  // superset-twin /api/factory/release, which left abandon orphaned).
   const handleAbandon = async (x: number, y: number) => {
     try {
-      const response = await fetch('/api/factory/release', {
+      const response = await fetch('/api/factory/abandon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'single', factoryX: x, factoryY: y })
+        body: JSON.stringify({ factoryX: x, factoryY: y })
       });
       const data = await response.json();
       if (data.success) {
@@ -127,7 +129,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
         toast.error(extractApiError(data, response.status));
       }
     } catch {
-      toast.error('Failed to release factory — network error');
+      toast.error('Failed to abandon factory — network error');
     }
   };
 
@@ -384,7 +386,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
           <div style={{ padding: '10px 20px', borderTop: '1px solid color-mix(in oklab, var(--nn-cyan) 12%, transparent)' }}>
             <div className="nn-lab" style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
               <Info style={{ width: 12, height: 12, flex: 'none', marginTop: 1 }} />
-              <span>Upgrade factories to increase production capacity and regeneration rate. Abandoning a factory resets it to Level 1 and deletes all units.</span>
+              <span>FID-20260914-009: abandoning a factory resets it to Level 1 and releases it unclaimed. Your units are unaffected.</span>
             </div>
           </div>
         </div>
@@ -402,7 +404,7 @@ export default function FactoryManagementPanel({ isOpen, onClose, username }: Fa
                 Are you sure you want to abandon the factory at ({abandonConfirm.x}, {abandonConfirm.y})?
               </p>
               <p style={{ fontSize: 11.5, color: 'var(--nn-magenta)', marginBottom: 14 }}>
-                This will reset the factory to Level 1, make it unclaimed, and <strong>DELETE ALL UNITS</strong>. This cannot be undone!
+                This will reset the factory to Level 1 and make it unclaimed. Your units are unaffected. This cannot be undone!
               </p>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => setAbandonConfirm(null)} className="nn-btn nn-btn--ghost">Cancel</button>
