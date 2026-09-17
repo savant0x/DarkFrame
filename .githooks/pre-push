@@ -15,6 +15,28 @@
 
 set -uo pipefail
 
+# ---- Gate 1: inverted route census (FID-20260917-007, gate-wired 2026-09-17) ----
+# Every client fetch URL must resolve to an existing app/api route, so the
+# called-but-never-built class ("Failed to load clan data", FID-20260917-006)
+# can no longer merge silently. Fail-closed on MISSING and UNPARSED alike —
+# an unparsable call site is unverified, not clean. Always runs (it is ~0.7s):
+# the census catches both directions — new calls to missing routes AND route
+# deletions that orphan existing callers. It scans the worktree, which under a
+# normal push is exactly the to-be-pushed tip.
+echo "🔍 pre-push: inverted route census (called-but-never-built gate)..."
+census_out="$(node scripts/invertedRouteCensus.cjs 2>&1)"
+census_status=$?
+if [ "$census_status" -ne 0 ]; then
+  echo "$census_out" | tail -n 30 >&2
+  echo "❌ pre-push: census refused the push (exit ${census_status}) — fix the" >&2
+  echo "   MISSING/UNPARSED call sites above or add a documented WAIVER in" >&2
+  echo "   scripts/invertedRouteCensus.cjs (full report: node scripts/invertedRouteCensus.cjs)." >&2
+  exit 1
+fi
+echo "✅ pre-push: census clean ($(printf '%s' "$census_out" | head -n 1))"
+
+# ---- Gate 2: agent-attribution watermark scan (ported contract) ----
+
 ZERO_SHA="0000000000000000000000000000000000000000"
 
 watermark_lines() {

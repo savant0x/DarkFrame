@@ -20,7 +20,11 @@
  *   5. Second pass: scan every reported-OK URL's family for near-misses of the
  *      MISSING list (the template-literal lesson from session 037's sweep).
  *
- * Output: console table + exit code 1 if any MISSING (census failure = signal).
+ * Output: console table + exit code 1 if any MISSING or UNPARSED call site.
+ *   Gate contract (wired into .githooks/pre-push 2026-09-17): MISSING is a
+ *   called-but-never-built endpoint; UNPARSED is an unverified call site —
+ *   both refuse the merge. False positives are retired via documented WAIVERS
+ *   in this file, never by weakening the exit contract.
  */
 const fs = require('fs');
 const path = require('path');
@@ -62,7 +66,7 @@ for (const f of routeFiles(API_DIR)) {
 const routeSeg = [...routePatterns].map((p) => p.split('/').filter(Boolean));
 
 // ---- 2. Harvest fetch/apiFetch URLs ----
-const CALL_RE = /(?:\bfetch|\bapiFetch)\(\s*(`[^`]*`|'[^']*'|"[^"]*")/g;
+const CALL_RE = /(?:\bfetch|\bapiFetch)\(\s*([\w$.]*`[^`]*`|'[^']*'|"[^"]*")/g;
 const calls = [];
 const unparsed = [];
 for (const file of walk(path.join(ROOT, 'components'))
@@ -84,7 +88,17 @@ for (const file of walk(path.join(ROOT, 'components'))
   while ((m = CALL_RE.exec(src)) !== null) {
     const raw = m[1];
     const line = src.slice(0, m.index).split('\n').length;
-    if (raw.startsWith('`')) {
+    const backtickIdx = raw.indexOf('`');
+    if (backtickIdx > 0) {
+      // Tagged template (e.g. fetch(String.raw`...`)) — the tag expression
+      // precedes the backtick and its runtime URL is not statically knowable:
+      // park in UNPARSED, never match. (Drill-hardened: an earlier draft put
+      // this check inside the startsWith('`') branch, where it was unreachable
+      // — tagged forms fell to the quoted-string branch and garbled MISSING.)
+      unparsed.push({ file: path.relative(ROOT, file), line, raw: raw.slice(0, 90) });
+      continue;
+    }
+    if (backtickIdx === 0) {
       const inner = raw.slice(1, -1);
       // Sentinel pass: ${...} → \x01 (one path segment each), THEN cut the query
       // on the joined string (a '?' cut per-chunk leaks '&k=' fragments as bogus
@@ -148,6 +162,6 @@ console.log(`\n=== WAIVED (${waived.length}) — documented false positives ===`
 for (const w of waived) console.log(`  ${w.file}:${w.line}  ${w.raw}\n    reason: ${w.reason}`);
 console.log(`\n=== MISSING (${missing.length}) — called but no route matches ===`);
 for (const c of missing) console.log(`  ${c.file}:${c.line}  ${c.raw}`);
-console.log(`\n=== UNPARSED (${unparsed.length}) — needs manual eyes ===`);
+console.log(`\n=== UNPARSED (${unparsed.length}) — unverified call sites (refuse the gate) ===`);
 for (const u of unparsed) console.log(`  ${u.file}:${u.line}  ${u.raw.slice(0, 90)}`);
-process.exit(missing.length > 0 ? 1 : 0);
+process.exit(missing.length > 0 || unparsed.length > 0 ? 1 : 0);
