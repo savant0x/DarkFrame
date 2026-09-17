@@ -13,6 +13,13 @@ Older sessions predate versioning adoption and are kept as dated history.
 - New `PlayerLogPanel` (all/activity/battle tabs, plain-JSON contract, combat-stats wells, outcome coloring, empty/loading/error states) hosted on the own-profile page — `GET /api/logs/player/[id]` has its first caller; both census orphans now live, zero dead routes remain.
 - 6 component pins; gates tsc 0 / eslint 0 / vitest 995+1skip (baseline 989 + 6). Filing artifact: SCOPE rows 76–77; finding record FID-20260917-005 (shrine-extend premise dissolved) rode the same session.
 
+## [0.0.5] — 2026-09-17 session
+
+### Fixed — base indicator pill: level surfaced, legibility on bright artwork (FID-20260917-003 follow-on, commit `b8910eb`)
+
+- The own-base corner pill now shows the level (`Base · LV n`), closing the asymmetry with enemy bases (which already displayed `· LV n`).
+- Both pill variants sit on the bottom status strip's void-backing method — new shared tokens `nn-viewport__badge--green/--magenta` (dark `--nn-void` fill + matching border/glow) — so raw neon text no longer vanishes over bright base artwork; fill opacity tuned on operator review.
+
 ## [0.0.4] — 2026-09-17 session
 
 ### Fixed — FID-20260917-002: shrine dead-economy cleanup + trade parity + presence enforcement (closed, commit `b11c370`)
@@ -30,13 +37,6 @@ Older sessions predate versioning adoption and are kept as dated history.
 ### Removed — SCOPE #75: third shrine orphan + dead activity-logger mappings (commit `16a7fcb`)
 
 - `GET /api/shrine/status` deleted (zero client callers — the panel renders boosts from the player payload), and `activityLogger`'s mappings for `/api/shrine/visit` + `/api/shrine/boost` removed (the routes never existed; `SHRINE_VISIT`/`SHRINE_BOOST` enum members deleted with them — zero writes ever carried those action types).
-
-## [0.0.5] — 2026-09-17 session
-
-### Fixed — base indicator pill: level surfaced, legibility on bright artwork (FID-20260917-003 follow-on, commit `b8910eb`)
-
-- The own-base corner pill now shows the level (`Base · LV n`), closing the asymmetry with enemy bases (which already displayed `· LV n`).
-- Both pill variants sit on the bottom status strip's void-backing method — new shared tokens `nn-viewport__badge--green/--magenta` (dark `--nn-void` fill + matching border/glow) — so raw neon text no longer vanishes over bright base artwork; fill opacity tuned on operator review.
 
 ## [0.0.3] — 2026-09-17 session
 
