@@ -835,7 +835,7 @@ Approved items:
 - [x] Mid-flight disclosure: one edit briefly corrupted boost-all's `$set` (`existingBoosts 4/4`) — caught on
       the edit-output read, repaired, swept (`CORRUPTION_RESIDUE=0`); recorded in FID §7
 
-FID-002 status **`closed`** per G2 — fix commit **`b11c370`** (8 files +366/−476); SCOPE #75 follow-on commit **`16a7fcb`** (+3/−107). Both FIDs archived to dev/fids/archive/; CHANGELOG 0.0.4; VERSION 0.0.3 → 0.0.4. Live E2E driver staged (`scripts/e2eShrine.ts`) pending an operator-side dev-server boot (agent BACKGROUND execution unavailable this session); gates stand on the unit-pin suite (989+1).
+FID-002 status **`closed`** per G2 — fix commit **`b11c370`** (8 files +366/−476); SCOPE #75 follow-on commit **`16a7fcb`** (+3/−107). Both FIDs archived to dev/fids/archive/; CHANGELOG 0.0.4; VERSION 0.0.3 → 0.0.4. **Live E2E subsequently PASSED 20/20** against the running dev server (`:3000`, current HEAD): off-shrine 400 + zero mutation, on-shrine parity (XP 40 + count 1), boost-all once-per-transaction (count 2); driver's envelope-read bug (test-side only) found and fixed en route — addendum in the archived FID.
 
 No other work is approved. Implementation remains gated on go-ahead per the operator's session directive.
 

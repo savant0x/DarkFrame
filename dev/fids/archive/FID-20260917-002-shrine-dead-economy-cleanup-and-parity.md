@@ -170,3 +170,23 @@ npm run test:ci  → Test Files 100 passed | 1 skipped (101) · Tests 983 passed
 ---
 
 **Final status:** closed (G2: `b11c370`)
+
+---
+
+## Post-closure verification addendum (2026-09-17, same session)
+
+The optional live E2E executed against the running dev server (`:3000`, current HEAD hot-compiled):
+**20/20 checks, exit 0** (`E2E_BASE=http://localhost:3000 npx tsx -r dotenv/config scripts/e2eShrine.ts`).
+
+- **A (enforcement):** off-shrine activate → **400** with the verbatim presence message and ZERO
+  mutation (inventory intact, no boost, no trade counted).
+- **B (parity):** on-shrine activate → 200, `xpAwarded: 40`, `stats.shrineTradeCount = 1`, spade boost
+  written, item pruned.
+- **C (operator ruling):** boost-all → 200, `xpAwarded: 40` EXACTLY ONCE, all four tiers active,
+  `shrineTradeCount = 2` (one more trade, not four).
+- Driver defect found and fixed in the same pass (test-side only): the first run failed its own
+  message assertion — the refusal text lives under `error.details.message` in the
+  `createErrorResponse` envelope (the SCOPE #59 lesson), not the top-level `message` field. System
+  behavior was verbatim-correct on the very first live call; only the assertion was wrong.
+- One probe account retained per the house convention (`shre2eP6355511`), cleaned by the next run's
+  guarded `shre2e%` sweep.

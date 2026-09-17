@@ -134,9 +134,14 @@ async function main(): Promise<void> {
   // ══ SCENARIO A — off-shrine activate refused with zero mutation ══════════
   const off = await api('POST', '/api/shrine/activate', { tier: 'spade', itemCount: 1 }, reg.cookie);
   check('A: off-shrine activate refused (400)', off.status === 400, { status: off.status, json: off.json });
+  // SCOPE #59 driver lesson: createErrorResponse nests the human-readable
+  // refusal under error.details.message — the top-level message is the generic
+  // code text ('Invalid request data').
+  const errEnvelope = off.json?.error as { details?: { message?: string } } | undefined;
+  const refusalText = String(off.json?.message ?? errEnvelope?.details?.message ?? '');
   check(
-    'A: verbatim presence message',
-    String(off.json?.message ?? '').includes('must be at the Shrine'),
+    'A: verbatim presence message (error.details.message)',
+    refusalText.includes('must be at the Shrine'),
     off.json
   );
   const rowOff = await probeRow(db, username);
