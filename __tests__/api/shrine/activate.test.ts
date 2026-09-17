@@ -1,14 +1,19 @@
 // @vitest-environment node
 /**
  * @file __tests__/api/shrine/activate.test.ts
- * @overview FID-20260909-028 §2.4 runtime probe — the shrine buff apply path.
+ * @overview FID-20260909-028 §2.4 runtime probe — the shrine buff apply path —
+ * extended by FID-20260917-002 (presence enforcement + trade/XP parity wiring).
  *
- * The user's live failure ("applied a shrine buff, it's broken") demanded a
- * runtime conviction, not a static read. This executes POST /api/shrine/activate
- * with the exact panel payload ({ tier, itemCount }) against a seam-contract
- * mock (findOne overlay + updateOne $set capture) and asserts the full chain:
- * auth → inventory read → tradeable narrowing → duration math → $set payload
- * → response. A NaN expiresAt or a dropped $set key convicts here.
+ * The FID-028 half executes POST /api/shrine/activate with the exact panel
+ * payload ({ tier, itemCount }) against a seam-contract mock (findOne overlay +
+ * updateOne $set capture) and asserts the full chain: auth → inventory read →
+ * tradeable narrowing → duration math → $set payload → response. A NaN
+ * expiresAt or a dropped $set key convicts here.
+ *
+ * The FID-20260917-002 half pins the parity contract restored from the deleted
+ * legacy economy: server-side shrine presence (fail-closed), exactly ONE
+ * trackShrineTrade + ONE awardXP per transaction, and bookkeeping failures
+ * never reported as transaction failures.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -18,6 +23,7 @@ const { capture } = vi.hoisted(() => ({
   capture: {
     updateOne: [] as Array<{ filter: unknown; update: unknown }>,
     playerDoc: null as unknown,
+    shrineTile: null as unknown,
   },
 }));
 
@@ -29,8 +35,8 @@ vi.mock('@/lib/mongodb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/mongodb')>();
   return {
     ...actual,
-    getCollection: () => ({
-      findOne: async () => capture.playerDoc,
+    getCollection: (name: string) => ({
+      findOne: async () => (name === 'tiles' ? capture.shrineTile : capture.playerDoc),
       updateOne: async (filter: unknown, update: unknown) => {
         capture.updateOne.push({ filter, update });
         return { modifiedCount: 1 };
@@ -39,13 +45,34 @@ vi.mock('@/lib/mongodb', async (importOriginal) => {
   };
 });
 
+// FID-20260917-002: bookkeeping is mocked at the module seam — the real
+// awardXP/trackShrineTrade write through the DB and would pollute the
+// updateOne capture the FID-028 pins count on.
+vi.mock('@/lib/xpService', () => ({
+  awardXP: vi.fn(async () => ({
+    xpAwarded: 40,
+    totalXP: 1040,
+    oldLevel: 1,
+    newLevel: 1,
+    levelUp: false,
+  })),
+  XPAction: { SHRINE_SACRIFICE: 'shrine_sacrifice' },
+}));
+
+vi.mock('@/lib/statTrackingService', () => ({
+  trackShrineTrade: vi.fn(async () => {}),
+}));
+
 import { POST as activate } from '@/app/api/shrine/activate/route';
-import { ItemRarity, ItemType } from '@/types';
+import { awardXP } from '@/lib/xpService';
+import { trackShrineTrade } from '@/lib/statTrackingService';
+import { ItemRarity, ItemType, TerrainType } from '@/types';
 
 /** A player whose inventory mirrors what caveItemService actually writes. */
 function playerWithTradeables(count: number, rarity: ItemRarity = ItemRarity.Common) {
   return {
     username: 'tester',
+    currentPosition: { x: 1, y: 1 },
     inventory: {
       items: Array.from({ length: count }, (_, i) => ({
         id: `item-${i}`,
@@ -74,6 +101,10 @@ const routeCtx = { params: Promise.resolve({}) };
 
 beforeEach(() => {
   capture.updateOne = [];
+  // Default: the player stands on the Shrine tile (the FID-028 premise).
+  capture.shrineTile = { x: 1, y: 1, terrain: TerrainType.Shrine };
+  vi.mocked(awardXP).mockClear();
+  vi.mocked(trackShrineTrade).mockClear();
 });
 
 describe('FID-028 §2.4 — shrine activate runtime probe', () => {
@@ -154,5 +185,68 @@ describe('FID-028 §2.4 — shrine activate runtime probe', () => {
       expect(response.status).toBe(400);
       expect(capture.updateOne).toHaveLength(0);
     }
+  });
+});
+
+describe('FID-20260917-002 — presence enforcement + trade/XP parity', () => {
+  it('refuses activation off-shrine server-side — client gate is no longer the only gate', async () => {
+    capture.playerDoc = playerWithTradeables(10);
+    capture.shrineTile = { x: 50, y: 50, terrain: TerrainType.Wasteland };
+
+    const response = await activate(makeRequest({ tier: 'spade', itemCount: 1 }), routeCtx);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.success).toBe(false);
+    // Zero mutation — the refusal happens before any write.
+    expect(capture.updateOne).toHaveLength(0);
+    expect(vi.mocked(awardXP)).not.toHaveBeenCalled();
+    expect(vi.mocked(trackShrineTrade)).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the current tile cannot be read', async () => {
+    capture.playerDoc = playerWithTradeables(10);
+    capture.shrineTile = null;
+
+    const response = await activate(makeRequest({ tier: 'heart', itemCount: 1 }), routeCtx);
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.success).toBe(false);
+    expect(capture.updateOne).toHaveLength(0);
+  });
+
+  it('counts ONE shrine trade and awards XP once per transaction (parity wiring)', async () => {
+    capture.playerDoc = playerWithTradeables(10, ItemRarity.Uncommon);
+
+    const response = await activate(makeRequest({ tier: 'spade', itemCount: 2 }), routeCtx);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.xpAwarded).toBe(40);
+    expect(body.levelUp).toBe(false);
+    expect(body.newLevel).toBe(1);
+    expect(vi.mocked(awardXP)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(awardXP)).toHaveBeenCalledWith('tester', 'shrine_sacrifice');
+    expect(vi.mocked(trackShrineTrade)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(trackShrineTrade)).toHaveBeenCalledWith('tester');
+    // Exactly one primary write — bookkeeping must not add $set writes.
+    expect(capture.updateOne).toHaveLength(1);
+  });
+
+  it('does not fail the transaction when bookkeeping throws — primary write already committed', async () => {
+    capture.playerDoc = playerWithTradeables(10);
+    vi.mocked(awardXP).mockRejectedValueOnce(new Error('xp service outage'));
+
+    const response = await activate(makeRequest({ tier: 'club', itemCount: 1 }), routeCtx);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    // Bookkeeping outcomes are absent when bookkeeping failed — not an error response.
+    expect(body.xpAwarded).toBeUndefined();
+    // The primary write still landed exactly once.
+    expect(capture.updateOne).toHaveLength(1);
   });
 });

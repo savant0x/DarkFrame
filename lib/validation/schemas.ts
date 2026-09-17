@@ -435,22 +435,6 @@ export const ChooseSpecializationSchema = z.object({
 export type ChooseSpecializationRequest = z.infer<typeof ChooseSpecializationSchema>;
 
 // ============================================================================
-// SHRINE & BOOST SCHEMAS
-// ============================================================================
-
-/**
- * Shrine sacrifice validation
- * Matches app/api/shrine/sacrifice/route.ts API format
- * Allows activating boosts by sacrificing items
- */
-export const ShrineSacrificeSchema = z.object({
-  tier: z.enum(['speed', 'heart', 'diamond', 'club']),
-  quantity: z.number().int().positive().optional(), // Optional for future use
-});
-
-export type ShrineSacrificeRequest = z.infer<typeof ShrineSacrificeSchema>;
-
-// ============================================================================
 // COMBAT SCHEMAS
 // ============================================================================
 

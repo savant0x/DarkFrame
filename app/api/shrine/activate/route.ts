@@ -15,6 +15,9 @@ import { tradeableItems } from '@/lib/inventoryUtils';
 import { getCollection } from '@/lib/mongodb';
 import type { Player, ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
+import { assertAtShrine } from '@/lib/shrineServer';
+import { awardXP, XPAction } from '@/lib/xpService';
+import { trackShrineTrade } from '@/lib/statTrackingService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -79,6 +82,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     if (!player) {
       return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
         message: 'Player not found'
+      });
+    }
+
+    // FID-20260917-002: server-side shrine presence — was enforced only by the
+    // client's keyboard handler; the API accepted off-shrine calls.
+    if (!(await assertAtShrine(player))) {
+      return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+        message: 'You must be at the Shrine of Remembrance (1,1) to activate boosts'
       });
     }
 
@@ -167,6 +178,26 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       }
     );
 
+    // FID-20260917-002: parity with the legacy economy — count the trade and
+    // award shrine XP once per transaction (operator ruling, 2026-09-17).
+    // Bookkeeping failures are logged, never reported as transaction failures:
+    // the primary write has already committed.
+    let xpAwarded: number | undefined;
+    let levelUp = false;
+    let newLevel: number | undefined;
+    try {
+      await trackShrineTrade(username);
+      const xpResult = await awardXP(username, XPAction.SHRINE_SACRIFICE);
+      xpAwarded = xpResult.xpAwarded;
+      levelUp = xpResult.levelUp;
+      newLevel = xpResult.newLevel;
+    } catch (bookkeepingError) {
+      log.warn(
+        'Shrine trade bookkeeping failed (primary transaction committed)',
+        bookkeepingError instanceof Error ? bookkeepingError : new Error(String(bookkeepingError))
+      );
+    }
+
     endTimer();
     log.info(`${username} ${existingBoostIndex >= 0 ? 'extended' : 'activated'} ${tier} boost with ${itemCount} items`);
 
@@ -177,6 +208,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       itemsConsumed: itemCount,
       durationMinutes,
       expiresAt: finalExpiresAt,
+      // FID-20260917-002: bookkeeping outcomes surfaced when available
+      ...(xpAwarded !== undefined ? { xpAwarded, levelUp, newLevel } : {}),
     });
 
   } catch (error) {
