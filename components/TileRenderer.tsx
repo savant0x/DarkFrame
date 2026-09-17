@@ -19,7 +19,7 @@ import { Home, Skull, Flag, ShieldOff } from 'lucide-react';
 import { formatProtectionRemaining } from '@/lib/protectionDisplay';
 import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
 import { useGameContext } from '@/context/GameContext';
-import { getTerrainImage, getBankImage, getBaseImage } from '@/lib/imageService';
+import { getTerrainImage, getBankImage, getBaseImage, levelToBaseTier } from '@/lib/imageService';
 import { logger } from '@/lib/logger';
 import { getConsistentTileMessage } from '@/lib/tileMessages';
 import { SafeHtmlRenderer } from '@/components/SafeHtmlRenderer';
@@ -299,13 +299,15 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
       if (!player) return;
       
       try {
-        const rank = player.rank || 1;
-        const imgPath = await getBaseImage(rank);
+        // FID-20260917-003: own-base art is LEVEL-driven — rank is the admin-gating
+        // column (default 1) and previously collapsed every own base onto tier-1 art.
+        const level = player.level || 1;
+        const imgPath = await getBaseImage(level);
         
         if (!cancelled) {
           setBaseImagePath(imgPath);
           setBaseImageError(!imgPath);
-          logger.debug('Base image loaded', { rank, path: imgPath || 'fallback' });
+          logger.debug('Base image loaded', { level, path: imgPath || 'fallback' });
         }
       } catch (error) {
         console.error('Error loading base image:', error);
@@ -339,7 +341,9 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   // FID-20260910-037 R2: 10 levels per tier image across the live bot band
   // (5–65): L1–10 → 1.jpg … L91+ → 10.jpg — a level-15 fortress no longer
   // collapses onto the same art as a level-5 shack.
-  const tierIndex = Math.min(10, Math.max(1, Math.ceil(enemyLevel / 10)));
+  // FID-20260917-003: bucketing extracted to levelToBaseTier — own-base and
+  // enemy-base art share one formula.
+  const tierIndex = levelToBaseTier(enemyLevel);
   
   // Get player rank for display (or rank 1 if not your base)
   const playerRank = player?.rank || 1;

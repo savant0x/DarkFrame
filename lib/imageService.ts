@@ -228,32 +228,31 @@ export async function getBankImage(
 }
 
 /**
- * Get base overlay image for specific rank
- * 
- * @param rank - Player rank (1-10)
- * @returns Image path or null if no images available
+ * Map a player's level to the base-artwork tier (FID-20260917-003).
+ *
+ * FID-20260910-037 R2 bucketing: 10 levels per tier image across the live
+ * band — L1–10 → tier 1 … L91+ → tier 10. Shared by BOTH base-art branches
+ * (own base renders the owner's level; enemy base renders tile.baseLevel).
+ * Corrupt/out-of-range input clamps into the 1..10 asset set.
  */
-export async function getBaseImage(rank: number): Promise<string | null> {
-  const manifest = await fetchImageManifest();
-  
-  // Look for rank-specific base images
-  const baseImages = manifest.bases || [];
-  
-  // Try to find rank-specific image
-  const rankSpecific = baseImages.find(path => 
-    path.toLowerCase().includes(`rank${rank}`) || path.toLowerCase().includes(`rank-${rank}`)
-  );
-  
-  if (rankSpecific) {
-    return rankSpecific;
-  }
-  
-  // Fallback to any base image
-  if (baseImages.length > 0) {
-    return baseImages[0];
-  }
-  
-  return null;
+export function levelToBaseTier(level: number): number {
+  return Math.min(10, Math.max(1, Math.ceil(level / 10)));
+}
+
+/**
+ * Get base overlay image for a player's level.
+ *
+ * FID-20260917-003: the selector is LEVEL-driven. The previous implementation
+ * searched for `rank{N}` filenames that never existed in the asset set and
+ * fell back to the first manifest entry — every own base rendered tier-1 art
+ * regardless of progression. The static tier path mirrors the enemy-base
+ * branch's shipped pattern (public/assets/tiles/bases/1.jpg…10.jpg).
+ *
+ * @param level - Player level (the sanitized player exposes `level` directly)
+ * @returns Image path for the level's tier
+ */
+export async function getBaseImage(level: number): Promise<string> {
+  return `/assets/tiles/bases/${levelToBaseTier(level)}.jpg`;
 }
 
 /**

@@ -21,7 +21,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/imageService', () => ({
   getTerrainImage: () => null,
   getBankImage: () => null,
-  getBaseImage: () => null,
+  // FID-20260917-003: level-driven signature (returns the tier path)
+  getBaseImage: async () => '/assets/tiles/bases/1.jpg',
+  levelToBaseTier: (level: number) => Math.min(10, Math.max(1, Math.ceil(level / 10))),
 }));
 vi.mock('./SafeHtmlRenderer', () => ({
   SafeHtmlRenderer: ({ fallback }: { fallback: string }) => <div>{fallback}</div>,
