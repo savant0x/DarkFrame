@@ -1,11 +1,13 @@
 /**
- * 🛡️ Next.js Middleware - Protected Route Authentication & Security Headers
+ * 🛡️ Next.js Proxy - Protected Route Authentication & Security Headers
  * 
  * Created: 2025-01-17 19:35:00
- * Updated: 2026-04-03 (Renamed from proxy.ts to middleware.ts for Next.js recognition)
+ * Updated: 2026-09-17 (Renamed back from middleware.ts to proxy.ts — Next.js 16
+ *          renamed the file convention to proxy, deprecating middleware.ts;
+ *          the 2026-04-03 rename in the other direction predates that change.)
  * 
  * OVERVIEW:
- * Middleware that runs before route handlers to:
+ * Proxy that runs before route handlers to:
  * 1. Authenticate users accessing protected routes
  * 2. Add security headers to all responses (OWASP recommendations)
  * 
@@ -88,7 +90,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 }
 
 /**
- * Middleware function - runs on every request matching the config.matcher
+ * Proxy function - runs on every request matching the config.matcher
  * 
  * Flow:
  * 1. Add security headers to all responses
@@ -103,9 +105,9 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
  * // Automatically runs for /game and /game/*
  * // No manual invocation needed
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   try {
-    // Get auth cookie from request (middleware-compatible)
+    // Get auth cookie from request (proxy-compatible)
     const token = request.cookies.get(COOKIE_NAME)?.value;
     
     if (!token) {
@@ -140,7 +142,7 @@ export async function middleware(request: NextRequest) {
     
   } catch (error) {
     // Error during authentication check - redirect to login for safety
-    logger.error('Middleware authentication error', error instanceof Error ? error : new Error(String(error)));
+    logger.error('Proxy authentication error', error instanceof Error ? error : new Error(String(error)));
     
     const loginUrl = new URL('/login', request.url);
     const response = NextResponse.redirect(loginUrl);
@@ -149,15 +151,16 @@ export async function middleware(request: NextRequest) {
 }
 
 /**
- * Middleware Configuration
+ * Proxy Configuration
  * 
- * Specifies which routes this middleware should run on.
+ * Specifies which routes the proxy should run on.
  * Uses matcher patterns to define protected routes.
  */
 export const config = {
-  // Node.js runtime (Vercel-recommended; Edge is deprecated and its bundler
-  // rejects this module's @/lib imports). Same auth behavior, better perf.
-  runtime: 'nodejs',
+  // FID note (2026-09-17 proxy migration): the proxy convention always runs on
+  // Node.js runtime — a `runtime` key here is rejected at boot ("Route segment
+  // config is not allowed in Proxy file"), which removes the old reason this
+  // file carried `runtime: 'nodejs'`. Matcher behavior is unchanged.
   matcher: [
     '/game/:path*', // Protect /game and all sub-routes
   ]
@@ -177,7 +180,7 @@ export const config = {
  * - /api/* - API routes (handle their own auth)
  * 
  * Authentication Flow:
- * 1. Middleware checks for 'darkframe_session' cookie
+ * 1. Proxy checks for 'darkframe_session' cookie
  * 2. Verifies JWT token signature and expiration
  * 3. If valid → user object returned, request proceeds
  * 4. If invalid/missing → redirect to /login
@@ -199,7 +202,7 @@ export const config = {
  * - Upgrades insecure requests to HTTPS
  * 
  * Security Features:
- * - Runs on server-side only (Next.js middleware)
+ * - Runs on server-side only (Next.js proxy)
  * - Uses HTTP-only cookie (not accessible via JavaScript)
  * - JWT signature verification prevents tampering
  * - Automatic expiration handling (1h or 30d)
@@ -207,7 +210,7 @@ export const config = {
  * - OWASP Top 10 compliance (A01, A02, A03, A05)
  * 
  * Performance:
- * - Middleware runs BEFORE route handlers (efficient)
+ * - Proxy runs BEFORE route handlers (efficient)
  * - Cookie parsing is fast (no database queries on every request)
  * - JWT verification is cryptographically fast
  * - Security headers add minimal overhead (< 1ms)
