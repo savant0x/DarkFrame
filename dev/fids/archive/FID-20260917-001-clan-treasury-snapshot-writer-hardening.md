@@ -3,7 +3,7 @@
 **Filename:** `FID-20260917-001-clan-treasury-snapshot-writer-hardening.md`
 **ID:** FID-20260917-001
 **Severity:** HIGH
-**Status:** loop-complete
+**Status:** closed (implementation commit `6577707`)
 **Created:** 2026-09-17
 
 ---
@@ -146,17 +146,19 @@ All five answer yes/partially-with-disclosed-bound → GREEN proceeds.
 - Circuit breakers: iteration 1 of 10; no oscillation; convergence at pass 1
   (probe evidence → GREEN mapping complete, no new findings on re-read).
 
-## 7. Implementation Record (only after status reaches `loop-complete`, with operator go-ahead)
+## 7. Implementation Record
 
-- **Status:** not-started
-- **Files changed:** none yet
-- **Verification evidence:** to paste at implementation
-- **Call-graph reachability evidence:** to paste at implementation
+- **Status:** implemented (2026-09-17, session 036)
+- **Files changed:** `lib/db/treasuryLock.ts` (NEW — `withClanTreasuryLock` / `treasuryDelta` / `playerResourceDelta`); `lib/territoryService.ts` (claim + income: lock, guard inside lock, relative deltas); `lib/clanBankService.ts` (deposit/withdraw/upgrade + **collectTax — a 13th site discovered during implementation** via tsc dead-variable fallout: dynamic-key treasury write `updateFields[...]`, never matched the census greps; hardened same idiom); `lib/clanPerkService.ts` (activate + deactivate: lock; deactivate is jsonb-only — no funds columns — resolved F6 conditional); `lib/wmd/clanTreasuryWMDService.ts` + `lib/wmd/admin/wmdAdminService.ts` (deduct + missile refund: lock + relative deltas, `ownerClanId` captured before closure for TS narrowing); `lib/clanWarfareService.ts` (declareWar lock; capture success/repel/spoils transfers relative-SQL; dead `winnerTreasury` snapshot read removed); `lib/clanAllianceService.ts` + `lib/clanDistributionService.ts` (the two already-relative writers wrapped in the shared lock with in-lock sufficiency re-checks — §5 rule governs over the changes-table "smallest change" wording, §7 note recorded); `__tests__/lib/treasuryConcurrency.test.ts` (NEW — 9 pins)
+- **Verification evidence:** fresh post-final-edit gate run — `npx tsc --noEmit` → **exit 0**; `npm run lint` → **exit 0**; `npm run test:ci` → **975 passed / 1 skipped** (966 baseline → +9 new pins; two mid-flight test-shaping fixes: tx-mock routes `tx.update` through an observable spy so the deposit pin proves 2-updates-in-1-transaction, and the withdraw-refusal pin now proves the in-lock re-check by passing the preview but failing the locked row). Census grep **0** computed treasury writes remaining; **8/8** services adopted the helper; drizzle `.for('update')` — zero usages pre-FID — now proven live.
+- **Call-graph reachability evidence:** `withClanTreasuryLock(` → **17 call-sites** across all 8 services (grep list: clanAllianceService, clanBankService, clanDistributionService, clanPerkService, clanWarfareService, territoryService, wmd/admin/wmdAdminService, wmd/clanTreasuryWMDService); `treasuryDelta(`/`playerResourceDelta(` → **17 call-sites**; route reachability: claim/income/deposit/withdraw/perks-activate/declare routes all import the hardened exports; helper directly exercised by `treasuryConcurrency.test.ts` (8 references).
+- **Honest deviations (disclosed):** (1) `collectTax` — a 13th snapshot site outside the FID's changes table, found during implementation and hardened with the same idiom (conservation-critical: it's a real treasury writer); (2) alliance/distribution wrapped in the lock despite the changes table reading "smallest change" — the §5 approach rule (re-validate against the LOCKED row) governs, otherwise their relative deltas race against the newly-locked sibling writers; (3) deactivation jsonb read-modify-write remains read-modify-write *inside* the lock (same-clan writers serialize; fund safety holds) — as disclosed in §4.
+- **Two implementation bugs caught and fixed mid-flight:** a dropped `const player =` declaration in withdrawFromBank's callback, and the same dead-variable removal exposing the dynamic-key `collectTax` writer.
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 errors · [ ] lint 0 errors/0 warnings · [ ] tests pass · [ ] call-graph proven
-- **Commit hash (G2 — required for `closed`):** *(pending)*
+- **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass (975/1 skip) · [x] call-graph proven (17 + 17 call-sites, route-reachable)
+- **Commit hash (G2 — required for `closed`):** `6577707` — fix(economy): harden clan-treasury writers — row locks + relative SQL (FID-20260917-001)
 - **Staging plan (path-scoped, G3/G4):** `git add lib/db/treasuryLock.ts lib/territoryService.ts lib/clanBankService.ts lib/clanPerkService.ts lib/wmd/clanTreasuryWMDService.ts lib/wmd/admin/wmdAdminService.ts lib/clanWarfareService.ts lib/clanAllianceService.ts lib/clanDistributionService.ts __tests__/lib/treasuryConcurrency.test.ts __tests__/lib/clanWarfareV2.test.ts`
 - **Commit message (G8):** `fix(economy): harden clan-treasury writers — row locks + relative SQL (FID-20260917-001)`
 - **Archive:** on close → `dev/fids/archive/` + CHANGELOG entry + session-summary log.

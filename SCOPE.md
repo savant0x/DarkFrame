@@ -760,6 +760,17 @@ No other work is approved. `fix(profile)` commit presented, not executed (G1 def
       Five Questions Q3, not hidden). First-ever test coverage for this class planned
       (__tests__/lib/treasuryConcurrency.test.ts). Fresh gates baseline recorded: tsc 0 · lint 0 · 966+1skip
 
+- [x] **FID-20260917-001 implemented end-to-end on operator go-ahead** (session 036, commit `6577707`):
+      shared helper `lib/db/treasuryLock.ts` (`withClanTreasuryLock` + `treasuryDelta`/`playerResourceDelta`);
+      all 8 services converted — lock + in-lock re-checks + relative SQL; census grep **0** computed treasury
+      writes remaining; **13th site `collectTax` discovered during implementation** (dynamic-key writer invisible
+      to the census greps; tsc dead-variable fallout; disclosed in FID §7) and hardened same idiom; first-ever
+      test coverage for bank/perk/distribution (9 pins incl. in-lock re-check proof + 2-updates-1-tx atomicity
+      pin); `refundWMDCost` confirmed stub (amendment noted, no write to harden). Gates fresh post-final-edit:
+      tsc 0 · lint 0 · vitest **975+1skip** (966 baseline → +9). Two implementation bugs caught mid-flight
+      (dropped `const player` declaration; commit-msg guard rejected attribution trailer — re-committed per the
+      operator's 2026-09-15 standing rule, no `--no-verify`). FID status → **closed**, archived
+
 ### Session 2026-09-16 (035) — Territory-capture full redesign: design review + FID-013 re-plan (Perfection Loop)
 
 Operator directive: "the initial design for territory capture probably needs a complete redesign. Review what docs outline

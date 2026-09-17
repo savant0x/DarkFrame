@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.3] — 2026-09-17 session
+
+### Fixed — FID-20260917-001: clan-treasury snapshot-writer hardening (closed, commit `6577707`)
+
+- Every clan-treasury writer now runs inside `withClanTreasuryLock` — SELECT … FOR UPDATE on the clan row inside a transaction — and moves funds via relative SQL deltas instead of snapshot-computed numbers. Closes the C1 sibling-writer class FID-20260916-013 explicitly carved out: double-collection of daily income (two leaders double-clicking), mid-flight bank mint/vaporize (clan and player updates in separate statements), and lost-update races across claims, bank, perks, WMD purchases, alliance, distribution, and warfare spoils.
+- 13 writer sites across 8 services hardened, including `collectTax` — a dynamically-keyed treasury write the original census greps could not see, discovered during implementation. The two already-relative writers (alliance, distribution) gain the shared lock with in-lock sufficiency re-checks so their deltas race nothing.
+- First-ever test coverage for the bank/perk/distribution services: 9 concurrency pins, including an in-lock re-check proof (a withdrawal that passes the pre-lock preview but fails the locked row) and a 2-updates-in-1-transaction atomicity pin. tsc 0 · eslint 0 · vitest 975+1skip (baseline 966+1).
+
 ## [0.0.2] — 2026-09-17 session
 
 ### Fixed — FID-20260916-013: war scoring unification + capture-flow repair + capture UI (closed, commit `32464f0`)
