@@ -5,6 +5,24 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.4] — 2026-09-17 session
+
+### Fixed — FID-20260917-002: shrine dead-economy cleanup + trade parity + presence enforcement (closed, commit `b11c370`)
+
+- The shrine feature survey flagged `POST /api/shrine/extend` as a missing-UI gap; grounding dissolved the premise — the live ShrinePanel already extends via `activate` ("Replace / Extend"). What actually existed was a dead second economy: two zero-caller routes (`sacrifice`, `extend`), one carrying a phantom `'speed'` tier and a rarity table that under-valued Rare/Epic items 2×/1.5× vs the canonical `shrineHelpers` table.
+- Both dead routes deleted along with the `ShrineSacrificeSchema` block (its sole consumer). The legacy economy's two live duties transfer to the wired pair: `activate`/`boost-all` now call `trackShrineTrade` + `awardXP(SHRINE_SACRIFICE)` once per transaction (operator ruling: boost-all's four suits are ONE trade, not four) — the SHRINE_DEVOTEE achievement (100 trades) is earnable through the live UI for the first time.
+- Server-side shrine presence restored on both live routes via the shared fail-closed `assertAtShrine` helper (`lib/shrineServer.ts`): off-shrine API calls now refuse 400 before any write — previously only the client's keyboard gate stood between a session and remote boost activation.
+- Bookkeeping failures after the committed primary write are logged, never reported as transaction failures; responses surface `xpAwarded/levelUp/newLevel`. 8 new pins (collection-aware activate harness rewritten, boost-all suite created); tsc 0 · eslint 0 · vitest 989+1skip (baseline 975+1).
+
+### Fixed — FID-20260917-003: own-base artwork wired to level, not rank (closed, commit `57dbfef`)
+
+- The operator's level-19 base rendered tier-1 art: the own-base selector called `getBaseImage(player.rank)` — `rank` is the admin-gating column (default 1) — and `getBaseImage` searched for `rank{N}` filenames that never existed, falling back to the first manifest entry (`1.jpg`) on every call.
+- Own-base art now buckets `player.level` through the shared `levelToBaseTier` formula (10 levels per tier, clamp 1..10) — the same bucketing the enemy-base branch has shipped since FID-20260910-037 R2, extracted so both branches consume one truth. A level-19 own base and a level-19 enemy base now render the same tier art (`bases/2.jpg`). Corrupt/out-of-range levels clamp into the asset set. 6 pins in `__tests__/lib/baseTier.test.ts`.
+
+### Removed — SCOPE #75: third shrine orphan + dead activity-logger mappings (commit `16a7fcb`)
+
+- `GET /api/shrine/status` deleted (zero client callers — the panel renders boosts from the player payload), and `activityLogger`'s mappings for `/api/shrine/visit` + `/api/shrine/boost` removed (the routes never existed; `SHRINE_VISIT`/`SHRINE_BOOST` enum members deleted with them — zero writes ever carried those action types).
+
 ## [0.0.3] — 2026-09-17 session
 
 ### Fixed — FID-20260917-001: clan-treasury snapshot-writer hardening (closed, commit `6577707`)

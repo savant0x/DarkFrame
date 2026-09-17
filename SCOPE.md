@@ -771,6 +771,74 @@ No other work is approved. `fix(profile)` commit presented, not executed (G1 def
       (dropped `const player` declaration; commit-msg guard rejected attribution trailer — re-committed per the
       operator's 2026-09-15 standing rule, no `--no-verify`). FID status → **closed**, archived
 
+### Session 2026-09-17 (038) — Operator defect report: base artwork stuck at level 1 → FID-20260917-003 (loop-complete + implemented, same-session go-ahead)
+
+Operator report: "my own player base, the artwork shows level 1, however my account is level 19... was the
+user artwork properly wired to the users level?"
+
+Approved items:
+
+- [x] Diagnosis with fresh probes: own-base artwork called `getBaseImage(player.rank \|\| 1)`
+      (TileRenderer:302-305) — `rank` is the admin-gating column (schema default 1), not progression;
+      `getBaseImage` searched `rank{N}` filenames that never existed in `public/assets/tiles/bases/`
+      (1.jpg…10.jpg only) and fell back to the first manifest entry = `1.jpg` every time. The level→tier
+      system exists, is client-fed (`playerSanitize` allowlists `level`), and the ENEMY branch already
+      consumes it (`tile.baseLevel` = `owner.level` via movementService:85) — a level-19 enemy base
+      rendered `2.jpg` while the operator's level-19 own base rendered `1.jpg`
+- [x] FID-20260917-003 filed + Perfection Loop to `loop-complete` (loop 1; operator chose
+      "File FID + implement" via structured prompt = go-ahead)
+- [x] Implemented: `levelToBaseTier` exported from imageService (the shared FID-20260910-037 R2
+      formula, clamp 1..10); `getBaseImage(level)` returns the static tier path (dead rank{N} search +
+      fallback deleted); own-base effect passes `player.level \|\| 1`; enemy branch consumes the shared
+      helper (inline duplicate deleted, Law 13); test mock aligned; `__tests__/lib/baseTier.test.ts`
+      created (6 pins incl. the operator case 19→2 and corrupt-input clamps)
+- [x] Gates: tsc 0 · lint 0 · vitest **989+1skip** (983 baseline → +6) · Law-4 greps: getBaseImage
+      production caller TileRenderer:305, helper consumers TileRenderer:346 + test, `player.rank`
+      artwork path gone (only the legitimate rank-display use remains)
+
+No other work is approved. FID-003 `closed` per G2 — commit **`57dbfef`** (4 files +85/−31); archived.
+
+### Session 2026-09-17 (037) — Shrine-extend survey gap: grounding + disambiguation (FID pending)
+
+Operator directive: "Work the shrine-extend UI gap flagged in the feature survey" (survey row 73:
+"shrine extend = real small UI gap, sacrifice-vs-activate needs 5-min disambiguation, likely dead twin").
+
+Approved items:
+
+- [x] Ground the gap with fresh probes: ShrinePanel 0-EOF (live calls = activate + boost-all only),
+      all four shrine routes read 0-EOF, shrineHelpers + tradeableItems helpers read, Law-4 caller census,
+      XP/trackShrineTrade writer census
+- [x] Disambiguation verdict: **the gap dissolves** — activate already extends ("Replace / Extend"
+      button → timeRemaining + duration, 8h cap); extend is a redundant orphan (zero client callers)
+      carrying a phantom 'speed' tier and a divergent rarity table (Rare 30/Epic 60 vs canonical 60/90)
+- [x] Parity holes found in the LIVE routes: activate/boost-all never call trackShrineTrade/awardXP
+      (SHRINE_DEVOTEE achievement unreachable via the live UI; sacrifice is its only writer) and lack
+      the server-side shrine-presence check sacrifice/extend enforce
+- [x] Resolution FID filed + Perfection Loop: **FID-20260917-002** (`dev/fids/FID-20260917-002-shrine-dead-economy-cleanup-and-parity.md`) —
+      loop-complete on pass 2 (1 Law-13 refinement: shared `assertAtShrine` helper; gates re-run as Method-1
+      proof: tsc 0 · lint 0 · vitest 975/1 — zero drift)
+- [x] Operator decisions (structured prompt, 2026-09-17): **Option B — full dead-economy cleanup**
+      (delete sacrifice + extend + their schema; wire parity into the live pair) and **XP once per transaction**
+      (boost-all = ONE trade + ONE award, four suits are one transaction). Option-B text named "FID → loop →
+      implement on go-ahead" → implementation authorized
+- [x] Implemented end-to-end: sacrifice/extend deleted; `ShrineSacrificeSchema` block removed from
+      lib/validation/schemas.ts; `lib/shrineServer.ts` created (`assertAtShrine`, fail-closed); activate +
+      boost-all gained server-side presence refusal + once-per-transaction `trackShrineTrade`/`awardXP`
+      (bookkeeping failures logged, never reported as transaction failures) + `xpAwarded/levelUp/newLevel`
+      response enrichment; activate.test.ts rewritten (collection-aware mock, 4 new parity pins);
+      boost-all.test.ts created (4 pins)
+- [x] Gates (fresh, post-final-edit): `npx tsc --noEmit` → 0 (6 stale `.next/types/` artifacts referencing the
+      deleted routes swept first — the ledger's known tsbuildinfo-class hazard; no source error) ·
+      `npm run lint` → 0 · `npm run test:ci` → **983 passed / 1 skipped** (975 baseline → +8) · Law-4 greps all
+      ≥1 production hit (panel:252/294 live; parity writers activate:189-190, boost-all:200-201;
+      `ShrineSacrificeSchema` census 0; dead-route refs 0)
+- [x] Mid-flight disclosure: one edit briefly corrupted boost-all's `$set` (`existingBoosts 4/4`) — caught on
+      the edit-output read, repaired, swept (`CORRUPTION_RESIDUE=0`); recorded in FID §7
+
+FID-002 status **`closed`** per G2 — fix commit **`b11c370`** (8 files +366/−476); SCOPE #75 follow-on commit **`16a7fcb`** (+3/−107). Both FIDs archived to dev/fids/archive/; CHANGELOG 0.0.4; VERSION 0.0.3 → 0.0.4. Live E2E driver staged (`scripts/e2eShrine.ts`) pending an operator-side dev-server boot (agent BACKGROUND execution unavailable this session); gates stand on the unit-pin suite (989+1).
+
+No other work is approved. Implementation remains gated on go-ahead per the operator's session directive.
+
 ### Session 2026-09-16 (035) — Territory-capture full redesign: design review + FID-013 re-plan (Perfection Loop)
 
 Operator directive: "the initial design for territory capture probably needs a complete redesign. Review what docs outline
@@ -1159,3 +1227,4 @@ Verification evidence for the `implemented` statuses is recorded in
 | 72 | **Clan research panel FID filed (FID-20260916-012):** contribute/unlock UI over the live backend — survey erratum recorded (tab exists as ComingSoonTab; zero client callers; NO GET state endpoint exists; tree is 4 MILITARY nodes post-C1-cut). GREEN: thin state GET + ClanResearchPanel + placeholder swap; C1 cut preserved; server gates not duplicated. | 2026-09-16 | Verified (implemented on operator go-ahead: state GET + ClanResearchPanel + placeholder swap; 9 pins; tsc 0 / eslint 0/0 / vitest 951+1skip; live round-trip probe 4/4 — tree shape, contribute math, unlock fund-drain + tech record, member role refusal verbatim; also repaired the untypechecked FID-011 probe driver) → **Closed (commit `afcb92e` — implemented + verified; archived)** |
 | 73 | **Post-survey re-verification (P2/P3 drift check):** territory capture route live, 0 UI callers, natural home ClanTerritoryPanel (war-gated server-side); shrine extend = real small UI gap, sacrifice-vs-activate needs 5-min disambiguation (likely dead twin), /status redundant (panel reads player.shrineBoosts); tutorial /complete = deletion candidate (ends by design via track-action + decline — erratum recorded in survey artifact); P3 specialization verdict FLIPPED — doctrine bonuses live in battle + factory + mastery XP chain, no action needed. | 2026-09-16 | Closed (survey updated; recommendations: territory-capture FID next, shrine-extend small, two deletion candidates) |
 | 74 | **Territory-capture FID filed** — FID-20260916-013 (dead capture route + strength-0 latent defect + target-tile enumeration GET + ClanTerritoryPanel capture flow) | Survey P2 | ~~FID filed, loop-complete; implementation gated on go-ahead~~ → SUPERSEDED 2026-09-16 (session 034/035): final audit downgraded FID to `analyzed`/NOT CONVERGED (balance gate D5, transaction redesign, multi-war enumeration); operator directed full mechanic redesign from first principles — see the session 2026-09-16 (035) entry above |
+| 75 | **Shrine survey follow-ons (discovered during FID-20260917-002 grounding, not absorbed):** (a) `GET /api/shrine/status` has ZERO client callers (ShrinePanel renders active boosts from the player payload, never fetches status) — third shrine orphan; deletion candidate or wiring decision is an operator call; (b) `lib/middleware/activityLogger.ts:88-90` maps two routes that do not exist (`/api/shrine/visit`, `/api/shrine/boost`) — dead action-type mappings alongside the real `/api/shrine/*` writes it does not map. No runtime harm found; census and file:line evidence in FID-20260917-002 §2 row 9 | 2026-09-17 (session 037) | Closed (operator picked the resolution alongside the E2E directive: status route deleted + both dead mappings and their `SHRINE_VISIT`/`SHRINE_BOOST` enum members removed — zero writers ever carried those types; census-proven inert; commit `16a7fcb`, gates 0·0·983+1 byte-identical) |
