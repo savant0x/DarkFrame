@@ -795,6 +795,15 @@ Approved items:
 - [x] Gates: tsc 0 · lint 0 · vitest **989+1skip** (983 baseline → +6) · Law-4 greps: getBaseImage
       production caller TileRenderer:305, helper consumers TileRenderer:346 + test, `player.rank`
       artwork path gone (only the legitimate rank-display use remains)
+- [x] Post-closure follow-ons (same session): operator CONFIRMED the tier-2 art renders after refresh;
+      then flagged the missing level pill → simple-task tier: own-base indicator gains `· LV {level}`
+      (enemy pill already had it — the asymmetry was the report); operator then flagged neon-on-artwork
+      invisibility → void-backed badge tokens (`nn-viewport__badge--green/--magenta`, the bottom
+      strip's dark-line method) shared with the design system, opacity tuned 82% → 72% on operator
+      direction; E2E driver's latent type-cast fixed en route (cold-tsc catch). Gates on the final
+      state: tsc 0 · lint 0 · vitest 989+1. Commit **`b8910eb`** (local; push pending operator word).
+      Probe account `shre2eP6355511` swept on operator directive (guarded `shre2e%` prefix, pre/post
+      probes: 1 row deleted, residual 0); `7f95217` pushed (`6d34914..7f95217`, hook clean)
 
 No other work is approved. FID-003 `closed` per G2 — commit **`57dbfef`** (4 files +85/−31); archived.
 

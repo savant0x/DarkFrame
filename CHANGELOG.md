@@ -23,6 +23,13 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 - `GET /api/shrine/status` deleted (zero client callers — the panel renders boosts from the player payload), and `activityLogger`'s mappings for `/api/shrine/visit` + `/api/shrine/boost` removed (the routes never existed; `SHRINE_VISIT`/`SHRINE_BOOST` enum members deleted with them — zero writes ever carried those action types).
 
+## [0.0.5] — 2026-09-17 session
+
+### Fixed — base indicator pill: level surfaced, legibility on bright artwork (FID-20260917-003 follow-on, commit `b8910eb`)
+
+- The own-base corner pill now shows the level (`Base · LV n`), closing the asymmetry with enemy bases (which already displayed `· LV n`).
+- Both pill variants sit on the bottom status strip's void-backing method — new shared tokens `nn-viewport__badge--green/--magenta` (dark `--nn-void` fill + matching border/glow) — so raw neon text no longer vanishes over bright base artwork; fill opacity tuned on operator review.
+
 ## [0.0.3] — 2026-09-17 session
 
 ### Fixed — FID-20260917-001: clan-treasury snapshot-writer hardening (closed, commit `6577707`)
