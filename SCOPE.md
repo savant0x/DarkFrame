@@ -773,8 +773,9 @@ Interpreted scope (presented via the design review turn; operator go-ahead recei
       multi-war shape; ClanTerritoryPanel War Captures section (multi-war list, confirm-then-fire POST, verbatim
       toasts, cap-aware disable); 16 new pins across clanWarfareV2.test.ts + ClanTerritoryPanel.warfare.test.tsx.
       Gates (fresh, post-final-edit): `npx tsc --noEmit` → 0 · `npm run lint` → 0 · `npm run test:ci` → 966 passed /
-      1 skipped (baseline 951+1). Law-4 reachability greps per §5 all ≥1 production hit. Commit pending (G1 —
-      operator executes; G2 hash on close)
+      1 skipped (baseline 951+1). Law-4 reachability greps per §5 all ≥1 production hit. Committed 2026-09-17 as
+      `32464f0` (operator go-ahead: "run it yourself"); FID-013 closed + archived to dev/fids/archive/, CHANGELOG
+      0.0.2 entry shipped, VERSION 0.0.1→0.0.2
 - [x] **Operator ruling (2026-09-16, final):** research artifacts (both `docs/research/PBBG *.md` passes) are
       **direction, not law** — design derives from DarkFrame's own systems. Applied first as a full re-derivation
       (passes 5–6), then superseded by the operator's final ruling: the siege redesign itself was over-built and is
@@ -785,8 +786,8 @@ Interpreted scope (presented via the design review turn; operator go-ahead recei
       (+2 capture / +1 repel to defender as point events; settlement compares total points first, captures become
       displayed stats), capture-flow repair (A1 treasury corruption, A2 repel-as-success, A3 refusals→500,
       strength from attacker army power replacing the level curve, scoped C1 transaction hardening), capture UI +
-      multi-war target enumeration. No migrations, no new tables, no new jobs. Implemented 2026-09-17 (see the
-      implementation bullet above); closure pending commit (G2)
+      multi-war target enumeration. No migrations, no new tables, no new jobs. Implemented + closed 2026-09-17 on
+      commit `32464f0` (archived); see the implementation bullet above
 
 ### Session 2026-09-14 (009) — Specialization audit: built but inert; Phase 0 fixed, plan converged
 

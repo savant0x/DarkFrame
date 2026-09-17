@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.2] — 2026-09-17 session
+
+### Fixed — FID-20260916-013: war scoring unification + capture-flow repair + capture UI (closed, commit `32464f0`)
+
+- Wars are pure points now: capture success awards +2 attacker war points and a repel awards +1 to the defender (in-transaction increments); hourly settlement compares total score FIRST — capture counts are a tiebreak, fixing the old precedence where 1 capture outranked 99 battle wins.
+- Capture flow repaired: the defender's treasury is never touched on a successful capture (the attacker pays from their own row, A1); a repelled attempt no longer surfaces as a success (A2); treasury refusals and daily-cap hits return 400/403 with verbatim messages instead of 500 (A3).
+- Capture strength is the clan's real army power — Σ(strength × quantity) over member units vs the defender's army floored at the shipped 5,000 wall, scaled by the existing adjacency bonus (+10%/tile, max +50%) and ±15% jitter. The clan-level strength curve is deleted; equal armies ≈ coin flip, 2× advantage reliably wins.
+- The territory panel gains a War Captures section: enumerates ALL outgoing ACTIVE wars (no limit(1) hiding multi-wars), per-tile capture buttons gated Officer+ (mirroring the server role check), confirm-then-fire (the 25k M/E fee is paid win or lose), verbatim server toasts, daily-cap-aware disabling. Captures emit TERRITORY_CLAIMED/TERRITORY_LOST to both clans' activity feeds.
+- 16 new pins (10 service + 6 component); tsc 0 · eslint 0 · vitest 966+1skip (baseline 951+1). Session-034 capture scaffolding reverted (disposition closed).
+
 ## [0.0.1] — 2026-09-16 session
 
 ### Fixed — daily-login streak bonus

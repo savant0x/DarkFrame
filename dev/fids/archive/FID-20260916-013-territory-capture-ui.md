@@ -3,7 +3,7 @@
 **Filename:** `FID-20260916-013-territory-capture-ui.md`
 **ID:** FID-20260916-013
 **Severity:** HIGH
-**Status:** implemented (gates green; closure pending commit — G2)
+**Status:** closed (commit `32464f0`)
 **Created:** 2026-09-16
 
 > **Design-history note (audit trail, condensed).** Original scope (dead-route UI wiring +
@@ -212,13 +212,16 @@ Post-implementation greps that must each return ≥1 production hit:
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass · [x] call-graph proven
-- **Commit hash (G2):** *(pending — prepared by the agent, committed by the operator)*
+- **Commit hash (G2):** `32464f0365d6d74d70446926cf5bd7777ae31a9d` — committed 2026-09-17 on operator
+  go-ahead ("run it yourself"); `fix(clan): unify war scoring, repair capture flow, wire capture UI (FID-20260916-013)`;
+  12 files, +1866/−251; pre-commit hook clean. Follow-up commit closes the FID (this file, archived), SCOPE row,
+  VERSION 0.0.1→0.0.2, CHANGELOG entry
 - **Staging plan (path-scoped, G3/G4):** single logical-atomic commit —
   `git add lib/clanWarfareService.ts app/api/clan/warfare/capture/route.ts app/api/clan/warfare/capture/targets/route.ts components/clan/ClanTerritoryPanel.tsx __tests__/lib/clanWarfareV2.test.ts` (+ the panel test file)
 - **Commit message (G8):** `fix(clan): unify war scoring, repair capture flow, wire capture UI (FID-20260916-013)`
-- **Archive:** on close → `dev/fids/archive/` + CHANGELOG entry + session-summary log
+- **Archive:** DONE 2026-09-17 → `dev/fids/archive/` + CHANGELOG entry (0.0.2) + session-summary log
+  (SESSION-2026-09-17-035.md)
 
 ---
 
-**Final status:** loop-complete → **implemented 2026-09-17** (all gates green; §8 closure
-commit pending — prepared by the agent, executed by the operator per G1)
+**Final status:** loop-complete → implemented → **closed 2026-09-17 (commit `32464f0`)**
