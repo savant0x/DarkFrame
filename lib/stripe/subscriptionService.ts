@@ -55,7 +55,7 @@ import {
  * Idempotent - safe to call multiple times for same transaction.
  * 
  * @param {object} params - VIP grant parameters
- * @param {string} params.userId - User ID (maps to players.mongoId) to grant VIP
+ * @param {string} params.userId - User ID (maps to players.username) to grant VIP
  * @param {VIPTier} params.tier - VIP tier purchased
  * @param {string} params.stripeCustomerId - Stripe Customer ID for portal access
  * @param {string} params.stripeSubscriptionId - Stripe Subscription ID for tracking
@@ -89,8 +89,10 @@ export async function grantVIP(params: {
     const expirationDate = new Date();
     expirationDate.setDate(expirationDate.getDate() + durationDays);
     
-    // Try to find the player first
-    const player = await db.select().from(players).where(eq(players.mongoId, params.userId)).limit(1).then(rows => rows[0]);
+    // FID-20260917-009: keyed on username — mongo_id is NULL for every player
+    // since the pg pivot (nothing writes it), and checkout metadata embeds
+    // username as userId. The old eq(players.mongoId, ...) could never match.
+    const player = await db.select().from(players).where(eq(players.username, params.userId)).limit(1).then(rows => rows[0]);
     
     if (!player) {
       console.error('Player not found for VIP grant:', {
@@ -98,15 +100,11 @@ export async function grantVIP(params: {
         collectionName: 'players'
       });
       
-      // Try alternative query to get sample player structure
-      const samplePlayer = await db.select().from(players).limit(1).then(rows => rows[0]);
-      console.log('Sample player document structure:', samplePlayer ? Object.keys(samplePlayer) : 'No players found');
-      
       return false;
     }
     
     console.log('Player found, updating VIP status:', {
-      playerId: player.mongoId,
+      playerId: player.username,
       currentVIP: player.vip || false
     });
     
@@ -120,7 +118,7 @@ export async function grantVIP(params: {
         stripeSubscriptionId: params.stripeSubscriptionId,
         vipLastUpdated: new Date(),
       })
-      .where(eq(players.mongoId, params.userId));
+      .where(eq(players.username, params.userId));
     
     console.log('VIP grant update result:', {
       affectedRows: result.rowCount ?? 0
@@ -150,7 +148,7 @@ export async function grantVIP(params: {
  * Revokes VIP status from a user. Called when subscription is cancelled
  * or payment fails. Maintains Stripe customer ID for potential re-subscription.
  * 
- * @param {string} userId - User ID (maps to players.mongoId) to revoke VIP
+ * @param {string} userId - User ID (maps to players.username) to revoke VIP
  * @returns {Promise<boolean>} True if VIP revoked successfully
  * 
  * @throws {Error} If database operation fails
@@ -170,7 +168,7 @@ export async function revokeVIP(userId: string): Promise<boolean> {
         vipTier: null,
         vipLastUpdated: new Date(),
       })
-      .where(eq(players.mongoId, userId));
+      .where(eq(players.username, userId));
     
     if ((result.rowCount ?? 0) === 0) {
       console.error('Player not found for VIP revocation:', userId);
@@ -192,7 +190,7 @@ export async function revokeVIP(userId: string): Promise<boolean> {
  * Adds additional time to current expiration date (doesn't reset from today).
  * 
  * @param {object} params - Extension parameters
- * @param {string} params.userId - User ID (maps to players.mongoId) to extend
+ * @param {string} params.userId - User ID (maps to players.username) to extend
  * @param {VIPTier} params.tier - VIP tier being renewed
  * @returns {Promise<boolean>} True if extension successful
  * 
@@ -208,7 +206,8 @@ export async function extendVIP(params: {
 }): Promise<boolean> {
   try {
     // Get current player to check existing expiration
-    const player = await db.select().from(players).where(eq(players.mongoId, params.userId)).limit(1).then(rows => rows[0]);
+    // FID-20260917-009: username-keyed (see grantVIP note)
+    const player = await db.select().from(players).where(eq(players.username, params.userId)).limit(1).then(rows => rows[0]);
     
     if (!player) {
       console.error('Player not found for VIP extension:', params.userId);
@@ -230,7 +229,7 @@ export async function extendVIP(params: {
         vipTier: params.tier,
         vipLastUpdated: new Date(),
       })
-      .where(eq(players.mongoId, params.userId));
+      .where(eq(players.username, params.userId));
     
     console.log('VIP extended successfully:', {
       userId: params.userId,
@@ -374,7 +373,10 @@ export async function getUserByStripeCustomerId(
 ): Promise<{ id: string; username: string; email: string } | null> {
   try {
     const result = await db.select({
-      id: players.mongoId,
+      // FID-20260917-009: the projection key was aliased off the NULL mongoId
+      // with a `row.id || row.username` fallback papering over it — alias the
+      // real key directly.
+      id: players.username,
       username: players.username,
       email: players.email,
     }).from(players)
@@ -385,8 +387,8 @@ export async function getUserByStripeCustomerId(
       return null;
     }
     
-    // `id` is aliased from players.mongoId at the select — the projection key IS the mongo id.
-    const row = result[0]; return { id: row.id || row.username, username: row.username, email: row.email };
+    // `id` is the username (FID-20260917-009) — the caller-facing player key.
+    const row = result[0]; return { id: row.id, username: row.username, email: row.email };
   } catch (error) {
     console.error('Failed to get user by Stripe customer ID:', error);
     return null;
@@ -399,7 +401,7 @@ export async function getUserByStripeCustomerId(
  * Checks if user currently has active VIP status. Validates expiration
  * date and automatically revokes if expired.
  * 
- * @param {string} userId - User ID to check (maps to players.mongoId)
+ * @param {string} userId - User ID to check (maps to players.username)
  * @returns {Promise<{isVIP: boolean, tier?: VIPTier, expiresAt?: Date}>} VIP status
  * 
  * @example
@@ -417,7 +419,7 @@ export async function checkVIPStatus(
       vipExpiration: players.vipExpiration,
       vipTier: players.vipTier,
     }).from(players)
-      .where(eq(players.mongoId, userId))
+      .where(eq(players.username, userId))
       .limit(1);
     
     if (!result || result.length === 0) {
