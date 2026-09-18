@@ -485,18 +485,26 @@ export async function validateReferral(referralId: string): Promise<boolean> {
   const recordRows = await db.select().from(referrals).where(eq(referrals.id, referralId)).limit(1);
   const record = recordRows[0];
   
-  if (!record || record.validated) {
+  if (!record) {
     return false;
   }
   
   const now = new Date();
   
-  // Mark referral as validated
-  await db.update(referrals).set({
+  // FID-20260917-014 (D3): conditional claim on the validated flip. Concurrent
+  // logins (multi-device) or a racing admin validation must not double-pay:
+  // the UPDATE only lands while the row is still unvalidated, and a lost claim
+  // returns false BEFORE any reward write below runs. (Previously an
+  // unconditional SET guarded only by the pre-read - a race could double-distribute.)
+  const claimed = await db.update(referrals).set({
     validated: 1,
     validationDate: now,
     updatedAt: now
-  }).where(eq(referrals.id, referralId));
+  }).where(and(eq(referrals.id, referralId), eq(referrals.validated, 0))).returning({ id: referrals.id });
+  
+  if (claimed.length === 0) {
+    return false; // race lost - already validated elsewhere, nothing granted
+  }
   
   // Update new player status
   await db.update(players).set({
@@ -616,4 +624,51 @@ export function calculateMilestoneProgress(currentReferrals: number): number {
   
   const progress = ((currentReferrals - previousMilestoneCount) / (nextMilestone.count - previousMilestoneCount)) * 100;
   return Math.min(100, Math.max(0, progress));
+}
+
+/**
+ * FID-20260917-014 (SCOPE row 92): on-login referral trigger.
+ *
+ * Called from POST /api/auth/login after successful authentication. Three jobs,
+ * all best-effort (login must never break):
+ *   1. Cheap early return when the player has no live pending referral
+ *      (validated=0, invalidated=0, flaggedForAbuse=0) - the common case.
+ *   2. Maintain referrals.loginCount / lastLogin - these were previously
+ *      written only once at referral creation, so the 4-login validation
+ *      criterion was unreachable by construction.
+ *   3. Run the existing checkReferralValidation -> validateReferral chain
+ *      when the 7-day + 4-login criteria are met. validateReferral is now
+ *      claim-guarded (D3), so concurrent logins cannot double-pay.
+ *
+ * Count semantics (D1): every successful password-gated login increments.
+ * Exclusions (D2): invalidated and abuse-flagged referrals are never
+ * auto-validated (admin manual validation remains available).
+ */
+export async function processLoginReferralEvents(username: string): Promise<void> {
+  try {
+    const pendingRows = await db.select({ id: referrals.id }).from(referrals)
+      .where(and(
+        eq(referrals.newPlayerUsername, username),
+        eq(referrals.validated, 0),
+        eq(referrals.invalidated, 0),
+        eq(referrals.flaggedForAbuse, 0)
+      ));
+
+    if (pendingRows.length === 0) return;
+
+    const now = new Date();
+    for (const row of pendingRows) {
+      await db.update(referrals).set({
+        loginCount: sql`${referrals.loginCount} + 1`,
+        lastLogin: now,
+        updatedAt: now
+      }).where(eq(referrals.id, row.id));
+
+      if (await checkReferralValidation(row.id)) {
+        await validateReferral(row.id);
+      }
+    }
+  } catch (error) {
+    console.error('[referralService] login referral hook failed (non-fatal)', error);
+  }
 }

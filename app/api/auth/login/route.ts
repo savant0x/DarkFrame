@@ -114,13 +114,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     });
 
-    // Update lastActive timestamp on login
+    // FID-20260917-014: on-login referral trigger - maintains
+    // referrals.loginCount/lastLogin and auto-validates pending referrals that
+    // meet the 7-day + 4-login criteria. Never throws (login must not break);
+    // early-returns on one indexed lookup for the common no-referral case.
+    // Replaces the dead Mongo-era lastActive write (silent no-op since the pg
+    // pivot - Mongo census Cluster-B-class residue, removed in passing).
     try {
-      const { getCollection } = await import('@/lib/mongodb');
-      const playersCollection = await getCollection('players');
-      await playersCollection.updateOne({ username: player.username }, { $set: { lastActive: new Date() } });
+      const { processLoginReferralEvents } = await import('@/lib/referralService');
+      await processLoginReferralEvents(player.username);
     } catch (err) {
-      log.debug('Failed to update lastActive', { error: String(err) });
+      log.debug('Referral login hook failed (non-fatal)', { error: String(err) });
     }
     
     // Auxiliary cookies — PERSISTENCE FIX (2026-09-08): these now share the
