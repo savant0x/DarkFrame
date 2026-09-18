@@ -66,6 +66,6 @@ on-login trigger and makes the criteria reachable.
 
 ## 8. Closure
 
-- **Gates:** - filled at closure.
-- **Commit hash (G2):** - filled at closure.
+- **Gates:** 8 pins green (incl. structural WHERE-column pin + claim-race-lost pin); live probe **10/10, exit 0** against the real dev DB (8-day seeded referral: fires 1–3 unvalidated, fire 4 validates with referrer rewards credited, fire 5 idempotent; snapshot/restore cleanup); tsc 0 · eslint 0 · census 0 · suite 1040 at the batch (1068 as of the FID-016 batch re-run).
+- **Commit hash (G2):** `1bd818b`
 - **Post-commit:** FID archived; SCOPE row 93 -> Closed; CHANGELOG; VERSION.

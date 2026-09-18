@@ -5,6 +5,20 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.11] — 2026-09-17 session
+
+### Added — FID-20260917-014: referral validation on login (closed, commit `1bd818b`)
+
+- pg referrals can now actually validate: `processLoginReferralEvents(username)` hooks `POST /api/auth/login` with an indexed early return for the no-referral common case, maintaining `referrals.loginCount`/`lastLogin` — previously written only at referral creation, which made the 4-login criterion **unreachable by construction** — then running the existing `checkReferralValidation → validateReferral` reward chain when 7d + 4 logins are met. Exclusions per the loop: invalidated and abuse-flagged referrals never auto-validate (admin manual path intact); `validateReferral`'s validated flip is now a conditional claim (`UPDATE … WHERE validated = 0 RETURNING`) so multi-device logins or a racing admin validation cannot double-pay. The hook replaced the login route's dead Mongo-era `lastActive` block (silent no-op since the pg pivot). 8 pins; live probe 10/10 against the real dev DB.
+
+### Changed — FID-20260917-015: Cluster B batch 1 — stats, check-name, tutorial ×2 off the Mongo shim (closed, commit `81a4d02`)
+
+- The census's "trivial" slice rewritten contract-pinned: `/api/stats` gets the SQL `orderBy(...).limit(10)` leaderboard (the census's noted perf win) + one aggregate + COUNT probes, with power **derived** as `totalStrength + totalDefense` (D1: `total_power` is not a pg column — matches `rankingService`); `/api/clan/check-name` uses `lower()` equality, killing the user-input `RegExp` seam; tutorial eligibility read + restart delete on pg `tutorial_progress`; the decline route's connection theater removed. 8 pins; live HTTP probe 16/16. Fresh census re-size: 73 `lib/mongodb` importers, 15 direct `clientPromise` users (the audit's 13 was stale).
+
+### Changed — FID-20260917-016: Cluster B batch 2 — friends/DM family + ban-player, clear-flags, logs-cleanup, build-unit off the shim (closed, commit `5496fbf`)
+
+- All nine in-scope files cut from `clientPromise`: six were pure connection theater (friends ×2, dm ×3 — the shim client was assigned and never used); four were real rewrites carrying schema-truth fixes — bans insert generates its no-default 24-char id + NOT NULL `createdAt` with smallint flags; unban clears the five real ban columns (D4: `unbannedAt`/`unbannedBy` never existed — the Mongo `$set` mapped to nothing); `autoResolveFlags` sets `resolved = 1` with resolver evidence in `metadata` (D5); audit rows land in `mod_log` (D1: `adminLogs` matched no table); the cleanup dry-run mirrors the real deleter's single cutoff over `player_activity` (D2); build-unit preserves shim-parity resource charges as SQL deltas on the flat columns, keeps the jsonb unit-append shape, and lands the schema-contracted `investedMetal`/`investedEnergy` deltas the Mongo path never wrote (D3). 20 pins; live probe 26/26 including a build through a fresh register-route session on its own factory. Live `clientPromise` usage under `app/api` is now zero.
+
 ## [0.0.10] — 2026-09-17 session
 
 ### Added — FID-20260917-012: chat honesty — report persistence + GLOBAL block (closed, commit `d89ac93`)

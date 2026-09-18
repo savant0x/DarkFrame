@@ -75,6 +75,6 @@ projection.
 
 ## 8. Closure
 
-- **Gates:** - filled at closure.
-- **Commit hash (G2):** - filled at closure.
+- **Gates:** 8 pins green (structural sort-column pins incl. the assertion that the nonexistent `total_power` never appears); live HTTP probe **16/16** against the real server + DB (top player matches a direct SQL oracle, all four gameStats counters equal direct SQL counts, case-mangled clan name "sAvAnT" correctly taken, tutorial restart deletes by session identity); tsc 0 · eslint 0 · census 0 · suite 1048 at the batch (1068 as of the FID-016 batch re-run).
+- **Commit hash (G2):** `81a4d02`
 - **Post-commit:** FID archived; SCOPE row 94 -> Closed; CHANGELOG; VERSION.
