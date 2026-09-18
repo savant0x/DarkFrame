@@ -122,6 +122,6 @@ tsc 0 - eslint 0 (touched files) - full suite - census exit 0.
 
 ## 8. Closure
 
-- **Gates:** — filled at closure.
-- **Commit hash (G2):** — filled at closure.
-- **Post-commit:** FID archived; SCOPE row 90 -> Closed; CHANGELOG; VERSION.
+- **Gates:** tsc 0; eslint 0 (12 touched files); full suite 1032 passed + 1 skip (+12 pins, __tests__/api/chatReportBlock.test.ts); inverted route census exit 0. Block-route auth retagged to an ok-discriminant pair under exactOptionalPropertyTypes so handlers cannot infer an undefined fall-through (see 3b).
+- **Commit hash (G2):** d89ac93
+- **Post-commit:** Archived to dev/fids/archive/ in the closure micro-batch; SCOPE row 90 -> Closed; CHANGELOG 0.0.10.

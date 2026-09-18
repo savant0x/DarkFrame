@@ -28,3 +28,9 @@ expecting its existence, which this FID updates by removal.
 
 None - the route was unreachable by construction. If server logs ever showed
 calls, the client was the only caller class and it demonstrably does not call.
+
+## 8. Closure
+
+- **Gates:** zero-caller re-grep at execution (app/ components/ lib/ hooks/ context/ utils/); inverted route census exit 0 post-deletion; full suite 1032 passed + 1 skip (item-4 gate run, session 054).
+- **Commit hash (G2):** d51992f
+- **Post-commit:** Archived to dev/fids/archive/ in the closure micro-batch; SCOPE row 91 -> Closed; CHANGELOG 0.0.10.

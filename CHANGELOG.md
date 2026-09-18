@@ -5,6 +5,20 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.10] — 2026-09-17 session
+
+### Added — FID-20260917-012: chat honesty — report persistence + GLOBAL block (closed, commit `d89ac93`)
+
+- The survey P0: report/block buttons showed success toasts while doing nothing. New `chat_reports` table + `POST /api/chat/report` (reason validation, self-report refusal), surfaced to admins via `GET /api/admin/moderation?type=reports`; new `blocked_users` table + `blockService` (idempotent, self-block refused) enforced **server-side** in `chatService` (blocked sender's rows filtered via the route-supplied `viewerId`) and `messagingService` (conversations with a blocked other participant vanish) — a block applies to global chat AND DMs immediately, no client cooperation needed. Honest Report/Block buttons on live ChatPanel rows; the orphan `ChatMessage` component's stubs rewired to the real endpoints. 12 pins; block-route auth retagged to an ok-discriminant pair so handlers cannot infer an undefined fall-through under `exactOptionalPropertyTypes`.
+
+### Removed — FID-20260917-013: dead `/api/tutorial/complete` route deleted (closed, commit `d51992f`)
+
+- Evidence-complete deletion: zero client callers re-verified at execution across every client surface; inverted route census exit 0 post-deletion.
+
+### Changed — FID-20260917-011: seven-item work order executed end-to-end (closed, commit `1214c3b`)
+
+- All seven approved items landed with per-item gates: work-order filing (`233bbca`), FID-010 alliance batch + SCOPE mojibake repair (`296b48c`), triple closure 008/009/010 + CHANGELOG 0.0.9 (`85a03b4`), chat honesty (`d89ac93`), tutorial deletion (`d51992f`), row 11 closed as already-healed by the treasury-lock rework (`af7afae`), referral cron decoy deleted + guide truthed + rows 22/23 re-probed + row 92 follow-up candidate filed (`7de2230`), session record + row 89 closure (`1214c3b`). Two scope corrections by evidence: the row-11 dedupe repair had already shipped inside FID-20260917-001, and rows 22/23 were already Closed. Only new open item: row 92 (wire pg referral validation on login — candidate awaiting approval).
+
 ## [0.0.9] — 2026-09-17 session
 
 ### Fixed — FID-20260917-008: /api/player/inventory migrated to pg (closed, commit `90f7f5f`)

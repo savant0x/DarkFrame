@@ -76,6 +76,6 @@ through str_replace/write_file or Python with explicit unicode escapes.
 
 ## 8. Closure
 
-- **Gates:** - filled at closure.
-- **Commit hash (G2):** - filled at closure.
-- **Post-commit:** FID archived; SCOPE row 89 -> Closed; CHANGELOG; VERSION.
+- **Gates:** per-item, all green - final state: tsc 0; full suite 1032 passed + 1 skip; inverted route census exit 0 (session 054 records the per-item detail and the three gate defects fixed in-flight).
+- **Commit hash (G2):** 1214c3b (closure commit; per-item hashes 233bbca / 296b48c / 85a03b4 / d89ac93 / d51992f / af7afae / 7de2230 recorded in SCOPE row 89's disposition)
+- **Post-commit:** Archived to dev/fids/archive/ in the closure micro-batch; SCOPE row 89 Closed (at 1214c3b); CHANGELOG 0.0.10.
