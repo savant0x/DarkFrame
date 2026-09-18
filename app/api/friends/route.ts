@@ -37,7 +37,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { getFriends, sendFriendRequest } from '@/lib/friendService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
@@ -64,11 +63,9 @@ import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/er
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const _db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
-
-    // 2. Authenticate user
+    // FID-20260917-016: shim connection theater removed — the real work below
+    // rides pg-native services (friendService); no clientPromise import.
+    // Authenticate user
   const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     
@@ -133,11 +130,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const _db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
-
-    // 2. Authenticate user
+    // FID-20260917-016: shim connection theater removed — the real work below
+    // rides pg-native services (friendService); no clientPromise import.
+    // Authenticate user
   const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     

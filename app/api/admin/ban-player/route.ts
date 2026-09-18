@@ -15,8 +15,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
-import clientPromise from '@/lib/mongodb';
-import type { Player } from '@/types/game.types';
+import { db } from '@/lib/db/connection';
+import { players, bans, modLog, playerFlags } from '@/lib/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -48,14 +49,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const validated = BanPlayerSchema.parse(body);
     const { username, reason, durationDays, autoResolveFlags } = validated;
 
-    const client = await clientPromise;
-    const db = client.db('game');
-    const players = db.collection<Player>('players');
-    const bans = db.collection('bans');
-    const flags = db.collection('playerFlags');
-
-    // Check if player exists
-    const player = await players.findOne({ username });
+    // Check if player exists — pg (FID-20260917-016)
+    const [player] = await db.select({ username: players.username, rank: players.rank, vipTier: players.vipTier, resourcesMetal: players.resourcesMetal, resourcesEnergy: players.resourcesEnergy }).from(players).where(eq(players.username, username)).limit(1);
     if (!player) {
       return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
         message: 'Player not found',
@@ -72,68 +67,58 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Calculate ban expiration if duration specified
+    // Ban record — pg (FID-20260917-016). The moderation table requires
+    // id (24-char PK with NO default — drizzle must generate it), playerId/
+    // moderatorId (NOT NULL), createdAt (NOT NULL, no default); the account-ban
+    // domain keys (username/bannedBy) are carried per the schema's shared-table
+    // contract. isPermanent/active are smallint flags, not booleans. Missing
+    // keys made every ban 500 on the insert (FID-20260914-004 live sweep).
     const bannedAt = new Date();
-    const expiresAt = durationDays 
+    const expiresAt = durationDays
       ? new Date(bannedAt.getTime() + durationDays * 24 * 60 * 60 * 1000)
       : null; // null = permanent ban
 
-    // Create ban record. The moderation table requires playerId/moderatorId
-    // (NOT NULL); the account-ban domain keys (username/bannedBy) are carried
-    // alongside per the schema's shared-table contract. Missing keys made every
-    // ban 500 on the insert (found by the FID-20260914-004 live sweep).
-    const banRecord = {
+    await db.insert(bans).values({
+      id: crypto.randomUUID().replace(/-/g, '').slice(0, 24),
       playerId: username,
       moderatorId: user.username,
       username,
       bannedBy: user.username,
       bannedAt,
-      // created_at is NOT NULL with no default (shared channel/account table) —
-      // third missing key from the same pg-pivot defect.
       createdAt: bannedAt,
       expiresAt,
       reason: reason.trim(),
-      isPermanent: !durationDays,
-      active: true
-    };
+      isPermanent: durationDays ? 0 : 1,
+      active: 1,
+    });
 
-    await bans.insertOne(banRecord);
+    // Update player account — pg columns (banned is smallint, not boolean)
+    await db.update(players).set({
+      banned: 1,
+      bannedAt,
+      bannedBy: user.username,
+      banReason: reason.trim(),
+      banExpiresAt: expiresAt,
+    }).where(eq(players.username, username));
 
-    // Update player account
-    await players.updateOne(
-      { username },
-      {
-        $set: {
-          banned: true,
-          bannedAt,
-          bannedBy: user.username,
-          banReason: reason.trim(),
-          banExpiresAt: expiresAt
-        }
-      }
-    );
-
-    // Optionally resolve all active flags
+    // Optionally resolve all active flags. player_flags has NO resolvedBy/
+    // resolvedAt/adminNotes columns (FID-20260917-016 D5): only `resolved`
+    // flips; the evidence rides the metadata jsonb so it stays queryable.
     if (autoResolveFlags) {
-      await flags.updateMany(
-        { username, resolved: false },
-        {
-          $set: {
-            resolved: true,
-            resolvedBy: user.username,
-            resolvedAt: new Date(),
-            adminNotes: `Auto-resolved via player ban: ${reason.trim()}`
-          }
-        }
-      );
+      await db.update(playerFlags).set({
+        resolved: 1,
+        metadata: {
+          resolvedBy: user.username,
+          resolvedAt: new Date().toISOString(),
+          adminNotes: `Auto-resolved via player ban: ${reason.trim()}`,
+        },
+      }).where(and(eq(playerFlags.username, username), eq(playerFlags.resolved, 0)));
     }
 
-    // Log admin action — mod_log column keys. The legacy Mongo doc keys
-    // (adminUsername/targetUsername/timestamp) resolve to NO column post-pivot,
-    // so NOT NULL moderator_id/target_id/created_at rendered as drizzle `default`
-    // and every ban 500'd after applying the ban (found by the FID-20260914-004
-    // live sweep). Legacy fields preserved in details.
-    const adminLogs = db.collection('adminLogs');
-    await adminLogs.insertOne({
+    // Log admin action — mod_log via drizzle (FID-20260917-016 D1). The legacy
+    // `adminLogs` shim name mapped to no pg table: the insert matched nothing
+    // real. Legacy fields preserved in details.
+    await db.insert(modLog).values({
       moderatorId: user.username,
       action: 'BAN_PLAYER',
       targetId: username,
@@ -143,9 +128,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         targetUsername: username,
         durationDays: durationDays || 'permanent',
         metadata: {
-          playerTier: (player as Player & { tier?: number }).tier ?? null,
+          playerTier: player.vipTier ?? null,
           playerRank: player.rank,
-          playerResources: player.resources,
+          playerResources: { metal: player.resourcesMetal, energy: player.resourcesEnergy },
           autoResolvedFlags: autoResolveFlags
         }
       }),
@@ -211,52 +196,33 @@ export const DELETE = withRequestLogging(rateLimiter(async (request: NextRequest
       });
     }
 
-    const client = await clientPromise;
-    const db = client.db('game');
-    const players = db.collection('players');
-    const bans = db.collection('bans');
+    // Update player account — pg (FID-20260917-016 D4): players has no
+    // unbannedAt/unbannedBy columns (the Mongo $set mapped to nothing); the
+    // unban clears the five real ban columns and the UNBAN mod_log row below
+    // carries the actor audit.
+    const result = await db.update(players).set({
+      banned: 0,
+      bannedAt: null,
+      bannedBy: null,
+      banReason: null,
+      banExpiresAt: null,
+    }).where(eq(players.username, username)).returning({ username: players.username });
 
-    // Update player account
-    const result = await players.updateOne(
-      { username },
-      {
-        $set: {
-          banned: false,
-          unbannedAt: new Date(),
-          unbannedBy: user.username
-        },
-        $unset: {
-          bannedAt: '',
-          bannedBy: '',
-          banReason: '',
-          banExpiresAt: ''
-        }
-      }
-    );
-
-    if (result.modifiedCount === 0) {
+    if (result.length === 0) {
       return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
         message: 'Player not found',
         username,
       });
     }
 
-    // Deactivate ban records
-    await bans.updateMany(
-      { username, active: true },
-      {
-        $set: {
-          active: false,
-          unbannedAt: new Date(),
-          unbannedBy: user.username
-        }
-      }
-    );
+    // Deactivate active ban records (shared channel/account table; account rows
+    // are distinguished by bannedBy being set — filter on username as before)
+    await db.update(bans).set({ active: 0 })
+      .where(and(eq(bans.username, username), eq(bans.active, 1)));
 
-    // Log admin action — mod_log column keys (same legacy-keys 500 as BAN_PLAYER;
-    // fixed in the same sweep pass).
-    const adminLogs = db.collection('adminLogs');
-    await adminLogs.insertOne({
+    // Log admin action — mod_log via drizzle (FID-20260917-016 D1); the legacy
+    // `adminLogs` shim name matched no pg table.
+    await db.insert(modLog).values({
       moderatorId: user.username,
       action: 'UNBAN_PLAYER',
       targetId: username,

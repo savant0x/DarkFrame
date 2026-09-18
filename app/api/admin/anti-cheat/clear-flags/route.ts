@@ -15,7 +15,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
-import clientPromise from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { players, playerFlags, modLog } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -48,11 +50,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const validated = ClearFlagsSchema.parse(body);
     const { username } = validated;
 
-    const client = await clientPromise;
-    const db = client.db('game');
-
-    // Check if player exists
-    const player = await db.collection('players').findOne({ username });
+    // Check if player exists — pg (FID-20260917-016)
+    const [player] = await db.select({ username: players.username }).from(players).where(eq(players.username, username)).limit(1);
     if (!player) {
       return createErrorResponse(ErrorCode.ADMIN_PLAYER_NOT_FOUND, {
         message: 'Player not found',
@@ -63,29 +62,35 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Get current flags for logging (player_flags is username-keyed as of migration 0007;
     // the pre-0007 `{ username }` filter hit no column and deleted zero rows while
     // reporting success).
-    const currentFlags = await db.collection('playerFlags')
-      .find({ username })
-      .toArray();
+    const currentFlags = await db.select({
+      flagType: playerFlags.flagType,
+      severity: playerFlags.severity,
+      createdAt: playerFlags.createdAt,
+    }).from(playerFlags).where(eq(playerFlags.username, username));
 
-    // Delete all flags for this player
-    const result = await db.collection('playerFlags').deleteMany({ username });
+    // Delete all flags for this player — honest count via .returning()
+    // (FID-20260914-004 semantics)
+    const deleted = await db.delete(playerFlags)
+      .where(eq(playerFlags.username, username))
+      .returning({ id: playerFlags.id });
 
-    // Log admin action — mod_log column keys. The legacy Mongo doc keys resolve to
-    // no column post-pivot (NOT NULL moderator_id/target_id/created_at rendered as
-    // `default` and the insert 500'd AFTER the flags were already cleared — same
-    // class as the ban-player audit fix, FID-20260914-004 live sweep).
-    await db.collection('adminLogs').insertOne({
+    // Log admin action — mod_log via drizzle (FID-20260917-016 D1). The legacy
+    // `adminLogs` shim name mapped to no pg table: NOT NULL moderator_id/
+    // target_id/created_at rendered as `default` and the insert matched nothing
+    // real AFTER the flags were already cleared (same class as the ban-player
+    // audit fix, FID-20260914-004 live sweep).
+    await db.insert(modLog).values({
       moderatorId: adminUser.username,
       action: 'CLEAR_FLAGS',
       targetId: username,
       details: JSON.stringify({
         adminUsername: adminUser.username,
         targetUsername: username,
-        flagsCleared: result.deletedCount,
-        previousFlags: currentFlags.map((f: Record<string, unknown>) => ({
+        flagsCleared: deleted.length,
+        previousFlags: currentFlags.map((f) => ({
           flagType: f.flagType,
           severity: f.severity,
-          timestamp: f.timestamp
+          timestamp: f.createdAt
         }))
       }),
       createdAt: new Date(),
@@ -93,14 +98,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     log.info('Flags cleared successfully', {
       username,
-      flagsCleared: result.deletedCount,
+      flagsCleared: deleted.length,
       adminUser: adminUser.username,
     });
 
     return NextResponse.json({
       success: true,
-      message: `Cleared ${result.deletedCount} flags for ${username}`,
-      flagsCleared: result.deletedCount
+      message: `Cleared ${deleted.length} flags for ${username}`,
+      flagsCleared: deleted.length
     });
 
   } catch (error) {

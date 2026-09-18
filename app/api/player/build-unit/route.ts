@@ -14,14 +14,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { players as playersTable, factories as factoriesTable } from '@/lib/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
 import { UNIT_BLUEPRINTS } from '@/types/units.types';
 import { getPlayerDoctrineBonuses } from '@/lib/specializationService';
 import { UNIT_CONFIGS, UnitType } from '@/types/game.types';
-import type { Player, Factory } from '@/types/game.types';
 import { 
   withRequestLogging, 
   createRouteLogger,
@@ -98,12 +99,15 @@ export const GET = withRequestLogging(async (_request: NextRequest) => {
     const totalSlots = baseSlots + factoryBonus;
     const usedSlots = player.units?.length || 0;
 
-    // Calculate factory build slots: Sum of available slots across all owned factories
-    const client = await clientPromise;
-    const db = client.db('darkframe');
-    const factories = await db.collection<Factory>('factories')
-      .find({ owner: username })
-      .toArray();
+    // Calculate factory build slots: Sum of available slots across all owned
+    // factories — pg (FID-20260917-016). Note: the shim path's `|| 20` fallback
+    // for slots is dead on pg (slots is NOT NULL default 0); real values used.
+    const factories = await db.select({
+      x: factoriesTable.x,
+      y: factoriesTable.y,
+      slots: factoriesTable.slots,
+      usedSlots: factoriesTable.usedSlots,
+    }).from(factoriesTable).where(eq(factoriesTable.owner, username));
     
     const factoryBuildSlots = factories.reduce((total: number, factory: { slots?: number; usedSlots?: number }) => {
       const availableInFactory = Math.max(0, (factory.slots || 20) - (factory.usedSlots || 0));
@@ -230,13 +234,14 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }
 
-    // Get all player factories for sequential slot consumption
-    const client = await clientPromise;
-    const factoriesDb = client.db('darkframe');
-    const factories = await factoriesDb.collection<Factory>('factories')
-      .find({ owner: username })
-      .sort({ x: 1, y: 1 }) // Sort by coordinates for consistent ordering
-      .toArray();
+    // Get all player factories for sequential slot consumption — pg, ordered by
+    // composite PK (x, y) for consistent ordering (FID-20260917-016)
+    const factories = await db.select({
+      x: factoriesTable.x,
+      y: factoriesTable.y,
+      slots: factoriesTable.slots,
+      usedSlots: factoriesTable.usedSlots,
+    }).from(factoriesTable).where(eq(factoriesTable.owner, username)).orderBy(factoriesTable.x, factoriesTable.y);
 
     if (factories.length === 0) {
       log.warn('No factories owned', { username: username });
@@ -303,13 +308,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const newUnits = [];
     let remainingUnits = validated.quantity;
     // Track factory slot updates — keyed by the composite PK (x, y); the
-    // factories table has no _id column (FID-20260909-023 §3.5).
-    const factoryUpdates: Array<{ factoryX: number; factoryY: number; newUsedSlots: number }> = [];
+    // factories table has no _id column (FID-20260909-023 §3.5). Carries the
+    // investedMetal/investedEnergy deltas (FID-20260917-016 D3).
+    const factoryUpdates: Array<{ factoryX: number; factoryY: number; newUsedSlots: number; investedMetalDelta: number; investedEnergyDelta: number }> = [];
 
     // Get slotCost from UNIT_CONFIGS for exponential slot cost system
     const unitType = unitBlueprint.id as UnitType;
     const unitConfig = UNIT_CONFIGS[unitType];
     const slotCostPerUnit = unitConfig?.slotCost || 1; // Fallback to 1 if not found
+
+    // Total slot cost across the build — denominator for per-factory investment
+    // shares (FID-20260917-016 D3). Declared here (after slotCostPerUnit) to
+    // respect TDZ.
+    const totalSlotCostForShares = validated.quantity * slotCostPerUnit;
 
     for (const factory of factories) {
       if (remainingUnits <= 0) break;
@@ -337,11 +348,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         // Calculate slots needed using exponential slot cost
         const slotsNeeded = unitsToAssignHere * slotCostPerUnit;
 
-        // Track factory slot update
+        // Track factory slot update + lifetime investment share
+        // (FID-20260917-016 D3: investedMetal/investedEnergy must be maintained
+        // at write time per the schema contract — the Mongo path never wrote
+        // them; the cost share rides the same update as the slot bump)
+        const metalShare = Math.round((totalMetalCost * slotsNeeded) / Math.max(1, totalSlotCostForShares));
+        const energyShare = Math.round((totalEnergyCost * slotsNeeded) / Math.max(1, totalSlotCostForShares));
         factoryUpdates.push({
           factoryX: factory.x,
           factoryY: factory.y,
-          newUsedSlots: (factory.usedSlots || 0) + slotsNeeded
+          newUsedSlots: (factory.usedSlots || 0) + slotsNeeded,
+          investedMetalDelta: metalShare,
+          investedEnergyDelta: energyShare,
         });
 
         remainingUnits -= unitsToAssignHere;
@@ -355,35 +373,20 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const newTotalStrength = (player.totalStrength || 0) + strengthGained;
     const newTotalDefense = (player.totalDefense || 0) + defenseGained;
 
-    // Get database collections for update
-    const playersDb = client.db('darkframe');
-    const playersCollection = playersDb.collection<Player>('players');
-    const factoriesCollection = factoriesDb.collection<Factory>('factories');
+    // Update player in database — pg (FID-20260917-016). Semantics preserved
+    // from the shim path: N per-unit entries with quantity: 1 (FID-20260909-033
+    // amendment; $each appends every element), resource charge via SQL delta on
+    // the real flat columns (the shim's 'resources.metal' dot-path mapped to
+    // resourcesMetal), totals set explicitly.
+    const updateResult = await db.update(playersTable).set({
+      units: sql`(coalesce(${playersTable.units}, '[]'::jsonb) || ${JSON.stringify(newUnits.map((u) => ({ ...u, quantity: 1 })))}::jsonb)`,
+      resourcesMetal: sql`${playersTable.resourcesMetal} - ${totalMetalCost}`,
+      resourcesEnergy: sql`${playersTable.resourcesEnergy} - ${totalEnergyCost}`,
+      totalStrength: newTotalStrength,
+      totalDefense: newTotalDefense,
+    }).where(eq(playersTable.username, username)).returning({ username: playersTable.username });
 
-    // Update player in database
-    const updateResult = await playersCollection.updateOne(
-      { username: username },
-      {
-        // FID-20260909-033 amendment (FID-20260914-004 live sweep): the plain-array
-        // operand appended as ONE nested element ([[u1,u2,u3]]) — Mongo parity appends
-        // arrays whole — AND the full quantity stamping would have triple-counted a
-        // flat append. The seam's $each path is probe-verified (pushOperandAndPower
-        // suite + live shim verification), so N per-unit entries with quantity: 1 is
-        // the correct shape (matches the /api/factory variant's quantity-folded
-        // entries; totals sum strength × quantity correctly either way).
-        $push: { units: { $each: newUnits.map((u) => ({ ...u, quantity: 1 })) } },
-        $inc: {
-          'resources.metal': -totalMetalCost,
-          'resources.energy': -totalEnergyCost
-        },
-        $set: {
-          totalStrength: newTotalStrength,
-          totalDefense: newTotalDefense
-        }
-      }
-    );
-
-    if (updateResult.modifiedCount === 0) {
+    if (updateResult.length === 0) {
       log.error('Failed to update player for unit build', new Error('Database update failed'), { 
         username: username 
       });
@@ -403,24 +406,29 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       log.warn('Unit-build stat tracking failed (non-fatal)', trackErr instanceof Error ? trackErr : new Error(String(trackErr)));
     }
 
-    // FID-20260909-023 §3.5: one bulkWrite over the composite PK instead of a
-    // per-factory round-trip loop. The previous loop filtered on { _id } — a
-    // key no factories column exists for (PK is composite x/y) — so the shim's
-    // unmapped-key guard matched NOTHING and usedSlots never filled.
+    // FID-20260909-023 §3.5: per-factory updates over the composite PK (x, y)
+    // instead of a filtered loop on a nonexistent _id. FID-20260917-016 D3:
+    // each write also lands the lifetime investment delta (investedMetal/
+    // investedEnergy are "maintained at write time by build-unit" per the
+    // schema contract — the Mongo path never wrote them), via SQL delta so    // concurrent builds compose.
     if (factoryUpdates.length > 0) {
-      const slotWrite = await factoriesCollection.bulkWrite(
-        factoryUpdates.map((update) => ({
-          updateOne: {
-            filter: { x: update.factoryX, y: update.factoryY },
-            update: { $set: { usedSlots: update.newUsedSlots } }
-          }
-        }))
-      );
-      if (slotWrite.modifiedCount < factoryUpdates.length) {
+      const written = await db.transaction(async (tx) => {
+        let ok = 0;
+        for (const update of factoryUpdates) {
+          const rows = await tx.update(factoriesTable).set({
+            usedSlots: update.newUsedSlots,
+            investedMetal: sql`${factoriesTable.investedMetal} + ${update.investedMetalDelta}`,
+            investedEnergy: sql`${factoriesTable.investedEnergy} + ${update.investedEnergyDelta}`,
+          }).where(and(eq(factoriesTable.x, update.factoryX), eq(factoriesTable.y, update.factoryY))).returning({ x: factoriesTable.x });
+          ok += rows.length;
+        }
+        return ok;
+      });
+      if (written < factoryUpdates.length) {
         log.warn('Some factory slot updates matched nothing', {
           username,
           expected: factoryUpdates.length,
-          modified: slotWrite.modifiedCount
+          modified: written
         });
       }
     }

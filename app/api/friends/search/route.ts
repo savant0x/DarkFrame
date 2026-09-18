@@ -32,7 +32,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { searchUsers } from '@/lib/friendService';
 import { ValidationError } from '@/lib/common/errors';
@@ -80,11 +79,8 @@ import { ValidationError } from '@/lib/common/errors';
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const _db = mongoClient.db(process.env.MONGODB_DB || 'darkframe');
-
-    // 2. Authenticate user
+    // FID-20260917-016: shim connection theater removed — searchUsers rides pg.
+    // Authenticate user
   const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
     

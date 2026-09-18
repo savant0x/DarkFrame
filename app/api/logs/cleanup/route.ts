@@ -30,9 +30,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/authMiddleware';
 import { cleanupOldLogs } from '@/lib/activityLogService';
-import clientPromise from '@/lib/mongodb';
 import { db as drizzleDb } from '@/lib/db/connection';
-import { battleLogs } from '@/lib/db/schema';
+import { battleLogs, playerActivity } from '@/lib/db/schema';
 import { lt } from 'drizzle-orm';
 import { logger as structuredLogger } from '@/lib/logger';
 
@@ -208,32 +207,24 @@ export async function POST(req: NextRequest) {
  */
 async function countOldActivityLogs(
   activityRetentionDays: number,
-  adminRetentionDays: number
+  _adminRetentionDays: number
 ): Promise<number> {
-  const client = await clientPromise;
-  const db = client.db();
-  const collection = db.collection('ActionLog');
-
+  // FID-20260917-016 (D2): the legacy `ActionLog` collection name mapped to no
+  // pg table — this count silently matched nothing. The count now mirrors the
+  // REAL deleter (activityLogService.cleanupOldLogs): a single activity cutoff
+  // over player_activity, because player_activity has no category column and
+  // the Mongo-era activity/admin split cannot survive. The admin retention
+  // param stays in the wire contract but is inert for activity counting
+  // (moderation events live in mod_log, which this route does not prune).
   const activityCutoffDate = new Date();
   activityCutoffDate.setDate(activityCutoffDate.getDate() - activityRetentionDays);
 
-  const adminCutoffDate = new Date();
-  adminCutoffDate.setDate(adminCutoffDate.getDate() - adminRetentionDays);
+  const old = await drizzleDb
+    .select({ id: playerActivity.id })
+    .from(playerActivity)
+    .where(lt(playerActivity.timestamp, activityCutoffDate));
 
-  const count = await collection.countDocuments({
-    $or: [
-      {
-        timestamp: { $lt: activityCutoffDate },
-        category: { $ne: 'ADMIN' },
-      },
-      {
-        timestamp: { $lt: adminCutoffDate },
-        category: 'ADMIN',
-      },
-    ],
-  });
-
-  return count;
+  return old.length;
 }
 
 /**
@@ -302,7 +293,7 @@ async function cleanupOldBattleLogs(battleRetentionDays: number): Promise<number
  * 4. Cleanup Strategy:
  *    - Separate retention for activity vs battle logs
  *    - Admin action logs retained longer for compliance
- *    - Deletion uses MongoDB deleteMany for efficiency
+ *    - Deletion is SQL batch DELETE (pg, FID-20260917-016)
  *    - Returns detailed statistics per log type
  * 
  * 5. Error Handling:

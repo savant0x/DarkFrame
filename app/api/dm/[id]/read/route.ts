@@ -31,7 +31,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { requireAuth } from '@/lib/authMiddleware';
 import { markMessageRead } from '@/lib/dmService';
 import { ValidationError, NotFoundError, PermissionError } from '@/lib/common/errors';
@@ -79,10 +78,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 1. Get MongoDB connection
-    const mongoClient = await clientPromise;
-    const _db = mongoClient.db('darkframe');
-
+    // FID-20260917-016: shim connection theater removed — dmService rides pg.
     // 2. Authenticate user
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth; // Return 401 error
