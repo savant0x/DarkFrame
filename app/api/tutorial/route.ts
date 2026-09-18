@@ -19,16 +19,16 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { players, tutorialProgress } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import {
   isTutorialTerminalCached,
   markTutorialTerminal,
   invalidateTutorialTerminal,
 } from '@/lib/tutorialTerminalCache';
-import type { Player } from '@/types/game.types';
-import {
-  getCurrentQuestAndStep,
+import { getCurrentQuestAndStep,
   completeStep,
   skipTutorial,
   shouldShowTutorial,
@@ -107,16 +107,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Initialize MongoDB connection
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
-    
-
     // Check eligibility if requested
     if (checkEligibility) {
-      // Get player's actual level from database
-      const playersCollection = db.collection<Player>('players');
-      const player = await playersCollection.findOne({ username: playerId });
+      // FID-20260917-015: pg level read (was Mongo findOne on players)
+      const playerRows = await db.select({ level: players.level }).from(players).where(eq(players.username, playerId)).limit(1);
+      const player = playerRows[0];
       
       if (!player) {
         return NextResponse.json(
@@ -225,9 +220,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Initialize MongoDB connection
-    const mongoClient = await clientPromise;
-    mongoClient.db('darkframe');
+    // FID-20260917-015: removed the clientPromise connection theater - the
+    // Mongo client was connected on every POST and the handle was never used.
 
     // Route to appropriate handler
     switch (action) {
@@ -331,12 +325,8 @@ async function handleRestart(body: RestartBody) {
     // terminal entry so stale-tab polls immediately see the live tutorial.
     invalidateTutorialTerminal(playerId);
 
-    const mongoClient = await clientPromise;
-    const db = mongoClient.db('darkframe');
-      const progressCollection = db.collection('tutorial_progress');
-
-    // Delete existing progress
-    await progressCollection.deleteOne({ playerId });
+    // FID-20260917-015: pg delete from tutorial_progress (was Mongo deleteOne)
+    await db.delete(tutorialProgress).where(eq(tutorialProgress.playerId, playerId));
 
     return NextResponse.json({
       success: true,

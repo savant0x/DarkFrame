@@ -14,7 +14,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { clans } from '@/lib/db/schema';
+import { sql } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -50,15 +52,14 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       );
     }
 
-    // Connect to database
-    const client = await clientPromise;
-    const db = client.db('darkframe');
-    const clansCollection = db.collection('clans');
-
-    // Check if clan exists (case-insensitive)
-    const existingClan = await clansCollection.findOne({
-      name: { $regex: new RegExp(`^${name}$`, 'i') }
-    });
+    // FID-20260917-015: case-insensitive existence check via lower() equality.
+    // The old Mongo code built a RegExp from the raw query param (injection
+    // surface); pg unique indexes are case-sensitive, so this check is
+    // load-bearing for name-collision UX.
+    const existing = await db.select({ id: clans.id }).from(clans)
+      .where(sql`lower(${clans.name}) = lower(${name})`)
+      .limit(1);
+    const existingClan = existing[0] ?? null;
 
     log.info('Clan name checked', { name, available: !existingClan });
     return NextResponse.json({

@@ -20,7 +20,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise from '@/lib/mongodb';
 import { declineTutorial } from '@/lib/tutorialService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { z } from 'zod';
@@ -43,10 +42,9 @@ const DeclineSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
-    // Initialize tutorial service
-    const client = await clientPromise;
-    const _db = client.db('darkframe');
-    
+    // FID-20260917-015: removed the clientPromise connection theater -
+    // declineTutorial (tutorialService) is pg-native; the Mongo client was
+    // connected here and never used.
 
     // Parse and validate request body
     const body = await request.json();

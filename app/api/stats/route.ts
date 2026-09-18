@@ -10,7 +10,9 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import clientPromise, { type SortSpec } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { players, battleLogs, tiles } from '@/lib/db/schema';
+import { desc, eq, sql } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -49,87 +51,66 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
     const searchParams = request.nextUrl.searchParams;
     const sortBy = searchParams.get('sortBy') || 'power';
 
-    // Connect to database
-    const client = await clientPromise;
-    const db = client.db('darkframe');
-    const playersCollection = db.collection('players');
+    // FID-20260917-015 (Cluster B batch 1): pg rewrite. Power is DERIVED -
+    // total_power is not a pg column; rankingService defines it as
+    // totalStrength + totalDefense (lib/rankingService.ts:123), so the SQL
+    // sort/sum use that same expression (loop decision D1).
+    const powerExpr = sql`(${players.totalStrength} + ${players.totalDefense})`;
+    const orderByExpr =
+      sortBy === 'level' ? desc(players.level)
+      : sortBy === 'metal' ? desc(players.resourcesMetal)
+      : desc(powerExpr);
 
-    // Determine sort field
-    let sortField: { [key: string]: 1 | -1 } = {};
-    switch (sortBy) {
-      case 'level':
-        sortField = { level: -1 };
-        break;
-      case 'metal':
-        sortField = { 'resources.metal': -1 };
-        break;
-      case 'power':
-      default:
-        sortField = { totalPower: -1 };
-        break;
-    }
+    // Top 10 - sorted in SQL (the census's noted perf win over fetch-then-sort)
+    const topRows = await db.select({
+      username: players.username,
+      level: players.level,
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
+      metal: players.resourcesMetal,
+      energy: players.resourcesEnergy,
+      rank: players.rank,
+    }).from(players).orderBy(orderByExpr).limit(10);
 
-    // Fetch top 10 players
-    const topPlayersRaw = await playersCollection
-      .find({})
-      .sort([sortField, 1] as unknown as SortSpec)
-      .limit(10)
-      .project({
-        username: 1,
-        level: 1,
-        totalPower: 1,
-        totalStrength: 1,
-        totalDefense: 1,
-        'resources.metal': 1,
-        'resources.energy': 1,
-        rank: 1,
-      })
-      .toArray();
-
-    // Flatten resources for easier frontend consumption
-    const topPlayers = topPlayersRaw.map((player) => ({
-      _id: player._id,
+    // Same wire shape the Mongo projection produced (consumers: app/stats/page.tsx,
+    // components/StatsViewWrapper.tsx). _id was only a React key - username serves.
+    const topPlayers = topRows.map((player) => ({
+      _id: player.username,
       username: player.username,
       level: player.level,
-      totalPower: player.totalPower,
+      totalPower: player.totalStrength + player.totalDefense,
       totalStrength: player.totalStrength,
       totalDefense: player.totalDefense,
-      metal: (player as unknown as { resources?: { metal?: number; energy?: number } }).resources?.metal || 0,
-      energy: (player as unknown as { resources?: { metal?: number; energy?: number } }).resources?.energy || 0,
+      metal: player.metal || 0,
+      energy: player.energy || 0,
       rank: player.rank,
     }));
 
-    // Calculate global statistics
-    const [statsResult] = await playersCollection
-      .aggregate([
-        {
-          $group: {
-            _id: null,
-            totalPlayers: { $sum: 1 },
-            totalMetal: { $sum: '$resources.metal' },
-            totalEnergy: { $sum: '$resources.energy' },
-            totalPower: { $sum: '$totalPower' },
-            averageLevel: { $avg: '$level' },
-          },
-        },
-      ])
-      .toArray();
+    // Global statistics - one SQL aggregate (was a Mongo $group pipeline)
+    const statsRows = await db.select({
+      totalPlayers: sql<number>`COUNT(*)::int`,
+      totalMetal: sql<number>`COALESCE(SUM(${players.resourcesMetal}), 0)`,
+      totalEnergy: sql<number>`COALESCE(SUM(${players.resourcesEnergy}), 0)`,
+      totalPower: sql<number>`COALESCE(SUM(${powerExpr}), 0)`,
+      averageLevel: sql<number>`COALESCE(AVG(${players.level}), 0)::float8`,
+    }).from(players);
+    const statsResult = statsRows[0];
 
     // FID-20260912-070: real counters — battle_logs is the battle ledger that
     // combat writes; occupied base tiles are the territories.
-    const [battleCount, territoryCount] = await Promise.all([
-      db.collection('battleLogs').countDocuments({}),
-      db.collection('tiles').countDocuments({ occupiedByBase: 1 }),
+    const [battleRows, territoryRows] = await Promise.all([
+      db.select({ n: sql<number>`COUNT(*)::int` }).from(battleLogs),
+      db.select({ n: sql<number>`COUNT(*)::int` }).from(tiles).where(eq(tiles.occupiedByBase, 1)),
     ]);
 
     const gameStats = {
       totalPlayers: statsResult?.totalPlayers || 0,
-      totalMetal: statsResult?.totalMetal || 0,
-      totalEnergy: statsResult?.totalEnergy || 0,
-      totalPower: statsResult?.totalPower || 0,
+      totalMetal: Number(statsResult?.totalMetal ?? 0),
+      totalEnergy: Number(statsResult?.totalEnergy ?? 0),
+      totalPower: Number(statsResult?.totalPower ?? 0),
       averageLevel: statsResult?.averageLevel || 0,
-      totalBattles: battleCount,
-      totalTerritories: territoryCount,
+      totalBattles: battleRows[0]?.n ?? 0,
+      totalTerritories: territoryRows[0]?.n ?? 0,
     };
 
     log.info('Statistics retrieved', { 
@@ -155,12 +136,12 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 // IMPLEMENTATION NOTES:
 // ============================================================
 // - Authentication handled by Next.js middleware
-// - Supports sorting by power, level, metal, or energy
-// - Returns top 10 players based on sort criteria
-// - Calculates global statistics using MongoDB aggregation
-// - Projects only necessary fields for performance
-// - Uses resources.metal and resources.energy (ECHO compliant)
-// - TODO: Add battle and territory tracking for complete stats
+// - Supports sorting by power, level, or metal
+// - Returns top 10 players based on sort criteria (SQL orderBy - indexed)
+// - Calculates global statistics with a SQL aggregate (FID-20260917-015;
+//   was a Mongo $group pipeline)
+// - totalPower is derived: totalStrength + totalDefense (D1, matches
+//   rankingService) - there is no total_power column in pg
 // ============================================================
 // END OF FILE
 // ============================================================
