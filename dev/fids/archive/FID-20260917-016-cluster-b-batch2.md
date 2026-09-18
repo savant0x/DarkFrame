@@ -81,5 +81,5 @@ Filled post-implementation (§8).
 
 ## 8. Closure
 
-**Commit:** pending
-**Gates:** pending
+**Commit:** `5496fbf`
+**Gates:** 20 pins green (`__tests__/api/clusterB2PgRewrites.test.ts` — source pins assert the clientPromise class is gone from all 9 files; behavioral pins on all four rewrites incl. the D1–D5 semantics and real-blueprint cost math); live probe **26/26, exit 0** (`scripts/e2eClusterB2Live.ts`, real handlers + real DB: ban → bans-row shape → players.banned → mod_log → auto-resolve metadata evidence → unban clears the five columns → bans deactivated → clear-flags honest count 3=3 + rows gone + audit → cleanup dry-run reads player_activity → build-unit via a fresh register-route session on its own factory with exact deltas on resources/totals/slots/invested ledger; probe-owned cleanup, residue zero); tsc 0 · eslint 0 · census 0 live `clientPromise` under `app/api` · suite 1068 (+20) at the batch. SCOPE row 95 Closed; CHANGELOG 0.0.11.
