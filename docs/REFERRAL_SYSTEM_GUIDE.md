@@ -32,7 +32,9 @@ The DarkFrame Referral System rewards players for inviting friends to join the g
 - **Milestone bonuses** at 1, 3, 5, 10, 15, 25, 50, and 100 referrals
 - **Anti-abuse protection** via IP tracking and validation requirements
 - **Comprehensive admin tools** for fraud detection and manual intervention
-- **Automated validation** via daily cron job
+- Referral validation criteria (7 days + 4 logins) implemented in
+  `referralService.checkReferralValidation`; an automated trigger is NOT
+  currently wired (see "Validation Trigger Status" below)
 
 ### Key Statistics
 
@@ -415,7 +417,8 @@ Full definition: `lib/db/schema/players.ts`.
 3. Player B receives **welcome package**
 4. Referral record created with `status: 'pending'`
 5. Player B's logins are tracked
-6. After 7 days + 4 logins → Auto-validated via cron
+6. After 7 days + 4 logins -> eligible for validation via
+   `checkReferralValidation`; automated trigger pending (see below)
 7. Player A receives **progressive rewards + milestone bonuses**
 8. Stats updated, badges/titles awarded
 
@@ -444,39 +447,17 @@ Apply migrations; no manual index setup.
 DATABASE_URL=postgresql://user:password@host:5432/darkframe
 ```
 
-### 3. Cron Job Setup
+### 3. Validation Trigger Status (updated 2026-09-17)
 
-**Manual Run:**
-```bash
-npm run validate-referrals
-```
+No automated referral validation currently runs. The former Mongo-era cron
+script and its `npm run validate-referrals` wiring were removed (SCOPE row 24
+Cluster A / work-order item 6): the script validated against Mongo while the
+pg-side logic (`checkReferralValidation`, lib/referralService.ts) had zero
+callers, so it was a decoy, not a validator. The Vercel Cron snippet below it
+referenced an `/api/cron/validate-referrals` route that never existed.
 
-**Scheduled (Crontab):**
-```bash
-# Run daily at 3:00 AM UTC
-0 3 * * * cd /path/to/darkframe && npm run validate-referrals >> /var/log/darkframe-cron.log 2>&1
-```
-
-**Production (Vercel Cron):**
-
-Add to `vercel.json`:
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/validate-referrals",
-      "schedule": "0 3 * * *"
-    }
-  ]
-}
-```
-
-Create `app/api/cron/validate-referrals/route.ts`:
-```typescript
-import { NextResponse } from 'next/server';
-import { validateReferral } from '@/lib/referralService';
-// ... cron logic here
-```
+Follow-up FID candidate (SCOPE row 92): wire pg referral validation on
+login so the 7-day + 4-login criteria execute automatically.
 
 ### 4. Frontend Integration
 
@@ -579,12 +560,12 @@ expect(validateData.valid).toBe(true);
 **Checks:**
 1. Verify player has 4+ logins: Check `login_count` on the `referrals` row
 2. Check if flagged: Look for `flagged: true` field
-3. Run cron manually: `npm run validate-referrals`
-4. Check cron logs: `/var/log/darkframe-cron.log`
+3. No automated trigger is wired (see "Validation Trigger Status" above) -
+   nothing validates referrals automatically today
 
 **Solution:**
 - Admin can manually validate via `/admin/referrals`
-- Or update login count and wait for next cron run
+- Or wire the on-login validation trigger (SCOPE row 92 candidate)
 
 ### Issue: Rewards not distributed
 

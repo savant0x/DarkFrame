@@ -16,7 +16,6 @@
     "db:setup": "tsx scripts/dbSetup.ts",
     "map:rebuild": "tsx scripts/rebuildMap.ts",
     "archive:completed": "node dev/scripts/archive_completed.js --keep 30",
-    "validate-referrals": "tsx -r dotenv/config scripts/validate-referrals-cron.ts dotenv_config_path=.env.local",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:ci": "vitest run",
