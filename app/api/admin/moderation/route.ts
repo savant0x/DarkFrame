@@ -21,9 +21,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
-import { inArray } from 'drizzle-orm';
+import { inArray, eq, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, chatReports } from '@/lib/db/schema';
 import {
   muteUser,
   unmuteUser,
@@ -371,6 +371,20 @@ export async function GET(request: NextRequest) {
 
     // Fetch requested data
     switch (type) {
+      // FID-20260917-012: player chat reports (open first, newest first).
+      case 'reports': {
+        const rows = await db
+          .select()
+          .from(chatReports)
+          .where(eq(chatReports.status, 'open'))
+          .orderBy(desc(chatReports.createdAt))
+          .limit(limit);
+        return NextResponse.json(
+          { success: true, type: 'reports', data: rows, count: rows.length },
+          { status: 200 }
+        );
+      }
+
       case 'mutes': {
         const mutes = await getActiveMutes();
         // Enrich with usernames (playerId and moderatorId both reference players.username)

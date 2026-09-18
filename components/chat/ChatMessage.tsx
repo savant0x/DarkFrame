@@ -181,35 +181,79 @@ export default function ChatMessage({
   /**
    * Handle report message
    */
-  const handleReport = useCallback(() => {
-    // TODO Task 8: Implement report API
-    toast.success('Message reported to moderators');
+  // FID-20260917-012: real persistence — the old stub toasted success with no
+  // backend. Note: this component is currently unmounted (ChatPanel renders
+  // its own rows with these same actions); handlers made honest so a future
+  // mount inherits working actions.
+  const handleReport = useCallback(async () => {
+    try {
+      const response = await fetch('/api/chat/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageId: message.id,
+          channelId: message.channelId,
+          reportedUserId: message.senderId,
+          reason: 'other',
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to report message');
+      toast.success(data.message || 'Message reported to moderators');
+    } catch {
+      toast.error('Failed to report message');
+    }
     setShowActions(false);
-  }, []);
+  }, [message.id, message.channelId, message.senderId]);
 
   /**
    * Handle block user
    */
-  const handleBlock = useCallback(() => {
-    // TODO Task 8: Implement block API
-    toast.success(`Blocked ${message.senderUsername}`);
+  // FID-20260917-012: real GLOBAL block — server-side enforcement filters
+  // the blocked user's messages and DMs for this viewer immediately.
+  const handleBlock = useCallback(async () => {
+    try {
+      const response = await fetch('/api/chat/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: message.senderId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Failed to block user');
+      toast.success(data.message || `Blocked ${message.senderUsername}`);
+    } catch {
+      toast.error('Failed to block user');
+    }
     setShowActions(false);
-  }, [message.senderUsername]);
+  }, [message.senderUsername, message.senderId]);
 
   /**
    * Handle delete message
    */
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!canDelete) {
       toast.error('You cannot delete this message');
       return;
     }
 
-    // TODO Task 8: Implement delete API
-    if (onDelete) {
-      onDelete(message.id);
+    // FID-20260917-012: the real delete contract (DELETE /api/chat/delete?messageId=...)
+    // — previously a toast-only stub.
+    try {
+      const response = await fetch(
+        `/api/chat/delete?messageId=${encodeURIComponent(message.id)}`,
+        { method: 'DELETE' }
+      );
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete message');
+      }
+      if (onDelete) {
+        onDelete(message.id);
+      }
+      toast.success('Message deleted');
+    } catch {
+      toast.error('Failed to delete message');
     }
-    toast.success('Message deleted');
     setShowActions(false);
   }, [canDelete, message.id, onDelete]);
 
@@ -234,7 +278,8 @@ export default function ChatMessage({
     }
 
     try {
-      // TODO Task 8: Implement /api/chat/item-link endpoint
+      // FID-20260917-012 comment fix: this endpoint EXISTS and works; only
+      // the item-details modal is missing (survey P2).
       const response = await fetch(`/api/chat/item-link?name=${encodeURIComponent(itemName)}`);
       const data = await response.json();
 

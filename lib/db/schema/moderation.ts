@@ -55,6 +55,39 @@ export const warnings = pgTable('warnings', {
 	index('warnings_player_id_idx').on(table.playerId),
 ]);
 
+// FID-20260917-012: player-facing chat report persistence. The ChatMessage
+// stubs used to toast "reported" with no backend; reports now land here and
+// surface via GET /api/admin/moderation?type=reports.
+export const chatReports = pgTable('chat_reports', {
+	id: varchar('id', { length: 24 }).primaryKey(),
+	messageId: varchar('message_id', { length: 64 }).notNull(),
+	channelId: varchar('channel_id', { length: 40 }).notNull(),
+	reporterId: varchar('reporter_id', { length: 20 }).notNull(),
+	reportedUserId: varchar('reported_user_id', { length: 20 }).notNull(),
+	reason: varchar('reason', { length: 40 }).notNull(),
+	details: text('details'),
+	status: varchar('status', { length: 12 }).notNull().default('open'),
+	createdAt: timestamp('created_at').notNull(),
+	resolvedAt: timestamp('resolved_at'),
+	resolvedBy: varchar('resolved_by', { length: 20 }),
+}, (table) => [
+	index('chat_reports_status_idx').on(table.status, table.createdAt),
+	index('chat_reports_reported_idx').on(table.reportedUserId),
+]);
+
+// FID-20260917-012: GLOBAL block (operator decision - chat + DMs + social).
+// Enforcement is server-side reads (blockService), so a block everywhere at
+// once; no per-surface flags.
+export const blockedUsers = pgTable('blocked_users', {
+	id: varchar('id', { length: 24 }).primaryKey(),
+	blockerId: varchar('blocker_id', { length: 20 }).notNull(),
+	blockedId: varchar('blocked_id', { length: 20 }).notNull(),
+	createdAt: timestamp('created_at').notNull(),
+}, (table) => [
+	uniqueIndex('blocked_pair_unique').on(table.blockerId, table.blockedId),
+	index('blocked_users_blocker_idx').on(table.blockerId),
+]);
+
 export const wordBlacklist = pgTable('word_blacklist', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	word: varchar('word', { length: 100 }).notNull(),

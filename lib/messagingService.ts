@@ -235,6 +235,18 @@ export async function getConversations(
       return convParticipants.includes(request.playerId);
     });
 
+    // FID-20260917-012: GLOBAL block enforcement - conversations whose OTHER
+    // participant is blocked by the viewer are excluded (server-side; the
+    // viewer never sees the conversation at all).
+    const { getBlockedUsernames } = await import('@/lib/blockService');
+    const blocked = new Set(await getBlockedUsernames(request.playerId));
+    if (blocked.size > 0) {
+      filtered = filtered.filter(conv => {
+        const participants = conv.participants as string[];
+        return !participants.some((p) => p !== request.playerId && blocked.has(p));
+      });
+    }
+
     // Filter out archived if requested
     if (!request.includeArchived) {
       filtered = filtered.filter(conv => {

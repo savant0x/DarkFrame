@@ -38,7 +38,7 @@ export {
   adminDashboardNotifications,
   emailQueue,
 } from './notifications';
-export { mutes, bans, modLog, warnings, wordBlacklist } from './moderation';
+export { mutes, bans, modLog, warnings, chatReports, blockedUsers, wordBlacklist } from './moderation';
 export {
   migrations,
   gameConfig,

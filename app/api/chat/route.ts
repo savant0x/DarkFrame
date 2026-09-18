@@ -198,6 +198,7 @@ export async function GET(request: NextRequest) {
       limit,
       before,
       since,
+      viewerId: user.username, // FID-20260917-012: global-block filter key
     };
 
     // Fetch messages (FID-20260904-005 §5.4-M3: dummy fixture removed — GET serves

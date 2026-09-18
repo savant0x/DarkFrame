@@ -940,6 +940,59 @@ export default function ChatPanel({
   };
 
   /**
+   * FID-20260917-012: report another player's message (real persistence -
+   * replaces the orphan ChatMessage stub's toast-only path).
+   */
+  const reportMessage = async (messageId: string, channelId: string, reportedUserId: string) => {
+    try {
+      const response = await fetch('/api/chat/report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, channelId, reportedUserId, reason: 'other' }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to report message');
+      }
+      toast.success(data.message || 'Message reported to moderators');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to report message'));
+    }
+  };
+
+  /**
+   * FID-20260917-012: block a sender (GLOBAL - server-side enforcement
+   * filters their chat messages and DMs immediately). Local optimistic
+   * filter so the blocked user's rows vanish without a refetch.
+   */
+  const blockSender = async (senderId: string) => {
+    try {
+      const response = await fetch('/api/chat/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: senderId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to block user');
+      }
+      setMessages((prev) => {
+        const updated = new Map(prev);
+        for (const [channel, channelMessages] of prev.entries()) {
+          updated.set(
+            channel,
+            channelMessages.filter((m) => m.senderId !== senderId),
+          );
+        }
+        return updated;
+      });
+      toast.success(data.message || `Blocked ${senderId}`);
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to block user'));
+    }
+  };
+
+  /**
    * Delete a message
    */
   const deleteMessage = async (messageId: string) => {
@@ -1520,6 +1573,25 @@ export default function ChatPanel({
                                   title="Delete message"
                                 >
                                   Delete
+                                </button>
+                              </div>
+                            )}
+                            {/* FID-20260917-012: honest report/block actions for OTHERS' messages */}
+                            {!isOwnMessage && (
+                              <div className="flex flex-shrink-0 gap-1">
+                                <button
+                                  onClick={() => reportMessage(message.id, message.channelId, message.senderId)}
+                                  className="rounded-none px-2 py-1 text-xs text-[color:var(--nn-text-tertiary)] transition-colors hover:bg-[color-mix(in_oklab,var(--nn-amber,255,193,7)_10%,transparent)] hover:text-amber-400"
+                                  title="Report message to moderators"
+                                >
+                                  Report
+                                </button>
+                                <button
+                                  onClick={() => blockSender(message.senderId)}
+                                  className="rounded-none px-2 py-1 text-xs text-[color:var(--nn-text-tertiary)] transition-colors hover:bg-[color-mix(in_oklab,var(--nn-magenta)_10%,transparent)] hover:text-[color:var(--nn-magenta)]"
+                                  title="Block user (hides their messages everywhere)"
+                                >
+                                  Block
                                 </button>
                               </div>
                             )}

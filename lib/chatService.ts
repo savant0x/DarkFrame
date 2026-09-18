@@ -83,6 +83,7 @@ export interface GetMessagesRequest {
   limit?: number; // Default: 100
   before?: Date; // Pagination: messages before this timestamp
   since?: Date; // Messages after this timestamp (for real-time sync)
+  viewerId?: string; // FID-20260917-012: supplied by the route's auth context — drives the global-block filter
 }
 
 /**
@@ -492,8 +493,22 @@ export async function getGlobalChatMessages(
       .orderBy(desc(chatMessages.timestamp))
       .limit(Math.min(limit, 500)); // Cap at 500 for performance
 
+    // FID-20260917-012: GLOBAL block enforcement - a viewer never sees
+    // messages from users they blocked (viewer-keyed, post-query; the viewer
+    // id rides GetMessagesRequest.viewerId, supplied by the route's auth
+    // context).
+    let visible = messages;
+    if (request.viewerId) {
+      const { getBlockedUsernames } = await import('@/lib/blockService');
+      const blocked = await getBlockedUsernames(request.viewerId);
+      if (blocked.length > 0) {
+        const blockedSet = new Set(blocked);
+        visible = messages.filter((m) => !blockedSet.has(m.senderId));
+      }
+    }
+
     // Convert to ChatMessage interface
-    const result: ChatMessage[] = messages.map(msg => ({
+    const result: ChatMessage[] = visible.map(msg => ({
       id: msg.id,
       channelId: msg.channelId as ChannelType,
       clanId: msg.clanId ?? undefined,
