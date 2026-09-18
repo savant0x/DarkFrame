@@ -527,8 +527,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         { x: player.currentPosition.x, y: player.currentPosition.y }
       );
       await updateSession(sessionId); // Increment action count
-      
-      // Anti-cheat: Check for speed hacking
+
+      // Anti-cheat: Check for speed hacking. (Slice 1 reads the suspect's own
+      // rows from player_activity — geometry persisted by logMovement above.)
       const speedCheck = await detectSpeedHack(
         username,
         oldPosition,

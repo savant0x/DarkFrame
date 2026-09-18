@@ -179,6 +179,11 @@ export async function logMovement(
     sessionId,
     metadata: {
       location: toLocation,
+      // FID-20260917-017 slice 1: movement geometry — the speed-rate detector
+      // reads {from, to} from each move row to compute tiles/sec. Both values
+      // were already passed in; they were simply never persisted.
+      from: fromLocation,
+      to: toLocation,
       result: 'success',
     },
   });

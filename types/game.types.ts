@@ -2323,6 +2323,8 @@ export interface PlayerActivity {
     resourcesSpent?: { metal?: number; energy?: number; };
     target?: string;              // For attacks/trades
     location?: { x: number; y: number; };
+    from?: { x: number; y: number; }; // Movement geometry (speed-rate detector)
+    to?: { x: number; y: number; };   // Movement geometry (speed-rate detector)
     duration?: number;            // For harvests (seconds)
     result?: 'success' | 'failure' | 'partial';
     itemsGained?: string[];       // For caves/trades
