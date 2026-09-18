@@ -6,12 +6,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { harvestResourceTile, getHarvestStatus } from '@/lib/harvestService';
 import { harvestCaveTile, harvestForestTile } from '@/lib/caveItemService';
 import { TerrainType } from '@/types';
 import { getTileAt } from '@/lib/movementService';
+import { getPlayerSlim } from '@/lib/playerService';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { checkDiscoveryDrop } from '@/lib/discoveryService';
 import { trackResourcesGathered, trackCaveExplored } from '@/lib/statTrackingService';
@@ -78,29 +78,19 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     
     log.debug('Processing harvest request', { username });
     
-    // Get player (compat shim returns RAW rows — flat columns only)
-    const playersCollection = await getCollection<{
-      username: string;
-      currentPositionX: number;
-      currentPositionY: number;
-    }>('players');
-    // FID-20260911-046: position-only projection — the route needs two scalars;
-    // without the shim projection this fetched the full 39 KB row.
-    const player = await playersCollection.findOne(
-      { username },
-      { projection: { currentPositionX: 1, currentPositionY: 1 } },
-    );
-    
+    // FID-20260917-017 slice 2: position-only read via getPlayerSlim (FID-20260911-046's
+    // projection concern is moot — the slim read fetches only the indexed columns it maps).
+    const player = await getPlayerSlim(username);
     if (!player) {
       log.warn('Player not found', { username });
       return createErrorResponse(ErrorCode.AUTH_UNAUTHORIZED);
     }
     
     // Get tile at player's current position (getTileAt returns the domain-mapped tile)
-    const tile = await getTileAt(player.currentPositionX, player.currentPositionY);
+    const tile = await getTileAt(player.currentPosition.x, player.currentPosition.y);
     
     if (!tile) {
-      log.warn('Tile not found', { position: { x: player.currentPositionX, y: player.currentPositionY } });
+      log.warn('Tile not found', { position: { x: player.currentPosition.x, y: player.currentPosition.y } });
       return createErrorResponse(ErrorCode.INTERNAL_ERROR);
     }
     

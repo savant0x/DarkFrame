@@ -18,7 +18,7 @@ import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { ApiResponse, MoveResponse } from '@/types';
 import { logMovement } from '@/lib/activityLogger';
 import { updateSession } from '@/lib/sessionTracker';
-import { getCollection } from '@/lib/mongodb';
+import { getPlayerSlim } from '@/lib/playerService';
 import { detectSpeedHack } from '@/lib/antiCheatDetector';
 import {  withRequestLogging,
   createRouteLogger,
@@ -108,17 +108,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }
     
-    // Get player's current position before moving
-    // NOTE: the Mongo→pg compat shim returns RAW rows — flat currentPositionX/Y, no nested
-    // currentPosition object. Read the flat columns (row is null only if the player is missing).
-    const playersCollection = await getCollection<{
-      currentPositionX: number;
-      currentPositionY: number;
-    }>('players');
-    const playerBefore = await playersCollection.findOne({ username });
-    const oldPosition = playerBefore
-      ? { x: playerBefore.currentPositionX, y: playerBefore.currentPositionY }
-      : null;
+    // Get player's current position before moving (slim read; the domain
+    // shape exposes the nested currentPosition object).
+    const playerBefore = await getPlayerSlim(username);
+    const oldPosition = playerBefore?.currentPosition ?? null;
     // Move player — validated.direction is typed via z.nativeEnum(MovementDirection).
     // FID-20260914-001: multi-step transport movement — each step is a full
     // 1-tile move (wrap-around honored per step); the final position and tile
