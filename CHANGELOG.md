@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.15] — 2026-09-19 session
+
+### Added — FID-20260919-002: chat is real-time on the client (closed, commit `d1b390b`)
+
+- ChatPanel now subscribes to the live socket emissions instead of riding three HTTP polls: `chat:message`, `chat:typing_start/stop`, `chat:online_count`, and `chat:message_deleted`, via `lib/chatSocketWiring` — pure, pinned transitions with poll-identical semantics (id-dedupe so sender echo and poll copies never duplicate, self-filtered typing, per-channel maps, unread increments only for non-active channels). Polls remain as reduced-cadence gap-fillers.
+- Typing indicators are real signals now: emits go socket-first (`chat:start_typing`/`chat:stop_typing`) with the HTTP endpoint as pre-connection fallback; the previous stop path was a no-op comment.
+- Live probe (12/12, `scripts/e2eChatSocketLive.ts`, two authenticated sockets + real HTTP against `tsx server.ts`) exposed and fixed four server-side defects: the connection handler registered every event listener only after awaiting three DB-bound setup calls — **any client emit in that window was silently dropped** (reordered: listeners first, setup after); `/api/chat/delete`'s deletion broadcast was a dead path (`notifyMessageDeleted` had zero callers and the route carried a TODO — wired via `getIO()`, plus a globalThis bridge because webpack route bundles each got their own module copy with `io === null`); the declared S2C type map advertised events nothing emits while the real ones were untyped (corrected to server truth); the dead parallel chat layer (`handlers/chatHandler.ts` + two broadcast functions, zero external consumers) deleted.
+- Gates: suite 116/1163 (+16 pins), tsc 0, eslint clean; live probe green end-to-end with residue zero.
 ## [0.0.14] — 2026-09-19 session
 
 ### Fixed — FID-20260919-001: auction unit-listing honesty + the listing-insert 500 (closed, commit `123d5e2`)

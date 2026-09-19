@@ -95,7 +95,7 @@ start/stop arrive, online count arrives. Deletes its own messages, residue zero.
 
 ## 8. Execution
 
-**Implementation commit:** this batch (hash recorded below at closure) — see CHANGELOG 0.0.15.
+**Implementation commit:** `d1b390b` (chat wiring batch) — see CHANGELOG 0.0.15.
 
 **Pins:** `__tests__/lib/chatSocketWiring.test.ts` — 16/16 green (wire mapping incl.
 isVIP/senderIsVIP alias, id-dedupe identity preservation, per-channel typing scoping,
