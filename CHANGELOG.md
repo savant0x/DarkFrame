@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.18] — 2026-09-19 session
+
+### Fixed — FID-20260919-005: ask-veterans was a false-success feature; now delivers (closed, commit `cdfaee7`)
+
+- The full newbie-help chain was dead at every hop while the UI reported success: the client POSTs `/api/chat/ask-veterans` (the socket path with a working broadcast handler was never emitted by anything), the route broadcast nothing (its own "Task 3" TODO), `sendVeteranNotification` built a notification object and returned it — no persist, no emit — and the success toast read `notifiedCount`, a field only the unreachable socket path ever produced. Live players saw "Notified undefined veteran players (Level 50+)" over a silent void; the census made it sting (54 of 78 players are level ≤10, the exact cohort the feature serves).
+- `lib/veteranBroadcast.ts` (new): the single broadcast seam — maps the service notification onto the declared `ChatVeteranNotificationPayload` (UUID id, `help` channel, 5-minute TTL matching the ask cooldown), fans out over connected sockets filtered by `isVeteran`, returns the honest count. Both the HTTP route (via the `getIO()` globalThis bridge) and the socket handler ride it.
+- The route now returns `notifiedCount`; the client gates on `res.ok`/`success` — 403 level caps and 429 cooldowns surface the server's message instead of a false success toast — and toasts the real count.
+- Veterans receive `chat:veteran_notification` (previously subscribed by nobody) as a 30-second toast: "Help request — <username> (Lv N) asks: <question>".
+- Evidence: 7 pins; live probe 8/8 over real HTTP + two authenticated sockets (response count, exact payload truth with TTL, non-veteran exclusion, real-429 twin). Suite 118/1177, tsc 0, eslint clean.
+
 ## [0.0.17] — 2026-09-19 session
 
 ### Added — FID-20260919-004: DM real-time, end to end (closed, commit `4362e82`)

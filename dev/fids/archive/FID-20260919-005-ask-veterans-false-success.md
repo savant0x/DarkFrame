@@ -1,6 +1,6 @@
 # FID-20260919-005 — Ask-Veterans false-success fix: real broadcast, honest count, veteran delivery
 
-**Status:** `created`
+**Status:** closed (2026-09-19, commit `cdfaee7`)
 **Session:** 2026-09-19 (059)
 **Origin:** Product survey refresh (2026-09-19): the ask-veterans feature reports
 success while delivering nothing — found during the P1 re-probe sweep.
@@ -68,3 +68,11 @@ majority of the player base and reaches nobody.
   the count is the truth).
 - 429/403 paths toast errors, never success.
 - Probe residue zero.
+
+
+## 8. Closure (2026-09-19)
+
+- **Shipped:** `lib/veteranBroadcast` (shared seam: declared payload shape, isVeteran filter, honest count, TTL = 5-minute ask cooldown); HTTP route broadcasts via the getIO() globalThis bridge and returns `notifiedCount`; the socket handler's inline fan-out replaced by the same seam (one truth); ChatPanel toasts the real count, gates on res.ok/data.success (403/429 surface the server's error, never a false success), and subscribes to `chat:veteran_notification` (30s toast).
+- **Pins:** 7 (`__tests__/api/veteranBroadcast.test.ts`) — veteran-only fan-out incl. unauthenticated-socket safety, payload-truth mapping (UUID id, channelId help, expiresAt−timestamp = TTL), boundary level 50, honest zero count, identical payload across targets, string-timestamp tolerance, TTL constant.
+- **Live probe:** 8/8 (`scripts/e2eVeteranBroadcastLive.ts` vs tsx server.ts:3003) — response carries notifiedCount=1; veteran socket receives the exact payload (TTL 300000ms asserted); newbie self-exclusion live; second ask inside cooldown → real 429 success:false. Probe lesson recorded in §8/method: the route broadcasts BEFORE its HTTP response resolves — a listener attached after the response misses the delivery (probe design race, not a code defect).
+- **Gates at close:** suite 118 files / 1177 tests green (+7), tsc 0, eslint clean, probe residue zero.
