@@ -1,18 +1,30 @@
 /**
  * @file app/api/auction/my-bids/route.ts
  * @created 2025-01-17
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 4: Mongo shim → direct drizzle/pg)
  * @overview View player's bidding activity
- * 
+ *
  * OVERVIEW:
  * Retrieves all auctions where the authenticated player has placed bids.
  * Shows winning/losing status for each bid, current auction state, and
  * allows player to track their bidding activity and potential purchases.
+ *
+ * PERSISTENCE (PostgreSQL): the `auctions` doc-bridge table — `doc` jsonb
+ * holds the full AuctionListing document (migration 0008); the "which auctions
+ * did I bid on" match rides the SAME dual jsonb-containment predicate the shim
+ * synthesized for `{'bids.bidderUsername': u}` (now the shared
+ * lib/db/docPath.ts truth). The per-auction bid inspection (my highest bid,
+ * winning status) reads the domain doc after the row→domain overlay.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { getCollection } from '@/lib/mongodb';
-import { AuctionListing } from '@/types/auction.types';
+import { db } from '@/lib/db/connection';
+import { auctions } from '@/lib/db/schema';
+import { docPathContainment } from '@/lib/db/docPath';
+import { shapeRowAuctions } from '@/lib/db/auctionDocBridge';
+
+import type { AuctionListing, AuctionBid } from '@/types/auction.types';
 
 import {
   withRequestLogging,
@@ -28,13 +40,13 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 
 /**
  * GET /api/auction/my-bids
- * 
+ *
  * Get authenticated player's bid activity
- * 
+ *
  * Query parameters:
  * - page?: number (default: 1)
  * - limit?: number (default: 20, max: 100)
- * 
+ *
  * Success Response:
  * ```json
  * {
@@ -49,7 +61,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
  *   "totalPages": number
  * }
  * ```
- * 
+ *
  * Error Responses:
  * - 401: Authentication required
  * - 500: Server error
@@ -57,7 +69,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('auction-my-bids');
   const endTimer = log.time('my-bids');
-  
+
   try {
     // Verify authentication
     const tokenPayload = await getAuthenticatedUser();
@@ -80,43 +92,34 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       );
     }
 
-    // Get auctions where user has bid
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-    
-    // Find auctions with user's bids
-    const query = {
-      'bids.bidderUsername': username
-    };
+    // Auctions whose doc.bids carry this bidder (dual jsonb containment —
+    // the exact predicate the shim built for the same dot-path filter).
+    const matchingRows = await db
+      .select()
+      .from(auctions)
+      .where(docPathContainment(auctions.doc, 'bids.bidderUsername', username));
 
-    // Get total count
-    const totalCount = await auctionsCollection.countDocuments(query);
-
-    // Get paginated results
-    // FID-20260914-003 (finding 8): the previous `.sort({ 'bids.timestamp': -1 })`
-    // sorted on a stale dot-path (the domain field is `bidTime`, and the shim only
-    // maps top-level sort keys anyway) — ordering silently degraded to DB natural
-    // order. The ordering key is per-member data (the caller's own highest
-    // bidTime), so it is computed in-route: fetch the (game-scale small) match
-    // set, sort by it, then apply pagination in JS — sorting after slicing would
-    // only order within a page.
-    const allMatching = await auctionsCollection.find(query).toArray();
+    // Row → domain overlay: the doc-bridge rebuilds the AuctionListing shape
+    // the consumer expects (column values win — they are the indexed truth).
+    const allMatching = matchingRows.map((row) => shapeRowAuctions(auctions, row as unknown as Record<string, unknown>) as unknown as AuctionListing);
 
     const newestOwnBidTime = (auction: AuctionListing): number => {
-      const times = auction.bids
-        .filter((bid) => bid.bidderUsername === username)
-        .map((bid) => new Date(bid.bidTime).getTime())
-        .filter((t) => !Number.isNaN(t));
+      const times = (auction.bids ?? [])
+        .filter((bid: AuctionBid) => bid.bidderUsername === username)
+        .map((bid: AuctionBid) => new Date(bid.bidTime).getTime())
+        .filter((t: number) => !Number.isNaN(t));
       return times.length > 0 ? Math.max(...times) : 0;
     };
     allMatching.sort((a, b) => newestOwnBidTime(b) - newestOwnBidTime(a));
 
-    const auctions = allMatching.slice((page - 1) * limit, (page - 1) * limit + limit);
+    const totalCount = allMatching.length;
+    const pageAuctions = allMatching.slice((page - 1) * limit, (page - 1) * limit + limit);
 
     // Transform results to include user's bid and winning status
-    const bids = auctions.map((auction) => {
+    const bids = pageAuctions.map((auction) => {
       // Find user's highest bid on this auction
-      const userBids = auction.bids.filter((bid) => bid.bidderUsername === username);
-      const myBid = userBids.reduce((highest, current) => 
+      const userBids = (auction.bids ?? []).filter((bid: AuctionBid) => bid.bidderUsername === username);
+      const myBid = userBids.reduce((highest: AuctionBid, current: AuctionBid) =>
         current.bidAmount > highest.bidAmount ? current : highest
       , userBids[0]);
 
@@ -153,13 +156,10 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
 // IMPLEMENTATION NOTES:
 // ============================================================
 // - Requires authentication (personal data)
-// - Returns ALL auctions where player has bid
-// - Includes winning/losing status for each bid
-// - Shows user's highest bid on each auction
-// - Sorted by most recent bid first
-// - Useful for tracking outbid notifications
-// - Helps player decide whether to increase bid
-// - Pagination support for active bidders
+// - The match predicate is SQL (jsonb containment); bid inspection stays in
+//   the domain doc (per-member data, game-scale small)
+// - Sorted by most recent own bid first (computed in-route — per-member key)
+// - Pagination after sort (sorting after slicing would only order within a page)
 // ============================================================
 // END OF FILE
 // ============================================================

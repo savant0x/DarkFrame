@@ -1,7 +1,8 @@
 /**
  * app/api/shrine/activate/route.ts
  * Created: 2025-01-15
- * 
+ * Rewritten: 2026-09-18 (FID-20260917-017 slice 4: Mongo shim → direct drizzle/pg)
+ *
  * OVERVIEW:
  * API endpoint for activating individual shrine boosts with direct time purchase system.
  * Players sacrifice tradeable items to purchase buff duration based on item rarity.
@@ -12,8 +13,11 @@
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { tradeableItems } from '@/lib/inventoryUtils';
-import { getCollection } from '@/lib/mongodb';
-import type { Player, ShrineBoost, ShrineBoostTier } from '@/types';
+import { db } from '@/lib/db/connection';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { getPlayer } from '@/lib/playerService';
+import type { ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
 import { assertAtShrine } from '@/lib/shrineServer';
 import { awardXP, XPAction } from '@/lib/xpService';
@@ -40,7 +44,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.SHRINE_SACRIFICE);
 
 /**
  * POST /api/shrine/activate
- * 
+ *
  * Activate individual shrine boost with direct time purchase
  */
 export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
@@ -75,9 +79,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       });
     }
 
-    // Get database collections
-    const playersCollection = await getCollection<Player>('players');
-    const player = await playersCollection.findOne({ username });
+    // Load the player through the pg domain loader (inventory + shrineBoosts
+    // are real jsonb columns mapped onto the domain shape).
+    const player = await getPlayer(username, { includePrivate: true });
 
     if (!player) {
       return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
@@ -118,7 +122,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       });
     }
     const durationMs = durationMinutes * 60 * 1000;
-    
+
     // Calculate expiration time
     const now = new Date();
     const expiresAt = new Date(now.getTime() + durationMs);
@@ -130,7 +134,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     }
 
     // Check if boost already exists
-    const existingBoosts = player.shrineBoosts || [];
+    const existingBoosts: ShrineBoost[] = [...(player.shrineBoosts || [])];
     const existingBoostIndex = existingBoosts.findIndex(
       (b: ShrineBoost) => b.tier === tier
     );
@@ -143,7 +147,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       const currentExpiry = new Date(existingBoost.expiresAt);
       const timeRemaining = Math.max(0, currentExpiry.getTime() - now.getTime());
       const newDuration = timeRemaining + durationMs;
-      
+
       // Cap at 8 hours (480 minutes)
       const MAX_DURATION_MS = 8 * 60 * 60 * 1000;
       const finalDuration = Math.min(newDuration, MAX_DURATION_MS);
@@ -167,16 +171,22 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       (item) => !itemsToConsume.some((consumed) => consumed.id === item.id)
     );
 
-    // Update player in database
-    await playersCollection.updateOne(
-      { username },
-      {
-        $set: {
-          'inventory.items': remainingItems,
-          shrineBoosts: existingBoosts
-        }
-      }
-    );
+    // Update player in database (one honest UPDATE over the two jsonb columns
+    // the shim wrote via nested dot-path + array $set)
+    const updated = await db
+      .update(players)
+      .set({
+        inventoryItems: remainingItems,
+        shrineBoosts: existingBoosts,
+      })
+      .where(eq(players.username, username))
+      .returning({ username: players.username });
+
+    if (updated.length === 0) {
+      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
+        message: 'Player not found'
+      });
+    }
 
     // FID-20260917-002: parity with the legacy economy — count the trade and
     // award shrine XP once per transaction (operator ruling, 2026-09-17).
@@ -229,9 +239,4 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
  * - Extends existing boosts by adding new duration to remaining time
  * - Consumes items immediately upon activation (no refunds)
  * - Returns detailed response with duration and expiration info
- * 
- * FUTURE CONSIDERATIONS:
- * - Add transaction logging for item consumption tracking
- * - Consider adding cooldowns or rate limiting
- * - Potentially add achievement tracking for shrine usage
  */

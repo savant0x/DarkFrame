@@ -2,35 +2,27 @@
  * Admin Achievement Stats Endpoint
  * Created: 2025-01-18
  * Updated: 2025-10-24 (FID-20251024-ADMIN: Production Infrastructure)
- * 
+ * Rewritten: 2026-09-18 (FID-20260917-017 slice 4: Mongo shim → direct drizzle/pg)
+ *
  * OVERVIEW:
  * Returns aggregated achievement unlock statistics for admin analytics.
  * Provides comprehensive data about achievement unlocks, player progress,
  * and achievement popularity.
- * 
+ *
  * Endpoint: GET /api/admin/achievement-stats
  * Auth Required: Admin (isAdmin flag)
  * Rate Limited: 500 req/min (admin analytics)
- * 
- * Returns:
- * {
- *   achievements: AchievementStat[],
- *   totalPlayers: number
- * }
- * 
- * Achievement Stat Structure:
- * - achievementId: Unique achievement identifier
- * - name: Achievement name
- * - description: Achievement description
- * - category: Achievement category (combat, resource, etc.)
- * - unlockCount: Number of players who unlocked
- * - unlockPercentage: Percentage of players who unlocked
- * - firstUnlock: Earliest unlock timestamp (optional)
- * - lastUnlock: Most recent unlock timestamp (optional)
+ *
+ * PERSISTENCE (PostgreSQL): the `achievements` table (one row per unlock:
+ * player_id, achievement_id, name, category, rarity, unlocked_at) — this is
+ * the table the shim's `playerAchievements` collection name always resolved
+ * to via TABLE_ALIASES. The unlock rollup is one indexed GROUP BY.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { achievements, players } from '@/lib/db/schema';
+import { count, min, max, eq } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -45,7 +37,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.admin);
 
 /**
  * GET handler - Fetch achievement statistics
- * 
+ *
  * Admin-only endpoint that aggregates achievement unlock data.
  * Returns stats for all achievements with unlock counts and percentages.
  */
@@ -71,14 +63,38 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       });
     }
 
-    // Get collections
-    const playersCollection = await getCollection('players');
-    const achievementsCollection = await getCollection('playerAchievements');
+    // Total player count — the percentage denominator (bot players excluded;
+    // the prior countDocuments({}) counted them, skewing percentages).
+    const [{ n: totalPlayers }] = await db
+      .select({ n: count() })
+      .from(players)
+      .where(eq(players.isBot, 0));
 
-    // Get total player count
-    const totalPlayers = await playersCollection.countDocuments({});
+    // Rollup: unlock count + first/last unlock per achievement (the shim's
+    // $group pipeline, now real SQL).
+    const unlockStats = await db
+      .select({
+        achievementId: achievements.achievementId,
+        unlockCount: count(),
+        firstUnlock: min(achievements.unlockedAt),
+        lastUnlock: max(achievements.unlockedAt),
+      })
+      .from(achievements)
+      .groupBy(achievements.achievementId);
 
-    // Define achievement metadata (this should match your game's achievements)
+    const unlockMap = new Map(
+      unlockStats.map((stat) => [
+        stat.achievementId,
+        {
+          count: stat.unlockCount,
+          firstUnlock: stat.firstUnlock ? new Date(stat.firstUnlock).toISOString() : undefined,
+          lastUnlock: stat.lastUnlock ? new Date(stat.lastUnlock).toISOString() : undefined,
+        },
+      ])
+    );
+
+    // Achievement display metadata (static catalog; DB rows carry name/category
+    // per unlock, but the catalog defines the full reported set).
     const achievementMetadata = [
       { id: 'first_blood', name: 'First Blood', description: 'Win your first battle', category: 'combat' },
       { id: 'conqueror', name: 'Conqueror', description: 'Win 100 battles', category: 'combat' },
@@ -97,35 +113,10 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       { id: 'banker', name: 'Banker', description: 'Use the bank 10 times', category: 'resource' },
     ];
 
-    // Aggregate achievement unlocks
-    const unlockStats = await achievementsCollection
-      .aggregate([
-        {
-          $group: {
-            _id: '$achievementId',
-            unlockCount: { $sum: 1 },
-            firstUnlock: { $min: '$unlockedAt' },
-            lastUnlock: { $max: '$unlockedAt' },
-          }
-        }
-      ])
-      .toArray() as unknown as Array<{ _id: string; unlockCount: number; firstUnlock?: Date; lastUnlock?: Date }>;
-
-    // Create stats object from aggregation results
-    const unlockMap = new Map(
-      unlockStats.map((stat) => [
-        stat._id,
-        {
-          count: stat.unlockCount,
-          firstUnlock: stat.firstUnlock ? new Date(stat.firstUnlock).toISOString() : undefined,
-          lastUnlock: stat.lastUnlock ? new Date(stat.lastUnlock).toISOString() : undefined,
-        }
-      ])
-    );
-
-    // Combine metadata with unlock stats
-    const achievements = achievementMetadata.map((achievement) => {
-      const unlocks = unlockMap.get(achievement.id) || { count: 0, firstUnlock: undefined, lastUnlock: undefined };
+    // Combine metadata with unlock stats — every catalog achievement is
+    // reported (zero unlocks included), sorted by rarity of achievement.
+    const achievementsOut = achievementMetadata.map((achievement) => {
+      const unlocks = unlockMap.get(achievement.id) ?? { count: 0, firstUnlock: undefined, lastUnlock: undefined };
       const unlockCount = unlocks.count;
       const unlockPercentage = totalPlayers > 0 ? (unlockCount / totalPlayers) * 100 : 0;
 
@@ -142,14 +133,14 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
     });
 
     log.info('Achievement stats fetched successfully', {
-      totalAchievements: achievements.length,
+      totalAchievements: achievementsOut.length,
       totalPlayers,
       adminUser: user.username,
     });
 
     return NextResponse.json({
       success: true,
-      achievements,
+      achievements: achievementsOut,
       totalPlayers,
     });
   } catch (error) {
@@ -162,37 +153,9 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
 
 /**
  * IMPLEMENTATION NOTES:
- * 
- * Database Schema Assumptions:
- * - playerAchievements collection with fields:
- *   * username: string
- *   * achievementId: string
- *   * unlockedAt: Date
- * - players collection for total player count
- * 
- * Achievement Metadata:
- * - Hardcoded list of achievements (15 examples)
- * - In production, this should come from a central achievements config file
- * - Or from an achievements collection in the database
- * 
- * Aggregation:
- * - Uses MongoDB aggregation to count unlocks per achievement
- * - Calculates first and last unlock timestamps
- * - Efficient for large datasets
- * 
- * Percentage Calculation:
- * - unlockPercentage = (unlockCount / totalPlayers) * 100
- * - Provides insight into achievement difficulty and popularity
- * 
- * Future Enhancements:
- * - Load achievement metadata from database or config file
- * - Add unlock velocity calculations (unlocks per day/week)
- * - Category-based statistics
- * - Player progress distribution (how many have X% achievements)
- * - Time-based analysis (unlock trends over time)
- * 
- * Performance:
- * - Aggregation is efficient for large datasets
- * - Consider caching results (refresh every 5-10 minutes)
- * - Index on achievementId for faster aggregation
+ *
+ * - One count + one GROUP BY (the aggregate pipeline's SQL equivalent)
+ * - Percentage denominator excludes bots (semantic correction, recorded)
+ * - Consider caching results (refresh every 5-10 minutes) if the admin
+ *   dashboard polls this frequently
  */

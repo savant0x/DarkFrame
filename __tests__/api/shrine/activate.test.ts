@@ -18,10 +18,11 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { getTableName } from 'drizzle-orm';
 
 const { capture } = vi.hoisted(() => ({
   capture: {
-    updateOne: [] as Array<{ filter: unknown; update: unknown }>,
+    updates: [] as Array<{ table: unknown; set: unknown }>,
     playerDoc: null as unknown,
     shrineTile: null as unknown,
   },
@@ -31,16 +32,37 @@ vi.mock('@/lib/authMiddleware', () => ({
   verifyAuth: vi.fn(async () => ({ username: 'tester', playerId: 'tester', isAdmin: false })),
 }));
 
+// FID-20260917-017 slice 4: the route now reads through the pg domain loader
+// and writes through drizzle directly — both seams mocked at module
+// boundaries. The tiles read (assertAtShrine) still rides getCollection, so
+// the mongodb mock below keeps serving the shrine tile.
+vi.mock('@/lib/playerService', () => ({
+  getPlayer: vi.fn(async () => capture.playerDoc),
+}));
+
+vi.mock('@/lib/db/connection', () => ({
+  db: {
+    update: (table: unknown) => ({
+      set: (payload: unknown) => {
+        capture.updates.push({ table, set: payload });
+        return {
+          where: () => ({
+            returning: async () => [{ username: 'tester' }],
+          }),
+        };
+      },
+    }),
+  },
+}));
+
 vi.mock('@/lib/mongodb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/mongodb')>();
   return {
     ...actual,
+    // Slice 4: only the tiles read survives on this seam (assertAtShrine);
+    // player reads/writes moved to getPlayer + drizzle above.
     getCollection: (name: string) => ({
       findOne: async () => (name === 'tiles' ? capture.shrineTile : capture.playerDoc),
-      updateOne: async (filter: unknown, update: unknown) => {
-        capture.updateOne.push({ filter, update });
-        return { modifiedCount: 1 };
-      },
     }),
   };
 });
@@ -100,7 +122,7 @@ function makeRequest(body: unknown): NextRequest {
 const routeCtx = { params: Promise.resolve({}) };
 
 beforeEach(() => {
-  capture.updateOne = [];
+  capture.updates = [];
   // Default: the player stands on the Shrine tile (the FID-028 premise).
   capture.shrineTile = { x: 1, y: 1, terrain: TerrainType.Shrine };
   vi.mocked(awardXP).mockClear();
@@ -121,11 +143,14 @@ describe('FID-028 §2.4 — shrine activate runtime probe', () => {
     expect(body.durationMinutes).toBe(60);
     expect(new Date(body.expiresAt).getTime()).not.toBeNaN();
 
-    expect(capture.updateOne).toHaveLength(1);
-    const { update } = capture.updateOne[0] as { update: { $set: Record<string, unknown> } };
+    expect(capture.updates).toHaveLength(1);
+    // The write must target the players table (the pg-pivot defect class:
+    // wrong-target writes).
+    expect(getTableName(capture.updates[0].table as never)).toBe('players');
+    const { set } = capture.updates[0] as { set: Record<string, unknown> };
     // Both write keys must land: pruned inventory (17 left) + the new boost
-    const boosts = update.$set.shrineBoosts as Array<{ tier: string; expiresAt: Date }>;
-    const items = update.$set['inventory.items'] as Array<{ id: string }>;
+    const boosts = set.shrineBoosts as Array<{ tier: string; expiresAt: Date }>;
+    const items = set.inventoryItems as Array<{ id: string }>
     expect(items).toHaveLength(17);
     expect(boosts).toHaveLength(1);
     expect(boosts[0].tier).toBe('spade');
@@ -156,7 +181,7 @@ describe('FID-028 §2.4 — shrine activate runtime probe', () => {
 
     expect(response.status).toBe(400);
     expect(body.success).toBe(false);
-    expect(capture.updateOne).toHaveLength(0);
+    expect(capture.updates).toHaveLength(0);
   });
 
   it('rejects an unknown tier', async () => {
@@ -178,12 +203,12 @@ describe('FID-028 §2.4 — shrine activate runtime probe', () => {
     // Either a loud 4xx, or a success with a FINITE expiry — never a NaN write.
     if (response.status === 200) {
       expect(new Date(body.expiresAt).getTime()).not.toBeNaN();
-      const { update } = capture.updateOne[0] as { update: { $set: Record<string, unknown> } };
-      const boosts = update.$set.shrineBoosts as Array<{ expiresAt: Date }>;
+      const { set } = capture.updates[0] as { set: Record<string, unknown> };
+      const boosts = set.shrineBoosts as Array<{ expiresAt: Date }>;
       expect(new Date(boosts[0].expiresAt).getTime()).not.toBeNaN();
     } else {
       expect(response.status).toBe(400);
-      expect(capture.updateOne).toHaveLength(0);
+      expect(capture.updates).toHaveLength(0);
     }
   });
 });
@@ -199,7 +224,7 @@ describe('FID-20260917-002 — presence enforcement + trade/XP parity', () => {
     expect(response.status).toBe(400);
     expect(body.success).toBe(false);
     // Zero mutation — the refusal happens before any write.
-    expect(capture.updateOne).toHaveLength(0);
+    expect(capture.updates).toHaveLength(0);
     expect(vi.mocked(awardXP)).not.toHaveBeenCalled();
     expect(vi.mocked(trackShrineTrade)).not.toHaveBeenCalled();
   });
@@ -213,7 +238,7 @@ describe('FID-20260917-002 — presence enforcement + trade/XP parity', () => {
 
     expect(response.status).toBe(400);
     expect(body.success).toBe(false);
-    expect(capture.updateOne).toHaveLength(0);
+    expect(capture.updates).toHaveLength(0);
   });
 
   it('counts ONE shrine trade and awards XP once per transaction (parity wiring)', async () => {
@@ -232,7 +257,7 @@ describe('FID-20260917-002 — presence enforcement + trade/XP parity', () => {
     expect(vi.mocked(trackShrineTrade)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(trackShrineTrade)).toHaveBeenCalledWith('tester');
     // Exactly one primary write — bookkeeping must not add $set writes.
-    expect(capture.updateOne).toHaveLength(1);
+    expect(capture.updates).toHaveLength(1);
   });
 
   it('does not fail the transaction when bookkeeping throws — primary write already committed', async () => {
@@ -247,6 +272,6 @@ describe('FID-20260917-002 — presence enforcement + trade/XP parity', () => {
     // Bookkeeping outcomes are absent when bookkeeping failed — not an error response.
     expect(body.xpAwarded).toBeUndefined();
     // The primary write still landed exactly once.
-    expect(capture.updateOne).toHaveLength(1);
+    expect(capture.updates).toHaveLength(1);
   });
 });

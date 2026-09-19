@@ -46,7 +46,7 @@ import {
  * @param row - Database row from clans table
  * @returns Clan object with nested structure
  */
-function rowToClan(row: typeof clans.$inferSelect): Clan {
+export function rowToClan(row: typeof clans.$inferSelect): Clan {
   return {
     _id: row.id,
     name: row.name,

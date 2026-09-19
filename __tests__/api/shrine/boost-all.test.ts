@@ -12,10 +12,11 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
+import { getTableName } from 'drizzle-orm';
 
 const { capture } = vi.hoisted(() => ({
   capture: {
-    updateOne: [] as Array<{ filter: unknown; update: unknown }>,
+    updates: [] as Array<{ table: unknown; set: unknown }>,
     playerDoc: null as unknown,
     shrineTile: null as unknown,
   },
@@ -25,16 +26,36 @@ vi.mock('@/lib/authMiddleware', () => ({
   verifyAuth: vi.fn(async () => ({ username: 'tester', playerId: 'tester', isAdmin: false })),
 }));
 
+// FID-20260917-017 slice 4: the route now reads through the pg domain loader
+// and writes through drizzle directly — both seams mocked at module
+// boundaries. The tiles read (assertAtShrine) still rides getCollection.
+vi.mock('@/lib/playerService', () => ({
+  getPlayer: vi.fn(async () => capture.playerDoc),
+}));
+
+vi.mock('@/lib/db/connection', () => ({
+  db: {
+    update: (table: unknown) => ({
+      set: (payload: unknown) => {
+        capture.updates.push({ table, set: payload });
+        return {
+          where: () => ({
+            returning: async () => [{ username: 'tester' }],
+          }),
+        };
+      },
+    }),
+  },
+}));
+
 vi.mock('@/lib/mongodb', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/mongodb')>();
   return {
     ...actual,
+    // Slice 4: only the tiles read survives on this seam (assertAtShrine);
+    // player reads/writes moved to getPlayer + drizzle above.
     getCollection: (name: string) => ({
       findOne: async () => (name === 'tiles' ? capture.shrineTile : capture.playerDoc),
-      updateOne: async (filter: unknown, update: unknown) => {
-        capture.updateOne.push({ filter, update });
-        return { modifiedCount: 1 };
-      },
     }),
   };
 });
@@ -89,7 +110,7 @@ function makeRequest(body: unknown): NextRequest {
 const routeCtx = { params: Promise.resolve({}) };
 
 beforeEach(() => {
-  capture.updateOne = [];
+  capture.updates = [];
   capture.shrineTile = { x: 1, y: 1, terrain: TerrainType.Shrine };
   vi.mocked(awardXP).mockClear();
   vi.mocked(trackShrineTrade).mockClear();
@@ -110,10 +131,11 @@ describe('FID-20260917-002 — boost-all presence + one-transaction parity', () 
       expect(new Date(result.expiresAt).getTime()).not.toBeNaN();
     }
 
-    expect(capture.updateOne).toHaveLength(1);
-    const { update } = capture.updateOne[0] as { update: { $set: Record<string, unknown> } };
-    const items = update.$set['inventory.items'] as Array<{ id: string }>;
-    const boosts = update.$set.shrineBoosts as Array<{ tier: string }>;
+    expect(capture.updates).toHaveLength(1);
+    expect(getTableName(capture.updates[0].table as never)).toBe('players');
+    const { set } = capture.updates[0] as { set: Record<string, unknown> };
+    const items = set.inventoryItems as Array<{ id: string }>;
+    const boosts = set.shrineBoosts as Array<{ tier: string }>;
     expect(items).toHaveLength(4); // 12 − 8
     expect(boosts).toHaveLength(4);
     expect(boosts.map((b) => b.tier).sort()).toEqual(['club', 'diamond', 'heart', 'spade']);
@@ -128,7 +150,7 @@ describe('FID-20260917-002 — boost-all presence + one-transaction parity', () 
 
     expect(response.status).toBe(400);
     expect(body.success).toBe(false);
-    expect(capture.updateOne).toHaveLength(0);
+    expect(capture.updates).toHaveLength(0);
     expect(vi.mocked(awardXP)).not.toHaveBeenCalled();
     expect(vi.mocked(trackShrineTrade)).not.toHaveBeenCalled();
   });
@@ -155,6 +177,6 @@ describe('FID-20260917-002 — boost-all presence + one-transaction parity', () 
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.xpAwarded).toBeUndefined();
-    expect(capture.updateOne).toHaveLength(1);
+    expect(capture.updates).toHaveLength(1);
   });
 });

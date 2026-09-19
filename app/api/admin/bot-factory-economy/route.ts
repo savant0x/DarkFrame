@@ -1,6 +1,7 @@
 /**
  * @file app/api/admin/bot-factory-economy/route.ts
  * @created 2026-09-12
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 4: Mongo shim → direct drizzle/pg)
  * @overview FID-20260912-067 — admin control surface for the bot factory
  * economy. GET: job stats + live level distribution. POST: trigger one
  * economy cycle on demand (serialized with the scheduler in the manager).
@@ -20,7 +21,9 @@ import {
   getBotFactoryEconomyStats,
   triggerBotFactoryEconomyCycle,
 } from '@/lib/jobs/botFactoryEconomyManager';
-import { getCollection } from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { factories, players } from '@/lib/db/schema';
+import { eq, isNotNull, and, ne } from 'drizzle-orm';
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.adminBot);
 
@@ -38,13 +41,16 @@ export const GET = withRequestLogging(
 
       const stats = getBotFactoryEconomyStats();
 
-      // Live level distribution for the admin's economy-at-a-glance readout.
-      const factories = await getCollection<{ level?: number; owner: string | null }>('factories');
-      const all = await factories.find({}).limit(2000).toArray();
+      // Live factory read (the shim's find({}).limit(2000): game-scale factories).
+      const factoryRows = await db
+        .select({ level: factories.level, owner: factories.owner })
+        .from(factories)
+        .limit(2000);
+
       const distribution: Record<string, number> = {};
       let wild = 0;
       let playerOwned = 0;
-      for (const f of all) {
+      for (const f of factoryRows) {
         const lvl = String(f.level ?? 1);
         distribution[lvl] = (distribution[lvl] ?? 0) + 1;
         if (f.owner) playerOwned += 1;
@@ -68,11 +74,18 @@ export const GET = withRequestLogging(
       });
 
       const raidConfig = (await import('@/lib/botFactoryRaid')).BOT_FACTORY_RAID_CONFIG;
-      const players = await getCollection<{ isBot?: boolean; username?: string; totalStrength?: number; botConfig?: { tier?: number; attackCooldown?: string } }>('players');
-      const bots = await players.find({ isBot: true }).toArray();
-      const botNames = new Set(bots.map((b) => b.username));
+      // Bot roster (is_bot smallint; botConfig carries tier + attackCooldown).
+      const botRows = await db
+        .select({
+          username: players.username,
+          totalStrength: players.totalStrength,
+          botConfig: players.botConfig,
+        })
+        .from(players)
+        .where(eq(players.isBot, 1));
+      const botNames = new Set(botRows.map((b) => b.username));
       const now = Date.now();
-      const raidEligible = bots.filter(
+      const raidEligible = botRows.filter(
         (b) => raidConfig.RAID_ELIGIBLE_TIERS.includes(b.botConfig?.tier ?? 1) && (b.totalStrength ?? 0) >= raidConfig.MIN_RAID_STRENGTH
       );
       const raidStats = {
@@ -81,13 +94,21 @@ export const GET = withRequestLogging(
           const cd = b.botConfig?.attackCooldown;
           return cd ? now - new Date(cd).getTime() < 6 * 3_600_000 : false;
         }).length,
-        botOwnedFactories: all.filter((f) => f.owner && botNames.has(f.owner)).length,
+        botOwnedFactories: factoryRows.filter((f) => f.owner && botNames.has(f.owner)).length,
       };
 
-      const ownedRows = all.filter((f) => f.owner);
+      // Top owners among PLAYER-owned factories (the original projection's
+      // intent — bot ownership is reported separately in raidStats).
+      const botFactoryOwnerRows = await db
+        .select({ owner: factories.owner })
+        .from(factories)
+        .innerJoin(players, and(eq(players.username, factories.owner), ne(players.isBot, 1)))
+        .where(isNotNull(factories.owner))
+        .limit(2000);
       const ownership = Object.entries(
-        ownedRows.reduce<Record<string, number>>((acc, f) => {
-          acc[f.owner!] = (acc[f.owner!] ?? 0) + 1;
+        botFactoryOwnerRows.reduce<Record<string, number>>((acc, r) => {
+          const owner = r.owner as string;
+          acc[owner] = (acc[owner] ?? 0) + 1;
           return acc;
         }, {})
       ).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([owner, count]) => ({ owner, count }));
@@ -97,7 +118,7 @@ export const GET = withRequestLogging(
         data: {
           job: stats,
           factories: {
-            total: all.length,
+            total: factoryRows.length,
             wild,
             playerOwned,
             levelDistribution: Object.fromEntries(

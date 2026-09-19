@@ -26,6 +26,8 @@ import { PgTable } from 'drizzle-orm/pg-core';
 import type { QueryResult } from 'pg';
 import * as schema from '@/lib/db/schema';
 import { generateId } from './utils';
+import { docPathContainment } from '@/lib/db/docPath';
+import { isAuctionsTable, syncAuctionDocFields, shapeRowAuctions, AUCTION_DOC_COLUMNS } from '@/lib/db/auctionDocBridge';
 
 /**
  * Mongo→Postgres compatibility seam.
@@ -443,19 +445,9 @@ function buildWhere(table: PgTable, filter: MongoFilter): SQL | undefined {
 function buildDocPathPredicate(docColumn: unknown, key: string, value: unknown): SQL | undefined {
   const path = key.split('.');
   if (path.length < 2) return undefined;
-  // DUAL containment probe. The leaf is emitted twice — wrapped in a single-element
-  // array ("some element of doc.bids contains the probe"; jsonb arrays reject bare
-  // object probes — live-verified my-bids 500) and as a plain object (for
-  // object-shaped containers like active_boosts). For any given container exactly
-  // one shape can match, so the OR is precise, not a fuzzy fallback.
-  const leaf = { [path[path.length - 1]]: value };
-  let arr: unknown = [leaf];
-  let obj: unknown = leaf;
-  for (let i = path.length - 2; i >= 0; i--) {
-    arr = { [path[i]]: arr };
-    obj = { [path[i]]: obj };
-  }
-  return sql`(${docColumn} @> ${JSON.stringify(arr)}::jsonb OR ${docColumn} @> ${JSON.stringify(obj)}::jsonb)`;
+  // Shared truth: the identical probe shape now lives in lib/db/docPath.ts so
+  // pg-native routes (auction/my-bids) and the shim emit byte-identical SQL.
+  return docPathContainment(docColumn, key, value);
 }
 
 /** Extract a string id from a document's `id`/`_id` field, if present. */
@@ -466,111 +458,8 @@ function extractId(doc: object): string | null {
   return null;
 }
 
-/**
- * Auction domain ⇄ column sync (FID-20260904-005 §5.0 (e) — completes the #25 seam).
- * The `auctions` table mirrors scalar fields of the AuctionListing document (migration
- * 0008) so SQL indexes stay usable, while the full doc lives in `doc` jsonb. The
- * schema comment promised this mapping; it never existed. Writes: on any auction row
- * payload, store the doc and fill the mirrored columns the doc carries (never
- * overwriting explicit flat keys). Reads: shapeRowAuctions rebuilds the domain doc
- * by overlaying non-null columns onto `doc` (column values win — they are the
- * indexed truth) so findOne/find/aggregate consumers see the Mongo-era shape.
- */
-const AUCTION_DOC_COLUMNS: Array<{ docKey: string; column: string }> = [
-  { docKey: 'auctionId', column: 'auctionId' },
-  { docKey: 'sellerUsername', column: 'sellerUsername' },
-  { docKey: 'startingBid', column: 'startingBid' },
-  { docKey: 'currentBid', column: 'currentBid' },
-  { docKey: 'buyoutPrice', column: 'buyoutPrice' },
-  { docKey: 'reservePrice', column: 'reservePrice' },
-  { docKey: 'listingFee', column: 'listingFee' },
-  { docKey: 'clanOnly', column: 'clanOnly' },
-  { docKey: 'settled', column: 'settled' },
-  { docKey: 'finalPrice', column: 'finalPrice' },
-  { docKey: 'winnerUsername', column: 'winnerUsername' },
-  { docKey: 'highestBidder', column: 'highestBidder' },
-  { docKey: 'status', column: 'status' },
-  { docKey: 'createdAt', column: 'createdAt' },
-  { docKey: 'expiresAt', column: 'expiresAt' },
-  { docKey: 'closedAt', column: 'closedAt' },
-  { docKey: 'duration', column: 'durationHours' },
-];
-
-function isAuctionsTable(table: PgTable): boolean {
-  return getTableName(table) === 'auctions';
-}
-
-function syncAuctionDocFields(table: PgTable, payload: Record<string, DocumentValue>): void {
-  if (!isAuctionsTable(table)) return;
-  const columns = getTableColumns(table);
-  // (i) Synthesize the stored document when the caller passes the AuctionListing domain
-  // doc directly (createAuctionListing's insertOne) — there is no explicit `doc` key,
-  // every top-level payload key IS a document field.
-  if (columns.doc && (payload.doc === undefined || payload.doc === null)) {
-    const synthesized: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(payload)) {
-      if (k === 'id' || k === '_id') continue;
-      synthesized[k] = v;
-    }
-    payload.doc = synthesized;
-  }
-  const docValue = payload.doc;
-  if (docValue === undefined || docValue === null || typeof docValue !== 'object' || Array.isArray(docValue)) return;
-  const doc = docValue as Record<string, unknown>;
-  // (ii) Legacy NOT NULL mirrors from the pre-#25 columns the domain service never
-  // writes (seller_id/item_data/starting_price) — without these every insert 500s.
-  if (payload.itemData === undefined) {
-    const item = doc.item !== undefined ? doc.item : payload.item;
-    if (item !== undefined) payload.itemData = item;
-  }
-  if (payload.sellerId === undefined) {
-    const seller = doc.sellerUsername !== undefined ? doc.sellerUsername : payload.sellerUsername;
-    if (seller !== undefined) payload.sellerId = seller;
-  }
-  if (payload.startingPrice === undefined) {
-    const start = doc.startingBid !== undefined ? doc.startingBid : payload.startingBid;
-    if (start !== undefined) payload.startingPrice = start;
-  }
-  // (iii) Mirror doc fields the indexed columns exist for.
-  for (const { docKey, column } of AUCTION_DOC_COLUMNS) {
-    if (doc[docKey] === undefined) continue;
-    if (payload[column] !== undefined) continue; // explicit flat key wins
-    const value = doc[docKey];
-    if (value instanceof Date) {
-      payload[column] = value;
-    } else if (typeof value === 'boolean') {
-      payload[column] = value ? 1 : 0; // pg smallint mirrors
-    } else if (docKey === 'duration' && typeof value === 'number') {
-      payload[column] = value;
-    } else if (typeof value === 'string' || typeof value === 'number') {
-      payload[column] = value;
-    }
-    // nested/other shapes stay doc-only
-  }
-}
-
-function shapeRowAuctions(table: PgTable, row: Record<string, unknown>): Record<string, unknown> {
-  if (!isAuctionsTable(table)) return row;
-  const doc = (row.doc && typeof row.doc === 'object' && !Array.isArray(row.doc) ? { ...(row.doc as Record<string, unknown>) } : {});
-  for (const { docKey, column } of AUCTION_DOC_COLUMNS) {
-    const colValue = row[column];
-    if (colValue === undefined || colValue === null) continue;
-    // column is the indexed truth — overlay onto the doc
-    if (docKey === 'clanOnly' || docKey === 'settled') {
-      doc[docKey] = colValue === 1;
-    } else if (docKey === 'duration') {
-      doc.duration = colValue;
-    } else {
-      doc[docKey] = colValue;
-    }
-  }
-  // Legacy read-back: the domain `item` lives only in the pre-#25 item_data column
-  // when the doc copy predates the bridge.
-  if (doc.item === undefined && row.itemData !== undefined && row.itemData !== null) {
-    doc.item = row.itemData;
-  }
-  return { ...row, ...doc, doc };
-}
+// Auction doc-bridge: shared truth now lives in lib/db/auctionDocBridge.ts
+// (Law 13) so pg-native routes and the shim map rows identically.
 
 /**
  * Unique conflict targets for race-safe upserts (FID-20260904-005 §5.0 (b)).

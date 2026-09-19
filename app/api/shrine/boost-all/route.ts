@@ -1,7 +1,8 @@
 /**
  * app/api/shrine/boost-all/route.ts
  * Created: 2025-01-15
- * 
+ * Rewritten: 2026-09-18 (FID-20260917-017 slice 4: Mongo shim → direct drizzle/pg)
+ *
  * OVERVIEW:
  * API endpoint for activating all 4 shrine boosts simultaneously.
  * Convenience endpoint that activates spade, heart, diamond, and club boosts
@@ -12,8 +13,11 @@
 import { NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
 import { tradeableItems } from '@/lib/inventoryUtils';
-import { getCollection } from '@/lib/mongodb';
-import type { Player, ShrineBoost, ShrineBoostTier } from '@/types';
+import { db } from '@/lib/db/connection';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
+import { getPlayer } from '@/lib/playerService';
+import type { ShrineBoost, ShrineBoostTier } from '@/types';
 import { calculateDuration } from '@/utils/shrineHelpers';
 import { assertAtShrine } from '@/lib/shrineServer';
 import { awardXP, XPAction } from '@/lib/xpService';
@@ -43,7 +47,7 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.SHRINE_SACRIFICE);
 
 /**
  * POST /api/shrine/boost-all
- * 
+ *
  * Activate all 4 shrine boosts simultaneously
  */
 export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
@@ -74,9 +78,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
 
     const totalItemsNeeded = itemCount * 4;
 
-    // Get database collections
-    const playersCollection = await getCollection<Player>('players');
-    const player = await playersCollection.findOne({ username });
+    // Load the player through the pg domain loader
+    const player = await getPlayer(username, { includePrivate: true });
 
     if (!player) {
       return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
@@ -105,13 +108,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
     // Process each boost tier
     const results = [];
     let itemsConsumedTotal = 0;
-    const existingBoosts = player.shrineBoosts || [];
+    const existingBoosts: ShrineBoost[] = [...(player.shrineBoosts || [])];
     const now = new Date();
 
     for (const tier of ALL_TIERS) {
       // Get next batch of items for this tier
       const itemsForThisTier = tradeable.slice(itemsConsumedTotal, itemsConsumedTotal + itemCount);
-      
+
       // Calculate duration based on item rarities
       const durationMinutes = calculateDuration(itemsForThisTier);
       // FID-20260909-028 §2.4 (same NaN conviction as activate): an unknown/legacy
@@ -122,7 +125,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
         });
       }
       const durationMs = durationMinutes * 60 * 1000;
-      
+
       // Calculate expiration time
       const expiresAt = new Date(now.getTime() + durationMs);
       if (Number.isNaN(expiresAt.getTime())) {
@@ -144,7 +147,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
         const currentExpiry = new Date(existingBoost.expiresAt);
         const timeRemaining = Math.max(0, currentExpiry.getTime() - now.getTime());
         const newDuration = timeRemaining + durationMs;
-        
+
         // Cap at 8 hours (480 minutes)
         const MAX_DURATION_MS = 8 * 60 * 60 * 1000;
         const finalDuration = Math.min(newDuration, MAX_DURATION_MS);
@@ -178,16 +181,21 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       (item) => !itemsToConsume.some((consumed) => consumed.id === item.id)
     );
 
-    // Update player in database
-    await playersCollection.updateOne(
-      { username },
-      {
-        $set: {
-          'inventory.items': remainingItems,
-          shrineBoosts: existingBoosts
-        }
-      }
-    );
+    // Update player in database (one honest UPDATE over the two jsonb columns)
+    const updated = await db
+      .update(players)
+      .set({
+        inventoryItems: remainingItems,
+        shrineBoosts: existingBoosts,
+      })
+      .where(eq(players.username, username))
+      .returning({ username: players.username });
+
+    if (updated.length === 0) {
+      return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
+        message: 'Player not found'
+      });
+    }
 
     // FID-20260917-002: parity with the legacy economy — ONE trade counted and
     // ONE XP award per call (operator ruling, 2026-09-17: one transaction,
