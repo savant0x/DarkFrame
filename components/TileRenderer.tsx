@@ -117,7 +117,7 @@ function getTerrainDescription(
 
 export default function TileRenderer({ tile, harvestResult, factoryData, attackResult, flagBearer, onHarvestClick, isHarvesting, onAttackClick, isAttacking, onFlagAttack, onBankClick, onShrineClick }: TileRendererProps) {
   const { player } = useGameContext();
-  const _router = useRouter();
+  const router = useRouter();
   
   // Dynamic image state
   const [imagePath, setImagePath] = React.useState<string | null>(null);
@@ -1036,15 +1036,19 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
             </button>
           )}
 
-          {/* Factory Management Button - TODO: Create factory management page */}
-          {/* {tile.terrain === TerrainType.Factory && factoryData?.owner === player?.username && (
+          {/* FID-20260919-007: factory owners jump straight to the unit factory (the
+              destination the original TODO pointed at; the never-built
+              /game/factory-management route is superseded by /game/unit-factory). */}
+          {tile.terrain === TerrainType.Factory && factoryData && factoryData.owner === player?.username && (
             <button
-              onClick={() => router.push('/game/factory-management')}
-              className="flex-1 bg-[color-mix(in_oklab,var(--nn-magenta)_22%,transparent)] text-[color:var(--nn-text-primary)] font-semibold px-4 py-2 rounded-none transition-colors"
+              onClick={() => router.push('/game/unit-factory')}
+              className="nn-btn nn-btn--primary flex-1 px-4 py-2"
             >
-              🏭 Manage Factory
+              Manage Factory
             </button>
-          )} */}          {/* Harvest Button - Shows on harvestable tiles */}
+          )}
+
+          {/* Harvest Button - Shows on harvestable tiles */}
           {onHarvestClick && (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy || tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) && (
             <button
               onClick={onHarvestClick}

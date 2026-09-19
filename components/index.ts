@@ -77,8 +77,9 @@ export * from './messaging';
 // CHAT SYSTEM
 // ============================================================================
 
-// Re-export chat components
-export * from './chat';
+// Re-export chat components (FID-20260919-006: the chat barrel was archived —
+// its only live member is ChatPanel, re-exported directly here).
+export { default as ChatPanel } from './chat/ChatPanel';
 
 // ============================================================================
 // ADDITIONAL CORE COMPONENTS
