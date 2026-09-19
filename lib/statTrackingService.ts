@@ -1,14 +1,16 @@
 /**
  * @file lib/statTrackingService.ts
  * @created 2025-01-17
+ * @rewritten 2026-09-19 (FID-20260917-017 batch 4: Mongo shim → direct drizzle/pg)
  * @overview Automatic stat tracking for achievement progress
- * 
+ *
  * OVERVIEW:
  * Provides helper functions to track player statistics for achievement system.
  * Called automatically throughout the codebase when relevant actions occur.
- * Updates PlayerStats fields which are checked against achievement requirements.
- * 
- * TRACKED STATS:
+ * Updates the players.stats jsonb fields which are checked against achievement
+ * requirements.
+ *
+ * TRACKED STATS (players.stats jsonb):
  * - battlesWon: PvP victories
  * - totalUnitsBuilt: All units created
  * - totalResourcesGathered: Lifetime resource collection
@@ -17,55 +19,63 @@
  * - cavesExplored: Cave and forest explorations
  */
 
-import { getCollection } from './mongodb';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq, sql } from 'drizzle-orm';
 
 import { checkAchievements } from './achievementService';
+
+/** The canonical zeroed stats shape (mirrors the achievements contract). */
+const ZERO_STATS = {
+  battlesWon: 0,
+  totalUnitsBuilt: 0,
+  totalResourcesGathered: 0,
+  totalResourcesBanked: 0,
+  shrineTradeCount: 0,
+  cavesExplored: 0,
+};
 
 /**
  * Initialize stats object if it doesn't exist
  */
 async function ensureStatsExist(playerId: string) {
-  const playersCollection = await getCollection('players');
-  // FID-20260911-043: slim projection — only need to know if stats exist.
-  const player = await playersCollection.findOne(
-    { username: playerId },
-    { projection: { stats: 1 } }
-  );
+  const [row] = await db
+    .select({ stats: players.stats })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
 
-  if (!player || player.stats) {
+  if (!row || row.stats) {
     return; // Stats already exist or player doesn't exist
   }
 
-  await playersCollection.updateOne(
-    { username: playerId },
-    {
-      $set: {
-        stats: {
-          battlesWon: 0,
-          totalUnitsBuilt: 0,
-          totalResourcesGathered: 0,
-          totalResourcesBanked: 0,
-          shrineTradeCount: 0,
-          cavesExplored: 0
-        }
-      }
-    }
-  );
+  await db
+    .update(players)
+    .set({ stats: ZERO_STATS })
+    .where(eq(players.username, playerId));
+}
+
+/**
+ * Increment one stats.<key> counter by `amount` (SQL delta on the jsonb path —
+ * composes under concurrency, the shim's $inc 'stats.key' equivalent).
+ */
+async function incrementStat(playerId: string, key: keyof typeof ZERO_STATS, amount: number) {
+  await db
+    .update(players)
+    .set({
+      stats: sql`jsonb_set(COALESCE(${players.stats}, '{}'::jsonb), ARRAY[${key}], to_jsonb(COALESCE((${players.stats}->>${key})::numeric, 0) + ${amount}))`,
+    })
+    .where(eq(players.username, playerId));
 }
 
 /**
  * Track battle victory
- * 
+ *
  * @param playerId - Player username
  */
 export async function trackBattleWon(playerId: string) {
   await ensureStatsExist(playerId);
-  
-  const playersCollection = await getCollection('players');
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $inc: { 'stats.battlesWon': 1 } }
-  );
+  await incrementStat(playerId, 'battlesWon', 1);
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
@@ -86,7 +96,7 @@ export async function trackBattleWon(playerId: string) {
 
 /**
  * Track unit build
- * 
+ *
  * @param playerId - Player username
  * @param quantity - Number of units built
  * @param unitCategory - Blueprint category of the built unit ('strength'/'defense')
@@ -99,12 +109,7 @@ export async function trackUnitBuilt(
   unitCategory?: 'strength' | 'defense'
 ) {
   await ensureStatsExist(playerId);
-  
-  const playersCollection = await getCollection('players');
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $inc: { 'stats.totalUnitsBuilt': quantity } }
-  );
+  await incrementStat(playerId, 'totalUnitsBuilt', quantity);
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
@@ -122,18 +127,13 @@ export async function trackUnitBuilt(
 
 /**
  * Track resource gathering
- * 
+ *
  * @param playerId - Player username
  * @param amount - Total resources gathered (metal + energy)
  */
 export async function trackResourcesGathered(playerId: string, amount: number) {
   await ensureStatsExist(playerId);
-  
-  const playersCollection = await getCollection('players');
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $inc: { 'stats.totalResourcesGathered': amount } }
-  );
+  await incrementStat(playerId, 'totalResourcesGathered', amount);
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
@@ -141,18 +141,13 @@ export async function trackResourcesGathered(playerId: string, amount: number) {
 
 /**
  * Track bank deposit
- * 
+ *
  * @param playerId - Player username
  * @param amount - Total resources banked (metal + energy)
  */
 export async function trackResourcesBanked(playerId: string, amount: number) {
   await ensureStatsExist(playerId);
-  
-  const playersCollection = await getCollection('players');
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $inc: { 'stats.totalResourcesBanked': amount } }
-  );
+  await incrementStat(playerId, 'totalResourcesBanked', amount);
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
@@ -160,17 +155,12 @@ export async function trackResourcesBanked(playerId: string, amount: number) {
 
 /**
  * Track shrine trade
- * 
+ *
  * @param playerId - Player username
  */
 export async function trackShrineTrade(playerId: string) {
   await ensureStatsExist(playerId);
-  
-  const playersCollection = await getCollection('players');
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $inc: { 'stats.shrineTradeCount': 1 } }
-  );
+  await incrementStat(playerId, 'shrineTradeCount', 1);
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
@@ -178,17 +168,12 @@ export async function trackShrineTrade(playerId: string) {
 
 /**
  * Track cave/forest exploration
- * 
+ *
  * @param playerId - Player username
  */
 export async function trackCaveExplored(playerId: string) {
   await ensureStatsExist(playerId);
-  
-  const playersCollection = await getCollection('players');
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $inc: { 'stats.cavesExplored': 1 } }
-  );
+  await incrementStat(playerId, 'cavesExplored', 1);
 
   // Check for achievement unlocks
   await checkAchievements(playerId);
@@ -197,7 +182,7 @@ export async function trackCaveExplored(playerId: string) {
 /**
  * Manually trigger achievement check
  * Called after level-ups or specialization mastery changes
- * 
+ *
  * @param playerId - Player username
  * @returns Newly unlocked achievements
  */

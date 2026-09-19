@@ -30,9 +30,9 @@
  * console.log(`Combat Power: ${combatPower}`);
  */
 
-import { connectToDatabase } from './mongodb';
-import type { Player } from '@/types/game.types';
-import type { Clan } from '@/types/clan.types';
+import { db } from './db/connection';
+import { players, clans } from './db/schema';
+import { eq } from 'drizzle-orm';
 import { calculateBalanceEffects } from './balanceService';
 import { getDiscoveryBonuses } from './discoveryService';
 import { getClanBonuses } from './clanResearchService';
@@ -81,8 +81,7 @@ export async function calculateCombatPower(username: string): Promise<{
   combatPower: number;
   breakdown: CombatPowerBreakdown;
 }> {
-  const db = await connectToDatabase();
-  const player = await db.collection<Player>('players').findOne({ username });
+  const [player] = await db.select().from(players).where(eq(players.username, username)).limit(1);
   
   if (!player) {
     throw new Error(`Player not found: ${username}`);
@@ -111,9 +110,9 @@ export async function calculateCombatPower(username: string): Promise<{
   let clanCombatBonus = 0;
   if (player.clanName) {
     try {
-      const clan = await db.collection<Clan>('clans').findOne({ name: player.clanName });
-      if (clan?.research?.unlockedTechs && clan.research.unlockedTechs.length > 0) {
-        const bonuses = await getClanBonuses(clan._id ?? clan.name);
+      const [clan] = await db.select().from(clans).where(eq(clans.name, player.clanName)).limit(1);
+      if (clan?.researchUnlockedTechs && clan.researchUnlockedTechs.length > 0) {
+        const bonuses = await getClanBonuses(clan.id ?? clan.name);
         // Only include attack and defense bonuses (military research)
         const attackBonus = bonuses.attack || 0;
         const defenseBonus = bonuses.defense || 0;
