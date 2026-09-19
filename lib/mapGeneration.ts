@@ -15,7 +15,6 @@
  * terrain keeps its exact count regardless of shuffle order.
  */
 
-import { getCollection } from './mongodb';
 import { db } from '@/lib/db';
 import { tiles } from '@/lib/db/schema';
 import { sql } from 'drizzle-orm';
@@ -191,8 +190,8 @@ function generateTiles(): Tile[] {
  */
 export async function mapExists(): Promise<boolean> {
   try {
-    const tilesCollection = await getCollection<Tile>('tiles');
-    const count = await tilesCollection.countDocuments();
+    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(tiles);
+    const count = row?.count ?? 0;
     
     console.log(`📊 Current tile count in database: ${count}`);
     
@@ -200,41 +199,6 @@ export async function mapExists(): Promise<boolean> {
   } catch (error) {
     console.error('❌ Error checking map existence:', error);
     return false;
-  }
-}
-
-/**
- * Create indexes for tiles collection
- * Ensures efficient queries and prevents duplicate coordinates
- * 
- * @returns Promise that resolves when indexes are created
- */
-export async function createTileIndexes(): Promise<void> {
-  try {
-    const tilesCollection = await getCollection<Tile>('tiles');
-    
-    // Create unique compound index on (x, y) coordinates
-    await tilesCollection.createIndex(
-      { x: 1, y: 1 },
-      { unique: true, name: 'coordinate_index' }
-    );
-    
-    // Create index on terrain type for efficient filtering
-    await tilesCollection.createIndex(
-      { terrain: 1 },
-      { name: 'terrain_index' }
-    );
-    
-    // Create index on occupiedByBase for spawn queries
-    await tilesCollection.createIndex(
-      { occupiedByBase: 1, terrain: 1 },
-      { name: 'spawn_index' }
-    );
-    
-    console.log('✅ Tile indexes created successfully');
-  } catch (error) {
-    console.error('❌ Error creating tile indexes:', error);
-    throw error;
   }
 }
 
@@ -267,24 +231,30 @@ export async function initializeMap(): Promise<void> {
     console.log('🔨 Generating new map...');
     
     // Generate all tiles
-    const tiles = generateTiles();
+    const allTiles = generateTiles();
     
-    console.log(`📦 Generated ${tiles.length} tiles`);
+    console.log(`📦 Generated ${allTiles.length} tiles`);
     
-    // Insert tiles into database
-    const tilesCollection = await getCollection<Tile>('tiles');
-    
-    // Use ordered: false to continue on duplicate key errors (shouldn't happen, but safety measure)
-    await tilesCollection.insertMany(tiles, { ordered: false });
+    // Insert tiles into pg (chunked multi-row inserts; the composite PK
+    // tiles_pk already enforces coordinate uniqueness, so the Mongo-era
+    // createIndex step has no pg equivalent here).
+    const CHUNK = 1000;
+    for (let i = 0; i < allTiles.length; i += CHUNK) {
+      await db.insert(tiles).values(
+        allTiles.slice(i, i + CHUNK).map((t) => ({
+          x: t.x,
+          y: t.y,
+          terrain: t.terrain,
+          bankType: t.bankType ?? null,
+        }))
+      );
+    }
     
     console.log('✅ Tiles inserted successfully');
     
-    // Create indexes
-    await createTileIndexes();
-    
     // Verify final count
-    const finalCount = await tilesCollection.countDocuments();
-    console.log(`✅ Map initialization complete! Total tiles: ${finalCount}`);
+    const [countRow] = await db.select({ count: sql<number>`count(*)::int` }).from(tiles);
+    console.log(`✅ Map initialization complete! Total tiles: ${countRow?.count ?? 0}`);
     
     // Verify terrain distribution
     const distribution = await fetchDistribution();
