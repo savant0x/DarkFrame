@@ -11,6 +11,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import { logger } from '@/lib/logger';
 
@@ -109,6 +110,23 @@ export default function GamePage() {
   const [isAttacking, setIsAttacking] = useState(false);
   const [attackResult, setAttackResult] = useState<AttackResult | null>(null);
   const [factoryData, setFactoryData] = useState<Factory | null>(null);
+
+  // FID-20260919-008 follow-through: /game?market=<item> (chat item links land
+  // here) must actually OPEN the auction house — the panel reads the param, but
+  // it only mounts when already open. Canonical names only; junk params ignored.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (auctionDeepLinkConsumed.current) return;
+    const market = searchParams.get('market');
+    if (!market) return;
+    auctionDeepLinkConsumed.current = true;
+    fetch(`/api/chat/item-link?itemName=${encodeURIComponent(market)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.exists) setShowAuctionHouse(true);
+      })
+      .catch(() => {});
+  }, [searchParams]);
   const [lastTileKey, setLastTileKey] = useState<string>('');
   // Bank and Shrine now use currentView instead of modal states
   const [showUnitBuildPanel, setShowUnitBuildPanel] = useState(false);
@@ -116,6 +134,7 @@ export default function GamePage() {
   const [showTierUnlockPanel, setShowTierUnlockPanel] = useState(false);
   const [showAchievementPanel, setShowAchievementPanel] = useState(false);
   const [showAuctionHouse, setShowAuctionHouse] = useState(false);
+  const auctionDeepLinkConsumed = useRef(false);
   const [showDiscoveryLog, setShowDiscoveryLog] = useState(false);
   const [showBotMagnet, setShowBotMagnet] = useState(false);
   const [showBotSummoning, setShowBotSummoning] = useState(false);
