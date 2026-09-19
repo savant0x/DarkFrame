@@ -20,7 +20,9 @@
  * - Discoveries persist forever
  */
 
-import { getCollection } from './mongodb';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { eq, sql } from 'drizzle-orm';
 import type { Player } from '@/types/game.types';
 import { logger } from './logger';
 
@@ -240,10 +242,14 @@ export async function checkDiscoveryDrop(
   isNew: boolean;
   totalDiscoveries?: number;
 }> {
-  const playersCollection = await getCollection<Player>('players');
   // FID-20260911-046: discoveries-only projection — this runs per harvest on
   // the hot loop; the full row ships a 30+ KB units blob for one jsonb field.
-  const player = await playersCollection.findOne({ username: playerId }, { projection: { discoveries: 1 } });
+  const [playerRow] = await db
+    .select({ discoveries: players.discoveries })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
+  const player = playerRow ? { discoveries: (playerRow.discoveries ?? []) as Player['discoveries'] } : null;
 
   if (!player) {
     return { discovered: false, isNew: false };
@@ -283,11 +289,14 @@ export async function checkDiscoveryDrop(
     discoveredInCave: caveLocation
   };
 
-  // Add to player's discoveries
-  await playersCollection.updateOne(
-    { username: playerId },
-    { $push: { discoveries: newDiscovery } }
-  );
+  // Add to player's discoveries (pg: jsonb append — the $push equivalent,
+  // atomic server-side so concurrent harvests cannot lose a discovery)
+  await db
+    .update(players)
+    .set({
+      discoveries: sql`coalesce(${players.discoveries}, '[]'::jsonb) || ${JSON.stringify([newDiscovery])}::jsonb`,
+    })
+    .where(eq(players.username, playerId));
 
   logger.success('Ancient technology discovered!', {
     username: playerId,
@@ -312,9 +321,13 @@ export async function checkDiscoveryDrop(
  * @returns Discovery statistics and list
  */
 export async function getDiscoveryProgress(playerId: string) {
-  const playersCollection = await getCollection<Player>('players');
   // FID-20260911-046: discoveries-only projection (see checkDiscoveryDrop).
-  const player = await playersCollection.findOne({ username: playerId }, { projection: { discoveries: 1 } });
+  const [playerRow] = await db
+    .select({ discoveries: players.discoveries })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
+  const player = playerRow ? { discoveries: (playerRow.discoveries ?? []) as Player['discoveries'] } : null;
 
   if (!player) {
     return null;
@@ -362,9 +375,13 @@ export async function getDiscoveryProgress(playerId: string) {
  * @returns Aggregate bonus values
  */
 export async function getDiscoveryBonuses(playerId: string) {
-  const playersCollection = await getCollection<Player>('players');
   // FID-20260911-046: discoveries-only projection (see checkDiscoveryDrop).
-  const player = await playersCollection.findOne({ username: playerId }, { projection: { discoveries: 1 } });
+  const [playerRow] = await db
+    .select({ discoveries: players.discoveries })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
+  const player = playerRow ? { discoveries: (playerRow.discoveries ?? []) as Player['discoveries'] } : null;
 
   if (!player || !player.discoveries) {
     return {
