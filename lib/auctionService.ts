@@ -4,7 +4,26 @@
  * @overview Auction House service for P2P trading system
  */
 
-import { getCollection, type MongoFilter, type MongoUpdate, type SortSpec } from './mongodb';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { auctions, tradeHistory } from './db/schema/config';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
+import { mapRowToPlayer } from './playerService';
+import { AUCTION_DOC_COLUMNS, shapeRowAuctions } from './db/auctionDocBridge';
 import { 
   AuctionListing, 
   AuctionBid, 
@@ -17,10 +36,60 @@ import {
   AUCTION_CONFIG,
   AuctionSearchFilters,
 } from '@/types/auction.types';
-import type { DocumentValue } from './mongodb';
-import { Player, PlayerUnit } from '@/types/game.types';
+import type { Player, PlayerUnit } from '@/types/game.types';
 import { logger } from './logger';
 import { notifyAuctionEvent } from './auctionNotification';
+
+/** auction/trade rows use varchar(24) ids — 24-char uuid-hex slice (migration 0008 PK convention). */
+function generateRowId(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 24);
+}
+
+/**
+ * Row-partial update payload for the auctions doc-bridge table: mirrored
+ * columns (AUCTION_DOC_COLUMNS) also jsonb_set into the stored doc; any
+ * non-column key merges into the doc wholesale — the shim's DOC_TABLES
+ * updateOne behavior in one place (Law 13: same shape rule, one truth).
+ */
+function auctionSet(patch: Record<string, unknown>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  const docOps: Array<{ path: string; value: unknown }> = [];
+  const docMerge: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const mirrored = AUCTION_DOC_COLUMNS.find((m) => m.column === key);
+    if (mirrored) {
+      if (typeof value === 'boolean') {
+        payload[key] = value ? 1 : 0; // pg smallint mirrors
+        docOps.push({ path: mirrored.docKey, value }); // doc keeps the boolean
+      } else {
+        payload[key] = value;
+        docOps.push({ path: mirrored.docKey, value });
+      }
+    } else {
+      docMerge[key] = value;
+    }
+  }
+  let docExpr = sql`${auctions.doc}`;
+  for (const { path, value } of docOps) {
+    docExpr = sql`jsonb_set(${docExpr}, '{${sql.raw(path)}}', ${JSON.stringify(value ?? null)}::jsonb, true)`;
+  }
+  if (Object.keys(docMerge).length > 0) {
+    docExpr = sql`${docExpr} || ${JSON.stringify(docMerge)}::jsonb`;
+  }
+  payload.doc = docExpr;
+  return payload;
+}
+
+/** Row → domain overlay through the shared doc-bridge. */
+function shapeAuction(row: Record<string, unknown>): AuctionListing {
+  return shapeRowAuctions(auctions, row) as unknown as AuctionListing;
+}
+
+/** Lookup by the domain auctionId (indexed mirror column). */
+async function getAuctionByAuctionId(auctionId: string): Promise<AuctionListing | null> {
+  const [row] = await db.select().from(auctions).where(eq(auctions.auctionId, auctionId)).limit(1);
+  return row ? shapeAuction(row as unknown as Record<string, unknown>) : null;
+}
 
 /** Human-readable item label for notifications. */
 function describeAuctionItem(item: AuctionItem): string {
@@ -45,20 +114,19 @@ export async function createAuctionListing(
   request: CreateAuctionRequest
 ): Promise<{ success: boolean; message: string; auction?: AuctionListing; error?: string }> {
   try {
-    const playersCollection = await getCollection<Player>('players');
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-
     // Get seller
-    const seller = await playersCollection.findOne({ username: sellerUsername });
+    const [sellerRow] = await db.select().from(players).where(eq(players.username, sellerUsername)).limit(1);
+    const seller = sellerRow ? mapRowToPlayer(sellerRow) : null;
     if (!seller) {
       return { success: false, message: 'Seller not found', error: 'SELLER_NOT_FOUND' };
     }
 
     // Check active listings limit
-    const activeListings = await auctionsCollection.countDocuments({
-      sellerUsername,
-      status: AuctionStatus.Active
-    });
+    const [activeRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(auctions)
+      .where(and(eq(auctions.sellerUsername, sellerUsername), eq(auctions.status, AuctionStatus.Active)));
+    const activeListings = activeRow?.count ?? 0;
 
     if (activeListings >= AUCTION_CONFIG.MAX_ACTIVE_LISTINGS) {
       return {
@@ -171,8 +239,12 @@ export async function createAuctionListing(
       settled: false
     };
 
-    // Insert auction
-    await auctionsCollection.insertOne(auction);
+    // Insert auction (doc-bridge: the bridge synthesizes the stored doc and
+    // fills the mirrored columns + legacy NOT NULL columns from the payload).
+    const insertPayload: Record<string, unknown> = { ...auction, id: generateRowId() };
+    const { syncAuctionDocFields } = await import('./db/auctionDocBridge');
+    syncAuctionDocFields(auctions as never, insertPayload);
+    await db.insert(auctions).values(insertPayload as never);
 
     // Deduct listing fee and lock item
     // Merge the listing fee into the item-lock write (fee + locked amount share the
@@ -180,15 +252,14 @@ export async function createAuctionListing(
     // so sellers never actually paid the listing fee (live-verified: 10 metal refund).
     // FID-20260914-003: the lock write may ALSO carry $set (unit escrow removes the
     // unit from the seller's army) — merge it through or the escrow is dropped.
-    const lockInc = (itemValidation.lockUpdate?.$inc ?? {}) as Record<string, number>;
-    const lockSet = itemValidation.lockUpdate?.$set as Record<string, DocumentValue> | undefined;
-    await playersCollection.updateOne(
-      { username: sellerUsername },
-      {
-        $inc: { resources_metal: -listingFee, ...lockInc },
-        ...(lockSet ? { $set: lockSet } : {}),
-      }
-    );
+    const metalDelta = -listingFee + (itemValidation.lockUpdate?.incMetal ?? 0);
+    const energyDelta = itemValidation.lockUpdate?.incEnergy ?? 0;
+    const lockWrite: PgUpdateSetSource<typeof players> = { ...(itemValidation.lockUpdate?.set ?? {}) };
+    if (metalDelta !== 0) lockWrite.resourcesMetal = sql`${players.resourcesMetal} + ${metalDelta}`;
+    if (energyDelta !== 0) lockWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${energyDelta}`;
+    if (Object.keys(lockWrite).length > 0) {
+      await db.update(players).set(lockWrite).where(eq(players.username, sellerUsername));
+    }
 
     logger.info('Auction created', { auctionId, seller: sellerUsername, item: request.item });
 
@@ -218,7 +289,7 @@ async function validateAndLockItem(
   success: boolean;
   message: string;
   error?: string;
-  lockUpdate?: MongoUpdate;
+  lockUpdate?: { set?: PgUpdateSetSource<typeof players>; incMetal?: number; incEnergy?: number };
   escrowedUnit?: PlayerUnit;
 }> {
   
@@ -245,7 +316,7 @@ async function validateAndLockItem(
       success: true,
       message: 'Unit validated and escrowed',
       lockUpdate: {
-        $set: {
+        set: {
           units: player.units.filter((u) => u.unitId !== item.unitId),
         },
       },
@@ -273,9 +344,10 @@ async function validateAndLockItem(
     return {
       success: true,
       message: 'Resources validated',
-      lockUpdate: {
-        $inc: { [`resources.${item.resourceType}`]: -item.resourceAmount }
-      }
+      lockUpdate:
+        item.resourceType === 'energy'
+          ? { incEnergy: -item.resourceAmount }
+          : { incMetal: -item.resourceAmount },
     };
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
@@ -305,17 +377,15 @@ export async function placeBid(
   request: PlaceBidRequest
 ): Promise<{ success: boolean; message: string; auction?: AuctionListing; error?: string }> {
   try {
-    const playersCollection = await getCollection<Player>('players');
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-
     // Get bidder
-    const bidder = await playersCollection.findOne({ username: bidderUsername });
+    const [bidderRow] = await db.select().from(players).where(eq(players.username, bidderUsername)).limit(1);
+    const bidder = bidderRow ? mapRowToPlayer(bidderRow) : null;
     if (!bidder) {
       return { success: false, message: 'Bidder not found', error: 'BIDDER_NOT_FOUND' };
     }
 
     // Get auction
-    const auction = await auctionsCollection.findOne({ auctionId: request.auctionId });
+    const auction = await getAuctionByAuctionId(request.auctionId);
     if (!auction) {
       return { success: false, message: 'Auction not found', error: 'AUCTION_NOT_FOUND' };
     }
@@ -361,10 +431,10 @@ export async function placeBid(
 
     // ESCROW: deduct the bid from the bidder immediately (FID-20260912-065).
     // Previously bids were honor-system — winners could be broke at settlement.
-    await playersCollection.updateOne(
-      { username: bidderUsername },
-      { $inc: { resources_metal: -request.bidAmount } }
-    );
+    await db
+      .update(players)
+      .set({ resourcesMetal: sql`${players.resourcesMetal} - ${request.bidAmount}` })
+      .where(eq(players.username, bidderUsername));
 
     // Create bid
     const bidId = `BID-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
@@ -383,32 +453,31 @@ export async function placeBid(
 
     // LEADER CLAIM (FID-20260914-003): the leader transition is conditional on
     // the row STILL being active AND still carrying the leader pair we validated
-    // against. The shim's updateOne reports modifiedCount unconditionally, so
-    // the claim is arbitrated by findOneAndUpdate (findOne → updateOne; null =
-    // a concurrent buyout/settlement closed the row between validation and now).
-    const claimed = await auctionsCollection.findOneAndUpdate(
-      {
-        auctionId: request.auctionId,
-        status: AuctionStatus.Active,
-        currentBid: auction.currentBid,
-        highestBidder: auction.highestBidder ?? null,
-      },
-      {
-        $set: {
-          currentBid: request.bidAmount,
-          highestBidder: bidderUsername,
-          bids: updatedBids
-        }
-      }
-    );
+    // against. The claim is arbitrated by a guarded UPDATE ... RETURNING
+    // (0 rows = a concurrent buyout/settlement closed the row between
+    // validation and now).
+    const claimed = await db
+      .update(auctions)
+      .set(auctionSet({ currentBid: request.bidAmount, highestBidder: bidderUsername, bids: updatedBids }))
+      .where(
+        and(
+          eq(auctions.auctionId, request.auctionId),
+          eq(auctions.status, AuctionStatus.Active),
+          eq(auctions.currentBid, auction.currentBid),
+          auction.highestBidder
+            ? eq(auctions.highestBidder, auction.highestBidder)
+            : isNull(auctions.highestBidder)
+        )
+      )
+      .returning({ id: auctions.id });
 
-    if (!claimed) {
+    if (claimed.length === 0) {
       // Lost the race (bought out / settled mid-bid): refund THIS bidder's fresh
       // escrow. The outbid leader was never touched — no other wallet moved.
-      await playersCollection.updateOne(
-        { username: bidderUsername },
-        { $inc: { resources_metal: request.bidAmount } }
-      );
+      await db
+        .update(players)
+        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${request.bidAmount}` })
+        .where(eq(players.username, bidderUsername));
       return {
         success: false,
         message: 'Auction is no longer active',
@@ -423,10 +492,10 @@ export async function placeBid(
     const previousBidder = auction.highestBidder;
     const previousAmount = auction.currentBid;
     if (previousBidder && previousAmount > 0) {
-      await playersCollection.updateOne(
-        { username: previousBidder },
-        { $inc: { resources_metal: previousAmount } }
-      );
+      await db
+        .update(players)
+        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${previousAmount}` })
+        .where(eq(players.username, previousBidder));
       await notifyAuctionEvent('outbid', previousBidder, {
         auctionId: request.auctionId,
         itemName: describeAuctionItem(auction.item),
@@ -435,7 +504,7 @@ export async function placeBid(
       });
     }
 
-    const updatedAuction = await auctionsCollection.findOne({ auctionId: request.auctionId });
+    const updatedAuction = await getAuctionByAuctionId(request.auctionId);
 
     logger.info('Bid placed', { auctionId: request.auctionId, bidder: bidderUsername, amount: request.bidAmount });
 
@@ -467,18 +536,15 @@ export async function buyoutAuction(
   auctionId: string
 ): Promise<{ success: boolean; message: string; trade?: TradeHistory; error?: string }> {
   try {
-    const playersCollection = await getCollection<Player>('players');
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-    const tradesCollection = await getCollection<TradeHistory>('tradeHistory');
-
     // Get buyer
-    const buyer = await playersCollection.findOne({ username: buyerUsername });
+    const [buyerRow] = await db.select().from(players).where(eq(players.username, buyerUsername)).limit(1);
+    const buyer = buyerRow ? mapRowToPlayer(buyerRow) : null;
     if (!buyer) {
       return { success: false, message: 'Buyer not found', error: 'BUYER_NOT_FOUND' };
     }
 
     // Get auction
-    const auction = await auctionsCollection.findOne({ auctionId });
+    const auction = await getAuctionByAuctionId(auctionId);
     if (!auction) {
       return { success: false, message: 'Auction not found', error: 'AUCTION_NOT_FOUND' };
     }
@@ -513,34 +579,34 @@ export async function buyoutAuction(
     }
 
     // CLAIM-FIRST CLOSE (FID-20260914-003, finding 4): flip status Active→Sold
-    // BEFORE any money or goods move. The shim's updateOne reports modifiedCount
-    // unconditionally, so the claim is arbitrated by findOneAndUpdate: null = a
-    // concurrent buyout/settlement won the row — every later competitor fails
-    // validation (status no longer Active). This is the exactly-once gate for
-    // every write below.
-    const claim = await auctionsCollection.findOneAndUpdate(
-      { auctionId, status: AuctionStatus.Active },
-      {
-        $set: {
+    // BEFORE any money or goods move. The claim is arbitrated by a guarded
+    // UPDATE ... RETURNING: 0 rows = a concurrent buyout/settlement won the row
+    // — every later competitor fails validation (status no longer Active).
+    // This is the exactly-once gate for every write below.
+    const claimRows = await db
+      .update(auctions)
+      .set(
+        auctionSet({
           status: AuctionStatus.Sold,
           closedAt: new Date(),
           settled: true,
           settledAt: new Date(),
           finalPrice: auction.buyoutPrice,
-          winnerUsername: buyerUsername
-        }
-      }
-    );
-    if (!claim) {
+          winnerUsername: buyerUsername,
+        })
+      )
+      .where(and(eq(auctions.auctionId, auctionId), eq(auctions.status, AuctionStatus.Active)))
+      .returning({ id: auctions.id });
+    if (claimRows.length === 0) {
       return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
     }
 
     // FRESH re-read: the leader under the JUST-CLOSED row. A concurrent placeBid
-    // may have become leader after our earlier findOne — their escrow is the one
+    // may have become leader after our earlier read — their escrow is the one
     // actually held against this auction, so the fresh leader is the honest one.
-    const closedAuction = (await auctionsCollection.findOne({ auctionId })) ?? claim;
-    const leader = closedAuction.highestBidder;
-    const leaderAmount = closedAuction.currentBid ?? 0;
+    const closedAuction = (await getAuctionByAuctionId(auctionId)) ?? null;
+    const leader = closedAuction?.highestBidder;
+    const leaderAmount = closedAuction?.currentBid ?? 0;
 
     // Calculate fees
     const saleFeeAmount = Math.floor(auction.buyoutPrice * auction.saleFee);
@@ -556,19 +622,19 @@ export async function buyoutAuction(
     if (!transferResult.success) {
       // Roll back the claim so the row stays Active (settlement and other buyers
       // can proceed); leader escrow untouched — nobody paid yet.
-      await auctionsCollection.updateOne(
-        { auctionId },
-        {
-          $set: {
+      await db
+        .update(auctions)
+        .set(
+          auctionSet({
             status: AuctionStatus.Active,
             settled: false,
             settledAt: null,
             closedAt: null,
             finalPrice: null,
-            winnerUsername: null
-          }
-        }
-      );
+            winnerUsername: null,
+          })
+        )
+        .where(eq(auctions.auctionId, auctionId));
       return {
         success: false,
         message: transferResult.message,
@@ -577,10 +643,10 @@ export async function buyoutAuction(
     }
 
     // Seller receives price minus fee.
-    await playersCollection.updateOne(
-      { username: auction.sellerUsername },
-      { $inc: { resources_metal: sellerReceives } }
-    );
+    await db
+      .update(players)
+      .set({ resourcesMetal: sql`${players.resourcesMetal} + ${sellerReceives}` })
+      .where(eq(players.username, auction.sellerUsername));
 
     // Leader resolution (FID-20260914-003): the previous leader's escrowed bid
     // comes OUT of this close exactly once (the claim gates re-entry).
@@ -590,18 +656,18 @@ export async function buyoutAuction(
     //   remainder. (buyout > currentBid by validation, so the remainder is > 0;
     //   the guard keeps the ledger honest regardless.)
     if (leader && leaderAmount > 0 && leader !== buyerUsername) {
-      await playersCollection.updateOne(
-        { username: leader },
-        { $inc: { resources_metal: leaderAmount } }
-      );
+      await db
+        .update(players)
+        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${leaderAmount}` })
+        .where(eq(players.username, leader));
     }
     const buyerCharge =
       leader === buyerUsername ? auction.buyoutPrice - leaderAmount : auction.buyoutPrice;
     if (buyerCharge > 0) {
-      await playersCollection.updateOne(
-        { username: buyerUsername },
-        { $inc: { resources_metal: -buyerCharge } }
-      );
+      await db
+        .update(players)
+        .set({ resourcesMetal: sql`${players.resourcesMetal} - ${buyerCharge}` })
+        .where(eq(players.username, buyerUsername));
     }
 
     void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
@@ -632,7 +698,19 @@ export async function buyoutAuction(
       completedAt: new Date()
     };
 
-    await tradesCollection.insertOne(trade);
+    await db.insert(tradeHistory).values({
+      id: generateRowId(),
+      tradeId,
+      auctionId,
+      sellerUsername: auction.sellerUsername,
+      buyerUsername,
+      item: auction.item as unknown as Record<string, unknown>,
+      finalPrice: auction.buyoutPrice,
+      saleFee: saleFeeAmount,
+      sellerReceived: sellerReceives,
+      tradeType: 'buyout',
+      completedAt: new Date()
+    });
 
     logger.info('Auction bought out', { auctionId, buyer: buyerUsername, price: auction.buyoutPrice });
 
@@ -660,19 +738,19 @@ async function transferAuctionItem(
   toUsername: string,
   item: AuctionItem
 ): Promise<{ success: boolean; message: string; error?: string }> {
-  const playersCollection = await getCollection<Player>('players');
-
   if (item.itemType === AuctionItemType.Unit) {
     // Deliver the ESCROWED unit (FID-20260914-003). With unit escrow the goods
-    // left the seller at listing time — delivery is a buyer-side $push of the
-    // snapshotted object. The old seller-side $pull is GONE: the live probe
+    // left the seller at listing time — delivery is a buyer-side jsonb append of
+    // the snapshotted object. The old seller-side $pull is GONE: the live probe
     // (scripts/probePullObjectOperand.ts) proved the shim's $pull SQL is invalid
     // on this engine (no jsonb - jsonb operator), so it could never execute.
     // Legacy (pre-escrow) listings still find the unit in the seller's army and
-    // remove it via a $set array rebuild — the same idiom placeBid uses for bids.
-    const seller = item.unitSnapshot
-      ? null
-      : await playersCollection.findOne({ username: fromUsername });
+    // remove it via an array-rebuild write — the same idiom placeBid uses for bids.
+    let seller: Player | null = null;
+    if (!item.unitSnapshot) {
+      const [row] = await db.select().from(players).where(eq(players.username, fromUsername)).limit(1);
+      seller = row ? mapRowToPlayer(row) : null;
+    }
     const unit: PlayerUnit | undefined =
       item.unitSnapshot ?? seller?.units.find((u) => u.unitId === item.unitId);
 
@@ -681,29 +759,36 @@ async function transferAuctionItem(
     }
 
     if (!item.unitSnapshot && seller) {
-      await playersCollection.updateOne(
-        { username: fromUsername },
-        { $set: { units: seller.units.filter((u) => u.unitId !== item.unitId) } }
-      );
+      await db
+        .update(players)
+        .set({ units: seller.units.filter((u) => u.unitId !== item.unitId) })
+        .where(eq(players.username, fromUsername));
     }
 
-    // Add to buyer
-    await playersCollection.updateOne(
-      { username: toUsername },
-      { $push: { units: unit } }
-    );
+    // Add to buyer (atomic jsonb append — the $push equivalent)
+    await db
+      .update(players)
+      .set({
+        units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([unit])}::jsonb`,
+      })
+      .where(eq(players.username, toUsername));
 
   } else if (item.itemType === AuctionItemType.Resource) {
     // Resources were escrowed from the seller at listing time — credit the buyer.
-    // Key MUST resolve through the seam: bare 'metal'/'energy' map to no column and
-    // the delivery write silently vanished (FID-20260912-065). snake_case aliases
-    // resolve to resourcesMetal/resourcesEnergy.
-    const resourceKey = item.resourceType === 'metal' ? 'resources_metal' : 'resources_energy';
+    // (FID-20260912-065: the delivery write previously keyed bare 'metal'/'energy',
+    // which map to no column and silently vanished.)
     const amount = item.resourceAmount ?? 0;
-    await playersCollection.updateOne(
-      { username: toUsername },
-      { $inc: { [resourceKey]: amount } }
-    );
+    if (item.resourceType === 'energy') {
+      await db
+        .update(players)
+        .set({ resourcesEnergy: sql`${players.resourcesEnergy} + ${amount}` })
+        .where(eq(players.username, toUsername));
+    } else {
+      await db
+        .update(players)
+        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${amount}` })
+        .where(eq(players.username, toUsername));
+    }
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
     // Transfer tradeable items
@@ -725,11 +810,8 @@ export async function cancelAuction(
   auctionId: string
 ): Promise<{ success: boolean; message: string; error?: string }> {
   try {
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-    const playersCollection = await getCollection<Player>('players');
-
     // Get auction
-    const auction = await auctionsCollection.findOne({ auctionId });
+    const auction = await getAuctionByAuctionId(auctionId);
     if (!auction) {
       return { success: false, message: 'Auction not found', error: 'AUCTION_NOT_FOUND' };
     }
@@ -756,19 +838,20 @@ export async function cancelAuction(
     // CLAIM the close (FID-20260914-003): refunds may only be paid by the writer
     // that flips the row. The old code updated status unconditionally and then
     // refunded — two concurrent cancels (double-click) would pay the escrow
-    // twice. findOneAndUpdate arbitrates: null = someone else closed it first.
-    const claim = await auctionsCollection.findOneAndUpdate(
-      { auctionId, status: AuctionStatus.Active },
-      {
-        $set: {
+    // twice. The guarded UPDATE arbitrates: 0 rows = someone else closed it first.
+    const claimRows = await db
+      .update(auctions)
+      .set(
+        auctionSet({
           status: AuctionStatus.Cancelled,
           closedAt: new Date(),
           settled: true,
-          settledAt: new Date()
-        }
-      }
-    );
-    if (!claim) {
+          settledAt: new Date(),
+        })
+      )
+      .where(and(eq(auctions.auctionId, auctionId), eq(auctions.status, AuctionStatus.Active)))
+      .returning({ id: auctions.id });
+    if (claimRows.length === 0) {
       return { success: false, message: 'Auction is not active', error: 'AUCTION_NOT_ACTIVE' };
     }
 
@@ -776,17 +859,21 @@ export async function cancelAuction(
     // FID-20260914-003 units). Listing removed the goods from the seller's
     // wallet/army; cancellation returns them exactly once (claim-guarded above).
     if (auction.item.itemType === AuctionItemType.Resource && (auction.item.resourceAmount ?? 0) > 0) {
-      const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
-      await playersCollection.updateOne(
-        { username: sellerUsername },
-        { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
-      );
+      const refundWrite: PgUpdateSetSource<typeof players> = {};
+      if (auction.item.resourceType === 'energy') {
+        refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${auction.item.resourceAmount ?? 0}`;
+      } else {
+        refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${auction.item.resourceAmount ?? 0}`;
+      }
+      await db.update(players).set(refundWrite).where(eq(players.username, sellerUsername));
     }
     if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
-      await playersCollection.updateOne(
-        { username: sellerUsername },
-        { $push: { units: auction.item.unitSnapshot } }
-      );
+      await db
+        .update(players)
+        .set({
+          units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
+        })
+        .where(eq(players.username, sellerUsername));
     }
     void notifyAuctionEvent('refund_seller', sellerUsername, {
       auctionId,
@@ -820,77 +907,84 @@ export async function getAuctions(
   filters: AuctionSearchFilters
 ): Promise<{ success: boolean; auctions: AuctionListing[]; total: number; error?: string }> {
   try {
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-
-    // Build query (auctions schema has direct columns: status, item type, seller)
-    const query: MongoFilter = { status: AuctionStatus.Active };
+    // Build conditions (auctions schema has direct columns: status, item type, seller)
+    const conditions: SQL[] = [eq(auctions.status, AuctionStatus.Active)];
 
     if (filters.itemType) {
-      query['item.itemType'] = filters.itemType;
+      conditions.push(sql`${auctions.doc}->'item'->>'itemType' = ${filters.itemType}`);
     }
 
     if (filters.unitType) {
-      query['item.unitType'] = filters.unitType;
+      conditions.push(sql`${auctions.doc}->'item'->>'unitType' = ${filters.unitType}`);
     }
 
     if (filters.resourceType) {
-      query['item.resourceType'] = filters.resourceType;
+      conditions.push(sql`${auctions.doc}->'item'->>'resourceType' = ${filters.resourceType}`);
     }
 
     if (filters.minPrice) {
-      query.currentBid = { ...(query.currentBid as Record<string, unknown> | undefined), $gte: filters.minPrice };
+      conditions.push(gte(auctions.currentBid, filters.minPrice));
     }
 
     if (filters.maxPrice) {
-      query.currentBid = { ...(query.currentBid as Record<string, unknown> | undefined), $lte: filters.maxPrice };
+      conditions.push(lte(auctions.currentBid, filters.maxPrice));
     }
 
     if (filters.hasBuyout !== undefined) {
-      query.buyoutPrice = filters.hasBuyout ? { $exists: true, $ne: null } : { $exists: false };
+      conditions.push(
+        filters.hasBuyout ? isNotNull(auctions.buyoutPrice) : isNull(auctions.buyoutPrice)
+      );
     }
 
     if (filters.clanOnly !== undefined) {
-      query.clanOnly = filters.clanOnly;
+      conditions.push(eq(auctions.clanOnly, filters.clanOnly ? 1 : 0));
     }
 
     if (filters.sellerUsername) {
-      query.sellerUsername = filters.sellerUsername;
+      conditions.push(eq(auctions.sellerUsername, filters.sellerUsername));
     }
 
     // Sorting
-    let sort: SortSpec = { createdAt: -1 };
+    let orderBy: SQL | ReturnType<typeof asc> | ReturnType<typeof desc> = desc(auctions.createdAt);
     switch (filters.sortBy) {
       case 'price_asc':
-        sort = { currentBid: 1 };
+        orderBy = asc(auctions.currentBid);
         break;
       case 'price_desc':
-        sort = { currentBid: -1 };
+        orderBy = desc(auctions.currentBid);
         break;
       case 'ending_soon':
-        sort = { expiresAt: 1 };
+        orderBy = asc(auctions.expiresAt);
         break;
       case 'newly_listed':
       default:
-        sort = { createdAt: -1 };
+        orderBy = desc(auctions.createdAt);
     }
 
     // Pagination
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const skip = (page - 1) * limit;
+    const where = and(...conditions);
 
     // Get total count
-    const total = await auctionsCollection.countDocuments(query);
+    const [countRow] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(auctions)
+      .where(where);
+    const total = countRow?.count ?? 0;
 
-    // Get auctions
-    const auctions = await auctionsCollection
-      .find(query)
-      .sort(sort)
-      .skip(skip)
+    // Get auctions (rows shaped through the shared doc-bridge)
+    const rows = await db
+      .select()
+      .from(auctions)
+      .where(where)
+      .orderBy(orderBy)
       .limit(limit)
-      .toArray();
+      .offset(skip);
+    const shaped = rows.map((row) => shapeAuction(row as unknown as Record<string, unknown>));
 
-    return { success: true, auctions, total };
+    return { success: true, auctions: shaped, total };
 
   } catch (error) {
     logger.error('Error getting auctions', error instanceof Error ? error : new Error(String(error)));
@@ -934,16 +1028,14 @@ export async function getAuctions(
 async function settleExpiredAuction(
   auction: AuctionListing
 ): Promise<{ auctionId: string; outcome: 'sold' | 'expired'; error?: string }> {
-  const auctionsCollection = await getCollection<AuctionListing>('auctions');
-  const playersCollection = await getCollection<Player>('players');
-
-  // Claim: atomically flip Active → Expired-claim marker. match count 0 = lost
-  // the race (already settled/cancelled, or a bid/buyout flipped status first).
-  const claim = await auctionsCollection.updateOne(
-    { auctionId: auction.auctionId, status: AuctionStatus.Active },
-    { $set: { status: AuctionStatus.Expired, closedAt: new Date() } }
-  );
-  if (!claim || claim.modifiedCount !== 1) {
+  // Claim: atomically flip Active → Expired-claim marker. 0 rows = lost the
+  // race (already settled/cancelled, or a bid/buyout flipped status first).
+  const claimRows = await db
+    .update(auctions)
+    .set(auctionSet({ status: AuctionStatus.Expired, closedAt: new Date() }))
+    .where(and(eq(auctions.auctionId, auction.auctionId), eq(auctions.status, AuctionStatus.Active)))
+    .returning({ id: auctions.id });
+  if (claimRows.length !== 1) {
     return { auctionId: auction.auctionId, outcome: 'expired', error: 'CLAIM_LOST' };
   }
 
@@ -956,27 +1048,31 @@ async function settleExpiredAuction(
       auction.item.itemType === AuctionItemType.Resource &&
       (auction.item.resourceAmount ?? 0) > 0
     ) {
-      const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
-      await playersCollection.updateOne(
-        { username: auction.sellerUsername },
-        { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
-      );
+      const refundWrite: PgUpdateSetSource<typeof players> = {};
+      if (auction.item.resourceType === 'energy') {
+        refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${auction.item.resourceAmount ?? 0}`;
+      } else {
+        refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${auction.item.resourceAmount ?? 0}`;
+      }
+      await db.update(players).set(refundWrite).where(eq(players.username, auction.sellerUsername));
     }
     if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
-      await playersCollection.updateOne(
-        { username: auction.sellerUsername },
-        { $push: { units: auction.item.unitSnapshot } }
-      );
+      await db
+        .update(players)
+        .set({
+          units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
+        })
+        .where(eq(players.username, auction.sellerUsername));
     }
     void notifyAuctionEvent('expired_seller', auction.sellerUsername, {
       auctionId: auction.auctionId,
       itemName: describeAuctionItem(auction.item),
     });
 
-    await auctionsCollection.updateOne(
-      { auctionId: auction.auctionId },
-      { $set: { settled: true, settledAt: new Date() } }
-    );
+    await db
+      .update(auctions)
+      .set(auctionSet({ settled: true, settledAt: new Date() }))
+      .where(eq(auctions.auctionId, auction.auctionId));
     return { auctionId: auction.auctionId, outcome: 'expired' };
   }
 
@@ -995,38 +1091,42 @@ async function settleExpiredAuction(
   if (!transferResult.success) {
     // Delivery failed (e.g. unit no longer present). Refund the winner's escrow
     // and return goods escrow, then mark Expired-settled so we don't retry forever.
-    await playersCollection.updateOne(
-      { username: winner },
-      { $inc: { resources_metal: finalPrice } }
-    );
+    await db
+      .update(players)
+      .set({ resourcesMetal: sql`${players.resourcesMetal} + ${finalPrice}` })
+      .where(eq(players.username, winner));
     if (
       auction.item.itemType === AuctionItemType.Resource &&
       (auction.item.resourceAmount ?? 0) > 0
     ) {
-      const refundKey = auction.item.resourceType === 'energy' ? 'resources_energy' : 'resources_metal';
-      await playersCollection.updateOne(
-        { username: auction.sellerUsername },
-        { $inc: { [refundKey]: auction.item.resourceAmount ?? 0 } }
-      );
+      const refundWrite: PgUpdateSetSource<typeof players> = {};
+      if (auction.item.resourceType === 'energy') {
+        refundWrite.resourcesEnergy = sql`${players.resourcesEnergy} + ${auction.item.resourceAmount ?? 0}`;
+      } else {
+        refundWrite.resourcesMetal = sql`${players.resourcesMetal} + ${auction.item.resourceAmount ?? 0}`;
+      }
+      await db.update(players).set(refundWrite).where(eq(players.username, auction.sellerUsername));
     }
     if (auction.item.itemType === AuctionItemType.Unit && auction.item.unitSnapshot) {
-      await playersCollection.updateOne(
-        { username: auction.sellerUsername },
-        { $push: { units: auction.item.unitSnapshot } }
-      );
+      await db
+        .update(players)
+        .set({
+          units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
+        })
+        .where(eq(players.username, auction.sellerUsername));
     }
-    await auctionsCollection.updateOne(
-      { auctionId: auction.auctionId },
-      { $set: { settled: true, settledAt: new Date() } }
-    );
+    await db
+      .update(auctions)
+      .set(auctionSet({ settled: true, settledAt: new Date() }))
+      .where(eq(auctions.auctionId, auction.auctionId));
     return { auctionId: auction.auctionId, outcome: 'expired', error: 'TRANSFER_FAILED' };
   }
 
   // Winner's metal already left their wallet at bid time — pay the seller.
-  await playersCollection.updateOne(
-    { username: auction.sellerUsername },
-    { $inc: { resources_metal: sellerReceives } }
-  );
+  await db
+    .update(players)
+    .set({ resourcesMetal: sql`${players.resourcesMetal} + ${sellerReceives}` })
+    .where(eq(players.username, auction.sellerUsername));
 
   void notifyAuctionEvent('sold_seller', auction.sellerUsername, {
     auctionId: auction.auctionId,
@@ -1041,27 +1141,27 @@ async function settleExpiredAuction(
     counterparty: auction.sellerUsername,
   });
 
-  await auctionsCollection.updateOne(
-    { auctionId: auction.auctionId },
-    {
-      $set: {
+  await db
+    .update(auctions)
+    .set(
+      auctionSet({
         status: AuctionStatus.Sold,
         settled: true,
         settledAt: new Date(),
         finalPrice,
-        winnerUsername: winner
-      }
-    }
-  );
+        winnerUsername: winner,
+      })
+    )
+    .where(eq(auctions.auctionId, auction.auctionId));
 
-  const tradesCollection = await getCollection<TradeHistory>('tradeHistory');
   const tradeId = `TRD-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-  await tradesCollection.insertOne({
+  await db.insert(tradeHistory).values({
+    id: generateRowId(),
     tradeId,
     auctionId: auction.auctionId,
     sellerUsername: auction.sellerUsername,
     buyerUsername: winner,
-    item: auction.item,
+    item: auction.item as unknown as Record<string, unknown>,
     finalPrice,
     saleFee: saleFeeAmount,
     sellerReceived: sellerReceives,
@@ -1085,20 +1185,17 @@ export async function settleExpiredAuctions(): Promise<{
   message: string;
 }> {
   try {
-    const auctionsCollection = await getCollection<AuctionListing>('auctions');
-
-    const overdue = await auctionsCollection
-      .find({
-        status: AuctionStatus.Active,
-        expiresAt: { $lt: new Date() }
-      })
-      .limit(100)
-      .toArray();
+    const overdue = await db
+      .select()
+      .from(auctions)
+      .where(and(eq(auctions.status, AuctionStatus.Active), lt(auctions.expiresAt, new Date())))
+      .limit(100);
+    const overdueAuctions = overdue.map((row) => shapeAuction(row as unknown as Record<string, unknown>));
 
     let sold = 0;
     let expired = 0;
     let errors = 0;
-    for (const auction of overdue) {
+    for (const auction of overdueAuctions) {
       try {
         const result = await settleExpiredAuction(auction);
         if (result.error === 'CLAIM_LOST') continue;

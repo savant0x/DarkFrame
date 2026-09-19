@@ -19,11 +19,12 @@ import { calls, unmapped, TABLE_REGISTRY, TABLE_ALIASES } from '@/scripts/census
 
 describe('FID-20260914-009: every production collection name resolves on the shim', () => {
   it('census scan is alive (found production call sites)', () => {
-    // FID-20260917-017 slices 1–5 retired the app/api call sites; the
-    // remaining names live in the batch-4 lib services. The floor tracks
-    // that shrinkage — if this ever reaches 0 the census is vacuous and
-    // should be deleted together with its last consumer.
-    expect(calls.length).toBeGreaterThanOrEqual(5);
+    // FID-20260917-017 retired every app/api call site and converted the
+    // batch-4 lib services in place; the remaining literals live in the
+    // lib-adjacent pin suites that keep the shim quarantined. The floor
+    // tracks that shrinkage — if this ever reaches 0 the census is vacuous
+    // and should be deleted together with its last consumer.
+    expect(calls.length).toBeGreaterThanOrEqual(3);
   });
 
   it('registry is populated and canonical names resolve directly', () => {

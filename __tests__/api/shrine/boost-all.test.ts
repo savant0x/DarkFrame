@@ -35,6 +35,16 @@ vi.mock('@/lib/playerService', () => ({
 
 vi.mock('@/lib/db/connection', () => ({
   db: {
+    // assertAtShrine (shrineServer, drizzle since batch-4 part 1) reads the
+    // tile through db.select(); the tiles seam itself is scripted per-test via
+    // capture.shrineTile ({x,y,terrain} or null = unreadable/no tile).
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: async () => (capture.shrineTile ? [capture.shrineTile] : []),
+        }),
+      }),
+    }),
     update: (table: unknown) => ({
       set: (payload: unknown) => {
         capture.updates.push({ table, set: payload });
