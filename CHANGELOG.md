@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.23] — 2026-09-19 session
+
+### Added — FID-20260919-010: RP packages checkout — the shop's dead button takes real money (closed, commit `89cc34b`)
+
+- Every Purchase button on /shop/rp-packages now creates a real Stripe Checkout session (mode=payment, test-mode session created live through the real route) and redirects to Stripe's hosted page — the "🚧 Stripe integration pending" placeholder is gone. The client sends only a packageId: price and RP come from a single-source server map (lib/stripe/rpPackages) that the page's display list mirrors at compile time, so no client-owned number exists anywhere in the purchase surface.
+- The webhook's RP branch rides the FID-20260917-009 law: idempotency probe on stripeSessionId (a redelivered event never double-credits), RP resolved from the server map (session metadata's rp value is informational — proven by a probe where metadata lied), username-keyed grant, ledger row only after a confirmed grant (tier rp:<packageId>), and throw-on-false so Stripe retries failed grants.
+- Evidence: 15 pins (behavioral + keying), 11/11 live probes — signed webhook events with real signature verification, exact-once grant, failed-grant 500 with no ledger row, VIP path untouched and dispatch-guarded. Suite 1215/1215, tsc 0, eslint clean. Going live needs only live-mode Stripe keys.
+
 ## [0.0.22] — 2026-09-19 session
 
 ### Added — FID-20260919-009: tradeable listings complete — escrowed instance trading with real names (closed, commit `08410d6`)
