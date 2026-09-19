@@ -70,8 +70,14 @@ describe('deletions — dead route files are gone', () => {
 });
 
 describe('reachability of the survivors', () => {
-  it('harvest route has a live client caller', () => {
-    expect(read('components/HarvestButton.tsx')).toContain('/api/harvest');
+  it('harvest route has live client callers (HarvestModal / game page)', () => {
+    // FID-20260919-003 correction: the original pin read components/HarvestButton.tsx,
+    // which was the SUPERSEDED component (archived 2026-09-19) — the pin was green
+    // only because it read a dead file. The live callers are HarvestModal and the
+    // game page's harvest handler; both must reference the route.
+    const callers = ['components/HarvestModal.tsx', 'app/game/page.tsx'];
+    const hits = callers.filter((f) => existsSync(join(root, f)) && read(f).includes('/api/harvest'));
+    expect(hits).toHaveLength(callers.length);
   });
 
   it('move route has live client callers (MovementControls / autoFarm)', () => {

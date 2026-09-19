@@ -33,25 +33,6 @@ vi.mock('@/hooks', () => ({
   useIsMobile: () => false,
 }));
 
-vi.mock('./BalanceIndicator', () => ({
-  default: () => <div>BalanceIndicator</div>,
-}));
-
-vi.mock('./XPProgressBar', () => ({
-  default: ({ level, currentLevelXP, xpForNextLevel, _totalXP }: {
-    level: number;
-    currentLevelXP: number;
-    xpForNextLevel: number;
-    /** Renamed to satisfy the unused-var rule while keeping the prop contract
-     *  visible; the mock stub renders only the three fields the tests assert. */
-    _totalXP: number;
-  }) => (
-    <div data-testid="xp-progress-bar">
-      Level {level}: {currentLevelXP}/{xpForNextLevel}
-    </div>
-  ),
-}));
-
 /** Full GameContextState as returned by useGameContext — ReturnType keeps the
  *  unexported interface honest without touching production code. */
 type GameState = ReturnType<typeof useGameContext>;

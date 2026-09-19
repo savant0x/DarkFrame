@@ -10,24 +10,16 @@ export { default as TileRenderer } from './TileRenderer';
 export { default as MovementControls } from './MovementControls';
 export { default as ControlsPanel } from './ControlsPanel';
 export { InventoryPanel } from './InventoryPanel'; // Named export (refactored component)
-export { default as HarvestStatus } from './HarvestStatus';
 export { default as HarvestModal } from './HarvestModal';
 export { default as CaveItemNotification } from './CaveItemNotification';
-export { default as FactoryButton } from './FactoryButton';
 export { default as BankPanel } from './BankPanel';
 export { default as ShrinePanel } from './ShrinePanel';
-export { default as BalanceIndicator } from './BalanceIndicator';
 export { default as FactoryManagementPanel } from './FactoryManagementPanel';
-export { default as XPProgressBar } from './XPProgressBar';
-export { default as LevelUpModal } from './LevelUpModal';
 export { default as TierUnlockPanel } from './TierUnlockPanel';
 export { default as UnitBuildPanelEnhanced } from './UnitBuildPanelEnhanced';
-export { default as CombatAttackModal } from './CombatAttackModal';
 export { default as BattleResultModal } from './BattleResultModal';
-export { default as BattleLogViewer } from './BattleLogViewer';
 export { default as BattleLogLinks } from './BattleLogLinks';
 export { default as BattleHistoryFeed } from './BattleHistoryFeed';
-export { default as BattleLogModal } from './BattleLogModal';
 export { default as BackButton } from './BackButton';
 export { default as SpecializationPanel } from './SpecializationPanel';
 export { default as MasteryProgressBar } from './MasteryProgressBar';
@@ -63,12 +55,9 @@ export { default as StatsViewWrapper } from './StatsViewWrapper';
 // export { ClanChatPanel } from './ClanChatPanel';
 // export { ClanActivityFeed } from './ClanActivityFeed';
 // export { AlliancePanel } from './AlliancePanel';
-// export { FundDistributionPanel } from './FundDistributionPanel';
-// export { PassiveIncomeDisplay } from './PassiveIncomeDisplay';
 
 // Auto-Farm System Components (FID-20251019-001)
 export { default as AutoFarmPanel } from './AutoFarmPanel';
-export { default as AutoFarmStatsDisplay } from './AutoFarmStatsDisplay';
 
 // ============================================================================
 // TUTORIAL SYSTEM
