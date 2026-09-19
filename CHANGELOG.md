@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.16] — 2026-09-19 session
+
+### Removed — FID-20260919-003: the dead-UI generation archived (closed, commit `9a46891`)
+
+- Thirteen superseded components (~3,151 lines) left `components/` for `dev/archives/2026-09-19-dead-ui/`: AutoFarmStatsDisplay, BalanceIndicator, BattleLogModal, BattleLogViewer, BattleStatsPanel, CombatAttackModal, FactoryButton, FundDistributionPanel, HarvestButton (+ its orphaned test), HarvestStatus, LevelUpModal, PassiveIncomeDisplay, XPProgressBar. Census re-probed fresh before the move (barrel-only references; dynamic-import swept; the "live" HarvestStatus hits were the `getHarvestStatus` service function and the separate live `TileHarvestStatus`).
+- `components/index.ts` dropped 9 export lines + 2 stale comments; `StatsPanel.test.tsx` lost two vestigial `vi.mock` blocks mocking modules StatsPanel never imported.
+- The batch corrected a reachability pin that had been green for the wrong reason: the slice-2 "harvest route has a live client caller" test read the archived dead `HarvestButton.tsx` as its evidence — it now cites the real live callers (`HarvestModal`, `app/game/page.tsx`).
+- BalanceIndicator's archive README carries the survey-P1 caveat: the STR/DEF balance mechanic (`balanceService`) is live and load-bearing; if the mount-or-delete decision lands "mount", design against current shapes rather than resurrect the stale file.
+- Gates: suite 116/1163, tsc 0, eslint clean, census zero outside the archive.
+
 ## [0.0.15] — 2026-09-19 session
 
 ### Added — FID-20260919-002: chat is real-time on the client (closed, commit `d1b390b`)

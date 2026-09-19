@@ -88,4 +88,18 @@ Verification is the gate set:
 
 ## 8. Execution
 
-- Pending: batch commit hash, gate results.
+**Batch commit:** `9a46891` — 20 files changed (14 renames at 100% similarity,
+README + manifest + this FID added, barrel + 2 test files edited).
+
+**Gate results:**
+- Fresh census post-move: zero references to any moved name outside the
+  archive dir. Two residual strings are name-collisions only — the
+  `HarvestStatusAPI` logger string (harvest/status route) and the unrelated
+  `HarvestStatus` interface in `types/game.types.ts`.
+- Full suite: 116 files / 1163 tests green. One failure surfaced mid-batch and
+  was real: the slice-2 pin "harvest route has a live client caller" read
+  `components/HarvestButton.tsx` — the *superseded* component — as evidence.
+  The pin had been green only because it read a dead file. Corrected to cite
+  the actual live callers (`HarvestModal.tsx`, `app/game/page.tsx`); suite
+  green after correction.
+- `tsc --noEmit` 0; eslint clean on touched files; tree clean at close.
