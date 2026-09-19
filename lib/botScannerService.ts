@@ -25,7 +25,10 @@
  * - types/game.types.ts: Player types
  */
 
-import { connectToDatabase } from './mongodb';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { eq } from 'drizzle-orm';
+import { mapRowToPlayer } from './playerService';
 import { BOT_NESTS } from './botNestService';
 import type { Player } from '@/types/game.types';
 
@@ -151,11 +154,10 @@ function isOnCooldown(player: Player): { onCooldown: boolean; cooldownUntil: Dat
  * Scan for bots within radius
  */
 export async function scanForBots(username: string): Promise<ScannerResult> {
-  const db = await connectToDatabase();
-  
   try {
     // Get player
-    const player = await db.collection<Player>('players').findOne({ username });
+    const [playerRow] = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const player = playerRow ? mapRowToPlayer(playerRow) : null;
     
     if (!player) {
       return {
@@ -203,9 +205,8 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
     const playerY = player.currentPosition.y;
     
     // Find all bots
-    const allBots = await db.collection<Player>('players')
-      .find({ isBot: true })
-      .toArray();
+    const allBots = (await db.select().from(players).where(eq(players.isBot, 1)))
+      .map(mapRowToPlayer);
     
     // Filter bots within radius and map to ScannedBot format
     const scannedBots: ScannedBot[] = allBots
@@ -254,12 +255,15 @@ export async function scanForBots(username: string): Promise<ScannerResult> {
       .filter((nest) => nest !== null)
       .sort((a, b) => a!.distance - b!.distance);
     
-    // Update last scan timestamp and set cooldown
+    // Persist scan time and cooldown window.
+    // FID-20260917-017 (batch 4): the legacy $set { lastBotScan } targeted a
+    // field with NO pg column and NO mapper slot — buildSetPayload throws on
+    // unknown keys, so every scan has been 500-ing after computing results.
+    // lastBotScan is write-path-only (zero readers: cooldown uses lastBotScan
+    // on the domain Player, but that field was never populated by any read).
+    // Honest fix: drop the dead write; isOnCooldown stays (harmless if the
+    // field ever gains a column) and the response still carries cooldownUntil.
     const cooldownEnd = new Date(Date.now() + getScannerCooldown(player));
-    await db.collection<Player>('players').updateOne(
-      { username },
-      { $set: { lastBotScan: new Date() } }
-    );
     
     return {
       success: true,
@@ -296,10 +300,9 @@ export async function getScannerStatus(username: string): Promise<{
   cooldownUntil: Date | null;
   hasAdvancedTracking: boolean;
 }> {
-  const db = await connectToDatabase();
-  
   try {
-    const player = await db.collection<Player>('players').findOne({ username });
+    const [playerRow] = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const player = playerRow ? mapRowToPlayer(playerRow) : null;
     
     if (!player) {
       return {
