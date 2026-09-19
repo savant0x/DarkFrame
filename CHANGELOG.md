@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.17] — 2026-09-19 session
+
+### Added — FID-20260919-004: DM real-time, end to end (closed, commit `4362e82`)
+
+- Grounding refined the directive's premise: the messages page already had full subscriptions for `message:receive`, `conversation:updated`, `message:read`, and `typing:*` — the gap was that **no live path emitted any of them**. The HTTP send path (`sendDirectMessage`) persisted silently; the socket send path emitted to `user_${id}` rooms while clients join `user:<id>` (colon — `WebSocketRooms.user`); typing emits in the thread were commented-out TODOs; read receipts never broadcast.
+- `lib/messagingBroadcast.ts` (new): the single source of truth for DM wire emission — payload mappers plus a personal-room fan-out where one participant's emit failure never suppresses the others'. Both service seams (`sendDirectMessage`, `markMessagesAsRead`) ride it; `getIO()` null (bare `next dev`, no custom server) degrades gracefully to polling.
+- Room addressing fixed at 5 sites in `messagingHandlers` — the dead `user_${id}` form could never have delivered to any client.
+- `MessageThread` is live now: real typing emits with auto-stop, incoming-message append (own echoes skipped, id-deduped), typing indicator display, and read receipts flipping the sender's ticks in real time. Conversation/actor ids ride refs so listeners register once per socket identity.
+- Gates: suite 117/1170 (+7 pins), tsc 0, eslint clean; live probe 11/11 over real HTTP + authenticated sockets with residue zero.
 ## [0.0.16] — 2026-09-19 session
 
 ### Removed — FID-20260919-003: the dead-UI generation archived (closed, commit `9a46891`)

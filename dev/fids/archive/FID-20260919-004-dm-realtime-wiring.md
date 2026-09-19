@@ -89,4 +89,34 @@ Revert the batch; service seams are additive and isolated.
 
 ## 8. Execution
 
-- Pending: commit hash, pin results, live-probe results, gates.
+**Implementation commit:** `4362e82` — 7 files changed (+630/−9).
+
+**Delivered (per §2, one refinement):** the broadcast logic was extracted into
+`lib/messagingBroadcast.ts` (single source of truth for the room convention +
+payload mappers + fault-isolated fan-out) rather than living inline in the
+service — the room-addressing defect class demanded one addressable home.
+
+**Pins:** `__tests__/api/messagingBroadcast.test.ts` 7/7 — the `user:<id>`
+convention regression pin, full payload mapping, unreadCount copy semantics,
+per-participant fault isolation. Full suite at close: 117 files / 1170 tests,
+tsc 0, eslint clean.
+
+**Live probe (`scripts/e2eDmRealtimeLive.ts`, 11/11 green):** two probe players,
+two authenticated sockets, real HTTP send/read:
+- P3 HTTP `POST /api/messages` → B receives `message:receive` (exact payload)
+  AND `conversation:updated` — both previously silent paths
+- P4 `typing:start_private` → B receives `typing:start`; sender-exclusion
+  verified (A does not hear A)
+- P5 B marks read via HTTP → A receives `message:read` with `playerId = B`
+- P6 wire payload maps through `toMessagingMessagePayload` (thread contract)
+- probe conversation + messages + players deleted; residue zero
+
+**Verification note:** the first probe run failed P4a (typing timeout) because
+the running `tsx server.ts` predated the messagingHandlers fix — the native
+server graph does not hot-reload (Next routes do, which is why P3/P5 passed).
+After restart, 11/11. Recorded so future probes don't misread stale-server
+failures as code failures.
+
+**Out-of-scope note:** `messagingHandlers.handleMessageSend` (the socket send
+path) now emits to correctly-addressed rooms but still has no client emitter —
+HTTP remains the only live send path, per §3.
