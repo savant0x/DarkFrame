@@ -85,3 +85,12 @@ technical-debt track (shim, lint, docs residue, route censuses) is closed.
 3. **BalanceIndicator mount-or-delete decision** (P1) — operator call.
 4. **Dead-component archival batch** (P2) — hygiene, census-pinned.
 5. Chat polish stubs (P2) — opportunistically with any chat work.
+
+## SUPERSEDED 2026-09-19 (later session): refreshed survey
+
+Every open item here was re-probed and re-dispositioned in
+`PRODUCT-SURVEY-REFRESH-2026-09-19.md`: this board's remaining items are closed
+or corrected (moderation socket conversion dropped as not-worth-it; specialization
+and level-surfacing premises stale), and one new P1 was found — the ask-veterans
+false-success feature (newbie help broadcast never wired; toast reads a field the
+response doesn't carry). See the refresh for the live ranked board.
