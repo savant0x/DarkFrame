@@ -26,10 +26,14 @@
  *   single increments — ongoing simulated activity.
  */
 
-import { getCollection } from './mongodb';
+import { db } from './db/connection';
+import { players, factories } from './db/schema';
+import { gameConfig } from './db/schema/config';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { mapRowToPlayer } from './playerService';
 import { logger } from './logger';
 import { calculateUpgradeCost, getFactoryDefense, getMaxSlots, getProductionRate, FACTORY_UPGRADE } from './factoryUpgradeService';
-import type { Factory, Player } from '@/types/game.types';
+import type { Player } from '@/types/game.types';
 
 /** Wild-factory investment radius (tiles) from an investing bot. */
 const INVEST_RADIUS = 25;
@@ -37,8 +41,6 @@ const INVEST_RADIUS = 25;
 const BATCH_SIZE = 12;
 /** Seed marker type in game_config. */
 const SEED_MARKER_TYPE = 'bot_factory_economy';
-/** Bots carry `isBot: true` (botService writes camelCase; matches botGrowthEngine's filter). */
-const BOT_FILTER = { isBot: true } as const;
 
 interface SeedMarker {
   seededAt: string;
@@ -71,19 +73,22 @@ export async function runBotFactoryEconomyCycle(): Promise<{
   message: string;
 }> {
   try {
-    const configCollection = await getCollection<SeedMarker>('gameConfig');
-    const marker = await configCollection.findOne({ type: SEED_MARKER_TYPE });
+    const [markerRow] = await db
+      .select({ config: gameConfig.config })
+      .from(gameConfig)
+      .where(eq(gameConfig.type, SEED_MARKER_TYPE))
+      .limit(1);
 
-    if (!marker) {
+    if (!markerRow) {
       const seed = await seedHistoricalLevels();
       // Schema: game_config(id PK, type, config jsonb NOT NULL) — the payload
       // lives in `config`, and `id` gets the type string (unique index on type
       // makes a retry-on-conflict harmless).
-      await configCollection.insertOne({
+      await db.insert(gameConfig).values({
         id: SEED_MARKER_TYPE,
         type: SEED_MARKER_TYPE,
-        config: markerConfig({ totalInvestedMetal: seed.investedMetal, totalInvestedEnergy: seed.investedEnergy }),
-      } as unknown as SeedMarker & { id: string; type: string; config: SeedMarker });
+        config: markerConfig({ totalInvestedMetal: seed.investedMetal, totalInvestedEnergy: seed.investedEnergy }) as SeedMarker as never,
+      });
       return {
         success: true,
         seeded: true,
@@ -123,11 +128,12 @@ async function seedHistoricalLevels(): Promise<{
   investedMetal: number;
   investedEnergy: number;
 }> {
-  const factoriesCollection = await getCollection<Factory>('factories');
-  const playersCollection = await getCollection<Player>('players');
-
-  const wild = await factoriesCollection.find({ owner: null }).limit(300).toArray();
-  const bots = (await playersCollection.find(BOT_FILTER).toArray()) as Player[];
+  const wild = await db
+    .select()
+    .from(factories)
+    .where(isNull(factories.owner))
+    .limit(300);
+  const bots = (await db.select().from(players).where(eq(players.isBot, 1))).map(mapRowToPlayer);
 
   let upgraded = 0;
   let investedMetal = 0;
@@ -170,26 +176,28 @@ async function seedHistoricalLevels(): Promise<{
     }
 
     if (level > (factory.level ?? 1) && spentM > 0) {
-      await playersCollection.updateOne(
-        { username: investor.username },
-        { $inc: { resources_metal: -spentM, resources_energy: -spentE } }
-      );
+      await db
+        .update(players)
+        .set({
+          resourcesMetal: sql`${players.resourcesMetal} - ${spentM}`,
+          resourcesEnergy: sql`${players.resourcesEnergy} - ${spentE}`,
+        })
+        .where(eq(players.username, investor.username));
       investor.resources!.metal -= spentM;
       investor.resources!.energy -= spentE;
-      await factoriesCollection.updateOne(
-        { x: factory.x, y: factory.y },
-        {
+      await db
+        .update(factories)
+        .set({
           // FID-072: full stat block — the seed previously wrote level+defense
           // only, leaving slots/productionRate at L1 (the stale-metrics bug).
-          $set: {
-            level,
-            defense: getFactoryDefense(level),
-            slots: getMaxSlots(level),
-            productionRate: String(getProductionRate(level)),
-          },
-          $inc: { investedMetal: spentM, investedEnergy: spentE },
-        }
-      );
+          level,
+          defense: getFactoryDefense(level),
+          slots: getMaxSlots(level),
+          productionRate: String(getProductionRate(level)),
+          investedMetal: sql`${factories.investedMetal} + ${spentM}`,
+          investedEnergy: sql`${factories.investedEnergy} + ${spentE}`,
+        })
+        .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
       upgraded += 1;
       investedMetal += spentM;
       investedEnergy += spentE;
@@ -218,17 +226,15 @@ async function botInvestmentPass(): Promise<{
   investedMetal: number;
   investedEnergy: number;
 }> {
-  const factoriesCollection = await getCollection<Factory>('factories');
-  const playersCollection = await getCollection<Player>('players');
-
-  const bots = (await playersCollection.find(BOT_FILTER).toArray()) as Player[];
+  const bots = (await db.select().from(players).where(eq(players.isBot, 1))).map(mapRowToPlayer);
   if (bots.length === 0) return { upgraded: 0, investedMetal: 0, investedEnergy: 0 };
 
   // Candidate wild factories below max level.
-  const candidates = await factoriesCollection
-    .find({ owner: null })
-    .limit(200)
-    .toArray();
+  const candidates = await db
+    .select()
+    .from(factories)
+    .where(isNull(factories.owner))
+    .limit(200);
   const upgradable = candidates.filter((f) => (f.level ?? 1) < FACTORY_UPGRADE.MAX_LEVEL);
 
   let upgraded = 0;
@@ -252,26 +258,28 @@ async function botInvestmentPass(): Promise<{
     const botEnergy = investor.resources?.energy ?? 0;
     if (botMetal < cost.metal || botEnergy < cost.energy) continue;
 
-    await playersCollection.updateOne(
-      { username: investor.username },
-      { $inc: { resources_metal: -cost.metal, resources_energy: -cost.energy } }
-    );
+    await db
+      .update(players)
+      .set({
+        resourcesMetal: sql`${players.resourcesMetal} - ${cost.metal}`,
+        resourcesEnergy: sql`${players.resourcesEnergy} - ${cost.energy}`,
+      })
+      .where(eq(players.username, investor.username));
     investor.resources!.metal -= cost.metal;
     investor.resources!.energy -= cost.energy;
 
-    await factoriesCollection.updateOne(
-      { x: factory.x, y: factory.y },
-      {
+    await db
+      .update(factories)
+      .set({
         // FID-072: full stat block (same as the seed pass + player upgrade).
-        $set: {
-          level: nextLevel,
-          defense: getFactoryDefense(nextLevel),
-          slots: getMaxSlots(nextLevel),
-          productionRate: String(getProductionRate(nextLevel)),
-        },
-        $inc: { investedMetal: cost.metal, investedEnergy: cost.energy },
-      }
-    );
+        level: nextLevel,
+        defense: getFactoryDefense(nextLevel),
+        slots: getMaxSlots(nextLevel),
+        productionRate: String(getProductionRate(nextLevel)),
+        investedMetal: sql`${factories.investedMetal} + ${cost.metal}`,
+        investedEnergy: sql`${factories.investedEnergy} + ${cost.energy}`,
+      })
+      .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
 
     upgraded += 1;
     investedMetal += cost.metal;
