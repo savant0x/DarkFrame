@@ -23,6 +23,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Smile, Loader2, Check, CheckCheck, Clock } from 'lucide-react';
 import type { Message, MessageThreadState } from '@/types/messaging.types';
+import { useWebSocketContext } from '@/context/WebSocketContext';
+import type { MessagingMessagePayload, MessagingTypingPayload, MessagingReadReceiptPayload } from '@/types/websocket';
 import { BattleReportCard } from './BattleReportCard';
 
 interface MessageThreadProps {
@@ -69,6 +71,17 @@ export default function MessageThread({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // FID-20260919-004: live socket for thread-level subscriptions + typing emits.
+  const { socket } = useWebSocketContext();
+  const conversationRef = useRef(conversationId);
+  const recipientRef = useRef(recipientId);
+  const playerIdRef = useRef(playerId);
+  useEffect(() => {
+    conversationRef.current = conversationId;
+    recipientRef.current = recipientId;
+    playerIdRef.current = playerId;
+  }, [conversationId, recipientId, playerId]);
 
   // ========================================================================
   // DEEP-LINK FOCUS (FID-20260911-050): scroll to + highlight the requested
@@ -168,10 +181,92 @@ export default function MessageThread({
     }
   }, [conversationId]);
 
+  // Latest markAsRead, reachable from the socket subscription below without
+  // re-registering listeners when its identity changes.
+  const markAsReadRef = useRef(markAsRead);
+  useEffect(() => {
+    markAsReadRef.current = markAsRead;
+  }, [markAsRead]);
+
   // Load messages on mount and when conversation changes
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
+
+  // ========================================================================
+  // SOCKET SUBSCRIPTIONS (FID-20260919-004): incoming messages, typing
+  // indicators, read receipts. Conversation/actor ids ride refs so listeners
+  // register once per socket identity (no churn on conversation switch).
+  // ========================================================================
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const unsubscribers: Array<() => void> = [];
+
+    // Incoming DM for THIS thread: append if not already present (the sender
+    // gets the same event for confirmation — own echoes are skipped; the
+    // page-level handler owns the conversation-list update).
+    const onReceive = (payload: MessagingMessagePayload) => {
+      if (payload.conversationId !== conversationRef.current) return;
+      if (payload.senderId === playerIdRef.current) return; // own echo
+      setState(prev => {
+        if (prev.messages.some(m => String(m._id) === payload._id)) return prev;
+        const message: Message = {
+          _id: payload._id,
+          conversationId: payload.conversationId,
+          senderId: payload.senderId,
+          recipientId: payload.recipientId,
+          content: payload.content,
+          contentType: payload.contentType,
+          status: payload.status,
+          createdAt: new Date(payload.createdAt as unknown as string),
+          readAt: payload.readAt ? new Date(payload.readAt as unknown as string) : undefined,
+        };
+        return { ...prev, messages: [...prev.messages, message] };
+      });
+      scrollToBottom();
+      // The recipient just received it in an open thread — read it immediately.
+      markAsReadRef.current();
+    };
+    socket.on('message:receive', onReceive as never);
+    unsubscribers.push(() => socket.off('message:receive', onReceive as never));
+
+    // Typing indicator for the open conversation (server excludes the sender).
+    const onTypingStart = (payload: MessagingTypingPayload) => {
+      if (payload.conversationId !== conversationRef.current) return;
+      if (payload.playerId === playerIdRef.current) return;
+      setState(prev => ({ ...prev, recipientTyping: true }));
+    };
+    const onTypingStop = (payload: MessagingTypingPayload) => {
+      if (payload.conversationId !== conversationRef.current) return;
+      setState(prev => ({ ...prev, recipientTyping: false }));
+    };
+    socket.on('typing:start', onTypingStart as never);
+    socket.on('typing:stop', onTypingStop as never);
+    unsubscribers.push(() => socket.off('typing:start', onTypingStart as never));
+    unsubscribers.push(() => socket.off('typing:stop', onTypingStop as never));
+
+    // Read receipt: flip my sent messages in this thread to read.
+    const onRead = (payload: MessagingReadReceiptPayload) => {
+      if (payload.conversationId !== conversationRef.current) return;
+      if (payload.playerId === playerIdRef.current) return; // own read action
+      setState(prev => ({
+        ...prev,
+        messages: prev.messages.map(m =>
+          m.senderId === playerIdRef.current && m.status !== 'read'
+            ? { ...m, status: 'read' as const, readAt: new Date(payload.readAt as unknown as string) }
+            : m
+        ),
+      }));
+    };
+    socket.on('message:read', onRead as never);
+    unsubscribers.push(() => socket.off('message:read', onRead as never));
+
+    return () => {
+      unsubscribers.forEach(off => off());
+    };
+  }, [socket]);
 
   // ========================================================================
   // MESSAGE SENDING
@@ -266,18 +361,25 @@ export default function MessageThread({
   // REAL-TIME FEATURES (Placeholders for Socket.io)
   // ========================================================================
 
+  // FID-20260919-004: real typing signals over the registered
+  // typing:start_private / typing:stop_private events. Server broadcasts to
+  // the conversation room (sender excluded) and the recipient's personal room.
   const emitTypingStart = () => {
-    // TODO: Emit via Socket.io
-    // socket.emit('typing:start', { conversationId, recipientId });
+    socket?.emit('typing:start_private', {
+      conversationId: conversationRef.current,
+      recipientId: recipientRef.current,
+    });
   };
 
   const emitTypingStop = () => {
-    // TODO: Emit via Socket.io
-    // socket.emit('typing:stop', { conversationId, recipientId });
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
+    socket?.emit('typing:stop_private', {
+      conversationId: conversationRef.current,
+      recipientId: recipientRef.current,
+    });
   };
 
   // ========================================================================

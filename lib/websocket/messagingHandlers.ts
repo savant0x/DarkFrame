@@ -20,6 +20,7 @@
 
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { getErrorMessage } from '@/lib/errorMessage';
+import { WebSocketRooms } from '@/types/websocket';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -114,11 +115,11 @@ export async function handleMessageSend(
     io.to(conversationRoom).emit('message:receive', messagePayload);
 
     // Also emit to recipient's personal room in case they're not in conversation room yet
-    io.to(`user_${data.recipientId}`).emit('message:receive', messagePayload);
+    io.to(WebSocketRooms.user(data.recipientId)).emit('message:receive', messagePayload);
 
     // Emit conversation update to both participants
-    io.to(`user_${sender.username}`).emit('conversation:updated', conversationPayload);
-    io.to(`user_${data.recipientId}`).emit('conversation:updated', conversationPayload);
+    io.to(WebSocketRooms.user(sender.username)).emit('conversation:updated', conversationPayload);
+    io.to(WebSocketRooms.user(data.recipientId)).emit('conversation:updated', conversationPayload);
 
     console.log(`[Messaging] Message sent successfully: ${message._id}`);
     callback?.({ success: true, messageId: message._id.toString() });
@@ -220,7 +221,7 @@ export async function handleTypingStart(
     socket.to(conversationRoom).emit('typing:start', typingPayload);
 
     // Also emit to recipient's personal room
-    socket.to(`user_${data.recipientId}`).emit('typing:start', typingPayload);
+    socket.to(WebSocketRooms.user(data.recipientId)).emit('typing:start', typingPayload);
   } catch (error) {
     console.error('[Messaging] Error in handleTypingStart:', error);
   }
@@ -256,7 +257,7 @@ export async function handleTypingStop(
     socket.to(conversationRoom).emit('typing:stop', typingPayload);
 
     // Also emit to recipient's personal room
-    socket.to(`user_${data.recipientId}`).emit('typing:stop', typingPayload);
+    socket.to(WebSocketRooms.user(data.recipientId)).emit('typing:stop', typingPayload);
   } catch (error) {
     console.error('[Messaging] Error in handleTypingStop:', error);
   }

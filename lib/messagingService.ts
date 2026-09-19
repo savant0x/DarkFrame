@@ -22,6 +22,9 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import { getIO } from '@/lib/websocket/server';
+import { toMessagingMessagePayload, toMessagingConversationPayload, emitToParticipants } from '@/lib/messagingBroadcast';
+import type { MessagingReadReceiptPayload } from '@/types/websocket';
 import { getErrorMessage } from '@/lib/errorMessage';
 import { Filter } from 'bad-words';
 import { db } from '@/lib/db';
@@ -370,6 +373,16 @@ export async function sendDirectMessage(
       })
       .where(eq(conversations.id, conversation._id as string));
 
+    // FID-20260919-004: push the new message + conversation snapshot to both
+    // participants' personal rooms so open threads and inboxes update live.
+    const io = getIO();
+    if (io) {
+      const messagePayload = toMessagingMessagePayload(message);
+      emitToParticipants(io, [message.senderId, message.recipientId], 'message:receive', messagePayload);
+      const conversationPayload = toMessagingConversationPayload(conversation);
+      emitToParticipants(io, [message.senderId, message.recipientId], 'conversation:updated', conversationPayload);
+    }
+
     return {
       success: true,
       message,
@@ -511,6 +524,18 @@ export async function markMessagesAsRead(
         unreadCount: sql`jsonb_set(COALESCE(${conversations.unreadCount}, '{}'::jsonb), ARRAY[${playerId}]::text[], to_jsonb(0))`,
       })
       .where(eq(conversations.id, conversationId));
+
+    // FID-20260919-004: read receipts must reach the other side live — the
+    // page's handleReadReceipt listened to silence before this seam existed.
+    const io = getIO();
+    if (io) {
+      const receipt: MessagingReadReceiptPayload = {
+        conversationId,
+        playerId,
+        readAt: now,
+      };
+      emitToParticipants(io, conversation.participants, 'message:read', receipt);
+    }
 
     return {
       success: true,
