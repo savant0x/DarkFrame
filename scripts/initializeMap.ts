@@ -16,7 +16,7 @@ import { resolve } from 'path';
 // Load environment variables from .env.local
 config({ path: resolve(process.cwd(), '.env.local') });
 
-import { testConnection } from '../lib/mongodb';
+import { testConnection } from '../lib/db/connection';
 import { initializeMap } from '../lib/mapGeneration';
 
 /**

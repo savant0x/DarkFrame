@@ -18,7 +18,7 @@
  * Run: E2E_COOKIES=0 npx tsx -r dotenv/config scripts/e2eAuctionLedger.ts dotenv_config_path=.env.local
  */
 import { sql } from 'drizzle-orm';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:3002';
 const PW = 'E2eFid3!Probe99';

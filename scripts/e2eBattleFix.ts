@@ -17,7 +17,7 @@
  * Run: npx tsx -r dotenv/config scripts/e2eBattleFix.ts dotenv_config_path=.env.local
  */
 import { sql } from 'drizzle-orm';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 
 const BASE = process.env.E2E_BASE ?? 'http://localhost:3002';
 const PW = 'E2eBattle!Probe7';

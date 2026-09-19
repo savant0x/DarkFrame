@@ -27,7 +27,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { SignJWT } from 'jose';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 
 const BASE_URL = process.env.E2E_BASE ?? 'http://localhost:3002';
 const PW = 'E2ePacing!Probe3';

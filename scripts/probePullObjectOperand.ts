@@ -14,7 +14,7 @@
  *   npx tsx -r dotenv/config scripts/probePullObjectOperand.ts dotenv_config_path=.env.local
  */
 import { sql, type SQL } from 'drizzle-orm';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 
 async function main(): Promise<void> {
   const db = await connectToDatabase();

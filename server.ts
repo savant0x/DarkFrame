@@ -39,7 +39,7 @@ import { startBotGrowthJob, stopBotGrowthJob } from './lib/jobs/botGrowthManager
 import { startAuctionSettlementJob, stopAuctionSettlementJob } from './lib/jobs/auctionSettlementManager';
 import { startBotFactoryEconomyJob, stopBotFactoryEconomyJob } from './lib/jobs/botFactoryEconomyManager';
 import { startClanWarSettlementJob, stopClanWarSettlementJob } from './lib/jobs/clanWarSettlementManager';
-import { connectToDatabase } from './lib/mongodb';
+import { connectToDatabase } from './lib/db/connection'; // pg — the Mongo shim is gone (shim-exit closure)
 
 // Environment configuration
 const dev = process.env.NODE_ENV !== 'production';

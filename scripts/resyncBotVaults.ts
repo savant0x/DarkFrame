@@ -7,7 +7,7 @@
  * Run: npx tsx -r dotenv/config scripts/resyncBotVaults.ts dotenv_config_path=.env.local
  */
 import { sql } from 'drizzle-orm';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 import { getVaultCap } from '@/lib/botService'; // FID-20260915-006: shared cap (hoarder 3×)
 import { BotSpecialization } from '@/types/game.types';
 

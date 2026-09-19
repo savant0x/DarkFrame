@@ -17,7 +17,9 @@
  * Idempotence: every spawn claims a fresh tile; re-running just adds more.
  * Usage: npx tsx --env-file=.env.local scripts/repopulate-bots.ts [count]
  */
-import { connectToDatabase } from '../lib/mongodb';
+import { db } from '../lib/db/connection';
+import { players } from '../lib/db/schema';
+import { mapDomainPlayerToRow } from '../lib/playerService';
 import { createBotPlayer } from '../lib/botService';
 import { generateBeerBaseUnits, POWER_TIER_FOR_BOT_TIER } from '../lib/beerBaseService';
 import type { PowerTier } from '../lib/beerBaseService';
@@ -50,8 +52,6 @@ function drawTier(): number {
 
 (async () => {
   const count = Math.max(1, Math.min(Number(process.argv[2] ?? 50), 500));
-  const db = await connectToDatabase();
-  const collection = db.collection<Player>('players');
 
   const perTier: Record<number, number> = {};
   const perBand: Record<string, number> = {};
@@ -65,6 +65,8 @@ function drawTier(): number {
 
     // createBotPlayer claims a legal tile in the zone under the generated name.
     const bot = (await createBotPlayer(zone, null, false, tier)) as Partial<Player> & {
+    // createBotPlayer always names the bot before claiming its tile
+    username: string;
       botConfig: { specialization: BotSpecialization };
     };
 
@@ -81,7 +83,7 @@ function drawTier(): number {
     let inserted = false;
     for (let attempt = 0; attempt < 5 && !inserted; attempt++) {
       try {
-        await collection.insertOne(bot);
+        await db.insert(players).values(mapDomainPlayerToRow(bot));
         inserted = true;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

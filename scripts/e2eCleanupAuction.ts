@@ -5,7 +5,7 @@
  * Guarded: aborts if the LIKE pattern matches an implausible row count.
  */
 import { sql } from 'drizzle-orm';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 
 async function main(): Promise<void> {
   const db = await connectToDatabase();

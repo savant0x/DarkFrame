@@ -19,7 +19,7 @@
  * Run: npx tsx -r dotenv/config scripts/sweepHonestBranchRoutes.ts dotenv_config_path=.env.local
  */
 import { sql } from 'drizzle-orm';
-import { connectToDatabase } from '@/lib/mongodb';
+import { connectToDatabase } from '@/lib/db/connection';
 
 const BASE = 'http://localhost:3002';
 const PW = 'E2eSweep4!Probe99';
