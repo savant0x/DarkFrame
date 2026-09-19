@@ -2,9 +2,9 @@
   "archived": "2026-09-19",
   "fid": "FID-20260919-003",
   "kind": "dead-ui hygiene batch",
-  "source": "dev/audits/PRODUCT-SURVEY-2026-09-19.md §P2",
-  "files_moved": 14,
-  "component_count": 13,
-  "approximate_lines": 3151,
-  "notes": "components/index.ts barrel lines removed; StatsPanel.test.tsx vestigial mocks deleted; census re-probed fresh before the move"
+  "source": "dev/audits/PRODUCT-SURVEY-2026-09-19.md \u00a7P2",
+  "files_moved": 16,
+  "component_count": 14,
+  "approximate_lines": 3806,
+  "notes": "components/index.ts barrel lines removed; StatsPanel.test.tsx vestigial mocks deleted; census re-probed fresh before the move; 2026-09-19 annex (FID-20260919-006): ChatMessage.tsx + chat/index.ts \u2014 the FID-003 census missed them behind the barrel re-export"
 }

@@ -43,6 +43,18 @@ P1 asks whether players need a visible balance surface. If that decision lands
 "yes", design the new surface against current store/prop shapes instead of
 resurrecting this file — GitHub history keeps it either way.
 
+## Annex — 2026-09-19 chat corpse (FID-20260919-006)
+
+- ChatMessage.tsx (655 lines) — superseded by ChatPanel's own inline message
+  renderer (nn-msg rows + Linkify); census at archive time: zero importers
+  (barrel export only, and the chat barrel itself had zero importers). Its
+  item-link validation/fetch machinery was the only implementation of the
+  chat item-link feature — see FID-20260919-006 for the recorded feature call.
+- chat/index.ts — the barrel itself; imported by nothing.
+
+FID-20260919-003's census could not have caught these: ChatMessage looked
+"live" through the barrel re-export.
+
 ## Restoration
 
 `git log --follow dev/archives/2026-09-19-dead-ui/<file>` for history; move

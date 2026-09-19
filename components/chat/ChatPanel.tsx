@@ -56,6 +56,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { usePolling } from '@/hooks/usePolling';
 import { useChatPanelSize } from '@/context/ChatPanelContext';
@@ -310,6 +311,7 @@ export default function ChatPanel({
 
   // Get panel size from context
   const { panelSize, setPanelSize } = useChatPanelSize();
+  const router = useRouter();
 
   // ============================================================================
   // REFS
@@ -1622,7 +1624,14 @@ export default function ChatPanel({
                         {/* Message Header */}
                         <div className="nn-msg__head">
                           <div className="nn-msg__who">
-                            <b>{message.senderUsername}</b>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/profile/${message.senderUsername}`)}
+                              className="hover:text-[color:var(--nn-cyan)] hover:underline cursor-pointer bg-transparent border-0 p-0 text-inherit font-inherit"
+                              title={`View ${message.senderUsername}'s profile`}
+                            >
+                              <b>{message.senderUsername}</b>
+                            </button>
                             {message.senderIsVIP && (
                               <span className="nn-chip nn-chip--amber !px-1.5 !py-0 !text-[0.625rem]">VIP</span>
                             )}
