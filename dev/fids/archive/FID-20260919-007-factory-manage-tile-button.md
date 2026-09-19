@@ -1,6 +1,6 @@
 # FID-20260919-007 — Factory Manage tile button: rewire to unit-factory, mount for owners
 
-**Status:** `created`
+**Status:** closed (2026-09-19, commit `a266d5f`)
 **Session:** 2026-09-19 (061)
 **Origin:** Operator decision on the survey-refresh recorded call: "rewire
 TileRenderer's commented factory-tile button to /game/unit-factory and mount it
@@ -42,3 +42,9 @@ for owners."
 - tsc/eslint clean; suite green; `/game/unit-factory` route exists (verified).
 - Verification is compile-level + route-existence for a client-side nav rewire —
   no browser probe claimed.
+
+
+## 8. Closure (2026-09-19)
+
+- **Shipped:** owner-only Manage Factory tile button → /game/unit-factory (uncommented, repaired: real router binding, nn-btn classes, ownership guard mirroring the live username comparison); _router renamed to router. Collateral: components barrel chat re-export repaired (direct ChatPanel export) — FID-006 residue honestly recorded in §2.
+- **Gates at close:** suite 118 files / 1177 tests green, tsc 0 (post-repair), eslint clean (TileRenderer), no test pinned the button's absence.

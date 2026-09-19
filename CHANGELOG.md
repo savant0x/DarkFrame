@@ -5,6 +5,13 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.20] — 2026-09-19 session
+
+### Added — FID-20260919-007: factory owners can jump to the unit factory from their tile (closed, commit `a266d5f`)
+
+- The map-tile "Manage Factory" button — commented out since the original build with a TODO for a management page that never shipped — is live for factory owners, navigating to `/game/unit-factory` per the operator decision. The guard mirrors the live ownership comparison (`Factory.owner` holds the username; ownerless factories never match).
+- Repair honesty: the commented block referenced a `router` binding that never existed (the component's real binding was the unused `_router`), and the components barrel still re-exported the chat barrel deleted in FID-006 — a latent tsc break the test suite cannot catch. Both fixed; barrel now re-exports ChatPanel directly.
+
 ## [0.0.19] — 2026-09-19 session
 
 ### Changed — FID-20260919-006: chat profile navigation is live; the ChatMessage corpse archived (closed, commit `73754dc`)
