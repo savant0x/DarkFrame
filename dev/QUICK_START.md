@@ -24,8 +24,8 @@
 ## 🛠 Stack (verified against `package.json`, 2026-09-15)
 
 - Next.js 16 + React 19, TypeScript strict (0 errors)
-- Drizzle ORM + PostgreSQL (`pg`); a Mongo-flavored compat shim (`lib/mongodb.ts`)
-  bridges legacy call shapes and retires incrementally
+- Drizzle ORM + PostgreSQL (`pg`) — the sole database; the former Mongo-era
+  shim and packages were deleted outright (2026-09-19)
 - Socket.io realtime (endless bounded-backoff reconnect) · Stripe payments ·
   jose (Edge-safe JWT) · Redis-optional caching
 - Custom Node server (`server.ts`): Next + Socket.io + hourly jobs

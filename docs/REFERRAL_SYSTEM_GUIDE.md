@@ -447,17 +447,16 @@ Apply migrations; no manual index setup.
 DATABASE_URL=postgresql://user:password@host:5432/darkframe
 ```
 
-### 3. Validation Trigger Status (updated 2026-09-17)
+### 3. Validation Trigger Status (updated 2026-09-19)
 
-No automated referral validation currently runs. The former Mongo-era cron
-script and its `npm run validate-referrals` wiring were removed (SCOPE row 24
-Cluster A / work-order item 6): the script validated against Mongo while the
-pg-side logic (`checkReferralValidation`, lib/referralService.ts) had zero
-callers, so it was a decoy, not a validator. The Vercel Cron snippet below it
-referenced an `/api/cron/validate-referrals` route that never existed.
-
-Follow-up FID candidate (SCOPE row 92): wire pg referral validation on
-login so the 7-day + 4-login criteria execute automatically.
+Automated referral validation runs on every login: `processLoginReferralEvents`
+(FID-20260917-014, commit `1bd818b`) hooks POST /api/auth/login and auto-validates
+pending referrals meeting the 7-day + 4-login criteria through the existing reward
+path. The former Mongo-era cron script and its `npm run validate-referrals` wiring
+were removed earlier (SCOPE row 24 Cluster A / work-order item 6): that script
+validated against Mongo while the pg-side logic had zero callers, so it was a
+decoy, not a validator. The Vercel Cron snippet below it referenced an
+`/api/cron/validate-referrals` route that never existed.
 
 ### 4. Frontend Integration
 
@@ -546,7 +545,7 @@ expect(validateData.valid).toBe(true);
 - [ ] Receive welcome package
 - [ ] Verify referral appears in referrer's pending list
 - [ ] Login 4 times over 7 days
-- [ ] Verify auto-validation (check after cron runs)
+- [ ] Verify auto-validation (login as the referred player; check the referral flips to validated — validation fires on login, not on a cron)
 - [ ] Verify rewards distributed to referrer
 
 ---
@@ -574,7 +573,7 @@ expect(validateData.valid).toBe(true);
 **Checks:**
 1. Check `rewardsClaimed` field in referral record
 2. Verify `referral_rewards_*` columns on the referrer's `players` row
-3. Check for errors in cron log
+3. Check the server log for `processLoginReferralEvents` errors on the player's next login
 
 **Solution:**
 - Admin manual validation will retry reward distribution
@@ -684,7 +683,7 @@ SELECT validated, COUNT(*) FROM referrals GROUP BY validated;
 - ✅ VIP cap at 30 days
 - ✅ RP balanced at ~8.9k total (~1.5% of the 600k-RP W1 WMD track)
 - ✅ Admin panel with flagging and manual validation
-- ✅ Daily auto-validation cron job
+- ✅ Auto-validation on login (FID-20260917-014; the Mongo-era cron decoy was removed)
 - ✅ Complete UI integration (dashboard, leaderboard, profile)
 - ✅ Anti-abuse measures (IP tracking, login requirements)
 

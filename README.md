@@ -204,7 +204,7 @@ game-math tables are CI-pinned (comment drift fails the suite).
 | [`docs/STRIPE_LOCAL_TESTING.md`](docs/STRIPE_LOCAL_TESTING.md) | Webhook testing with the Stripe CLI |
 | [`docs/TESTING_GUIDE.md`](docs/TESTING_GUIDE.md) | Auth & gameplay test walkthroughs |
 
-> **Note on the DB layer:** Postgres is authoritative. A Mongo-style API shim (`lib/mongodb.ts`) bridges service code left over from earlier pivots and is being retired incrementally. Known rough edges are tracked openly in `SCOPE.md` — nothing is silently broken.
+> **Note on the DB layer:** Postgres (via Drizzle) is the only database. The Mongo stack and its compat shim were fully removed on 2026-09-19 — every route, service, script, and the server entry point ride drizzle/pg directly, and a pre-push gate refuses any reintroduction. Known rough edges are tracked openly in `SCOPE.md` — nothing is silently broken.
 
 ---
 

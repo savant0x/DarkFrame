@@ -25,13 +25,13 @@ DarkFrame follows a **three-tier architecture** with strict separation of concer
 └─────────────────────────────────────────┘
                      ↓
 ┌─────────────────────────────────────────┐
-│   DATA LAYER (PostgreSQL via Drizzle)    │
-│  60+ Tables + Migrations + Compat Seam   │
+│   DATA LAYER (PostgreSQL via Drizzle)     │
+│  60+ Tables + Migrations                  │
 └─────────────────────────────────────────┘
 ```
 (CUSTOM Node server hosts Next.js + Socket.io + scheduled jobs in one
-process; Vercel serverless for routes. A Mongo-flavored compat shim bridges
-legacy service call shapes and is being retired incrementally.)
+process; Vercel serverless for routes. The Mongo era is fully retired —
+2026-09-19 — and a pre-push gate blocks any reintroduction.)
 
 ---
 
@@ -99,7 +99,6 @@ darkframe/
 │   ├── wmd/                   # WMD system services (research, missile,
 │   │                          # defense, spy, sabotage, treasury, …)
 │   ├── db/                    # Drizzle schema (17 table modules) + connection
-│   ├── mongodb.ts             # Compat shim for legacy call shapes (retiring)
 │   ├── logger.ts              # Structured logging
 │   └── index.ts               # Barrel exports
 │
@@ -219,8 +218,8 @@ Request → middleware.ts (JWT validation) → API Route → Service Layer → D
 **Decision:** Single shared `pg` Pool behind the Drizzle client  
 **Rationale:** Connection reuse, resource efficiency  
 **Implementation:** `lib/db/connection.ts` (lazy Pool, fail-fast without
-`DATABASE_URL`); `lib/mongodb.ts` remains only as a compat shim for legacy
-call shapes and is being retired incrementally
+`DATABASE_URL`). The former Mongo compat shim was removed 2026-09-19 —
+direct drizzle/pg access everywhere.
 
 ### 7. **12-Hour Resource Resets**
 **Decision:** Split 24-hour harvesting into two 12-hour periods  

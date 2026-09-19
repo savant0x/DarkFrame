@@ -2144,7 +2144,14 @@ SETUP.md ✅
 
 **Done:** Executed archive snapshot FID-20251019-004 and moved older entries to `dev/completed_archive_2025-10-19.md` on 2025-10-19.
 
-### �🔴 1. USE MONGODB MCP INSTEAD OF WRITING CODE
+### �🔴 1. USE THE DATABASE'S OWN TOOLS INSTEAD OF WRITING CODE
+> ⚠️ **SUPERSEDED (2026-09-19):** the tooling is now **PostgreSQL via Drizzle** — the
+> MongoDB stack and shim are deleted (SCOPE row 97). All `mcp_mongodb_*` guidance
+> below is obsolete. The transferable lesson stands: prefer direct DB tooling/probes
+> over writing throwaway scripts, and use `DATABASE_URL` (pg) — never a Mongo URI.
+> For live pg probes, follow the established pattern in `scripts/e2e*.ts`
+> (drizzle client over `DATABASE_URL`, explicit process exit).
+
 **Context:** FID-20250119-003 - Database cleanup tasks and admin system fixes  
 **Violation:** Attempted to write Node.js scripts to query/update MongoDB when MCP tools available  
 **Impact:** Wasted time writing unnecessary code, violated ECHO's reusability principle  

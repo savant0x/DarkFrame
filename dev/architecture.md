@@ -1,5 +1,13 @@
 # DarkFrame - Architecture Documentation
 
+> ⚠️ **HISTORICAL SNAPSHOT (2025-10-26).** This document predates the Postgres
+> pivot: every MongoDB / Atlas / `mongodb.ts` reference below describes a stack
+> that no longer exists. The database is now PostgreSQL via Drizzle
+> (`lib/db/connection.ts` + `lib/db/schema/`), and the Mongo-era shim was deleted
+> outright on 2026-09-19. For the current architecture read `docs/ARCHITECTURE.md`.
+> Preserved as history — the decision log near the end remains accurate as a
+> record of what was chosen at the time.
+
 > Technical decisions, patterns, and system design
 
 **Last Updated:** 2025-10-26  

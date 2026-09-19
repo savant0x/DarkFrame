@@ -97,7 +97,7 @@ working tree is the only copy of the migration work. Commit strategy awaits oper
   scaffolding removed) → 1,836 (session-009: territoryService cleaned — honest row types replaced the
   $type<any[]> casts, and 4 runtime-dead QueryResult errors resolved → tsc 2,043 → 2,039); next density
   targets: queryOptimization 29, HarvestButton.test 28, ChatPanel 28,
-  mongodb.ts 83 (blocked on DB-direction decision — compat-layer seam)
+  ~~mongodb.ts 83 (blocked on DB-direction decision — compat-layer seam)~~ **Moot 2026-09-19:** the shim was deleted outright (SCOPE row 97) — target removed with it
 - ~~Stabilize/mocked test environment; re-enable `test:ci` as a meaningful gate (B3)~~ **Done 2026-09-02** (session-006: full run green; 333 passed + 1 skip / ~34s, re-verified session-010)
 - 10 `@ts-nocheck` admin routes to be typed properly once the schema direction settles
 - Commit the working tree in logical chunks (SCOPE item #14)
