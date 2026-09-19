@@ -308,8 +308,11 @@ export const AuctionItemSchema = z.object({
   // Resource fields
   resourceType: z.nativeEnum(ResourceType).optional(),
   resourceAmount: PositiveIntSchema.optional(),
-  // Tradeable item fields
+  // Tradeable item fields (FID-20260919-009): the seller selects instances by
+  // id + quantity. The snapshot itself is SERVER-derived from the seller's
+  // inventory — there is no tradeableSnapshot key for a client to inject.
   tradeableItemQuantity: PositiveIntSchema.optional(),
+  tradeableItemIds: z.array(z.string().min(1)).max(20).optional(),
 });
 
 /**

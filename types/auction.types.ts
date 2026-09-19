@@ -51,6 +51,26 @@ export interface AuctionItem {
   
   // For tradeable items
   tradeableItemQuantity?: number;
+  /** FID-20260919-009: seller-selected instance ids (request-time only; the
+   * service derives the escrow snapshot and the stored item drops these). */
+  tradeableItemIds?: string[];
+
+  /**
+   * Escrow snapshot of the listed tradeable item instance(s)
+   * (FID-20260919-009). Each entry carries the procedurally generated name
+   * (FID-20260912-066) and rarity frozen at listing time — the goods left the
+   * seller's inventory, so this snapshot is the source of truth for delivery
+   * (buyer receives instances with these identities, fresh instance ids) and
+   * refunds (the seller gets the instances back). D2a-style whole-instance
+   * escrow: N instances escrowed per listing (quantity = instances.length).
+   */
+  tradeableSnapshot?: Array<{
+    /** The seller's original instance id (provenance; delivery mints fresh ids). */
+    itemId: string;
+    name: string;
+    rarity: string;
+    description?: string;
+  }>;
 
   /**
    * Escrow snapshot of the listed unit (FID-20260914-003). Captured at listing

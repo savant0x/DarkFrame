@@ -22,10 +22,30 @@ export type ItemLinkSegment =
   | { type: 'invalidItem'; value: string };
 
 /**
- * Split message content into segments: plain text, catalog-valid item links,
- * and literal-text brackets that failed validation.
+ * Bracketed names worth verifying against live listings (D1b): anything the
+ * static catalog does not already resolve. The caller fetches/caches these.
  */
-export function parseItemLinkSegments(content: string): ItemLinkSegment[] {
+export function parseItemLinkCandidates(content: string): string[] {
+  if (!content) return [];
+  const out: string[] = [];
+  ITEM_LINK_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = ITEM_LINK_REGEX.exec(content)) !== null) {
+    const raw = match[1].trim();
+    if (raw && !resolveCatalogEntry(raw)) out.push(raw);
+  }
+  return out;
+}
+
+/**
+ * Split message content into segments: plain text, item links (static catalog
+ * OR names verified against live listings — D1b), and literal-text brackets
+ * that failed both.
+ */
+export function parseItemLinkSegments(
+  content: string,
+  verifiedNames?: ReadonlySet<string>
+): ItemLinkSegment[] {
   if (!content) return [];
   const segments: ItemLinkSegment[] = [];
   let lastIndex = 0;
@@ -40,6 +60,12 @@ export function parseItemLinkSegments(content: string): ItemLinkSegment[] {
     const entry = resolveCatalogEntry(raw);
     if (entry) {
       segments.push({ type: 'itemLink', name: entry.name, entry });
+    } else if (verifiedNames?.has(raw)) {
+      segments.push({
+        type: 'itemLink',
+        name: raw,
+        entry: { name: raw, kind: 'verified-listing' },
+      });
     } else {
       segments.push({ type: 'invalidItem', value: match[0] });
     }
@@ -67,4 +93,12 @@ export function catalogTabFor(entry: CatalogEntry): 'units' | 'resources' | 'all
   if (entry.kind === 'unit') return 'units';
   if (entry.kind === 'resource') return 'resources';
   return 'all';
+}
+
+/**
+ * D1b deep-link target for a verified (live-listing) name: the game page hosts
+ * the modal and validates the param against live listings, not the catalog.
+ */
+export function verifiedItemLinkHref(name: string): string {
+  return `/game?market=${encodeURIComponent(name)}`;
 }

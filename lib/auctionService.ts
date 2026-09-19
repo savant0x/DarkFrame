@@ -36,9 +36,10 @@ import {
   AUCTION_CONFIG,
   AuctionSearchFilters,
 } from '@/types/auction.types';
-import type { Player, PlayerUnit } from '@/types/game.types';
+import type { Player, PlayerUnit, InventoryItem } from '@/types/game.types';
 import { logger } from './logger';
 import { notifyAuctionEvent } from './auctionNotification';
+import { planTradeableEscrow, buildDeliveryInstances, buildRefundInstances } from './tradeableEscrow';
 
 /** auction/trade rows use varchar(24) ids — 24-char uuid-hex slice (migration 0008 PK convention). */
 function generateRowId(): string {
@@ -99,7 +100,15 @@ function describeAuctionItem(item: AuctionItem): string {
   if (item.itemType === AuctionItemType.Unit) {
     return `${item.unitType ?? 'unit'} (${item.unitId ?? 'unknown'})`;
   }
-  return `${item.tradeableItemQuantity ?? 1}× tradeable item${(item.tradeableItemQuantity ?? 1) > 1 ? 's' : ''}`;
+  // FID-20260919-009: the escrow snapshot carries the real (procedural) names.
+  const snap = item.tradeableSnapshot ?? [];
+  const qty = item.tradeableItemQuantity ?? snap.length ?? 1;
+  if (snap.length > 0) {
+    const names = [...new Set(snap.map((e) => e.name))];
+    const label = names.length === 1 ? names[0] : `${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''}`;
+    return `${qty}× ${label}`;
+  }
+  return `${qty}× tradeable item${qty > 1 ? 's' : ''}`;
 }
 
 /**
@@ -231,7 +240,27 @@ export async function createAuctionListing(
             unitDefense: itemValidation.escrowedUnit.defense,
             unitSnapshot: itemValidation.escrowedUnit,
           }
-        : request.item,
+        : itemValidation.escrowedTradeables
+          ? {
+              ...request.item,
+              tradeableItemQuantity: itemValidation.escrowedTradeables.length,
+              tradeableSnapshot: itemValidation.escrowedTradeables.map((it) => ({
+                itemId: it.id,
+                name: it.name,
+                rarity: it.rarity,
+                description: it.description,
+                // Full-instance fields: delivery/refund rebuild InventoryItems
+                // from these entries — a snapshot missing `type` minted
+                // typeless inventory rows, and one missing foundDate refunded
+                // rows without a timestamp (both caught live by the FID-009
+                // probe).
+                type: it.type,
+                bonusPercent: it.bonusPercent,
+                foundAt: it.foundAt,
+                foundDate: it.foundDate,
+              })),
+            }
+          : request.item,
       startingBid: request.startingBid,
       currentBid: request.startingBid,
       buyoutPrice: request.buyoutPrice,
@@ -299,6 +328,7 @@ async function validateAndLockItem(
   error?: string;
   lockUpdate?: { set?: PgUpdateSetSource<typeof players>; incMetal?: number; incEnergy?: number };
   escrowedUnit?: PlayerUnit;
+  escrowedTradeables?: InventoryItem[];
 }> {
   
   if (item.itemType === AuctionItemType.Unit) {
@@ -359,14 +389,28 @@ async function validateAndLockItem(
     };
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
-    // GATE (FID-20260914-003, finding 5): tradeable-item listings were accepted
-    // end-to-end while transferAuctionItem's branch for them is an empty TODO —
-    // the buyer paid fees and received nothing. Blocked at the front door until
-    // real inventory transfer ships (Phase 5); the UI option is already disabled.
+    // FID-20260919-009: the FID-20260914-003 gate lifts now that transfer has a
+    // real implementation. Escrow = whole instances (D2b as quantity-N): the
+    // seller's selected instances leave the inventory at listing time (not
+    // shrine-consumable, not double-listable) and the identities freeze into
+    // the listing snapshot — the same law as unit escrow.
+    const plan = planTradeableEscrow(player.inventory.items, item);
+    if (!plan.ok) {
+      return {
+        success: false,
+        message: plan.message ?? 'Tradeable items not found',
+        error: plan.error
+      };
+    }
     return {
-      success: false,
-      message: 'Tradeable item listings are not available yet (coming in a later phase)',
-      error: 'TRADEABLE_NOT_TRADEABLE_YET'
+      success: true,
+      message: 'Tradeable items validated and escrowed',
+      lockUpdate: {
+        set: {
+          inventoryItems: plan.remaining,
+        },
+      },
+      escrowedTradeables: plan.escrowed,
     };
   }
 
@@ -799,8 +843,26 @@ async function transferAuctionItem(
     }
 
   } else if (item.itemType === AuctionItemType.TradeableItem) {
-    // Transfer tradeable items
-    // TODO: Implement proper tradeable item transfer
+    // FID-20260919-009: deliver the ESCROWED instances to the buyer — fresh
+    // instance ids, identities preserved (name/rarity ride the snapshot).
+    // Escrowed listings are the only kind (the gate means no legacy unescrowed
+    // tradeables exist); a missing snapshot is an integrity fault, not a
+    // silent no-op — fail the settlement so it retries rather than eat goods.
+    const escrowed = item.tradeableSnapshot;
+    if (!escrowed || escrowed.length === 0) {
+      return {
+        success: false,
+        message: 'Tradeable listing has no escrow snapshot',
+        error: 'TRADEABLE_SNAPSHOT_MISSING'
+      };
+    }
+    const delivery = buildDeliveryInstances(escrowed as never);
+    await db
+      .update(players)
+      .set({
+        inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(delivery)}::jsonb`,
+      })
+      .where(eq(players.username, toUsername));
   }
 
   return { success: true, message: 'Item transferred' };
@@ -883,6 +945,15 @@ export async function cancelAuction(
         })
         .where(eq(players.username, sellerUsername));
     }
+    if (auction.item.itemType === AuctionItemType.TradeableItem && (auction.item.tradeableSnapshot?.length ?? 0) > 0) {
+      const refundItems = buildRefundInstances(auction.item.tradeableSnapshot as never);
+      await db
+        .update(players)
+        .set({
+          inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
+        })
+        .where(eq(players.username, sellerUsername));
+    }
     void notifyAuctionEvent('refund_seller', sellerUsername, {
       auctionId,
       itemName: describeAuctionItem(auction.item),
@@ -934,8 +1005,10 @@ export async function getAuctions(
     // itemData carries no flat name column; unitType/resourceType ARE the name.
     if (filters.name) {
       const pattern = `%${filters.name}%`;
+      // FID-20260919-009: tradeable instances match by their procedural name
+      // in the escrow snapshot (jsonb array element scan).
       conditions.push(
-        sql`(${auctions.doc}->'item'->>'unitType' ILIKE ${pattern} OR ${auctions.doc}->'item'->>'resourceType' ILIKE ${pattern})`
+        sql`(${auctions.doc}->'item'->>'unitType' ILIKE ${pattern} OR ${auctions.doc}->'item'->>'resourceType' ILIKE ${pattern} OR EXISTS (SELECT 1 FROM jsonb_array_elements(${auctions.doc}->'item'->'tradeableSnapshot') AS t WHERE t->>'name' ILIKE ${pattern}))`
       );
     }
 
@@ -1081,6 +1154,15 @@ async function settleExpiredAuction(
         })
         .where(eq(players.username, auction.sellerUsername));
     }
+    if (auction.item.itemType === AuctionItemType.TradeableItem && (auction.item.tradeableSnapshot?.length ?? 0) > 0) {
+      const refundItems = buildRefundInstances(auction.item.tradeableSnapshot as never);
+      await db
+        .update(players)
+        .set({
+          inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
+        })
+        .where(eq(players.username, auction.sellerUsername));
+    }
     void notifyAuctionEvent('expired_seller', auction.sellerUsername, {
       auctionId: auction.auctionId,
       itemName: describeAuctionItem(auction.item),
@@ -1129,6 +1211,15 @@ async function settleExpiredAuction(
         .update(players)
         .set({
           units: sql`coalesce(${players.units}, '[]'::jsonb) || ${JSON.stringify([auction.item.unitSnapshot])}::jsonb`,
+        })
+        .where(eq(players.username, auction.sellerUsername));
+    }
+    if (auction.item.itemType === AuctionItemType.TradeableItem && (auction.item.tradeableSnapshot?.length ?? 0) > 0) {
+      const refundItems = buildRefundInstances(auction.item.tradeableSnapshot as never);
+      await db
+        .update(players)
+        .set({
+          inventoryItems: sql`coalesce(${players.inventoryItems}, '[]'::jsonb) || ${JSON.stringify(refundItems)}::jsonb`,
         })
         .where(eq(players.username, auction.sellerUsername));
     }

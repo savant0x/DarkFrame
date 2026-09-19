@@ -204,10 +204,24 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
         details: 'Resource'
       };
     } else {
+      // FID-20260919-009: the escrow snapshot carries the real procedural name
+      // and rarity — the "Tradeable Item" placeholder only covers snapshotless
+      // rows (none can exist: the creation gate preceded any tradeable listing).
+      const snap = item.tradeableSnapshot ?? [];
+      const qty = item.tradeableItemQuantity || snap.length || 1;
+      if (snap.length > 0) {
+        const names = [...new Set(snap.map((e) => e.name))];
+        const first = snap[0];
+        return {
+          icon: '🎁',
+          name: names.length === 1 ? first.name : `${first.name} +${snap.length - 1} more`,
+          details: `Rarity: ${first.rarity}${qty > 1 ? ` · Qty: ${qty}` : ''}`
+        };
+      }
       return {
         icon: '🎁',
         name: 'Tradeable Item',
-        details: `Qty: ${item.tradeableItemQuantity || 1}`
+        details: `Qty: ${qty}`
       };
     }
   };

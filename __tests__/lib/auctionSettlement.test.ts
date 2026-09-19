@@ -682,18 +682,25 @@ describe('unit escrow at listing (FID-20260914-003)', () => {
     expect(wallet('seller1', -100)).toHaveLength(1);
   });
 
-  it('rejects TradeableItem listings before any lock or fee is taken', async () => {
+  it('tradeable listings: FID-20260919-009 lifts the prohibition, but rejection of an unescrowable request still precedes any lock or fee', async () => {
+    // No matching tradeable instances in inventory → the escrow gate must
+    // refuse without touching the wallet or writing a listing (the invariant
+    // the old TRADEABLE_NOT_TRADEABLE_YET pin protected; the gate changed).
     seedPlayer('seller1', 5000);
 
     const { createAuctionListing } = await import('@/lib/auctionService');
     const result = await createAuctionListing('seller1', {
-      item: { itemType: AuctionItemType.TradeableItem, tradeableItemQuantity: 1 },
+      item: {
+        itemType: AuctionItemType.TradeableItem,
+        tradeableItemQuantity: 1,
+        tradeableItemIds: ['ghost_instance'],
+      },
       startingBid: 1000,
       duration: 12,
     });
 
     expect(result.success).toBe(false);
-    expect(result.error).toBe('TRADEABLE_NOT_TRADEABLE_YET');
+    expect(result.error).toBe('ITEMS_NOT_FOUND');
     expect(state.auctionInserts).toHaveLength(0);
     expect(state.walletOps).toHaveLength(0);
     expect(state.unitsSets).toHaveLength(0);

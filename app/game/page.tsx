@@ -120,12 +120,20 @@ export default function GamePage() {
     const market = searchParams.get('market');
     if (!market) return;
     auctionDeepLinkConsumed.current = true;
-    fetch(`/api/chat/item-link?itemName=${encodeURIComponent(market)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.exists) setShowAuctionHouse(true);
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch(`/api/chat/item-link?itemName=${encodeURIComponent(market)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetch(`/api/auction/list?name=${encodeURIComponent(market)}&limit=1`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([catalog, listings]) => {
+      // Catalog names (units/resources) or any live listing (procedural
+      // tradeable names, FID-20260919-009 D1b) open the house; junk stays shut.
+      if (catalog?.exists || (listings?.totalCount ?? 0) > 0) {
+        setShowAuctionHouse(true);
+      }
+    });
   }, [searchParams]);
   const [lastTileKey, setLastTileKey] = useState<string>('');
   // Bank and Shrine now use currentView instead of modal states

@@ -12,7 +12,7 @@
 import { UNIT_CONFIGS, type UnitType } from '@/types/game.types';
 import { ResourceType } from '@/types/auction.types';
 
-export type CatalogKind = 'unit' | 'resource';
+export type CatalogKind = 'unit' | 'resource' | 'verified-listing';
 
 export interface CatalogEntry {
   name: string;

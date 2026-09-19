@@ -71,12 +71,21 @@ type SortOption = 'price_asc' | 'price_desc' | 'ending_soon' | 'newly_listed';
  * FID-20260919-008: resolve the /game?market=<name> deep-link param against the
  * catalog — the canonical name plus the category tab it should open in.
  */
-function resolveMarketParam(raw: string | null): { entry: CatalogEntry; tab: 'units' | 'resources' | 'all' } | null {
+function resolveMarketParam(
+  raw: string | null
+): { name: string; tab: 'units' | 'resources' | 'all' } | null {
   if (!raw) return null;
-  const entry = resolveCatalogEntry(raw);
-  if (!entry) return null;
-  const tab = entry.kind === 'unit' ? 'units' : entry.kind === 'resource' ? 'resources' : 'all';
-  return { entry, tab };
+  const cleaned = raw.trim().slice(0, 64);
+  if (!cleaned) return null;
+  // FID-20260919-009 D1b: catalog names resolve to their canonical form + tab;
+  // non-catalog names (procedural tradeable names) still pre-filter the search —
+  // the panel shows the listing or an honest empty state.
+  const entry = resolveCatalogEntry(cleaned);
+  if (entry) {
+    const tab = entry.kind === 'unit' ? 'units' : entry.kind === 'resource' ? 'resources' : 'all';
+    return { name: entry.name, tab };
+  }
+  return { name: cleaned, tab: 'all' };
 }
 
 export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
@@ -117,8 +126,8 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
     deepLinkConsumed.current = true;
     const market = resolveMarketParam(searchParams.get('market'));
     if (!market) return;
-    setNameFilter(market.entry.name);
-    setNameQuery(market.entry.name);
+    setNameFilter(market.name);
+    setNameQuery(market.name);
     setActiveTab(market.tab);
     setViewMode('marketplace');
     setCurrentPage(1);

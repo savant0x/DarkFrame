@@ -94,7 +94,7 @@ import {
 import { toast } from 'sonner';
 import { ChannelType } from '@/lib/channelService';
 import type { ChatVeteranNotificationPayload } from '@/types/websocket';
-import { parseItemLinkSegments, itemLinkHref } from '@/lib/chatItemLinks';
+import { parseItemLinkSegments, itemLinkHref, parseItemLinkCandidates, verifiedItemLinkHref } from '@/lib/chatItemLinks';
 import { DirectMessage, ConversationPreview, DMMessageStatus } from '@/types/directMessage';
 
 /** Extract a user-facing message from an unknown thrown value (bare catches;
@@ -295,6 +295,10 @@ export default function ChatPanel({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editedContent, setEditedContent] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  // FID-20260919-009 D1b: bracketed names not in the static catalog resolve
+  // once per session against live listings; verified names render as links.
+  const [verifiedItemNames, setVerifiedItemNames] = useState<Set<string>>(new Set());
+  const failedItemNames = useRef<Set<string>>(new Set());
 
   // DM-specific state
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
@@ -568,6 +572,43 @@ export default function ChatPanel({
         unsubscribers.forEach((off) => off());
       };
     }, [chatSocket, username, userId]);
+
+    // D1b verification: scan current messages for non-catalog bracketed names
+    // and resolve them against live listings (one fetch per name per session).
+    const d1bMessages = messages.get(activeChannel) ?? [];
+    const candidates = [
+      ...new Set(
+        d1bMessages
+          .flatMap((m) => parseItemLinkCandidates(m.content))
+          .filter((n) => !verifiedItemNames.has(n) && !failedItemNames.current.has(n))
+      ),
+    ];
+    useEffect(() => {
+      if (candidates.length === 0) return;
+      let cancelled = false;
+      const confirmed: string[] = [];
+      const missing: string[] = [];
+      Promise.all(
+        candidates.map((name) =>
+          fetch(`/api/auction/list?name=${encodeURIComponent(name)}&limit=1`)
+            .then((r) => (r.ok ? (r.json() as Promise<{ totalCount?: number }>) : null))
+            .then((d) => ((d?.totalCount ?? 0) > 0 ? confirmed.push(name) : missing.push(name)))
+            .catch(() => missing.push(name))
+        )
+      ).then(() => {
+        if (cancelled) return;
+        if (confirmed.length > 0) {
+          setVerifiedItemNames((prev) => new Set([...prev, ...confirmed]));
+        }
+        // Negative cache rides a ref: an unverified name needs no re-render,
+        // it just must not re-fetch on every poll cycle.
+        failedItemNames.current = new Set([...failedItemNames.current, ...missing]);
+      });
+      return () => {
+        cancelled = true;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- recompute only when candidates change
+    }, [candidates.join('|')]);
 
   /**
    * Poll for DM conversations every 2 seconds (when DM tab active)
@@ -1383,7 +1424,7 @@ export default function ChatPanel({
             // Regular text (may contain URLs - Linkify will handle them).
             // FID-20260919-008: bracketed catalog items render as links that
             // deep-link into the auction house; invalid brackets stay literal.
-            const segments = parseItemLinkSegments(part);
+            const segments = parseItemLinkSegments(part, verifiedItemNames);
             return (
               <span key={index}>
                 {segments.map((seg, segIdx) => {
@@ -1395,7 +1436,13 @@ export default function ChatPanel({
                       <button
                         key={`i${segIdx}`}
                         type="button"
-                        onClick={() => router.push(itemLinkHref(seg.entry.name))}
+                        onClick={() =>
+                          router.push(
+                            seg.entry.kind === 'verified-listing'
+                              ? verifiedItemLinkHref(seg.entry.name)
+                              : itemLinkHref(seg.entry.name)
+                          )
+                        }
                         className="text-[color:var(--nn-amber)] underline underline-offset-2 font-medium hover:text-[color:var(--nn-cyan)] cursor-pointer bg-transparent border-0 p-0"
                         title={`View ${seg.entry.name} on the market`}
                       >

@@ -20,6 +20,7 @@ import React, { useState } from 'react';
 import { extractApiError } from '@/lib/apiClient';
 import { useGameContext } from '@/context/GameContext';
 import { AuctionItemType, ResourceType, AUCTION_CONFIG, CreateAuctionRequest, AuctionItem } from '@/types/auction.types';
+import { ItemType, type InventoryItem } from '@/types/game.types';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -32,6 +33,12 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
   // (FID-20260914-003) freezes the seller's unit object into the listing, so a
   // unitType-only synthetic listing could never escrow (and must never exist).
   const ownedUnits = player?.units ?? [];
+  // FID-20260919-009: real tradeable instances from the seller's inventory —
+  // the item picker lists what can actually be escrowed (whole instances, D2b).
+  const ownedTradeables = (player?.inventory?.items ?? [])
+    .filter((it): it is InventoryItem => 'foundAt' in it)
+    .filter((it) => it.type === ItemType.TradeableItem);
+  const [tradeableIds, setTradeableIds] = useState<string[]>([]);
 
   // Form state
   const [itemType, setItemType] = useState<AuctionItemType>(AuctionItemType.Resource);
@@ -100,6 +107,10 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
       return 'Select a unit to list';
     }
     
+    if (itemType === AuctionItemType.TradeableItem && tradeableIds.length === 0) {
+      return 'Select at least one item to list';
+    }
+    
     return null;
   };
 
@@ -122,10 +133,11 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
         unitType: ownedUnits.find((u) => u.unitId === unitId)?.unitType,
       };
     } else {
-      // TradeableItem (Phase 5)
+      // FID-20260919-009: instance ids + quantity — the snapshot is server-derived.
       return {
         itemType: AuctionItemType.TradeableItem,
-        tradeableItemQuantity: 1
+        tradeableItemIds: tradeableIds,
+        tradeableItemQuantity: tradeableIds.length,
       };
     }
   };
@@ -233,12 +245,16 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
               </button>
               
               <button
-                disabled
-                className="p-4 rounded-none border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] opacity-50 cursor-not-allowed"
+                onClick={() => setItemType(AuctionItemType.TradeableItem)}
+                className={`p-4 rounded-none border-2 transition-colors ${
+                  itemType === AuctionItemType.TradeableItem
+                    ? 'border-[color-mix(in_oklab,var(--nn-amber)_50%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_22%,transparent)] bg-opacity-30'
+                    : 'border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] border-[color-mix(in_oklab,var(--nn-cyan)_25%,transparent)]'
+                }`}
               >
                 <div className="text-3xl mb-2">🎁</div>
                 <div className="text-[color:var(--nn-text-primary)] font-semibold">Items</div>
-                <div className="text-xs text-[color:var(--nn-text-secondary)]">Phase 5</div>
+                <div className="text-xs text-[color:var(--nn-text-secondary)]">Found items</div>
               </button>
             </div>
           </div>
@@ -319,6 +335,53 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
               )}
               <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Listing escrows the unit (it leaves your army until sold or the auction ends).
+              </p>
+            </div>
+          )}
+
+          {/* Tradeable Item Selection — the seller's REAL found items (FID-20260919-009) */}
+          {itemType === AuctionItemType.TradeableItem && (
+            <div>
+              <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
+                Select Items from Your Inventory *
+              </label>
+              {ownedTradeables.length === 0 ? (
+                <p className="text-sm text-[color:var(--nn-text-secondary)] p-3 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none">
+                  You have no found items to list. Search caves to find tradeable items first.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none p-2">
+                  {ownedTradeables.map((it) => {
+                    const checked = tradeableIds.includes(it.id);
+                    return (
+                      <label
+                        key={it.id}
+                        className={`flex items-center gap-3 p-2 cursor-pointer border transition-colors ${
+                          checked
+                            ? 'border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)] bg-[color-mix(in_oklab,var(--nn-amber)_10%,transparent)]'
+                            : 'border-transparent hover:bg-[color-mix(in_oklab,var(--nn-cyan)_8%,transparent)]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            setTradeableIds((prev) =>
+                              e.target.checked ? [...prev, it.id] : prev.filter((id) => id !== it.id)
+                            )
+                          }
+                          className="accent-[color:var(--nn-amber)]"
+                        />
+                        <span className="text-[color:var(--nn-text-primary)] font-medium flex-1">{it.name}</span>
+                        <span className="text-xs text-[color:var(--nn-text-secondary)]">{it.rarity}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
+                Listing escrows the item(s) (they leave your inventory until sold or the auction ends —
+                they can't be used at the Shrine while listed).
               </p>
             </div>
           )}
