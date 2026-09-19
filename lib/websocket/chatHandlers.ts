@@ -26,7 +26,9 @@
 
 import type { Server, Socket } from 'socket.io';
 import type { AuthenticatedUser } from './auth';
-import { connectToDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { players } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import {
   sendGlobalChatMessage,
   type SendMessageRequest,
@@ -125,12 +127,16 @@ async function toPlayerContext(
   user: AuthenticatedUser,
   channelBans: string[]
 ): Promise<PlayerContext> {
-  // Check if user is VIP from database
+  // Check if user is VIP from database (direct pg read; the shim form read a
+  // nested Mongo `vip: true` shape that pg stores as the `vip` smallint flag)
   let isVIP = false;
   try {
-    const db = await connectToDatabase();
-    const player = await db.collection('players').findOne({ username: user.username });
-    isVIP = player?.vip === true || player?.isVIP === true;
+    const [player] = await db
+      .select({ vip: players.vip })
+      .from(players)
+      .where(eq(players.username, user.username))
+      .limit(1);
+    isVIP = (player?.vip ?? 0) === 1;
   } catch (error) {
     console.error('[ChatHandlers] Failed to check VIP status:', error);
   }

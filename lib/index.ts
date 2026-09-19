@@ -15,7 +15,6 @@
 // ============================================================================
 
 // Re-export MongoDB utilities
-export * from './mongodb';
 
 // Re-export authentication service
 export * from './authService';
@@ -381,4 +380,3 @@ export * from './specializationService';
 // - Add JSDoc comments for key exports
 // 
 // ============================================================================
-export { getDatabase, getClientAndDatabase } from './mongodb';

@@ -28,8 +28,8 @@ import type { Player } from '@/types/game.types';
 import { getFactoryDefense, FACTORY_UPGRADE } from './factoryUpgradeService';
 import { attackFactory, findNearestWildFactory } from './factoryService';
 import { db, factories } from './db';
+import { players } from './db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { getCollection } from './mongodb';
 
 /** A bot only considers wild factories within this radius (tiles). */
 const RAID_RADIUS = 20;
@@ -101,11 +101,13 @@ export async function runBotFactoryRaids(bots: Player[]): Promise<RaidOutcome> {
       }
 
       // Set the raid cooldown regardless of outcome (failed scouts back off).
-      const players = await getCollection<Player>('players');
-      await players.updateOne(
-        { username: bot.username },
-        { $set: { 'botConfig.attackCooldown': now } }
-      );
+      // Drizzle jsonb path-set (the shim's dot-path $set equivalent).
+      await db
+        .update(players)
+        .set({
+          botConfig: sql`jsonb_set(COALESCE(${players.botConfig}, '{}'::jsonb), '{attackCooldown}', to_jsonb(${now.toISOString()}::text), true)`,
+        })
+        .where(eq(players.username, bot.username));
     } catch (err) {
       outcome.details.push(`raid error for ${bot.username}: ${err instanceof Error ? err.message : String(err)}`);
     }

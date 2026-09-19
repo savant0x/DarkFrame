@@ -8,10 +8,9 @@
  * Updates player position and returns current tile data.
  */
 
-import { getCollection } from './mongodb';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { players, tiles } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { getPlayer, getPlayerSlim, type SanitizedPlayer } from './playerService';
 import { calculateNewPosition } from '@/utils/coordinates';
 import { protectionActive } from './playerProtection'; // FID-20260916-009 D1: canonical predicate (was hand-rolled)
@@ -30,21 +29,11 @@ import { Tile, MovementDirection, HarvestRecord } from '@/types';
  */
 export async function getTileAt(x: number, y: number): Promise<Tile | null> {
   try {
-    const tilesCollection = await getCollection<{
-      x: number;
-      y: number;
-      terrain: string;
-      occupiedByBase: number | null;
-      baseOwner: string | null;
-      baseGreeting: string | null;
-      lastHarvestedBy: HarvestRecord[] | null;
-      bankType: string | null;
-      hasFlagBearer: number | null;
-      hasTrail: number | null;
-      trailTimestamp: Date | null;
-      trailExpiresAt: Date | null;
-    }>('tiles');
-    const row = await tilesCollection.findOne({ x, y });
+    const [row] = await db
+      .select()
+      .from(tiles)
+      .where(and(eq(tiles.x, x), eq(tiles.y, y)))
+      .limit(1);
     if (!row) return null;
 
     const tile: Tile = {
