@@ -1,6 +1,6 @@
 # FID-20260919-008 — Chat item linking on the live renderer + auction name-search and deep-link
 
-**Status:** `created`
+**Status:** closed (2026-09-19, commit `ba16ab4`)
 **Session:** 2026-09-19 (062)
 **Origin:** Recorded product call (FID-20260919-006 §3): chat item linking was
 never live — the machinery existed only in the archived ChatMessage corpse —
@@ -67,3 +67,12 @@ and clicks had nowhere useful to land.
 - `/api/auction/list?name=METAL` filters live listings; the panel opens
   pre-filtered from the `market` param with the right category tab.
 - Pins green for the pure modules; live HTTP check on the name filter; gates green.
+
+
+## 8. Closure (2026-09-19)
+
+- **Shipped:** lib/catalogService (the real item universe: UNIT_CONFIGS + ResourceType, case-insensitive validation, kind resolution); chatService.validateItem delegates to it (the always-false stub dies; the item-link route now tells the truth unchanged); lib/chatItemLinks (bounded bracket regex, segment parser, canonical resolution, deep-link href, tab mapping) pinned as a pure module; ChatPanel renders catalog-valid [names] as amber links → /game?market=<name> (invalid brackets stay literal); /api/auction/list + getAuctions accept `name` (ILIKE over doc->'item' identity, %/_ stripped from user input); AuctionHousePanel gains the Item Name search box (ref-fed, Enter/Apply/tab refetch) and consumes the market param on mount (one-shot, canonical name + tab preselection).
+- **Pins:** 14 (__tests__/lib/chatItemLinks.test.ts) — catalog truth incl. the stub-replacement contract, canonicalization, parse bounds (newlines/length), invalid-literal handling, adjacency, global-regex statelessness, href encoding, tab mapping.
+- **Live probe:** 8/8 (scripts/e2eChatItemLinksLive.ts vs tsx server.ts:3003) — item-link truth for unit/case/resource/unknown; name filter self-validates against a live INFANTRY listing (found by its own identity, excluded under a wrong-kind name), zero-count success on garbage, wildcard stripping. Two driver-shape corrections on the way (param is itemName; response field is totalCount) — the code needed neither.
+- **Gates at close:** suite 119 files / 1191 tests green (+14), tsc 0, eslint clean (all touched files).
+- **Recorded honestly:** tradeable listings remain unnamed ("Tradeable Item" on the card) — naming them needs an items table, out of scope per §3.

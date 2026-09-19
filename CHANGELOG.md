@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.21] — 2026-09-19 session
+
+### Added — FID-20260919-008: chat item links land on a searchable market (closed, commit `ba16ab4`)
+
+- Typing `[T1_SCOUT]` or `[metal]` in any chat channel now renders a market link; clicking it opens the auction house on `/game?market=<name>` pre-filtered to the item, with the category tab preselected. Invalid bracketed names stay literal text — only the real catalog (every unit type plus metal/energy) becomes a link.
+- Foundation honesty: `validateItem` was a stub returning false for every name (its "items table not in schema" TODO was still pending), and no items table exists — the catalog is UNIT_CONFIGS + ResourceType. `lib/catalogService` is that truth; the item-link route now reports existence accurately through it. `lib/chatItemLinks` carries the parse/resolve semantics as a pinned pure module.
+- The auction list API and panel gained a name search (ILIKE over the listing doc's item identity, LIKE wildcards stripped from user input) — the deep-link destination that makes chat links useful.
+- Evidence: 14 pins, 8/8 live probes (including a self-validating filter check against a live listing), suite 119/1191, tsc 0, eslint clean. Tradeable-item naming (needs an items table) recorded as out of scope.
+
 ## [0.0.20] — 2026-09-19 session
 
 ### Added — FID-20260919-007: factory owners can jump to the unit factory from their tile (closed, commit `a266d5f`)
