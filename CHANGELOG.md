@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.14] — 2026-09-19 session
+
+### Fixed — FID-20260919-001: auction unit-listing honesty + the listing-insert 500 (closed, commit `123d5e2`)
+
+- Unit listings now derive stored stats from the escrowed unit server-side — client-supplied `unitStrength`/`unitDefense`/`unitType` are overwritten from the FID-20260914-003 snapshot and can no longer fabricate what buyers see. The listing card prefers snapshot stats (`lib/auctionDisplay`), healing pre-fix listings whose snapshots were real but whose scalars were lies.
+- `CreateListingModal`'s unit flow was broken end-to-end (no `unitId` — every UI attempt rejected since unit escrow shipped): replaced with a real picker over the seller's actual units, with a post-escrow player refresh so the army view stays truthful.
+- Out-of-scope defect found by the live probe and fixed: `syncAuctionDocFields` leaked raw booleans past its flat-key-wins guard into pg smallint mirrors — **every auction listing INSERT failed with `invalid input syntax for type smallint: "false"` since the batch-4 auction rewrite**. Booleans now coerce unconditionally (update paths were already safe via `auctionSet`).
+- Gates: suite 115/1147 (+6 pins), tsc 0, eslint clean; live probe 15/15 over real HTTP + dev DB with residue zero.
+
 ## [0.0.13] — 2026-09-19 session
 
 ### Removed — the Mongo shim is deleted: lib/mongodb.ts gone, packages uninstalled, eradication gate wired (chain `f827655` → `1f66c5a`)
