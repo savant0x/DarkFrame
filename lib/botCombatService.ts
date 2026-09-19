@@ -32,8 +32,11 @@
  * - types/game.types.ts: Player, BotConfig, BotReputation types
  */
 
-import { connectToDatabase, type DocumentValue } from './mongodb';
-import type { Player } from '@/types/game.types';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { eq, ne } from 'drizzle-orm';
+import { mapRowToPlayer } from './playerService';
+import type { Player, BotConfig } from '@/types/game.types';
 import { BotReputation } from '@/types/game.types';
 import { removeBeerBase } from './beerBaseService';
 
@@ -267,18 +270,15 @@ export async function processBotAttack(bot: Player, target: Player): Promise<{
     timestamp: Date;
   };
 }> {
-  const db = await connectToDatabase();
-  
   try {
     // Calculate combat
     const combat = calculateCombat(bot, target);
     
-    // Prepare updates
-    const botUpdates: Record<string, DocumentValue> = {
-      'botConfig.attackCooldown': calculateCooldown(bot.botConfig?.specialization || 'balanced'),
-    };
-    
-    const targetUpdates: Record<string, DocumentValue> = {
+    // Row-shaped update accumulators (pg: whole-column writes; dotted
+    // botConfig paths merge into ONE whole-jsonb write at the end).
+    const botRow: Partial<typeof players.$inferInsert> = {};
+    const botConfigPatch: Partial<BotConfig> = {};
+    const targetRow: Partial<typeof players.$inferInsert> = {
       xp: (target.xp || 0) + combat.xpAwarded,
     };
     
@@ -286,11 +286,11 @@ export async function processBotAttack(bot: Player, target: Player): Promise<{
     
     if (combat.botWins) {
       // Bot wins: Steal resources from target
-      botUpdates['resources.metal'] = (bot.resources?.metal || 0) + combat.resourcesStolen.metal;
-      botUpdates['resources.energy'] = (bot.resources?.energy || 0) + combat.resourcesStolen.energy;
+      botRow.resourcesMetal = (bot.resources?.metal || 0) + combat.resourcesStolen.metal;
+      botRow.resourcesEnergy = (bot.resources?.energy || 0) + combat.resourcesStolen.energy;
       
-      targetUpdates['resources.metal'] = Math.max(0, (target.resources?.metal || 0) - combat.resourcesStolen.metal);
-      targetUpdates['resources.energy'] = Math.max(0, (target.resources?.energy || 0) - combat.resourcesStolen.energy);
+      targetRow.resourcesMetal = Math.max(0, (target.resources?.metal || 0) - combat.resourcesStolen.metal);
+      targetRow.resourcesEnergy = Math.max(0, (target.resources?.energy || 0) - combat.resourcesStolen.energy);
       
       message = `${bot.username} attacked and stole ${combat.resourcesStolen.metal} Metal and ${combat.resourcesStolen.energy} Energy!`;
     } else {
@@ -313,45 +313,46 @@ export async function processBotAttack(bot: Player, target: Player): Promise<{
         } catch (error) {
           console.error('Failed to remove Beer Base:', error);
           // Fallback to normal defeat handling if removal fails
-          botUpdates['resources.metal'] = 0;
-          botUpdates['resources.energy'] = 0;
-          botUpdates['botConfig.lastDefeated'] = new Date();
+          botRow.resourcesMetal = 0;
+          botRow.resourcesEnergy = 0;
+          botConfigPatch.lastDefeated = new Date();
         }
       } else {
         // Regular bots: Full Permanence (resources → 0, stay on map)
-        botUpdates['resources.metal'] = 0;
-        botUpdates['resources.energy'] = 0;
-        botUpdates['botConfig.lastDefeated'] = new Date();
-        botUpdates['botConfig.defeatedCount'] = (bot.botConfig?.defeatedCount || 0) + 1;
-        botUpdates['botConfig.reputation'] = updateReputation((bot.botConfig?.defeatedCount || 0) + 1);
-        botUpdates['botConfig.revengeTarget'] = target.username; // Set revenge target
-        botUpdates['botConfig.lastResourceRegen'] = new Date(); // Start regeneration timer
+        botRow.resourcesMetal = 0;
+        botRow.resourcesEnergy = 0;
+        botConfigPatch.lastDefeated = new Date();
+        botConfigPatch.defeatedCount = (bot.botConfig?.defeatedCount || 0) + 1;
+        botConfigPatch.reputation = updateReputation((bot.botConfig?.defeatedCount || 0) + 1);
+        botConfigPatch.revengeTarget = target.username; // Set revenge target
+        botConfigPatch.lastResourceRegen = new Date(); // Start regeneration timer
         
         message = `You defended against ${bot.username} and looted ${lootMetal} Metal and ${lootEnergy} Energy! (+${50 + (bot.botConfig?.tier || 1) * 25} XP)`;
       }
       
-      targetUpdates['resources.metal'] = (target.resources?.metal || 0) + lootMetal;
-      targetUpdates['resources.energy'] = (target.resources?.energy || 0) + lootEnergy;
+      targetRow.resourcesMetal = (target.resources?.metal || 0) + lootMetal;
+      targetRow.resourcesEnergy = (target.resources?.energy || 0) + lootEnergy;
       
       // Bonus XP for defeating bots (extra bonus for Beer Bases)
       const bonusXP = isBeerBase 
         ? (50 + (bot.botConfig?.tier || 1) * 25) * 1.5  // 50% more XP for Beer Bases
         : 50 + (bot.botConfig?.tier || 1) * 25;         // Standard: 75-125 XP
-      targetUpdates.xp = (target.xp || 0) + bonusXP;
+      targetRow.xp = (target.xp || 0) + bonusXP;
     }
     
-    // Apply updates to database (only if bot still exists - Beer Bases are removed)
-    if (Object.keys(botUpdates).length > 0) {
-      await db.collection<Player>('players').updateOne(
-        { username: bot.username },
-        { $set: botUpdates }
-      );
+    // Apply updates to database. The original always wrote both rows: the
+    // bot's attackCooldown is set unconditionally (always truthy in the old
+    // guard) and the target's XP always moves. Beer Bases removed above are
+    // handled by the no-op filter (update matches nothing after removal).
+    const botSet: Partial<typeof players.$inferInsert> = { ...botRow };
+    botConfigPatch.attackCooldown = calculateCooldown(bot.botConfig?.specialization || 'balanced');
+    if (bot.botConfig) {
+      botSet.botConfig = { ...bot.botConfig, ...botConfigPatch };
+    } else {
+      botSet.botConfig = botConfigPatch as BotConfig;
     }
-    
-    await db.collection<Player>('players').updateOne(
-      { username: target.username },
-      { $set: targetUpdates }
-    );
+    await db.update(players).set(botSet).where(eq(players.username, bot.username));
+    await db.update(players).set(targetRow).where(eq(players.username, target.username));
     
     // Create combat log entry
     const combatLog = {
@@ -401,7 +402,6 @@ export async function runBotAttackCycle(): Promise<{
   playerVictories: number;
   errors: string[];
 }> {
-  const db = await connectToDatabase();
   const errors: string[] = [];
   let processed = 0;
   let attacks = 0;
@@ -410,10 +410,12 @@ export async function runBotAttackCycle(): Promise<{
   
   try {
     // Get all bots and players
-    const [bots, players] = await Promise.all([
-      db.collection<Player>('players').find({ isBot: true }).toArray(),
-      db.collection<Player>('players').find({ isBot: { $ne: true } }).toArray(),
+    const [botRows, playerRows] = await Promise.all([
+      db.select().from(players).where(eq(players.isBot, 1)),
+      db.select().from(players).where(ne(players.isBot, 1)),
     ]);
+    const bots = botRows.map(mapRowToPlayer);
+    const playersList = playerRows.map(mapRowToPlayer);
     
     console.log(`[Bot Attacks] Processing ${bots.length} bots...`);
     
@@ -432,7 +434,7 @@ export async function runBotAttackCycle(): Promise<{
         }
         
         // Select target
-        const target = await selectTarget(bot, players);
+        const target = await selectTarget(bot, playersList);
         if (!target) {
           continue;
         }
@@ -494,8 +496,6 @@ export interface BotAttackHistoryEntry {
 }
 
 export async function getBotAttackHistory(username: string, _limit: number = 10): Promise<BotAttackHistoryEntry[]> {
-  const _db = await connectToDatabase();
-  
   try {
     // This would require a combat_log collection in production
     // For now, return empty array (implement when combat log collection is created)
