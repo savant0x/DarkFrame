@@ -9,8 +9,10 @@
  * Tier 1 is always unlocked by default.
  */
 
-import { getCollection } from './mongodb';
-import { Player, UnitTier, TIER_UNLOCK_REQUIREMENTS } from '@/types';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { and, eq, gte, not, sql } from 'drizzle-orm';
+import { UnitTier, TIER_UNLOCK_REQUIREMENTS } from '@/types';
 
 /**
  * Check if player can unlock a specific tier
@@ -23,10 +25,13 @@ export async function canUnlockTier(
   playerId: string,
   tier: UnitTier
 ): Promise<{ canUnlock: boolean; reason?: string; requirements?: { level: number; rp: number } }> {
-  const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  const [row] = await db
+    .select({ level: players.level, researchPoints: players.researchPoints, unlockedTiers: players.unlockedTiers })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
 
-  if (!player) {
+  if (!row) {
     return { canUnlock: false, reason: 'Player not found' };
   }
 
@@ -38,24 +43,24 @@ export async function canUnlockTier(
   const requirements = TIER_UNLOCK_REQUIREMENTS[tier];
 
   // Check if already unlocked
-  if (player.unlockedTiers?.includes(tier)) {
+  if ((row.unlockedTiers ?? []).includes(tier)) {
     return { canUnlock: false, reason: 'Tier already unlocked' };
   }
 
   // Check level requirement
-  if (player.level < requirements.level) {
+  if (row.level < requirements.level) {
     return {
       canUnlock: false,
-      reason: `Requires level ${requirements.level} (current: ${player.level})`,
+      reason: `Requires level ${requirements.level} (current: ${row.level})`,
       requirements
     };
   }
 
   // Check RP requirement
-  if (player.researchPoints < requirements.rp) {
+  if (row.researchPoints < requirements.rp) {
     return {
       canUnlock: false,
-      reason: `Requires ${requirements.rp} RP (current: ${player.researchPoints})`,
+      reason: `Requires ${requirements.rp} RP (current: ${row.researchPoints})`,
       requirements
     };
   }
@@ -92,45 +97,52 @@ export async function unlockTier(
   }
 
   const requirements = TIER_UNLOCK_REQUIREMENTS[tier];
-  const playersCollection = await getCollection<Player>('players');
 
-  // Perform atomic update: deduct RP and add tier to unlocked list
-  const updateResult = await playersCollection.findOneAndUpdate(
-    {
-      username: playerId,
-      researchPoints: { $gte: requirements.rp } // Double-check RP availability
-    },
-    {
-      $inc: { researchPoints: -requirements.rp },
-      $addToSet: { unlockedTiers: tier },
-      $push: {
-        rpHistory: {
-          amount: -requirements.rp,
-          reason: `Unlocked Tier ${tier} units`,
-          timestamp: new Date(),
-          balance: 0 // Will be set in post-processing
-        }
-      }
-    },
-    { returnDocument: 'after' }
-  );
+  // Perform atomic update: deduct RP, add tier to unlocked list (set-safe via
+  // distinct agg — the $addToSet equivalent), and push the history entry. The
+  // WHERE re-checks RP availability AND tier absence so concurrent unlocks
+  // cannot double-spend or double-insert (the findOneAndUpdate guard).
+  const historyEntry = {
+    amount: -requirements.rp,
+    reason: `Unlocked Tier ${tier} units`,
+    timestamp: new Date(),
+    balance: 0 // Will be set in post-processing
+  };
+  const updateResult = await db
+    .update(players)
+    .set({
+      researchPoints: sql`${players.researchPoints} - ${requirements.rp}`,
+      unlockedTiers: sql`(select jsonb_agg(distinct e) from jsonb_array_elements(${players.unlockedTiers} || ${JSON.stringify([tier])}::jsonb) e)`,
+      rpHistory: sql`coalesce(${players.rpHistory}, '[]'::jsonb) || ${JSON.stringify([historyEntry])}::jsonb`,
+    })
+    .where(and(
+      eq(players.username, playerId),
+      gte(players.researchPoints, requirements.rp),
+      not(sql`${players.unlockedTiers} @> ${JSON.stringify([tier])}::jsonb`)
+    ))
+    .returning({
+      researchPoints: players.researchPoints,
+      unlockedTiers: players.unlockedTiers,
+      rpHistory: players.rpHistory,
+    });
 
-  if (!updateResult) {
+  if (updateResult.length === 0) {
     return {
       success: false,
       message: 'Failed to unlock tier (insufficient RP or already unlocked)'
     };
   }
+  const post = updateResult[0];
 
   // Update the balance in the most recent RP history entry
-  if (updateResult.rpHistory && updateResult.rpHistory.length > 0) {
-    const lastEntry = updateResult.rpHistory[updateResult.rpHistory.length - 1];
-    lastEntry.balance = updateResult.researchPoints;
+  if (post.rpHistory && post.rpHistory.length > 0) {
+    const lastEntry = post.rpHistory[post.rpHistory.length - 1];
+    lastEntry.balance = post.researchPoints;
 
-    await playersCollection.updateOne(
-      { username: playerId },
-      { $set: { rpHistory: updateResult.rpHistory } }
-    );
+    await db
+      .update(players)
+      .set({ rpHistory: post.rpHistory })
+      .where(eq(players.username, playerId));
   }
 
   return {
@@ -138,8 +150,8 @@ export async function unlockTier(
     message: `Tier ${tier} unlocked! You can now build advanced units.`,
     tierUnlocked: tier,
     rpSpent: requirements.rp,
-    rpRemaining: updateResult.researchPoints,
-    unlockedTiers: updateResult.unlockedTiers || [UnitTier.Tier1]
+    rpRemaining: post.researchPoints,
+    unlockedTiers: post.unlockedTiers || [UnitTier.Tier1]
   };
 }
 
@@ -161,14 +173,17 @@ export async function getTierUnlockStatus(playerId: string): Promise<{
     reason?: string;
   }>;
 }> {
-  const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  const [row] = await db
+    .select({ level: players.level, researchPoints: players.researchPoints, unlockedTiers: players.unlockedTiers })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
 
-  if (!player) {
+  if (!row) {
     throw new Error('Player not found');
   }
 
-  const unlockedTiers = player.unlockedTiers || [UnitTier.Tier1];
+  const unlockedTiers = row.unlockedTiers || [UnitTier.Tier1];
 
   // Check status for all tiers
   const availableTiers = await Promise.all(
@@ -190,8 +205,8 @@ export async function getTierUnlockStatus(playerId: string): Promise<{
   );
 
   return {
-    playerLevel: player.level,
-    currentRP: player.researchPoints,
+    playerLevel: row.level,
+    currentRP: row.researchPoints,
     unlockedTiers,
     availableTiers
   };
@@ -204,17 +219,20 @@ export async function getTierUnlockStatus(playerId: string): Promise<{
  * @returns Array of available unit configurations
  */
 export async function getPlayerAvailableUnits(playerId: string) {
-  const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  const [row] = await db
+    .select({ level: players.level, unlockedTiers: players.unlockedTiers })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
 
-  if (!player) {
+  if (!row) {
     throw new Error('Player not found');
   }
 
   const { getAvailableUnits } = await import('@/types');
-  const unlockedTiers = player.unlockedTiers || [UnitTier.Tier1];
+  const unlockedTiers = row.unlockedTiers || [UnitTier.Tier1];
 
-  return getAvailableUnits(player.level, unlockedTiers);
+  return getAvailableUnits(row.level, unlockedTiers);
 }
 
 // ============================================================
