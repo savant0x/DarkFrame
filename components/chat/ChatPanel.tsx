@@ -92,6 +92,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ChannelType } from '@/lib/channelService';
+import type { ChatVeteranNotificationPayload } from '@/types/websocket';
 import { DirectMessage, ConversationPreview, DMMessageStatus } from '@/types/directMessage';
 
 /** Extract a user-facing message from an unknown thrown value (bare catches;
@@ -549,6 +550,17 @@ export default function ChatPanel({
       chatSocket.on('chat:message_deleted', onMessageDeleted as never);
       unsubscribers.push(() => chatSocket.off('chat:message_deleted', onMessageDeleted as never));
 
+      // veteran help requests (FID-20260919-005) - the ask path finally delivers.
+      const onVeteranNotification = (p: ChatVeteranNotificationPayload) => {
+        if (!p?.requesterUsername || !p?.question) return;
+        toast('Help request', {
+          description: `${p.requesterUsername} (Lv ${p.requesterLevel}) asks: ${p.question}`,
+          duration: 30000,
+        });
+      };
+      chatSocket.on('chat:veteran_notification', onVeteranNotification as never);
+      unsubscribers.push(() => chatSocket.off('chat:veteran_notification', onVeteranNotification as never));
+
       return () => {
         unsubscribers.forEach((off) => off());
       };
@@ -927,8 +939,14 @@ export default function ChatPanel({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: askVeteransModal.question.trim() }),
     })
-      .then((res) => res.json())
-      .then((data) => {
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        // FID-20260919-005: honesty gate - a non-ok response (403 level cap,
+        // 429 cooldown) must surface the server's message, never success.
+        if (!res.ok || !data?.success) {
+          toast.error(data?.error ?? 'Failed to send question');
+          return;
+        }
         toast.success(`Notified ${data.notifiedCount} veteran players (Level ${VETERAN_MIN_LEVEL}+)`);
         setAskVeteransModal({ isOpen: false, question: '' });
       })

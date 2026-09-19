@@ -34,8 +34,8 @@ import {
   type SendMessageRequest,
   type ChatMessage,
   sendVeteranNotification,
-  isVeteran,
 } from '@/lib/chatService';
+import { broadcastVeteranRequest } from '@/lib/veteranBroadcast';
 import {
   ChannelType,
 
@@ -504,26 +504,15 @@ export async function handleAskVeterans(
       question.trim()
     );
 
-    // Get all connected sockets
-    const sockets = await io.fetchSockets();
-    
-    let notifiedCount = 0;
-
-    // Broadcast to veteran players (level 50+)
-    for (const targetSocket of sockets) {
-      const targetUser = targetSocket.data.user as AuthenticatedUser | undefined;
-      
-      if (targetUser && isVeteran(targetUser.level || 1)) {
-        targetSocket.emit('chat:veteran_notification', {
-          playerId: user.username,
-          playerUsername: user.username,
-          playerLevel: user.level || 1,
-          question: question.trim(),
-          timestamp: notification.timestamp,
-        });
-        notifiedCount++;
-      }
-    }
+    // FID-20260919-005: shared seam with the HTTP route (one payload shape,
+    // one veteran filter). This handler remains for direct socket clients.
+    const notifiedCount = await broadcastVeteranRequest(io, {
+      playerId: user.username,
+      playerUsername: user.username,
+      playerLevel: user.level || 1,
+      question: question.trim(),
+      timestamp: notification.timestamp,
+    });
 
     console.log(`[ChatHandlers] Ask Veterans: "${question}" (${notifiedCount} veterans notified)`);
 

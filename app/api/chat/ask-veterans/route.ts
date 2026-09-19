@@ -21,6 +21,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/authMiddleware';
 import { createRateLimiter } from '@/lib/redis';
 import { sendVeteranNotification } from '@/lib/chatService';
+import { broadcastVeteranRequest } from '@/lib/veteranBroadcast';
+import { getIO } from '@/lib/websocket/server';
 
 
 // ============================================================================
@@ -199,15 +201,28 @@ export async function POST(request: NextRequest) {
     // Rate limit is automatically recorded by veteranRequestLimiter.check()
     // No need to manually record the request
 
-    // TODO: Actual WebSocket broadcasting happens in Task 3
-    // For now, we just create the notification object
-    // WebSocket handler will broadcast to online veterans
+    // FID-20260919-005: this route used to end here — the notification object
+    // was built and returned, nothing broadcast (the "Task 3" TODO below was
+    // never done), and the client toast read a notifiedCount this response never
+    // carried. Broadcast through the shared seam via the globalThis io bridge.
+    const io = getIO();
+    let notifiedCount = 0;
+    if (io) {
+      notifiedCount = await broadcastVeteranRequest(io, {
+        playerId: username, // playerId is the username by design (JWT carries no userId claim)
+        playerUsername: username,
+        playerLevel,
+        question: trimmedQuestion,
+        timestamp: notification.timestamp,
+      });
+    }
 
     return NextResponse.json(
       {
         success: true,
         message: 'Help request sent to veteran players',
         notification,
+        notifiedCount,
         cooldownSeconds: 5 * 60, // 5 minutes
       },
       { status: 200 }
