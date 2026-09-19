@@ -29,8 +29,9 @@
  * Player.lastStreakReward: Date | undefined - Last time streak reward claimed
  */
 
-import { getCollection } from './mongodb';
-import { Player } from '@/types';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { eq } from 'drizzle-orm';
 import { awardRP } from './researchPointService';
 
 // ============================================================================
@@ -112,10 +113,11 @@ export function calculateStreakBonus(streakDays: number): number {
  */
 export async function checkDailyLogin(username: string): Promise<DailyLoginResult> {
   try {
-    const playersCollection = await getCollection<Player>('players');
-    
     // Get player data
-    const player = await playersCollection.findOne({ username });
+    const [row] = await db.select().from(players).where(eq(players.username, username)).limit(1);
+    const player = row
+      ? { lastLoginDate: row.lastLoginDate, lastStreakReward: row.lastStreakReward, loginStreak: row.loginStreak }
+      : null;
     
     if (!player) {
       return {
@@ -198,16 +200,10 @@ export async function checkDailyLogin(username: string): Promise<DailyLoginResul
     }
 
     // Update player's login tracking
-    await playersCollection.updateOne(
-      { username },
-      {
-        $set: {
-          lastLoginDate: now,
-          lastStreakReward: now,
-          loginStreak: newStreak
-        }
-      }
-    );
+    await db
+      .update(players)
+      .set({ lastLoginDate: now, lastStreakReward: now, loginStreak: newStreak })
+      .where(eq(players.username, username));
 
     console.log(`🎁 Daily login! ${username} claimed ${result.rpAwarded} RP (streak: ${newStreak} days, VIP: ${result.vipBonusApplied})`);
 
@@ -248,11 +244,13 @@ export async function checkDailyLogin(username: string): Promise<DailyLoginResul
  */
 export async function getLoginStatus(username: string): Promise<LoginStatus> {
   try {
-    const playersCollection = await getCollection<Player>('players');
+    const [row] = await db
+      .select({ lastLoginDate: players.lastLoginDate, lastStreakReward: players.lastStreakReward, loginStreak: players.loginStreak })
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1);
     
-    const player = await playersCollection.findOne({ username });
-    
-    if (!player) {
+    if (!row) {
       return {
         lastLogin: null,
         currentStreak: 0,
@@ -262,6 +260,8 @@ export async function getLoginStatus(username: string): Promise<LoginStatus> {
         streakAtRisk: false
       };
     }
+    
+    const player = { lastLoginDate: row.lastLoginDate, lastStreakReward: row.lastStreakReward, loginStreak: row.loginStreak };
 
     const now = new Date();
     const lastLogin = player.lastLoginDate ? new Date(player.lastLoginDate) : null;
@@ -318,16 +318,10 @@ export async function getLoginStatus(username: string): Promise<LoginStatus> {
  */
 export async function updateLastLogin(username: string): Promise<boolean> {
   try {
-    const playersCollection = await getCollection<Player>('players');
-    
-    await playersCollection.updateOne(
-      { username },
-      {
-        $set: {
-          lastLoginDate: new Date()
-        }
-      }
-    );
+    await db
+      .update(players)
+      .set({ lastLoginDate: new Date() })
+      .where(eq(players.username, username));
 
     return true;
 
@@ -346,16 +340,10 @@ export async function updateLastLogin(username: string): Promise<boolean> {
  */
 export async function resetLoginStreak(username: string): Promise<boolean> {
   try {
-    const playersCollection = await getCollection<Player>('players');
-    
-    await playersCollection.updateOne(
-      { username },
-      {
-        $set: {
-          loginStreak: 0
-        }
-      }
-    );
+    await db
+      .update(players)
+      .set({ loginStreak: 0 })
+      .where(eq(players.username, username));
 
     console.log(`🔄 Login streak reset for ${username}`);
     return true;
