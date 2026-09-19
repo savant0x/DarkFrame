@@ -95,3 +95,10 @@ already be that destination; a rewire, not a build, if pursued.
 Stripe VIP grant path fixed (0.0.9); Mongo era deleted outright (0.0.13); every
 technical-debt track closed; chat + DM real-time live (0.0.15/0.0.17); auction
 economy honest (0.0.14); dead UI archived (0.0.16); balance UI confirmed present.
+
+## SUPERSEDED 2026-09-19 (later session): refresh 2
+
+The items this board ranked were shipped (ask-veterans 0.0.18, chat profile nav
+0.0.19, factory Manage 0.0.20, item links + auction name search 0.0.21, deep-link
+open repair). The live board now lives in `PRODUCT-SURVEY-REFRESH-2-2026-09-19.md`
+(RP checkout, items-table design, doc-rot hygiene, notifications disposition).
