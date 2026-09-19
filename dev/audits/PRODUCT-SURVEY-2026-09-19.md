@@ -39,14 +39,15 @@ ChatPanel's own backlog (:2204-2211) documents unstarted subscriptions:
 shrank from session-052's "MessageThread TODOs" to client-only wiring. The
 largest remaining player-experience gap per unit of effort.
 
-## P1 — Live mechanic invisible: STR/DEF balance effects
+## P1 — RESOLVED 2026-09-19: balance UI already exists (premise disprobed)
 
-`balanceService` is load-bearing (battleService, combatPowerService,
-rankingService, harvestEstimate all consume balance effects) but
-`BalanceIndicator.tsx` — the only UI showing players their STR/DEF distribution
-and its combat consequences — is mounted nowhere. Players experience a mechanic
-they cannot see. Small mount (StatsPanel experience region) or explicit
-delete-the-UI decision.
+The "BalanceIndicator mounted nowhere" claim failed grounding twice over: the
+mechanic's UI lives inside `StatsPanel` (STR/DEF meters, Balance status row with
+power multiplier, Dealt/Taken combat multipliers, and the actionable
+recommendation caution) and the leaderboard (Effective Power + balance status).
+Full evidence and disposition: `BALANCE-UI-DISPOSITION-2026-09-19.md`. The
+archived component stays archived; no mount, no build.
+
 
 ## P2 — Small honesty/polish stubs (chat TODO census, 20 sites)
 
