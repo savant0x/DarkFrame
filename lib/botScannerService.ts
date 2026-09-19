@@ -20,7 +20,7 @@
  * - Tier 2 (ADVANCED_TRACKING): Enhanced scanner (100 tiles, 30-min cooldown, movement history)
  * 
  * DEPENDENCIES:
- * - lib/mongodb.ts: Database access
+ * - lib/db/connection: PostgreSQL (drizzle) database access
  * - lib/botNestService.ts: Nest location data
  * - types/game.types.ts: Player types
  */

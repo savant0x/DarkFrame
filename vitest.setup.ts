@@ -1,14 +1,15 @@
 /**
  * Vitest Setup File
  * Created: 2025-10-23
+ * Updated: 2026-09-19 (shim-exit commit 3: in-memory MongoDB block removed —
+ * the Mongo stack is deleted; see lib/mongodb.ts removal)
  * 
  * OVERVIEW:
  * Configures test environment with @testing-library/jest-dom matchers.
- * MongoDB memory server setup is optional and only used for integration tests.
  */
 
 import '@testing-library/jest-dom';
-import { vi, afterAll } from 'vitest';
+import { vi } from 'vitest';
 // FID-20260913-001: NO node-builtin import may live in this file. Under the
 // jsdom environment, vite's browser-compat layer externalizes node builtins to
 // the stub id "__vite-browser-external"; vitest 4.1.2's toBuiltin() reverse-maps
@@ -56,34 +57,8 @@ Object.assign(globalThis, {
 // dead weight on this toolchain, while its 'util' import killed every jsdom
 // suite at collection (see the FID note above).
 
-// In-memory MongoDB is OPT-IN (TEST_MONGO_MEMORY=1).
-// The runtime DB is the compat layer over drizzle (DATABASE_URL) — nothing in the
-// test tree consumes MONGODB_URI, and booting one mongod per vitest worker per run
-// (5+ instances observed) cost real memory for zero coverage (heap-OOM contributor).
-// Set TEST_MONGO_MEMORY=1 only for legacy suites that genuinely need it.
-let __memoryMongo: unknown | null = null;
-if (process.env.TEST_MONGO_MEMORY === '1') {
-  try {
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
-    // No structural annotation: infer the real class type (a hand-rolled
-    // object-type annotation fails against the class in strict mode).
-    const memory = await MongoMemoryServer.create();
-    __memoryMongo = memory;
-    const uri = memory.getUri('darkframe-test');
-    process.env.MONGODB_URI = uri;
-    // Optionally set DB name for helpers that read it
-    if (!process.env.MONGODB_DB) process.env.MONGODB_DB = 'darkframe-test';
-    console.log(`✅ In-memory MongoDB started for tests: ${uri}`);
-  } catch (err) {
-    // Fallback to localhost only if memory server fails to start
-    if (!process.env.MONGODB_URI) {
-      process.env.MONGODB_URI = 'mongodb://127.0.0.1:27017/darkframe-test';
-    }
-    console.warn('⚠️ mongodb-memory-server failed to start, falling back to localhost:', err);
-  }
-} else {
-  console.log('ℹ️ In-memory MongoDB disabled (set TEST_MONGO_MEMORY=1 to enable)');
-}
+// In-memory MongoDB block REMOVED (2026-09-19): the Mongo shim and stack are
+// gone — nothing consumes the old Mongo env config anymore.
 // Ensure JWT secret is set for tests that generate real tokens
 if (!process.env.JWT_SECRET) process.env.JWT_SECRET = 'test-secret';
 
@@ -103,17 +78,6 @@ if (typeof window !== 'undefined') {
     })),
   });
 }
-  // Ensure the in-memory server is stopped when tests finish
-  afterAll(async () => {
-    if (__memoryMongo) {
-      try {
-        await (__memoryMongo as { stop: () => Promise<void> }).stop();
-        console.log('🧹 In-memory MongoDB stopped');
-      } catch (e) {
-        console.warn('⚠️ Failed to stop in-memory MongoDB:', e);
-      }
-    }
-  });
 
 console.log('✅ Test environment configured');
 

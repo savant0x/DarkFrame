@@ -28,7 +28,7 @@
  * Zone 6: (0-49, 100-149) | Zone 7: (50-99, 100-149)| Zone 8: (100-149, 100-149)
  * 
  * DEPENDENCIES:
- * - lib/mongodb.ts: Database access
+ * - lib/db/connection: PostgreSQL (drizzle) database access
  * - types/game.types.ts: Player, BotConfig, BotReputation types
  */
 

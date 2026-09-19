@@ -35,28 +35,30 @@ if [ "$census_status" -ne 0 ]; then
 fi
 echo "✅ pre-push: census clean ($(printf '%s' "$census_out" | head -n 1))"
 
-# ---- Gate 3: Mongo shim runtime census (FID-20260917-017 batch 4, 2026-09-19) ----
+# ---- Gate 3: Mongo eradication census (shim-exit, 2026-09-19) ----
 
-# The Mongo shim (lib/mongodb.ts) must have ZERO runtime importers under lib/
-# and app/: all data access rides drizzle/pg directly. vi.mock sites in test
-# files are exempt — they exist to keep the shim quarantined. The compat alias
-# in lib/db/connection.ts (connectToDatabase -> db) and the shim module itself
-# are excluded. Fail-closed on the enumeration: a grep failure must not
-# impersonate a pass (same defect class as the pre-commit matcher, 2026-09-16).
-echo "🔍 pre-push: Mongo shim runtime census (zero runtime importers)..."
-shim_hits="$(grep -rEl "from '[^']*mongodb'" lib app --include='*.ts' 2>&1)" || {
+# lib/mongodb.ts is DELETED. Any reference to the module or its package in
+# tracked source must fail the push — reintroduction can never land silently.
+# Scans lib/ app/ scripts/ server.ts vitest.setup.ts vitest.config.ts
+# next.config.js package.json for: shim imports (any path form), bare mongodb
+# package requires/imports, and MONGODB_URI/MONGODB_DB env consumers.
+# __tests__/ is exempt: negative-assertion pins legitimately embed the string
+# to prove source files DON'T import it. Fail-closed on the enumeration.
+echo "🔍 pre-push: Mongo eradication census (0 references outside tests)..."
+mongo_scan_dirs="lib app scripts"
+shim_hits="$(grep -rEn "from '[^']*mongodb'|from \"[^\"]*mongodb\"|require\(['\"]mongodb|['\"]mongodb['\"]|MONGODB_URI|MONGODB_DB" $mongo_scan_dirs server.ts vitest.setup.ts vitest.config.ts next.config.js package.json --include='*.ts' --include='*.js' --include='*.json' 2>&1)" || {
   echo "$shim_hits" >&2
-  echo "❌ pre-push: shim census enumeration failed (grep exit $?) — refusing the push" >&2
+  echo "❌ pre-push: mongo census enumeration failed (grep exit $?) — refusing the push" >&2
   exit 2
 }
-shim_hits="$(printf '%s' "$shim_hits" | grep -v "__tests__" | grep -v "\.test\." | grep -vE "lib/(mongodb|db/connection)\.ts" || true)"
+shim_hits="$(printf '%s' "$shim_hits" | grep -v "__tests__" | grep -v "\.test\." || true)"
 if [ -n "$shim_hits" ]; then
   echo "$shim_hits" | sed 's/^/    /' >&2
-  echo "❌ pre-push: runtime Mongo-shim importer(s) found above — route them" >&2
-  echo "   through drizzle/pg (FID-20260917-017) before pushing." >&2
+  echo "❌ pre-push: Mongo-era reference(s) found above — the shim is deleted;" >&2
+  echo "   route data access through drizzle/pg (shim-exit, 2026-09-19)." >&2
   exit 1
 fi
-echo "✅ pre-push: shim census clean (0 runtime importers)"
+echo "✅ pre-push: mongo eradication census clean"
 
 # ---- Gate 2: agent-attribution watermark scan (ported contract) ----
 
