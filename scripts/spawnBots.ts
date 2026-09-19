@@ -14,8 +14,12 @@
  * - Manual spawn: node scripts/spawnBots.ts --count 10 --zone 4
  */
 
-import {  getDatabase } from '../lib/mongodb';
+import { db } from '../lib/db/connection';
+import { players } from '../lib/db/schema';
+import { mapDomainPlayerToRow } from '../lib/playerService';
+import { and, count, eq, isNotNull, sql } from 'drizzle-orm';
 import { createBotPlayer, calculateZone } from '../lib/botService';
+import type { Player } from '../types/game.types';
 import { BOT_NESTS, getRandomPositionNearNest } from '@/lib/botNestService';
 import { shouldAttractToBeacon, incrementAttractedCount } from '@/lib/botMagnetService';
 import { getZoneSpawnPosition } from '@/lib/concentrationZoneService';
@@ -39,27 +43,25 @@ const NEST_BOT_TARGET_MAX = 20;
  * Get current bot population count
  */
 async function getBotCount(): Promise<number> {
-  const db = await getDatabase();
-  return await db.collection('players').countDocuments({ isBot: true });
+  const [row] = await db.select({ n: count() }).from(players).where(eq(players.isBot, 1));
+  return row?.n ?? 0;
 }
 
 /**
  * Get bot count by zone
  */
 async function getBotCountByZone(): Promise<Record<number, number>> {
-  const db = await getDatabase();
-  const bots = await db.collection('players').find({
-    isBot: true
-  }, {
-    projection: { 'botConfig.zone': 1 }
-  }).toArray();
-  
+  const bots = await db
+    .select({ botConfig: players.botConfig })
+    .from(players)
+    .where(eq(players.isBot, 1));
+
   const counts: Record<number, number> = {};
   for (let i = 0; i < 9; i++) {
     counts[i] = 0;
   }
   
-  bots.forEach((bot: any) => {
+  bots.forEach((bot) => {
     const zone = bot.botConfig?.zone ?? 0;
     counts[zone] = (counts[zone] || 0) + 1;
   });
@@ -71,20 +73,17 @@ async function getBotCountByZone(): Promise<Record<number, number>> {
  * Get bot count by nest
  */
 async function getBotCountByNest(): Promise<Record<number, number>> {
-  const db = await getDatabase();
-  const bots = await db.collection('players').find({
-    isBot: true,
-    'botConfig.nestAffinity': { $ne: null }
-  }, {
-    projection: { 'botConfig.nestAffinity': 1 }
-  }).toArray();
-  
+  const bots = await db
+    .select({ botConfig: players.botConfig })
+    .from(players)
+    .where(and(eq(players.isBot, 1), isNotNull(players.botConfig)));
+
   const counts: Record<number, number> = {};
   for (let i = 0; i < 8; i++) {
     counts[i] = 0;
   }
   
-  bots.forEach((bot: any) => {
+  bots.forEach((bot) => {
     const nestId = bot.botConfig?.nestAffinity;
     if (nestId !== null && nestId !== undefined) {
       counts[nestId] = (counts[nestId] || 0) + 1;
@@ -106,7 +105,6 @@ async function spawnBots(
   targetZone?: number,
   nestAffinity?: number
 ): Promise<void> {
-  const db = await getDatabase();
   const currentCount = await getBotCount();
   
   if (currentCount >= BOT_CAP) {
@@ -167,7 +165,7 @@ async function spawnBots(
       }
     }
     
-    const bot = await createBotPlayer(zone, null, Math.random() < 0.07); // 7% Beer Bases
+    const bot = (await createBotPlayer(zone, null, Math.random() < 0.07)) as Partial<Player> & { username: string }; // 7% Beer Bases
     
     // Set position from concentration zone or nest
     if (position) {
@@ -208,7 +206,9 @@ async function spawnBots(
   }
   
   if (botsToInsert.length > 0) {
-    await db.collection('players').insertMany(botsToInsert);
+    for (const bot of botsToInsert) {
+      await db.insert(players).values(mapDomainPlayerToRow(bot));
+    }
     console.log(`✅ Successfully spawned ${botsToInsert.length} bots`);
     
     // Log distribution
