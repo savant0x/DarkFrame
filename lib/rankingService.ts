@@ -1,15 +1,16 @@
 /**
  * Ranking Service
  * Created: 2025-10-17
- * 
+ * Rewritten: 2026-09-19 (FID-20260917-017 slice 5: Mongo shim → direct drizzle/pg)
+ *
  * OVERVIEW:
  * Core service for player ranking calculations based on effective power.
  * Effective power considers total military strength (STR + DEF) adjusted
  * by army balance multiplier. Rankings are sorted descending by effective power.
- * 
+ *
  * RANKING FORMULA:
  * effectivePower = (totalStrength + totalDefense) × balanceMultiplier
- * 
+ *
  * BALANCE MULTIPLIERS (effective bands — the ratio is min/max so it never
  * exceeds 1; band resolution lives in balanceService.getBalanceEffects,
  * the table below is a mirror, pinned by __tests__/lib/headerTruthPins.test.ts):
@@ -17,17 +18,19 @@
  * - Imbalanced (0.7-0.85): 0.8x
  * - Balanced (0.85-0.95): 1.0x
  * - Optimal (0.95-1.0): 1.1x
- * 
+ *
  * KEY FEATURES:
- * - Efficient MongoDB aggregation pipeline for top N rankings
+ * - Efficient drizzle/pg queries for top N rankings (factory counts via one
+ *   grouped COUNT — the former per-collection aggregate shim call)
  * - Player rank lookup by username
  * - Total player count for context
  * - Handles ties with consistent ordering
  */
 
-import { connectToDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { players, factories } from '@/lib/db/schema';
+import { count, eq, ne, inArray, and } from 'drizzle-orm';
 import { calculateBalanceEffects } from '@/lib/balanceService';
-import { Player, Factory } from '@/types/game.types';
 
 /**
  * Ranked player data for leaderboard display
@@ -56,30 +59,122 @@ export interface RankedBeerBase {
 }
 
 /**
+ * Leaderboard response with rankings and metadata
+ */
+export interface LeaderboardData {
+  leaderboard: RankedPlayer[];
+  currentPlayerRank: number | null;
+  totalPlayers: number;
+  lastUpdated: Date;
+}
+
+/**
+ * Calculate effective power for a player
+ *
+ * @param player - Player object with STR/DEF data
+ * @returns Effective power after balance adjustment
+ *
+ * @example
+ * const power = calculateEffectivePower({
+ *   totalStrength: 4000,
+ *   totalDefense: 5000
+ * });
+ * // Returns: 7200 (9000 × 0.8 for imbalanced army, ratio 0.8)
+ */
+export function calculateEffectivePower(player: {
+  totalStrength: number;
+  totalDefense: number;
+}): number {
+  const totalPower = player.totalStrength + player.totalDefense;
+
+  // If no units, power is 0
+  if (totalPower === 0) {
+    return 0;
+  }
+
+  // Calculate balance effects
+  const balanceEffects = calculateBalanceEffects(
+    player.totalStrength,
+    player.totalDefense
+  );
+
+  // Apply balance multiplier
+  return Math.floor(totalPower * balanceEffects.powerMultiplier);
+}
+
+/**
+ * The leaderboard ranking rows: bots are excluded (`isBot` smallint default 0 —
+ * `ne(players.isBot, 1)` matches every non-bot including legacy NULLs).
+ */
+function rankablePlayers() {
+  return db
+    .select({
+      username: players.username,
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
+      level: players.level,
+    })
+    .from(players)
+    .where(ne(players.isBot, 1));
+}
+
+/** Effective-power fields derived from a rankable row (pure, shared by all lookups). */
+function powerFields(row: {
+  totalStrength: number | null;
+  totalDefense: number | null;
+}) {
+  const totalStrength = row.totalStrength || 0;
+  const totalDefense = row.totalDefense || 0;
+  const totalPower = totalStrength + totalDefense;
+  const balanceEffects = calculateBalanceEffects(totalStrength, totalDefense);
+  const effectivePower = Math.floor(totalPower * balanceEffects.powerMultiplier);
+  return {
+    totalStrength,
+    totalDefense,
+    totalPower,
+    balanceMultiplier: balanceEffects.powerMultiplier,
+    balanceStatus: balanceEffects.status,
+    effectivePower,
+  };
+}
+
+/** Deterministic tie-break: effective power desc, then username asc. */
+function byPowerDesc(a: { effectivePower: number; username: string }, b: { effectivePower: number; username: string }): number {
+  if (b.effectivePower !== a.effectivePower) {
+    return b.effectivePower - a.effectivePower;
+  }
+  return a.username.localeCompare(b.username);
+}
+
+/** Factory counts per owner in one grouped query (pg COUNT — no aggregate shim). */
+async function factoryCountsByOwner(usernames: string[]): Promise<Map<string, number>> {
+  if (usernames.length === 0) return new Map();
+  const rows = await db
+    .select({ owner: factories.owner, count: count() })
+    .from(factories)
+    .where(inArray(factories.owner, usernames))
+    .groupBy(factories.owner);
+  return new Map(rows.map((r) => [r.owner as string, Number(r.count)]));
+}
+
+/**
  * Top Beer Bases (bots with bot_config.isSpecialBase = true), ranked by
  * raw power (STR+DEF — no balance multiplier; base garrisons are symmetric
  * by design). Shown as its own ladder on the rankings page so the world's
  * PvE targets are visible without polluting the human player ranking.
  */
 export async function getTopBeerBases(limit: number = 25): Promise<RankedBeerBase[]> {
-  const db = await connectToDatabase();
-  const playersCollection = db.collection<Player>('players');
-
-  const beerBases = await playersCollection
-    .find({
-      isBot: true,
-      isSpecialBase: true,
-    }, {
-      projection: {
-        username: 1,
-        level: 1,
-        totalStrength: 1,
-        totalDefense: 1,
-      },
+  const rows = await db
+    .select({
+      username: players.username,
+      level: players.level,
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
     })
-    .toArray();
+    .from(players)
+    .where(and(eq(players.isBot, 1), eq(players.isSpecialBase, 1)));
 
-  return beerBases
+  return rows
     .map((b) => ({
       username: b.username,
       level: b.level || 1,
@@ -94,201 +189,68 @@ export async function getTopBeerBases(limit: number = 25): Promise<RankedBeerBas
 }
 
 /**
- * Leaderboard response with rankings and metadata
- */
-export interface LeaderboardData {
-  leaderboard: RankedPlayer[];
-  currentPlayerRank: number | null;
-  totalPlayers: number;
-  lastUpdated: Date;
-}
-
-/**
- * Calculate effective power for a player
- * 
- * @param player - Player object with STR/DEF data
- * @returns Effective power after balance adjustment
- * 
- * @example
- * const power = calculateEffectivePower({
- *   totalStrength: 4000,
- *   totalDefense: 5000
- * });
- * // Returns: 7200 (9000 × 0.8 for imbalanced army, ratio 0.8)
- */
-export function calculateEffectivePower(player: {
-  totalStrength: number;
-  totalDefense: number;
-}): number {
-  const totalPower = player.totalStrength + player.totalDefense;
-  
-  // If no units, power is 0
-  if (totalPower === 0) {
-    return 0;
-  }
-  
-  // Calculate balance effects
-  const balanceEffects = calculateBalanceEffects(
-    player.totalStrength,
-    player.totalDefense
-  );
-  
-  // Apply balance multiplier
-  return Math.floor(totalPower * balanceEffects.powerMultiplier);
-}
-
-/**
  * Get top N players ranked by effective power
- * Uses MongoDB aggregation for efficient sorting and limiting
- * 
+ * Uses pg for filtering; balance math stays JS-side (single source: balanceService).
+ *
  * @param limit - Number of top players to return (default 100)
  * @returns Array of ranked players
- * 
+ *
  * @example
  * const topPlayers = await getTopPlayers(100);
  * console.log(topPlayers[0]); // #1 ranked player
  */
 export async function getTopPlayers(limit: number = 100): Promise<RankedPlayer[]> {
-  const db = await connectToDatabase();
-  const playersCollection = db.collection<Player>('players');
-  const factoriesCollection = db.collection<Factory>('factories');
-  
-  // Get all players with their unit stats (exclude bots from rankings)
-  const players = await playersCollection
-    .find({
-      isBot: { $ne: true } // Exclude bots from leaderboard
-    }, {
-      projection: {
-        username: 1,
-        totalStrength: 1,
-        totalDefense: 1,
-        level: 1
-      }
-    })
-    .toArray();
-  
+  const rows = await rankablePlayers();
+
   // Calculate effective power for each player
-  const rankedPlayers: Array<{
-    username: string;
-    effectivePower: number;
-    totalPower: number;
-    balanceMultiplier: number;
-    balanceStatus: string;
-    totalStrength: number;
-    totalDefense: number;
-    level?: number;
-  }> = [];
-  
-  for (const player of players) {
-    const totalStrength = player.totalStrength || 0;
-    const totalDefense = player.totalDefense || 0;
-    const totalPower = totalStrength + totalDefense;
-    
-    // Calculate balance effects
-    const balanceEffects = calculateBalanceEffects(totalStrength, totalDefense);
-    const effectivePower = Math.floor(totalPower * balanceEffects.powerMultiplier);
-    
-    rankedPlayers.push({
-      username: player.username,
-      effectivePower,
-      totalPower,
-      balanceMultiplier: balanceEffects.powerMultiplier,
-      balanceStatus: balanceEffects.status,
-      totalStrength,
-      totalDefense,
-      level: player.level || 1
-    });
-  }
-  
-  // Sort by effective power descending
-  rankedPlayers.sort((a, b) => {
-    // Primary sort: effective power (descending)
-    if (b.effectivePower !== a.effectivePower) {
-      return b.effectivePower - a.effectivePower;
-    }
-    // Tie-breaker: username (ascending, alphabetical)
-    return a.username.localeCompare(b.username);
-  });
-  
-  // Get factory counts for top players
-  const topPlayerUsernames = rankedPlayers.slice(0, limit).map((p) => p.username);
-  const factoryCounts = await factoriesCollection.aggregate<{ _id: string; count: number }>([
-    { $match: { owner: { $in: topPlayerUsernames } } },
-    { $group: { _id: '$owner', count: { $sum: 1 } } }
-  ]).toArray();
-  
-  const factoryCountMap = new Map<string, number>(
-    factoryCounts.map((fc) => [fc._id as string, fc.count as number])
-  );
-  
+  const rankedPlayers = rows.map((row) => ({
+    username: row.username,
+    level: row.level || 1,
+    ...powerFields(row),
+  }));
+
+  // Sort by effective power descending, username tie-break (same as before)
+  rankedPlayers.sort(byPowerDesc);
+
+  // Get factory counts for top players — one grouped COUNT
+  const topRows = rankedPlayers.slice(0, limit);
+  const factoryCountMap = await factoryCountsByOwner(topRows.map((p) => p.username));
+
   // Add ranks and factory counts to top N players
-  const topRanked: RankedPlayer[] = rankedPlayers
-    .slice(0, limit)
-    .map((player, index) => ({
-      rank: index + 1,
-      username: player.username,
-      effectivePower: player.effectivePower,
-      totalPower: player.totalPower,
-      balanceMultiplier: player.balanceMultiplier,
-      balanceStatus: player.balanceStatus,
-      totalStrength: player.totalStrength,
-      totalDefense: player.totalDefense,
-      factoriesOwned: (factoryCountMap.get(player.username) || 0) as number,
-      level: player.level
-    }));
-  
-  return topRanked;
+  return topRows.map((player, index) => ({
+    rank: index + 1,
+    username: player.username,
+    effectivePower: player.effectivePower,
+    totalPower: player.totalPower,
+    balanceMultiplier: player.balanceMultiplier,
+    balanceStatus: player.balanceStatus,
+    totalStrength: player.totalStrength,
+    totalDefense: player.totalDefense,
+    factoriesOwned: factoryCountMap.get(player.username) || 0,
+    level: player.level,
+  }));
 }
 
 /**
  * Get rank for a specific player by username
- * 
+ *
  * @param username - Player username to find
  * @returns Player's rank (1-based) or null if not found
- * 
+ *
  * @example
  * const rank = await getPlayerRank('JohnDoe');
  * console.log(`JohnDoe is ranked #${rank}`);
  */
 export async function getPlayerRank(username: string): Promise<number | null> {
-  const db = await connectToDatabase();
-  const playersCollection = db.collection<Player>('players');
-  
-  // Get all players with their unit stats (exclude bots)
-  const players = await playersCollection
-    .find({
-      isBot: { $ne: true } // Exclude bots from rankings
-    }, {
-      projection: {
-        username: 1,
-        totalStrength: 1,
-        totalDefense: 1
-      }
-    })
-    .toArray();
-  
-  // Calculate effective power for each player
-  const rankedPlayers = players.map((player) => {
-    const totalStrength = player.totalStrength || 0;
-    const totalDefense = player.totalDefense || 0;
-    const totalPower = totalStrength + totalDefense;
-    const balanceEffects = calculateBalanceEffects(totalStrength, totalDefense);
-    const effectivePower = Math.floor(totalPower * balanceEffects.powerMultiplier);
-    
-    return {
-      username: player.username,
-      effectivePower
-    };
-  });
-  
-  // Sort by effective power descending
-  rankedPlayers.sort((a, b) => {
-    if (b.effectivePower !== a.effectivePower) {
-      return b.effectivePower - a.effectivePower;
-    }
-    return a.username.localeCompare(b.username);
-  });
-  
+  const rows = await rankablePlayers();
+
+  const rankedPlayers = rows.map((row) => ({
+    username: row.username,
+    ...powerFields(row),
+  }));
+
+  rankedPlayers.sort(byPowerDesc);
+
   // Find player's rank
   const rank = rankedPlayers.findIndex((p) => p.username === username);
   return rank === -1 ? null : rank + 1;
@@ -297,10 +259,10 @@ export async function getPlayerRank(username: string): Promise<number | null> {
 /**
  * Get player's rank data including surrounding players
  * Useful for showing "You are #42 out of 1,523 players"
- * 
+ *
  * @param username - Player username
  * @returns Player rank data with context
- * 
+ *
  * @example
  * const data = await getPlayerRankData('JohnDoe');
  * console.log(`Rank: ${data.rank} / ${data.totalPlayers}`);
@@ -312,100 +274,71 @@ export async function getPlayerRankData(username: string): Promise<{
   playerAbove?: RankedPlayer;
   playerBelow?: RankedPlayer;
 } | null> {
-  const db = await connectToDatabase();
-  const playersCollection = db.collection<Player>('players');
-  const factoriesCollection = db.collection<Factory>('factories');
-  
-  // Get player data
-  const player = await playersCollection.findOne({ username });
-  if (!player) return null;
-  
-  // Get all players for ranking (exclude bots)
-  const allPlayers = await playersCollection
-    .find({
-      isBot: { $ne: true } // Exclude bots from rankings
-    }, {
-      projection: {
-        username: 1,
-        totalStrength: 1,
-        totalDefense: 1,
-        level: 1
-      }
-    })
-    .toArray();
-  
-  // Calculate effective power for all players
-  const rankedPlayers = allPlayers.map((p) => {
-    const totalStrength = p.totalStrength || 0;
-    const totalDefense = p.totalDefense || 0;
-    const totalPower = totalStrength + totalDefense;
-    const balanceEffects = calculateBalanceEffects(totalStrength, totalDefense);
-    const effectivePower = Math.floor(totalPower * balanceEffects.powerMultiplier);
-    
-    return {
-      username: p.username,
-      effectivePower,
-      totalPower,
-      balanceMultiplier: balanceEffects.powerMultiplier,
-      balanceStatus: balanceEffects.status,
-      totalStrength,
-      totalDefense,
-      level: p.level || 1
-    };
-  });
-  
-  // Sort by effective power
-  rankedPlayers.sort((a, b) => {
-    if (b.effectivePower !== a.effectivePower) {
-      return b.effectivePower - a.effectivePower;
-    }
-    return a.username.localeCompare(b.username);
-  });
-  
+  const [playerRow] = await db
+    .select({ username: players.username })
+    .from(players)
+    .where(eq(players.username, username))
+    .limit(1);
+  if (!playerRow) return null;
+
+  const rows = await rankablePlayers();
+
+  const rankedPlayers = rows.map((row) => ({
+    username: row.username,
+    level: row.level || 1,
+    ...powerFields(row),
+  }));
+
+  rankedPlayers.sort(byPowerDesc);
+
   // Find player's rank
   const playerIndex = rankedPlayers.findIndex((p) => p.username === username);
   if (playerIndex === -1) return null;
-  
+
   const rank = playerIndex + 1;
   const currentPlayer = rankedPlayers[playerIndex];
-  
-  // Get factory count
-  const _factoryCount = await factoriesCollection.countDocuments({ owner: username });
-  
+
+  const toContext = (index: number, rankNumber: number): RankedPlayer => ({
+    rank: rankNumber,
+    username: rankedPlayers[index].username,
+    effectivePower: rankedPlayers[index].effectivePower,
+    totalPower: rankedPlayers[index].totalPower,
+    balanceMultiplier: rankedPlayers[index].balanceMultiplier,
+    balanceStatus: rankedPlayers[index].balanceStatus,
+    totalStrength: rankedPlayers[index].totalStrength,
+    totalDefense: rankedPlayers[index].totalDefense,
+    factoriesOwned: 0, // Not fetched for context players
+    level: rankedPlayers[index].level,
+  });
+
   return {
     rank,
     totalPlayers: rankedPlayers.length,
     effectivePower: currentPlayer.effectivePower,
-    playerAbove: playerIndex > 0 ? {
-      rank: playerIndex,
-      ...rankedPlayers[playerIndex - 1],
-      factoriesOwned: 0 // Not fetched for context players
-    } : undefined,
-    playerBelow: playerIndex < rankedPlayers.length - 1 ? {
-      rank: playerIndex + 2,
-      ...rankedPlayers[playerIndex + 1],
-      factoriesOwned: 0
-    } : undefined
+    playerAbove: playerIndex > 0 ? toContext(playerIndex - 1, playerIndex) : undefined,
+    playerBelow: playerIndex < rankedPlayers.length - 1 ? toContext(playerIndex + 1, rank + 1) : undefined,
   };
 }
 
 /**
  * Get total number of players
- * 
+ *
  * @returns Total player count
  */
 export async function getTotalPlayerCount(): Promise<number> {
-  const db = await connectToDatabase();
-  const playersCollection = db.collection<Player>('players');
-  return await playersCollection.countDocuments({ isBot: { $ne: true } }); // Exclude bots
+  const [row] = await db
+    .select({ count: count() })
+    .from(players)
+    .where(ne(players.isBot, 1)); // Exclude bots
+  return Number(row?.count ?? 0);
 }
 
 /**
  * Format rank for display with medal emojis
- * 
+ *
  * @param rank - Player rank (1-based)
  * @returns Formatted rank string with emoji
- * 
+ *
  * @example
  * formatRank(1); // Returns: "🥇 #1"
  * formatRank(4); // Returns: "#4"
@@ -419,22 +352,21 @@ export function formatRank(rank: number): string {
 
 /**
  * IMPLEMENTATION NOTES:
- * 
+ *
  * 1. Ranking Algorithm:
  *    - Effective power = (STR + DEF) × balance multiplier
  *    - Encourages balanced armies (penalty for imbalance)
  *    - Tie-breaker: alphabetical by username
- * 
+ *
  * 2. Performance Considerations:
- *    - Current: In-memory sorting (acceptable for <10K players)
- *    - Future: Add MongoDB aggregation pipeline for scale
+ *    - pg filtering + one grouped COUNT; balance math is pure JS
  *    - Future: Redis caching with 5-minute TTL
- * 
+ *
  * 3. Balance Integration:
  *    - Uses existing balanceService for consistency
  *    - Same multipliers as combat and gathering
  *    - Players see real combat-effective rankings
- * 
+ *
  * 4. Future Enhancements:
  *    - Multiple leaderboard categories (factories, XP, etc.)
  *    - Time-based rankings (weekly, monthly)

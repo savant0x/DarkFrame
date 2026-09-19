@@ -31,8 +31,9 @@ import {
   getTopBeerBases,
   RankedPlayer
 } from '@/lib/rankingService';
-import { connectToDatabase } from '@/lib/mongodb';
-import type { Player, Factory } from '@/types/game.types';
+import { db } from '@/lib/db';
+import { players, factories } from '@/lib/db/schema';
+import { count, eq } from 'drizzle-orm';
 import { getCacheOrFetch, getCache, setCache } from '@/lib/cacheService';
 import { LeaderboardKeys, PlayerKeys, CacheTTL } from '@/lib/cacheKeys';
 import {
@@ -57,9 +58,6 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
   const log = createRouteLogger('leaderboard-get');
   const endTimer = log.time('leaderboard-get');
   try {
-    // Verify database connection
-    await connectToDatabase();
-    
     // Extract query parameters
     const searchParams = request.nextUrl.searchParams;
     const username = searchParams.get('username');
@@ -130,20 +128,33 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         
         if (rankData && rankData.rank !== null) {
           currentPlayerRank = rankData.rank;
-          
-          // Fetch full player data for display with caching
-          await getCacheOrFetch(
+
+          // Fetch full player data for display with caching.
+          // FID-20260917-017 slice 5: the computed profile was previously
+          // DISCARDED (getCacheOrFetch result never assigned), leaving
+          // currentPlayerData null for every player ranked outside the top
+          // list — the fetch was pure waste. Assigned now.
+          currentPlayerData = await getCacheOrFetch(
             PlayerKeys.profile(username),
             async () => {
-              const db = await connectToDatabase();
-              const playersCollection = db.collection<Player>('players');
-              const factoriesCollection = db.collection<Factory>('factories');
-              
-              const player = await playersCollection.findOne({ username });
+              const [player] = await db
+                .select({
+                  username: players.username,
+                  totalStrength: players.totalStrength,
+                  totalDefense: players.totalDefense,
+                  level: players.level,
+                })
+                .from(players)
+                .where(eq(players.username, username))
+                .limit(1);
               if (!player) return null;
-              
-              const factoryCount = await factoriesCollection.countDocuments({ owner: username });
-              
+
+              const [factoryRow] = await db
+                .select({ count: count() })
+                .from(factories)
+                .where(eq(factories.owner, username));
+              const factoryCount = Number(factoryRow?.count ?? 0);
+
               const totalStrength = player.totalStrength || 0;
               const totalDefense = player.totalDefense || 0;
               

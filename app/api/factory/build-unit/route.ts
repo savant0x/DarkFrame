@@ -1,13 +1,14 @@
 /**
  * @file app/api/factory/build-unit/route.ts
  * @created 2025-10-17
+ * @rewritten 2026-09-19 (FID-20260917-017 slice 5: Mongo shim → direct drizzle/pg)
  * @overview API endpoint for building units at factories
- * 
+ *
  * OVERVIEW:
  * Allows players to build military units at factories they own. Validates resource costs,
  * applies slot regeneration, consumes factory slots, creates unit, and updates player
  * totals for STR/DEF tracking.
- * 
+ *
  * UNIT TYPES:
  * - Rifleman: 200M/100E, STR 5
  * - Scout: 150M/150E, STR 3
@@ -18,8 +19,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logFactory } from '@/lib/activityLogger';
 import { authenticateRequest } from '@/lib/authMiddleware';
-import { connectToDatabase } from '@/lib/mongodb';
-import type { Player } from '@/types/game.types';
+import { db } from '@/lib/db';
+import { factories, players } from '@/lib/db/schema';
+import { and, eq, sql } from 'drizzle-orm';
 import { UnitType, UNIT_CONFIGS, Factory } from '@/types';
 import { applySlotRegeneration, hasEnoughSlots, consumeSlots } from '@/lib/slotRegenService';
 import { getBonusStack, assertHolderMayTransact } from '@/lib/flagBonusService';
@@ -39,7 +41,7 @@ interface BuildUnitRequest {
 /**
  * POST /api/factory/build-unit
  * Build military units at a factory
- * 
+ *
  * @body factoryX - Factory X coordinate
  * @body factoryY - Factory Y coordinate
  * @body unitType - Type of unit to build (RIFLEMAN/SCOUT/BUNKER/BARRIER)
@@ -48,7 +50,7 @@ interface BuildUnitRequest {
 export const POST = withRequestLogging(async (request: NextRequest) => {
   const log = createRouteLogger('FactoryBuildUnitAPI');
   const endTimer = log.time('buildFactoryUnit');
-  
+
   try {
     // FID-20260904-005 §5.1: real session auth. The prior code read the session cookie
     // but treated the JWT STRING as the username — lookups could never succeed.
@@ -115,14 +117,14 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     const totalEnergyCost = Math.max(1, Math.ceil(unitConfig.energyCost * quantity * doctrine.energyCostMul));
     const totalSlotCost = unitConfig.slotCost * quantity;
 
-    // 5. Connect to database
-    const db = await connectToDatabase();
+    // 6. Get factory data (pg-native domain loader)
+    const factory = (await db
+      .select()
+      .from(factories)
+      .where(and(eq(factories.x, factoryX), eq(factories.y, factoryY)))
+      .limit(1)) as unknown as Factory[];
 
-    // 6. Get factory data
-    const factoriesCollection = db.collection<Factory>('factories');
-    const factory = await factoriesCollection.findOne({ x: factoryX, y: factoryY });
-
-    if (!factory) {
+    if (factory.length === 0) {
       log.warn('Factory not found', { username, factoryX, factoryY });
       return NextResponse.json(
         { success: false, message: 'Factory not found at specified coordinates' },
@@ -131,8 +133,8 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     }
 
     // 7. Verify ownership
-    if (factory.owner !== username) {
-      log.warn('Factory ownership violation', { username, factoryOwner: factory.owner, factoryX, factoryY });
+    if (factory[0].owner !== username) {
+      log.warn('Factory ownership violation', { username, factoryOwner: factory[0].owner, factoryX, factoryY });
       return NextResponse.json(
         { success: false, message: 'You do not own this factory' },
         { status: 403 }
@@ -140,7 +142,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     }
 
     // 8. Apply slot regeneration
-    const regeneratedFactory = applySlotRegeneration(factory);
+    const regeneratedFactory = applySlotRegeneration(factory[0]);
     // FID-072: capacity is DERIVED from level, never the stored `slots`
     // column — that column went stale on every pre-072 upgrade (written only
     // at creation), so building enforced L1 capacity on upgraded factories
@@ -161,9 +163,18 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       );
     }
 
-    // 10. Get player data
-    const playersCollection = db.collection<Player>('players');
-    const player = await playersCollection.findOne({ username });
+    // 10. Get player data (direct pg read over the flat resource columns)
+    const [player] = await db
+      .select({
+        units: players.units,
+        resourcesMetal: players.resourcesMetal,
+        resourcesEnergy: players.resourcesEnergy,
+        totalStrength: players.totalStrength,
+        totalDefense: players.totalDefense,
+      })
+      .from(players)
+      .where(eq(players.username, username))
+      .limit(1);
 
     if (!player) {
       log.warn('Player not found for factory build', { username });
@@ -174,110 +185,87 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     }
 
     // 11. Check resource availability
-    if (player.resources.metal < totalMetalCost || player.resources.energy < totalEnergyCost) {
-      log.warn('Insufficient resources for factory build', { 
-        username, 
-        metalNeeded: totalMetalCost, 
-        metalHave: player.resources.metal,
+    if (player.resourcesMetal < totalMetalCost || player.resourcesEnergy < totalEnergyCost) {
+      log.warn('Insufficient resources for factory build', {
+        username,
+        metalNeeded: totalMetalCost,
+        metalHave: player.resourcesMetal,
         energyNeeded: totalEnergyCost,
-        energyHave: player.resources.energy
+        energyHave: player.resourcesEnergy
       });
       return NextResponse.json(
         {
           success: false,
           message: `Insufficient resources. Need ${totalMetalCost} metal and ${totalEnergyCost} energy`,
           required: { metal: totalMetalCost, energy: totalEnergyCost },
-          available: { metal: player.resources.metal, energy: player.resources.energy }
+          available: { metal: player.resourcesMetal, energy: player.resourcesEnergy }
         },
         { status: 400 }
       );
     }
 
-    // 12. Create units
-    const newUnits = [];
-    for (let i = 0; i < quantity; i++) {
-      newUnits.push({
-        id: `${username}-${Date.now()}-${i}-${Math.random().toString(36).substring(7)}`,
-        type: unitType,
-        strength: unitConfig.strength,
-        defense: unitConfig.defense,
-        producedAt: { x: factoryX, y: factoryY },
-        producedDate: new Date(),
-        owner: username
-      });
-    }
-
-    // 13. Calculate new totals
+    // 12. Calculate gains and the single new (quantity-folded) unit entry
     const strGained = unitConfig.strength * quantity;
     const defGained = unitConfig.defense * quantity;
     const newTotalStrength = (player.totalStrength || 0) + strGained;
     const newTotalDefense = (player.totalDefense || 0) + defGained;
 
-    // 14. Update player (deduct resources, add units, update totals)
-    // FID-20260909-032 §5-G: the Mongo `$push: { units: { $each } }` operand
-    // was persisted VERBATIM by the legacy seam path (one junk `{$each:[…]}`
-    // blob element instead of N units — the live corruption repaired by
-    // scripts/repair-units-each-blob.ts). The seam's normalizePushOperand now
-    // handles `$each` correctly, but this route writes through Drizzle
-    // directly so the domain shape is explicit and the safety doesn't depend
-    // on seam resolution: proper PlayerUnit entries, quantity-folded.
+    // 14. Update player (deduct resources, add units, update totals) — direct
+    // drizzle/pg. FID-20260909-032 §5-G: the Mongo `$push: { units: { $each } }`
+    // operand was persisted VERBATIM by the legacy seam path (one junk
+    // `{$each:[…]}` blob element instead of N units — the live corruption
+    // repaired by scripts/repair-units-each-blob.ts). Here the domain shape is
+    // explicit: one quantity-folded PlayerUnit entry appended via jsonb ||.
     const builtAt = new Date();
-    const newUnitEntries = [
-      {
-        id: `${username}-${builtAt.getTime()}-infantry`,
-        unitId: unitType,
-        unitType,
-        name: unitConfig.name,
-        category: (unitConfig.defense > 0 && !unitConfig.strength ? 'DEF' : 'STR') as 'STR' | 'DEF',
-        rarity: 'common' as const,
-        strength: unitConfig.strength,
-        defense: unitConfig.defense,
-        quantity,
-        createdAt: builtAt,
-        // FID-20260909-032 §H: factory provenance so per-factory production
-        // investment is reconstructible by /api/factory/list.
-        producedAt: { x: factoryX, y: factoryY },
-      },
-    ];
-    await playersCollection.updateOne(
-      { username },
-      {
-        $inc: {
-          'resources.metal': -totalMetalCost,
-          'resources.energy': -totalEnergyCost
-        },
-        // FID-20260909-032 §2-G: the units value is the PLAIN entry array.
-        // The former `{ $each: … }` operand — smuggled past the type system
-        // with a cast — was persisted verbatim by the seam as one junk blob
-        // element in `units` (see scripts/repair-units-each-blob.ts). The
-        // seam persists arrays as arrays; entries are quantity-folded above.
-        $push: {
-          units: newUnitEntries
-        },
-        $set: {
-          totalStrength: newTotalStrength,
-          totalDefense: newTotalDefense
-        }
-      }
-    );
+    const newUnitEntry = {
+      id: `${username}-${builtAt.getTime()}-infantry`,
+      unitId: unitType,
+      unitType,
+      name: unitConfig.name,
+      category: (unitConfig.defense > 0 && !unitConfig.strength ? 'DEF' : 'STR') as 'STR' | 'DEF',
+      rarity: 'common' as const,
+      strength: unitConfig.strength,
+      defense: unitConfig.defense,
+      quantity,
+      createdAt: builtAt,
+      // FID-20260909-032 §H: factory provenance so per-factory production
+      // investment is reconstructible by /api/factory/list.
+      producedAt: { x: factoryX, y: factoryY },
+    };
+
+    const playerUpdated = await db
+      .update(players)
+      .set({
+        resourcesMetal: sql`${players.resourcesMetal} - ${totalMetalCost}`,
+        resourcesEnergy: sql`${players.resourcesEnergy} - ${totalEnergyCost}`,
+        units: sql`${players.units} || ${JSON.stringify([newUnitEntry])}::jsonb`,
+        totalStrength: sql`${players.totalStrength} + ${strGained}`,
+        totalDefense: sql`${players.totalDefense} + ${defGained}`,
+      })
+      .where(eq(players.username, username))
+      .returning({ username: players.username });
+
+    if (playerUpdated.length === 0) {
+      log.error('Failed to deduct resources', new Error('Player update failed'), { username });
+      return NextResponse.json(
+        { success: false, message: 'Failed to deduct resources' },
+        { status: 500 }
+      );
+    }
 
     // 15. Update factory (consume slots, update last regen time)
     const updatedFactory = consumeSlots(regeneratedFactory, totalSlotCost);
-    await factoriesCollection.updateOne(
-      { x: factoryX, y: factoryY },
-      {
-        $set: {
-          usedSlots: updatedFactory.usedSlots,
-          lastSlotRegen: updatedFactory.lastSlotRegen
-        },
+    await db
+      .update(factories)
+      .set({
+        usedSlots: updatedFactory.usedSlots,
+        lastSlotRegen: updatedFactory.lastSlotRegen,
         // FID-20260909-032 §7: exact lifetime investment at write time —
         // SQL delta so concurrent builds compose instead of last-write-wins.
-        $inc: {
-          investedMetal: totalMetalCost,
-          investedEnergy: totalEnergyCost
-        }
-      }
-    );
+        investedMetal: sql`${factories.investedMetal} + ${totalMetalCost}`,
+        investedEnergy: sql`${factories.investedEnergy} + ${totalEnergyCost}`,
+      })
+      .where(and(eq(factories.x, factoryX), eq(factories.y, factoryY)));
 
     // 16. Track units built for achievements (+ doctrine-matching mastery XP —
     // FID-20260914-008 Phase 2). Factory units are strength-class (T1 Rifleman
@@ -291,11 +279,11 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
     // 17. Award XP for unit building (5 XP per unit)
     const xpResult = await awardXP(username, XPAction.UNIT_BUILD, quantity);
 
-    log.info('Factory units built successfully', { 
-      username, 
-      unitType, 
-      quantity, 
-      strGained, 
+    log.info('Factory units built successfully', {
+      username,
+      unitType,
+      quantity,
+      strGained,
       defGained,
       factoryLocation: { x: factoryX, y: factoryY }
     });
@@ -348,7 +336,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
       {
         success: false,
         message: 'Internal server error',
-        error: error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
@@ -362,7 +350,7 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
 // ============================================================
 /**
  * BUILD UNIT FLOW:
- * 
+ *
  * 1. Authenticate user via session cookie
  * 2. Validate request (coordinates, unit type, quantity)
  * 3. Get unit configuration (costs, STR/DEF values)
@@ -370,30 +358,15 @@ export const POST = withRequestLogging(async (request: NextRequest) => {
  * 5. Apply slot regeneration to factory
  * 6. Verify slot availability
  * 7. Load player and verify resource availability
- * 8. Create unit objects with unique IDs
- * 9. Calculate new STR/DEF totals
- * 10. Atomic database updates:
- *     - Deduct resources from player
- *     - Add units to player.units array
- *     - Update player.totalStrength and totalDefense
- *     - Consume factory slots
- *     - Update factory lastSlotRegen timestamp
- * 11. Return success with comprehensive status
- * 
+ * 8. Calculate new STR/DEF totals
+ * 9. Atomic SQL deltas: deduct resources, append the quantity-folded unit
+ *    entry (jsonb ||), bump totals; consume factory slots; $inc investment
+ * 10. Return success with comprehensive status
+ *
  * ERROR HANDLING:
  * - 401: Not authenticated
- * - 403: Not factory owner
+ * - 403: Not factory owner (or bearer-restricted flag holder)
  * - 404: Factory or player not found
  * - 400: Invalid inputs, insufficient resources/slots
  * - 500: Database or server errors
- * 
- * FUTURE ENHANCEMENTS:
- * - Build queue system
- * - Unit production time
- * - Factory level affecting production
- * - Bulk building discounts
  */
-
-// ============================================================
-// END OF FILE
-// ============================================================

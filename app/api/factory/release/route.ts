@@ -1,12 +1,13 @@
 /**
  * @file app/api/factory/release/route.ts
  * @created 2025-11-03
+ * @rewritten 2026-09-19 (FID-20260917-017 slice 5: Mongo shim → direct drizzle/pg)
  * @overview Factory release endpoint - abandon individual or batch factories
- * 
+ *
  * OVERVIEW:
  * POST endpoint to release (abandon) one or more factories owned by the player.
  * Supports individual release or batch release based on slot threshold.
- * 
+ *
  * REQUEST BODY:
  * {
  *   "mode": "single" | "batch",
@@ -14,7 +15,7 @@
  *   "factoryY"?: number,        // Required for single mode
  *   "slotThreshold"?: number    // Required for batch mode (release factories with <= this many slots)
  * }
- * 
+ *
  * RESPONSE:
  * {
  *   "success": true,
@@ -26,15 +27,28 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
-import { connectToDatabase } from '@/lib/mongodb';
-import { db as gameDb, factories } from '@/lib/db';
+import { db } from '@/lib/db';
+import { factories } from '@/lib/db/schema';
 import { and, eq, lte, sql } from 'drizzle-orm';
-import type { Factory } from '@/types/game.types';
 import { getMaxSlots } from '@/lib/factoryUpgradeService';
 import { recountPlayerFactoryCount } from '@/lib/factoryService';
 import { createLogger } from '@/lib/logger/productionLogger';
 
 const log = createLogger({ context: 'factory/release' });
+
+/** The shared neutral-reset write used by both modes. */
+function resetSet() {
+  return {
+    owner: null,
+    level: 1,
+    slots: getMaxSlots(1),
+    usedSlots: 0,
+    productionRate: '1',
+    lastSlotRegen: new Date(),
+    lastAttackedBy: null,
+    lastAttackTime: null,
+  } as const;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -75,61 +89,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const db = await connectToDatabase();
-    const factoriesCollection = db.collection<Factory>('factories');
-    
     let releasedFactories: Array<{x: number, y: number}> = [];
     let releasedCount = 0;
     let message = '';
 
     if (mode === 'single') {
-      // Single factory release
-      const factory = await factoriesCollection.findOne({ 
-        x: factoryX, 
-        y: factoryY,
-        owner: username 
-      });
+      // Single factory release — ownership enforced in the WHERE
+      const updated = await db
+        .update(factories)
+        .set({
+          ...resetSet(),
+          // FID-20260909-032 §7: the factory forgets its owner and its spend.
+          investedMetal: 0,
+          investedEnergy: 0,
+        })
+        .where(
+          and(
+            eq(factories.x, factoryX),
+            eq(factories.y, factoryY),
+            eq(factories.owner, username)
+          )
+        )
+        .returning({ x: factories.x, y: factories.y });
 
-      if (!factory) {
+      if (updated.length === 0) {
         return NextResponse.json(
           { success: false, error: 'Factory not found or not owned by you' },
           { status: 404 }
         );
       }
 
-      // Reset factory to neutral state
-      await factoriesCollection.updateOne(
-        { x: factoryX, y: factoryY },
-        {
-          $set: {
-            owner: null,
-            level: 1,
-            slots: getMaxSlots(1),
-            usedSlots: 0,
-            productionRate: 1,
-            lastSlotRegen: new Date(),
-            lastAttackedBy: null,
-            lastAttackTime: null,
-            // FID-20260909-032 §7: the factory forgets its owner and its spend.
-            investedMetal: 0,
-            investedEnergy: 0
-          }
-        }
-      );
-
       releasedFactories.push({ x: factoryX, y: factoryY });
       releasedCount = 1;
       message = `Factory at (${factoryX}, ${factoryY}) has been released and reset to Level 1`;
-      
+
       // Maintain the denormalized ownership counter (FID-20260908-004)
       await recountPlayerFactoryCount(username);
-      
+
       log.info(`Factory released`, { username, x: factoryX, y: factoryY });
-      
     } else {
       // Batch release based on slot threshold
       const threshold = parseInt(String(slotThreshold), 10);
-      
+
       if (isNaN(threshold) || threshold < 0) {
         return NextResponse.json(
           { success: false, error: 'Invalid slotThreshold value' },
@@ -138,8 +139,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Find all owned factories with available slots <= threshold (capacity - used <= threshold).
-      // Drizzle directly: the Mongo-seam $expr form was silently unsupported (matched nothing filtered).
-      const matchingFactories = await gameDb
+      const matchingFactories = await db
         .select({ x: factories.x, y: factories.y })
         .from(factories)
         .where(
@@ -159,18 +159,9 @@ export async function POST(request: NextRequest) {
       }
 
       // Release all matching factories in one statement, same predicate as the select
-      await gameDb
+      await db
         .update(factories)
-        .set({
-          owner: null,
-          level: 1,
-          slots: getMaxSlots(1),
-          usedSlots: 0,
-          productionRate: '1',
-          lastSlotRegen: new Date(),
-          lastAttackedBy: null,
-          lastAttackTime: null,
-        })
+        .set(resetSet())
         .where(
           and(
             eq(factories.owner, username),
@@ -178,9 +169,7 @@ export async function POST(request: NextRequest) {
           )
         );
 
-      const factoryCoords = matchingFactories;
-
-      releasedFactories = factoryCoords;
+      releasedFactories = matchingFactories;
       releasedCount = matchingFactories.length;
       message = `Released ${releasedCount} ${releasedCount === 1 ? 'factory' : 'factories'} with ${threshold} or fewer slots`;
 
@@ -188,7 +177,7 @@ export async function POST(request: NextRequest) {
       if (releasedCount > 0) {
         await recountPlayerFactoryCount(username);
       }
-      
+
       log.info(`Factories batch released`, { username, releasedCount, thresholdSlots: threshold });
     }
 
@@ -214,25 +203,25 @@ export async function POST(request: NextRequest) {
 
 /**
  * IMPLEMENTATION NOTES:
- * 
+ *
  * 1. Single Mode:
- *    - Validates ownership before release
+ *    - Validates ownership before release (ownership in the WHERE)
  *    - Resets factory to Level 1 neutral state
  *    - All slots and production reset
- * 
+ *
  * 2. Batch Mode:
  *    - Finds all owned factories with slots <= threshold
  *    - Releases all matching factories in one operation
  *    - Useful for clearing low-level factories
- * 
+ *
  * 3. Reset State:
  *    - owner: null (neutral)
  *    - level: 1
- *    - slots: 20 (base slots)
+ *    - slots: base capacity
  *    - usedSlots: 0
  *    - productionRate: 1 (base rate)
  *    - All timestamps and attack data cleared
- * 
+ *
  * 4. Strategic Use:
  *    - Free up factory slots for new captures
  *    - Remove underperforming factories

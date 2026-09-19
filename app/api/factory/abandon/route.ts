@@ -1,18 +1,19 @@
 /**
  * Factory Abandon API Endpoint
  * Created: 2025-10-17
- * 
+ * Rewritten: 2026-09-19 (FID-20260917-017 slice 5: Mongo shim → direct drizzle/pg)
+ *
  * OVERVIEW:
  * POST endpoint for abandoning a player-owned factory. Resets factory to
  * unclaimed state (Level 1, no owner), allowing player to free up a factory
  * slot when at the 10-factory limit. Strategic repositioning tool.
- * 
+ *
  * REQUEST BODY:
  * {
  *   "factoryX": number,      // Factory X coordinate
  *   "factoryY": number       // Factory Y coordinate
  * }
- * 
+ *
  * RESPONSE:
  * {
  *   "success": true,
@@ -20,12 +21,12 @@
  *   "factory": Factory,      // Reset factory (Level 1, no owner)
  *   "factoriesOwned": number // Updated count of owned factories
  * }
- * 
+ *
  * VALIDATION:
  * - User must be authenticated
  * - Factory must exist at coordinates
  * - Factory must be owned by user
- * 
+ *
  * ABANDON BEHAVIOR:
  * - Owner set to null (becomes unclaimed)
  * - Level reset to 1
@@ -39,7 +40,7 @@
  * contradicts: units are a global army in players.units and carry no factory
  * stationing coordinates (0/57 players have producedAt), so there is nothing
  * per-factory to lose. Abandon costs the factory, never the army.
- * 
+ *
  * USE CASES:
  * - Player at 10-factory limit wants to claim better location
  * - Strategic withdrawal from vulnerable position
@@ -49,7 +50,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/authMiddleware';
-import { connectToDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db';
+import { factories } from '@/lib/db/schema';
+import { and, eq } from 'drizzle-orm';
 import { getFactoryStats, FACTORY_UPGRADE } from '@/lib/factoryUpgradeService';
 import { recountPlayerFactoryCount } from '@/lib/factoryService';
 import { Factory } from '@/types/game.types';
@@ -79,24 +82,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Connect to database
-    const db = await connectToDatabase();
-    const factoriesCollection = db.collection<Factory>('factories');
-    // FID-20260914-009 Phase A: no players/units handles — the "units at
-    // factory" model they served never existed in the live data (see header).
+    // Find the factory (direct pg read)
+    const factoryRows = (await db
+      .select()
+      .from(factories)
+      .where(and(eq(factories.x, factoryX), eq(factories.y, factoryY)))
+      .limit(1)) as unknown as Factory[];
 
-    // Find the factory
-    const factory = await factoriesCollection.findOne({
-      x: factoryX,
-      y: factoryY
-    });
-
-    if (!factory) {
+    if (factoryRows.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Factory not found at these coordinates' },
         { status: 404 }
       );
     }
+    const factory = factoryRows[0];
 
     // Verify ownership
     if (factory.owner !== username) {
@@ -111,28 +110,27 @@ export async function POST(request: NextRequest) {
 
     // Reset factory to unclaimed state
     const now = new Date();
-    const updateResult = await factoriesCollection.updateOne(
-      { x: factoryX, y: factoryY },
-      {
-        $set: {
-          owner: null,
-          level: FACTORY_UPGRADE.MIN_LEVEL,
-          slots: baseStats.maxSlots,
-          usedSlots: 0,
-          lastSlotRegen: now,
-          lastAttackedBy: null,
-          lastAttackTime: null,
-          // FID-20260917-004: parity with /release — reset the display-only
-          // production rate so abandoned tiles don't carry stale values.
-          productionRate: 1,
-          // FID-20260909-032 §7: the factory forgets its owner and its spend.
-          investedMetal: 0,
-          investedEnergy: 0
-        }
-      }
-    );
+    const updated = await db
+      .update(factories)
+      .set({
+        owner: null,
+        level: FACTORY_UPGRADE.MIN_LEVEL,
+        slots: baseStats.maxSlots,
+        usedSlots: 0,
+        lastSlotRegen: now,
+        lastAttackedBy: null,
+        lastAttackTime: null,
+        // FID-20260917-004: parity with /release — reset the display-only
+        // production rate so abandoned tiles don't carry stale values.
+        productionRate: '1',
+        // FID-20260909-032 §7: the factory forgets its owner and its spend.
+        investedMetal: 0,
+        investedEnergy: 0,
+      })
+      .where(and(eq(factories.x, factoryX), eq(factories.y, factoryY)))
+      .returning({ x: factories.x });
 
-    if (updateResult.modifiedCount === 0) {
+    if (updated.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Failed to abandon factory' },
         { status: 500 }
@@ -151,10 +149,11 @@ export async function POST(request: NextRequest) {
     const factoriesOwned = await recountPlayerFactoryCount(username);
 
     // Fetch the reset factory
-    const resetFactory = await factoriesCollection.findOne({
-      x: factoryX,
-      y: factoryY
-    });
+    const resetFactoryRows = (await db
+      .select()
+      .from(factories)
+      .where(and(eq(factories.x, factoryX), eq(factories.y, factoryY)))
+      .limit(1)) as unknown as Factory[];
 
     // Build response message
     const message = `Factory abandoned successfully. You now own ${factoriesOwned}/${FACTORY_UPGRADE.MAX_FACTORIES_PER_PLAYER} factories. Your units are unaffected.`;
@@ -162,7 +161,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message,
-      factory: resetFactory,
+      factory: resetFactoryRows[0],
       factoriesOwned
     });
 
@@ -181,32 +180,26 @@ export async function POST(request: NextRequest) {
 
 /**
  * IMPLEMENTATION NOTES:
- * 
+ *
  * 1. Abandon Consequences:
  *    - Factory becomes immediately claimable by anyone
  *    - All upgrade progress lost (no refund)
  *    - Player units are NOT affected (army is global in players.units —
  *      FID-20260914-009 Phase A removed the obsolete per-factory accounting)
- * 
+ *
  * 2. Strategic Considerations:
  *    - Abandoning is permanent and costly
  *    - Should only be done when repositioning is critical
  *    - High-level factories represent significant investment
  *    - UI should show confirmation dialog before abandoning
- * 
+ *
  * 3. Unit Handling (FID-20260914-009 Phase A):
  *    - Units live in players.units as a global army — no per-factory stationing
  *    - Abandoning a factory never touches the army
  *    - The old unmapped-collection accounting silently no-oped and is removed
- * 
+ *
  * 4. Factory Limit Management:
  *    - Abandoning frees a factory slot (if at 10 limit)
  *    - Response includes updated factory count
  *    - Allows strategic reallocation of factory slots
- * 
- * 5. Future Enhancements:
- *    - Could add "relocate units" option before abandoning
- *    - Could add partial refund of upgrade costs
- *    - Could add cooldown period before re-claiming
- *    - Could add "downgrade" option instead of full abandon
  */

@@ -7,7 +7,7 @@
  * OVERVIEW:
  * Provides health status of application components:
  * - API availability
- * - Database connectivity (MongoDB)
+ * - Database connectivity (PostgreSQL via drizzle)
  * - Redis connectivity and mode
  * - WebSocket server status
  * - System uptime
@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
 import {
   checkRedisHealth,
@@ -114,10 +114,9 @@ export const GET = withRequestLogging(async (_request: NextRequest) => {
     version: process.env.npm_package_version || '0.1.0'
   };
 
-  // Check database connectivity
+  // Check database connectivity (direct pg round-trip)
   try {
     const dbStartTime = performance.now();
-    const db = await getDatabase();
     await db.execute(sql`SELECT 1`);
     const dbResponseTime = Math.round(performance.now() - dbStartTime);
     

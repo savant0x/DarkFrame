@@ -1,6 +1,8 @@
 // @vitest-environment node
 /**
  * FID-20260912-077 — bearer-restriction enforcement parity.
+ *            Rebased 2026-09-19 onto the direct drizzle seams (FID-20260917-017
+ *            slice 5); the gate contract is unchanged.
  *
  * HOLDER_RESTRICTIONS lists 'build-unit', the bearer's flag panel claims unit
  * building is disabled, and /api/player/build-unit enforced it — but
@@ -9,15 +11,19 @@
  * transparent for everyone else.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { getTableName } from 'drizzle-orm';
 
-const capture: {
-  playerDoc: Record<string, unknown> | null;
-  factoryDoc: Record<string, unknown> | null;
-  playerUpdate: { filter: unknown; update: unknown } | null;
-} = { playerDoc: null, factoryDoc: null, playerUpdate: null };
+const { state, authMock, bonusStack } = vi.hoisted(() => {
+  const state = {
+    specs: [] as Array<Record<string, unknown>>,
+    responder: (_spec: Record<string, unknown>) => [] as unknown,
+  };
+  const authMock = { value: { username: 'bearer1', playerId: 'bearer1', isAdmin: false } };
+  const bonusStack = { current: { isBearer: true, restrictions: ['build-unit'] } };
+  return { state, authMock, bonusStack };
+});
 
 // The gate is the thing under test — real implementation, controlled stack.
-const bonusStack = vi.hoisted(() => ({ current: { isBearer: true, restrictions: ['build-unit'] } }));
 vi.mock('@/lib/flagBonusService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/flagBonusService')>();
   return {
@@ -27,29 +33,43 @@ vi.mock('@/lib/flagBonusService', async (importOriginal) => {
 });
 
 vi.mock('@/lib/authMiddleware', () => ({
-  authenticateRequest: vi.fn(async () => ({ username: 'bearer1', playerId: 'bearer1', isAdmin: false })),
-  verifyAuth: vi.fn(async () => ({ username: 'bearer1', playerId: 'bearer1', isAdmin: false })),
+  authenticateRequest: vi.fn(async () => authMock.value),
+  verifyAuth: vi.fn(async () => authMock.value),
 }));
 
-vi.mock('@/lib/mongodb', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/mongodb')>();
+vi.mock('@/lib/db/connection', () => {
+  const mk = (spec: Record<string, unknown>): Record<string, unknown> => {
+    state.specs.push(spec);
+    const terminal = {
+      from: (t: unknown) => { spec.from = t; return terminal; },
+      where: (c: unknown) => { spec.where = c; return terminal; },
+      limit: (n: number) => { spec.limit = n; return terminal; },
+      offset: (n: number) => { spec.offset = n; return terminal; },
+      values: (v: unknown) => { spec.values = v; return terminal; },
+      set: (v: unknown) => { spec.set = v; return terminal; },
+      returning: () => { spec.returning = true; return terminal; },
+      then: (onF?: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
+        Promise.resolve(state.responder(spec)).then(onF, onR),
+    };
+    return terminal;
+  };
   return {
-    ...actual,
-    connectToDatabase: async () => ({
-      collection: (name: string) => ({
-        findOne: async () => (name === 'players' ? capture.playerDoc : capture.factoryDoc),
-        updateOne: async (filter: unknown, update: unknown) => {
-          if (name === 'players') capture.playerUpdate = { filter, update };
-          return { modifiedCount: 1 };
-        },
-      }),
-    }),
+    db: {
+      insert: (t: unknown) => mk({ op: 'insert', table: t }),
+      update: (t: unknown) => mk({ op: 'update', table: t }),
+      delete: (t: unknown) => mk({ op: 'delete', table: t }),
+      select: (...fields: unknown[]) => mk({ op: 'select', fields }),
+      execute: async () => ({ rows: [] }),
+    },
   };
 });
 
 vi.mock('@/lib/activityLogger', () => ({ logFactory: vi.fn(async () => undefined) }));
 vi.mock('@/lib/xpService', () => ({ awardXP: vi.fn(async () => ({ xpAwarded: 5, levelUp: false, newLevel: 16 })), XPAction: { UNIT_BUILD: 'UNIT_BUILD' } }));
 vi.mock('@/lib/statTrackingService', () => ({ trackUnitBuilt: vi.fn(async () => undefined) }));
+vi.mock('@/lib/specializationService', () => ({
+  getPlayerDoctrineBonuses: vi.fn(async () => ({ metalCostMul: 1, energyCostMul: 1 })),
+}));
 
 import { POST as buildUnit } from '@/app/api/factory/build-unit/route';
 import { HOLDER_RESTRICTIONS } from '@/lib/flagBonusService';
@@ -57,6 +77,11 @@ import { UnitType } from '@/types/game.types';
 import { NextRequest } from 'next/server';
 
 const routeCtx = { params: Promise.resolve({}) };
+
+function tableOf(spec: Record<string, unknown> | undefined): string {
+  const t = (spec?.table ?? spec?.from) as { $inferInsert?: unknown } | undefined;
+  return getTableName((t ?? {}) as never);
+}
 
 function request() {
   // Route reads a sessionId cookie for telemetry — include one.
@@ -69,9 +94,18 @@ function request() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  capture.playerDoc = { username: 'bearer1', resources: { metal: 100000, energy: 100000 } };
-  capture.factoryDoc = { x: 12, y: 8, owner: 'bearer1', level: 1, usedSlots: 0, slots: 5000, lastSlotRegen: new Date() };
-  capture.playerUpdate = null;
+  state.specs = [];
+  state.responder = (spec) => {
+    if (spec.op !== 'select') return spec.op === 'update' ? [{ id: 1 }] : [];
+    const t = tableOf(spec);
+    if (t === 'players') {
+      return [{ units: [], resourcesMetal: 100000, resourcesEnergy: 100000, totalStrength: 0, totalDefense: 0 }];
+    }
+    if (t === 'factories') {
+      return [{ x: 12, y: 8, owner: 'bearer1', defense: 1000, level: 1, slots: 5000, usedSlots: 0, productionRate: '0', lastSlotRegen: new Date(), investedMetal: 0, investedEnergy: 0 }];
+    }
+    return [];
+  };
   bonusStack.current = { isBearer: true, restrictions: ['build-unit'] };
 });
 
@@ -82,7 +116,9 @@ describe('factory build-unit bearer gate (FID-20260912-077)', () => {
     const body = await res.json();
     expect(body.success).toBe(false);
     expect(body.message).toContain('Flag Bearer');
-    expect(capture.playerUpdate).toBeNull(); // gate fires before the write path
+    // gate fires before the write path AND before the data reads
+    expect(state.specs.some((s) => s.op === 'update')).toBe(false);
+    expect(state.specs.some((s) => tableOf(s) === 'players')).toBe(false);
   });
 
   it('lets a non-bearer through to the build path', async () => {
