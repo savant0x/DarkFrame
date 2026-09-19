@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.24] — 2026-09-19 session
+
+### Changed — FID-20260919-011: ChatPanel docs tell the truth; the never-wired notification stack is gone (closed, commit `6f08696`)
+
+- ChatPanel's two IMPLEMENTATION NOTES blocks still advertised Task-10-era "WebSocket placeholders" and pointed at the archived ChatMessage corpse — the false-premise generator behind three stale survey findings this week. Both blocks are rewritten to shipped reality with FID pointers (live socket subscriptions, item links, edit/delete paths, server-side rate limiting where it actually lives); the single remaining honest TODO is virtual scrolling (react-window was never installed).
+- The notifications stack's survey premise was overturned on the way to disposition: the three tables (player_notifications, admin_dashboard_notifications, email_queue) were not "unwritten" — lib/wmd/admin/alertService wrote them — but the writer was unreachable (zero trigger callers anywhere, no email sender consumed the queue, no reader surfaced) and every table held 0 rows: the stack never fired once. Removed the schema definitions, re-exports, barrel line, and alertService (6f08696 deletes ~790 dead lines); migration 0035 (idempotent) drops the tables. The wmd_alerts SOURCE table stays — it has a live reader in the admin health endpoint.
+- Gates: suite 1215/1215, tsc 0, eslint clean; post-migration DB verified (only wmd_alerts remains of the four).
+
 ## [0.0.23] — 2026-09-19 session
 
 ### Added — FID-20260919-010: RP packages checkout — the shop's dead button takes real money (closed, commit `89cc34b`)
