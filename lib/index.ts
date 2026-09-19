@@ -300,7 +300,6 @@ export * from './toastService';
 export * from './cacheKeys';
 
 // Re-export cache warming utilities
-export * from './cacheWarming';
 
 // Re-export harvest messages utilities
 export * from './harvestMessages';
