@@ -53,7 +53,10 @@
  * - types/game.types.ts: Player, PlayerUnit, BotConfig types
  */
 
-import { connectToDatabase, type DocumentValue } from './mongodb';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { eq } from 'drizzle-orm';
+import { mapRowToPlayer } from './playerService';
 import { getNestById } from './botNestService';
 import { getResourceRange, getVaultCap } from './botService'; // FID-20260915-004/-006: vault-cap source of truth (no cycle: botService never imports this module)
 import type { Player, PlayerUnit, UnitType } from '@/types/game.types';
@@ -427,7 +430,6 @@ export async function runGrowthCycle(): Promise<{
   factoryCaptures: number;
   errors: string[];
 }> {
-  const db = await connectToDatabase();
   const errors: string[] = [];
   let processed = 0;
   let regenerated = 0;
@@ -435,17 +437,18 @@ export async function runGrowthCycle(): Promise<{
   let unitsBuilt = 0;
   
   try {
-    // Get all bots from database
-    const bots = await db.collection<Player>('players')
-      .find({ isBot: true })
-      .toArray();
+    // Get all bots from database (pg: isBot smallint — 1 matches all bots)
+    const botRows = await db.select().from(players).where(eq(players.isBot, 1));
+    const bots = botRows.map(mapRowToPlayer);
     
     console.log(`[Growth Cycle] Processing ${bots.length} bots...`);
     
     // Process each bot
     for (const bot of bots) {
       try {
-        const updates: Record<string, DocumentValue> = {};
+        // Row-shaped update set (whole-column writes; later assignments win,
+        // preserving the dotted-path $set overwrite semantics).
+        const updates: Partial<typeof players.$inferInsert> = {};
         
         // 1. Resource Regeneration (Full Permanence)
         const regeneratedResources = regenerateBotResources(bot);
@@ -454,8 +457,8 @@ export async function runGrowthCycle(): Promise<{
         
         if (regeneratedResources.metal !== currentMetal || 
             regeneratedResources.energy !== currentEnergy) {
-          updates['resources.metal'] = regeneratedResources.metal;
-          updates['resources.energy'] = regeneratedResources.energy;
+          updates.resourcesMetal = regeneratedResources.metal;
+          updates.resourcesEnergy = regeneratedResources.energy;
           regenerated++;
         }
         
@@ -472,16 +475,16 @@ export async function runGrowthCycle(): Promise<{
           const grownEnergy = applyGrowthPattern(regeneratedResources.energy, bot.botConfig.specialization);
           
           const grownMetalWrite = nextGrownVault(grownMetal, regeneratedResources.metal, growthCap);
-          if (grownMetalWrite !== null) updates['resources.metal'] = grownMetalWrite;
+          if (grownMetalWrite !== null) updates.resourcesMetal = grownMetalWrite;
           const grownEnergyWrite = nextGrownVault(grownEnergy, regeneratedResources.energy, growthCap);
-          if (grownEnergyWrite !== null) updates['resources.energy'] = grownEnergyWrite;
+          if (grownEnergyWrite !== null) updates.resourcesEnergy = grownEnergyWrite;
         }
         
         // 3. Movement System
         const newPosition = moveBot(bot);
         if (newPosition) {
-          updates['currentPosition.x'] = newPosition.x;
-          updates['currentPosition.y'] = newPosition.y;
+          updates.currentPositionX = newPosition.x;
+          updates.currentPositionY = newPosition.y;
           moved++;
         }
         
@@ -504,19 +507,20 @@ export async function runGrowthCycle(): Promise<{
         const nestPosition = applyNestAttraction(bot);
         if (nestPosition && !newPosition) {
           // Only apply if movement didn't already change position
-          updates['currentPosition.x'] = nestPosition.x;
-          updates['currentPosition.y'] = nestPosition.y;
+          updates.currentPositionX = nestPosition.x;
+          updates.currentPositionY = nestPosition.y;
         }
         
-        // Update lastGrowth timestamp
-        updates['botConfig.lastGrowth'] = new Date();
+        // Update lastGrowth timestamp (pg: whole botConfig jsonb write —
+        // bots always carry botConfig; the spread preserves every other field
+        // the Mongo dotted-path $set used to merge).
+        if (bot.botConfig) {
+          updates.botConfig = { ...bot.botConfig, lastGrowth: new Date() };
+        }
         
         // Apply all updates to database
         if (Object.keys(updates).length > 0) {
-          await db.collection<Player>('players').updateOne(
-            { username: bot.username },
-            { $set: updates }
-          );
+          await db.update(players).set(updates).where(eq(players.username, bot.username));
           processed++;
         }
         
