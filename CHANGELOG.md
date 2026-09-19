@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.19] — 2026-09-19 session
+
+### Changed — FID-20260919-006: chat profile navigation is live; the ChatMessage corpse archived (closed, commit `73754dc`)
+
+- Message sender usernames in the chat panel are now real navigation: clicking one routes to `/profile/<username>` (the profile page has existed since the pg era — the click was the only missing piece).
+- Grounding correction: the survey's "two tiny polish gaps" (ChatMessage's `onProfileClick` and item-click TODOs) cited a dead component — zero importers, superseded by ChatPanel's own inline renderer; the chat barrel itself was imported by nothing. Both move to `dev/archives/2026-09-19-dead-ui/` (annex + manifest refreshed; the FID-003 census missed them behind the barrel re-export).
+- Recorded as the feature call it actually is, not silently dropped: chat item linking (live-renderer `[ItemName]` parsing plus AuctionHousePanel name-search/deep-link — the panel has no name search and the house is a game-page modal, not a route).
+
 ## [0.0.18] — 2026-09-19 session
 
 ### Fixed — FID-20260919-005: ask-veterans was a false-success feature; now delivers (closed, commit `cdfaee7`)

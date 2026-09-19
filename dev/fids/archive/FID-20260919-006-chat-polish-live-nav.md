@@ -1,6 +1,6 @@
 # FID-20260919-006 — Chat polish: live profile nav; the "two tiny gaps" were one gap and a corpse
 
-**Status:** `created`
+**Status:** closed (2026-09-19, commit `73754dc`)
 **Session:** 2026-09-19 (060)
 **Origin:** Operator directive after FID-20260919-005: "knock out the two tiny chat
 polish gaps — wire ChatPanel's onProfileClick to /profile/[username] and make
@@ -48,3 +48,10 @@ failed grounding; the honest scope is below.
   `/profile/<username>` (client-router navigation, no page reload).
 - ChatMessage + chat barrel: zero live references; census pinned in the archive
   README; tsc/eslint/suite green.
+
+
+## 8. Closure (2026-09-19)
+
+- **Shipped:** live profile nav — ChatPanel's inline message-header username is a real button (`router.push('/profile/<username>')`), useRouter added at component scope; ChatMessage.tsx (655 lines) + chat/index.ts archived with README annex + manifest refresh (files 14→16, components 13→14, ~3806 lines).
+- **Gates at close:** suite 118 files / 1177 tests green, tsc 0, eslint clean (ChatPanel), census zero live references to the archived pair.
+- **Honest deltas vs the directive:** "onProfileClick" didn't exist on the live path (dead component's prop) — the live renderer's username was plain text and is now the nav; "item click → auction house" was unimplementable as described (no live item links, no auction name-search/deep-link) — recorded in §3 as the chat item-linking feature call instead.
