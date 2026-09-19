@@ -94,6 +94,7 @@ import {
 import { toast } from 'sonner';
 import { ChannelType } from '@/lib/channelService';
 import type { ChatVeteranNotificationPayload } from '@/types/websocket';
+import { parseItemLinkSegments, itemLinkHref } from '@/lib/chatItemLinks';
 import { DirectMessage, ConversationPreview, DMMessageStatus } from '@/types/directMessage';
 
 /** Extract a user-facing message from an unknown thrown value (bare catches;
@@ -1379,8 +1380,33 @@ export default function ChatPanel({
         {parts.map((part, index) => {
           // Every 4th element is the full match, index+1 is display, index+2 is id
           if (index % 4 === 0) {
-            // Regular text (may contain URLs - Linkify will handle them)
-            return <span key={index}>{part}</span>;
+            // Regular text (may contain URLs - Linkify will handle them).
+            // FID-20260919-008: bracketed catalog items render as links that
+            // deep-link into the auction house; invalid brackets stay literal.
+            const segments = parseItemLinkSegments(part);
+            return (
+              <span key={index}>
+                {segments.map((seg, segIdx) => {
+                  if (seg.type === 'text') {
+                    return <React.Fragment key={`t${segIdx}`}>{seg.value}</React.Fragment>;
+                  }
+                  if (seg.type === 'itemLink') {
+                    return (
+                      <button
+                        key={`i${segIdx}`}
+                        type="button"
+                        onClick={() => router.push(itemLinkHref(seg.entry.name))}
+                        className="text-[color:var(--nn-amber)] underline underline-offset-2 font-medium hover:text-[color:var(--nn-cyan)] cursor-pointer bg-transparent border-0 p-0"
+                        title={`View ${seg.entry.name} on the market`}
+                      >
+                        [{seg.entry.name}]
+                      </button>
+                    );
+                  }
+                  return <React.Fragment key={`x${segIdx}`}>{seg.value}</React.Fragment>;
+                })}
+              </span>
+            );
           } else if (index % 4 === 2) {
             // This is the display name from @mention
             return (

@@ -28,6 +28,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq, and, lt, gte, desc } from 'drizzle-orm';
 import { Filter } from 'bad-words';
+import { validateItem as validateItemAgainstCatalog } from '@/lib/catalogService';
 import { db } from '@/lib/db';
 import { chatMessages, wordBlacklist, players } from '@/lib/db/schema';
 import {
@@ -243,16 +244,11 @@ export function parseItemLinks(message: string): string[] {
  * @param itemName - Item name to validate
  * @returns True if item exists
  */
-export async function validateItem(_itemName: string): Promise<boolean> {
-  try {
-    // TODO: Implement when items table is added to schema
-    // Example: const item = await db.select().from(items).where(eq(items.name, itemName)).limit(1);
-    console.warn('[ChatService] validateItem not implemented - items table not in schema');
-    return false;
-  } catch (error) {
-    console.error('[ChatService] Item validation error:', error);
-    return false;
-  }
+export async function validateItem(itemName: string): Promise<boolean> {
+  // FID-20260919-008: was a stub returning false with a "items table not in
+  // schema" TODO — the item-link route reported that nothing exists. The real
+  // catalog is UNIT_CONFIGS + ResourceType; validation delegates to it.
+  return validateItemAgainstCatalog(itemName);
 }
 
 // ============================================================================

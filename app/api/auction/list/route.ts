@@ -146,6 +146,17 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       filters.sellerUsername = seller;
     }
 
+    // FID-20260919-008: item name search (ILIKE over the listing doc's
+    // unitType/resourceType). Trimmed and bounded; LIKE wildcards stripped
+    // from user input so the only % is the filter's own.
+    const name = params.get('name');
+    if (name) {
+      const cleaned = name.trim().replace(/[%_]/g, '').slice(0, 64);
+      if (cleaned) {
+        filters.name = cleaned;
+      }
+    }
+
     // Sorting
     const sortBy = params.get('sortBy');
     if (sortBy) {

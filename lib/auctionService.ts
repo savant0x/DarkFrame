@@ -930,6 +930,15 @@ export async function getAuctions(
       conditions.push(sql`${auctions.doc}->'item'->>'resourceType' = ${filters.resourceType}`);
     }
 
+    // FID-20260919-008: name search over the listing doc's item identity —
+    // itemData carries no flat name column; unitType/resourceType ARE the name.
+    if (filters.name) {
+      const pattern = `%${filters.name}%`;
+      conditions.push(
+        sql`(${auctions.doc}->'item'->>'unitType' ILIKE ${pattern} OR ${auctions.doc}->'item'->>'resourceType' ILIKE ${pattern})`
+      );
+    }
+
     if (filters.minPrice) {
       conditions.push(gte(auctions.currentBid, filters.minPrice));
     }

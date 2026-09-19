@@ -23,7 +23,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { extractApiError } from '@/lib/apiClient';
 import { AuctionListing, MyBidAuctionView, MyBidEntry } from '@/types/auction.types';
 
@@ -31,6 +31,8 @@ import { AuctionListingCard } from './AuctionListingCard';
 import { CreateListingModal } from './CreateListingModal';
 import { useGameContext } from '@/context/GameContext';
 import { useBearerStatus } from '@/hooks/useBearerStatus';
+import { useSearchParams } from 'next/navigation';
+import { resolveCatalogEntry, type CatalogEntry } from '@/lib/catalogService';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
   Store,
@@ -65,6 +67,18 @@ type SortOption = 'price_asc' | 'price_desc' | 'ending_soon' | 'newly_listed';
 // MAIN COMPONENT
 // ============================================================
 
+/**
+ * FID-20260919-008: resolve the /game?market=<name> deep-link param against the
+ * catalog — the canonical name plus the category tab it should open in.
+ */
+function resolveMarketParam(raw: string | null): { entry: CatalogEntry; tab: 'units' | 'resources' | 'all' } | null {
+  if (!raw) return null;
+  const entry = resolveCatalogEntry(raw);
+  if (!entry) return null;
+  const tab = entry.kind === 'unit' ? 'units' : entry.kind === 'resource' ? 'resources' : 'all';
+  return { entry, tab };
+}
+
 export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   const { refreshPlayer } = useGameContext();
   // ============================================================
@@ -90,6 +104,25 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
   const [priceMax, setPriceMax] = useState('');
   const [hasBuyout, setHasBuyout] = useState<boolean | undefined>(undefined);
   const [sellerFilter, setSellerFilter] = useState('');
+
+  // FID-20260919-008: item name search (chat item links land here pre-filtered).
+  const [nameFilter, setNameFilter] = useState('');
+  const [nameQuery, setNameQuery] = useState(''); // ref-fed value read at fetch time
+
+  // Deep-link: /game?market=<item> pre-sets the name, tab, and marketplace view.
+  const searchParams = useSearchParams();
+  const deepLinkConsumed = useRef(false);
+  useEffect(() => {
+    if (deepLinkConsumed.current) return;
+    deepLinkConsumed.current = true;
+    const market = resolveMarketParam(searchParams.get('market'));
+    if (!market) return;
+    setNameFilter(market.entry.name);
+    setNameQuery(market.entry.name);
+    setActiveTab(market.tab);
+    setViewMode('marketplace');
+    setCurrentPage(1);
+  }, [searchParams]);
 
   // ============================================================
   // HOOKS
@@ -118,6 +151,8 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
 
       if (sellerFilter.trim()) params.append('seller', sellerFilter.trim());
 
+      if (nameQuery.trim()) params.append('name', nameQuery.trim());
+
       params.append('sortBy', sortBy);
 
       params.append('page', currentPage.toString());
@@ -139,7 +174,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, priceMin, priceMax, hasBuyout, sellerFilter, sortBy, currentPage]);
+  }, [activeTab, priceMin, priceMax, hasBuyout, sellerFilter, sortBy, currentPage, nameQuery]);
 
   const fetchMyListings = useCallback(async () => {
     setLoading(true);
@@ -210,8 +245,8 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
    * Apply filter changes and refresh
    */
   const applyFilters = () => {
+    setNameQuery(nameFilter);
     setCurrentPage(1);
-    fetchAuctions();
   };
 
   /**
@@ -219,6 +254,7 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
    */
   const handleTabChange = (tab: CategoryTab) => {
     setActiveTab(tab);
+    setNameQuery(nameFilter);
     setCurrentPage(1);
   };
 
@@ -363,6 +399,21 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
 
               {/* Filter Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                {/* Item Name (FID-20260919-008) */}
+                <div>
+                  <label className="nn-lab block mb-1">Item Name</label>
+                  <input
+                    type="text"
+                    value={nameFilter}
+                    onChange={(e) => setNameFilter(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') applyFilters();
+                    }}
+                    placeholder="e.g. T1_SCOUT, metal"
+                    className="nn-input w-full"
+                  />
+                </div>
+
                 {/* Min Price */}
                 <div>
                   <label className="nn-lab block mb-1">Min Price</label>
