@@ -231,6 +231,9 @@ export interface AuctionSearchFilters {
   clanOnly?: boolean;
   
   sellerUsername?: string;
+
+  /** FID-20260919-008: case-insensitive match on the item's unitType or resourceType inside the listing doc. */
+  name?: string;
   
   sortBy?: 'price_asc' | 'price_desc' | 'ending_soon' | 'newly_listed';
   
