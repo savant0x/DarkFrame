@@ -33,11 +33,6 @@ export {
   wmdConsequenceEvents,
 } from './wmd';
 export { clanRelations } from './clans';
-export {
-  playerNotifications,
-  adminDashboardNotifications,
-  emailQueue,
-} from './notifications';
 export { mutes, bans, modLog, warnings, chatReports, blockedUsers, wordBlacklist } from './moderation';
 export {
   migrations,

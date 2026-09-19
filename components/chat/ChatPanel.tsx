@@ -37,20 +37,26 @@
  * - HELP: All players (Ask Veterans feature)
  * - VIP: VIP players only (premium feature)
  * 
- * IMPLEMENTATION NOTES:
- * - FID-20251025-103: Global Chat System (Task 5/10)
- * - FID-20251026-019: Sprint 2 Phase 1 - @Mentions + URL Linking + Edit/Delete Features
- * - Virtual scrolling placeholder (will use react-window when installed)
- * - WebSocket types will be added in Task 10
- * - ChatMessage component will be created in Task 6
- * - @Mentions: Autocomplete online users with @ trigger
- * - Mention display: Cyan background with bold text
- * - URL Linking: Auto-detect and linkify URLs (http, https, www)
- * - Link styling: Blue color with hover effects, opens in new tab
- * - Message Edit: 15-minute window, inline textarea, save/cancel buttons
- * - Message Delete: Confirmation modal, soft-delete API call, instant removal
- * - Edit/Delete buttons: Show only for user's own messages
- * - ECHO v5.2 compliant: Production-ready, TypeScript, comprehensive docs
+ * IMPLEMENTATION STATUS (rewritten 2026-09-19, FID-20260919-011 — was stale):
+ * - FID-20251025-103 / FID-20251026-019: chat system + mentions/linking/edit/delete
+ * - FID-20260919-002: real-time chat — chat:message, typing_start/stop,
+ *   chat:online_count, chat:message_deleted subscriptions are LIVE (see the
+ *   wiring effect); no socket placeholders remain.
+ * - FID-20260919-005: chat:veteran_notification subscription + honest
+ *   ask-veterans submit path.
+ * - FID-20260919-008: [ItemName] bracket links render as market deep-links
+ *   (catalog-validated; live in ALL channels, not just Trade).
+ * - Message Edit: 15-minute window, inline editor (saveEdit -> /api/chat/edit).
+ * - Message Delete: confirmation modal, soft-delete (deleteMessage ->
+ *   DELETE /api/chat/delete), instant local removal.
+ * - Sender usernames navigate to /profile/<username> (FID-20260919-006).
+ * - Rate limiting + profanity filtering are SERVER-side (lib/chatService:
+ *   5/10 msgs per 10s, bad-words). The client only displays enforcement.
+ * - KNOWN GAP (the one honest TODO): virtual scrolling is NOT implemented —
+ *   react-window was never installed. Add it if long channels hurt scroll.
+ * - Historical note: the original ChatMessage.tsx was superseded by this
+ *   panel's inline renderer and archived (FID-20260919-006) — do not
+ *   resurrect it from dev/archives.
  */
 
 'use client';
@@ -2389,65 +2395,29 @@ export default function ChatPanel({
 }
 
 /**
- * IMPLEMENTATION NOTES:
- * 
- * 1. Performance Optimization:
- *    - Memoized channel metadata to prevent unnecessary re-renders
- *    - Efficient state updates with Map data structures
- *    - Virtual scrolling placeholder (react-window to be added)
- *    - TODO: Install react-window and react-virtualized-auto-sizer
- * 
- * 2. Real-Time Features (Task 10):
- *    - WebSocket integration placeholders
- *    - TODO: Add chat:message event subscription
- *    - TODO: Add chat:typing_start/stop event subscriptions
- *    - TODO: Add chat:online_count event subscription
- *    - TODO: Add moderation event subscriptions
- * 
- * 3. User Experience:
- *    - Unread badge counts per channel tab
- *    - Auto-scroll to bottom for new messages (with manual override)
- *    - Basic emoji picker (to be enhanced with @emoji-mart/react)
- *    - Character limit warnings (90% threshold)
- *    - Connection status indicator
- *    - Mute status display
- *    - Ask Veterans modal for Help channel
- * 
- * 4. Permission System:
- *    - Dynamic channel visibility based on level, clan, VIP status
- *    - Newbie channel (levels 1-5 only)
- *    - VIP channel (VIP users only)
- *    - Clan channel (clan members only)
- * 
- * 5. Message Features:
- *    - Item linking placeholder (ChatMessage component in Task 6)
- *    - @mention support placeholder (ChatMessage component in Task 6)
- *    - Message editing placeholder
- *    - Profanity filtering on backend
- *    - Rate limiting enforcement
- * 
- * 6. Error Handling:
- *    - Graceful connection loss handling
- *    - User-friendly error messages via toast notifications
- *    - Failed message send feedback
- *    - Validation for message length and content
- * 
- * 7. Accessibility:
- *    - Keyboard support (Enter to send message)
- *    - Clear visual indicators for connection status
- *    - Semantic HTML structure
- * 
- * 8. Task Dependencies:
- *    - Task 6: ChatMessage component for rendering individual messages
- *    - Task 8: API routes (/api/chat, /api/chat/ask-veterans)
- *    - Task 10: WebSocket event types and subscriptions
- *    - Package installs: react-window, react-virtualized-auto-sizer, @emoji-mart/react
- * 
- * 9. ECHO Compliance:
- *    - ✅ Complete implementation (no pseudo-code)
- *    - ✅ TypeScript with proper types
- *    - ✅ Comprehensive documentation (OVERVIEW, JSDoc, inline comments)
- *    - ✅ Error handling with user-friendly messages
- *    - ✅ Production-ready code
- *    - ✅ All dependencies read completely before creation
+ * IMPLEMENTATION NOTES (rewritten 2026-09-19, FID-20260919-011):
+ *
+ * 1. Real-time (all LIVE — FID-20260919-002 / -005):
+ *    - chat:message, chat:typing_start/stop, chat:online_count,
+ *      chat:message_deleted, chat:veteran_notification subscriptions in the
+ *      wiring effect; typing emits debounced; read receipts via DM thread.
+ *
+ * 2. Performance:
+ *    - Memoized channel metadata; Map-based message state.
+ *    - TODO (the only remaining one): virtual scrolling — react-window was
+ *      never installed; add it if long channels make scrolling janky.
+ *
+ * 3. Rendering (inline, this file — the ChatMessage.tsx corpse is archived):
+ *    - Message rows: Linkify URLs, [ItemName] bracket links as market
+ *      deep-links (FID-20260919-008), @mentions via react-mentions.
+ *
+ * 4. Persistence paths:
+ *    - Send: POST /api/chat/send (rate-limited server-side: 5/10 per 10s).
+ *    - Edit: POST /api/chat/edit (15-minute window, server-enforced).
+ *    - Delete: DELETE /api/chat/delete (soft-delete).
+ *
+ * 5. UX:
+ *    - Unread badges per channel, auto-scroll with manual override,
+ *      connection status indicator, mute status with expiry countdown,
+ *      Ask Veterans modal in Help (honest success path, FID-20260919-005).
  */

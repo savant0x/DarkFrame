@@ -25,8 +25,6 @@ export * from './wmdAnalyticsService';
 // Admin operations (moderation, system management)
 export * from './wmdAdminService';
 
-// Alert system (critical events, admin notifications)
-export * from './alertService';
 
 // ============================================================================
 // IMPLEMENTATION NOTES
