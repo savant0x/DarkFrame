@@ -36,6 +36,7 @@ import {
   CreateCheckoutSessionResponse,
   CustomerPortalResponse,
 } from '@/types/stripe.types';
+import { getRPPackage } from './rpPackages';
 
 /**
  * Stripe Client Instance
@@ -430,3 +431,68 @@ export async function retrieveCheckoutSession(sessionId: string): Promise<Stripe
  * - Implement usage-based billing for future features
  * - Add retry logic for failed API calls
  */
+
+/* ============================================================================
+ * FID-20260919-010: RP package one-time checkout
+ * ============================================================================
+ *
+ * RP packages are ONE-TIME purchases (no dashboard Price objects exist and the
+ * package amounts live in repo code), so the session uses mode 'payment' with
+ * inline price_data authored from the server's package map — the client sends
+ * only a packageId and can never set an amount. Metadata carries kind:'rp_package'
+ * + packageId so the webhook's RP branch can resolve the grant from the same map.
+ */
+export async function createRpCheckoutSession(params: {
+  userId: string;
+  username: string;
+  email: string;
+  packageId: string;
+  successUrl?: string;
+  cancelUrl?: string;
+}): Promise<CreateCheckoutSessionResponse> {
+  try {
+    const pkg = getRPPackage(params.packageId);
+    if (!pkg) {
+      return { success: false, message: 'Unknown RP package' };
+    }
+    const stripe = getStripe();
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const successUrl =
+      params.successUrl || `${baseUrl}/shop/rp-packages?status=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = params.cancelUrl || `${baseUrl}/shop/rp-packages?status=cancelled`;
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'usd',
+            unit_amount: pkg.priceCents,
+            product_data: { name: `DarkFrame — ${pkg.name} (${pkg.rp.toLocaleString()} RP)` },
+          },
+        },
+      ],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer_email: params.email,
+      client_reference_id: params.userId,
+      metadata: {
+        kind: 'rp_package',
+        userId: params.userId,
+        username: params.username,
+        packageId: pkg.id,
+        rp: String(pkg.rp),
+      },
+    });
+
+    return { success: true, sessionId: session.id, url: session.url || undefined };
+  } catch (error) {
+    console.error('RP checkout session creation failed:', error);
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : 'Failed to create checkout session',
+    };
+  }
+}

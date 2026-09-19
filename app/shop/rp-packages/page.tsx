@@ -22,6 +22,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameContext } from '@/context/GameContext';
 import BackButton from '@/components/BackButton';
+import { RP_PACKAGES as SERVER_PACKAGES, type RPPackage as ServerRPPackage } from '@/lib/stripe/rpPackages';
 
 // ============================================================================
 // INTERFACES
@@ -42,54 +43,43 @@ interface RPPackage {
 // RP PACKAGES
 // ============================================================================
 
-const RP_PACKAGES: RPPackage[] = [
-  {
-    id: 'starter',
-    name: 'Starter Pack',
-    rp: 1000,
-    price: 2.99,
-    icon: '🌱',
-    daysEquivalent: 0.15, // ~3-4 hours of play
-    color: 'var(--nn-green)'
-  },
-  {
-    id: 'boost',
-    name: 'Progress Boost',
-    rp: 5000,
-    price: 9.99,
-    popular: true,
-    icon: '⚡',
-    daysEquivalent: 0.7, // ~17 hours of play
-    color: 'var(--nn-cyan)'
-  },
-  {
-    id: 'power',
-    name: 'Power Pack',
-    rp: 15000,
-    price: 24.99,
-    icon: '💪',
-    daysEquivalent: 2, // 2 days of active play
-    color: 'var(--nn-violet)'
-  },
-  {
-    id: 'mega',
-    name: 'Mega Bundle',
-    rp: 50000,
-    price: 59.99,
-    icon: '🚀',
-    daysEquivalent: 7, // 1 week of active play
-    color: 'var(--nn-magenta)'
-  },
-  {
-    id: 'legendary',
-    name: 'Legendary Bundle',
-    rp: 100000,
-    price: 99.99,
-    icon: '👑',
-    daysEquivalent: 14, // 2 weeks of active play
-    color: 'var(--nn-amber)'
-  }
-];
+// Display-only metadata (icon, time-saved copy, accent color) — never sent to
+// the server; charging uses the server map exclusively.
+const ICONS_BY_PACKAGE: Record<string, string> = {
+  starter: '🌱',
+  boost: '⚡',
+  power: '💪',
+  mega: '🚀',
+  legendary: '👑',
+};
+const DAYS_BY_PACKAGE: Record<string, number> = {
+  starter: 0.15,
+  boost: 0.7,
+  power: 2,
+  mega: 7,
+  legendary: 14,
+};
+const COLOR_BY_PACKAGE: Record<string, string> = {
+  starter: 'var(--nn-green)',
+  boost: 'var(--nn-cyan)',
+  power: 'var(--nn-violet)',
+  mega: 'var(--nn-magenta)',
+  legendary: 'var(--nn-amber)',
+};
+
+// FID-20260919-010: the shop's display list is a compile-time mirror of the
+// SERVER's package map (lib/stripe/rpPackages) — the same ids, RP amounts, and
+// prices the checkout session will actually charge. The client sends only a
+// packageId; the server owns every number.
+const RP_PACKAGES: RPPackage[] = SERVER_PACKAGES.map((p: ServerRPPackage) => ({
+  id: p.id,
+  name: p.name,
+  rp: p.rp,
+  price: p.priceCents / 100,
+  icon: ICONS_BY_PACKAGE[p.id] ?? '💠',
+  daysEquivalent: DAYS_BY_PACKAGE[p.id] ?? 1,
+  color: COLOR_BY_PACKAGE[p.id] ?? 'var(--nn-cyan)',
+}));
 
 // ============================================================================
 // MAIN COMPONENT
@@ -119,19 +109,23 @@ export default function RPPackagesPage() {
     setSelectedPackage(pkg.id);
 
     try {
-      // TODO: Integrate Stripe payment
-      // For now, this is a placeholder that would redirect to Stripe checkout
-      
-      const finalRP = isVIP ? Math.floor(pkg.rp * (1 + VIP_BONUS)) : pkg.rp;
-      
-      setPurchaseResult(`🚧 Stripe integration pending. This would charge $${pkg.price} and award ${finalRP.toLocaleString()} RP.`);
-      
-      // In production, this would:
-      // 1. Create Stripe checkout session
-      // 2. Redirect to Stripe payment page
-      // 3. Handle webhook on success
-      // 4. Award RP via awardRP('purchase')
-      
+      // FID-20260919-010: real Stripe one-time checkout. The client sends only
+      // the packageId — price and RP live server-side. On success the browser
+      // redirects to Stripe's hosted page; the webhook grants the RP.
+      const res = await fetch('/api/stripe/rp-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId: pkg.id }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (res.ok && data?.success && data.url) {
+        window.location.href = data.url;
+        return; // redirecting away — no state reset
+      }
+
+      // Honest failure: surface the server's message (auth, validation, Stripe).
+      setPurchaseResult(`❌ ${data?.message || 'Purchase failed. Please try again.'}`);
     } catch (error) {
       console.error('Purchase error:', error);
       setPurchaseResult('❌ Purchase failed. Please try again.');

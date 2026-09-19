@@ -281,14 +281,20 @@ export async function recordPaymentTransaction(transaction: {
   stripeSessionId: string;
   stripeSubscriptionId: string;
   amount: number;
-  tier: VIPTier;
+  tier: VIPTier | string; // FID-20260919-010: 'rp:<packageId>' rows ride the same ledger
   status: 'completed' | 'failed' | 'refunded';
+  stripePriceId?: string;
 }): Promise<string | null> {
   try {
     const now = new Date();
     const completedAt = transaction.status === 'completed' ? now : null;
     const refundedAt = transaction.status === 'refunded' ? now : null;
     
+    // FID-20260919-010: RP rows carry no dashboard price id — callers may pass
+    // one explicitly; VIP rows resolve from the pricing map as before.
+    const priceId =
+      transaction.stripePriceId ?? VIP_PRICING[transaction.tier as VIPTier]?.stripePriceId ?? '';
+
     const result = await db.execute(sql`
       INSERT INTO "paymentTransactions" (
         "userId", username, "stripeCustomerId", "stripeSessionId", "stripeSubscriptionId",
@@ -296,7 +302,7 @@ export async function recordPaymentTransaction(transaction: {
       ) VALUES (
         ${transaction.userId}, ${transaction.username}, ${transaction.stripeCustomerId},
         ${transaction.stripeSessionId}, ${transaction.stripeSubscriptionId},
-        ${VIP_PRICING[transaction.tier].stripePriceId}, ${transaction.amount},
+        ${priceId}, ${transaction.amount},
         ${transaction.tier}, ${transaction.status}, ${now}, ${completedAt}, ${refundedAt}
       )
       RETURNING id
@@ -506,3 +512,59 @@ export async function checkVIPStatus(
  * - Add promotional VIP grants (manual admin action)
  * - Track VIP usage metrics (revenue per user)
  */
+
+/* ============================================================================
+ * FID-20260919-010: RP package grant + idempotency
+ * ============================================================================
+ *
+ * The RP flow rides the same law as the FID-20260917-009 VIP fix: a grant that
+ * does not land returns FALSE (the webhook handler throws on false → 500 →
+ * Stripe retries), and the ledger row is written only AFTER a confirmed grant.
+ * Keyed on username exactly like grantVIP.
+ */
+
+/**
+ * Idempotency probe: has this checkout session already produced an RP grant?
+ * A redelivered checkout.session.completed must not double-credit RP.
+ */
+export async function hasRpTransactionForSession(stripeSessionId: string): Promise<boolean> {
+  try {
+    const result = await db.execute(sql`
+      SELECT 1 FROM "paymentTransactions"
+      WHERE "stripeSessionId" = ${stripeSessionId} AND tier LIKE 'rp:%'
+      LIMIT 1
+    `);
+    return (result.rows?.length ?? 0) > 0;
+  } catch (error) {
+    console.error('RP transaction probe failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Credit research points to a player. Returns false when the player row does
+ * not exist (unknown username) — the webhook handler treats false as a FAILED
+ * grant and throws so Stripe retries.
+ */
+export async function grantRpPackage(params: {
+  userId: string;
+  rp: number;
+}): Promise<boolean> {
+  try {
+    const result = await db
+      .update(players)
+      .set({
+        researchPoints: sql`COALESCE(${players.researchPoints}, 0) + ${params.rp}`,
+      })
+      .where(eq(players.username, params.userId));
+
+    if ((result.rowCount ?? 0) === 0) {
+      console.error('Player not found for RP grant:', { userId: params.userId });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('Failed to grant RP package:', error);
+    return false;
+  }
+}

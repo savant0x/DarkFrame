@@ -15,7 +15,14 @@
  * payment was captured with no VIP granted.
  */
 import Stripe from 'stripe';
-import { grantVIP, revokeVIP, recordPaymentTransaction } from '@/lib/stripe/subscriptionService';
+import {
+  grantVIP,
+  revokeVIP,
+  recordPaymentTransaction,
+  grantRpPackage,
+  hasRpTransactionForSession,
+} from '@/lib/stripe/subscriptionService';
+import { getRPPackage } from '@/lib/stripe/rpPackages';
 import { VIPTier } from '@/types/stripe.types';
 import { logger } from '@/lib/logger/productionLogger';
 
@@ -41,6 +48,13 @@ export async function handleCheckoutCompleted(event: Stripe.Event): Promise<void
       sessionId: session.id,
       paymentStatus: session.payment_status
     });
+    return;
+  }
+
+  // FID-20260919-010: RP package one-time purchases dispatch here — the VIP
+  // metadata (tier) is absent on their sessions.
+  if (session.metadata?.kind === 'rp_package' && !session.metadata?.tier) {
+    await handleRpCheckoutCompleted(session);
     return;
   }
 
@@ -264,4 +278,82 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event): Promise<v
 
   // TODO: Send email notification to user about failed payment
   // TODO: If final attempt and all retries exhausted, schedule VIP revocation
+}
+
+/* ============================================================================
+ * FID-20260919-010: RP package checkout completion
+ * ============================================================================
+ *
+ * Same false-success law as the FID-20260917-009 VIP flow: a grant that does
+ * not land THROWS (→ 500 → Stripe retries) and no ledger row is written for
+ * ungranted RP. Order: idempotency probe → server-side RP resolution → grant
+ * → ledger. The metadata rp value is informational; the amount granted is
+ * always resolved from the repo's package map by packageId.
+ */
+async function handleRpCheckoutCompleted(session: Stripe.Checkout.Session): Promise<void> {
+  const username = session.metadata?.userId; // username-keyed (FID-20260917-009)
+  const packageId = session.metadata?.packageId;
+
+  if (!username || !packageId) {
+    logger.error('RP checkout session missing required metadata', undefined, {
+      sessionId: session.id,
+      hasUsername: !!username,
+      hasPackageId: !!packageId,
+    });
+    throw new Error('Missing required metadata in RP checkout session');
+  }
+
+  // Idempotency: a redelivered event must not double-credit RP.
+  if (await hasRpTransactionForSession(session.id)) {
+    logger.info('RP checkout already processed (idempotent replay)', { sessionId: session.id });
+    return;
+  }
+
+  const pkg = getRPPackage(packageId);
+  if (!pkg) {
+    logger.error('RP checkout carries unknown packageId', undefined, {
+      sessionId: session.id,
+      packageId,
+    });
+    throw new Error(`Unknown RP packageId ${packageId} in checkout ${session.id}`);
+  }
+
+  try {
+    const granted = await grantRpPackage({ userId: username, rp: pkg.rp });
+    if (!granted) {
+      logger.error('RP grant FAILED after captured payment — refusing webhook delivery', undefined, {
+        username,
+        packageId,
+        rp: pkg.rp,
+        sessionId: session.id,
+      });
+      throw new Error(`RP grant failed for ${username} after checkout ${session.id}`);
+    }
+
+    // Ledger only after a confirmed grant.
+    await recordPaymentTransaction({
+      userId: username,
+      username,
+      stripeCustomerId: (session.customer as string) || '',
+      stripeSessionId: session.id,
+      stripeSubscriptionId: '',
+      amount: session.amount_total || 0,
+      tier: `rp:${packageId}`,
+      status: 'completed',
+    });
+
+    logger.info('RP package granted successfully', {
+      username,
+      packageId,
+      rp: pkg.rp,
+      sessionId: session.id,
+    });
+  } catch (error) {
+    logger.error('Failed to grant RP after payment', error instanceof Error ? error : undefined, {
+      username,
+      packageId,
+      sessionId: session.id,
+    });
+    throw error;
+  }
 }
