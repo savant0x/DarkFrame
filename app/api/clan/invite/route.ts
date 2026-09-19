@@ -2,18 +2,19 @@
  * @file app/api/clan/invite/route.ts
  * @created 2025-10-17
  * @updated 2025-10-23 (FID-20251023-001: Refactored to use centralized auth + JSDoc)
- * 
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → pg slim loader)
+ *
  * OVERVIEW:
  * Clan invitation endpoint. Allows clan members with permission to invite other players.
  * Validates clan membership, permissions, and capacity before sending invitations.
- * 
+ *
  * ROUTES:
  * - POST /api/clan/invite - Send clan invitation
- * 
+ *
  * AUTHENTICATION:
  * - Requires valid JWT token in 'token' cookie
  * - Uses requireClanMembership() middleware
- * 
+ *
  * BUSINESS RULES:
  * - Player must be in a clan to invite others
  * - Player must have invitation permission (leader or officer)
@@ -23,9 +24,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getClientAndDatabase, requireClanMembership } from '@/lib';
+import { requireClanMembership } from '@/lib';
+import { getPlayerSlim } from '@/lib/playerService';
 import { invitePlayerToClan } from '@/lib/clanService';
-import type { Player } from '@/types/game.types';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -40,15 +41,15 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 /**
  * POST /api/clan/invite
  * Invite a player to the clan
- * 
+ *
  * @param request - NextRequest with authentication cookie and target username in body
  * @returns NextResponse with invitation data
- * 
+ *
  * @example
  * POST /api/clan/invite
  * Body: { targetUsername: "newplayer123" }
  * Response: { success: true, invitation: {...}, message: "Invitation sent to newplayer123" }
- * 
+ *
  * @throws {400} Target username required
  * @throws {400} Player already in a clan
  * @throws {400} Clan is full
@@ -60,10 +61,8 @@ const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.STANDARD);
 export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) => {
   const log = createRouteLogger('clan/invite');
   const endTimer = log.time('send-invite');
-  
-  try {
-    const { db } = await getClientAndDatabase();
 
+  try {
     const result = await requireClanMembership(request);
     if (result instanceof NextResponse) return result;
     const { auth, clanId } = result;
@@ -78,9 +77,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       );
     }
 
-    
-
-    const targetPlayer = await db.collection<Player>('players').findOne({ username: targetUsername });
+    // Resolve the target through the pg slim loader (username is the identity
+    // the invite is bound to; the shim's findOne fetched the full document for
+    // a field the service then overrode with the same username).
+    const targetPlayer = await getPlayerSlim(targetUsername);
     if (!targetPlayer) {
       return NextResponse.json(
         { success: false, error: 'Target player not found' },

@@ -1,22 +1,72 @@
 /**
  * @file app/api/cron/player-snapshot/route.ts
  * @created 2025-10-25
- * 
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → direct drizzle/pg)
+ *
  * OVERVIEW:
  * Daily cron job to capture player level snapshots.
  * Runs at 3 AM UTC daily via Vercel Cron.
  * Used for predictive Beer Base spawning based on player growth.
- * 
+ *
  * SCHEDULE: 0 3 * * * (Daily at 3 AM UTC)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { capturePlayerSnapshot } from '@/lib/playerHistoryService';
 import { logger } from '@/lib/logger';
-import { connectToDatabase } from '@/lib/mongodb';
-import type { Player } from '@/types/game.types';
+import { db } from '@/lib/db/connection';
+import { players } from '@/lib/db/schema';
+import { gte } from 'drizzle-orm';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Snapshot every player active in the last 30 days.
+ *
+ * FID-20260914-009 Phase B: the old filter used `lastActive` — a field no
+ * players column stores. The real activity column is last_login_date
+ * (players.lastLoginDate). Single Law-13 helper: GET and POST previously
+ * duplicated the query + capture loop verbatim.
+ */
+async function runPlayerSnapshots(): Promise<{
+  total: number;
+  success: number;
+  errors: number;
+}> {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const activePlayers = await db
+    .select({ username: players.username, level: players.level })
+    .from(players)
+    .where(gte(players.lastLoginDate, thirtyDaysAgo));
+
+  logger.info(`Found ${activePlayers.length} active players to snapshot`);
+
+  // Capture snapshot for each player — keyed by username (stable; the
+  // snapshot table's PK. The Mongo-era _id died with the pivot).
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const player of activePlayers) {
+    try {
+      await capturePlayerSnapshot(player.username, player.level);
+      successCount++;
+    } catch (error) {
+      errorCount++;
+      logger.error(`Failed to snapshot player ${player.username}`, error);
+    }
+  }
+
+  logger.info('Daily player snapshot completed', {
+    total: activePlayers.length,
+    success: successCount,
+    errors: errorCount
+  });
+
+  return { total: activePlayers.length, success: successCount, errors: errorCount };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,51 +81,12 @@ export async function GET(request: NextRequest) {
 
     logger.info('Starting daily player snapshot...');
 
-    const db = await connectToDatabase();
-    const playersCollection = db.collection<Player & { _id: string; username: string; level?: number }>('players');
-
-    // FID-20260914-009 Phase B: the old filter used `lastActive` — a field no
-    // players column stores, so the shim matched nothing and the cron found 0
-    // players every run (compounding the unmapped-collection insert loss).
-    // The real activity column is last_login_date (players.lastLoginDate).
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const activePlayers = await playersCollection.find({
-      lastLoginDate: { $gte: thirtyDaysAgo }
-    }).toArray();
-
-    logger.info(`Found ${activePlayers.length} active players to snapshot`);
-
-    // Capture snapshot for each player — keyed by username (stable; the
-    // snapshot table's PK. The Mongo-era _id died with the pivot).
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const player of activePlayers) {
-      try {
-        await capturePlayerSnapshot(player.username, player.level);
-        successCount++;
-      } catch (error) {
-        errorCount++;
-        logger.error(`Failed to snapshot player ${player.username}`, error);
-      }
-    }
-
-    logger.info('Daily player snapshot completed', {
-      total: activePlayers.length,
-      success: successCount,
-      errors: errorCount
-    });
+    const stats = await runPlayerSnapshots();
 
     return NextResponse.json({
       success: true,
       message: 'Player snapshots captured',
-      stats: {
-        total: activePlayers.length,
-        success: successCount,
-        errors: errorCount
-      }
+      stats
     });
 
   } catch (error) {
@@ -91,49 +102,20 @@ export async function GET(request: NextRequest) {
 export async function POST(_request: NextRequest) {
   try {
     // Manual trigger endpoint can use regular auth
-    const { getAuthenticatedUser } = await import('@/lib/authService');
     const currentUser = await getAuthenticatedUser();
-    
+
     if (!currentUser || !currentUser.isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     logger.info('Manual player snapshot triggered', { admin: currentUser.username });
 
-    // Re-use GET logic
-    const db = await connectToDatabase();
-    const playersCollection = db.collection<Player & { _id: string; username: string; level?: number }>('players');
-
-    // FID-20260914-009 Phase B: lastActive was a phantom field (no column);
-    // lastLoginDate is the real activity source (see GET).
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const activePlayers = await playersCollection.find({
-      lastLoginDate: { $gte: thirtyDaysAgo }
-    }).toArray();
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const player of activePlayers) {
-      try {
-        await capturePlayerSnapshot(player.username, player.level);
-        successCount++;
-      } catch (error) {
-        errorCount++;
-        logger.error(`Failed to snapshot player ${player.username}`, error);
-      }
-    }
+    const stats = await runPlayerSnapshots();
 
     return NextResponse.json({
       success: true,
       message: 'Manual player snapshots captured',
-      stats: {
-        total: activePlayers.length,
-        success: successCount,
-        errors: errorCount
-      }
+      stats
     });
 
   } catch (error) {

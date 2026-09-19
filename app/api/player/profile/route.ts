@@ -1,21 +1,25 @@
 /**
  * @file app/api/player/profile/route.ts
  * @created 2025-10-18
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → pg domain loader)
  * @overview Player profile data API endpoint
- * 
+ *
  * OVERVIEW:
  * Returns comprehensive player profile data including stats, achievements, and base info.
+ *
+ * PERSISTENCE (PostgreSQL): one domain read via getPlayer(includePrivate) —
+ * stats/achievements are real jsonb columns; base coordinates and greeting map
+ * through the single row→domain mapper (mapRowToPlayer).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getCollection } from '@/lib/mongodb';
+import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
-import { Player } from '@/types';
 import { computeBattleStats, toPanelBattleStats } from '@/lib/battleStatsService';
 
 /**
  * GET /api/player/profile
- * 
+ *
  * Get current player's full profile data
  * Uses cookie authentication
  */
@@ -30,12 +34,11 @@ export async function GET(_request: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     const username = user.username;
 
-    // Get player data
-    const playersCollection = await getCollection<Player>('players');
-    const player = await playersCollection.findOne({ username });
+    // Get player data through the single pg domain loader
+    const player = await getPlayer(username, { includePrivate: true });
 
     if (!player) {
       return NextResponse.json(

@@ -1,65 +1,50 @@
 /**
  * @file app/api/chat/online/route.ts
  * @created 2025-10-26
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → direct drizzle/pg)
  * @overview Online user count API with channel permissions
- * 
+ *
  * OVERVIEW:
- * Provides endpoint for counting online users per channel.
- * Queries user_presence collection for users with recent heartbeat (<60s).
- * Respects channel permissions (VIP-only channels, clan channels, etc.).
- * 
+ * Counts online users per channel. Queries `user_presence` (joined with
+ * `players` for level/VIP) for users with a recent heartbeat (<60s) and
+ * respects channel permissions (level-gated newbie channel, VIP channel,
+ * clan membership).
+ *
  * ENDPOINTS:
  * - GET /api/chat/online?channelId=X: Get online count for channel
  * - GET /api/chat/online: Get online counts for all channels
- * 
+ *
  * KEY FEATURES:
- * - Real-time count: Based on heartbeat timestamps
- * - Permission filtering: Only counts users who can access channel
- * - Multi-channel support: Get all channels at once
- * - User list support: Optionally return user details (for friend lists)
- * 
- * USAGE EXAMPLE:
- * ```tsx
- * // Get online count for specific channel
- * const res = await fetch('/api/chat/online?channelId=global');
- * const { count, users } = await res.json();
- * // count = 42, users = [{ userId: '123', username: 'Alice', level: 42, isVIP: true }, ...]
- * 
- * // Get online counts for all channels
- * const res = await fetch('/api/chat/online');
- * const { channels } = await res.json();
- * // channels = { global: 100, newbie: 15, vip: 8, trade: 50, help: 25, clan_123: 12 }
- * ```
- * 
- * IMPLEMENTATION NOTES:
- * - FID-20251026-017: HTTP Polling Infrastructure
- * - ECHO v5.2 compliant: Complete REST API, error handling, docs
- * - MongoDB collection: user_presence (shared with heartbeat)
+ * - Real-time count: based on heartbeat timestamps (last_seen >= now - 60s)
+ * - Honest attributes: level/VIP derive from the players join, not from
+ *   heartbeat body fields (no such columns exist on user_presence)
+ * - Permission filtering: only counts users who can access the channel
+ * - User list support: optionally return user details (for friend lists)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { userPresence, players, clans } from '@/lib/db/schema';
+import { gte, eq } from 'drizzle-orm';
 import { ChannelType } from '@/lib/channelService';
-import { db as sqlDb } from '@/lib/db';
-import { clans } from '@/lib/db/schema';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 /**
- * User presence record (from user_presence collection)
+ * Online user row (presence row joined with its player attributes)
  */
 interface UserPresence {
+  /** Presence owner (user_id IS the username on the pg pivot) */
   userId: string;
-  username: string;
-  level?: number;
-  isVIP?: boolean;
-  status: 'Online' | 'Away' | 'Busy';
+  /** Presence window start (row is "online" while lastSeen >= threshold) */
   lastSeen: Date;
-  expiresAt: Date;
-  /** Clan ids the user belongs to (resolved per request for clan-channel
-   *  filtering; absent on rows never post-processed — treated as no clans). */
+  /** From the players join (no such columns exist on user_presence) */
+  level?: number;
+  /** From the players join (players.vip is a smallint grant flag) */
+  isVIP?: boolean;
+  /** Resolved per request for clan-channel filtering */
   clanIds?: Set<string>;
 }
 
@@ -98,7 +83,6 @@ interface GetAllOnlineResponse {
 // ============================================================================
 
 const ONLINE_THRESHOLD_MS = 60000; // 60 seconds (matches heartbeat timeout)
-const COLLECTION_NAME = 'user_presence';
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -106,7 +90,7 @@ const COLLECTION_NAME = 'user_presence';
 
 /**
  * Check if user can access channel based on permissions
- * 
+ *
  * @param channelId - Channel ID to check
  * @param user - User presence record
  * @returns Whether user has access
@@ -145,17 +129,17 @@ function canAccessChannel(channelId: string, user: UserPresence): boolean {
 
 /**
  * Format user presence for response
- * 
+ *
  * @param user - User presence record
  * @returns Formatted user object
  */
 function formatUser(user: UserPresence): OnlineUser {
   return {
     userId: user.userId,
-    username: user.username,
+    username: user.userId, // user_id IS the username on the pg pivot
     level: user.level,
     isVIP: user.isVIP,
-    status: user.status,
+    status: 'Online', // inside the presence window = online
     lastSeen: user.lastSeen.toISOString(),
   };
 }
@@ -166,28 +150,24 @@ function formatUser(user: UserPresence): OnlineUser {
 
 /**
  * Get online user count(s)
- * 
+ *
  * @param request - Next.js request object
  * @returns Online count(s)
- * 
+ *
  * @example
  * ```
  * GET /api/chat/online?channelId=global&includeUsers=true
  * Response: {
  *   channelId: 'global',
  *   count: 42,
- *   users: [{ userId: '123', username: 'Alice', level: 42, isVIP: true, status: 'Online', lastSeen: '...' }]
+ *   users: [{ userId: 'alice', username: 'alice', level: 42, isVIP: true, status: 'Online', lastSeen: '...' }]
  * }
- * 
+ *
  * GET /api/chat/online?includeUsers=true
  * Response: {
  *   total: 100,
  *   channels: { global: 100, newbie: 15, vip: 8, trade: 50, help: 25 },
- *   users: {
- *     global: [...],
- *     newbie: [...],
- *     vip: [...]
- *   }
+ *   users: { global: [...], newbie: [...], vip: [...] }
  * }
  * ```
  */
@@ -198,24 +178,36 @@ export async function GET(request: NextRequest) {
     const channelId = searchParams.get('channelId');
     const includeUsers = searchParams.get('includeUsers') === 'true';
 
-    // Connect to database
-    const db = await getDatabase();
-    const collection = db.collection<UserPresence>(COLLECTION_NAME);
-
-    // Calculate online threshold (now - 60s)
+    // Online window: rows heartbeating within the last 60s. Expired rows are
+    // filtered here (there is no TTL engine on pg — writes only refresh
+    // last_seen/expires_at) and removed later by the presence cleanup.
     const onlineThreshold = new Date(Date.now() - ONLINE_THRESHOLD_MS);
 
-    // Get all online users
-    const onlineUsers = await collection
-      .find({ lastSeen: { $gte: onlineThreshold } })
-      .toArray();
+    const onlineUsers: UserPresence[] = await db
+      .select({
+        userId: userPresence.userId,
+        lastSeen: userPresence.lastSeen,
+        level: players.level,
+        vip: players.vip,
+      })
+      .from(userPresence)
+      .leftJoin(players, eq(players.username, userPresence.userId))
+      .where(gte(userPresence.lastSeen, onlineThreshold))
+      .then((rows) =>
+        rows.map((r) => ({
+          userId: r.userId,
+          lastSeen: r.lastSeen,
+          level: r.level ?? undefined,
+          isVIP: r.vip === 1 ? true : undefined,
+        }))
+      );
 
     // FID-20260909-023 §3.2: resolve clan membership once per request and
-    // annotate presence rows, so clan-channel filtering is real (one indexed
-    // clans scan; membership rows carry playerId = username).
+    // annotate presence rows, so clan-channel filtering is real (one clans
+    // scan; membership rows carry playerId = username).
     const onlineUsernames = new Set(onlineUsers.map((u) => u.userId));
     const memberClanIds = new Map<string, Set<string>>();
-    for (const member of await sqlDb.select({ id: clans.id, members: clans.members }).from(clans)) {
+    for (const member of await db.select({ id: clans.id, members: clans.members }).from(clans)) {
       for (const m of member.members ?? []) {
         if (onlineUsernames.has(m.playerId)) {
           const set = memberClanIds.get(m.playerId) ?? new Set<string>();
@@ -273,7 +265,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // TODO: Add clan channels (requires clan membership lookup)
+    // Clan channels: covered by canAccessChannel's clan_ branch (membership
+    // roster above); the historical TODO note predates FID-20260909-023.
 
     const response: GetAllOnlineResponse = {
       total: onlineUsers.length,
@@ -291,7 +284,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error:
-          error instanceof Error ? error instanceof Error ? error.message : String(error) : 'Failed to fetch online count',
+          error instanceof Error ? error.message : 'Failed to fetch online count',
       },
       { status: 500 }
     );
@@ -300,81 +293,33 @@ export async function GET(request: NextRequest) {
 
 /**
  * IMPLEMENTATION NOTES:
- * 
+ *
  * 1. Online Threshold:
  *    - 60 seconds (matches heartbeat timeout)
- *    - Query: { lastSeen: { $gte: now - 60s } }
+ *    - WHERE last_seen >= now - 60s (the read-time enforcement of the window
+ *      the Mongo TTL engine used to provide)
  *    - Users with heartbeat <60s ago = online
- *    - TTL index ensures old records deleted automatically
- * 
+ *
  * 2. Channel Permissions:
- *    - Global: Everyone
- *    - Newbie: Level 1-5 only
- *    - VIP: VIP users only
- *    - Trade, Help: Everyone
- *    - Clan: Clan members only (TODO: implement clan check)
- * 
- * 3. Performance Optimization:
- *    - Single query fetches all online users
- *    - Filter in memory (fast for <1000 users)
- *    - Index on lastSeen for fast range query
- *    - No N+1 query problem
- * 
- * 4. includeUsers Parameter:
- *    - Default: false (count only, minimal response size)
- *    - true: Include full user details (for friend lists, etc.)
- *    - Allows same endpoint for count + details
- *    - UI can choose based on use case
- * 
- * 5. All Channels Mode:
- *    - No channelId parameter = get all channels
- *    - Returns counts for all standard channels
- *    - Useful for "channel switcher" UI showing user counts
- *    - Example: "Global (100) | Newbie (15) | VIP (8)"
- * 
- * 6. Clan Channels:
- *    - Format: "clan_[clanId]"
- *    - Currently returns all online users (no filtering)
- *    - TODO: Query user collection for clan membership
- *    - TODO: Filter user_presence by clanId field
- *    - Requires adding clanId to user_presence in heartbeat
- * 
- * 7. Security Considerations:
- *    - No authentication check (public endpoint)
- *    - Could add rate limiting (max 1 req/5s)
- *    - includeUsers reveals usernames (consider privacy)
- *    - Could add permission check for user details
- * 
- * 8. UI Integration:
- *    - Poll every 30s for channel counts
- *    - Show "(42 online)" next to channel name
- *    - Friend list: Poll with includeUsers=true, filter by friend IDs
- *    - Clan roster: Poll clan_[clanId] with includeUsers=true
- * 
- * 9. Scalability:
- *    - Query performance: O(n) where n = online users
- *    - With 1000 concurrent users: ~1000 doc scan
- *    - Index on lastSeen makes query fast (<10ms)
- *    - In-memory filtering negligible (<1ms)
- * 
- * 10. Future Enhancements:
- *     - Add status filter (only count Online, exclude Away/Busy)
- *     - Add level range filter (e.g., "users level 50+")
- *     - Add sorting (by level, username, etc.)
- *     - Add pagination for includeUsers mode
- *     - Add caching (Redis) for high-traffic servers
- * 
- * 11. Error Handling:
- *     - Catches all database errors
- *     - Returns 500 with error message
- *     - Logs errors for debugging
- *     - Graceful degradation (UI can show "?" if API fails)
- * 
- * 12. ECHO Compliance:
- *     - ✅ Complete REST API implementation
- *     - ✅ TypeScript with interfaces
- *     - ✅ Comprehensive documentation
- *     - ✅ Error handling with user-friendly messages
- *     - ✅ Input validation
- *     - ✅ Production-ready code
+ *    - Global/Trade/Help: everyone; Newbie: level 1-5; VIP: players.vip = 1
+ *    - Clan (clan_[clanId]): resolved against the clans.members roster
+ *
+ * 3. Attributes:
+ *    - level/isVIP come from the players LEFT JOIN — user_presence carries no
+ *      such columns (the shim silently dropped them on write; the join is the
+ *      honest source and reflects promotions/grants immediately)
+ *    - Missing player row (deleted account) → level undefined → newbie-closed,
+ *      still counted in global/trade/help
+ *
+ * 4. Performance Optimization:
+ *    - Single indexed query fetches all online users (last_seen index)
+ *    - One clans scan annotates membership
+ *    - In-memory channel filtering (fast for <1000 users)
+ *
+ * 5. Security Considerations:
+ *    - Public endpoint (matches prior contract); includeUsers reveals
+ *      usernames (unchanged exposure)
+ *
+ * 6. UI Integration:
+ *    - ChatPanel polls every 30s for channel counts (consumes count + users)
  */

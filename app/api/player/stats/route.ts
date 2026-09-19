@@ -1,7 +1,7 @@
 // ============================================================
 // FILE: app/api/player/stats/route.ts
 // CREATED: 2025-01-23 (FID-20250123-001)
-// UPDATED: 2025-10-23 (Phase 3.1: Enhanced logging with request tracking)
+// REWRITTEN: 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → pg domain loader)
 // ============================================================
 // OVERVIEW:
 // API endpoint for fetching authenticated player's personal statistics.
@@ -13,8 +13,7 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
-import type { Player } from '@/types/game.types';
+import { getPlayer } from '@/lib/playerService';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { withRequestLogging, createRouteLogger } from '@/lib';
 import { calculateCombatPower } from '@/lib/combatPowerService';
@@ -22,7 +21,7 @@ import { calculateCombatPower } from '@/lib/combatPowerService';
 /**
  * GET /api/player/stats
  * Fetches personal statistics for the authenticated player
- * 
+ *
  * @returns PlayerStats object with 6 metrics
  * @example
  * Response: {
@@ -42,11 +41,11 @@ import { calculateCombatPower } from '@/lib/combatPowerService';
 export const GET = withRequestLogging(async (_request: NextRequest) => {
   const log = createRouteLogger('PlayerStats');
   const endTimer = log.time('fetchPlayerStats');
-  
+
   try {
     // Get authenticated user from cookie
     const user = await getAuthenticatedUser();
-    
+
     if (!user) {
       log.warn('Unauthenticated stats request');
       return NextResponse.json(
@@ -54,28 +53,13 @@ export const GET = withRequestLogging(async (_request: NextRequest) => {
         { status: 401 }
       );
     }
-    
+
     const username = user.username;
     log.debug('Fetching stats', { username });
 
-    // Connect to database
-    const db = await getDatabase();
-    const playersCollection = db.collection<Player>('players');
-
-    // Fetch player's stats
-    const player = await playersCollection.findOne(
-      { username },
-      { 
-        projection: { 
-          stats: 1, 
-          username: 1, 
-          level: 1,
-          totalStrength: 1,
-          totalDefense: 1,
-          resources: 1
-        } 
-      }
-    );
+    // Fetch player's stats through the single pg domain loader
+    // (stats is a real jsonb column on players; the loader maps it).
+    const player = await getPlayer(username, { includePrivate: true });
 
     if (!player) {
       log.warn('Player not found', { username });
@@ -98,8 +82,8 @@ export const GET = withRequestLogging(async (_request: NextRequest) => {
       cavesExplored: player.stats?.cavesExplored ?? 0,
     };
 
-    log.info('Stats fetched successfully', { 
-      username, 
+    log.info('Stats fetched successfully', {
+      username,
       level: player.level ?? 1,
       combatPower,
       balanceStatus: breakdown.balanceStatus
@@ -133,11 +117,11 @@ export const GET = withRequestLogging(async (_request: NextRequest) => {
 // IMPLEMENTATION NOTES:
 // ============================================================
 // - Uses cookie-based authentication (getAuthenticatedUser)
+// - Single domain read: getPlayer(includePrivate) on pg — the prior shim
+//   findOne projected the same fields the loader maps
 // - Returns PlayerStats with safe defaults (?? 0)
 // - Includes player context (username, level, power, resources)
 // - Resources: metal and energy ONLY (no gold - ECHO compliance)
-// - All fields use optional chaining for safety
-// - Same auth pattern as other API routes (bot-magnet, admin, etc.)
 // ============================================================
 // END OF FILE
 // ============================================================

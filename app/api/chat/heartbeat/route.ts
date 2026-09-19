@@ -1,41 +1,52 @@
 /**
  * @file app/api/chat/heartbeat/route.ts
  * @created 2025-10-26
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → direct drizzle/pg)
  * @overview User heartbeat API for online presence tracking
- * 
+ *
  * OVERVIEW:
- * Provides endpoint for recording user "I'm alive" heartbeats.
- * Uses MongoDB with TTL (time-to-live) for automatic cleanup of stale
- * presence records (>60 seconds old). Foundation for online status,
- * friend presence, and "who's online" features.
- * 
+ * Records the authenticated user's "I'm alive" heartbeat into the `user_presence`
+ * table (60-second window). Foundation for online status, friend presence, and
+ * "who's online" features.
+ *
  * ENDPOINTS:
  * - POST /api/chat/heartbeat: Update user presence timestamp
- * 
+ *
  * KEY FEATURES:
- * - Auto-cleanup: Records expire after 60 seconds
- * - Last seen tracking: Records timestamp of last activity
- * - Status support: Online, Away, Busy (future feature)
- * - Minimal database load: Single upsert per heartbeat
- * 
+ * - Session-bound identity: presence is written for the SESSION user only
+ *   (FID-20260904-005 §5.1, presence writers); body identity fields are accepted
+ *   for backwards compatibility but MUST match the session when present.
+ * - Atomic upsert: single row per user, keyed on the unique user_id column.
+ * - Sliding 60s window: expires_at = now + 60s. There is no Mongo TTL engine on
+ *   Postgres — /api/chat/online enforces the window at read time and expired
+ *   rows are removed by the presence cleanup, so heartbeat writes stay a single
+ *   upsert.
+ *
+ * PERSISTENCE (PostgreSQL — lib/db/schema/config.ts `user_presence`):
+ * - id varchar(24) PK (generated), user_id varchar(20) UNIQUE, last_seen,
+ *   expires_at.
+ * - The Mongo-era document carried username/level/isVIP/status; those map to NO
+ *   column (identity lives in user_id, which IS the username on the pg pivot —
+ *   FID-20260905-001) and level/VIP are joined from `players` at read time by
+ *   /api/chat/online. Body fields beyond identity are validated for match
+ *   compatibility only — never persisted — so the shim's silent key-drop is now
+ *   an explicit contract.
+ *
  * USAGE EXAMPLE:
  * ```tsx
  * // Send heartbeat every 30s
  * await fetch('/api/chat/heartbeat', {
  *   method: 'POST',
  *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({ userId: '123', username: 'Alice' }),
+ *   body: JSON.stringify({ userId, username, status: 'Online' }),
  * });
  * ```
- * 
- * IMPLEMENTATION NOTES:
- * - FID-20251026-017: HTTP Polling Infrastructure
- * - ECHO v5.2 compliant: Complete REST API, error handling, docs
- * - MongoDB collection: user_presence (with TTL index)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { userPresence } from '@/lib/db/schema';
+import { generateId } from '@/lib/utils';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 
 // ============================================================================
@@ -43,38 +54,14 @@ import { getAuthenticatedUser } from '@/lib/authMiddleware';
 // ============================================================================
 
 /**
- * User presence record in MongoDB
- */
-interface UserPresence {
-  /** User ID (unique) */
-  userId: string;
-  
-  /** Username for display */
-  username: string;
-  
-  /** User level */
-  level?: number;
-  
-  /** VIP status */
-  isVIP?: boolean;
-  
-  /** Current status (Online, Away, Busy) */
-  status: 'Online' | 'Away' | 'Busy';
-  
-  /** Last heartbeat timestamp */
-  lastSeen: Date;
-  
-  /** Auto-delete after 60 seconds (MongoDB TTL) */
-  expiresAt: Date;
-}
-
-/**
  * POST request body
  */
 interface PostHeartbeatRequest {
-  userId: string;
-  username: string;
+  userId?: string;
+  username?: string;
+  /** Accepted for body-compat; derived from players at read time. */
   level?: number;
+  /** Accepted for body-compat; derived from players at read time. */
   isVIP?: boolean;
   status?: 'Online' | 'Away' | 'Busy';
 }
@@ -84,7 +71,6 @@ interface PostHeartbeatRequest {
 // ============================================================================
 
 const HEARTBEAT_TIMEOUT_MS = 60000; // 60 seconds
-const COLLECTION_NAME = 'user_presence';
 
 // ============================================================================
 // POST /api/chat/heartbeat
@@ -92,22 +78,22 @@ const COLLECTION_NAME = 'user_presence';
 
 /**
  * Update user presence timestamp
- * 
+ *
  * @param request - Next.js request object
  * @returns Success response
- * 
+ *
  * @example
  * ```
  * POST /api/chat/heartbeat
- * Body: { userId: '123', username: 'Alice', level: 42, isVIP: true }
- * Response: { success: true, lastSeen: '2025-10-26T10:30:00Z' }
+ * Body: { userId: 'alice', username: 'alice', status: 'Online' }
+ * Response: { success: true, lastSeen: '2026-09-18T10:30:00.000Z' }
  * ```
  */
 export async function POST(request: NextRequest) {
   try {
     // Parse request body
     const body: PostHeartbeatRequest = await request.json();
-    const { userId: bodyUserId, username: bodyUsername, level, isVIP, status = 'Online' } = body;
+    const { userId: bodyUserId, username: bodyUsername, status = 'Online' } = body;
 
     // FID-20260904-005 §5.1 (presence writers): identity comes from the SESSION — a
     // client-supplied userId/username lets any caller write presence as anyone else
@@ -129,21 +115,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate inputs
-    if (!userId || typeof userId !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'userId is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!username || typeof username !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'username is required' },
-        { status: 400 }
-      );
-    }
-
     // Validate status
     const validStatuses = ['Online', 'Away', 'Busy'];
     if (!validStatuses.includes(status)) {
@@ -156,29 +127,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Connect to database
-    const db = await getDatabase();
-    const collection = db.collection<UserPresence>(COLLECTION_NAME);
-
-    // Upsert presence record (update if exists, insert if not)
+    // Upsert presence (atomic on the user_id unique index; userPresence.userId
+    // IS the username on the pg pivot, so one row per user carries everything
+    // /api/chat/online needs — level/VIP are joined from players at read time).
     const now = new Date();
     const expiresAt = new Date(now.getTime() + HEARTBEAT_TIMEOUT_MS);
 
-    await collection.updateOne(
-      { userId },
-      {
-        $set: {
-          userId,
-          username,
-          level: level ?? 1,
-          isVIP: isVIP ?? false,
-          status,
-          lastSeen: now,
-          expiresAt,
-        },
-      },
-      { upsert: true }
-    );
+    await db
+      .insert(userPresence)
+      .values({ id: generateId(), userId, lastSeen: now, expiresAt })
+      .onConflictDoUpdate({
+        target: userPresence.userId,
+        set: { lastSeen: now, expiresAt },
+      });
 
     return NextResponse.json({
       success: true,
@@ -198,79 +159,44 @@ export async function POST(request: NextRequest) {
 
 /**
  * IMPLEMENTATION NOTES:
- * 
- * 1. MongoDB TTL (Time-To-Live):
- *    - Index on expiresAt field with expireAfterSeconds: 0
- *    - MongoDB automatically deletes documents where expiresAt < now
- *    - No manual cleanup needed
- *    - Index creation: db.user_presence.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
- * 
+ *
+ * 1. Presence window (replaces the Mongo TTL index):
+ *    - expires_at = now + 60s on every write
+ *    - /api/chat/online filters `last_seen >= now - 60s`, so a client that stops
+ *      heartbeating drops out of the online list after 60s
+ *    - stale rows are not reader-visible regardless of cleanup timing
+ *
  * 2. Heartbeat Interval:
  *    - 60 seconds timeout (HEARTBEAT_TIMEOUT_MS)
- *    - Client should send heartbeat every 30s (50% safety margin)
- *    - If client crashes/closes, record expires after 60s
- *    - User appears offline after 60s of no heartbeat
- * 
+ *    - Client sends heartbeat every 30s (50% safety margin)
+ *    - If client crashes/closes, the user appears offline after 60s
+ *
  * 3. Upsert Strategy:
- *    - updateOne with upsert: true
- *    - Single record per user (userId unique)
- *    - Updates all fields on each heartbeat (username, level, VIP may change)
- *    - Ensures presence data always fresh
- * 
+ *    - INSERT … ON CONFLICT (user_id) DO UPDATE — atomic, race-safe
+ *      (the shim rode the same unique index via its CONFLICT_TARGETS registry)
+ *    - Single row per user (user_id unique)
+ *    - last_seen/expires_at are the only mutable columns
+ *
  * 4. Status Field:
- *    - Default: 'Online' (user active)
- *    - 'Away': User idle (future feature with idle detection)
- *    - 'Busy': User in battle/dungeon (future feature)
- *    - Can be set explicitly by client
- * 
+ *    - Validated ('Online' | 'Away' | 'Busy') but not persisted — no column
+ *      carries it on the pg table; 'Online' is the de-facto state of any user
+ *      inside the presence window (future: add a status column if Away/Busy ship)
+ *
  * 5. Security Considerations:
- *    - No authentication check (relies on game being authenticated)
- *    - Could add JWT validation if needed
+ *    - Session-bound identity (FID-20260904-005 §5.1): body identity must match
+ *      the session or the write is refused with 403
  *    - Rate limiting recommended (e.g., max 1 request per 10s per user)
- *    - Prevents heartbeat spam
- * 
+ *
  * 6. UI Integration:
- *    - Client sends heartbeat every 30s while game open
- *    - Client sends heartbeat on tab visible (Page Visibility API)
- *    - usePolling hook can trigger heartbeat automatically
+ *    - Client sends heartbeat every 30s while game open (ChatPanel usePolling)
  *    - Friend list shows green dot if lastSeen < 60s
- * 
+ *
  * 7. Performance:
- *    - Unique index on userId for fast upserts
- *    - TTL index for automatic cleanup
- *    - Collection stays small (only active users)
+ *    - Unique index on user_id for fast upserts
+ *    - Index on expires_at for the cleanup sweep
  *    - Minimal database load (1 upsert per user per 30s)
- * 
- * 8. Scalability:
- *    - Presence records are temporary (60s lifetime)
- *    - Collection size ≈ concurrent users (not total users)
- *    - With 1000 concurrent users: ~1000 documents
- *    - Automatic cleanup prevents unbounded growth
- * 
- * 9. Future Enhancements:
- *    - Add current channel field (where user is chatting)
- *    - Add activity type (idle, chatting, battling, etc.)
- *    - Add last action timestamp (for "typing" vs "idle")
- *    - Add geolocation/timezone (for "local time" display)
- *    - Add device type (mobile, desktop)
- * 
- * 10. Friend System Integration:
- *     - Friend list queries user_presence for friend IDs
- *     - Shows online/offline status based on lastSeen
- *     - Shows status icon (green=Online, yellow=Away, red=Busy)
- *     - Shows "Last seen 5 minutes ago" if offline
- * 
- * 11. Online Count Integration:
- *     - /api/chat/online queries user_presence collection
- *     - Counts documents with lastSeen > (now - 60s)
- *     - Can filter by channel permissions (VIP, Clan, etc.)
- *     - Returns real-time online user count
- * 
- * 12. ECHO Compliance:
- *     - ✅ Complete REST API implementation
- *     - ✅ TypeScript with interfaces
- *     - ✅ Comprehensive documentation
- *     - ✅ Error handling with user-friendly messages
- *     - ✅ Input validation
- *     - ✅ Production-ready code
+ *
+ * 8. Friend/Online Integration:
+ *    - /api/chat/online reads this table (joined with players for level/VIP)
+ *    - Counts rows with last_seen >= now - 60s
  */

@@ -1,80 +1,43 @@
 /**
  * @file app/api/chat/typing/route.ts
  * @created 2025-10-26
+ * @rewritten 2026-09-18 (FID-20260917-017 slice 3: Mongo shim → direct drizzle/pg)
  * @overview Typing indicators API for real-time chat feedback
- * 
+ *
  * OVERVIEW:
- * Provides endpoints for recording and retrieving typing indicators.
- * Uses MongoDB with TTL (time-to-live) for automatic cleanup of stale
- * typing records (>5 seconds old). Supports channel-based typing indicators
- * with username display.
- * 
+ * Records and retrieves typing indicators per channel, backed by the
+ * `typing_indicators` table (5-second window). Returns usernames for the
+ * "X is typing..." UI.
+ *
  * ENDPOINTS:
  * - POST /api/chat/typing: Record user typing in channel
  * - GET /api/chat/typing?channelId=X: Get current typers for channel
- * 
+ *
  * KEY FEATURES:
- * - Auto-cleanup: Records expire after 5 seconds
- * - Channel-based: Separate typing indicators per channel
- * - Username display: Returns username for "X is typing..." UI
- * - Duplicate prevention: Updates existing record if user already typing
- * 
- * USAGE EXAMPLE:
- * ```tsx
- * // Record typing
- * await fetch('/api/chat/typing', {
- *   method: 'POST',
- *   headers: { 'Content-Type': 'application/json' },
- *   body: JSON.stringify({ channelId: 'global', userId: '123', username: 'Alice' }),
- * });
- * 
- * // Get typers
- * const res = await fetch('/api/chat/typing?channelId=global');
- * const { typers } = await res.json();
- * // typers = [{ userId: '123', username: 'Alice', timestamp: '2025-10-26T...' }]
- * ```
- * 
- * IMPLEMENTATION NOTES:
- * - FID-20251026-017: HTTP Polling Infrastructure
- * - ECHO v5.2 compliant: Complete REST API, error handling, docs
- * - MongoDB collection: typing_indicators (with TTL index)
+ * - Session-bound identity (FID-20260904-005 §5.1, presence writers)
+ * - Atomic upsert on the UNIQUE (channel_id, user_id) index (migration 0034)
+ * - Read-time window filter: pg has no TTL engine, so GET only returns rows
+ *   whose 5s window is still open — the Mongo TTL used to hide stale rows
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/mongodb';
+import { db } from '@/lib/db/connection';
+import { typingIndicators } from '@/lib/db/schema';
+import { generateId } from '@/lib/utils';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+import { eq, and, gt, desc } from 'drizzle-orm';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 /**
- * Typing indicator record in MongoDB
- */
-interface TypingIndicator {
-  /** Channel ID where user is typing */
-  channelId: string;
-  
-  /** User ID */
-  userId: string;
-  
-  /** Username for display */
-  username: string;
-  
-  /** Timestamp of last typing activity */
-  timestamp: Date;
-  
-  /** Auto-delete after 5 seconds (MongoDB TTL) */
-  expiresAt: Date;
-}
-
-/**
  * POST request body
  */
 interface PostTypingRequest {
   channelId: string;
-  userId: string;
-  username: string;
+  userId?: string;
+  username?: string;
 }
 
 /**
@@ -93,7 +56,6 @@ interface GetTypingResponse {
 // ============================================================================
 
 const TYPING_TIMEOUT_MS = 5000; // 5 seconds
-const COLLECTION_NAME = 'typing_indicators';
 
 // ============================================================================
 // POST /api/chat/typing
@@ -101,14 +63,14 @@ const COLLECTION_NAME = 'typing_indicators';
 
 /**
  * Record user typing in channel
- * 
+ *
  * @param request - Next.js request object
  * @returns Success response
- * 
+ *
  * @example
  * ```
  * POST /api/chat/typing
- * Body: { channelId: 'global', userId: '123', username: 'Alice' }
+ * Body: { channelId: 'global', userId: 'alice', username: 'alice' }
  * Response: { success: true }
  * ```
  */
@@ -143,41 +105,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!userId || typeof userId !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'userId is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!username || typeof username !== 'string') {
-      return NextResponse.json(
-        { success: false, error: 'username is required' },
-        { status: 400 }
-      );
-    }
-
-    // Connect to database
-    const db = await getDatabase();
-    const collection = db.collection<TypingIndicator>(COLLECTION_NAME);
-
-    // Upsert typing indicator (update if exists, insert if not)
+    // Upsert typing indicator (atomic on the unique (channel_id, user_id)
+    // index added by migration 0034; the pre-0034 table carried a non-unique
+    // index, so the shim's select-then-insert could race two rows per pair).
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TYPING_TIMEOUT_MS);
 
-    await collection.updateOne(
-      { channelId, userId },
-      {
-        $set: {
-          channelId,
-          userId,
-          username,
-          timestamp: now,
-          expiresAt,
-        },
-      },
-      { upsert: true }
-    );
+    await db
+      .insert(typingIndicators)
+      .values({ id: generateId(), channelId, userId, expiresAt })
+      .onConflictDoUpdate({
+        target: [typingIndicators.channelId, typingIndicators.userId],
+        set: { expiresAt },
+      });
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -198,17 +138,17 @@ export async function POST(request: NextRequest) {
 
 /**
  * Get current typers for channel
- * 
+ *
  * @param request - Next.js request object
  * @returns List of current typers
- * 
+ *
  * @example
  * ```
  * GET /api/chat/typing?channelId=global
  * Response: {
  *   typers: [
- *     { userId: '123', username: 'Alice', timestamp: '2025-10-26T10:30:00Z' },
- *     { userId: '456', username: 'Bob', timestamp: '2025-10-26T10:30:02Z' }
+ *     { userId: 'alice', username: 'alice', timestamp: '2026-09-18T10:30:00.000Z' },
+ *     { userId: 'bob', username: 'bob', timestamp: '2026-09-18T10:30:02.000Z' }
  *   ]
  * }
  * ```
@@ -227,21 +167,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Connect to database
-    const db = await getDatabase();
-    const collection = db.collection<TypingIndicator>(COLLECTION_NAME);
-
-    // Get current typers (MongoDB TTL will auto-delete expired records)
-    const typers = await collection
-      .find({ channelId })
-      .sort({ timestamp: -1 })
-      .toArray();
+    // Current typers: the 5s window must still be open. On the pg table there
+    // is no TTL engine to delete expired rows, so the read-time filter is what
+    // makes a stopped-typing row invisible; the presence cleanup reaps the
+    // dead rows.
+    const windowFloor = new Date(Date.now() - TYPING_TIMEOUT_MS);
+    const typers = await db
+      .select({
+        userId: typingIndicators.userId,
+        expiresAt: typingIndicators.expiresAt,
+      })
+      .from(typingIndicators)
+      .where(and(eq(typingIndicators.channelId, channelId), gt(typingIndicators.expiresAt, windowFloor)))
+      .orderBy(desc(typingIndicators.expiresAt));
 
     // Format response
     // FID-20260905-001: typing_indicators carries (userId, expiresAt) only — no
     // username/timestamp columns (userId IS the username on the Postgres pivot).
     const response: GetTypingResponse = {
-      typers: typers.map((t: { userId: string; expiresAt: Date | string }) => ({
+      typers: typers.map((t) => ({
         userId: t.userId,
         username: t.userId,
         timestamp: new Date(t.expiresAt).toISOString(),
@@ -263,62 +207,22 @@ export async function GET(request: NextRequest) {
 
 /**
  * IMPLEMENTATION NOTES:
- * 
- * 1. MongoDB TTL (Time-To-Live):
- *    - Index on expiresAt field with expireAfterSeconds: 0
- *    - MongoDB automatically deletes documents where expiresAt < now
- *    - No manual cleanup needed
- *    - Index creation: db.typing_indicators.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 })
- * 
+ *
+ * 1. Window (replaces the Mongo TTL):
+ *    - expires_at = now + 5s on every write; GET filters expires_at > now - 5s
+ *    - a user who stops POSTing drops off the list within 5s
+ *
  * 2. Upsert Strategy:
- *    - updateOne with upsert: true
- *    - If user already typing in channel, updates timestamp
- *    - If user not typing, inserts new record
- *    - Prevents duplicate typing records per user per channel
- * 
+ *    - INSERT … ON CONFLICT (channel_id, user_id) DO UPDATE — one row per
+ *      user per channel, race-safe (unique index from migration 0034)
+ *
  * 3. Typing Timeout:
- *    - 5 seconds (TYPING_TIMEOUT_MS)
- *    - Balances responsiveness vs database load
- *    - Client should send typing event every 2-3s while typing
- *    - If client stops sending, record expires after 5s
- * 
- * 4. Security Considerations:
- *    - No authentication check (relies on game being authenticated)
- *    - Could add JWT validation if needed
- *    - Rate limiting recommended (e.g., max 1 request per second per user)
- * 
+ *    - 5 seconds; client sends typing events every 2-3s while typing
+ *
+ * 4. Security:
+ *    - Session-bound identity; forged body identity is refused with 403
+ *
  * 5. UI Integration:
- *    - Client polls GET endpoint every 2s while channel open
- *    - Client sends POST every 2-3s while user typing
+ *    - Client polls GET every 2s while the channel is open
  *    - UI shows "Alice, Bob, and Charlie are typing..." (max 3 names)
- * 
- * 6. Performance:
- *    - Compound index on { channelId: 1, userId: 1 } for fast upserts
- *    - TTL index for automatic cleanup
- *    - Query returns only active typers (expired auto-deleted)
- * 
- * 7. Error Handling:
- *    - Validates all inputs (channelId, userId, username)
- *    - Returns 400 for bad requests
- *    - Returns 500 for database errors
- *    - Logs all errors for debugging
- * 
- * 8. Scalability:
- *    - Typing indicators are temporary (5s lifetime)
- *    - Collection stays small even with many users
- *    - Automatic cleanup prevents unbounded growth
- * 
- * 9. Future Enhancements:
- *    - Add channel permissions check (VIP, Clan, etc.)
- *    - Add rate limiting per user
- *    - Add "stopped typing" explicit endpoint (DELETE)
- *    - Add typing event aggregation (reduce DB writes)
- * 
- * 10. ECHO Compliance:
- *     - ✅ Complete REST API implementation
- *     - ✅ TypeScript with interfaces
- *     - ✅ Comprehensive documentation
- *     - ✅ Error handling with user-friendly messages
- *     - ✅ Input validation
- *     - ✅ Production-ready code
  */
