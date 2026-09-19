@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.13] — 2026-09-19 session
+
+### Removed — the Mongo shim is deleted: lib/mongodb.ts gone, packages uninstalled, eradication gate wired (chain `f827655` → `1f66c5a`)
+
+- The shim that had served as quarantined compat layer since the pg pivot is gone — 13 files, −2,786 lines (`1f66c5a`). Zero runtime importers since FID-20260917-017; every route, service, script, and server.ts entry point rides drizzle/pg directly.
+- Retired with the shim: the collection census (script + liveness pins), the shim-semantics pins (`shimUpdateSemantics`, `pushOperandAndPower`), `verifyShimSemanticsLive`, the opt-in friends live-DB integration suite (the suite's lone skip — it pinned the dead stack), and vitest setup's in-memory MongoDB block (`TEST_MONGO_MEMORY` opt-in removed with the package).
+- Two real conversions closed the gap: `spawnBots` (bot count + insert via `mapDomainPlayerToRow`; phantom isBot cooldown dropped) and `archiveOldLogs` (archive/preview/cleanup on drizzle; admin-tier retention mirrored to the live single-window semantic — `player_activity` has no category column).
+- `mongodb` + `mongodb-memory-server` uninstalled. Provenance comments naming the shim remain (accurate history); two stale dependency headers corrected to name `lib/db/connection`.
+- Pre-push Gate 3 rewritten as a total-eradication census: any mongodb module/package/env reference outside `__tests__` (which keeps its legitimate negative-assertion pins) refuses the push — verified live with a planted violation. Gates at deletion: suite 114/1141, tsc 0, eslint clean, census zero.
+
 ## [0.0.12] — 2026-09-19 session
 
 ### Changed — FID-20260917-017 closed: complete Mongo-shim decomposition, lib + app/api at zero runtime importers (chain `fb5b702` → `bcffa73`)
