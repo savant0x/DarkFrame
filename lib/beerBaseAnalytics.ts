@@ -20,41 +20,31 @@
  * Optional: Auto-export before purge
  */
 
-import { connectToDatabase } from './mongodb';
+import { db } from './db/connection';
+import { beerBaseSpawnEvents, beerBaseDefeatEvents } from './db/schema/config';
+import { and, gte, lte, lt } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { logger } from './logger';
-import type { ObjectId } from 'mongodb';
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-/**
- * Optimized spawn event (~59 bytes)
- */
-export interface SpawnEvent {
-  _id?: ObjectId;
-  t: Date;           // timestamp
-  tier: number;      // 0-5 (WEAK to GOD)
-  x: number;         // position x
-  y: number;         // position y
-  by: string;        // "auto" | "manual" | "schedule-{id}"
-  sid?: string;      // schedule ID if applicable
+/** event rows use varchar(24) ids — 24-char uuid-hex slice (migration 0000 PK convention). */
+function generateEventId(): string {
+  return randomUUID().replace(/-/g, '').slice(0, 24);
 }
 
 /**
- * Optimized defeat event (~36 bytes)
+ * Optimized spawn event (~59 bytes) — pg row (FID-20260917-017).
  */
-export interface DefeatEvent {
-  _id?: ObjectId;
-  t: Date;           // timestamp
-  tier: number;      // tier defeated
-  by: string;        // username
-  r: {               // rewards
-    m: number;       // metal
-    e: number;       // energy
-  };
-  alive: number;     // seconds alive
-}
+export type SpawnEvent = typeof beerBaseSpawnEvents.$inferSelect;
+
+/**
+ * Optimized defeat event (~36 bytes) — pg row; the legacy nested `r` object
+ * is stored flat as rewards_metal/rewards_energy.
+ */
+export type DefeatEvent = typeof beerBaseDefeatEvents.$inferSelect;
 
 export interface SpawnStatistics {
   totalSpawns: number;
@@ -104,19 +94,15 @@ export async function recordSpawnEvent(
   scheduleId?: string
 ): Promise<void> {
   try {
-    const db = await connectToDatabase();
-    const collection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
-
-    const event: SpawnEvent = {
+    await db.insert(beerBaseSpawnEvents).values({
+      id: generateEventId(),
       t: new Date(),
       tier,
       x: position.x,
       y: position.y,
       by: spawnedBy,
-      sid: scheduleId
-    };
-
-    await collection.insertOne(event);
+      sid: scheduleId ?? null,
+    });
 
     logger.info('Beer Base spawn event recorded', {
       tier: TIER_NAMES[tier],
@@ -145,21 +131,15 @@ export async function recordDefeatEvent(
   timeAlive: number
 ): Promise<void> {
   try {
-    const db = await connectToDatabase();
-    const collection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
-
-    const event: DefeatEvent = {
+    await db.insert(beerBaseDefeatEvents).values({
+      id: generateEventId(),
       t: new Date(),
       tier,
       by: defeatedBy,
-      r: {
-        m: rewards.metal,
-        e: rewards.energy
-      },
-      alive: timeAlive
-    };
-
-    await collection.insertOne(event);
+      rewardsMetal: rewards.metal,
+      rewardsEnergy: rewards.energy,
+      alive: timeAlive,
+    });
 
     logger.info('Beer Base defeat event recorded', {
       tier: TIER_NAMES[tier],
@@ -186,17 +166,15 @@ export async function getSpawnStats(
   startDate?: Date,
   endDate?: Date
 ): Promise<SpawnStatistics> {
-  const db = await connectToDatabase();
-  const collection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
-
   // Default to last 30 days
   const end = endDate || new Date();
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Get all spawns in date range
-  const spawns = await collection.find({
-    t: { $gte: start, $lte: end }
-  }).toArray();
+  const spawns = await db
+    .select()
+    .from(beerBaseSpawnEvents)
+    .where(and(gte(beerBaseSpawnEvents.t, start), lte(beerBaseSpawnEvents.t, end)));
 
   const totalSpawns = spawns.length;
 
@@ -262,17 +240,15 @@ export async function getDefeatStats(
   startDate?: Date,
   endDate?: Date
 ): Promise<DefeatStatistics> {
-  const db = await connectToDatabase();
-  const collection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
-
   // Default to last 30 days
   const end = endDate || new Date();
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Get all defeats in date range
-  const defeats = await collection.find({
-    t: { $gte: start, $lte: end }
-  }).toArray();
+  const defeats = await db
+    .select()
+    .from(beerBaseDefeatEvents)
+    .where(and(gte(beerBaseDefeatEvents.t, start), lte(beerBaseDefeatEvents.t, end)));
 
   const totalDefeats = defeats.length;
 
@@ -308,8 +284,8 @@ export async function getDefeatStats(
     const existing = playerMap.get(defeat.by) || { defeats: 0, metal: 0, energy: 0 };
     playerMap.set(defeat.by, {
       defeats: existing.defeats + 1,
-      metal: existing.metal + defeat.r.m,
-      energy: existing.energy + defeat.r.e
+      metal: existing.metal + defeat.rewardsMetal,
+      energy: existing.energy + defeat.rewardsEnergy
     });
   });
 
@@ -345,17 +321,19 @@ export async function getEffectivenessMetrics(
   startDate?: Date,
   endDate?: Date
 ): Promise<EffectivenessMetrics> {
-  const db = await connectToDatabase();
-  const spawnsCollection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
-  const defeatsCollection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
-
   // Default to last 30 days
   const end = endDate || new Date();
   const start = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   // Get spawns and defeats
-  const spawns = await spawnsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
-  const defeats = await defeatsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
+  const spawns = await db
+    .select()
+    .from(beerBaseSpawnEvents)
+    .where(and(gte(beerBaseSpawnEvents.t, start), lte(beerBaseSpawnEvents.t, end)));
+  const defeats = await db
+    .select()
+    .from(beerBaseDefeatEvents)
+    .where(and(gte(beerBaseDefeatEvents.t, start), lte(beerBaseDefeatEvents.t, end)));
 
   // Overall defeat rate
   const overallDefeatRate = spawns.length > 0 ? (defeats.length / spawns.length) * 100 : 0;
@@ -426,15 +404,17 @@ export async function exportAnalytics(
   startDate?: Date,
   endDate?: Date
 ): Promise<string> {
-  const db = await connectToDatabase();
-  const spawnsCollection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
-  const defeatsCollection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
-
   const end = endDate || new Date();
   const start = startDate || new Date(0); // Beginning of time if not specified
 
-  const spawns = await spawnsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
-  const defeats = await defeatsCollection.find({ t: { $gte: start, $lte: end } }).toArray();
+  const spawns = await db
+    .select()
+    .from(beerBaseSpawnEvents)
+    .where(and(gte(beerBaseSpawnEvents.t, start), lte(beerBaseSpawnEvents.t, end)));
+  const defeats = await db
+    .select()
+    .from(beerBaseDefeatEvents)
+    .where(and(gte(beerBaseDefeatEvents.t, start), lte(beerBaseDefeatEvents.t, end)));
 
   if (format === 'json') {
     return JSON.stringify({
@@ -451,7 +431,7 @@ export async function exportAnalytics(
         timestamp: d.t.toISOString(),
         tier: TIER_NAMES[d.tier],
         defeatedBy: d.by,
-        rewards: { metal: d.r.m, energy: d.r.e },
+        rewards: { metal: d.rewardsMetal, energy: d.rewardsEnergy },
         timeAliveHours: (d.alive / 3600).toFixed(2)
       }))
     }, null, 2);
@@ -464,7 +444,7 @@ export async function exportAnalytics(
     });
     
     defeats.forEach((d) => {
-      csv += `Defeat,${d.t.toISOString()},${TIER_NAMES[d.tier]},"by:${d.by} metal:${d.r.m} energy:${d.r.e} hours:${(d.alive / 3600).toFixed(2)}"\n`;
+      csv += `Defeat,${d.t.toISOString()},${TIER_NAMES[d.tier]},"by:${d.by} metal:${d.rewardsMetal} energy:${d.rewardsEnergy} hours:${(d.alive / 3600).toFixed(2)}"\n`;
     });
     
     return csv;
@@ -485,25 +465,27 @@ export async function purgeOldAnalytics(): Promise<{
   spawnsDeleted: number;
   defeatsDeleted: number;
 }> {
-  const db = await connectToDatabase();
-  const spawnsCollection = db.collection<SpawnEvent>('beerBaseSpawnEvents');
-  const defeatsCollection = db.collection<DefeatEvent>('beerBaseDefeatEvents');
-
   const oneYearAgo = new Date();
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
-  const spawnsResult = await spawnsCollection.deleteMany({ t: { $lt: oneYearAgo } });
-  const defeatsResult = await defeatsCollection.deleteMany({ t: { $lt: oneYearAgo } });
+  const deletedSpawns = await db
+    .delete(beerBaseSpawnEvents)
+    .where(lt(beerBaseSpawnEvents.t, oneYearAgo))
+    .returning({ id: beerBaseSpawnEvents.id });
+  const deletedDefeats = await db
+    .delete(beerBaseDefeatEvents)
+    .where(lt(beerBaseDefeatEvents.t, oneYearAgo))
+    .returning({ id: beerBaseDefeatEvents.id });
 
   logger.info('Old analytics data purged', {
-    spawnsDeleted: spawnsResult.deletedCount,
-    defeatsDeleted: defeatsResult.deletedCount,
+    spawnsDeleted: deletedSpawns.length,
+    defeatsDeleted: deletedDefeats.length,
     cutoffDate: oneYearAgo.toISOString()
   });
 
   return {
-    spawnsDeleted: spawnsResult.deletedCount || 0,
-    defeatsDeleted: defeatsResult.deletedCount || 0
+    spawnsDeleted: deletedSpawns.length,
+    defeatsDeleted: deletedDefeats.length
   };
 }
 
