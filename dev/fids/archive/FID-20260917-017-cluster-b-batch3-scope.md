@@ -1,6 +1,6 @@
 # FID-20260917-017 — Cluster B batch 3 scope: complete shim decomposition (enumeration + sizing)
 
-**Status:** `scoped — awaiting operator batch selection`
+**Status:** `closed (2026-09-19) — all operator-selected slices + batch 4 executed; §8 carries the commit chain`
 **Session:** 2026-09-17 (059)
 **Origin:** Operator directive: "Scope Cluster B batch 3: enumerate the remaining getCollection/getDatabase/connectToDatabase routes, size each rewrite, and file the FID."
 
@@ -132,3 +132,44 @@ tsc 0 · eslint 0 · shim-census reduction asserted in the test file · suite gr
 live probe (direct-handler where `requireAuth`-family auth allows; HTTP via register-route
 session where `getAuthenticatedUser` is used) · probe-owned cleanup with residue-zero
 assertions.
+
+## 8. Execution record (closed 2026-09-19)
+
+Operator approval: "Approve and execute all six FID-017 slices in order, then batch 4 for
+the 17 relative-import services." All five route slices plus batch 4 landed in commit
+order; every commit is gates-green (tsc 0 · eslint 0 · suite green · census reduction).
+
+**Route slices (app/api):**
+
+| Slice | Commit | Content |
+|---|---|---|
+| 1 | `fb5b702` | antiCheatDetector rewritten on drizzle/pg — per-player predicates restore real detection |
+| 2 | `1ea5e84` | harvest/move theater conversion; dead inventory-root, debug/tile, orphaned inventory page deleted |
+| 3 | `5a8a493` | chat presence ×3, player reads ×3, clan/invite, cron/player-snapshot (8 conversions) |
+| 4 | `82a9a9b` | admin ×3, auction/my-bids, clan/leaderboard, shrine ×2 (7 conversions) |
+| 5 | `dc7c36c` | factory ×6 + rankingService (+ census-forced health, leaderboard, referral ×3) — **app/api reaches zero shim importers** |
+
+**Batch 4 (lib services, 17 + 2 trivia + barrel):** `c9c3189` (barrel re-export dropped;
+shrineServer + chatHandlers trivia; botFactoryRaid, movementService) → `bd9c878`
+(statTrackingService, combatPowerService) → `3a5c69f` (botGrowthEngine) → `a049f7e`
+(botScannerService; phantom `lastBotScan` write dropped — zero readers/column, the shim's
+unknown-key throw made it a live 500) → `d4c91de` (discoveryService) → `f0e6c10`
+(mapGeneration; Mongo-era runtime DDL dead in pg) → `34d55f3` (achievementService) →
+`48b0487` (**cacheWarming deleted** — zero callers, 8/9 warmed keys unread, 3/4 sort keys
+phantom columns) → `d2887ca` (botCombatService) → `548018c` (dailyLoginService) →
+`88f2a79` (tierUnlockService; atomic compound → guarded UPDATE…RETURNING) → `42d55dd`
+(botFactoryEconomy) → `0a4eca2` (beerBaseService; **three dead schedule writes repaired**
+— silent no-ops since the pivot) → `c656e09` (beerBaseAnalytics) → `bcffa73`
+(auctionService via the shared doc-bridge; settlement pins rebased to a stateful drizzle
+simulation; **pre-push Gate 3: Mongo-shim runtime census wired, fail-closed**).
+
+**Defects surfaced by the conversion (beyond the shim itself):** botScannerService's
+`lastBotScan` phantom write (500s on every scan), beerBaseService's three no-op schedule
+writers, leaderboard's computed-then-discarded out-of-top-100 profile, cacheWarming's
+wholesale dead-module status. Pins rebased onto new seams preserve every behavioral
+assertion (suite 1166 green at closure); census liveness floor tracks the retired call
+sites (5 → 3).
+
+**Residual (out of this FID's lib/app estate, recorded for a follow-up):**
+`scripts/archiveOldLogs.ts` + `scripts/e2eAuctionLedger.ts` still import the shim; the
+quarantined `vi.mock` sites in test files are intentional and exempt from Gate 3.

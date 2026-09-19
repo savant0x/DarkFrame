@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.12] — 2026-09-19 session
+
+### Changed — FID-20260917-017 closed: complete Mongo-shim decomposition, lib + app/api at zero runtime importers (chain `fb5b702` → `bcffa73`)
+
+- Batch 4 finished the 17 relative-import lib services + 2 trivia + the barrel re-export (`c9c3189`…`bcffa73`), completing the slice chain that had already taken every app/api route off the shim. All data access now rides drizzle/pg directly; the shim survives only as a quarantined module behind test `vi.mock` sites. Notable conversions: tierUnlockService's atomic `$inc`+`$addToSet` compound became a guarded `UPDATE … RETURNING`; auctionService rides the shared doc-bridge so `auctions.doc` stays synced with column writes (Law 13).
+- Defects the conversion surfaced and fixed: botScannerService's phantom `lastBotScan` write (500ing every scan — no column, no readers), beerBaseService's three schedule writers that had been silent no-ops since the pg pivot, leaderboard's computed-then-discarded out-of-top-100 profile, and cacheWarming deleted outright (zero callers, unread keys, phantom sort columns).
+- Pre-push Gate 3 wired: the Mongo-shim runtime census runs fail-closed on every push — any runtime importer under lib/ or app/ refuses the merge, so the decomposition cannot silently regress. Test-file mock sites are documented-exempt.
+- Pin suites rebased onto the new drizzle seams preserve every behavioral assertion (settlement suite now a stateful simulation with detached-row read semantics); suite 1166 green, tsc 0, eslint clean at closure.
+
 ## [0.0.11] — 2026-09-17 session
 
 ### Added — FID-20260917-014: referral validation on login (closed, commit `1bd818b`)
