@@ -13,6 +13,7 @@ Older sessions predate versioning adoption and are kept as dated history.
 - Defects the conversion surfaced and fixed: botScannerService's phantom `lastBotScan` write (500ing every scan — no column, no readers), beerBaseService's three schedule writers that had been silent no-ops since the pg pivot, leaderboard's computed-then-discarded out-of-top-100 profile, and cacheWarming deleted outright (zero callers, unread keys, phantom sort columns).
 - Pre-push Gate 3 wired: the Mongo-shim runtime census runs fail-closed on every push — any runtime importer under lib/ or app/ refuses the merge, so the decomposition cannot silently regress. Test-file mock sites are documented-exempt.
 - Pin suites rebased onto the new drizzle seams preserve every behavioral assertion (settlement suite now a stateful simulation with detached-row read semantics); suite 1166 green, tsc 0, eslint clean at closure.
+- Test-mock sweep: all 9 `vi.mock('@/lib/mongodb')` sites in test files were empirically verified vestigial (each file green with the mock deleted — the drizzle seams replaced them) and dropped; what remains referencing the shim in tests is intentional — negative-assertion quarantine pins, the shim's own semantics pins, and the opt-in live-DB integration suite.
 
 ## [0.0.11] — 2026-09-17 session
 

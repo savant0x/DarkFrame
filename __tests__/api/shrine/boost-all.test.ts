@@ -26,9 +26,11 @@ vi.mock('@/lib/authMiddleware', () => ({
   verifyAuth: vi.fn(async () => ({ username: 'tester', playerId: 'tester', isAdmin: false })),
 }));
 
-// FID-20260917-017 slice 4: the route now reads through the pg domain loader
-// and writes through drizzle directly — both seams mocked at module
-// boundaries. The tiles read (assertAtShrine) still rides getCollection.
+// FID-20260917-017 slice 4 + batch-4 part 1: the route reads through the pg
+// domain loader and assertAtShrine's tile read rides drizzle db.select (the
+// connection mock serves capture.shrineTile) — writes go through drizzle.
+// Every seam is off the Mongo shim; no shim mock is needed (Gate 3 would
+// catch any regression that re-imports it).
 vi.mock('@/lib/playerService', () => ({
   getPlayer: vi.fn(async () => capture.playerDoc),
 }));
@@ -57,18 +59,6 @@ vi.mock('@/lib/db/connection', () => ({
     }),
   },
 }));
-
-vi.mock('@/lib/mongodb', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/mongodb')>();
-  return {
-    ...actual,
-    // Slice 4: only the tiles read survives on this seam (assertAtShrine);
-    // player reads/writes moved to getPlayer + drizzle above.
-    getCollection: (name: string) => ({
-      findOne: async () => (name === 'tiles' ? capture.shrineTile : capture.playerDoc),
-    }),
-  };
-});
 
 vi.mock('@/lib/xpService', () => ({
   awardXP: vi.fn(async () => ({

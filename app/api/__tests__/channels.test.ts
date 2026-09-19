@@ -34,14 +34,6 @@ function authFixture(player: Partial<PlayerRow>): AuthResult {
 interface ChannelRow { id: string }
 
 // Mock MongoDB
-vi.mock('@/lib/mongodb', () => ({
-  connectToDatabase: vi.fn().mockResolvedValue({
-    collection: vi.fn().mockReturnValue({
-      findOne: vi.fn(),
-    }),
-  }),
-}));
-
 // Mock auth middleware
 vi.mock('@/lib/authMiddleware', () => ({
   requireAuth: vi.fn(),

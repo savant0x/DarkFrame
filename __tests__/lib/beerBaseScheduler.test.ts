@@ -20,7 +20,6 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/lib/mongodb', () => ({ connectToDatabase: vi.fn() }));
 vi.mock('@/lib/botService', () => ({
   createBot: vi.fn(),
   createBotPlayer: vi.fn(),

@@ -12,10 +12,6 @@ import { describe, it, expect,  vi } from 'vitest';
 import type {   UnitType } from '@/types';
 
 // Mock the database connection
-vi.mock('@/lib/mongodb', () => ({
-  getCollection: vi.fn(),
-}));
-
 // Mock XP and stat tracking services
 vi.mock('@/lib/xpService', () => ({
   awardXP: vi.fn(),

@@ -15,10 +15,6 @@ import {
 } from '@/lib/beerBaseService';
 
 // Mock database connection
-vi.mock('@/lib/mongodb', () => ({
-  connectToDatabase: vi.fn(),
-}));
-
 // Mock bot service
 vi.mock('@/lib/botService', () => ({
   createBot: vi.fn(),

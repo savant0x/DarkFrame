@@ -26,10 +26,6 @@ function authFixture(username: string, playerId: string, player: Partial<PlayerR
 }
 
 // Mock dependencies
-vi.mock('@/lib/mongodb', () => ({
-  connectToDatabase: vi.fn().mockResolvedValue({}),
-}));
-
 vi.mock('@/lib/authMiddleware', () => ({
   requireAuth: vi.fn(),
 }));

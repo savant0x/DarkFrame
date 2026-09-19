@@ -29,8 +29,6 @@ const { capture } = vi.hoisted(() => ({
 
 // beerBaseAnalytics (recordSpawnEvent import chain) still rides the shim;
 // mocked out wholesale so the real mongodb module never loads here.
-vi.mock('@/lib/mongodb', () => ({}));
-
 vi.mock('@/lib/db/connection', () => ({
   db: {
     // Service-layer pg reads, discriminated by projection shape:
