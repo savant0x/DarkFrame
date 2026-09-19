@@ -21,7 +21,10 @@
  * - Cannot be built without achievement
  */
 
-import { getCollection } from './mongodb';
+import { db } from './db/connection';
+import { players } from './db/schema';
+import { eq, sql } from 'drizzle-orm';
+import { mapRowToPlayer } from './playerService';
 import type { Player } from '@/types/game.types';
 import { logger } from './logger';
 
@@ -242,17 +245,36 @@ export const ACHIEVEMENTS: Record<string, Omit<Achievement, 'unlockedAt' | 'prog
  * @returns Array of newly unlocked achievements
  */
 export async function checkAchievements(playerId: string): Promise<Achievement[]> {
-  const playersCollection = await getCollection<Player>('players');
   // FID-20260911-043: slim projection — achievements need only scalars/stats,
   // not the 30 KB units/inventory blobs (runs after EVERY harvest).
-  const player = await playersCollection.findOne(
-    { username: playerId },
-    { projection: { achievements: 1, stats: 1, discoveries: 1, level: 1, specialization: 1, totalStrength: 1, totalDefense: 1, rpHistory: 0 } }
-  );
+  const [row] = await db
+    .select({
+      achievements: players.achievements,
+      stats: players.stats,
+      discoveries: players.discoveries,
+      level: players.level,
+      specialization: players.specialization,
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
+    })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
 
-  if (!player) {
+  if (!row) {
     return [];
   }
+
+  // Normalized into the domain shape the requirement switch reads.
+  const player = {
+    achievements: (row.achievements ?? []) as Player['achievements'],
+    stats: row.stats ?? undefined,
+    discoveries: row.discoveries ?? undefined,
+    level: row.level,
+    specialization: row.specialization ?? undefined,
+    totalStrength: row.totalStrength,
+    totalDefense: row.totalDefense,
+  };
 
   const existingAchievements = player.achievements || [];
   // Dedup on the union: full records carry `id`; tutorial markers carry `achievementId`
@@ -310,13 +332,13 @@ export async function checkAchievements(playerId: string): Promise<Achievement[]
 
       newlyUnlocked.push(unlockedAchievement);
 
-      // Add to player's achievements
-      await playersCollection.updateOne(
-        { username: playerId },
-        { 
-          $push: { achievements: unlockedAchievement }
-        }
-      );
+      // Add to player's achievements (pg: atomic jsonb append — the $push equivalent)
+      await db
+        .update(players)
+        .set({
+          achievements: sql`coalesce(${players.achievements}, '[]'::jsonb) || ${JSON.stringify([unlockedAchievement])}::jsonb`,
+        })
+        .where(eq(players.username, playerId));
 
       // Award RP via researchPointService (with VIP bonus support)
       if (config.reward.rpBonus && config.reward.rpBonus > 0) {
@@ -340,11 +362,13 @@ export async function checkAchievements(playerId: string): Promise<Achievement[]
           }
         } catch (error) {
           console.error('❌ Error awarding RP for achievement:', error);
-          // Fallback to old system if RP service fails
-          await playersCollection.updateOne(
-            { username: playerId },
-            { $inc: { researchPoints: config.reward.rpBonus } }
-          );
+          // Fallback to old system if RP service fails (column-backed RP balance)
+          await db
+            .update(players)
+            .set({
+              researchPoints: sql`${players.researchPoints} + ${config.reward.rpBonus}`,
+            })
+            .where(eq(players.username, playerId));
         }
       }
 
@@ -369,8 +393,8 @@ export async function checkAchievements(playerId: string): Promise<Achievement[]
  * @returns Achievement statistics and progress
  */
 export async function getAchievementProgress(playerId: string) {
-  const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  const [row] = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
+  const player = row ? mapRowToPlayer(row) : null;
 
   if (!player) {
     return null;
@@ -466,14 +490,17 @@ export async function getAchievementProgress(playerId: string) {
  * @returns Array of unlocked prestige unit types
  */
 export async function getUnlockedPrestigeUnits(playerId: string): Promise<string[]> {
-  const playersCollection = await getCollection<Player>('players');
-  const player = await playersCollection.findOne({ username: playerId });
+  const [row] = await db
+    .select({ achievements: players.achievements })
+    .from(players)
+    .where(eq(players.username, playerId))
+    .limit(1);
 
-  if (!player || !player.achievements) {
+  if (!row || !row.achievements) {
     return [];
   }
 
-  return player.achievements
+  return row.achievements
     .filter((a): a is Achievement => 'id' in a)
     .map((a) => a.reward.unitUnlock);
 }
