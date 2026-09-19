@@ -22,22 +22,36 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { capture } = vi.hoisted(() => ({
   capture: {
     regularBots: 0,
-    botCapRow: null as { totalBotCap?: number } | null,
+    botCapRow: null as { totalBots?: number } | null,
     configRows: [] as Array<{ config: Record<string, unknown> }>,
   },
 }));
 
-vi.mock('@/lib/mongodb', () => ({
-  connectToDatabase: async () => ({
-    collection: (_name: string) => ({
-      countDocuments: async (filter: Record<string, unknown>) => {
-        // The service filters Beer Bases out of the denominator — pin that.
-        expect(filter).toMatchObject({ isBot: true, isSpecialBase: { $ne: true } });
-        return capture.regularBots;
+// beerBaseAnalytics (recordSpawnEvent import chain) still rides the shim;
+// mocked out wholesale so the real mongodb module never loads here.
+vi.mock('@/lib/mongodb', () => ({}));
+
+vi.mock('@/lib/db/connection', () => ({
+  db: {
+    // Service-layer pg reads, discriminated by projection shape:
+    //   getTargetBeerBaseCount population count → capture.regularBots
+    //   getTargetBeerBaseCount bot cap          → capture.botCapRow
+    select: (projection?: Record<string, unknown>) => ({
+      from: () => {
+        if (projection && 'totalBots' in projection) {
+          return { limit: async () => (capture.botCapRow ? [capture.botCapRow] : []) };
+        }
+        if (projection && 'count' in projection) {
+          return { where: async () => [{ count: capture.regularBots }] };
+        }
+        return { where: async () => [] };
       },
-      findOne: async () => capture.botCapRow,
     }),
-  }),
+  },
+}));
+
+vi.mock('@/lib/db/schema/config', () => ({
+  botConfig: { totalBots: 'total_bots' },
 }));
 
 vi.mock('@/lib/db', () => ({
@@ -75,6 +89,9 @@ vi.mock('@/lib/db/schema', () => ({
 }));
 
 import { normalizeSpawnRateConfig, getBeerBaseConfig, getTargetBeerBaseCount } from '@/lib/beerBaseService';
+// (projection-shape mocks above; the count select now carries the Beer-Base
+// exclusion inside opaque drizzle conditions — tsc-pinned against the real
+// tables instead of runtime introspection.)
 
 describe('normalizeSpawnRateConfig (FID-20260912-081 units healing)', () => {
   it('heals the fraction-era row the old AdminView wrote (0.05/0.1 → 5/10)', () => {
@@ -151,7 +168,7 @@ describe('getTargetBeerBaseCount percent math (FID-20260912-081)', () => {
 
   it('2000 regular bots at 5–10% → 150, capped at 10% of a 1000 bot cap', async () => {
     capture.regularBots = 2000;
-    capture.botCapRow = { totalBotCap: 1000 };
+    capture.botCapRow = { totalBots: 1000 };
     capture.configRows = [{ config: { enabled: true, spawnRateMin: 5, spawnRateMax: 10 } }];
     expect(await getTargetBeerBaseCount()).toBe(100); // cap binds: 10% of 1000
   });

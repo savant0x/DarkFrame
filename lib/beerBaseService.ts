@@ -23,7 +23,11 @@
  * - Integration with bot spawner and combat service
  */
 
-import { connectToDatabase } from './mongodb';
+import { db as pgDb } from './db/connection';
+import { players } from './db/schema';
+import { botConfig } from './db/schema/config';
+import { and, eq, ne, or, gte, isNull, sql } from 'drizzle-orm';
+import { mapRowToPlayer, mapDomainPlayerToRow } from './playerService';
 import type { Player } from '@/types/game.types';
 import { recordSpawnEvent } from './beerBaseAnalytics';
 import { createBotPlayer, generateBeerBaseName, claimBotBaseTile, releaseBotBaseTile } from './botService';
@@ -32,7 +36,6 @@ import { BotSpecialization, UnitType, PlayerUnit, UNIT_CONFIGS, UnitTier } from 
 // FID-20260906-006a R4: drizzle-native config reads/writes (game_config table).
 import { db as drizzleDb } from '@/lib/db';
 import { gameConfig } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
 /** game_config rows use varchar(24) ids — 24-char uuid-hex slice (FID-006a R4). */
@@ -296,7 +299,6 @@ export async function getSchedules(): Promise<RespawnSchedule[]> {
  * @returns The added schedule with generated ID
  */
 export async function addSchedule(schedule: Omit<RespawnSchedule, 'id'> & { id?: string }): Promise<RespawnSchedule> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   
   // Generate unique ID if not provided
@@ -308,16 +310,11 @@ export async function addSchedule(schedule: Omit<RespawnSchedule, 'id'> & { id?:
   // Add to schedules array
   const updatedSchedules = [...(config.schedules || []), newSchedule];
   
-  await db.collection('gameConfig').updateOne(
-    { type: 'beerBase' },
-    { 
-      $set: { 
-        schedules: updatedSchedules,
-        updatedAt: new Date() 
-      } 
-    },
-    { upsert: true }
-  );
+  // FID-20260917-017 (batch 4): the legacy $set { schedules, updatedAt }
+  // targeted non-column keys on game_config — which has no doc column — so
+  // the shim silently DROPPED both and every schedule write since the pg
+  // pivot has been a no-op. Persist through the real config channel.
+  await updateBeerBaseConfig({ schedules: updatedSchedules });
   
   return newSchedule;
 }
@@ -332,7 +329,6 @@ export async function updateSchedule(
   id: string, 
   updates: Partial<Omit<RespawnSchedule, 'id'>>
 ): Promise<RespawnSchedule | null> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   
   const schedules = config.schedules || [];
@@ -346,15 +342,8 @@ export async function updateSchedule(
   const updatedSchedule = { ...schedules[index], ...updates };
   schedules[index] = updatedSchedule;
   
-  await db.collection('gameConfig').updateOne(
-    { type: 'beerBase' },
-    { 
-      $set: { 
-        schedules,
-        updatedAt: new Date() 
-      } 
-    }
-  );
+  // (Dead-write repair, see addSchedule.)
+  await updateBeerBaseConfig({ schedules });
   
   return updatedSchedule;
 }
@@ -365,7 +354,6 @@ export async function updateSchedule(
  * @returns True if deleted, false if not found
  */
 export async function deleteSchedule(id: string): Promise<boolean> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   
   const schedules = config.schedules || [];
@@ -376,15 +364,8 @@ export async function deleteSchedule(id: string): Promise<boolean> {
     return false; // Schedule not found
   }
   
-  await db.collection('gameConfig').updateOne(
-    { type: 'beerBase' },
-    { 
-      $set: { 
-        schedules: filteredSchedules,
-        updatedAt: new Date() 
-      } 
-    }
-  );
+  // (Dead-write repair, see addSchedule.)
+  await updateBeerBaseConfig({ schedules: filteredSchedules });
   
   return true;
 }
@@ -398,7 +379,6 @@ export async function deleteSchedule(id: string): Promise<boolean> {
  * - SAFETY CAPS: Respect botConfig.totalBotCap and absolute max of 1000
  */
 export async function getTargetBeerBaseCount(): Promise<number> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   
   if (!config.enabled) {
@@ -406,14 +386,18 @@ export async function getTargetBeerBaseCount(): Promise<number> {
   }
   
   // Get total REGULAR bot count (EXCLUDE Beer Bases to prevent infinite loop)
-  const regularBots = await db.collection<Player>('players').countDocuments({ 
-    isBot: true,
-    isSpecialBase: { $ne: true } // CRITICAL: Don't count Beer Bases in calculation
-  });
+  const [row] = await pgDb
+    .select({ count: sql<number>`count(*)::int` })
+    .from(players)
+    .where(and(eq(players.isBot, 1), ne(players.isSpecialBase, 1))); // CRITICAL: Don't count Beer Bases in calculation
+  const regularBots = row?.count ?? 0;
   
-  // Get bot system config for totalBotCap
-  const botConfig = await db.collection<{ totalBotCap?: number }>('botConfig').findOne({});
-  const totalBotCap = botConfig?.totalBotCap || 1000;
+  // Get bot system config for totalBotCap (pg: bot_config.total_bots —
+  // botConfigService maps totalBots ≡ totalBotCap; previously this read a
+  // 'botConfig' Mongo collection the shim could not map, always yielding
+  // the fallback 1000 regardless of the admin-persisted value).
+  const [cfg] = await pgDb.select({ totalBots: botConfig.totalBots }).from(botConfig).limit(1);
+  const totalBotCap = cfg?.totalBots || 1000;
   
   // Use average spawn rate (no need for random variance every check)
   const spawnRate = (config.spawnRateMin + config.spawnRateMax) / 2;
@@ -440,11 +424,11 @@ export async function getTargetBeerBaseCount(): Promise<number> {
  * Get current Beer Base count
  */
 export async function getCurrentBeerBaseCount(): Promise<number> {
-  const db = await connectToDatabase();
-  return await db.collection('players').countDocuments({ 
-    isBot: true, 
-    isSpecialBase: true 
-  });
+  const [row] = await pgDb
+    .select({ count: sql<number>`count(*)::int` })
+    .from(players)
+    .where(and(eq(players.isBot, 1), eq(players.isSpecialBase, 1)));
+  return row?.count ?? 0;
 }
 
 /**
@@ -710,19 +694,17 @@ interface PlayerLevelDistribution {
  * @returns Player level distribution by power tier
  */
 async function analyzePlayerLevelDistribution(): Promise<PlayerLevelDistribution> {
-  const db = await connectToDatabase();
-  
   // Get active players (logged in within last 7 days OR no lastLoginDate set)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
-  const activePlayers = await db.collection<Player>('players').find({
-    isBot: { $ne: true }, // Only real players (handles missing isBot field)
-    $or: [
-      { lastLoginDate: { $gte: sevenDaysAgo } }, // Logged in recently
-      { lastLoginDate: { $exists: false } }       // No login tracking yet (assume active)
-    ]
-  }).toArray();
+  const activePlayers = (await pgDb
+    .select()
+    .from(players)
+    .where(and(
+      ne(players.isBot, 1), // Only real players (handles missing isBot field)
+      or(gte(players.lastLoginDate, sevenDaysAgo), isNull(players.lastLoginDate)) // Logged in recently, or no login tracking yet (assume active)
+    ))).map(mapRowToPlayer);
   
   const totalPlayers = activePlayers.length;
   
@@ -1133,7 +1115,6 @@ function selectRandomPowerTier(): PowerTier {
  * Spawn a single Beer Base
  */
 export async function spawnBeerBase(): Promise<string> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   
   // Generate random specialization (weighted toward high-value types)
@@ -1268,7 +1249,7 @@ export async function spawnBeerBase(): Promise<string> {
   // large but finite), retry with a numeric variant ("Crimson Bastion 2").
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      await db.collection<Player>('players').insertOne(bot);
+      await pgDb.insert(players).values(mapDomainPlayerToRow(bot as Player));
       break;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1321,24 +1302,22 @@ export async function spawnBeerBases(count: number): Promise<string[]> {
  * Called by combat service when Beer Base is defeated
  */
 export async function removeBeerBase(username: string): Promise<void> {
-  const db = await connectToDatabase();
-  
   // Verify it's actually a Beer Base
-  const bot = await db.collection<Player>('players').findOne({ 
-    username, 
-    isBot: true, 
-    isSpecialBase: true 
-  });
+  const [row] = await pgDb
+    .select({ baseX: players.baseX, baseY: players.baseY })
+    .from(players)
+    .where(and(eq(players.username, username), eq(players.isBot, 1), eq(players.isSpecialBase, 1)))
+    .limit(1);
   
-  if (!bot) {
+  if (!row) {
     throw new Error('Bot is not a Beer Base or does not exist');
   }
   
   // Remove completely from database — and release the base tile claim so the
   // Wasteland returns to the spawn pool (FID-20260909-030: despawned bases
   // previously leaked claims forever, leaving ghost map entries).
-  const baseX = Number(bot.base?.x ?? 0);
-  const baseY = Number(bot.base?.y ?? 0);
+  const baseX = Number(row.baseX ?? 0);
+  const baseY = Number(row.baseY ?? 0);
   if (baseX > 0 && baseY > 0) {
     try {
       await releaseBotBaseTile(baseX, baseY, username);
@@ -1346,7 +1325,7 @@ export async function removeBeerBase(username: string): Promise<void> {
       console.warn(`⚠️ Beer Base tile release failed for ${username}:`, releaseError);
     }
   }
-  await db.collection('players').deleteOne({ username });
+  await pgDb.delete(players).where(eq(players.username, username));
   
   console.log(`🍺 Beer Base removed: ${username}`);
 }
@@ -1360,7 +1339,6 @@ export async function weeklyBeerBaseRespawn(): Promise<{
   spawned: number;
   beerBases: string[];
 }> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   
   if (!config.enabled) {
@@ -1371,12 +1349,13 @@ export async function weeklyBeerBaseRespawn(): Promise<{
   // (FID-20260909-030 leak class: the bulk deleteMany skipped the tile
   // release that removeBeerBase performs, leaving ghost base_owner rows on
   // the map and permanently draining Wasteland tiles from the spawn pool).
-  const existingBases = await db.collection<Player>('players')
-    .find({ isBot: true, isSpecialBase: true }, { projection: { username: 1, base: 1 } })
-    .toArray();
+  const existingBases = await pgDb
+    .select({ username: players.username, baseX: players.baseX, baseY: players.baseY })
+    .from(players)
+    .where(and(eq(players.isBot, 1), eq(players.isSpecialBase, 1)));
   for (const base of existingBases) {
-    const baseX = Number(base.base?.x ?? 0);
-    const baseY = Number(base.base?.y ?? 0);
+    const baseX = Number(base.baseX ?? 0);
+    const baseY = Number(base.baseY ?? 0);
     if (baseX > 0 && baseY > 0) {
       try {
         await releaseBotBaseTile(baseX, baseY, base.username);
@@ -1385,12 +1364,12 @@ export async function weeklyBeerBaseRespawn(): Promise<{
       }
     }
   }
-  const deleteResult = await db.collection('players').deleteMany({ 
-    isBot: true, 
-    isSpecialBase: true 
-  });
+  const deleted = await pgDb
+    .delete(players)
+    .where(and(eq(players.isBot, 1), eq(players.isSpecialBase, 1)))
+    .returning({ username: players.username });
   
-  const removed = deleteResult.deletedCount || 0;
+  const removed = deleted.length;
   
   // Calculate target count
   const targetCount = await getTargetBeerBaseCount();
@@ -1499,39 +1478,40 @@ export async function getBeerBaseStats(): Promise<{
     totalDefense: number;
   }>;
 }> {
-  const db = await connectToDatabase();
   const config = await getBeerBaseConfig();
   const current = await getCurrentBeerBaseCount();
   const target = await getTargetBeerBaseCount();
   const nextRespawn = getNextRespawnTime(config);
   
-  // Get all Beer Bases with key info
-  const beerBases = await db.collection<Player>('players').find(
-    { isBot: true, isSpecialBase: true },
-    { 
-      projection: { 
-        username: 1, 
-        specialization: 1, 
-        tier: 1, 
-        currentPosition: 1, 
-        resources: 1,
-        totalStrength: 1,
-        totalDefense: 1,
-      } 
-    }
-  ).toArray();
+  // Get all Beer Bases with key info (projection column-scoped)
+  const beerBaseRows = await pgDb
+    .select({
+      username: players.username,
+      specialization: players.specialization,
+      botConfig: players.botConfig,
+      currentPositionX: players.currentPositionX,
+      currentPositionY: players.currentPositionY,
+      resourcesMetal: players.resourcesMetal,
+      resourcesEnergy: players.resourcesEnergy,
+      totalStrength: players.totalStrength,
+      totalDefense: players.totalDefense,
+    })
+    .from(players)
+    .where(and(eq(players.isBot, 1), eq(players.isSpecialBase, 1)));
   
   return {
     current,
     target,
     config,
     nextRespawn,
-    beerBases: beerBases.map((bb: Player) => ({
+    beerBases: beerBaseRows.map((bb) => ({
       username: bb.username,
-      specialization: (bb.specialization ?? 'Balanced') as BotSpecialization,
-      tier: (bb as Player & { tier?: number }).tier ?? 0,
-      position: bb.currentPosition,
-      resources: bb.resources,
+      // Domain specialization lives inside botConfig; the flat projections
+      // the old Mongo query named were phantom fields.
+      specialization: (bb.botConfig?.specialization ?? 'Balanced') as BotSpecialization,
+      tier: bb.botConfig?.tier ?? 0,
+      position: { x: bb.currentPositionX, y: bb.currentPositionY },
+      resources: { metal: bb.resourcesMetal, energy: bb.resourcesEnergy },
       totalStrength: bb.totalStrength || 0,
       totalDefense: bb.totalDefense || 0,
     })),
