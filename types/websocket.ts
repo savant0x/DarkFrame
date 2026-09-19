@@ -744,8 +744,9 @@ export interface ServerToClientEvents {
 
   // Chat Events (Global Chat System - FID-20251025-103)
   'chat:message': (payload: ChatMessagePayload) => void;
-  'chat:typing': (payload: ChatTypingPayload) => void;
-  'chat:member_online': (payload: ChatMemberOnlinePayload) => void;
+  'chat:typing_start': (payload: { channelId: string; clanId?: string; username: string }) => void;
+  'chat:typing_stop': (payload: { channelId: string; clanId?: string; username: string }) => void;
+  'chat:online_count': (payload: { channelId: string; count: number }) => void;
   'chat:message_edited': (payload: ChatMessageEditedPayload) => void;
   'chat:message_deleted': (payload: ChatMessageDeletedPayload) => void;
   'chat:channel_join': (payload: ChatChannelJoinPayload) => void;

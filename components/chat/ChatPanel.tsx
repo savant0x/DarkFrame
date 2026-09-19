@@ -59,6 +59,17 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import { usePolling } from '@/hooks/usePolling';
 import { useChatPanelSize } from '@/context/ChatPanelContext';
+import { useWebSocketContext } from '@/context/WebSocketContext';
+import {
+  wireToChatMessage,
+  mergeSocketMessage,
+  applyTypingStart,
+  applyTypingStop,
+  applyOnlineCount,
+  applyMessageDeleted,
+  type ChatSocketMessageWire,
+  type ChatMessageData,
+} from '@/lib/chatSocketWiring';
 import { Mention, MentionsInput } from 'react-mentions';
 import Linkify from 'linkify-react';
 import {
@@ -170,19 +181,6 @@ interface DirectMessageWire {
   timestamp: string;
   editedAt?: string;
   deletedAt?: string;
-}
-
-interface ChatMessageData {
-  id: string;
-  channelId: ChannelType;
-  senderId: string;
-  senderUsername: string;
-  senderLevel: number;
-  senderIsVIP: boolean;
-  content: string;
-  timestamp: Date;
-  edited?: boolean;
-  editedAt?: Date;
 }
 
 interface TypingUser {
@@ -318,6 +316,7 @@ export default function ChatPanel({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activeTabRef = useRef<'CHAT' | 'DM'>('CHAT');
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const lastMessageTimestampRef = useRef<Date | null>(null);
 
@@ -466,6 +465,94 @@ export default function ChatPanel({
     enabled: true,
     pauseWhenInactive: false, // Always send heartbeat (marks Away when tab inactive)
   });
+
+// ============================================================================
+    // SOCKET SUBSCRIPTIONS (FID-20260919-002) — primary delivery; the HTTP
+    // polls above remain as gap-fillers. Subscribed once per socket identity;
+    // the active channel/tab ride refs (no listener churn on switch).
+    // ============================================================================
+
+    const activeChannelRef = useRef<ChannelType>(activeChannel);
+    useEffect(() => {
+      activeChannelRef.current = activeChannel;
+      activeTabRef.current = activeTab;
+    }, [activeChannel, activeTab]);
+
+    const { socket: chatSocket } = useWebSocketContext();
+
+    useEffect(() => {
+      if (!chatSocket) return;
+
+      const unsubscribers: Array<() => void> = [];
+
+      // chat:message — same wire object /api/chat serves; mergeSocketMessage
+      // is idempotent by id, so the sender's own echo and any poll copy dedupe.
+      const onMessage = (raw: ChatSocketMessageWire) => {
+        const msg = wireToChatMessage(raw);
+        if (!msg) return;
+        setMessages((prev) => mergeSocketMessage(prev, msg));
+        if (msg.channelId !== activeChannelRef.current || activeTabRef.current !== 'CHAT') {
+          setUnreadCounts((prev) => {
+            const updated = new Map(prev);
+            updated.set(msg.channelId, (updated.get(msg.channelId) ?? 0) + 1);
+            return updated;
+          });
+        }
+      };
+      chatSocket.on('chat:message', onMessage as never);
+      unsubscribers.push(() => chatSocket.off('chat:message', onMessage as never));
+
+      // typing indicators — server excludes the sender; self filtered defensively.
+      const onTypingStart = (p: { channelId: string; username?: string }) => {
+        if (!p?.channelId) return;
+        setTypingUsers((prev) =>
+          applyTypingStart(prev, p.channelId as ChannelType, p.username ?? '', username)
+        );
+      };
+      const onTypingStop = (p: { channelId: string; username?: string }) => {
+        if (!p?.channelId) return;
+        setTypingUsers((prev) => applyTypingStop(prev, p.channelId as ChannelType, p.username ?? ''));
+      };
+      chatSocket.on('chat:typing_start', onTypingStart as never);
+      chatSocket.on('chat:typing_stop', onTypingStop as never);
+      unsubscribers.push(() => chatSocket.off('chat:typing_start', onTypingStart as never));
+      unsubscribers.push(() => chatSocket.off('chat:typing_stop', onTypingStop as never));
+
+      // online count — refresh the mention list when our active channel updates.
+      const onOnlineCount = (p: { channelId: string; count?: number }) => {
+        if (!p?.channelId || typeof p.count !== 'number') return;
+        const count = p.count;
+        setOnlineCount((prev) => applyOnlineCount(prev, p.channelId as ChannelType, count));
+        if (p.channelId === activeChannelRef.current) {
+          fetch(`/api/chat/online?channelId=${p.channelId}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => {
+              if (d?.users && Array.isArray(d.users)) {
+                setOnlineUsers(
+                  d.users
+                    .filter((u: { userId: string }) => u.userId !== userId)
+                    .map((u: { userId: string; username: string }) => ({ id: u.userId, display: u.username }))
+                );
+              }
+            })
+            .catch(() => {});
+        }
+      };
+      chatSocket.on('chat:online_count', onOnlineCount as never);
+      unsubscribers.push(() => chatSocket.off('chat:online_count', onOnlineCount as never));
+
+      // deletion notices — remove defensively from every channel buffer.
+      const onMessageDeleted = (p: { messageId?: string }) => {
+        if (!p?.messageId) return;
+        setMessages((prev) => applyMessageDeleted(prev, p.messageId as string));
+      };
+      chatSocket.on('chat:message_deleted', onMessageDeleted as never);
+      unsubscribers.push(() => chatSocket.off('chat:message_deleted', onMessageDeleted as never));
+
+      return () => {
+        unsubscribers.forEach((off) => off());
+      };
+    }, [chatSocket, username, userId]);
 
   /**
    * Poll for DM conversations every 2 seconds (when DM tab active)
@@ -766,29 +853,36 @@ export default function ChatPanel({
    * Handle typing indicator
    */
   const handleTyping = useCallback(() => {
-    // Clear existing timeout
+    // Clear existing timeout (also cancels any pending stop signal)
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Send typing indicator
-    fetch('/api/chat/typing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        channelId: activeChannel,
-        userId,
-        username,
-      }),
-    }).catch((error) => {
-      console.error('Typing indicator failed:', error);
-    });
+    // FID-20260919-002: emit over the socket (primary) so other players see
+    // typing instantly; HTTP fallback keeps the indicator alive pre-connection.
+    const emitTyping = (event: 'chat:start_typing' | 'chat:stop_typing') => {
+      if (chatSocket?.connected) {
+        chatSocket.emit(event, { channelId: activeChannel });
+        return;
+      }
+      if (event === 'chat:start_typing') {
+        fetch('/api/chat/typing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channelId: activeChannel, userId, username }),
+        }).catch((error) => {
+          console.error('Typing indicator failed:', error);
+        });
+      }
+    };
+    emitTyping('chat:start_typing');
 
-    // Set timeout to stop typing (no explicit stop needed, TTL handles it)
+    // Stop signal after the idle window (server has no TTL; the stop event
+    // is what clears the indicator for everyone else).
     typingTimeoutRef.current = setTimeout(() => {
-      // No-op: MongoDB TTL will auto-delete typing record after 5s
+      emitTyping('chat:stop_typing');
     }, TYPING_TIMEOUT_MS);
-  }, [activeChannel, userId, username]);
+  }, [activeChannel, userId, username, chatSocket]);
 
   /**
    * Handle message input change

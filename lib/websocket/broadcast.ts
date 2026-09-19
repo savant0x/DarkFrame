@@ -40,8 +40,6 @@ import type {
   ClanActivityPayload,
   ClanLeaderboardUpdatePayload,
   ChatMessagePayload,
-  ChatTypingPayload,
-  ChatMemberOnlinePayload,
   CombatAttackStartedPayload,
   CombatBattleResultPayload,
   CombatDefenseAlertPayload,
@@ -417,40 +415,6 @@ export async function broadcastChatMessage(
  * @param io - Socket.io server instance
  * @param payload - Typing indicator data
  */
-export async function broadcastTypingIndicator(
-  io: TypedIOServer,
-  payload: ChatTypingPayload
-): Promise<void> {
-  try {
-    const roomName = WebSocketRooms.chatChannel(payload.channelId);
-    io.to(roomName).emit('chat:typing', payload);
-  } catch (error) {
-    console.error(`[Broadcast] Failed to broadcast typing indicator:`, error);
-  }
-}
-
-/**
- * Broadcasts member online status to clan chat room
- * 
- * @param io - Socket.io server instance
- * @param payload - Member online status data
- */
-export async function broadcastMemberOnlineStatus(
-  io: TypedIOServer,
-  payload: ChatMemberOnlinePayload
-): Promise<void> {
-  try {
-    const roomName = WebSocketRooms.chatChannel(payload.channelId);
-    io.to(roomName).emit('chat:member_online', payload);
-  } catch (error) {
-    console.error(`[Broadcast] Failed to broadcast member status:`, error);
-  }
-}
-
-// ============================================================================
-// BATTLE/COMBAT BROADCASTS
-// ============================================================================
-
 /**
  * Broadcasts combat attack started to battle participants
  * 

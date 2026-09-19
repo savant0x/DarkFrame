@@ -390,7 +390,8 @@ export function useChatEvents() {
     startTyping,
     stopTyping,
     onMessage: (handler: ServerEventHandler<'chat:message'>) => on('chat:message', handler),
-    onTyping: (handler: ServerEventHandler<'chat:typing'>) => on('chat:typing', handler),
+    onTypingStart: (handler: ServerEventHandler<'chat:typing_start'>) => on('chat:typing_start', handler),
+    onTypingStop: (handler: ServerEventHandler<'chat:typing_stop'>) => on('chat:typing_stop', handler),
     isConnected,
   };
 }

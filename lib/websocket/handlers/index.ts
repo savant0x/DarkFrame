@@ -8,6 +8,5 @@
 
 export * from './gameHandler';
 export * from './clanHandler';
-export * from './chatHandler';
 export * from './combatHandler';
 export * from './wmdHandler';

@@ -27,6 +27,9 @@ import { db } from '@/lib/db';
 import { chatMessages } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { PlayerContext } from '@/lib/channelService';
+import { getIO } from '@/lib/websocket/server';
+import { notifyMessageDeleted } from '@/lib/websocket/chatHandlers';
+import { ChannelType } from '@/lib/channelService';
 
 // ============================================================================
 // AUTHENTICATION (PLACEHOLDER)
@@ -139,8 +142,19 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // TODO: Emit WebSocket event to remove message from all clients
-    // Example: io.to(channelId).emit('message:deleted', { messageId });
+    // FID-20260919-002: push the deletion to every client in the message's
+    // channel room (the previously-dead emission path — getIO() returns the
+    // singleton the custom server mounted).
+    const io = getIO();
+    if (io) {
+      await notifyMessageDeleted(
+        io,
+        message.channelId as ChannelType,
+        messageId,
+        user.username,
+        'Deleted by user'
+      );
+    }
 
     return NextResponse.json(
       {

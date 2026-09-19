@@ -55,6 +55,12 @@ import type {
 // Global Socket.io server instance (singleton)
 let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents> | null = null;
 
+// Bridge for Next.js route handlers: webpack compiles routes into their own
+// module graph, so a route importing this file gets a COPY with io === null.
+// Stashing the instance on globalThis lets both module graphs share the
+// singleton (FID-20260919-002: /api/chat/delete broadcasts).
+const IO_GLOBAL_KEY = '__darkframe_socket_io__';
+
 /**
  * Gets or creates Socket.io server instance
  * 
@@ -81,6 +87,7 @@ export function getSocketIOServer(
     pingTimeout: 60000,
     pingInterval: 25000,
   });
+  (globalThis as unknown as Record<string, unknown>)[IO_GLOBAL_KEY] = io;
 
   // ============================================================================
   // AUTHENTICATION MIDDLEWARE WITH RETRY LOGIC
@@ -124,14 +131,6 @@ export function getSocketIOServer(
     const ioServer = io!; // Non-null assertion since we're inside the connection handler
     console.log(`[Socket.io] Client connected: ${user.username} (${socket.id})`);
 
-    // Auto-join appropriate rooms
-    await autoJoinRooms(socket, user);
-
-    // Auto-join accessible chat channels
-    await autoJoinChatChannels(ioServer, socket);
-
-    // Broadcast player online status
-    await handlePlayerOnline(ioServer, socket, user);
 
     // ============================================================================
     // GAME EVENT HANDLERS
@@ -230,6 +229,22 @@ export function getSocketIOServer(
       console.log(`[Socket.io] Client disconnected: ${user.username} (${socket.id}) - ${reason}`);
       await handlePlayerOffline(ioServer, user);
     });
+
+    // ----------------------------------------------------------------------------
+    // Async connection setup runs AFTER every listener above is registered
+    // (synchronously, same tick). Awaiting these first left a window where any
+    // client emit (chat send/join/typing) was silently dropped — the handlers
+    // did not exist yet.
+    // ----------------------------------------------------------------------------
+
+    // Auto-join appropriate rooms
+    await autoJoinRooms(socket, user);
+
+    // Auto-join accessible chat channels
+    await autoJoinChatChannels(ioServer, socket);
+
+    // Broadcast player online status
+    await handlePlayerOnline(ioServer, socket, user);
   });
 
   console.log('[Socket.io] Server initialized successfully');
@@ -242,7 +257,10 @@ export function getSocketIOServer(
  * @returns Socket.io server instance or null
  */
 export function getIO(): SocketIOServer<ClientToServerEvents, ServerToClientEvents> | null {
-  return io;
+  const bridged = (globalThis as unknown as Record<string, unknown>)[IO_GLOBAL_KEY] as
+    | SocketIOServer<ClientToServerEvents, ServerToClientEvents>
+    | undefined;
+  return bridged ?? io;
 }
 
 /**
