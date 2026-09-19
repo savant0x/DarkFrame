@@ -29,6 +29,7 @@ import { AuctionListing, MyBidAuctionView, MyBidEntry } from '@/types/auction.ty
 
 import { AuctionListingCard } from './AuctionListingCard';
 import { CreateListingModal } from './CreateListingModal';
+import { useGameContext } from '@/context/GameContext';
 import { useBearerStatus } from '@/hooks/useBearerStatus';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
@@ -65,6 +66,7 @@ type SortOption = 'price_asc' | 'price_desc' | 'ending_soon' | 'newly_listed';
 // ============================================================
 
 export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
+  const { refreshPlayer } = useGameContext();
   // ============================================================
   // STATE
   // ============================================================
@@ -542,6 +544,9 @@ export function AuctionHousePanel({ onClose }: AuctionHousePanelProps) {
           onSuccess={() => {
             setShowCreateModal(false);
             handleAuctionUpdate();
+            // FID-20260919-001: the listed unit just left the army via escrow —
+            // refresh the player so the picker and stats show current truth.
+            void refreshPlayer();
           }}
         />
       )}

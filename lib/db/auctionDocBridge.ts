@@ -74,12 +74,19 @@ export function syncAuctionDocFields(table: PgTable, payload: Record<string, unk
   // (iii) Mirror doc fields the indexed columns exist for.
   for (const { docKey, column } of AUCTION_DOC_COLUMNS) {
     if (doc[docKey] === undefined) continue;
-    if (payload[column] !== undefined) continue; // explicit flat key wins
     const value = doc[docKey];
+    // Booleans are NEVER valid in the flat payload — these mirrors are pg
+    // smallints. Coerce even when a flat key already exists: the flattened
+    // doc's own `false`/`true` is exactly the value that would poison the
+    // insert (FID-20260919-001 live probe: `invalid input syntax for type
+    // smallint: "false"` — every listing insert 500ed without this).
+    if (typeof value === 'boolean') {
+      payload[column] = value ? 1 : 0;
+      continue;
+    }
+    if (payload[column] !== undefined) continue; // explicit flat key wins
     if (value instanceof Date) {
       payload[column] = value;
-    } else if (typeof value === 'boolean') {
-      payload[column] = value ? 1 : 0; // pg smallint mirrors
     } else if (docKey === 'duration' && typeof value === 'number') {
       payload[column] = value;
     } else if (typeof value === 'string' || typeof value === 'number') {

@@ -1,6 +1,10 @@
 /**
  * @file components/CreateListingModal.tsx
  * @created 2025-01-17
+ * @rewritten 2026-09-19 (FID-20260919-001: unit listings require a REAL owned
+ *              unit — picker over the seller's army; the client no longer
+ *              supplies unit stats at all, the server derives them from the
+ *              escrowed unit)
  * @overview Modal for creating new auction listings
  * 
  * OVERVIEW:
@@ -14,8 +18,8 @@
 
 import React, { useState } from 'react';
 import { extractApiError } from '@/lib/apiClient';
+import { useGameContext } from '@/context/GameContext';
 import { AuctionItemType, ResourceType, AUCTION_CONFIG, CreateAuctionRequest, AuctionItem } from '@/types/auction.types';
-import { UnitType, UNIT_CONFIGS, UnitConfig } from '@/types';
 
 interface CreateListingModalProps {
   onClose: () => void;
@@ -23,6 +27,12 @@ interface CreateListingModalProps {
 }
 
 export function CreateListingModal({ onClose, onSuccess }: CreateListingModalProps) {
+  const { player } = useGameContext();
+  // FID-20260919-001: only REAL owned units can be listed — the escrow contract
+  // (FID-20260914-003) freezes the seller's unit object into the listing, so a
+  // unitType-only synthetic listing could never escrow (and must never exist).
+  const ownedUnits = player?.units ?? [];
+
   // Form state
   const [itemType, setItemType] = useState<AuctionItemType>(AuctionItemType.Resource);
   const [loading, setLoading] = useState(false);
@@ -32,8 +42,8 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
   const [resourceType, setResourceType] = useState<ResourceType>(ResourceType.Metal);
   const [resourceAmount, setResourceAmount] = useState('1000');
   
-  // Unit listing state (Phase 4 - simplified, full implementation needs player's units)
-  const [unitType, setUnitType] = useState<UnitType>(UnitType.T1_Infantry);
+  // Unit listing state: value is the unitId of a real owned unit
+  const [unitId, setUnitId] = useState<string>('');
   
   // Pricing state
   const [startingBid, setStartingBid] = useState('1000');
@@ -86,6 +96,10 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
       }
     }
     
+    if (itemType === AuctionItemType.Unit && !unitId) {
+      return 'Select a unit to list';
+    }
+    
     return null;
   };
 
@@ -100,11 +114,12 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
         resourceAmount: parseInt(resourceAmount, 10)
       };
     } else if (itemType === AuctionItemType.Unit) {
+      // FID-20260919-001: unitId only — stat fields are server-derived from the
+      // escrowed unit; nothing client-supplied is stored or displayed.
       return {
         itemType: AuctionItemType.Unit,
-        unitType,
-        unitStrength: 100, // TODO: Get from actual unit data
-        unitDefense: 50
+        unitId,
+        unitType: ownedUnits.find((u) => u.unitId === unitId)?.unitType,
       };
     } else {
       // TradeableItem (Phase 5)
@@ -278,29 +293,32 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
             </div>
           )}
 
-          {/* Unit Selection (Simplified for Phase 4) */}
+          {/* Unit Selection — the seller's REAL units (FID-20260919-001) */}
           {itemType === AuctionItemType.Unit && (
             <div>
               <label className="block text-[color:var(--nn-text-secondary)] font-semibold mb-2">
-                Unit Type *
+                Select Unit from Your Army *
               </label>
-              <select
-                value={unitType}
-                onChange={(e) => setUnitType(e.target.value as UnitType)}
-                className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
-              >
-              {/* FID-20260909-033: options derive from the unified config —
-                  a new unit appears here automatically, never drifts. */}
-                {(Object.values(UNIT_CONFIGS)
-                  .filter((c) => c.tier <= 3)
-                  .sort((a: UnitConfig, b: UnitConfig) => a.tier - b.tier || b.strength + b.defense - (a.strength + a.defense)) as UnitConfig[])
-                  .slice(0, 6)
-                  .map((c) => (
-                    <option key={c.type} value={c.type}>{c.name}</option>
+              {ownedUnits.length === 0 ? (
+                <p className="text-sm text-[color:var(--nn-text-secondary)] p-3 border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none">
+                  You have no units to list. Build units at your factory first.
+                </p>
+              ) : (
+                <select
+                  value={unitId}
+                  onChange={(e) => setUnitId(e.target.value)}
+                  className="w-full bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] text-[color:var(--nn-text-primary)] border-2 border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)] rounded-none px-4 py-3 focus:border-yellow-600 outline-none"
+                >
+                  <option value="">— Choose a unit —</option>
+                  {ownedUnits.map((u) => (
+                    <option key={u.unitId} value={u.unitId}>
+                      {u.name}{u.quantity > 1 ? ` ×${u.quantity}` : ''} — STR {u.strength} / DEF {u.defense}
+                    </option>
                   ))}
-              </select>
+                </select>
+              )}
               <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
-                Full unit selection from inventory coming in Phase 4 enhancement
+                Listing escrows the unit (it leaves your army until sold or the auction ends).
               </p>
             </div>
           )}
@@ -446,9 +464,10 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
 // ============================================================
 // IMPLEMENTATION NOTES:
 // ============================================================
-// - Three item types: Resources (full), Units (simplified), Items (Phase 5)
+// - Three item types: Resources (full), Units (real owned units), Items (Phase 5)
 // - Resource selection: Metal or Energy with quantity input
-// - Unit selection: Basic unit type picker (full inventory integration Phase 4+)
+// - Unit selection: FID-20260919-001 — picker over the seller's actual army;
+//   stat fields are server-derived from the escrowed unit (never client-supplied)
 // - Pricing: Starting bid (required), buyout (optional), reserve (optional)
 // - Duration: 12/24/48 hours with corresponding listing fees
 // - Fee preview: Shows upfront listing fee and future sale fee

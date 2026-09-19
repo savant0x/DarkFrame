@@ -220,9 +220,17 @@ export async function createAuctionListing(
       // sellerClan: seller.clan, // TODO: Enable in Phase 5 when clans are implemented
       // Unit escrow (FID-20260914-003): freeze the listed unit into the listing.
       // The SERVICE owns the snapshot — the route's zod schema strips unknown
-      // keys and any client-supplied value is overwritten here.
+      // keys (no `unitSnapshot` key exists to inject) and the display scalars
+      // are OVERWRITTEN from the escrowed unit (FID-20260919-001): clients
+      // cannot store fabricated unitStrength/unitDefense/unitType values.
       item: itemValidation.escrowedUnit
-        ? { ...request.item, unitSnapshot: itemValidation.escrowedUnit }
+        ? {
+            ...request.item,
+            unitType: itemValidation.escrowedUnit.unitType,
+            unitStrength: itemValidation.escrowedUnit.strength,
+            unitDefense: itemValidation.escrowedUnit.defense,
+            unitSnapshot: itemValidation.escrowedUnit,
+          }
         : request.item,
       startingBid: request.startingBid,
       currentBid: request.startingBid,

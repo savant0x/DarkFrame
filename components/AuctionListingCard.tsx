@@ -15,6 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { extractApiError } from '@/lib/apiClient';
 import { AuctionListing, MyBidAuctionView, isMyBidAuctionView, AuctionItemType, AuctionStatus, ResourceType } from '@/types/auction.types';
 import { BidHistoryViewer } from './BidHistoryViewer';
+import { getItemDisplayStats } from '@/lib/auctionDisplay';
 import { showSuccess, showInfo } from '@/lib/toastService';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 
@@ -188,10 +189,13 @@ export function AuctionListingCard({ auction, onUpdate, showMyBidStatus }: Aucti
     const item = auction.item;
     
     if (item.itemType === AuctionItemType.Unit) {
+      // FID-20260919-001: display rides the pure helper — snapshot truth first,
+      // legacy scalars as fallback.
+      const { strength: str, defense: def } = getItemDisplayStats(item);
       return {
         icon: '⚔️',
         name: `${item.unitType}`,
-        details: `Str: ${item.unitStrength || 0} | Def: ${item.unitDefense || 0}`
+        details: `Str: ${str} | Def: ${def}`
       };
     } else if (item.itemType === AuctionItemType.Resource) {
       return {
