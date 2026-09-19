@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.22] — 2026-09-19 session
+
+### Added — FID-20260919-009: tradeable listings complete — escrowed instance trading with real names (closed, commit `08410d6`)
+
+- The auction's blocked front door is open: tradeable listings are genuinely escrowed, replacing the TRADEABLE_NOT_TRADEABLE_YET prohibition (FID-20260914-003's transfer branch was an empty TODO — buyers paid and received nothing, so creation was gated). Sellers now pick inventory instances by id; a pure planner (lib/tradeableEscrow) removes whole instances server-side, the listing freezes a per-instance snapshot (name/rarity/type/bonus/foundAt/foundDate), delivery mints fresh buyer-side instances preserving identity, and cancel/expire refund the originals with their ids intact.
+- Real names end to end: the listing card, notifications, name-search, and chat item links all carry procedural names — the "Tradeable Item" placeholder is retired from the live surface. Chat links resolve verified tradeable names to market deep-links with tab preselection (catalog OR live-listing check in the game-page opener).
+- Two defects the live probe caught before landing: escrow snapshots dropped type/bonusPercent/foundAt (delivered rows were typeless — every type-filtering consumer broken) and refunds spread itemId verbatim, minting id-less inventory rows. Both fixed at the source and pinned.
+- Evidence: 9 pins (+1 rewritten honestly — the old pin codified the prohibition; its rejection-before-fee invariant is preserved under the new gate), 14/14 live probes (escrow → search → buyout → delivery → cancel → residue), suite 1200/1200, tsc 0, eslint clean.
+
 ## [0.0.21] — 2026-09-19 session
 
 ### Added — FID-20260919-008: chat item links land on a searchable market (closed, commit `ba16ab4`)
