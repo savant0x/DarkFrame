@@ -596,57 +596,9 @@ export default function MessageThread({
 // ============================================================================
 
 /**
- * TODO: Real-time features via Socket.io
- * 
- * useEffect(() => {
- *   const socket = io();
- *   
- *   // Join conversation room
- *   socket.emit('conversation:join', conversationId);
- *   
- *   // Listen for new messages
- *   socket.on('message:receive', (message: Message) => {
- *     if (message.conversationId === conversationId) {
- *       setState(prev => ({
- *         ...prev,
- *         messages: [...prev.messages, message],
- *       }));
- *       scrollToBottom();
- *       markAsRead();
- *     }
- *   });
- *   
- *   // Listen for typing indicators
- *   socket.on('typing:start', (data) => {
- *     if (data.conversationId === conversationId && data.playerId !== playerId) {
- *       setState(prev => ({ ...prev, recipientTyping: true }));
- *     }
- *   });
- *   
- *   socket.on('typing:stop', (data) => {
- *     if (data.conversationId === conversationId && data.playerId !== playerId) {
- *       setState(prev => ({ ...prev, recipientTyping: false }));
- *     }
- *   });
- *   
- *   // Listen for read receipts
- *   socket.on('message:read', (data) => {
- *     if (data.conversationId === conversationId) {
- *       setState(prev => ({
- *         ...prev,
- *         messages: prev.messages.map(m =>
- *           m._id === data.messageId ? { ...m, status: 'read', readAt: data.readAt } : m
- *         ),
- *       }));
- *     }
- *   });
- *   
- *   return () => {
- *     socket.emit('conversation:leave', conversationId);
- *     socket.off('message:receive');
- *     socket.off('typing:start');
- *     socket.off('typing:stop');
- *     socket.off('message:read');
- *   };
- * }, [conversationId]);
+ * Real-time DM delivery, typing, and read receipts are LIVE
+ * (FID-20260919-004 wired the subscriptions on the messages page - the
+ * conversation:join/message:receive/typing path handling lives there, not
+ * inside this presentational thread component). The commented sketch that
+ * previously sat here described wiring that already shipped.
  */

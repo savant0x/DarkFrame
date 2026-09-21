@@ -140,11 +140,6 @@ export function getSocketIOServer(
       await handlePositionUpdate(ioServer, socket, data);
     });
 
-    socket.on('game:request_tile_info', async (data) => {
-      // TODO: Implement tile info request
-      console.log(`[Socket.io] Tile info requested: (${data.x},${data.y})`);
-    });
-
     // ============================================================================
     // CLAN EVENT HANDLERS
     // ============================================================================

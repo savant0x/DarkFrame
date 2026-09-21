@@ -412,7 +412,7 @@ export default function HelpPage() {
 
               <div>
                 <p className="font-semibold nn-text-amber mb-1">Q: How do I attack other players?</p>
-                <p className="text-sm text-[color:var(--nn-text-primary)]">A: PvP combat is coming soon! Currently, you can attack factories to capture them.</p>
+                <p className="text-sm text-[color:var(--nn-text-primary)]">A: Select an enemy tile and choose Attack. Infantry assaults, WMD strikes, factory captures, and espionage all target other players - new players are shielded by a 72h protection window.</p>
               </div>
 
               <div>

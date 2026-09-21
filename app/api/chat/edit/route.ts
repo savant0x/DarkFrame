@@ -55,15 +55,6 @@ const EDIT_TIME_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
 // ============================================================================
 
 /**
- * Get authenticated user from request
- * 
- * TODO: Replace with actual authentication once next-auth is installed
- * For now, this is a placeholder that returns mock user data
- * 
- * @param request - Next.js request object
- * @returns Player context or null if not authenticated
- */
-/**
  * Get the chat PlayerContext from the SESSION (FID-20260905-001 follow-up).
  * The prior implementation was a placeholder returning a hardcoded TestUser,
  * letting any unauthenticated caller edit messages. Identity now resolves

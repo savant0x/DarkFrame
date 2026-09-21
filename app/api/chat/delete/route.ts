@@ -185,9 +185,9 @@ export async function DELETE(request: NextRequest) {
  *    - Original content remains in database for moderation review
  * 
  * 2. Ownership Validation:
- *    - Only message sender can delete
- *    - Checked via senderUsername matching
- *    - TODO: Use userId once authentication is implemented
+ *    - Only the message sender can delete here (admins use the bare /api/chat
+ *      moderator endpoint); checked via senderUsername against the session
+ *      identity from real authenticateRequest (the userId TODO is obsolete)
  * 
  * 3. Client Display:
  *    - Deleted messages show "[deleted]" text
@@ -198,12 +198,12 @@ export async function DELETE(request: NextRequest) {
  * 4. Moderation Access:
  *    - Moderators can see original content
  *    - Helps identify abuse patterns
- *    - Can restore message if deleted in error
- *    - TODO: Add moderator undelete endpoint
+ *    - Can restore message if deleted in error (undelete endpoint = future
+ *      work, FID-20260919-012 section 5)
  * 
  * 5. WebSocket Integration:
- *    - TODO: Emit 'message:deleted' event to channel
- *    - All clients remove/hide message in real-time
+ *    - Live (FID-20260919-002): notifyMessageDeleted() emits to the channel
+ *      room; all clients remove/hide the message in real-time
  *    - Prevents stale content display
  * 
  * 6. Query Filtering:

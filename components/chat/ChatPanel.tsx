@@ -982,8 +982,8 @@ export default function ChatPanel({
       return;
     }
 
-    // TODO Task 10: Implement WebSocket chat:ask_veterans event
-    // For now, use API fallback
+    // Delivered via the HTTP seam (FID-20260919-005): POST /api/chat/ask-veterans
+    // fans out to every online veteran's chat:veteran_notification subscription.
     fetch('/api/chat/ask-veterans', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

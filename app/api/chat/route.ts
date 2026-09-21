@@ -22,8 +22,8 @@
  * - Admin whitelist bypass
  * 
  * SECURITY:
- * - TODO: Authentication not implemented yet (next-auth not installed)
- * - Uses placeholder getAuthenticatedUser() for now
+ * - All handlers authenticate via authenticateRequest() (session cookie); the
+ *   next-auth placeholder era is over (FID-20260919-012 doc-truth)
  * - All operations require authenticated user
  * - Validates channel access permissions
  * - Checks mute and ban status before allowing writes
@@ -38,6 +38,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateRequest } from '@/lib/authMiddleware';
 import {
+  deleteGlobalChatMessage,
   sendGlobalChatMessage,
   getGlobalChatMessages,
   type SendMessageRequest,
@@ -49,8 +50,9 @@ import {
   ChannelType,
   type PlayerContext,
 } from '@/lib/channelService';
-import { 
+import {
   checkMuteStatus,
+  isAdmin,
   filterMessage,
   detectSpam,
   muteUserForSpam,
@@ -490,14 +492,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // TODO: Implement markMessagesAsRead() in chatService
-    // For now, just return success
-    // const result = await markMessagesAsRead({
-    //   channelId: channelId as ChannelType,
-    //   clanId,
-    //   username: user.username,
-    //   lastReadMessageId,
-    // });
+    // Intentional no-op (FID-20260919-012): no client calls bare PATCH /api/chat
+    // (ChatPanel persists read state via /api/chat/dm/read). Wire-compatible
+    // success kept; channel mark-as-read is a recorded FID candidate.
 
     return NextResponse.json(
       {
@@ -557,22 +554,23 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // TODO: Check if user is moderator/admin
-    // For now, allow all authenticated users (will be restricted later)
-    // const isModerator = await checkModeratorStatus(user.username);
-    // if (!isModerator) {
-    //   return NextResponse.json(
-    //     { success: false, error: 'Moderator access required' },
-    //     { status: 403 }
-    //   );
-    // }
+    // Moderator-only, LIVE (FID-20260919-012): this handler previously returned
+    // success WITHOUT deleting. Admin-gated soft-delete via chatService.
+    const isModerator = await isAdmin(user.username);
+    if (!isModerator) {
+      return NextResponse.json(
+        { success: false, error: 'Moderator access required' },
+        { status: 403 }
+      );
+    }
 
-    // TODO: Implement deleteMessage() in chatService
-    // For now, just return success
-    // const result = await deleteMessage({
-    //   messageId,
-    //   deletedBy: user.username,
-    // });
+    const deleted = await deleteGlobalChatMessage(messageId, user.username, 'Deleted by moderator');
+    if (!deleted) {
+      return NextResponse.json(
+        { success: false, error: 'Message not found or already deleted' },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json(
       {
@@ -598,11 +596,10 @@ export async function DELETE(request: NextRequest) {
  * IMPLEMENTATION NOTES:
  * 
  * 1. Authentication:
- *    - TODO: Currently using placeholder getAuthenticatedUser()
- *    - Need to install next-auth and implement proper authentication
- *    - Need to create lib/auth.ts with authOptions
- *    - Need to fetch player data from database
- *    - Need to check mute/ban status from moderationService
+ *    - Real session auth: getAuthenticatedUser() wraps authenticateRequest()
+ *      (FID-20260905-001 follow-ups; the next-auth placeholder note is obsolete)
+ *    - Mute status checked in POST via checkMuteStatus(); channel-ban wiring
+ *      is a recorded work-order (FID-20260919-012 section 5)
  * 
  * 2. Rate Limiting:
  *    - Handled automatically by chatService.sendMessage()
@@ -642,23 +639,19 @@ export async function DELETE(request: NextRequest) {
  *    - DELETE: { success: true, message: string, messageId: string }
  *    - Error: { success: false, error: string }
  * 
- * 8. TODO - Read Status (PATCH):
- *    - Need to add markMessagesAsRead() to chatService
- *    - Will update chat_read_status collection
- *    - Tracks last read message per user per channel
- *    - Used for unread message badges
+ * 8. Read Status (PATCH) - intentional no-op:
+ *    - No client calls bare PATCH /api/chat (ChatPanel persists read state via
+ *      /api/chat/dm/read); channel mark-as-read remains unbuilt (FID section 5)
  * 
- * 9. TODO - Message Deletion (DELETE):
- *    - Need to add deleteMessage() to chatService
- *    - Soft delete (sets isDeleted=true, preserves for moderation review)
- *    - Check moderator status via moderationService
- *    - Log deletion action for audit trail
- *    - WebSocket emit to remove message from all clients
+ * 9. Message Deletion (DELETE) - live (FID-20260919-012):
+ *    - deleteGlobalChatMessage() soft-deletes (deleted=1, content preserved)
+ *    - Admin-gated via moderationService.isAdmin(); 404 on missing/already-deleted
+ *    - Owner self-delete lives on DELETE /api/chat/delete (socket fan-out there);
+ *      moderator undelete + message:deleted emission from here = future work
  * 
  * 10. Future Enhancements:
- *    - WebSocket integration for real-time updates
- *    - Message editing (PUT /api/chat/:messageId)
- *    - Typing indicators
- *    - Read receipts
- *    - Message reactions
+ *    - Moderator undelete + message:deleted fan-out from this endpoint
+ *    - Message reactions; read receipts ride /api/chat/dm/read today
+ *    (Real-time chat, editing, and typing indicators shipped - see
+ *     FID-20260919-002/-004/-005 and /api/chat/edit.)
  */

@@ -151,7 +151,9 @@ export default function GamePage() {
   // ============================================
   // CENTER VIEW STATE (Embedded Page Navigation)
   // ============================================
-  type CenterView = 'TILE' | 'LEADERBOARD' | 'STATS' | 'TECH_TREE' | 'CLAN' | 'CLANS' | 'BATTLE_LOG' | 'INVENTORY' | 'PROFILE' | 'ADMIN' | 'WMD' | 'REFERRALS' | 'SHRINE' | 'BANK';
+  // BATTLE_LOG / INVENTORY removed (FID-20260919-012): they had no callers and
+  // live equivalents exist (BattleLogLinks, InventoryPanel).
+  type CenterView = 'TILE' | 'LEADERBOARD' | 'STATS' | 'TECH_TREE' | 'CLAN' | 'CLANS' | 'PROFILE' | 'ADMIN' | 'WMD' | 'REFERRALS' | 'SHRINE' | 'BANK';
   const [currentView, setCurrentView] = useState<CenterView>('TILE');
   
   const [panelMessage, setPanelMessage] = useState<string>('');
@@ -1299,36 +1301,6 @@ export default function GamePage() {
               </div>
               <div className="flex-1 overflow-auto">
                 <TechTreePage embedded={true} />
-              </div>
-            </div>
-          ) : currentView === 'BATTLE_LOG' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
-                <button
-                  onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
-                >
-                  <span className="text-lg">←</span>
-                  <span>Back to Game</span>
-                </button>
-              </div>
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-[color:var(--nn-text-primary)] text-xl">Battle Log View - Coming Soon</div>
-              </div>
-            </div>
-          ) : currentView === 'INVENTORY' ? (
-            <div className="h-full w-full flex flex-col p-6">
-              <div className="mb-4">
-                <button
-                  onClick={() => setCurrentView('TILE')}
-                  className="flex items-center gap-2 px-4 py-2 bg-[color-mix(in_oklab,var(--nn-text-secondary)_35%,transparent)] rounded-none transition-colors"
-                >
-                  <span className="text-lg">←</span>
-                  <span>Back to Game</span>
-                </button>
-              </div>
-              <div className="flex-1 flex items-center justify-center">
-                <div className="text-[color:var(--nn-text-primary)] text-xl">Inventory View - Coming Soon</div>
               </div>
             </div>
           ) : currentView === 'PROFILE' ? (

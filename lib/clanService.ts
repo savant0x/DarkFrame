@@ -1004,11 +1004,13 @@ export async function disbandClan(clanId: string, playerId: string): Promise<{ s
   // Delete clan
   await db.delete(clans).where(eq(clans.id, clanId));
   
-  // Delete associated data
-  // TODO: clan_invitations, clan_activities, clan_chat table schemas not yet created - using raw SQL
+  // Delete associated data. These aux tables have no drizzle definitions yet,
+  // so raw SQL is used - names verified against the live DB (FID-20260919-012:
+  // 'clan_chat' never existed; the real table is 'clan_chat_messages', and the
+  // old name made every disband throw mid-transaction).
   await db.execute(sql`DELETE FROM clan_invitations WHERE clan_id = ${clanId}`);
   await db.execute(sql`DELETE FROM clan_activities WHERE clan_id = ${clanId}`);
-  await db.execute(sql`DELETE FROM clan_chat WHERE clan_id = ${clanId}`);
+  await db.execute(sql`DELETE FROM clan_chat_messages WHERE clan_id = ${clanId}`);
   
   return { success: true, message: 'Clan disbanded successfully' };
 }
