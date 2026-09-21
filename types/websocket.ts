@@ -476,6 +476,18 @@ export interface ChatProfanityFilterPayload {
 // MESSAGING EVENTS (Private 1-on-1 Messages)
 // ============================================================================
 
+/** Player notification push (FID-20260919-013): fires alongside the persisted
+ *  System DM; clients may toast it directly, while the inbox already shows the
+ *  message via the normal message:receive / conversation:updated pair. */
+export interface NotificationPushPayload {
+  systemType: string;
+  title: string;
+  body: string;
+  icon?: string;
+  relatedEntityId?: string;
+  createdAt: string;
+}
+
 export interface MessagingMessagePayload {
   _id: string;
   conversationId: string;
@@ -771,6 +783,7 @@ export interface ServerToClientEvents {
   'conversation:updated': (payload: MessagingConversationPayload) => void;
   'typing:start': (payload: MessagingTypingPayload) => void;
   'typing:stop': (payload: MessagingTypingPayload) => void;
+  'notification:push': (payload: NotificationPushPayload) => void;
 
   // Combat Events
   'combat:attack_started': (payload: CombatAttackStartedPayload) => void;

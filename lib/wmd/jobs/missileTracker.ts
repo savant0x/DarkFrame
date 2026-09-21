@@ -43,6 +43,7 @@ import {
   NotificationScope,
 } from '@/types/wmd';
 import { createWMDNotification } from '@/lib/wmd/notificationService';
+import { notifyPlayer } from '@/lib/playerNotification';
 import { generateId } from '@/lib/utils';
 import type { MissileDamageRecord } from '@/types/wmd';
 
@@ -299,8 +300,30 @@ export async function processDueMissiles(): Promise<number> {
           target?.username ?? missile.targetId,
           target?.username ?? missile.targetId
         );
+        // FID-20260919-013: the interception must reach the players, not just
+        // the audit row — target learns their defense held, launcher learns
+        // their missile fell. Dedupe keys make tracker reprocesses idempotent.
+        await notifyPlayer({
+          systemType: 'wmd_missile_intercepted',
+          recipient: missile.targetId,
+          title: 'Missile Intercepted',
+          body: `An incoming ${warhead} missile was shot down by your clan's defense grid.`,
+          icon: '🛡️',
+          relatedEntityId: missile.missileId,
+          dedupeKey: `missile:${missile.missileId}:intercepted:target`,
+        });
+        if (missile.ownerId !== missile.targetId) {
+          await notifyPlayer({
+            systemType: 'wmd_missile_intercepted',
+            recipient: missile.ownerId,
+            title: 'Missile Intercepted',
+            body: `Your ${warhead} missile targeting ${target?.username ?? missile.targetId} was intercepted by clan defenses.`,
+            icon: '🛡️',
+            relatedEntityId: missile.missileId,
+            dedupeKey: `missile:${missile.missileId}:intercepted:owner`,
+          });
+        }
         await recordAdminAlert(missile.missileId, missile.ownerId, missile.targetId, warhead, null, true);
-
         if (io) {
           await wmdHandlers.broadcastMissileImpact(io, {
             intercepted: true,
@@ -358,8 +381,19 @@ export async function processDueMissiles(): Promise<number> {
         target?.username ?? missile.targetId,
         target?.username ?? missile.targetId
       );
+      // FID-20260919-013: impact notification to the target through the seam
+      // (persisted to the System inbox + pushed live); dedupe guards
+      // crash-resume reprocessing by the tracker sweep.
+      await notifyPlayer({
+        systemType: 'wmd_missile_impact',
+        recipient: missile.targetId,
+        title: 'Nuclear Impact',
+        body: `A ${warhead} missile from ${missile.launchedBy ?? missile.ownerId} detonated on ${target?.username ?? missile.targetId}: ${damageResult.unitsDestroyed} units destroyed, ${damageResult.factoriesDamaged} factories damaged.`,
+        icon: '💥',
+        relatedEntityId: missile.missileId,
+        dedupeKey: `missile:${missile.missileId}:impact:target`,
+      });
       await recordAdminAlert(missile.missileId, missile.ownerId, missile.targetId, warhead, damageResult, false);
-
       if (io) {
         await wmdHandlers.broadcastMissileImpact(io, {
           intercepted: false,

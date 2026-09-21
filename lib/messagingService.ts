@@ -652,7 +652,7 @@ export async function searchConversations(
 /**
  * Map a Drizzle conversation row to the Conversation type
  */
-function mapConversationToType(row: typeof conversations.$inferSelect): Conversation {
+export function mapConversationToType(row: typeof conversations.$inferSelect): Conversation {
   const participants = row.participants as [string, string];
   const unreadCount = (row.unreadCount as Record<string, number>) ?? {};
   const isArchived = row.isArchived as Record<string, boolean> | undefined;
@@ -705,7 +705,7 @@ function isSystemMessageType(value: unknown): value is MessageMetadata['systemTy
   return typeof value === 'string' && (SYSTEM_MESSAGE_TYPES as readonly string[]).includes(value);
 }
 
-function mapMessageToType(row: typeof messages.$inferSelect): Message {
+export function mapMessageToType(row: typeof messages.$inferSelect): Message {
   const message: Message = {
     _id: row.id,
     conversationId: row.conversationId,

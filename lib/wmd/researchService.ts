@@ -607,6 +607,32 @@ async function sendResearchCompletedNotification(
       playerId,
       'You'
     );
+
+    // FID-20260919-013: the wmd_notifications row had zero readers — deliver
+    // through the player seam (System inbox + live push), then fire the
+    // previously-orphaned wmd:research_complete emitter for WMDHub toasts.
+    const { notifyPlayer } = await import('@/lib/playerNotification');
+    await notifyPlayer({
+      systemType: 'wmd_research_complete',
+      recipient: playerId,
+      title: 'Research Complete',
+      body: `${tech.name} unlocked!`,
+      icon: '✅',
+      relatedEntityId: tech.techId,
+      dedupeKey: `research:${playerId}:${tech.techId}`,
+    });
+
+    const { getIO } = await import('@/lib/websocket/server');
+    const { broadcastResearchComplete } = await import('@/lib/websocket/handlers/wmdHandler');
+    const io = getIO();
+    if (io) {
+      await broadcastResearchComplete(io, {
+        playerId,
+        techId: tech.techId,
+        techName: tech.name,
+        category: tech.category,
+      });
+    }
   } catch (error) {
     console.error('Error sending research notification:', error);
   }
