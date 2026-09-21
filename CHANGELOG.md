@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.26] — 2026-09-19 session
+
+### Added — FID-20260919-013: live player-notification delivery (closed, commit `746b920`)
+
+- **One seam for every player-directed event** (`lib/playerNotification`): persist to the System DM inbox (the badged, real-time surface from FID-20260919-004) and push the exact FID-004 wire payloads (`message:receive`, `conversation:updated`) plus a new typed `notification:push` event to the player's socket room. 60s dedupe window keeps sweep reprocessing from double-notifying; scheduled-job contexts degrade to DB-only delivery when no socket server exists.
+- **Auction outcomes now push live.** They previously wrote inbox rows directly, bypassing `messagingService`, so a player online at sale time learned of the sale only on next page load. All six event types (outbid, sold seller/winner, expired, refund, settlement) flow through the seam.
+- **WMD events reach humans, not just tables.** Missile interception now notifies the target *and* the launcher (previously only the audit row); impact notifies the target; research completion is seam-delivered and the orphaned `wmd:research_complete` emitter finally fires — the WMDHub toasts that have been mounted and waiting since 2025-10 now receive their event.
+- **Evidence:** 7 pins on the seam (persist shape, wire contracts via the production payload mappers — now exported, dedupe, inboxless guard, lazy conversation creation, io-null degradation, non-fatal failure); live probe 12/12 against the running server: a real listing → buyout produced the persisted System DM with unread bump, all three socket events on the seller's live connection, and a dedupe drop on re-delivery. Suite 1231/1231, tsc 0, eslint clean.
+
 ## [0.0.25] — 2026-09-19 session
 
 ### Fixed — FID-20260919-012: the census found real defects under rot-shaped TODOs (closed, commit `1ca470a`)
