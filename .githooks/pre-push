@@ -60,6 +60,26 @@ if [ -n "$shim_hits" ]; then
 fi
 echo "✅ pre-push: mongo eradication census clean"
 
+# ---- Gate 4: schema-consumer census (Law 17, FID-20260919-014) ----
+
+# Every drizzle table in lib/db/schema must be LIVE (writer + reader outside
+# its defining file) or carry a removal ticket in dev/fids/. Outlaws the
+# unwritten-adjacent-stack class: wmd_alerts (never written),
+# wmd_notifications (never read), chatReadStatus/shrineBlessings/wmdConfig
+# (never referenced). Fail-closed: a table with no consumer pair and no
+# ticket refuses the push; tickets are FID files naming the table.
+echo "🔍 pre-push: schema-consumer census (Law 17 gate)..."
+schema_census_out="$(node scripts/schemaConsumerCensus.cjs 2>&1)"
+schema_census_status=$?
+if [ "$schema_census_status" -ne 0 ]; then
+  echo "$schema_census_out" | tail -n 30 >&2
+  echo "❌ pre-push: schema census refused the push (exit ${schema_census_status}) — wire" >&2
+  echo "   a producer/consumer with a live-consumer pointer, or file a removal-ticket" >&2
+  echo "   FID naming the table (full report: node scripts/schemaConsumerCensus.cjs)." >&2
+  exit 1
+fi
+echo "✅ pre-push: schema census clean ($(printf '%s' "$schema_census_out" | tail -n 1))"
+
 # ---- Gate 2: agent-attribution watermark scan (ported contract) ----
 
 ZERO_SHA="0000000000000000000000000000000000000000"

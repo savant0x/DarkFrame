@@ -99,10 +99,10 @@ out-of-scope item, and only after it has been presented.
 | **11** | Follow discovered patterns EXACTLY                                | Inconsistency                                                                 |
 | **12** | Never expose sensitive data in logs/errors                        | Security breach                                                               |
 | **13** | Utility-first, universal logic                                    | Duplication is debugging debt                                                 |
-| **14** | All error paths handled                                           | Every fallible operation must have its error propagated or explicitly h
-| **15** | Build stays clean                                                 | Zero errors, zero warnings after every edit                            
-| **16** | Every ledger closure requires a fresh artifact-verification probe | Stale-open rows hide completed work and misdirect operator decisions   andled |
+| **14** | All error paths handled                                           | Every fallible operation must have its error propagated or explicitly handled |
 | **15** | Build stays clean                                                 | Zero errors, zero warnings after every edit                                   |
+| **16** | Every ledger closure requires a fresh artifact-verification probe | Stale-open rows hide completed work and misdirect operator decisions          |
+| **17** | Every schema block carries a live-consumer pointer or a ticket    | Unwritten-adjacent stacks accumulate silently                                 |
 
 #### Law 13: Utility-First, Universal Logic
 
@@ -494,6 +494,37 @@ A plan with silent deferrals is a broken plan — the operator approved work tha
 | Lessons learned    | `dev/LEARNINGS.md`                            |
 | Version            | `VERSION`                                     |
 | Changelog          | `CHANGELOG.md`                                |
+
+#### Law 17: Every Schema Block Carries a Live-Consumer Pointer or a Removal Ticket
+
+**A drizzle table in `lib/db/schema/` is lawful only if it is LIVE — a writer path and a
+reader path exist OUTSIDE its defining file — or it carries a removal ticket: a filed,
+dated FID that dispositions the table. No pointer, no ticket, no schema.**
+
+Motivation (2026-09-19): three schema-truth drifts in one arc — `wmd_alerts` kept with a
+reader but zero writers (the table can never fill), `wmd_notifications` written by a
+live producer but read by nothing, and a phantom `clan_chat` referenced by code while
+the real table had no definition. Law 16 protects closure truth; nothing protected
+schema truth between sessions. The first enforcement run caught four more ghosts
+(`chatReadStatus`, `shrineBlessings`, `wmdSuspiciousActivity`, `wmdConfig`) that every
+prior survey had missed.
+
+```text
+BEFORE adding or keeping any pgTable definition:
+1. NAME the writer path (route/service/job that INSERTs) and the reader path
+   (route/service/component that SELECTs). Comment them on the table block.
+2. IF either is missing → the table is a removal ticket, not accretion: file a
+   dated FID row dispositioning it (wire-or-remove), and record it in SCOPE.md.
+3. RUN the gate: node scripts/schemaConsumerCensus.cjs (pre-push Gate 4).
+   Live = writes>0 AND reads>0 outside the defining file; tickets are recognized
+   from dev/fids/ content. Fail-closed on unparsable input.
+NEVER delete a table's schema without the idempotent migration dropping it, and
+NEVER "keep it for later" without a ticket — 'later' is how the dead stack grew.
+```
+
+Enforcement lives in `scripts/schemaConsumerCensus.cjs` (pre-push Gate 4,
+FID-20260919-014), so the law is mechanical, not memory-resident.
+
 
 ---
 

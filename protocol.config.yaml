@@ -38,7 +38,7 @@ single_agent:
     strict_mode: true
 
     core_laws: [1, 2, 3, 4]        # Immutable Process Laws — always active
-    extended_laws: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]  # active while strict_mode is true
+    extended_laws: [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]  # active while strict_mode is true
 
     language: typescript           # primary project language (Next.js + TypeScript)
     language_agnostic: true        # language-specific details live in coding-standards/
