@@ -98,6 +98,6 @@ and `message:deleted` socket fan-out remain out of scope — recorded in §5.)
 
 ## 8. Closure
 
-Implemented same session on operator standing directive. Implementation commit: `699aa38`.
-Closed on `699aa38`. Gates: suite 1230/1230 (21 new pins), tsc 0, eslint clean.
+Implemented same session on operator standing directive. Implementation commit: `1ca470a`.
+Closed on `1ca470a`. Gates: suite 1224/1224 (9 new pins), tsc 0, eslint clean.
 Live probe: clan-table fix verified against dev DB (`clan_chat_messages` exists, `clan_chat` does not).
