@@ -24,6 +24,7 @@ import {
   getPlayerMissiles,
   dismantleMissile,
 } from '@/lib/wmd/missileService';
+import { flagExcessiveLaunches } from '@/lib/wmd/suspiciousActivityService';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { missiles } from '@/lib/db/schema/wmd';
@@ -254,6 +255,15 @@ export const POST = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       });
     }
     
+    // FID-20260919-015 W4: EXCESSIVE_LAUNCHES trigger — fires exactly when the
+    // 24h launch count crosses the threshold. Non-fatal: a flag failure must
+    // never fail the launched missile.
+    try {
+      await flagExcessiveLaunches(auth.username, auth.player.clanId ?? null);
+    } catch (flagError) {
+      log.error('Excessive-launch check failed', flagError as Error);
+    }
+
     // Broadcast missile launch to launcher and target
     try {
       // FID-20260906-002 G3: drizzle seam replaces the Mongo-shim read.

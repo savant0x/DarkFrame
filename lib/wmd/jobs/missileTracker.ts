@@ -45,6 +45,7 @@ import {
 import { createWMDNotification } from '@/lib/wmd/notificationService';
 import { notifyPlayer } from '@/lib/playerNotification';
 import { generateId } from '@/lib/utils';
+import { shouldRecordAlert } from '@/lib/wmd/admin/alertConfigService';
 import type { MissileDamageRecord } from '@/types/wmd';
 
 type Database = typeof db;
@@ -218,6 +219,10 @@ async function recordAdminAlert(
   damage: MissileDamageRecord | null,
   intercepted: boolean
 ): Promise<void> {
+  // FID-20260919-015 W3: severity gate from persisted wmd_config.
+  const record = await shouldRecordAlert(intercepted ? 'MEDIUM' : 'HIGH');
+  if (!record) return;
+
   await db.insert(wmdAdminAlerts).values({
     id: generateId(),
     type: 'MISSILE_LAUNCH',

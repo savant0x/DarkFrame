@@ -13,6 +13,7 @@
  * ENDPOINTS:
  * - GET /api/chat - Retrieve messages from a channel
  * - POST /api/chat - Send a new message to a channel (with auto-moderation)
+ * - PATCH /api/chat - Mark a channel read (FID-20260919-015 W1: persists chat_read_status)
  * 
  * AUTO-MODERATION (NEW):
  * - Profanity filter with bad-words library
@@ -36,6 +37,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { markChannelRead } from '@/lib/chatReadStatusService';
 import { authenticateRequest } from '@/lib/authMiddleware';
 import {
   deleteGlobalChatMessage,
@@ -492,9 +494,12 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Intentional no-op (FID-20260919-012): no client calls bare PATCH /api/chat
-    // (ChatPanel persists read state via /api/chat/dm/read). Wire-compatible
-    // success kept; channel mark-as-read is a recorded FID candidate.
+    // FID-20260919-015 W1: this handler now persists chat_read_status (it was
+    // an honest no-op under FID-20260919-012 until chatReadStatusService
+    // existed). ChatPanel calls it on channel switch / read-back, so channel
+    // unread badges survive refresh.
+
+    await markChannelRead(user.username, channelId, lastReadMessageId);
 
     return NextResponse.json(
       {

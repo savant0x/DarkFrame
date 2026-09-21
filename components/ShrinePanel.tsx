@@ -38,6 +38,13 @@ interface ShrinePanelProps {
   onBack: () => void;
 }
 
+interface BlessingRow {
+  tier: string;
+  yieldBonus: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
 interface BoostConfig {
   tier: ShrineBoostTier;
   name: string;
@@ -118,6 +125,25 @@ export default function ShrinePanel({
 
     return () => clearInterval(interval);
   }, [activeBoosts]);
+
+  // FID-20260919-015 W2: persistent blessing ledger — the jsonb only holds
+  // current expiry per tier; this is the grant history that survives refresh.
+  const [blessings, setBlessings] = useState<BlessingRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/shrine/blessings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data?.success && Array.isArray(data.blessings)) {
+          setBlessings(data.blessings as BlessingRow[]);
+        }
+      })
+      .catch(() => undefined); // history is best-effort; never blocks the shrine
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBoosts]); // re-read after any transaction refreshes activeBoosts
 
   const getActiveBoost = (tier: ShrineBoostTier): ShrineBoost | undefined => {
     return activeBoosts.find(b => b.tier === tier);
@@ -496,6 +522,27 @@ export default function ShrinePanel({
             <span className={`nn-chip ${isError ? 'nn-chip--magenta' : 'nn-chip--green'}`}>
               {message}
             </span>
+          </div>
+        )}
+
+        {/* Recent Blessings — persistent grant ledger (FID-20260919-015 W2) */}
+        {blessings.length > 0 && (
+          <div className="nn-panel">
+            <div className="nn-panel__header">
+              <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--nn-amber)', display: 'inline-flex' }} />
+              <span className="nn-panel__title">Recent Blessings</span>
+              <span className="nn-panel__meta">GRANT LEDGER</span>
+            </div>
+            <div className="nn-panel__body nn-panel__body--padded space-y-2">
+              {blessings.map((b, i) => (
+                <div className="nn-row" key={`${b.createdAt}-${b.tier}-${i}`}>
+                  <span className="nn-row__label">{b.tier}</span>
+                  <span className="nn-row__value nn-text-secondary">
+                    {new Date(b.createdAt).toLocaleString()} · +{Math.round(b.yieldBonus * 100)}% yield
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

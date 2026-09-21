@@ -291,6 +291,9 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
   
   // WMD system state
   const [wmdStatus, setWmdStatus] = useState<WmdStatusPayload | null>(null);
+  // FID-20260919-015 W3/W4: persisted alert config + suspicious-activity feed
+  const [wmdAlertConfig, setWmdAlertConfig] = useState<{ enabled: boolean; minSeverity: string } | null>(null);
+  const [wmdSuspicious, setWmdSuspicious] = useState<Array<{ id: string; playerId: string; clanId: string; activityType: string; severity: string; details: string | null; createdAt: string }>>([]);
   const [wmdAnalytics, setWmdAnalytics] = useState<WmdAnalyticsPayload | null>(null);
   const [wmdTimeRange, setWmdTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
   
@@ -495,6 +498,22 @@ export default function AdminPage({ embedded = false }: AdminPageProps) {
         const wmdAnalyticsData = await wmdAnalyticsRes.json();
         if (wmdAnalyticsData.success) {
           setWmdAnalytics(wmdAnalyticsData.data);
+        }
+
+        // FID-20260919-015 W3/W4: alert config + suspicious-activity feed
+        try {
+          const cfgRes = await fetchAdminJson('/api/admin/wmd?action=alert-config');
+          const cfgData = await cfgRes.json();
+          if (cfgData.success) {
+            setWmdAlertConfig({ enabled: cfgData.data.config.enabled, minSeverity: String(cfgData.data.config.minSeverity) });
+          }
+          const susRes = await fetchAdminJson('/api/admin/wmd?action=suspicious-activity&limit=10');
+          const susData = await susRes.json();
+          if (susData.success) {
+            setWmdSuspicious(susData.data.activity as typeof wmdSuspicious);
+          }
+        } catch (wmdCfgErr) {
+          console.error('Error loading WMD config/activity:', wmdCfgErr);
         }
       } catch (err) {
         console.error('Error loading admin data:', err);
@@ -2951,6 +2970,38 @@ By Specialization:
                               </div>
                               <span className="text-xs text-[color:var(--nn-text-secondary)]">
                                 {new Date(alert.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* FID-20260919-015 W3: persisted alert configuration */}
+                    {wmdAlertConfig && (
+                      <div className="mt-4">
+                        <h4 className="nn-panel__title">Alert Configuration</h4>
+                        <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
+                          {wmdAlertConfig.enabled
+                            ? `Enabled · minimum severity: ${wmdAlertConfig.minSeverity}`
+                            : 'Alerting disabled (all admin alerts suppressed)'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* FID-20260919-015 W4: suspicious-activity feed */}
+                    {wmdSuspicious.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        <h4 className="nn-panel__title">Suspicious Activity</h4>
+                        {wmdSuspicious.map((row) => (
+                          <div key={row.id} className="bg-[color-mix(in_oklab,var(--nn-amber)_18%,transparent)] border border-[color-mix(in_oklab,var(--nn-amber)_45%,transparent)] rounded-none p-3">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-[color:var(--nn-amber)]">{row.activityType} — {row.playerId}</p>
+                                <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">{row.details || row.clanId}</p>
+                              </div>
+                              <span className="text-xs text-[color:var(--nn-text-secondary)]">
+                                {new Date(row.createdAt).toLocaleDateString()}
                               </span>
                             </div>
                           </div>

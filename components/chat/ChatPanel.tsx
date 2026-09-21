@@ -305,6 +305,26 @@ export default function ChatPanel({
   // once per session against live listings; verified names render as links.
   const [verifiedItemNames, setVerifiedItemNames] = useState<Set<string>>(new Set());
   const failedItemNames = useRef<Set<string>>(new Set());
+  // FID-20260919-015 W1: persistent read state (chat_read_status) — the
+  // session-only unread Map lost every badge on refresh.
+  const prevChannelRef = useRef<ChannelType>(activeChannel);
+  const messagesRef = useRef(messages);
+  const markChannelReadRef = useRef<(channelId: ChannelType) => void>(() => undefined);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  const markChannelRead = useCallback((channelId: ChannelType) => {
+    // Contract: PATCH /api/chat requires the last message id seen in-channel.
+    const last = messagesRef.current.get(channelId)?.at(-1)?.id;
+    if (!last) return; // channel never loaded — nothing was read
+    fetch('/api/chat', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelId, lastReadMessageId: last }),
+      keepalive: true,
+    }).catch(() => undefined); // read-state is best-effort; badges re-seed next visit
+  }, []);
+  useEffect(() => {
+    markChannelReadRef.current = markChannelRead;
+  }, [markChannelRead]);
 
   // DM-specific state
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
@@ -762,6 +782,25 @@ export default function ChatPanel({
   useEffect(() => {
     // Load initial message history
     loadMessages(activeChannel);
+
+    // FID-20260919-015 W1: seed unread badges from persisted read state —
+    // messages that arrived while the panel was closed count again.
+    fetch('/api/chat/read-state')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const byChannel = data?.unreadByChannel as Record<string, number> | undefined;
+        if (!byChannel) return;
+        setUnreadCounts((prev) => {
+          const updated = new Map(prev);
+          for (const [ch, count] of Object.entries(byChannel)) {
+            const cid = ch as ChannelType;
+            if (cid === activeChannelRef.current) continue; // viewing it now
+            updated.set(cid, Math.max(updated.get(cid) ?? 0, count));
+          }
+          return updated;
+        });
+      })
+      .catch(() => undefined);
   }, [activeChannel]);
 
   /**
@@ -773,6 +812,12 @@ export default function ChatPanel({
       updated.set(activeChannel, 0);
       return updated;
     });
+
+    // FID-20260919-015 W1: the channel just left was read up to now.
+    if (prevChannelRef.current !== activeChannel) {
+      markChannelReadRef.current(prevChannelRef.current);
+      prevChannelRef.current = activeChannel;
+    }
 
     // Load messages for new channel if not loaded
     if (!messages.has(activeChannel)) {

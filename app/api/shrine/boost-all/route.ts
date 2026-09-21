@@ -22,6 +22,7 @@ import { calculateDuration } from '@/utils/shrineHelpers';
 import { assertAtShrine } from '@/lib/shrineServer';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { trackShrineTrade } from '@/lib/statTrackingService';
+import { recordBlessing } from '@/lib/shrineBlessingService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -195,6 +196,24 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
         message: 'Player not found'
       });
+    }
+
+    // FID-20260919-015 W2: one blessing row per granted suit (persistent
+    // ledger; non-fatal like all bookkeeping after the primary write).
+    try {
+      for (const result of results) {
+        await recordBlessing(
+          username,
+          result.tier,
+          result.expiresAt,
+          BOOST_CONFIGS[result.tier as ShrineBoostTier]?.yieldBonus ?? 0
+        );
+      }
+    } catch (ledgerError) {
+      log.warn(
+        'Blessing ledger write failed (boost-all committed)',
+        ledgerError instanceof Error ? ledgerError : new Error(String(ledgerError))
+      );
     }
 
     // FID-20260917-002: parity with the legacy economy — ONE trade counted and

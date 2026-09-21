@@ -28,7 +28,9 @@
  * - lib/wmd/jobs/scheduler.ts - Background job monitoring
  */
 
+import { generateId } from '@/lib/utils';
 import { db } from '@/lib/db';
+import { shouldRecordAlert } from '@/lib/wmd/admin/alertConfigService';
 import { missiles, wmdClanVotes, wmdSpyMissions, wmdDefenseBatteries, clans, wmdSuspiciousActivity, wmdAdminAlerts } from '@/lib/db/schema';
 import { ClanBankTransactionType } from '@/types/clan.types';
 import type { ClanBankTransaction } from '@/types/clan.types';
@@ -454,7 +456,10 @@ export async function getWMDAnalytics(
 export async function flagSuspiciousActivity(
   report: Omit<SuspiciousActivityReport, 'flaggedAt'>
 ): Promise<{ success: boolean; alertId: string }> {
-  const alertId = `susp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  // FID-20260919-015: generateId (23 chars) fits the varchar(24) id column;
+  // the old susp_<ms>_<rand> format (28 chars) overflowed it — latent since
+  // FID-20260903-002, unexposed because this writer had no callers until now.
+  const alertId = generateId();
   
   await db.insert(wmdSuspiciousActivity).values({
     id: alertId,
@@ -506,7 +511,18 @@ async function logAdminAction(
 async function createAdminAlert(
   alert: Omit<AdminAlert, 'alertId' | 'timestamp' | 'acknowledged'>
 ): Promise<AdminAlert> {
-  const alertId = `ALERT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // FID-20260919-015 W3: severity gate — the persisted wmd_config can disable
+  // alerting entirely or floor the minimum severity. Suppressed alerts are
+  // skipped, not errors (the caller's flow continues either way).
+  const record = await shouldRecordAlert(alert.severity);
+  if (!record) {
+    const alertId = `ALERT-suppressed-${Date.now()}`;
+    return { ...alert, alertId, timestamp: new Date(), acknowledged: true };
+  }
+
+  // FID-20260919-015: ALERT-<ms>-<rand> (29 chars) overflowed varchar(24);
+  // generateId (23 chars) fits. Same latent defect as flagSuspiciousActivity.
+  const alertId = generateId();
 
   await db.insert(wmdAdminAlerts).values({
     id: alertId,

@@ -55,9 +55,11 @@ import {
   createErrorFromException,
   ErrorCode,
 } from '@/lib';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { players } from '@/lib/db/schema';
+import { players, wmdSuspiciousActivity } from '@/lib/db/schema';
+import { getAlertConfig, setAlertConfig, DEFAULT_ALERT_CONFIG } from '@/lib/wmd/admin/alertConfigService';
+import type { AlertConfig } from '@/lib/wmd/admin/alert.types';
 
 async function verifyAdminAccess(_request: NextRequest): Promise<{
   isAdmin: boolean;
@@ -196,6 +198,26 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
         return NextResponse.json({ success: true, data: activity });
       }
 
+      case 'alert-config': {
+        // FID-20260919-015 W3: persisted alert configuration (wmd_config).
+        const config = await getAlertConfig();
+        log.info('WMD alert config retrieved', { action });
+        return NextResponse.json({ success: true, data: { config } });
+      }
+
+      case 'suspicious-activity': {
+        // FID-20260919-015 W4: admin reader for wmd_suspicious_activity.
+        const limitRaw = Number(searchParams.get('limit') ?? '25');
+        const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 100) : 25;
+        const rows = await db
+          .select()
+          .from(wmdSuspiciousActivity)
+          .orderBy(desc(wmdSuspiciousActivity.createdAt))
+          .limit(limit);
+        log.info('WMD suspicious activity retrieved', { action, count: rows.length });
+        return NextResponse.json({ success: true, data: { activity: rows } });
+      }
+
       default: {
         const status = await getWMDSystemStatus();
         // FID-20260906-003 S2: adapt to the admin UI's contract (AdminView.tsx
@@ -300,6 +322,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
         log.info('WMD suspicious activity flagged by admin', { action, playerId, clanId, activityType, severity, adminId, success: result.success });
         return NextResponse.json(result, { status: result.success ? 200 : 400 });
+      }
+
+      case 'set-alert-config': {
+        // FID-20260919-015 W3: persist the alert configuration (wmd_config).
+        const { config } = body as { config?: Partial<AlertConfig> };
+        if (!config || typeof config !== 'object') {
+          return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'config object required');
+        }
+        const saved = await setAlertConfig({ ...DEFAULT_ALERT_CONFIG, ...config });
+        log.info('WMD alert config updated', { adminId, enabled: saved.enabled, minSeverity: saved.minSeverity });
+        return NextResponse.json({ success: true, data: { config: saved } });
       }
 
       default:

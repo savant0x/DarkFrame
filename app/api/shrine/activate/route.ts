@@ -22,6 +22,7 @@ import { calculateDuration } from '@/utils/shrineHelpers';
 import { assertAtShrine } from '@/lib/shrineServer';
 import { awardXP, XPAction } from '@/lib/xpService';
 import { trackShrineTrade } from '@/lib/statTrackingService';
+import { recordBlessing } from '@/lib/shrineBlessingService';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -186,6 +187,18 @@ export const POST = withRequestLogging(rateLimiter(async (request: Request) => {
       return createErrorResponse(ErrorCode.AUTH_USER_NOT_FOUND, {
         message: 'Player not found'
       });
+    }
+
+    // FID-20260919-015 W2: persistent blessing ledger (shrine_blessings) — the
+    // jsonb only holds current expiry per tier; every grant is recorded.
+    // History failure must not fail the committed boost (bookkeeping class).
+    try {
+      await recordBlessing(username, tier, finalExpiresAt, BOOST_CONFIGS[tier as ShrineBoostTier].yieldBonus);
+    } catch (ledgerError) {
+      log.warn(
+        'Blessing ledger write failed (boost committed)',
+        ledgerError instanceof Error ? ledgerError : new Error(String(ledgerError))
+      );
     }
 
     // FID-20260917-002: parity with the legacy economy — count the trade and
