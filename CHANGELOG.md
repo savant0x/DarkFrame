@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.27] — 2026-09-19 session
+
+### Added — FID-20260919-014: Law 17, the schema-consumer law, enforced as pre-push Gate 4 (closed, commit `3ec3752`)
+
+- **The standing law:** every drizzle table in `lib/db/schema/` must be LIVE — a writer path and a reader path exist outside its defining file — or carry a removal ticket (a filed, dated FID dispositioning it). No pointer, no ticket, no schema. This outlaws the class that produced `wmd_alerts` (never written), `wmd_notifications` (never read), and the phantom `clan_chat`.
+- **Mechanical enforcement:** `scripts/schemaConsumerCensus.cjs` classifies every exported pgTable (live / write-only / read-only / no-consumer), recognizes removal tickets from `dev/fids/` content, and fails closed — a synthetic ghost table was verified to refuse with exit 1. Wired as pre-push Gate 4 beside the inverted-route census.
+- **The law caught four ghosts on its first run** — `chatReadStatus`, `shrineBlessings`, `wmdConfig` (zero code references anywhere) and `wmdSuspiciousActivity` (write-only via an unreachable writer) — none of which had appeared on any prior survey. All four are ticketed in the FID's §4; SCOPE row 112 carries their wire-or-remove follow-ups. Prior FID-dispositioned ghosts (achievements, the wmd family from FID-011/-013) are recognized as ticketed.
+- **Protocol amended:** Law 17 added to `dev/echo-v0.1.2-single-agent.md` (summary table + full section with the probe procedure) and `extended_laws` in `protocol.config.yaml`. Pre-existing corruption in the summary table (truncated row 14, duplicated row 15) repaired in passing.
+- Gates: suite 1231/1231, tsc 0, eslint clean; census state: 63 tables — 50 live, 13 ticketed, 0 violations.
+
 ## [0.0.26] — 2026-09-19 session
 
 ### Added — FID-20260919-013: live player-notification delivery (closed, commit `746b920`)
