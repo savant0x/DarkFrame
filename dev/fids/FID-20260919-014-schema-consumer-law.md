@@ -81,4 +81,12 @@ queue.
 
 ## 8. Closure
 
-`TBD`
+Implemented same session on operator standing directive. Implementation commit: `3ec3752`.
+Closed on `3ec3752`. Gates: suite 1231/1231, tsc 0, eslint clean.
+
+Gate evidence: census run on the current tree reports 63 tables — 50 live, 13 ticketed
+(9 prior-FID ghosts + the 4 new §4 tickets), 0 violations. Fail-closed verified: a
+synthetic ghost table (`zzCensusGhostTable`) was refused with exit 1 and removed.
+Enforcement wiring: pre-push Gate 4, beside the inverted-route census (Gate 1) and the
+Mongo eradication census (Gate 3).
+
