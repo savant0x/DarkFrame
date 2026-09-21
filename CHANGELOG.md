@@ -5,6 +5,17 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.25] — 2026-09-19 session
+
+### Fixed — FID-20260919-012: the census found real defects under rot-shaped TODOs (closed, commit `1ca470a`)
+
+- **DELETE /api/chat lied.** The moderator endpoint returned `success: true, "Message deleted"` without deleting — its body was a commented-out TODO. It now performs the admin-gated (`moderationService.isAdmin`) soft-delete via `chatService.deleteGlobalChatMessage` (which already existed, unused) and returns honest 404s for missing/already-deleted messages. Owner self-delete on `/api/chat/delete` was already live and untouched.
+- **Every clan disband crashed.** `disbandClan` ran raw `DELETE FROM clan_chat` — a table that never existed (the live DB carries `clan_chat_messages`) — throwing mid-transaction after members were already cleared. Corrected and pinned against the committed migration set.
+- **Dead false-advertising UI removed:** the unmounted `app/admin/vip` page (465 lines, including a fake-success cancellation toast), the game page's unreachable "Battle Log View / Inventory View - Coming Soon" blocks (zero `setCurrentView` callers; live equivalents exist), and the `game:request_tile_info` socket stub with no emitter.
+- **Doc truth sweep:** "placeholder authentication" claims rewritten on routes that have had real session auth all along (chat route header + IMPLEMENTATION NOTES, chat/delete docblock, chat/edit's stale double docblock); MessageThread's commented real-time sketch (the wiring shipped in FID-20260919-004); ChatPanel's shipped ask-veterans TODO (FID-20260919-005); the help page's "PvP combat is coming soon!" (PvP has been live since the protection arc).
+- Recorded (not built): auction `clanOnly` is a silent API-only lie (fee differential live, enforcement commented, no UI can set it — product call needed), channel mark-as-read, chat channel-ban wiring, moderator undelete + `message:deleted` fan-out, `BattleLog` type duplication.
+- Gates: suite 1224/1224 (9 new pins), tsc 0, eslint clean.
+
 ## [0.0.24] — 2026-09-19 session
 
 ### Changed — FID-20260919-011: ChatPanel docs tell the truth; the never-wired notification stack is gone (closed, commit `6f08696`)
