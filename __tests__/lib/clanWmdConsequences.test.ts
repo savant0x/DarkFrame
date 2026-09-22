@@ -151,7 +151,7 @@ describe('applyClanWMDConsequences — the cooldown write is real', () => {
     expect(values.relation).toBe('ENEMY');
   });
 
-  it('grants one retaliation right per victim member, with PKs that fit 24 chars', async () => {
+  it('grants one retaliation right per victim member, with PKs inside the varchar(50) column', async () => {
     await applyClanWMDConsequences('clanB', 'Bravo', 'clanA', 'Alpha', 'TACTICAL');
     const rrInsert = state.inserts.find((i) => tableOf(i) === getTableName(wmdRetaliationRights));
     expect(rrInsert).toBeDefined();

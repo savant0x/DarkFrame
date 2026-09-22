@@ -65,12 +65,19 @@ target's losses. The module that was supposed to fix that was never wired — an
 - **Pins:** 11/11 (`__tests__/lib/clanWmdConsequences.test.ts`) — cooldown write/read truth, launch
   refusal + retaliation bypass/consume, path-scoped reputation floor (`GREATEST(0, …)`), canonical
   relations pair, retaliation PK width.
-- **Live probe:** **16/16** (`scripts/e2eClanConsequencesLive.ts`) against the real dev DB with two
-  throwaway clans + members: the real consequence flow writes a ~24h cooldown and the research
-  penalty; relations land as ENEMY on a canonical pair; one retaliation right per victim member
-  with PKs inside `varchar(50)`; `isClanOnWMDCooldown` reports active then expired; the **real
-  `launchMissile`** refuses a cooldown-clan launch and leaves the missile READY, then a
-  retaliation right lets the victim's launch through and is consumed. Cleanup leaves no residue.
+- **Live probe:** **23/23** (`scripts/e2eClanConsequencesLive.ts`) against the real dev DB, with
+  throwaway clans + members throughout. **P1–P6 (service + gate):** the consequence flow writes a
+  ~24h cooldown and the research penalty; relations land as ENEMY on a canonical pair; one
+  retaliation right per victim member; `isClanOnWMDCooldown` reports active then expired; the
+  **real `launchMissile`** refuses a cooldown-clan launch and leaves the missile READY, then a
+  retaliation right lets the victim's launch through and is consumed.
+- **P8 — the integrated leg (added after the first closure, which is why the count moved 16 → 23):**
+  a service-level pass does **not** prove the hook fires in the live impact path. P8 inserts a due
+  `LAUNCHED` missile against a battery-free victim clan, calls the tracker's own
+  `processDueMissiles()`, and asserts the sweep detonated it **and** that the detonation applied the
+  ~24h cooldown, charged the clan research pool, set relations ENEMY, granted the victim clan's
+  retaliation rights, and notified the launcher through the FID-20260919-013 seam. Cleanup (now
+  including the messages/alerts the detonation writes) leaves no residue.
 - **Suite:** 1285/1285 (132 files) · **tsc:** 0 · **eslint:** clean ·
   **census:** 57 tables — 57 live, 0 ticketed, 0 violations (`clan_relations` and
   `wmd_retaliation_rights` now have real consumers rather than hanging off dead code).
@@ -101,6 +108,10 @@ Honest records from this arc:
    difference here was that the fix was a feature build, not a hook-up.
 4. Pre-existing lint hazard fixed rather than suppressed: `useRetaliationRight` →
    `consumeRetaliationRight` (the `use*` prefix collides with React's hook namespace).
+5. **Evidence strengthened after the first closure commit:** the initial 16 probes drove the
+   service and the launch gate directly, which left the *hook* (detonation → consequences)
+   verified only by reading code. The added P8 leg exercises the real tracker sweep instead, so the
+   FID's central claim now has live evidence rather than an inference.
 
 **Remaining question this FID deliberately did NOT decide:** the retaliation *window* (30 days) and
 whether retaliation rights should be visible in the UI. Neither is required for the mechanic to

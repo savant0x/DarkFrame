@@ -25,6 +25,7 @@ import {
   consumeRetaliationRight,
 } from '../lib/wmd/clanConsequencesService';
 import { launchMissile } from '../lib/wmd/missileService';
+import { processDueMissiles } from '../lib/wmd/jobs/missileTracker';
 
 type Row = Record<string, unknown>;
 const rows = async (q: ReturnType<typeof sql>): Promise<Row[]> =>
@@ -45,6 +46,17 @@ const vic2 = `zcvic2${TS}`.slice(0, 20);
 const missileRowId = generateId();
 const missilePubId = `zcm${TS}`.slice(0, 50);
 
+// P8 — the INTEGRATED leg: a real detonation through processDueMissiles() must
+// fire the consequence hook. Every probe id above carries TS, which is how the
+// cleanup finds its own rows in the user-keyed tables.
+const atkClan2 = generateId();
+const vicClan2 = generateId();
+const atk2 = `zcatk2${TS}`.slice(0, 20);
+const vicB1 = `zcvicb1${TS}`.slice(0, 20);
+const vicB2 = `zcvicb2${TS}`.slice(0, 20);
+const detMissileId = generateId();
+const detMissilePubId = `zcd${TS}`.slice(0, 50);
+
 async function insertPlayer(username: string, clanId: string, level = 19) {
   await db.execute(sql`INSERT INTO players
     (username, email, password, base_x, base_y, current_position_x, current_position_y, clan_id, level, protection_until)
@@ -57,11 +69,18 @@ async function insertClan(id: string, name: string, tag: string, leaderId: strin
 }
 
 async function cleanup() {
-  await db.execute(sql`DELETE FROM wmd_retaliation_rights WHERE player_clan_id IN (${vicClan}, ${atkClan}) OR can_retaliate_against_clan IN (${vicClan}, ${atkClan})`);
-  await db.execute(sql`DELETE FROM clan_relations WHERE clan_id1 IN (${vicClan}, ${atkClan}) OR clan_id2 IN (${vicClan}, ${atkClan})`);
-  await db.execute(sql`DELETE FROM missiles WHERE id = ${missileRowId}`);
-  await db.execute(sql`DELETE FROM players WHERE username IN (${atkPlayer}, ${vic1}, ${vic2})`);
-  await db.execute(sql`DELETE FROM clans WHERE id IN (${atkClan}, ${vicClan})`);
+  await db.execute(sql`DELETE FROM wmd_retaliation_rights WHERE player_clan_id IN (${vicClan}, ${atkClan}, ${vicClan2}, ${atkClan2}) OR can_retaliate_against_clan IN (${vicClan}, ${atkClan}, ${vicClan2}, ${atkClan2})`);
+  await db.execute(sql`DELETE FROM clan_relations WHERE clan_id1 IN (${vicClan}, ${atkClan}, ${vicClan2}, ${atkClan2}) OR clan_id2 IN (${vicClan}, ${atkClan}, ${vicClan2}, ${atkClan2})`);
+  await db.execute(sql`DELETE FROM missiles WHERE id IN (${missileRowId}, ${detMissileId})`);
+  // Residue the P8 detonation leg creates downstream of the hook: the FID-013
+  // notification seam (messages + the System conversation) and the two alert
+  // tables the tracker writes.
+  await db.execute(sql`DELETE FROM messages WHERE recipient_id LIKE ${'%' + TS + '%'} OR sender_id LIKE ${'%' + TS + '%'}`);
+  await db.execute(sql`DELETE FROM conversations WHERE participants::text LIKE ${'%' + TS + '%'}`);
+  await db.execute(sql`DELETE FROM wmd_alerts WHERE clan_id IN (${atkClan}, ${vicClan}, ${atkClan2}, ${vicClan2}) OR target_clan_id IN (${atkClan}, ${vicClan}, ${atkClan2}, ${vicClan2}) OR player_id LIKE ${'%' + TS + '%'}`);
+  await db.execute(sql`DELETE FROM wmd_notifications WHERE source_id LIKE ${'%' + TS + '%'} OR target_id LIKE ${'%' + TS + '%'}`);
+  await db.execute(sql`DELETE FROM players WHERE username IN (${atkPlayer}, ${vic1}, ${vic2}, ${atk2}, ${vicB1}, ${vicB2})`);
+  await db.execute(sql`DELETE FROM clans WHERE id IN (${atkClan}, ${vicClan}, ${atkClan2}, ${vicClan2})`);
 }
 
 async function main(): Promise<void> {
@@ -128,13 +147,60 @@ async function main(): Promise<void> {
   await db.execute(sql`DELETE FROM missiles WHERE id = ${vicMissile}`);
   await consumeRetaliationRight(vic1, atkClan); // idempotent no-op cleanup
 
+  // P8 — INTEGRATED: a real detonation through the tracker's own sweep. This is
+  // the FID's actual deliverable — the service working in isolation (P1–P6)
+  // does not prove the hook fires in the live impact path.
+  await insertClan(atkClan2, `ZAtk2${TS}`, 'ZKB', atk2);
+  await insertClan(vicClan2, `ZVic2${TS}`, 'ZKW', vicB1);
+  await insertPlayer(atk2, atkClan2);
+  await insertPlayer(vicB1, vicClan2);
+  await insertPlayer(vicB2, vicClan2);
+  await db.execute(sql`UPDATE clans SET research_research_points = 5000 WHERE id = ${atkClan2}`);
+  // vicClan2 gets NO defense batteries, so interception is deterministically
+  // false and the missile reaches the consequence hook.
+  await db.execute(sql`INSERT INTO missiles
+    (id, missile_id, owner_id, owner_clan_id, warhead_type, status, target_id, launched_by,
+     launched_at, impact_at, flight_time, created_at, updated_at)
+    VALUES (${detMissileId}, ${detMissilePubId}, ${atk2}, ${atkClan2}, 'TACTICAL', 'LAUNCHED',
+            ${vicB1}, ${atk2}, now() - interval '10 minutes', now() - interval '5 minutes', 5,
+            now(), now())`);
+
+  const processed = await processDueMissiles();
+  check('P8a the tracker sweep picked up the due missile', processed === 1, processed);
+
+  const det = (await rows(sql`SELECT status FROM missiles WHERE id = ${detMissileId}`))[0];
+  check('P8b the missile detonated (not intercepted, not skipped)', det?.status === 'DETONATED', det);
+
+  const atk2Row = (await rows(sql`SELECT wmd_cooldown_until, research_research_points FROM clans WHERE id = ${atkClan2}`))[0];
+  const hours2 = atk2Row?.wmd_cooldown_until
+    ? (new Date(atk2Row.wmd_cooldown_until as string).getTime() - Date.now()) / 3_600_000
+    : -1;
+  check('P8c the DETONATION applied the ~24h cooldown (the hook fires in the real path)', hours2 > 23.5 && hours2 < 24.5, { hours2 });
+  check('P8d the detonation charged the clan research pool (5000 -> 3000)', Number(atk2Row?.research_research_points) === 3000, atk2Row);
+
+  const rel2 = (await rows(sql`SELECT relation FROM clan_relations WHERE (clan_id1=${atkClan2} AND clan_id2=${vicClan2}) OR (clan_id1=${vicClan2} AND clan_id2=${atkClan2})`))[0];
+  check('P8e the detonation set the relation to ENEMY', rel2?.relation === 'ENEMY', rel2);
+
+  const rights2 = await rows(sql`SELECT id FROM wmd_retaliation_rights WHERE player_clan_id = ${vicClan2}`);
+  check('P8f the detonation granted retaliation rights to the victim clan', rights2.length === 2, rights2.length);
+
+  const notice = await rows(sql`SELECT id FROM messages WHERE recipient_id = ${atk2} AND metadata_system_type = 'wmd_consequences'`);
+  check('P8g the launcher was told through the FID-013 notification seam', notice.length >= 1, notice.length);
+
   // P7 — cleanup.
   await cleanup();
   const residue = await rows(sql`SELECT
-    (SELECT count(*)::int FROM clans WHERE id IN (${atkClan}, ${vicClan})) AS c,
-    (SELECT count(*)::int FROM players WHERE username IN (${atkPlayer}, ${vic1}, ${vic2})) AS p,
-    (SELECT count(*)::int FROM wmd_retaliation_rights WHERE player_clan_id = ${vicClan}) AS r`);
-  check('P7 probe cleanup left no residue', Number(residue[0]?.c) === 0 && Number(residue[0]?.p) === 0 && Number(residue[0]?.r) === 0, residue[0]);
+    (SELECT count(*)::int FROM clans WHERE id IN (${atkClan}, ${vicClan}, ${atkClan2}, ${vicClan2})) AS c,
+    (SELECT count(*)::int FROM players WHERE username LIKE ${'%' + TS + '%'}) AS p,
+    (SELECT count(*)::int FROM wmd_retaliation_rights WHERE player_clan_id IN (${vicClan}, ${vicClan2})) AS r,
+    (SELECT count(*)::int FROM messages WHERE recipient_id LIKE ${'%' + TS + '%'}) AS m,
+    (SELECT count(*)::int FROM wmd_alerts WHERE clan_id IN (${atkClan}, ${vicClan}, ${atkClan2}, ${vicClan2})) AS a`);
+  check(
+    'P7 probe cleanup left no residue (clans, players, rights, notifications, alerts)',
+    Number(residue[0]?.c) === 0 && Number(residue[0]?.p) === 0 && Number(residue[0]?.r) === 0 &&
+      Number(residue[0]?.m) === 0 && Number(residue[0]?.a) === 0,
+    residue[0]
+  );
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
