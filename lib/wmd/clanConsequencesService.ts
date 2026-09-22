@@ -1,6 +1,6 @@
 import { eq, and, gt, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { players, clans, clanRelations, wmdRetaliationRights, wmdConsequenceEvents } from '@/lib/db/schema';
+import { players, clans, clanRelations, wmdRetaliationRights } from '@/lib/db/schema';
 
 export enum ConsequenceSeverity {
   MINOR = 'MINOR',
@@ -131,15 +131,8 @@ export async function applyClanWMDConsequences(
       }
     }
     
-    await logConsequenceEvent({
-      launcherClanId,
-      targetClanId,
-      warheadType,
-      severity: config.severity,
-      reputationLoss: config.reputationLoss,
-      cooldownDays: Math.floor(config.cooldownDuration / (24 * 60 * 60 * 1000)),
-      timestamp: new Date(),
-    });
+    // FID-20260919-017: the consequence-event log was removed (its table had no
+    // consumer; this wrapper itself has no callers — see the triage doc).
     
     console.log(`[ClanConsequences] Applied ${consequencesApplied.length} consequences to clan ${launcherClanId} for ${warheadType} launch`);
     
@@ -284,27 +277,7 @@ async function grantClanRetaliationRights(
   }
 }
 
-async function logConsequenceEvent(
-  event: {
-    launcherClanId: string;
-    targetClanId: string;
-    warheadType: string;
-    severity: ConsequenceSeverity;
-    reputationLoss: number;
-    cooldownDays: number;
-    timestamp: Date;
-  }
-): Promise<void> {
-  try {
-    await db.insert(wmdConsequenceEvents).values({
-      ...event,
-      id: `ce_${Date.now()}`,
-      eventId: `consequence_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    });
-  } catch (error) {
-    console.error('[ClanConsequences] Error logging event:', error);
-  }
-}
+// FID-20260919-017: logConsequenceEvent removed with wmdConsequenceEvents.
 
 export async function isClanOnWMDCooldown(
   clanId: string

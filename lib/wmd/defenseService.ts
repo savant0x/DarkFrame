@@ -29,6 +29,7 @@
 import { eq, desc, and } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { wmdDefenseBatteries, wmdInterceptions } from '@/lib/db/schema/wmd';
+import { generateId } from '@/lib/utils'; // FID-20260919-017: 23-char PKs that fit varchar(24)
 import {
   BatteryType,
   BatteryStatus,
@@ -40,6 +41,27 @@ import {
   deductWMDCost,
   WMDPurchaseType,
 } from './clanTreasuryWMDService';
+
+/**
+ * FID-20260919-017: the reader the interception log never had. defenderId is
+ * the intercepting player.
+ */
+export async function getDefenderInterceptions(
+  playerId: string,
+  limit: number = 25
+): Promise<Array<typeof wmdInterceptions.$inferSelect>> {
+  try {
+    return await db
+      .select()
+      .from(wmdInterceptions)
+      .where(eq(wmdInterceptions.defenderId, playerId))
+      .orderBy(desc(wmdInterceptions.timestamp))
+      .limit(limit);
+  } catch (error) {
+    console.error('Error getting interception history:', error);
+    return [];
+  }
+}
 
 /**
  * Deploy a defense battery (clan treasury funded)
@@ -143,7 +165,10 @@ export async function attemptInterception(
       
       if (success) {
         await db.insert(wmdInterceptions).values({
-          id: `wi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          // FID-20260919-017: varchar(24) PK — `wi_<ts>_<rand>` (26 chars)
+          // overflowed it, so a SUCCESSFUL interception threw and the route
+          // returned 500. generateId() is 23 chars.
+          id: generateId(),
           interceptionId: `intercept_${Date.now()}`,
           missileId,
           defenderId,

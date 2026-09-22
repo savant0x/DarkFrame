@@ -37,8 +37,17 @@ interface DefenseBattery {
   createdAt: Date;
 }
 
+/** FID-20260919-017: a recorded interception (wmd_interceptions). */
+interface InterceptionRow {
+  id: string;
+  missileId: string;
+  result: string;
+  timestamp: string;
+}
+
 export default function WMDDefensePanel() {
   const [batteries, setBatteries] = useState<DefenseBattery[]>([]);
+  const [interceptions, setInterceptions] = useState<InterceptionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deploying, setDeploying] = useState(false);
   const [selectedType, setSelectedType] = useState('BASIC');
@@ -70,10 +79,18 @@ export default function WMDDefensePanel() {
 
   const fetchBatteries = async () => {
     try {
-      const res = await fetch('/api/wmd/defense');
+      const [res, histRes] = await Promise.all([
+        fetch('/api/wmd/defense'),
+        fetch('/api/wmd/defense?history=1'),
+      ]);
       const data = await res.json();
       if (data.success) {
         setBatteries(data.batteries);
+      }
+      // FID-20260919-017: interception history (the log had no reader before).
+      const hist = await histRes.json();
+      if (hist.success) {
+        setInterceptions(hist.interceptions ?? []);
       }
     } catch (error) {
       console.error('Failed to fetch batteries:', error);
@@ -277,6 +294,31 @@ export default function WMDDefensePanel() {
           </div>
         ))}
       </div>
+
+      {/* Interception History — FID-20260919-017 */}
+      {interceptions.length > 0 && (
+        <div className="space-y-3">
+          <div className="nn-sec nn-sec--cyan">
+            <span className="nn-sec__title">Interception Log</span>
+            <span className="nn-sec__note nn-num">{interceptions.length} recorded</span>
+          </div>
+          {interceptions.map((row) => (
+            <div
+              key={row.id}
+              className="nn-panel"
+              style={{ '--nn-accent': 'var(--nn-cyan)' } as React.CSSProperties}
+            >
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">{row.result}</span>
+                <span className="nn-panel__meta">▸ {row.missileId}</span>
+                <span className="nn-panel__meta nn-num">
+                  {new Date(row.timestamp).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Empty State */}
       {batteries.length === 0 && (

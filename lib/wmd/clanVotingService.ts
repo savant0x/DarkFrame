@@ -1,6 +1,6 @@
 import { eq, and, gt, lt, desc, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { wmdClanVotes, wmdLaunchAuthorizations, wmdResourcePools, wmdDefenseGrids, players, clans } from '@/lib/db/schema';
+import { wmdClanVotes, wmdLaunchAuthorizations, players, clans } from '@/lib/db/schema';
 import { WarheadType } from '@/types/wmd';
 
 export enum VoteStatus {
@@ -321,26 +321,12 @@ async function executeVoteAction(vote: ClanVote): Promise<void> {
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         });
         break;
-        
+
+      // FID-20260919-017: RESOURCE_POOLING / DEFENSE_GRID had no effect beyond
+      // writing tables nothing ever read; the vote types remain castable but
+      // their execution is a no-op until a consuming feature is designed.
       case VoteType.RESOURCE_POOLING:
-        await db.insert(wmdResourcePools).values({
-          id: `pool_${Date.now()}`.slice(0, 24),
-          poolId: `pool_${Date.now()}`.slice(0, 50),
-          clanId: vote.clanId,
-          resourceAmount: vote.resourceAmount ?? 0,
-          contributorsAllowed: vote.votesFor.length,
-          createdAt: new Date(),
-        });
-        break;
-        
       case VoteType.DEFENSE_GRID:
-        await db.insert(wmdDefenseGrids).values({
-          id: `grid_${Date.now()}`,
-          gridId: `grid_${Date.now()}`,
-          clanId: vote.clanId,
-          isActive: 1,
-          activatedAt: new Date(),
-        });
         break;
     }
     

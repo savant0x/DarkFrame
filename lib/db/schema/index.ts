@@ -13,7 +13,6 @@ export {
   playerResearch,
   wmdNotifications,
   wmdDefenseBatteries,
-  wmdVotes,
   wmdSpyMissions,
   wmdClanVotes,
   wmdSuspiciousActivity,
@@ -25,11 +24,8 @@ export {
   wmdCounterIntelOperations,
   wmdInterceptions,
   wmdLaunchAuthorizations,
-  wmdResourcePools,
-  wmdDefenseGrids,
   wmdAlerts,
   wmdRetaliationRights,
-  wmdConsequenceEvents,
 } from './wmd';
 export { clanRelations } from './clans';
 export { mutes, bans, modLog, warnings, chatReports, blockedUsers, wordBlacklist } from './moderation';
@@ -40,7 +36,6 @@ export {
   flags,
   shrineBlessings,
   flagTrail,
-  achievements,
   auctions,
   tradeHistory,
   playerSessions,

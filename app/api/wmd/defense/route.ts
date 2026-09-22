@@ -23,6 +23,7 @@ import {
   getPlayerBatteries,
   repairBattery,
   dismantleBattery,
+  getDefenderInterceptions,
 } from '@/lib/wmd/defenseService';
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
@@ -66,7 +67,13 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     
     const { searchParams } = new URL(req.url);
     const batteryId = searchParams.get('batteryId');
-    
+
+    // FID-20260919-017: the reader the interception log never had.
+    if (searchParams.get('history')) {
+      const interceptions = await getDefenderInterceptions(auth.playerId);
+      return NextResponse.json({ success: true, interceptions });
+    }
+
     // Get specific battery details
     if (batteryId) {
       // FID-20260906-002 G2: drizzle seam replaces the Mongo-shim read.

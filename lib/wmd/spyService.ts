@@ -47,6 +47,7 @@ import {
 } from '@/lib/db/schema/wmd';
 import { players } from '@/lib/db/schema/players';
 import { clans } from '@/lib/db/schema/clans'; // FID-20260916-007: battery owner derivation (clan -> leader)
+import { generateId } from '@/lib/utils'; // FID-20260919-017: 23-char PKs that fit varchar(24)
 import {
   MissionType,
   MissionStatus,
@@ -755,6 +756,63 @@ export async function getPlayerMissions(
   }
 }
 
+/**
+ * FID-20260919-017: the reader the intelligence-reports table never had. A
+ * player's reports are those whose mission belongs to one of the player's spies
+ * (wmdIntelligenceReports has no owner column; missionId links the mission).
+ */
+export async function getPlayerIntelligenceReports(
+  playerId: string,
+  limit: number = 25
+): Promise<Array<typeof wmdIntelligenceReports.$inferSelect>> {
+  try {
+    const spyRows = await db
+      .select({ spyId: wmdSpies.spyId })
+      .from(wmdSpies)
+      .where(eq(wmdSpies.ownerId, playerId));
+    const spyIds = spyRows.map((r) => r.spyId).filter(Boolean);
+    if (spyIds.length === 0) return [];
+
+    const missionRows = await db
+      .select({ id: wmdSpyMissions.id })
+      .from(wmdSpyMissions)
+      .where(inArray(wmdSpyMissions.spyId, spyIds));
+    const missionIds = missionRows.map((r) => r.id).filter(Boolean);
+    if (missionIds.length === 0) return [];
+
+    return await db
+      .select()
+      .from(wmdIntelligenceReports)
+      .where(inArray(wmdIntelligenceReports.missionId, missionIds))
+      .orderBy(desc(wmdIntelligenceReports.createdAt))
+      .limit(limit);
+  } catch (error) {
+    console.error('Error getting intelligence reports:', error);
+    return [];
+  }
+}
+
+/**
+ * FID-20260919-017: the reader the counter-intel table never had (operatorId is
+ * the sweep's executor).
+ */
+export async function getPlayerCounterIntelHistory(
+  playerId: string,
+  limit: number = 25
+): Promise<Array<typeof wmdCounterIntelOperations.$inferSelect>> {
+  try {
+    return await db
+      .select()
+      .from(wmdCounterIntelOperations)
+      .where(eq(wmdCounterIntelOperations.operatorId, playerId))
+      .orderBy(desc(wmdCounterIntelOperations.executedAt))
+      .limit(limit);
+  } catch (error) {
+    console.error('Error getting counter-intel history:', error);
+    return [];
+  }
+}
+
 function generateCodename(): string {
   const adjectives = ['Shadow', 'Silent', 'Swift', 'Steel', 'Dark', 'Ghost', 'Wolf', 'Raven', 'Crimson', 'Silver'];
   const nouns = ['Fox', 'Hawk', 'Storm', 'Blade', 'Echo', 'Viper', 'Lynx', 'Falcon', 'Cobra', 'Tiger'];
@@ -1017,7 +1075,10 @@ async function generateIntelligence(mission: WmdSpyMissionRow): Promise<Intellig
   };
   
   await db.insert(wmdIntelligenceReports).values({
-    id: `wir_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    // FID-20260919-017: varchar(24) PK — the old `wir_<ts>_<rand>` (27 chars)
+    // overflowed it, so every successful mission's report insert threw and
+    // mission completion failed. generateId() is 23 chars.
+    id: generateId(),
     reportId,
     classification: 'SECRET',
     gatheredBy: mission.spyName,
@@ -1475,7 +1536,10 @@ async function recordCounterIntelOperation(
 ): Promise<void> {
   try {
     await db.insert(wmdCounterIntelOperations).values({
-      id: `wcio_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      // FID-20260919-017: varchar(24) PK — the old `wcio_<ts>_<rand>` (28 chars)
+      // overflowed it; the surrounding try/catch swallowed the failure, so this
+      // writer recorded nothing. generateId() is 23 chars.
+      id: generateId(),
       operationId: `counter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       operatorId: playerId,
       targetArea,

@@ -27,6 +27,8 @@ import {
   counterIntelligenceSweep,
   getPlayerSpies,
   getPlayerMissions,
+  getPlayerIntelligenceReports,
+  getPlayerCounterIntelHistory,
 } from '@/lib/wmd/spyService';
 import { getSabotageTargets } from '@/lib/wmd/sabotageTargets';
 import { isSabotageTargetType } from '@/lib/wmd/sabotageMath';
@@ -74,6 +76,18 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
       return NextResponse.json({ success: true, missions });
     }
 
+    // FID-20260919-017: the readers the intelligence-report and counter-intel
+    // logs never had (both tables were write-only until now).
+    if (type === 'reports') {
+      const reports = await getPlayerIntelligenceReports(auth.playerId);
+      return NextResponse.json({ success: true, reports });
+    }
+
+    if (type === 'counter-intel') {
+      const operations = await getPlayerCounterIntelHistory(auth.playerId);
+      return NextResponse.json({ success: true, operations });
+    }
+
     // FID-20260916-011: enumeration for the sabotage flow's target step.
     // Read-only; scoping + skill floor enforced inside the service, refusals
     // at fire time remain server-side in executeSabotage.
@@ -101,7 +115,7 @@ export const GET = withRequestLogging(rateLimiter(async (req: NextRequest) => {
     }
 
     return NextResponse.json(
-      { error: 'Invalid type. Use "spies", "missions", or "sabotage-targets"' },
+      { error: 'Invalid type. Use "spies", "missions", "reports", "counter-intel", or "sabotage-targets"' },
       { status: 400 }
     );
   } catch (error) {

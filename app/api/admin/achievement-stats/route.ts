@@ -13,16 +13,17 @@
  * Auth Required: Admin (isAdmin flag)
  * Rate Limited: 500 req/min (admin analytics)
  *
- * PERSISTENCE (PostgreSQL): the `achievements` table (one row per unlock:
- * player_id, achievement_id, name, category, rarity, unlocked_at) — this is
- * the table the shim's `playerAchievements` collection name always resolved
- * to via TABLE_ALIASES. The unlock rollup is one indexed GROUP BY.
+ * PERSISTENCE (PostgreSQL): players.achievements (jsonb array of unlock
+ * records). FID-20260919-017 retired the separate relational `achievements`
+ * table: it had no writer anywhere, so it could never fill — the jsonb has been
+ * the live store all along (every player-facing read uses it). The rollup
+ * unnests the jsonb across players and groups by achievement id.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db/connection';
-import { achievements, players } from '@/lib/db/schema';
-import { count, min, max, eq } from 'drizzle-orm';
+import { players } from '@/lib/db/schema';
+import { count, eq, sql } from 'drizzle-orm';
 import {
   withRequestLogging,
   createRouteLogger,
@@ -70,25 +71,36 @@ export const GET = withRequestLogging(rateLimiter(async (_request: NextRequest) 
       .from(players)
       .where(eq(players.isBot, 0));
 
-    // Rollup: unlock count + first/last unlock per achievement (the shim's
-    // $group pipeline, now real SQL).
-    const unlockStats = await db
-      .select({
-        achievementId: achievements.achievementId,
-        unlockCount: count(),
-        firstUnlock: min(achievements.unlockedAt),
-        lastUnlock: max(achievements.unlockedAt),
-      })
-      .from(achievements)
-      .groupBy(achievements.achievementId);
+    // Rollup over the live jsonb store (FID-20260919-017). Elements carry the
+    // id as `id`, except tutorial grants which use `achievementId`; both are
+    // accepted. Bots are excluded to match the denominator above.
+    const rollup = (await db.execute(sql`
+      SELECT COALESCE(elem->>'id', elem->>'achievementId') AS achievement_id,
+             count(*)::int AS unlock_count,
+             min(elem->>'unlockedAt') AS first_unlock,
+             max(elem->>'unlockedAt') AS last_unlock
+      FROM players, jsonb_array_elements(
+        CASE WHEN jsonb_typeof(players.achievements) = 'array'
+             THEN players.achievements ELSE '[]'::jsonb END
+      ) AS elem
+      WHERE players.is_bot = 0
+      GROUP BY 1
+    `)) as unknown as {
+      rows: Array<{
+        achievement_id: string;
+        unlock_count: number;
+        first_unlock: string | null;
+        last_unlock: string | null;
+      }>;
+    };
 
     const unlockMap = new Map(
-      unlockStats.map((stat) => [
-        stat.achievementId,
+      rollup.rows.map((stat) => [
+        stat.achievement_id,
         {
-          count: stat.unlockCount,
-          firstUnlock: stat.firstUnlock ? new Date(stat.firstUnlock).toISOString() : undefined,
-          lastUnlock: stat.lastUnlock ? new Date(stat.lastUnlock).toISOString() : undefined,
+          count: Number(stat.unlock_count),
+          firstUnlock: stat.first_unlock ? new Date(stat.first_unlock).toISOString() : undefined,
+          lastUnlock: stat.last_unlock ? new Date(stat.last_unlock).toISOString() : undefined,
         },
       ])
     );

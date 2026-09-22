@@ -98,17 +98,8 @@ export const shrineBlessings = pgTable('shrine_blessings', {
 	index('shrine_blessings_expires_at_idx').on(table.expiresAt),
 ]);
 
-export const achievements = pgTable('achievements', {
-	id: varchar('id', { length: 24 }).primaryKey(),
-	playerId: varchar('player_id', { length: 20 }).notNull(),
-	achievementId: varchar('achievement_id', { length: 50 }).notNull(),
-	name: varchar('name', { length: 100 }).notNull(),
-	category: varchar('category', { length: 30 }).notNull(),
-	rarity: varchar('rarity', { length: 20 }).notNull(),
-	unlockedAt: timestamp('unlocked_at').notNull(),
-}, (table) => [
-	index('achievements_player_id_idx').on(table.playerId),
-]);
+// achievements (the relational table) was retired in FID-20260919-017: it had no
+// writer anywhere — the live achievement store is players.achievements (jsonb).
 
 export const auctions = pgTable('auctions', {
 	id: varchar('id', { length: 24 }).primaryKey(),

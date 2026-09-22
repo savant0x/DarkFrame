@@ -23,10 +23,11 @@ function readMigration(): string {
 describe('migration 0037 — moves the rows before it drops the twin', () => {
   const sql = readMigration();
 
-  it('is the newest migration file', () => {
+  it('exists as a tracked migration file', () => {
+    // (Not "is newest" — later FIDs legitimately add newer migrations.)
     const dir = join(process.cwd(), 'lib', 'db', 'migrations');
-    const files = readdirSync(dir).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
-    expect(files[files.length - 1]).toBe(MIGRATION);
+    const files = readdirSync(dir).filter((f) => /^\d{4}_.*\.sql$/.test(f));
+    expect(files).toContain(MIGRATION);
   });
 
   it('inserts into wmd_alerts and selects from wmd_admin_alerts', () => {

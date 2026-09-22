@@ -52,6 +52,28 @@ interface Mission {
   completesAt?: Date;
 }
 
+/** FID-20260919-017: the persisted intel report (wmd_intelligence_reports). */
+interface IntelligenceReportRow {
+  id: string;
+  classification: string;
+  gatheredBy: string;
+  gatheredFrom: string;
+  gatheredAt: string;
+  targetUsername: string;
+  vulnerabilities?: string[];
+  threats?: string[];
+  recommendations?: string[];
+  expiresAt?: string | null;
+}
+
+/** FID-20260919-017: a recorded counter-intel sweep (wmd_counter_intel_operations). */
+interface CounterIntelRow {
+  id: string;
+  targetArea: string;
+  spiesDetected: number;
+  executedAt: string;
+}
+
 /** Sabotage-capable spy as the selector consumes it (subset of the spies GET payload). */
 interface SabotageSpy {
   spyId: string;
@@ -91,7 +113,10 @@ export default function WMDIntelligencePanel() {
   const [spies, setSpies] = useState<Spy[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'spies' | 'missions' | 'sabotage'>('spies');
+  const [view, setView] = useState<'spies' | 'missions' | 'reports' | 'sabotage'>('spies');
+  // FID-20260919-017: the history the intel + counter-intel tables never surfaced.
+  const [reports, setReports] = useState<IntelligenceReportRow[]>([]);
+  const [counterIntel, setCounterIntel] = useState<CounterIntelRow[]>([]);
   const [selectedSpec, setSelectedSpec] = useState('SURVEILLANCE');
   const [targetId, setTargetId] = useState('');
   const { socket, isConnected } = useWebSocketContext();
@@ -111,6 +136,16 @@ export default function WMDIntelligencePanel() {
 
   const fetchData = useCallback(async () => {
     try {
+      if (view === 'reports') {
+        const [rRes, cRes] = await Promise.all([
+          fetch('/api/wmd/intelligence?type=reports'),
+          fetch('/api/wmd/intelligence?type=counter-intel'),
+        ]);
+        const [rData, cData] = await Promise.all([rRes.json(), cRes.json()]);
+        if (rData.success) setReports(rData.reports ?? []);
+        if (cData.success) setCounterIntel(cData.operations ?? []);
+        return;
+      }
       const res = await fetch(`/api/wmd/intelligence?type=${view}`);
       const data = await res.json();
       if (data.success) {
@@ -360,6 +395,13 @@ export default function WMDIntelligencePanel() {
             Missions
           </button>
           <button
+            onClick={() => setView('reports')}
+            data-selected={view === 'reports'}
+            className={`nn-ptab ${view === 'reports' ? 'on' : ''}`}
+          >
+            Reports
+          </button>
+          <button
             onClick={() => setView('sabotage')}
             data-selected={view === 'sabotage'}
             className={`nn-ptab ${view === 'sabotage' ? 'on' : ''}`}
@@ -468,6 +510,64 @@ export default function WMDIntelligencePanel() {
           {missions.length === 0 && (
             <div className="text-center py-12">
               <p className="nn-lab">No active missions</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reports View — FID-20260919-017: persisted intel reports + counter-intel sweeps */}
+      {view === 'reports' && (
+        <div className="space-y-4">
+          {reports.map((report) => (
+            <div
+              key={report.id}
+              className="nn-panel"
+              style={{ '--nn-accent': 'var(--nn-violet)' } as React.CSSProperties}
+            >
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">{report.targetUsername}</span>
+                <span className="nn-panel__meta">via {report.gatheredBy}</span>
+                <span className="nn-chip nn-panel__meta">{report.classification}</span>
+                <span className="nn-panel__meta nn-num">
+                  {new Date(report.gatheredAt).toLocaleDateString()}
+                </span>
+              </div>
+              {Array.isArray(report.vulnerabilities) && report.vulnerabilities.length > 0 && (
+                <p className="nn-lab">Vulnerabilities ▸ {report.vulnerabilities.join(' · ')}</p>
+              )}
+              {Array.isArray(report.recommendations) && report.recommendations.length > 0 && (
+                <p className="nn-lab">Recommendations ▸ {report.recommendations.join(' · ')}</p>
+              )}
+            </div>
+          ))}
+          {reports.length === 0 && (
+            <div className="text-center py-8">
+              <p className="nn-lab">No intelligence reports on file</p>
+            </div>
+          )}
+
+          <div className="nn-sec nn-sec--amber">
+            <span className="nn-sec__title">Counter-Intel Sweeps</span>
+            <span className="nn-sec__note nn-num">{counterIntel.length} recorded</span>
+          </div>
+          {counterIntel.map((op) => (
+            <div
+              key={op.id}
+              className="nn-panel"
+              style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}
+            >
+              <div className="nn-panel__header">
+                <span className="nn-panel__title">{op.targetArea}</span>
+                <span className="nn-panel__meta nn-num">{op.spiesDetected} detected</span>
+                <span className="nn-panel__meta nn-num">
+                  {new Date(op.executedAt).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          ))}
+          {counterIntel.length === 0 && (
+            <div className="text-center py-4">
+              <p className="nn-lab">No sweeps recorded</p>
             </div>
           )}
         </div>

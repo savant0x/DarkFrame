@@ -17,7 +17,8 @@ import { getTableName } from 'drizzle-orm';
 const { state, authMock, requireAdminMock } = vi.hoisted(() => {
   const state = {
     specs: [] as Array<Record<string, unknown>>,
-    raw: [] as string[],
+    raw: [] as unknown[],
+    executeRows: [] as unknown[],
     responder: (_spec: Record<string, unknown>) => [] as unknown,
   };
   const authMock = { value: undefined as undefined | { username: string; playerId?: string; isAdmin?: boolean } };
@@ -81,8 +82,8 @@ vi.mock('@/lib/db/connection', () => {
       delete: (t: unknown) => mk({ op: 'delete', table: t }),
       select: (...fields: unknown[]) => mk({ op: 'select', fields }),
       execute: async (q: unknown) => {
-        state.raw.push(String((q as { queryChunks?: unknown[] })?.queryChunks ?? ''));
-        return { rows: [] };
+        state.raw.push(q);
+        return { rows: state.executeRows };
       },
     },
   };
@@ -171,6 +172,7 @@ const postReq = (url: string, body: unknown) =>
 beforeEach(() => {
   state.specs.length = 0;
   state.raw.length = 0;
+  state.executeRows = [];
   state.responder = () => [];
   authMock.value = undefined;
   requireAdminMock.value = undefined;
@@ -190,12 +192,14 @@ describe('GET /api/admin/achievement-stats', () => {
     expect(pleb.status).toBe(403);
   });
 
-  it('rolls up unlocks with a real GROUP BY over achievements + bot-free player count', async () => {
+  it('rolls up unlocks from players.achievements jsonb + bot-free player count', async () => {
+    // FID-20260919-017: the relational `achievements` table was retired (no
+    // writer); the rollup now unnests the live jsonb store via raw SQL.
     authMock.value = { username: 'chief', isAdmin: true };
+    state.executeRows = [
+      { achievement_id: 'first_blood', unlock_count: 7, first_unlock: '2026-01-01', last_unlock: '2026-02-01' },
+    ];
     state.responder = (spec) => {
-      if (tableOf(spec) === 'achievements') {
-        return [{ achievementId: 'first_blood', unlockCount: 7, firstUnlock: new Date('2026-01-01'), lastUnlock: new Date('2026-02-01') }];
-      }
       if (tableOf(spec) === 'players') return [{ n: 40 }];
       return [];
     };
@@ -205,8 +209,9 @@ describe('GET /api/admin/achievement-stats', () => {
     const firstBlood = body.achievements.find((a) => a.achievementId === 'first_blood');
     expect(firstBlood?.unlockCount).toBe(7);
     expect(firstBlood?.unlockPercentage).toBeCloseTo(17.5);
-    const groups = state.specs.filter((s) => tableOf(s) === 'achievements');
-    expect(groups[0].groupBy).toBeTruthy();
+    // The rollup is one raw jsonb unnest, not a select from the retired table.
+    expect(state.raw.map((q) => sqlText(q)).join(' ')).toContain('jsonb_array_elements');
+    expect(state.specs.filter((s) => tableOf(s) === 'achievements')).toHaveLength(0);
   });
 });
 

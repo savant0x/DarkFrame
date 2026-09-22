@@ -97,20 +97,8 @@ export const wmdDefenseBatteries = pgTable('wmd_defense_batteries', {
   index('wmd_defense_status_idx').on(table.status),
 ]);
 
-export const wmdVotes = pgTable('wmd_votes', {
-  id: varchar('id', { length: 24 }).primaryKey(),
-  clanId: varchar('clan_id', { length: 24 }).notNull(),
-  status: varchar('status', { length: 20 }).notNull(),
-  eligibleVoters: integer('eligible_voters').notNull().default(0),
-  votes: jsonb('votes').$type<Array<{ vote: string }>>(),
-  finalApprovalRate: numeric('final_approval_rate', { precision: 5, scale: 2 }),
-  requiredApprovalPercentage: numeric('required_approval_percentage', { precision: 5, scale: 2 }),
-  createdAt: timestamp('created_at').notNull(),
-  completedAt: timestamp('completed_at'),
-}, (table) => [
-  index('wmd_votes_clan_idx').on(table.clanId),
-  index('wmd_votes_status_idx').on(table.status),
-]);
+// wmdVotes (wmd_votes) was retired in FID-20260919-017: zero references
+// repo-wide; the live clan-vote store is wmdClanVotes.
 
 export const wmdSpyMissions = pgTable('wmd_spy_missions', {
   id: varchar('id', { length: 24 }).primaryKey(),
@@ -342,28 +330,9 @@ export const wmdLaunchAuthorizations = pgTable('wmd_launch_authorizations', {
   index('wmd_launch_auth_expires_idx').on(table.expiresAt),
 ]);
 
-export const wmdResourcePools = pgTable('wmd_resource_pools', {
-  id: varchar('id', { length: 24 }).primaryKey(),
-  poolId: varchar('pool_id', { length: 50 }).notNull(),
-  clanId: varchar('clan_id', { length: 24 }).notNull(),
-  resourceAmount: integer('resource_amount').notNull().default(0),
-  contributorsAllowed: integer('contributors_allowed').notNull().default(0),
-  createdAt: timestamp('created_at').notNull(),
-}, (table) => [
-  uniqueIndex('wmd_resource_pool_pool_id_unique').on(table.poolId),
-  index('wmd_resource_pool_clan_idx').on(table.clanId),
-]);
-
-export const wmdDefenseGrids = pgTable('wmd_defense_grids', {
-  id: varchar('id', { length: 24 }).primaryKey(),
-  gridId: varchar('grid_id', { length: 50 }).notNull(),
-  clanId: varchar('clan_id', { length: 24 }).notNull(),
-  isActive: smallint('is_active').notNull().default(0),
-  activatedAt: timestamp('activated_at').notNull(),
-}, (table) => [
-  uniqueIndex('wmd_defense_grid_grid_id_unique').on(table.gridId),
-  index('wmd_defense_grid_clan_idx').on(table.clanId),
-]);
+// wmdResourcePools / wmdDefenseGrids were retired in FID-20260919-017: their
+// writers (vote resolution) were reachable but nothing ever read them and no UI
+// concept existed — real clan defense lives in wmdDefenseBatteries.
 
 export const wmdAlerts = pgTable('wmd_alerts', {
   id: varchar('id', { length: 50 }).primaryKey(),
@@ -411,18 +380,5 @@ export const wmdRetaliationRights = pgTable('wmd_retaliation_rights', {
   index('wmd_retaliation_expires_idx').on(table.expiresAt),
 ]);
 
-export const wmdConsequenceEvents = pgTable('wmd_consequence_events', {
-  id: varchar('id', { length: 24 }).primaryKey(),
-  eventId: varchar('event_id', { length: 50 }).notNull(),
-  launcherClanId: varchar('launcher_clan_id', { length: 24 }).notNull(),
-  targetClanId: varchar('target_clan_id', { length: 24 }).notNull(),
-  warheadType: varchar('warhead_type', { length: 20 }).notNull(),
-  severity: varchar('severity', { length: 20 }).notNull(),
-  reputationLoss: integer('reputation_loss').notNull().default(0),
-  cooldownDays: integer('cooldown_days').notNull().default(0),
-  timestamp: timestamp('timestamp').notNull(),
-}, (table) => [
-  uniqueIndex('wmd_consequence_event_id_unique').on(table.eventId),
-  index('wmd_consequence_launcher_idx').on(table.launcherClanId),
-  index('wmd_consequence_target_idx').on(table.targetClanId),
-]);
+// wmdConsequenceEvents (wmd_consequence_events) was retired in FID-20260919-017:
+// its only writer sat behind applyClanWMDConsequences, which has zero callers.
