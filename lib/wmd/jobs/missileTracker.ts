@@ -25,7 +25,7 @@
  * Dependencies: Drizzle ORM, WebSocket handlers, notificationService
  */
 
-import { and, eq, lte } from 'drizzle-orm';
+import { and, eq, lte, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import {
   missiles,
@@ -34,7 +34,9 @@ import {
 } from '@/lib/db/schema/wmd';
 import { AlertSeverity, AlertStatus, AlertType, type WmdAlertData } from '@/lib/wmd/admin/alert.types';
 import { players } from '@/lib/db/schema/players';
+import { clans } from '@/lib/db/schema/clans'; // FID-20260919-018: consequence clan names
 import { factories } from '@/lib/db/schema/factories';
+import { applyClanWMDConsequences } from '@/lib/wmd/clanConsequencesService'; // FID-20260919-018
 import { getIO } from '@/lib/websocket/server';
 import { wmdHandlers } from '@/lib/websocket/handlers';
 import { WARHEAD_CONFIGS, isValidWarheadType, type WarheadType } from '@/types/wmd';
@@ -405,6 +407,50 @@ export async function processDueMissiles(): Promise<number> {
         dedupeKey: `missile:${missile.missileId}:impact:target`,
       });
       await recordAdminAlert(missile.missileId, missile.ownerId, missile.targetId, warhead, damageResult, false);
+
+      // FID-20260919-018: post-attack clan consequences — the cooldown, relations
+      // ENEMY, retaliation rights, and clan-research penalty the system was built
+      // for but never called. Non-fatal: a consequence failure must never abort
+      // the impact sweep. The launcher is told through the FID-20260919-013 seam.
+      try {
+        const launcherClanId = missile.ownerClanId ?? null;
+        const targetClanId = target?.clanId ?? null;
+        if (launcherClanId) {
+          const clanRows = await db
+            .select({ id: clans.id, name: clans.name })
+            .from(clans)
+            .where(
+              targetClanId
+                ? or(eq(clans.id, launcherClanId), eq(clans.id, targetClanId))
+                : eq(clans.id, launcherClanId)
+            );
+          const nameOf = (id: string | null) =>
+            (id ? clanRows.find((c) => c.id === id)?.name : undefined) ?? id ?? 'an unaffiliated target';
+
+          const consequences = await applyClanWMDConsequences(
+            launcherClanId,
+            nameOf(launcherClanId),
+            targetClanId,
+            nameOf(targetClanId),
+            warhead
+          );
+
+          if (consequences.success && consequences.consequencesApplied.length > 0) {
+            await notifyPlayer({
+              systemType: 'wmd_consequences',
+              recipient: missile.ownerId,
+              title: 'WMD Consequences',
+              body: `Your clan's ${warhead} strike triggered ${consequences.consequencesApplied.length} consequence(s): ${consequences.consequencesApplied.join('; ')}`,
+              icon: '⚠️',
+              relatedEntityId: missile.missileId,
+              dedupeKey: `missile:${missile.missileId}:consequences:launcher`,
+            });
+          }
+        }
+      } catch (consequenceError) {
+        console.error(`[WMD Jobs] Consequence hook failed for missile ${missile.id}:`, consequenceError);
+      }
+
       if (io) {
         await wmdHandlers.broadcastMissileImpact(io, {
           intercepted: false,

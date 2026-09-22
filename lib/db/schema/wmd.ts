@@ -371,8 +371,11 @@ export const wmdRetaliationRights = pgTable('wmd_retaliation_rights', {
   playerId: varchar('player_id', { length: 20 }).notNull(),
   playerClanId: varchar('player_clan_id', { length: 24 }).notNull(),
   canRetaliateAgainstClan: varchar('can_retaliate_against_clan', { length: 24 }).notNull(),
-  grantedAt: timestamp('granted_at').notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
+  // FID-20260919-018: timestamptz — these are compared against now() by
+  // hasRetaliationRights; as naive timestamps the comparison skewed by the
+  // process UTC offset (migration 0039, the FID-20260916-009 D2 class).
+  grantedAt: timestamp('granted_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   used: smallint('used').notNull().default(0),
 }, (table) => [
   index('wmd_retaliation_player_idx').on(table.playerId),

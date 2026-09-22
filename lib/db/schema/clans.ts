@@ -48,8 +48,11 @@ export const clans = pgTable('clans', {
 	monuments: jsonb('monuments').notNull().$type<MonumentType[]>().default([]),
 	warsActive: jsonb('wars_active').notNull().$type<ClanWar[]>().default([]),
 	warsHistory: jsonb('wars_history').notNull().$type<ClanWar[]>().default([]),
-	wmdCooldownUntil: timestamp('wmd_cooldown_until'),
-	lastWMDLaunch: timestamp('last_wmd_launch'),
+	// FID-20260919-018: timestamptz — compared against now() by
+	// isClanOnWMDCooldown/getWMDSystemStatus; as naive timestamps the comparison
+	// skewed by the process UTC offset (migration 0039).
+	wmdCooldownUntil: timestamp('wmd_cooldown_until', { withTimezone: true }),
+	lastWMDLaunch: timestamp('last_wmd_launch', { withTimezone: true }),
 	lastTerritoryIncomeCollection: timestamp('last_territory_income_collection'),
 }, (table) => [
 	uniqueIndex('clans_name_unique').on(table.name),

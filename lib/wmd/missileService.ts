@@ -10,6 +10,12 @@ import { db } from '@/lib/db';
 import { missiles } from '@/lib/db/schema/wmd';
 import { voidProtectionOnAggression } from '@/lib/playerProtection'; // FID-20260916-004
 import { validateTargeting } from './targetingValidator'; // FID-20260916-005
+import { players } from '@/lib/db/schema/players'; // FID-20260919-018: cooldown/retaliation gate
+import {
+  isClanOnWMDCooldown,
+  hasRetaliationRights,
+  consumeRetaliationRight,
+} from './clanConsequencesService'; // FID-20260919-018
 
 /** The real shape stored in the `missiles` table. */
 type MissileRow = typeof missiles.$inferSelect;
@@ -221,6 +227,37 @@ export async function launchMissile(
     const targeting = await validateTargeting(launchedBy, targetId, missile.warheadType as WarheadType);
     if (!targeting.isValid) {
       return { success: false, message: `Launch refused: ${targeting.errors.join('; ')}` };
+    }
+
+    // FID-20260919-018: post-attack consequence enforcement. A clan on WMD
+    // cooldown may not launch — EXCEPT a member holding a live retaliation right
+    // against the target's clan, which is consumed here (the retaliation-rights
+    // consumer this feature never had). Runs AFTER target validation and BEFORE
+    // the aggression void, so a refused launch stays non-committing (missile
+    // stays READY, the launcher's shield is untouched).
+    if (missile.ownerClanId) {
+      const cooldown = await isClanOnWMDCooldown(missile.ownerClanId);
+      if (cooldown.onCooldown) {
+        const targetClanRows = await db
+          .select({ clanId: players.clanId })
+          .from(players)
+          .where(eq(players.username, targetId))
+          .limit(1);
+        const targetClanId = targetClanRows[0]?.clanId ?? null;
+        const retaliating = targetClanId
+          ? (await hasRetaliationRights(launchedBy, targetClanId)).hasRights
+          : false;
+
+        if (!retaliating) {
+          const until = cooldown.cooldownUntil ? cooldown.cooldownUntil.toISOString() : 'unknown';
+          return {
+            success: false,
+            message: `Launch refused: your clan is on WMD cooldown until ${until}`,
+          };
+        }
+
+        await consumeRetaliationRight(launchedBy, targetClanId as string);
+      }
     }
     
     // FID-20260916-004 (Option B, per FID-20260916-003): a WMD launch is
