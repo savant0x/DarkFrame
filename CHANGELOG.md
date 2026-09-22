@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.30] — 2026-09-19 session
+
+### Changed — FID-20260919-017: the Law-17 ticket queue is cleared (5 tables removed, 3 disused writers repaired and surfaced; closed, commit `da29f5b`)
+
+- **The schema-consumer census is now clean: 57 tables — 57 live, 0 ticketed, 0 violations.** The 8 tables the Law-17 gate had ticketed were triaged (evidence in `dev/LAW17-TICKET-TRIAGE-2026-09-19.md`) and dispositioned by the operator.
+- **Removed** (migration 0038): `achievements` (read-only — it had no writer; the live store is `players.achievements`, and the admin stats route now rolls up that jsonb), `wmd_votes` (zero references; superseded by `wmd_clan_votes`), `wmd_consequence_events` (its only writer sat behind `applyClanWMDConsequences`, which has zero callers), `wmd_resource_pools` and `wmd_defense_grids` (reachable writers but no reader and no UI concept).
+- **Wired — and three real bugs fixed:** `wmd_intelligence_reports`, `wmd_counter_intel_operations`, and `wmd_interceptions` each had a *reachable* writer whose generated PK overflowed `varchar(24)`, so the inserts failed — every successful spy mission threw during completion, counter-intel sweeps silently recorded nothing (caught by a swallow), and a successful interception returned 500. All three now use `generateId()` (23 chars).
+- **Readers added** — the logs were write-only until now: an intel **Reports** view in `WMDIntelligencePanel` (reports + counter-intel sweeps) and an **Interception Log** in `WMDDefensePanel`, served by `/api/wmd/intelligence?type=reports|counter-intel` and `/api/wmd/defense?history=1`.
+- Gates: suite **1274/1274** (131 files, 12 pins), tsc 0, eslint clean; live driver **11/11**; census 57 tables — 57 live, 0 ticketed, 0 violations. Recorded for a separate disposition: the entire `clanConsequencesService` module is unwired.
+
 ## [0.0.29] — 2026-09-19 session
 
 ### Changed — FID-20260919-016: the WMD alert tables consolidated onto `wmd_alerts` (closed, commit `21b2d34`)
