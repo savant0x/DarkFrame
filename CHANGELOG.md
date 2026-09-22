@@ -5,6 +5,21 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.31] — 2026-09-19 session
+
+### Added — FID-20260919-018: clan WMD consequences are live — post-attack cooldowns and retaliation rights (closed, commit `6ee7e79`)
+
+- **Missile launches are no longer consequence-free.** A clan that bombs another now takes the documented post-attack consequences (`dev/architecture.md`: "24-72hr cooldowns, retaliation windows"), and the victim clan can retaliate.
+- **The mechanic had to be fixed before it could be wired.** `applyClanWMDCooldown` computed `cooldownUntil` and then wrote `bankTreasuryMetal = bankTreasuryMetal` — a self-assignment that never set the cooldown column; `isClanOnWMDCooldown` unconditionally returned `false`; and nothing in the launch path consulted either. Wiring the module as-is would have enforced nothing.
+- **Cooldowns are enforced at launch** (`launchMissile`), scaled by warhead: TACTICAL 24h · STRATEGIC 36h · NEUTRON 48h · CLUSTER 60h · CLAN_BUSTER 72h. A clan on cooldown is refused — **unless** the launcher holds a live retaliation right against the target's clan, which is then consumed. That is the consumer retaliation rights never had.
+- **Retaliation rights** are granted to every member of the victim clan on detonation (30-day window) and are now readable and consumable; `clan_relations` (ENEMY, canonical sorted pair) and `wmd_retaliation_rights` gained real consumers instead of hanging off dead code.
+- **The reputation penalty was re-targeted** from per-member `players.researchPoints` — the tech-tree currency, which the coded magnitudes (2,000–25,000) drove deeply negative — to the **clan research pool**, floored with `GREATEST(0, …)`.
+- **Migration 0039 (timestamptz):** the cooldown and retaliation timestamps were `timestamp without time zone` while being compared against `now()`, so a 24h cooldown read back as **28h** under the process UTC offset and retaliation rights expired early — the same class FID-20260916-009 D2 fixed for `protection_until`. Converted with `AT TIME ZONE 'UTC'`; all four columns verified in the dev DB.
+- **Lint hazard fixed by rename, not suppression:** `useRetaliationRight` → `consumeRetaliationRight` (the `use*` prefix collides with React's hook namespace and tripped `react-hooks/rules-of-hooks` in this non-React service module).
+- **Correction recorded honestly:** an in-flight claim that this module's `rr_` id overflowed a `varchar(24)` PK was wrong — the column is `varchar(50)` and the id fit. No overflow existed here; the `generateId()` normalization is convention only, and the misleading comment and probe label were corrected.
+- Evidence: 11 pins + **16/16** live probes (two throwaway clans; the real `launchMissile` refuses a cooldown-clan launch, then a retaliation right lets the victim's launch through and is consumed). Suite 1285/1285, tsc 0, eslint clean; census 57 tables — 57 live, 0 ticketed, 0 violations.
+- **Still open (deliberate, not an omission):** the retaliation *window* duration (currently 30 days) and whether retaliation rights should surface in the UI are product calls.
+
 ## [0.0.30] — 2026-09-19 session
 
 ### Changed — FID-20260919-017: the Law-17 ticket queue is cleared (5 tables removed, 3 disused writers repaired and surfaced; closed, commit `da29f5b`)

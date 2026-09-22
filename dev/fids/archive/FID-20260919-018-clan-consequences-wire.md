@@ -1,6 +1,6 @@
 # FID-20260919-018 — Wire the clan WMD consequence system (post-attack cooldowns + retaliation)
 
-**Status:** `created`
+**Status:** `closed (2026-09-19 on 6ee7e79)`
 **Session:** 2026-09-19 (operator directive: "Decide the clanConsequencesService disposition … wire it into the missile-impact path or remove it, with evidence" → **wire it properly**, balance parameters signed off)
 **Origin:** FID-20260919-017's adjacent finding — a documented feature (`dev/architecture.md`) with zero callers and a broken core.
 
@@ -60,12 +60,48 @@ target's losses. The module that was supposed to fix that was never wired — an
 - **Drop the unreachable `SPY_SABOTAGE` config** (`${warheadType}_LAUNCH` can never match it).
 - **Notify the launcher** through the FID-20260919-013 seam that their clan is now on cooldown.
 
-## 4. Gates
-Pins: cooldown write/read truth, launch refusal + retaliation bypass/consume, path-scoped reputation
-floor, canonical relations pair, retaliation PK width. Live probe: a real clan-vs-clan detonation
-produces the cooldown + relations + retaliation rows, and a cooldown-blocked launch is refused
-unless a retaliation right is held. Full suite / tsc / eslint / census.
+## 4. Gates — as run
+
+- **Pins:** 11/11 (`__tests__/lib/clanWmdConsequences.test.ts`) — cooldown write/read truth, launch
+  refusal + retaliation bypass/consume, path-scoped reputation floor (`GREATEST(0, …)`), canonical
+  relations pair, retaliation PK width.
+- **Live probe:** **16/16** (`scripts/e2eClanConsequencesLive.ts`) against the real dev DB with two
+  throwaway clans + members: the real consequence flow writes a ~24h cooldown and the research
+  penalty; relations land as ENEMY on a canonical pair; one retaliation right per victim member
+  with PKs inside `varchar(50)`; `isClanOnWMDCooldown` reports active then expired; the **real
+  `launchMissile`** refuses a cooldown-clan launch and leaves the missile READY, then a
+  retaliation right lets the victim's launch through and is consumed. Cleanup leaves no residue.
+- **Suite:** 1285/1285 (132 files) · **tsc:** 0 · **eslint:** clean ·
+  **census:** 57 tables — 57 live, 0 ticketed, 0 violations (`clan_relations` and
+  `wmd_retaliation_rights` now have real consumers rather than hanging off dead code).
+- **Migration 0039 applied** to the dev DB: all four columns verified `timestamp with time zone`.
+- **Anti-regression note:** the first probe run (pre-migration) read the 24h cooldown back as 28h —
+  the naive-timestamp skew that motivated 0039. P1b now asserts 23.5h < remaining < 24.5h.
 
 ## 8. Closure
 
-_(filled at closure)_
+**Closed 2026-09-19 on `6ee7e79`** (implementation; 10 files, +797/−123) — closure ledger entry
+follows in the same batch (FID status, archive, SCOPE row 115, CHANGELOG 0.0.31, VERSION bump).
+
+Disposition: **WIRE** (operator-signed), not remove. The reason to keep it was real — missile
+launches were consequence-free — but "wire it into the missile-impact path" as literally stated
+would have been theater: the cooldown it applied did nothing, was enforced nowhere, and the
+retaliation rights it granted had no reader. Wiring it *correctly* meant four fixes plus the hook,
+which is what shipped.
+
+Honest records from this arc:
+
+1. The in-flight claim that `grantClanRetaliationRights` overflowed a `varchar(24)` PK was **wrong**
+   — `wmd_retaliation_rights.id` is `varchar(50)` (probed live). No overflow existed in this module.
+   The `generateId()` normalization stands as convention only, and both the code comment and the
+   probe label were corrected rather than left to imply a bug that never was.
+2. FID §1.6 was rewritten after that correction — the file records the false alarm as a false alarm.
+3. This module is the **fourth** instance of the same disease this arc found: a fully-built feature
+   with no caller (`clanConsequencesService`, plus the three Law-17 writers repaired in -017). The
+   difference here was that the fix was a feature build, not a hook-up.
+4. Pre-existing lint hazard fixed rather than suppressed: `useRetaliationRight` →
+   `consumeRetaliationRight` (the `use*` prefix collides with React's hook namespace).
+
+**Remaining question this FID deliberately did NOT decide:** the retaliation *window* (30 days) and
+whether retaliation rights should be visible in the UI. Neither is required for the mechanic to
+work; both are product calls. Noting here so it is a decision, not an omission.
