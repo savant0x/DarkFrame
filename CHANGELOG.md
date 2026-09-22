@@ -5,6 +5,17 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.28] — 2026-09-19 session
+
+### Added — FID-20260919-015: all four Law-17 ticketed tables gain live consumers (closed, commit `32c6f85`)
+
+- **`chat_read_status` — channel unread badges that survive refresh.** They were socket/session-only memory (lost on every reload) and PATCH `/api/chat` was a documented no-op. Now: migration `0036` adds the unique `(channel_id, user_id)` pair; `lib/chatReadStatusService` upserts mark-read state and serves a per-user map; GET `/api/chat/read-state` (new) plus a real PATCH `/api/chat`; ChatPanel seeds unread-since-last-visit on mount and persists on channel switch and inbound messages.
+- **`shrine_blessings` — persistent boost-grant history.** `lib/shrineBlessingService` records one row per grant (yield bonus as integer percent at the DB boundary, matching the column type) and serves the ledger; non-fatal inserts in `/api/shrine/activate` and `/api/shrine/boost-all`; GET `/api/shrine/blessings` (new); ShrinePanel gains a "Recent Blessings" summary — something the current-expiry-only jsonb can never provide.
+- **`wmd_config` — real alert configuration.** `lib/wmd/admin/alertConfigService` reads table-first with the hardcoded default as fallback and upserts on write; the enabled/minSeverity gate is now consulted by **both** alert writers (`createAdminAlert` and `missileTracker.recordAdminAlert`); GET/PUT `/api/admin/wmd-config`; AdminView shows the active config.
+- **`wmd_suspicious_activity` — reachable at last.** The writer `flagSuspiciousActivity` had existed since FID-20260903-002 with zero callers and no reader. `lib/wmd/suspiciousActivityService.flagExcessiveLaunches` counts 24h launches, flags at the threshold exactly once per window (dedupe read), fires non-fatally from the missiles launch-success path, and the admin route + AdminView surface the rows.
+- **Latent defect caught en route:** `flagSuspiciousActivity` / `createAdminAlert` built 28- and 29-char ids into `varchar(24)` columns — invisible while the writers were unreachable, a guaranteed insert failure the moment they gained callers. Both now use the 23-char `generateId()`.
+- Gates: suite **1254/1254** (129 files, 23 new pins), tsc 0, eslint clean; live probe **15/15**; Law-17 census 63 tables — **54 live (was 50)**, 9 ticketed, 0 violations.
+
 ## [0.0.27] — 2026-09-19 session
 
 ### Added — FID-20260919-014: Law 17, the schema-consumer law, enforced as pre-push Gate 4 (closed, commit `3ec3752`)
