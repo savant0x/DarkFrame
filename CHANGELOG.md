@@ -5,6 +5,16 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.29] — 2026-09-19 session
+
+### Changed — FID-20260919-016: the WMD alert tables consolidated onto `wmd_alerts` (closed, commit `21b2d34`)
+
+- **Two alert tables for one event class became one.** `wmd_alerts` and `wmd_admin_alerts` were near-twins. `wmd_admin_alerts` was the live one (both writers, both readers); `wmd_alerts` was the richer original design — incident references (`missileId`/`voteId`/`operationId`), a channel/delivery model, an acknowledge/resolve lifecycle — that had never been written to once. The ticketed orphan is now the canonical table; the slim twin is retired.
+- **Grounding overturned the directive's premise.** The earlier report claimed `wmd_alerts` had a live reader (the admin health surface). It did not — that endpoint read `wmd_admin_alerts`. FID-20260919-011's removal migration had kept `wmd_alerts` on the same false claim. Adding a writer would have created a second parallel alert log; consolidation removes the duplication instead.
+- **Writers → `wmd_alerts`:** `createAdminAlert` (status `ACTIVE`, payload in `data`) and `missileTracker.recordAdminAlert` (status `ACTIVE`, and it now populates the `missileId` reference column the slim table lacked). **Readers → `wmd_alerts`:** the admin health endpoint counts/selects `WHERE status = ACTIVE`, so RESOLVED/ARCHIVED alerts stop counting as unacknowledged; `getWMDSystemStatus` maps `data → details`.
+- **Migration 0037** (idempotent: guarded source, `ON CONFLICT (id) DO NOTHING`, `DROP IF EXISTS`) moved the 8 live rows (`details → data`, `OPEN → ACTIVE`) and dropped `wmd_admin_alerts`.
+- Gates: suite **1262/1262** (130 files, 12 pins), tsc 0, eslint clean; live driver **8/8**; Law-17 census 62 tables — **54 live, 8 ticketed (was 9)**, 0 violations.
+
 ## [0.0.28] — 2026-09-19 session
 
 ### Added — FID-20260919-015: all four Law-17 ticketed tables gain live consumers (closed, commit `32c6f85`)
