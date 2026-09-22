@@ -31,7 +31,8 @@
 import { generateId } from '@/lib/utils';
 import { db } from '@/lib/db';
 import { shouldRecordAlert } from '@/lib/wmd/admin/alertConfigService';
-import { missiles, wmdClanVotes, wmdSpyMissions, wmdDefenseBatteries, clans, wmdSuspiciousActivity, wmdAdminAlerts } from '@/lib/db/schema';
+import { AlertSeverity, AlertStatus, AlertType, type WmdAlertData } from '@/lib/wmd/admin/alert.types';
+import { missiles, wmdClanVotes, wmdSpyMissions, wmdDefenseBatteries, clans, wmdSuspiciousActivity, wmdAlerts } from '@/lib/db/schema';
 import { ClanBankTransactionType } from '@/types/clan.types';
 import type { ClanBankTransaction } from '@/types/clan.types';
 import { MissionStatus } from '@/types/wmd';
@@ -140,9 +141,11 @@ export async function getWMDSystemStatus(): Promise<WMDSystemStatus> {
   const clansOnCooldown = clansRows.filter(c => c.wmdCooldownUntil && new Date(c.wmdCooldownUntil) > now).length;
 
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const recentAlertsRows = await db.select().from(wmdAdminAlerts)
-    .where(gte(wmdAdminAlerts.createdAt, dayAgo))
-    .orderBy(desc(wmdAdminAlerts.createdAt))
+  // FID-20260919-016: reads the consolidated wmd_alerts table (wmd_admin_alerts
+  // was retired); its incident payload lives in `data`, not `details`.
+  const recentAlertsRows = await db.select().from(wmdAlerts)
+    .where(gte(wmdAlerts.createdAt, dayAgo))
+    .orderBy(desc(wmdAlerts.createdAt))
     .limit(20);
 
   const recentAlerts: AdminAlert[] = recentAlertsRows.map(row => ({
@@ -150,7 +153,7 @@ export async function getWMDSystemStatus(): Promise<WMDSystemStatus> {
     type: row.type as AdminAlert['type'],
     severity: row.severity as AdminAlert['severity'],
     message: row.message,
-    details: (row.details as Record<string, unknown>) || {},
+    details: (row.data as Record<string, unknown>) || {},
     timestamp: new Date(row.createdAt),
     acknowledged: row.status === 'ACKNOWLEDGED',
   }));
@@ -524,14 +527,16 @@ async function createAdminAlert(
   // generateId (23 chars) fits. Same latent defect as flagSuspiciousActivity.
   const alertId = generateId();
 
-  await db.insert(wmdAdminAlerts).values({
+  // FID-20260919-016: writes the consolidated wmd_alerts table. `details` is
+  // stored in the `data` jsonb column; status uses the AlertStatus vocabulary.
+  await db.insert(wmdAlerts).values({
     id: alertId,
-    type: alert.type,
-    severity: alert.severity,
-    status: 'ACTIVE',
+    type: alert.type as AlertType,
+    severity: alert.severity as AlertSeverity,
+    status: AlertStatus.ACTIVE,
     title: alert.message.substring(0, 200),
     message: alert.message,
-    details: alert.details,
+    data: alert.details as WmdAlertData,
     createdAt: new Date(),
   });
 

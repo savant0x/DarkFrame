@@ -30,8 +30,9 @@ import { db } from '@/lib/db';
 import {
   missiles,
   wmdDefenseBatteries,
-  wmdAdminAlerts,
+  wmdAlerts,
 } from '@/lib/db/schema/wmd';
+import { AlertSeverity, AlertStatus, AlertType, type WmdAlertData } from '@/lib/wmd/admin/alert.types';
 import { players } from '@/lib/db/schema/players';
 import { factories } from '@/lib/db/schema/factories';
 import { getIO } from '@/lib/websocket/server';
@@ -223,16 +224,21 @@ async function recordAdminAlert(
   const record = await shouldRecordAlert(intercepted ? 'MEDIUM' : 'HIGH');
   if (!record) return;
 
-  await db.insert(wmdAdminAlerts).values({
+  // FID-20260919-016: writes the consolidated wmd_alerts table (the old
+  // wmd_admin_alerts was retired). The richer schema also carries missileId as
+  // a first-class reference column, so the missile link is no longer buried in
+  // the payload. Status uses the AlertStatus vocabulary ('OPEN' → 'ACTIVE').
+  await db.insert(wmdAlerts).values({
     id: generateId(),
-    type: 'MISSILE_LAUNCH',
-    severity: intercepted ? 'MEDIUM' : 'HIGH',
-    status: 'OPEN',
+    type: AlertType.MISSILE_LAUNCH,
+    severity: (intercepted ? 'MEDIUM' : 'HIGH') as AlertSeverity,
+    status: AlertStatus.ACTIVE,
     title: `WMD launch: ${warheadType} → ${targetId}`,
     message: intercepted
       ? `Missile ${missileId} launched by ${launcherId} was intercepted by ${targetId}'s defenses.`
       : `Missile ${missileId} launched by ${launcherId} detonated on ${targetId}.`,
-    details: { missileId, launcherId, targetId, warheadType, intercepted, damage },
+    missileId,
+    data: { missileId, launcherId, targetId, warheadType, intercepted, damage } as unknown as WmdAlertData,
     createdAt: new Date(),
   });
 }

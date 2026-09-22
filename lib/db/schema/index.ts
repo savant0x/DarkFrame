@@ -17,7 +17,6 @@ export {
   wmdSpyMissions,
   wmdClanVotes,
   wmdSuspiciousActivity,
-  wmdAdminAlerts,
   wmdConfig,
   wmdSpies,
   wmdSabotageOperations,

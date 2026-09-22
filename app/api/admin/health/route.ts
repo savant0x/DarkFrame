@@ -25,8 +25,11 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { db } from '@/lib/db';
-import { wmdAdminAlerts } from '@/lib/db/schema';
-import { desc, ne, sql } from 'drizzle-orm';
+// FID-20260919-016: aliased — the response payload below also uses the name
+// `wmdAlerts` for its summary object.
+import { wmdAlerts as wmdAlertsTable } from '@/lib/db/schema';
+import { AlertStatus } from '@/lib/wmd/admin/alert.types';
+import { desc, eq, sql } from 'drizzle-orm';
 import { readdirSync } from 'fs';
 import { join } from 'path';
 import {
@@ -161,20 +164,23 @@ export const GET = withRequestLogging(rateLimiter(async () => {
       latest: Array<{ type: string; severity: string; message: string; createdAt: Date }>;
     } = { unacknowledged: 0, latest: [] };
     if (dbOk) {
+      // FID-20260919-016: reads the consolidated wmd_alerts table. "Unacknowledged"
+      // is the ACTIVE state — RESOLVED/ARCHIVED alerts are handled and must not
+      // keep counting against the operator.
       const [countRow] = await db
         .select({ n: sql<number>`count(*)::int` })
-        .from(wmdAdminAlerts)
-        .where(ne(wmdAdminAlerts.status, 'ACKNOWLEDGED'));
+        .from(wmdAlertsTable)
+        .where(eq(wmdAlertsTable.status, AlertStatus.ACTIVE));
       const latestRows = await db
         .select({
-          type: wmdAdminAlerts.type,
-          severity: wmdAdminAlerts.severity,
-          message: wmdAdminAlerts.message,
-          createdAt: wmdAdminAlerts.createdAt,
+          type: wmdAlertsTable.type,
+          severity: wmdAlertsTable.severity,
+          message: wmdAlertsTable.message,
+          createdAt: wmdAlertsTable.createdAt,
         })
-        .from(wmdAdminAlerts)
-        .where(ne(wmdAdminAlerts.status, 'ACKNOWLEDGED'))
-        .orderBy(desc(wmdAdminAlerts.createdAt))
+        .from(wmdAlertsTable)
+        .where(eq(wmdAlertsTable.status, AlertStatus.ACTIVE))
+        .orderBy(desc(wmdAlertsTable.createdAt))
         .limit(5);
       wmdAlerts = {
         unacknowledged: countRow?.n ?? 0,

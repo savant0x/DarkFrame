@@ -177,20 +177,9 @@ export const wmdSuspiciousActivity = pgTable('wmd_suspicious_activity', {
   index('wmd_activity_severity_idx').on(table.severity),
 ]);
 
-export const wmdAdminAlerts = pgTable('wmd_admin_alerts', {
-  id: varchar('id', { length: 24 }).primaryKey(),
-  type: varchar('type', { length: 30 }).notNull(),
-  severity: varchar('severity', { length: 20 }).notNull(),
-  status: varchar('status', { length: 20 }).notNull(),
-  title: varchar('title', { length: 200 }).notNull(),
-  message: varchar('message', { length: 500 }).notNull(),
-  details: jsonb('details').$type<Record<string, unknown>>(),
-  createdAt: timestamp('created_at').notNull(),
-  resolvedAt: timestamp('resolved_at'),
-}, (table) => [
-  index('wmd_alert_status_idx').on(table.status),
-  index('wmd_alert_severity_idx').on(table.severity),
-]);
+// wmdAdminAlerts (wmd_admin_alerts) was retired in FID-20260919-016: it was a
+// slim near-twin of wmdAlerts below. Migration 0037 moved its rows into
+// wmd_alerts (details -> data, status OPEN -> ACTIVE) and dropped the table.
 
 export const wmdConfig = pgTable('wmd_config', {
   id: varchar('id', { length: 24 }).primaryKey(),

@@ -48,7 +48,7 @@ vi.mock('@/lib/db', () => ({
 
 import { getAlertConfig, setAlertConfig, shouldRecordAlert, DEFAULT_ALERT_CONFIG } from '@/lib/wmd/admin/alertConfigService';
 import { flagSuspiciousActivity } from '@/lib/wmd/admin/wmdAdminService';
-import { wmdConfig, wmdAdminAlerts } from '@/lib/db/schema/wmd';
+import { wmdConfig, wmdAlerts } from '@/lib/db/schema/wmd';
 import { AlertSeverity } from '@/lib/wmd/admin/alert.types';
 
 describe('getAlertConfig — table-first, fallback-honest', () => {
@@ -152,7 +152,7 @@ describe('flagSuspiciousActivity — the gated alert path (suppression class)', 
     });
     expect(result.success).toBe(true);
     expect(capture.inserts).toHaveLength(1); // wmd_suspicious_activity only
-    expect(getTableName(capture.inserts[0].table as never)).not.toBe(getTableName(wmdAdminAlerts));
+    expect(getTableName(capture.inserts[0].table as never)).not.toBe(getTableName(wmdAlerts));
   });
 
   it('passing gate: both the suspicious-activity row and the admin alert insert', async () => {
@@ -166,6 +166,12 @@ describe('flagSuspiciousActivity — the gated alert path (suppression class)', 
     });
     expect(result.success).toBe(true);
     expect(capture.inserts).toHaveLength(2);
-    expect(getTableName(capture.inserts[1].table as never)).toBe(getTableName(wmdAdminAlerts));
+    expect(getTableName(capture.inserts[1].table as never)).toBe(getTableName(wmdAlerts));
+    // FID-20260919-016: the consolidated table uses the AlertStatus vocabulary
+    // and stores the payload in `data` (the retired twin used `details`).
+    const alertValues = capture.inserts[1].values as { status: string; data: Record<string, unknown> };
+    expect(alertValues.status).toBe('ACTIVE');
+    expect(alertValues.data).toMatchObject({ playerId: 'tester', activityType: 'EXCESSIVE_LAUNCHES' });
+    expect('details' in alertValues).toBe(false);
   });
 });
