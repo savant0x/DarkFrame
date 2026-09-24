@@ -80,6 +80,46 @@ if [ "$schema_census_status" -ne 0 ]; then
 fi
 echo "✅ pre-push: schema census clean ($(printf '%s' "$schema_census_out" | tail -n 1))"
 
+# ---- Gate 5: timestamp convention census (FID-20260923-001) ----
+
+# A stored instant is always `timestamptz`. Migration 0040 converted the 135
+# naive columns; this fail-closed gate refuses any new `timestamp(...)` schema
+# declaration without `{ withTimezone: true }` — and any bare `timestamp` type
+# added by a migration numbered above 0040 — so the class cannot be recreated
+# by one omitted word. A naive column silently disagrees with the database by
+# the process offset, in opposite directions per writer.
+echo "🔍 pre-push: timestamp convention census (naive-instant gate)..."
+ts_census_out="$(node scripts/timestampConventionCensus.cjs 2>&1)"
+ts_census_status=$?
+if [ "$ts_census_status" -ne 0 ]; then
+  echo "$ts_census_out" | tail -n 30 >&2
+  echo "❌ pre-push: timestamp census refused the push (exit ${ts_census_status}) — add" >&2
+  echo "   '{ withTimezone: true }' to the naive declarations above (full report:" >&2
+  echo "   node scripts/timestampConventionCensus.cjs)." >&2
+  exit 1
+fi
+echo "✅ pre-push: timestamp census clean ($(printf '%s' "$ts_census_out" | tail -n 1))"
+
+# ---- Gate 6: host-timezone census (FID-20260923-002) ----
+
+# A game day/hour must come from an explicit zone (lib/gameTime.ts), never the
+# host's local timezone. `getHours()`/`getDay()`/`setHours(0,0,0,0)` and
+# `new Date(y,m,d)` read the PROCESS timezone, so a scheduled respawn, harvest
+# reset, daily distribution or raid-period guard fired at a different wall clock
+# per host — and differently again across DST. Server code only: client display
+# formatting legitimately uses the user's browser timezone.
+echo "🔍 pre-push: host-timezone census (host-local game-time gate)..."
+tz_census_out="$(node scripts/hostTimezoneCensus.cjs 2>&1)"
+tz_census_status=$?
+if [ "$tz_census_status" -ne 0 ]; then
+  echo "$tz_census_out" | tail -n 30 >&2
+  echo "❌ pre-push: host-tz census refused the push (exit ${tz_census_status}) — route" >&2
+  echo "   the game-time math through lib/gameTime.ts (full report:" >&2
+  echo "   node scripts/hostTimezoneCensus.cjs)." >&2
+  exit 1
+fi
+echo "✅ pre-push: host-tz census clean ($(printf '%s' "$tz_census_out" | tail -n 1))"
+
 # ---- Gate 2: agent-attribution watermark scan (ported contract) ----
 
 ZERO_SHA="0000000000000000000000000000000000000000"
