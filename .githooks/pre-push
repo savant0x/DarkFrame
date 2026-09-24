@@ -46,12 +46,24 @@ echo "✅ pre-push: census clean ($(printf '%s' "$census_out" | head -n 1))"
 # to prove source files DON'T import it. Fail-closed on the enumeration.
 echo "🔍 pre-push: Mongo eradication census (0 references outside tests)..."
 mongo_scan_dirs="lib app scripts"
-shim_hits="$(grep -rEn "from '[^']*mongodb'|from \"[^\"]*mongodb\"|require\(['\"]mongodb|['\"]mongodb['\"]|MONGODB_URI|MONGODB_DB" $mongo_scan_dirs server.ts vitest.setup.ts vitest.config.ts next.config.js package.json --include='*.ts' --include='*.js' --include='*.json' 2>&1)" || {
-  echo "$shim_hits" >&2
-  echo "❌ pre-push: mongo census enumeration failed (grep exit $?) — refusing the push" >&2
+# grep exit codes are load-bearing here and were inverted until 2026-09-24:
+#   0 = matches found  → judged below (a violation unless it is a test pin)
+#   1 = NO matches      → this gate's clean state, i.e. a PASS, not an error
+#   >1 = real failure   → refuse (unreadable path, bad regex, …)
+# The old `$(grep …) || { … exit 2; }` form refused every push whose scan was
+# CLEAN: the gate could never pass on this tree. Consistent with that, no push
+# has landed since it was added (origin/main is still at 25e8078, 2026-09-17;
+# a --no-verify push would not show here). The refusal also reported
+# `grep exit 0`, because the block's first `echo` had already reset `$?` — the
+# diagnostic named the opposite of the cause.
+shim_raw="$(grep -rEn "from '[^']*mongodb'|from \"[^\"]*mongodb\"|require\(['\"]mongodb|['\"]mongodb['\"]|MONGODB_URI|MONGODB_DB" $mongo_scan_dirs server.ts vitest.setup.ts vitest.config.ts next.config.js package.json --include='*.ts' --include='*.js' --include='*.json' 2>&1)"
+shim_status=$?
+if [ "$shim_status" -gt 1 ]; then
+  printf '%s\n' "$shim_raw" >&2
+  echo "❌ pre-push: mongo census enumeration failed (grep exit ${shim_status}) — refusing the push" >&2
   exit 2
-}
-shim_hits="$(printf '%s' "$shim_hits" | grep -v "__tests__" | grep -v "\.test\." || true)"
+fi
+shim_hits="$(printf '%s' "$shim_raw" | grep -v "__tests__" | grep -v "\.test\." || true)"
 if [ -n "$shim_hits" ]; then
   echo "$shim_hits" | sed 's/^/    /' >&2
   echo "❌ pre-push: Mongo-era reference(s) found above — the shim is deleted;" >&2
@@ -119,6 +131,31 @@ if [ "$tz_census_status" -ne 0 ]; then
   exit 1
 fi
 echo "✅ pre-push: host-tz census clean ($(printf '%s' "$tz_census_out" | tail -n 1))"
+
+# ---- Gate 7: ledger-integrity census (2026-09-24) ----
+
+# The ledger is the record of truth, and nothing checked it against its own
+# rules. Three failure modes, each found by probe rather than imagined: a live
+# FID whose status is outside `allowed_statuses` (protocol.config.yaml is the
+# single source, parsed by the census — the vocabulary has been amended twice
+# and each drift was found by hand); a TERMINAL FID still sitting in dev/fids/
+# (archival is what terminal means — `archive_on_close: true`); and a SCOPE.md
+# row citing a commit hash that does not resolve, i.e. an unverifiable claim
+# wearing the clothes of a verified one. Four real dead citations exist today;
+# each is a destroyed-by-design state, so they are waived BY REASON inside the
+# census rather than silently re-pointed at a hash that resolves.
+echo "🔍 pre-push: ledger-integrity census (FID statuses, terminal FIDs, SCOPE hashes)..."
+ledger_census_out="$(node scripts/ledgerIntegrityCensus.cjs 2>&1)"
+ledger_census_status=$?
+if [ "$ledger_census_status" -ne 0 ]; then
+  echo "$ledger_census_out" | tail -n 30 >&2
+  echo "❌ pre-push: ledger census refused the push (exit ${ledger_census_status}) — fix the" >&2
+  echo "   status/archival/citation violations above (full report:" >&2
+  echo "   node scripts/ledgerIntegrityCensus.cjs). A destroyed hash is waived by" >&2
+  echo "   reason in that script — never by re-pointing the citation." >&2
+  exit 1
+fi
+echo "✅ pre-push: ledger census clean ($(printf '%s' "$ledger_census_out" | tail -n 1))"
 
 # ---- Gate 2: agent-attribution watermark scan (ported contract) ----
 
