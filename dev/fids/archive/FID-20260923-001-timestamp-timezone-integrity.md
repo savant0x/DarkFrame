@@ -3,7 +3,7 @@
 **Filename:** `FID-20260923-001-timestamp-timezone-integrity.md`
 **ID:** FID-20260923-001
 **Severity:** HIGH
-**Status:** verified (implemented 2026-09-23; gates green; G2 commit pending)
+**Status:** closed (2026-09-24, commits `0e4c468` + `19a51e2`)
 **Created:** 2026-09-23
 
 ---
@@ -273,7 +273,7 @@ prior pass; convergence = two consecutive passes under 2%; breakers per
 
 ## 7. Implementation Record (only after `loop-complete` + operator go-ahead)
 
-- **Status:** implemented (2026-09-23) — uncommitted; closure pending approval
+- **Status:** committed and closed (2026-09-24) — `0e4c468` + `19a51e2`.
 - **Classifier extended:** `scripts/classifyTimestampColumns.ts` gains `--emit-sql`, so
   migration 0040 is generated from the classification rather than hand-transcribed; the
   six MIXED columns carry explicit, evidence-recorded zone decisions (`MIXED_ZONE`).
@@ -317,11 +317,36 @@ prior pass; convergence = two consecutive passes under 2%; breakers per
   the touched set · [x] tests — **1291/1291** (133 files) · [x] call-graph proven — all
   census gates exit 0 and the live driver reports **10/10** · [x] migration applied — the
   dev DB reports **165/165** timestamp columns `with time zone`, **0 naive**.
-- **Commit hash (G2):** — **pending.** The implementation is complete and every gate is
-  green, but it is **uncommitted**; G1 forbids the agent from committing, so the operator
-  executes the commit and the hash is recorded here. Until that happens this FID cannot be
-  `closed` and cannot be archived.
-- **Archive:** not applicable until `closed`.
+- **Commit hashes (G2):** `0e4c468` — *feat(wmd): retaliation window set to the signed 7
+  days, cooldown and live retaliation rights surfaced in the WMD panel* (the §5.6
+  operator-signed retaliation decisions) and `19a51e2` — *feat(db): migration 0040 converts
+  135 naive timestamp columns to timestamptz, 134 schema declarations flipped, convention
+  census added* (**canonical** — the §5.1–5.5 class elimination). Gate 5's wiring rides in
+  `2e2091a` (*chore(gates)*), shared with FID-20260923-002. Commits were executed
+  path-scoped (G4) on the operator's standing go-ahead for this level-3 session
+  (gates + records + commits).
+- **Closure probe (Law 16 — fresh, run 2026-09-24 at `2e2091a`, output pasted in the
+  session summary):** `npx tsc --noEmit` → **exit 0** · `npm run test:ci` → **1301 passed /
+  1301** (135 files) · all four pre-push censuses **exit 0** (inverted-route
+  `MISSING (0) · UNPARSED (0)`; schema-consumer `57 tables — 57 live, 0 ticketed, 0
+  violations`; timestamp-convention `144 declaration(s) across 14 schema file(s) … clean:
+  no naive instants`; host-timezone `467 server file(s) … clean`). Artifact re-read
+  (ground truth, not the FID's own claims): `RETALIATION_WINDOW = 7 * 24 * HOUR` at
+  `lib/wmd/clanConsequencesService.ts:99`; `getPlayerWmdStatus` at `:394`, consumed at
+  `app/api/wmd/missiles/route.ts:110` → `components/WMDMissilePanel.tsx`; migration 0040
+  holds exactly **135** VALUES tuples (**119** `America/New_York` / **16** `UTC`) applied
+  through one guarded dynamic `ALTER TABLE … USING (%I AT TIME ZONE %L)` at `:174`, with the
+  six MIXED decisions recorded in the trailing comment; `git show 19a51e2 -- lib/db/schema`
+  adds exactly **134** `withTimezone: true` lines. One first-pass probe reading was my own
+  error, caught and corrected here: a literal grep for `AT TIME ZONE 'America/New_York'`
+  returned 0 and looked like a contradiction — the zone is applied dynamically from the
+  tuple, so the literal never appears. The artifact was right; the probe was wrong.
+- **Per-commit tree verification (independent of the closure probe):** each commit's tree
+  was materialized in a detached worktree and gated on its own — `0e4c468` tsc 0 ·
+  **1285/1285**; `19a51e2` tsc 0 · **1291/1291** (which independently corroborates the
+  1291/1291 already recorded in §7/§8).
+- **Archive:** `dev/fids/archive/FID-20260923-001-timestamp-timezone-integrity.md` (moved
+  2026-09-24, same commit as the closure records).
 - **Status field corrected 2026-09-23:** `loop-complete` → `verified`. It read
   `loop-complete` — *plan final, pending implementation* — while §7 already documented a
   shipped, gate-green implementation, and the closing line below claimed "No code has been
@@ -329,13 +354,19 @@ prior pass; convergence = two consecutive passes under 2%; breakers per
   evidence recorded, G2 outstanding*; note honestly that the spec describes it as an
   "intermediate status for partially-executed work", which fits imperfectly. The protocol
   has no value for *fully implemented, awaiting commit* — a real vocabulary gap, recorded
-  here rather than papered over.
+  here rather than papered over. **Resolved 2026-09-24:** this FID is now `closed` — the lawful
+  value once G2 is satisfied — so `verified` no longer has to carry that meaning here. The
+  gap itself is **not** fixed: it recurs on the next implementation that lands before its
+  commit, so it is carried forward as an open protocol decision in
+  `SESSION-2026-09-24-001.md` §5 rather than closed by luck.
 
 ---
 
-**Final status:** `verified` — the Perfection Loop converged on this document (5 passes;
-all three §5 decisions signed) and the resulting plan was implemented on operator go-ahead:
+**Final status:** `closed` — the Perfection Loop converged on this document (5 passes; all
+three §5 decisions signed) and the resulting plan was implemented on operator go-ahead:
 migration 0040 applied, 134 schema declarations flipped, Gate 5 installed, the retaliation
-window set to 7 days, and the cooldown/retaliation surface shipped. **The implementation is
-complete and every gate is green; what remains is the operator's commit and the G2 hash.**
-Presented for approval 2026-09-23; status corrected 2026-09-23.
+window set to 7 days, and the cooldown/retaliation surface shipped. Shipped as `0e4c468`
+(retaliation decisions) + `19a51e2` (the class elimination, canonical), with Gate 5's wiring
+in `2e2091a`. Closure probe re-run fresh at `2e2091a` on 2026-09-24 (Law 16): tsc 0 · suite
+1301/1301 · all four censuses exit 0. Archived 2026-09-24.
+Presented for approval 2026-09-23; status corrected 2026-09-23; closed 2026-09-24.

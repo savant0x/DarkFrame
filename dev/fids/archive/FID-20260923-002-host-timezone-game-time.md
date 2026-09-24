@@ -3,7 +3,7 @@
 **Filename:** `FID-20260923-002-host-timezone-game-time.md`
 **ID:** FID-20260923-002
 **Severity:** HIGH
-**Status:** verified (implemented 2026-09-23; gates green; G2 commit pending)
+**Status:** closed (2026-09-24, commits `200f4c3` + `106af8c` + `2e2091a`)
 **Created:** 2026-09-23
 **Predecessor:** FID-20260923-001 (naive-column class — the *storage* half)
 
@@ -197,7 +197,7 @@ prints the host-dependency diagnosis, and exits 1.
 
 ## 7. Implementation Record
 
-- **Status:** implemented (2026-09-23) — uncommitted; closure pending approval.
+- **Status:** committed and closed (2026-09-24) — `200f4c3` + `106af8c` + `2e2091a`.
 - **Files:** `lib/gameTime.ts` (new); `lib/beerBaseService.ts`,
   `lib/wmd/jobs/beerBaseRespawner.ts`, `lib/botService.ts`, `lib/harvestService.ts`,
   `lib/territoryService.ts`, `lib/clanDistributionService.ts`,
@@ -227,11 +227,29 @@ prints the host-dependency diagnosis, and exits 1.
   `now.getHours()` (exit 1); the suite zone pin caught a re-injected host-local assertion on
   this NY host; injected `lib/raidPeriod.ts` drift failed the shared fidelity test; the
   two-zone audit reported `FAIL UTC · PASS America/New_York` and exited 1.
-- **Commit hash (G2):** — **pending.** The implementation is complete and every gate is
-  green, but it is **uncommitted**; G1 forbids the agent from committing, so the operator
-  executes the commit and the hash is recorded here. Until that happens this FID cannot be
-  `closed` and cannot be archived.
-- **Archive:** not applicable until `closed`.
+- **Commit hashes (G2):** `200f4c3` — *fix(time): game day/hour boundaries routed through
+  lib/gameTime in an explicit zone across 19 server call sites, host-timezone census added*
+  (**canonical** — the §5.1–5.4 class fix) · `106af8c` — *test(time): suite runs under a
+  pinned game timezone; host-local assertions fixed, two-zone audit driver added* (§6.1–6.3,
+  the host-independence closure) · `2e2091a` — *chore(gates): pre-push Gate 5 … and Gate 6
+  (host timezone) wired fail-closed* (§5.4's wiring, shared with FID-20260923-001). Commits
+  were executed path-scoped (G4) on the operator's standing go-ahead for this level-3
+  session (gates + records + commits).
+- **Closure probe (Law 16 — fresh, run 2026-09-24 at `2e2091a`, output pasted in the
+  session summary):** `npx tsc --noEmit` → **exit 0** · `npm run test:ci` → **1301 passed /
+  1301** (135 files) · all four pre-push censuses **exit 0**, including this FID's own
+  host-timezone census (`467 server file(s) scanned … clean: no host-local game-time math`;
+  it was 466 files when §2 was written — the extra file is this batch's own additions).
+  Artifact re-read (ground truth, not the FID's own claims): `GAME_TIMEZONE =
+  'America/New_York'` at `lib/gameTime.ts:26`; `lib/raidPeriod.ts`, `scripts/zoneAudit.cjs`,
+  `scripts/hostTimezoneCensus.cjs` all present; the suite zone pin at `vitest.setup.ts:34`
+  (`process.env.TZ = process.env.TEST_TZ ?? 'UTC'`); Gate 6 (`hostTimezoneCensus.cjs`) and
+  Gate 5 (`timestampConventionCensus.cjs`) invoked by `.githooks/pre-push:112` and `:92`.
+- **Per-commit tree verification (independent of the closure probe):** `200f4c3` tsc 0 ·
+  **1300/1300** (135 files) · 4 censuses 0; `106af8c` tsc 0 · **1301/1301** · 4 censuses 0;
+  `2e2091a` tsc 0 · **1301/1301** · 4 censuses 0.
+- **Archive:** `dev/fids/archive/FID-20260923-002-host-timezone-game-time.md` (moved
+  2026-09-24, same commit as the closure records).
 - **Status field corrected 2026-09-23:** `implemented (uncommitted)` → `verified`. The old
   value is **not in the protocol's allowed status list** (`created | analyzed | fixed |
   verified | loop-complete | closed`); the legacy-synonym map sends `implemented` → `closed`
@@ -239,4 +257,14 @@ prints the host-dependency diagnosis, and exits 1.
   unlawful in both directions. `verified` is the allowed value for *implemented, gates
   green, evidence recorded, G2 outstanding*, with the same honest caveat as -001: the spec
   calls it an "intermediate status for partially-executed work", and the protocol has no
-  value for *fully implemented, awaiting commit*.
+  value for *fully implemented, awaiting commit*. **Resolved 2026-09-24:** this FID is now
+  `closed` — the lawful value once G2 is satisfied — so `verified` no longer has to carry
+  that meaning here; the gap itself is carried forward as an open protocol decision in
+  `SESSION-2026-09-24-001.md` §5.
+
+---
+
+**Final status:** `closed` (2026-09-24). The class fix shipped as `200f4c3`, the suite
+host-independence closure as `106af8c`, and Gate 6's wiring as `2e2091a`; the FID is
+archived. Closure probe re-run fresh at `2e2091a` on 2026-09-24 (Law 16): tsc 0 · suite
+1301/1301 · all four censuses exit 0.
