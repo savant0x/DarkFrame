@@ -14,7 +14,7 @@ import { and, eq } from 'drizzle-orm';
 import { getPlayer, getPlayerSlim, type SanitizedPlayer } from './playerService';
 import { calculateNewPosition } from '@/utils/coordinates';
 import { protectionActive } from './playerProtection'; // FID-20260916-009 D1: canonical predicate (was hand-rolled)
-import { Tile, MovementDirection, HarvestRecord } from '@/types';
+import { Tile, MovementDirection } from '@/types';
 
 /**
  * Get tile at specific coordinates

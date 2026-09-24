@@ -17,7 +17,7 @@
 import { db } from '../lib/db/connection';
 import { players } from '../lib/db/schema';
 import { mapDomainPlayerToRow } from '../lib/playerService';
-import { and, count, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { createBotPlayer, calculateZone } from '../lib/botService';
 import type { Player } from '../types/game.types';
 import { BOT_NESTS, getRandomPositionNearNest } from '@/lib/botNestService';

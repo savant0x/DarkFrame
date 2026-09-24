@@ -69,7 +69,7 @@ async function main() {
   console.log(`probe target: ${BASE}  seller=${SELLER} buyer=${BUYER}\n`);
   const { getDb } = await import('../lib/db/index.js');
   const { players, conversations, messages } = await import('../lib/db/schema/index.js');
-  const { eq, sql } = await import('drizzle-orm');
+  const { eq } = await import('drizzle-orm');
   const db = getDb();
 
   // ---- P1: auth both players ----

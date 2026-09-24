@@ -59,14 +59,6 @@ async function cleanup(): Promise<void> {
   await db.delete(playerFlags).where(inArray(playerFlags.username, NAMES));
 }
 
-async function countFlags(username: string): Promise<number> {
-  const rows = await db
-    .select({ id: playerFlags.id })
-    .from(playerFlags)
-    .where(eq(playerFlags.username, username));
-  return rows.length;
-}
-
 async function main(): Promise<void> {
   console.log(`probe suspect=${A} bystanders=${B}/${C} speeder=${D}\n`);
 

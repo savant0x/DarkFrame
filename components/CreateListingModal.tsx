@@ -381,7 +381,7 @@ export function CreateListingModal({ onClose, onSuccess }: CreateListingModalPro
               )}
               <p className="text-xs text-[color:var(--nn-text-secondary)] mt-1">
                 Listing escrows the item(s) (they leave your inventory until sold or the auction ends —
-                they can't be used at the Shrine while listed).
+                they can&apos;t be used at the Shrine while listed).
               </p>
             </div>
           )}

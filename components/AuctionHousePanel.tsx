@@ -32,7 +32,7 @@ import { CreateListingModal } from './CreateListingModal';
 import { useGameContext } from '@/context/GameContext';
 import { useBearerStatus } from '@/hooks/useBearerStatus';
 import { useSearchParams } from 'next/navigation';
-import { resolveCatalogEntry, type CatalogEntry } from '@/lib/catalogService';
+import { resolveCatalogEntry } from '@/lib/catalogService';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import {
   Store,
