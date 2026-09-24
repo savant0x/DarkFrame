@@ -57,20 +57,14 @@ import {
 } from '@/lib/battleService';
 import { generateBaseGreeting } from '@/lib/baseGreetings';
 
-// The period helper is route-local; re-derive its contract here so the
-// boundary behavior is pinned (if the route's copy drifts, these break).
-function currentRaidPeriodStart(baseX: number, now = new Date()): Date {
-  const start = new Date(now);
-  if (baseX >= 1 && baseX <= 75) {
-    start.setHours(0, 0, 0, 0);
-  } else if (now.getHours() < 12) {
-    start.setDate(start.getDate() - 1);
-    start.setHours(12, 0, 0, 0);
-  } else {
-    start.setHours(12, 0, 0, 0);
-  }
-  return start;
-}
+// FID-20260923-002: this block used to be a hand-copied duplicate of the route's
+// period helper, asserted against itself. Its comment claimed "if the route's
+// copy drifts, these break" — it could not, and because it both built and read
+// its dates host-locally it was self-consistent in every timezone, so it could
+// not fail anywhere at all. The helper now lives in lib/raidPeriod.ts and is
+// imported, so the route and this test exercise ONE implementation.
+import { getRaidPeriodStart } from '@/lib/raidPeriod';
+import { gameDateKey, gameHour } from '@/lib/gameTime';
 
 function makeArmy(type: string, count: number, strength = 100, defense = 0): Unit[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -302,32 +296,34 @@ describe('base-raid labeling', () => {
 });
 
 describe('once-per-reset period math', () => {
+  // Fixtures carry an explicit offset (an instant, not a host-local wall clock)
+  // and assertions read the instant in game time, so these are zone-independent.
   it('AM tiles (x ≤ 75): period starts at midnight', () => {
-    const now = new Date('2026-09-13T15:04:00');
-    const start = currentRaidPeriodStart(40, now);
-    expect(start.getHours()).toBe(0);
-    expect(start.getDate()).toBe(13);
+    const now = new Date('2026-09-13T15:04:00-04:00'); // 15:04 game time
+    const start = getRaidPeriodStart(40, now);
+    expect(gameHour(start)).toBe(0);
+    expect(gameDateKey(start)).toBe('2026-09-13');
   });
 
   it('PM tiles after noon: period starts at noon today', () => {
-    const now = new Date('2026-09-13T15:04:00');
-    const start = currentRaidPeriodStart(100, now);
-    expect(start.getHours()).toBe(12);
-    expect(start.getDate()).toBe(13);
+    const now = new Date('2026-09-13T15:04:00-04:00');
+    const start = getRaidPeriodStart(100, now);
+    expect(gameHour(start)).toBe(12);
+    expect(gameDateKey(start)).toBe('2026-09-13');
   });
 
   it('PM tiles before noon: period started at noon yesterday', () => {
-    const now = new Date('2026-09-13T08:00:00');
-    const start = currentRaidPeriodStart(100, now);
-    expect(start.getHours()).toBe(12);
-    expect(start.getDate()).toBe(12);
+    const now = new Date('2026-09-13T08:00:00-04:00');
+    const start = getRaidPeriodStart(100, now);
+    expect(gameHour(start)).toBe(12);
+    expect(gameDateKey(start)).toBe('2026-09-12');
   });
 
   it('a raid logged after period start blocks; before it does not', () => {
-    const now = new Date('2026-09-13T15:00:00');
-    const start = currentRaidPeriodStart(100, now);
-    const raidAt2pm = new Date('2026-09-13T14:00:00');
-    const raidYesterday = new Date('2026-09-12T20:00:00');
+    const now = new Date('2026-09-13T15:00:00-04:00');
+    const start = getRaidPeriodStart(100, now);
+    const raidAt2pm = new Date('2026-09-13T14:00:00-04:00');
+    const raidYesterday = new Date('2026-09-12T20:00:00-04:00');
     expect(raidAt2pm >= start).toBe(true);   // blocks
     expect(raidYesterday >= start).toBe(false); // allowed
   });

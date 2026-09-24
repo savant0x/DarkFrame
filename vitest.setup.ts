@@ -23,6 +23,16 @@ import { vi } from 'vitest';
 // Set test environment
 (process.env as Record<string, string>).NODE_ENV = 'test';
 
+// FID-20260923-002: pin the suite's timezone. Before this, the suite inherited
+// the developer's system zone, so a host-local date assumption produced a GREEN
+// build on an America/New_York box and a RED one on a UTC host — the failure was
+// invisible exactly where it was written. Node honors a runtime TZ assignment
+// (verified: assigning here flips Date/Intl for the worker before test files are
+// imported), so every machine now runs the suite in UTC. Set TEST_TZ to run the
+// same suite under another zone and prove host independence:
+//   TEST_TZ=Asia/Tokyo npx vitest run
+process.env.TZ = process.env.TEST_TZ ?? 'UTC';
+
 // Fail-fast DB guard (FID-20260902-001): connection.ts throws at import when
 // DATABASE_URL is missing. Tests mock the DB layer, so provide a stub URL.
 process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test';

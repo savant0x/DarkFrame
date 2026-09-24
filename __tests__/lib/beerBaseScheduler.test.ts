@@ -48,15 +48,18 @@ const dynamicConfig = (
   } as unknown as BeerBaseConfig);
 
 describe('isRespawnTime (FID-20260909-035 window semantics)', () => {
-  const SUNDAY_4AM_LOCAL = new Date(2026, 8, 13, 4, 30); // 2026-09-13 is a Sunday
+  // FID-20260923-002: explicit instants, not `new Date(y,m,d,h,m)` — the old
+  // host-local construction made these assertions depend on the CI host's
+  // timezone. 2026-09-13 is a Sunday; 04:30 EDT = 08:30Z.
+  const SUNDAY_4AM_LOCAL = new Date('2026-09-13T08:30:00Z');
 
   it('fires inside the legacy scheduled hour', () => {
     expect(isRespawnTime(legacyConfig(0, 4), SUNDAY_4AM_LOCAL)).toBe(true);
   });
 
   it('does not fire outside the legacy hour or on other days', () => {
-    expect(isRespawnTime(legacyConfig(0, 4), new Date(2026, 8, 13, 5, 30))).toBe(false);
-    expect(isRespawnTime(legacyConfig(0, 4), new Date(2026, 8, 14, 4, 30))).toBe(false);
+    expect(isRespawnTime(legacyConfig(0, 4), new Date('2026-09-13T09:30:00Z'))).toBe(false); // Sun 05:30
+    expect(isRespawnTime(legacyConfig(0, 4), new Date('2026-09-14T08:30:00Z'))).toBe(false); // Monday
   });
 
   it('fires for an enabled dynamic schedule even when legacy fields disagree', () => {

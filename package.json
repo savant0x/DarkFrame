@@ -19,6 +19,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:ci": "vitest run",
+    "test:zones": "node scripts/zoneAudit.cjs",
     "prepare": "git config core.hooksPath .githooks && git config commit.template .gitmessage",
     "postinstall": "node scripts/ensure-hooks.js"
   },

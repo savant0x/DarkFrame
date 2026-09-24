@@ -154,9 +154,32 @@ describe('FID-20260917-009: money functions are username-keyed', () => {
     expectKeyedOnUsername(upd.where.mock.calls[0][0] as SQL);
 
     const newExp = (upd.set.mock.calls[0][0] as { vipExpiration: Date }).vipExpiration;
-    const expected = new Date(future);
-    expected.setDate(expected.getDate() + 7);
+    // FID-20260923-002: mirror production's METHOD, not just its intent.
+    // extendVIP adds an exact duration (`base.getTime() + days * 86_400_000`);
+    // this expectation used to walk the calendar (`setDate(getDate() + 7)`),
+    // which differs by the DST offset whenever the window crosses a transition.
+    const expected = new Date(future.getTime() + 7 * 86_400_000);
     expect(newExp.getTime()).toBe(expected.getTime());
+  });
+
+  it('extendVIP adds an exact duration across a DST change', async () => {
+    // FID-20260923-002 — a METHOD pin, deliberately hard-coded.
+    //
+    // The test above derives its expectation with the same arithmetic as
+    // production, so it can only ever confirm self-consistency. This case fixes
+    // the absolute instant instead: extending from 2027-03-10T17:00:00Z
+    // (12:00 America/New_York, EST) by 7 days must land on 17:00:00Z. A
+    // host-local wall-clock walk would land on 16:00:00Z, because the window
+    // crosses the 2027-03-14 transition (noon EDT = 16:00Z). The suite is
+    // UTC-pinned, where those two agree — so the distinction has to be written
+    // down here or it is unpinnable.
+    const base = new Date('2027-03-10T17:00:00.000Z');
+    selectReturning([{ username: 'fame', vipExpiration: base }]);
+    const upd = updateReturning({ rowCount: 1 });
+
+    expect(await extendVIP({ userId: 'fame', tier: VIPTier.WEEKLY })).toBe(true);
+    const newExp = (upd.set.mock.calls[0][0] as { vipExpiration: Date }).vipExpiration;
+    expect(newExp.toISOString()).toBe('2027-03-17T17:00:00.000Z');
   });
 
   it('checkVIPStatus: filters on players.username; active VIP echoed', async () => {

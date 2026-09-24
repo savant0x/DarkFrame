@@ -13,6 +13,12 @@ import {
   getNextRespawnTime,
   isRespawnTime,
 } from '@/lib/beerBaseService';
+// FID-20260923-002: respawn fires at a GAME day/hour, not a host-local one. These
+// assertions previously read `getDay()`/`getHours()` — host accessors — so they
+// only passed on a host sitting in the game timezone and failed on UTC (the
+// 2026-09-23 TZ=UTC run: 3 failures, 4h off). Read the instant through the same
+// explicit-zone helpers the service itself uses.
+import { gameDayOfWeek, gameHour } from '@/lib/gameTime';
 
 // Mock database connection
 // Mock bot service
@@ -146,8 +152,8 @@ describe('beerBaseService', () => {
       const nextRespawn = getNextRespawnTime(config);
       
       expect(nextRespawn).toBeInstanceOf(Date);
-      expect(nextRespawn.getDay()).toBe(0); // Sunday
-      expect(nextRespawn.getHours()).toBe(4); // 4 AM
+      expect(gameDayOfWeek(nextRespawn)).toBe(0); // Sunday
+      expect(gameHour(nextRespawn)).toBe(4); // 4 AM game time
     });
 
     it('should be in the future', () => {
@@ -178,7 +184,7 @@ describe('beerBaseService', () => {
       
       const nextRespawn = getNextRespawnTime(config);
       
-      expect(nextRespawn.getDay()).toBe(3);
+      expect(gameDayOfWeek(nextRespawn)).toBe(3);
     });
 
     it('should handle different respawn hours', () => {
@@ -193,14 +199,14 @@ describe('beerBaseService', () => {
       
       const nextRespawn = getNextRespawnTime(config);
       
-      expect(nextRespawn.getHours()).toBe(12);
+      expect(gameHour(nextRespawn)).toBe(12);
     });
 
     it('should detect respawn time correctly', () => {
       const now = new Date();
       const config = {
-        respawnDay: now.getDay(),
-        respawnHour: now.getHours(),
+        respawnDay: gameDayOfWeek(now),
+        respawnHour: gameHour(now),
         spawnRateMin: 5,
         spawnRateMax: 10,
         resourceMultiplier: 3,
@@ -391,7 +397,7 @@ describe('beerBaseService', () => {
       
       const nextRespawn = getNextRespawnTime(config);
       
-      expect(nextRespawn.getHours()).toBe(0);
+      expect(gameHour(nextRespawn)).toBe(0); // midnight game time
     });
 
     it('should handle disabled beer base system', () => {
