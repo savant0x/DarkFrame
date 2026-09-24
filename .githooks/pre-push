@@ -157,6 +157,42 @@ if [ "$ledger_census_status" -ne 0 ]; then
 fi
 echo "✅ pre-push: ledger census clean ($(printf '%s' "$ledger_census_out" | tail -n 1))"
 
+# ---- Gate 8: eslint (Law 3 / Law 15) ----
+
+# `protocol.config.yaml` names three Law-3 verification commands — typecheck, lint,
+# tests — and this chain ran neither lint nor tests, so "the gates pass" silently
+# meant "the gates that exist pass". Six eslint errors sat on `main` while the
+# 0.0.32 records claimed "eslint 0": a chain that omits one of its own commands
+# cannot notice it is missing. The gate invokes the project's own command
+# (`npm run lint`), not a substitute, and it runs REPO-WIDE on purpose — a
+# changed-files-only variant was rejected because the drift it must catch is
+# precisely the error already in the tree, untouched by the commit being pushed.
+# Cost is ~18s on this host; that is cheaper than another stale "eslint 0" claim.
+if ! command -v npm >/dev/null 2>&1; then
+  echo "❌ pre-push: npm is not on PATH — cannot run the Law-3 lint gate (refusing" >&2
+  echo "   rather than reporting a green chain it never checked)." >&2
+  exit 2
+fi
+echo "🔍 pre-push: eslint (Law 3 gate — repo-wide, 0 errors / 0 warnings)..."
+lint_out="$(npm run lint 2>&1)"
+lint_status=$?
+if [ "$lint_status" -ne 0 ]; then
+  printf '%s\n' "$lint_out" | tail -n 30 >&2
+  echo "❌ pre-push: eslint refused the push (exit ${lint_status}) — fix the findings" >&2
+  echo "   above (npm run lint). Suppressing a rule is not a fix; if the baseline" >&2
+  echo "   is genuinely too large to clear, record that honestly in the ledger." >&2
+  exit 1
+fi
+# `eslint .` exits 0 with warnings; the protocol's gate is "zero errors, zero
+# warnings", so the summary line is checked too. Worst case (a formatter change)
+# a warning slips through — errors cannot, being exit-gated above.
+if printf '%s' "$lint_out" | grep -qE '[1-9][0-9]* warnings?'; then
+  printf '%s\n' "$lint_out" | tail -n 30 >&2
+  echo "❌ pre-push: eslint reported warning(s) — the Law-3 lint gate is 0 errors / 0 warnings" >&2
+  exit 1
+fi
+echo "✅ pre-push: eslint clean (0 errors, 0 warnings)"
+
 # ---- Gate 2: agent-attribution watermark scan (ported contract) ----
 
 ZERO_SHA="0000000000000000000000000000000000000000"
