@@ -125,8 +125,8 @@ export async function getPlayerCombatLogs(playerId: string, limit: number = 50):
  * Get recent battle logs (last 24 hours)
  */
 export async function getRecentCombatLogs(limit: number = 50): Promise<BattleLog[]> {
-  const oneDayAgo = new Date();
-  oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+  // FID-20260923-002: exact duration, not a host-local setDate walk.
+  const oneDayAgo = new Date(Date.now() - 86_400_000);
   
   return queryBattleLogs({
     startDate: oneDayAgo,

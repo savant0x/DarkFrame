@@ -344,8 +344,8 @@ export async function estimateTimeToNextLevel(
 
   const clan = clanRows[0];
 
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - daysToAnalyze);
+  // FID-20260923-002: exact duration, not a host-local setDate walk.
+  const cutoffDate = new Date(Date.now() - daysToAnalyze * 86_400_000);
 
   const result = await db.execute(sql`
     SELECT details FROM clan_activities

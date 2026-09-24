@@ -153,8 +153,8 @@ export async function predictPlayerLevels(
 ): Promise<{ userId: string; currentLevel: number; projectedLevel: number }[]> {
 	try {
 		// Get players with at least one snapshot in the last 7 days.
-		const sevenDaysAgo = new Date();
-		sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+		// FID-20260923-002: exact duration, not a host-local setDate walk.
+		const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
 
 		const recent = await db
 			.selectDistinct({ username: playerLevelHistory.username })

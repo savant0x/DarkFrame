@@ -422,8 +422,8 @@ export async function breakAlliance(
     throw new Error('Only clan leaders can break alliances');
   }
   
-  const cooldownUntil = new Date();
-  cooldownUntil.setHours(cooldownUntil.getHours() + ALLIANCE_BREAK_COOLDOWN_HOURS);
+  // FID-20260923-002: an exact duration, not a host-local setHours walk.
+  const cooldownUntil = new Date(Date.now() + ALLIANCE_BREAK_COOLDOWN_HOURS * 3_600_000);
   
   await db.execute(sql`
     UPDATE clan_alliances

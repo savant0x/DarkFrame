@@ -30,6 +30,7 @@ import { eq, sql, and, ne } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { clans } from '@/lib/db/schema';
 import { withClanTreasuryLock, treasuryDelta } from '@/lib/db/treasuryLock';
+import { startOfGameDay, atGameTime, addGameDays } from '@/lib/gameTime';
 import { logClanActivity } from '@/lib/clanActivityService';
 import { ClanActivityType, ClanBankTransactionType } from '@/types/clan.types';
 import type { ClanBankTransaction, ClanTerritory } from '@/types/clan.types';
@@ -699,7 +700,8 @@ export async function collectDailyTerritoryIncome(
     
     // Check if already collected today
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // FID-20260923-002: the income day is a GAME day, not a host-local day.
+    const todayStart = startOfGameDay(now);
     
     // Dedup guard (SCOPE #11): previously a raw-SQL select whose result was never a plain
     // array on node-postgres — `undefined > 0` made this check silently pass and a second
@@ -832,13 +834,14 @@ export async function getProjectedTerritoryIncome(
   
   const income = calculateDailyPassiveIncome(clanLevel, territoryCount);
   
-  // Calculate next collection time (midnight UTC)
+  // Calculate next collection time — FID-20260923-002: the collection boundary is
+  // a GAME time, not a host-local time (the old code mixed local-midnight
+  // construction with a UTC setUTCHours).
   const now = new Date();
-  const nextCollection = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  nextCollection.setUTCHours(TERRITORY_INCOME_CONSTANTS.COLLECTION_HOUR, 0, 0, 0);
-  
+  const nextCollection = atGameTime(addGameDays(now, 1), TERRITORY_INCOME_CONSTANTS.COLLECTION_HOUR);
+
   // Check if can collect now
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayStart = startOfGameDay(now);
   
   const lastCollectionRows = await db
     .select({ lastCollection: clans.lastTerritoryIncomeCollection })

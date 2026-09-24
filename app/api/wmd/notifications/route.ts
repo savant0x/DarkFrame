@@ -179,8 +179,8 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const olderThan = parseInt(searchParams.get('olderThan') || '30');
 
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - olderThan);
+    // FID-20260923-002: exact duration, not a host-local setDate walk.
+    const cutoffDate = new Date(Date.now() - olderThan * 86_400_000);
 
     // "Read" = the viewer is recorded in viewedBy (jsonb string[]).
     const result = await db

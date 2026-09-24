@@ -216,8 +216,8 @@ async function countOldActivityLogs(
   // the Mongo-era activity/admin split cannot survive. The admin retention
   // param stays in the wire contract but is inert for activity counting
   // (moderation events live in mod_log, which this route does not prune).
-  const activityCutoffDate = new Date();
-  activityCutoffDate.setDate(activityCutoffDate.getDate() - activityRetentionDays);
+  // FID-20260923-002: exact durations, not host-local setDate walks.
+  const activityCutoffDate = new Date(Date.now() - activityRetentionDays * 86_400_000);
 
   const old = await drizzleDb
     .select({ id: playerActivity.id })
@@ -238,8 +238,7 @@ async function countOldBattleLogs(battleRetentionDays: number): Promise<number> 
   // `BattleLog` collection name via the raw client — counts/deletes silently
   // matched nothing while reporting success, so battle_logs grew unbounded.
   // The mapped drizzle table is the real store.
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - battleRetentionDays);
+  const cutoffDate = new Date(Date.now() - battleRetentionDays * 86_400_000);
 
   const old = await drizzleDb
     .select({ battleId: battleLogs.battleId })
@@ -258,8 +257,7 @@ async function countOldBattleLogs(battleRetentionDays: number): Promise<number> 
 async function cleanupOldBattleLogs(battleRetentionDays: number): Promise<number> {
   // FID-20260914-009 Phase B: same unmapped-name fix as countOldBattleLogs.
   // Honest count via .returning() (FID-20260914-004 semantics).
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - battleRetentionDays);
+  const cutoffDate = new Date(Date.now() - battleRetentionDays * 86_400_000);
 
   const deleted = await drizzleDb
     .delete(battleLogs)

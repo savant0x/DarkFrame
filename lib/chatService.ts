@@ -30,6 +30,7 @@ import { eq, and, lt, gte, desc } from 'drizzle-orm';
 import { Filter } from 'bad-words';
 import { validateItem as validateItemAgainstCatalog } from '@/lib/catalogService';
 import { db } from '@/lib/db';
+import { gameDateKey } from '@/lib/gameTime';
 import { chatMessages, wordBlacklist, players } from '@/lib/db/schema';
 import {
   ChannelType,
@@ -395,7 +396,8 @@ export async function sendGlobalChatMessage(
 
     // Create message document
     const now = new Date();
-    const monthCategory = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // FID-20260923-002: the month bucket is a GAME month, not a host-local one.
+    const monthCategory = gameDateKey(now).slice(0, 7);
 
     // chat_messages.id is varchar(24) — randomUUID() (36 chars) overflows the column
     const messageId = randomUUID().replace(/-/g, '').slice(0, 24);
@@ -469,8 +471,8 @@ export async function getGlobalChatMessages(
 
     // 1-week display window (unless specific date range requested)
     if (!since && !before) {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - DISPLAY_WINDOW_DAYS);
+      // FID-20260923-002: exact durations, not host-local setDate walks.
+      const oneWeekAgo = new Date(Date.now() - DISPLAY_WINDOW_DAYS * 86_400_000);
       conditions.push(gte(chatMessages.timestamp, oneWeekAgo));
     } else {
       if (since) {
@@ -677,8 +679,7 @@ export function isVeteran(playerLevel: number): boolean {
  */
 export async function purgeOldMessages(): Promise<number> {
   try {
-    const oneYearAgo = new Date();
-    oneYearAgo.setDate(oneYearAgo.getDate() - RETENTION_DAYS);
+    const oneYearAgo = new Date(Date.now() - RETENTION_DAYS * 86_400_000);
     
     const result = await db.delete(chatMessages).where(lt(chatMessages.timestamp, oneYearAgo));
     

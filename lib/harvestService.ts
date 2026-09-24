@@ -20,6 +20,7 @@ import {
   HarvestRecord 
 } from '@/types';
 import { getHarvestSuccessMessage } from './harvestMessages';
+import { gameDateKey, atGameTime, addGameDays } from './gameTime';
 // FID-20260910-040: the estimate pipeline lives in ONE place. The service keeps
 // its own base roll + DB reads, then multiplies through the shared terms so UI
 // calculators (which import the same module) can never drift from the payout.
@@ -75,19 +76,10 @@ function mapRowToPlayer(row: Pick<typeof players.$inferSelect, 'username' | 'res
  * ```
  */
 export function getCurrentResetPeriod(x: number): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const dateString = `${year}-${month}-${day}`;
-  
-  if (x >= 1 && x <= 75) {
-    // These tiles reset at midnight
-    return `${dateString}-AM`;
-  } else {
-    // These tiles reset at noon
-    return `${dateString}-PM`;
-  }
+  // FID-20260923-002: the reset boundary is a GAME day, not a host-local day —
+  // a UTC host previously rolled the harvest period at a different wall clock.
+  const dateString = gameDateKey(new Date());
+  return x >= 1 && x <= 75 ? `${dateString}-AM` : `${dateString}-PM`;
 }
 
 /**
@@ -103,33 +95,12 @@ export function getCurrentResetPeriod(x: number): string {
  * ```
  */
 export function getTimeUntilReset(x: number): number {
+  // FID-20260923-002: reset boundaries are GAME time, not host-local time.
   const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  
-  if (x >= 1 && x <= 75) {
-    // Reset at midnight
-    const nextReset = new Date(now);
-    nextReset.setHours(0, 0, 0, 0);
-    
-    // If it's already past midnight, next reset is tomorrow midnight
-    if (nextReset <= now) {
-      nextReset.setDate(nextReset.getDate() + 1);
-    }
-    
-    return nextReset.getTime() - now.getTime();
-  } else {
-    // Reset at noon
-    const nextReset = new Date(now);
-    nextReset.setHours(12, 0, 0, 0);
-    
-    // If it's already past noon, next reset is tomorrow noon
-    if (nextReset <= now) {
-      nextReset.setDate(nextReset.getDate() + 1);
-    }
-    
-    return nextReset.getTime() - now.getTime();
-  }
+  const resetHour = x >= 1 && x <= 75 ? 0 : 12;
+  let nextReset = atGameTime(now, resetHour);
+  if (nextReset <= now) nextReset = atGameTime(addGameDays(now, 1), resetHour);
+  return nextReset.getTime() - now.getTime();
 }
 
 /**

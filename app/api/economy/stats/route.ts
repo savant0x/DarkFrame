@@ -30,6 +30,7 @@ import {
 } from '@/lib/db/schema';
 import { and, count, desc, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import { getCacheOrFetch } from '@/lib/cacheService';
+import { startOfGameDay } from '@/lib/gameTime';
 import {
   withRequestLogging,
   createRateLimiter,
@@ -105,7 +106,8 @@ const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(
 
 function computeEconomyStats(): Promise<EconomyStats> {
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // FID-20260923-002: the analytics day is a GAME day, not a host-local day.
+  const startOfToday = startOfGameDay(now);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const harvestMetalExpr = sql<number>`COALESCE((${playerActivity.metadata}->'resourcesGained'->>'metal')::numeric, 0)`;

@@ -28,6 +28,7 @@ import { players } from './db/schema';
 import { botConfig } from './db/schema/config';
 import { and, eq, ne, or, gte, isNull, sql } from 'drizzle-orm';
 import { mapRowToPlayer, mapDomainPlayerToRow } from './playerService';
+import { gameDayOfWeek, gameHour, nextGameOccurrence } from './gameTime';
 import type { Player } from '@/types/game.types';
 import { recordSpawnEvent } from './beerBaseAnalytics';
 import { createBotPlayer, generateBeerBaseName, claimBotBaseTile, releaseBotBaseTile } from './botService';
@@ -695,8 +696,8 @@ interface PlayerLevelDistribution {
  */
 async function analyzePlayerLevelDistribution(): Promise<PlayerLevelDistribution> {
   // Get active players (logged in within last 7 days OR no lastLoginDate set)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // FID-20260923-002: exact duration, not a host-local setDate walk.
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
   
   const activePlayers = (await pgDb
     .select()
@@ -1405,28 +1406,12 @@ export function getNextRespawnTime(config: BeerBaseConfig = DEFAULT_CONFIG): Dat
       return calculateLegacyNextRespawn(now, config);
     }
     
-    // Find next occurrence for each schedule
-    const nextTimes = enabledSchedules.map(schedule => {
-      const { dayOfWeek, hour, timezone } = schedule;
-      
-      // Get current time in schedule's timezone
-      const tzNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-      const currentDay = tzNow.getDay();
-      const currentHour = tzNow.getHours();
-      
-      // Calculate days until next occurrence
-      let daysUntil = dayOfWeek - currentDay;
-      if (daysUntil < 0 || (daysUntil === 0 && currentHour >= hour)) {
-        daysUntil += 7; // Next week
-      }
-      
-      // Create next occurrence date
-      const next = new Date(tzNow);
-      next.setDate(next.getDate() + daysUntil);
-      next.setHours(hour, 0, 0, 0);
-      
-      return next;
-    });
+    // Find next occurrence for each schedule — FID-20260923-002: the schedule's
+    // own timezone governs, computed by gameTime rather than the fragile
+    // `toLocaleString` shift + host-local setHours/setDate.
+    const nextTimes = enabledSchedules.map((schedule) =>
+      nextGameOccurrence(now, schedule.dayOfWeek, schedule.hour, schedule.timezone),
+    );
     
     // Return earliest next time
     return new Date(Math.min(...nextTimes.map(d => d.getTime())));
@@ -1441,23 +1426,9 @@ export function getNextRespawnTime(config: BeerBaseConfig = DEFAULT_CONFIG): Dat
  * @private
  */
 function calculateLegacyNextRespawn(now: Date, config: BeerBaseConfig): Date {
-  const nextRespawn = new Date();
-  
-  // Set to target day and hour
-  nextRespawn.setHours(config.respawnHour, 0, 0, 0);
-  
-  // Calculate days until target day
-  const currentDay = now.getDay();
-  let daysUntilRespawn = config.respawnDay - currentDay;
-  
-  // If target day has passed this week, go to next week
-  if (daysUntilRespawn < 0 || (daysUntilRespawn === 0 && now.getHours() >= config.respawnHour)) {
-    daysUntilRespawn += 7;
-  }
-  
-  nextRespawn.setDate(now.getDate() + daysUntilRespawn);
-  
-  return nextRespawn;
+  // FID-20260923-002: the respawn day/hour are GAME time, not host-local. A UTC
+  // host previously respawned at a different wall-clock time than a NY host.
+  return nextGameOccurrence(now, config.respawnDay, config.respawnHour);
 }
 
 /**
@@ -1526,21 +1497,29 @@ export async function getBeerBaseStats(): Promise<{
  * Is `now` inside a scheduled respawn hour window?
  *
  * FID-20260909-035: honors BOTH the legacy single schedule (respawnDay +
- * respawnHour in server-local time) and the dynamic multi-schedule feature
- * (schedulesEnabled + per-schedule weekday/hour/timezone, matching
- * getNextRespawnTime's tz evaluation). The previous implementation checked
- * only the legacy fields, so dynamic schedules were dead behind the
- * scheduler no matter what the admin configured.
+ * respawnHour) and the dynamic multi-schedule feature (schedulesEnabled +
+ * per-schedule weekday/hour/timezone, matching getNextRespawnTime's tz
+ * evaluation). The previous implementation checked only the legacy fields, so
+ * dynamic schedules were dead behind the scheduler no matter what the admin
+ * configured.
+ *
+ * FID-20260923-002: the legacy fields are evaluated in the GAME timezone, not
+ * server-local time — a UTC host previously respawned at a different wall clock
+ * than a NY host.
  */
 export function isRespawnTime(config: BeerBaseConfig = DEFAULT_CONFIG, now: Date = new Date()): boolean {
   if (config.schedulesEnabled && config.schedules && config.schedules.length > 0) {
     return config.schedules.some((schedule) => {
       if (!schedule.enabled) return false;
-      const tzNow = new Date(now.toLocaleString('en-US', { timeZone: schedule.timezone }));
-      return tzNow.getDay() === schedule.dayOfWeek && tzNow.getHours() === schedule.hour;
+      // FID-20260923-002: evaluate the schedule in its own timezone via gameTime.
+      return (
+        gameDayOfWeek(now, schedule.timezone) === schedule.dayOfWeek &&
+        gameHour(now, schedule.timezone) === schedule.hour
+      );
     });
   }
-  return now.getDay() === config.respawnDay && now.getHours() === config.respawnHour;
+  // FID-20260923-002: legacy schedule is GAME time, not host-local time.
+  return gameDayOfWeek(now) === config.respawnDay && gameHour(now) === config.respawnHour;
 }
 
 /**

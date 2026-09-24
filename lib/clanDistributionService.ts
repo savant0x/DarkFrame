@@ -34,6 +34,7 @@ import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
 import { eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { withClanTreasuryLock } from '@/lib/db/treasuryLock';
+import { startOfGameDay } from '@/lib/gameTime';
 import { ClanRole, type ClanMember } from '@/types/clan.types';
 
 
@@ -812,8 +813,8 @@ async function getTodayDistributedByPlayer(
   playerId: string,
   resourceType: DistributionResourceType
 ): Promise<number> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // FID-20260923-002: the distribution day is a GAME day, not a host-local day.
+  const todayStart = startOfGameDay(new Date());
   
   const result = await db.execute(sql`
     SELECT recipients FROM clan_distributions

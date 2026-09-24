@@ -199,8 +199,8 @@ export async function getPlayerContributions(
   territoriesClaimed: number;
   activityScore: number;
 }> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  // FID-20260923-002: exact durations, not host-local setDate/setHours walks.
+  const startDate = new Date(Date.now() - days * 86_400_000);
   
   const result = await db.execute(sql`
     SELECT * FROM clan_activities
@@ -256,8 +256,7 @@ export async function getRecentMemberActivities(
   activityCount: number;
   lastActivity: Date;
 }>> {
-  const startTime = new Date();
-  startTime.setHours(startTime.getHours() - hours);
+  const startTime = new Date(Date.now() - hours * 3_600_000);
   
   const result = await db.execute(sql`
     SELECT player_id, username, COUNT(*) as activity_count, MAX(timestamp) as last_activity
@@ -281,8 +280,7 @@ export async function cleanupOldActivities(
   clanId: string,
   daysToKeep: number = 30
 ): Promise<number> {
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+  const cutoffDate = new Date(Date.now() - daysToKeep * 86_400_000);
   
   const result = await db.execute(sql`
     DELETE FROM clan_activities
@@ -299,8 +297,8 @@ export async function getActivityTimeline(
   days: number = 7,
   groupBy: 'hour' | 'day' = 'day'
 ): Promise<Array<{ date: string; count: number }>> {
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
+  // FID-20260923-002: exact durations, not host-local setDate/setHours walks.
+  const startDate = new Date(Date.now() - days * 86_400_000);
   
   // MySQL DATE_FORMAT('%Y-%m-%d [ %H:00]') → Postgres TO_CHAR; the ":00" suffix is
   // a double-quoted literal in the format string.

@@ -24,6 +24,10 @@ import {
   ErrorCode,
 } from '@/lib';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
+// FID-20260923-002: the period guard lives in lib/raidPeriod.ts so the route and
+// __tests__/lib/baseRaidFidelity.test.ts exercise ONE implementation (the test
+// previously pinned a hand-copied duplicate that could never detect drift).
+import { getRaidPeriodStart } from '@/lib/raidPeriod';
 import { verifyPresence } from '@/lib/presenceCheck';
 import { resolveBaseTilePosition } from '@/lib/baseTilePosition';
 import { logAttack } from '@/lib/activityLogger';
@@ -39,25 +43,7 @@ import type { BotConfig } from '@/types/game.types';
 import { eq, and, gte } from 'drizzle-orm';
 import { BattleType, UnitType } from '@/types';
 import type { Player, PlayerUnit, Unit } from '@/types/game.types';
-/**
- * FID-20260912-093: one raid per base per reset period. Periods mirror the
- * harvest cadence (lib/harvestService.getCurrentResetPeriod): tiles x≤75
- * reset at midnight (AM), the rest at noon (PM). Returns the period start
- * instant the raid-guard compares battle timestamps against.
- */
-function currentRaidPeriodStart(baseX: number): Date {
-  const now = new Date();
-  const start = new Date(now);
-  if (baseX >= 1 && baseX <= 75) {
-    start.setHours(0, 0, 0, 0); // AM period: since midnight
-  } else if (now.getHours() < 12) {
-    start.setDate(start.getDate() - 1); // PM period rolled over midnight
-    start.setHours(12, 0, 0, 0);
-  } else {
-    start.setHours(12, 0, 0, 0); // PM period: since noon
-  }
-  return start;
-}
+
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.battle);
 
@@ -275,7 +261,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // FID-20260912-093: one raid per base per reset period. A raid counts
     // whether it won or lost — the garrison knows who came. Any log row
     // (including losses) inside the current period blocks a re-attack.
-    const periodStart = currentRaidPeriodStart(basePos.x);
+    const periodStart = getRaidPeriodStart(basePos.x);
     const [priorRaid] = await db
       .select({ battleId: battleLogs.battleId })
       .from(battleLogs)

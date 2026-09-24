@@ -61,6 +61,7 @@ import { BotSpecialization, BotReputation, type Player, type BotConfig, type Pos
 import { and, eq, gte, lte, isNull, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { tiles } from '@/lib/db/schema';
+import { gameDayOfWeek, gameHour } from '@/lib/gameTime';
 
 // ============================================================
 // BOT NAME GENERATION (1000+ UNIQUE NAMES)
@@ -890,7 +891,8 @@ export async function createBossBot(
  */
 export function isBeerBaseRespawnTime(): boolean {
   const now = new Date();
-  return now.getDay() === 0 && now.getHours() === 4; // Sunday at 4 AM
+  // FID-20260923-002: Sunday 04:00 GAME time, not host-local time.
+  return gameDayOfWeek(now) === 0 && gameHour(now) === 4;
 }
 
 /**

@@ -23,6 +23,7 @@
 
 import { db } from '@/lib/db';
 import { weeklyBeerBaseRespawn, getBeerBaseConfig, getCurrentBeerBaseCount, getTargetBeerBaseCount, spawnBeerBases } from '@/lib/beerBaseService';
+import { gameDayOfWeek, gameHour, nextGameOccurrence } from '@/lib/gameTime';
 
 type Database = typeof db;
 
@@ -44,13 +45,11 @@ async function isWeeklyRespawnTime(): Promise<boolean> {
   }
   
   const now = new Date();
-  const currentDay = now.getDay();
-  const currentHour = now.getHours();
-  
-  // Check if current day/hour matches config
-  const isScheduledTime = 
-    currentDay === config.respawnDay && 
-    currentHour === config.respawnHour;
+
+  // FID-20260923-002: evaluate the schedule in GAME time, not host-local time.
+  const isScheduledTime =
+    gameDayOfWeek(now) === config.respawnDay &&
+    gameHour(now) === config.respawnHour;
   
   if (!isScheduledTime) {
     return false;
@@ -187,30 +186,11 @@ export async function beerBaseRespawner(_db: Database): Promise<number> {
 async function getNextWeeklyRespawnTime(): Promise<Date> {
   try {
     const config = await getBeerBaseConfig();
-    const now = new Date();
-    const next = new Date();
-    next.setHours(config.respawnHour, 0, 0, 0);
-    
-    const currentDay = now.getDay();
-    let daysUntil = config.respawnDay - currentDay;
-    
-    if (daysUntil < 0 || (daysUntil === 0 && now.getHours() >= config.respawnHour)) {
-      daysUntil += 7;
-    }
-    
-    next.setDate(now.getDate() + daysUntil);
-    return next;
+    // FID-20260923-002: GAME time, not host-local time.
+    return nextGameOccurrence(new Date(), config.respawnDay, config.respawnHour);
   } catch {
-    // Fallback: next Sunday at 4 AM
-    const now = new Date();
-    const next = new Date();
-    next.setHours(4, 0, 0, 0);
-    let daysUntil = 0 - now.getDay();
-    if (daysUntil < 0 || (daysUntil === 0 && now.getHours() >= 4)) {
-      daysUntil += 7;
-    }
-    next.setDate(now.getDate() + daysUntil);
-    return next;
+    // Fallback: next Sunday at 4 AM (game time).
+    return nextGameOccurrence(new Date(), 0, 4);
   }
 }
 

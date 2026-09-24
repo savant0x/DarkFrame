@@ -160,8 +160,9 @@ export async function getPlayerActivityLogs(playerId: string, limit: number = 10
 }
 
 export async function getRecentActivityLogs(limit: number = 100): Promise<ActivityLog[]> {
-  const oneDayAgo = new Date();
-  oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+  // FID-20260923-002: exact duration, not a host-local setDate walk (which
+  // shifted by an hour across DST and differed by host timezone).
+  const oneDayAgo = new Date(Date.now() - 86_400_000);
   
   return queryActivityLogs({
     startDate: oneDayAgo,
@@ -286,8 +287,7 @@ export async function getActivityLogStats(query?: ActivityLogQuery): Promise<Act
 
 export async function getActionCountForPeriod(hours: number): Promise<number> {
   try {
-    const startDate = new Date();
-    startDate.setHours(startDate.getHours() - hours);
+    const startDate = new Date(Date.now() - hours * 3_600_000);
     
     const result = await db
       .select({ count: sql<number>`count(*)` })
@@ -307,12 +307,14 @@ export async function getActionCountForPeriod(hours: number): Promise<number> {
 
 export async function cleanupOldLogs(policy: LogRetentionPolicy = DEFAULT_RETENTION_POLICY): Promise<number> {
   try {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - policy.activityLogDays);
-    
-    const adminCutoffDate = new Date();
-    adminCutoffDate.setDate(adminCutoffDate.getDate() - policy.adminLogDays);
-    
+    const cutoffDate = new Date(Date.now() - policy.activityLogDays * 86_400_000);
+
+    // FID-20260923-002 finding: `policy.adminLogDays` is NOT applied here — the
+    // previous `adminCutoffDate` was computed, mutated and never read, so admin
+    // logs are never purged and the policy field is inert. Removing the dead
+    // arithmetic preserves behaviour; implementing a separate admin-log purge is
+    // a product call, not a mechanical fix.
+
     // Delete non-admin logs older than cutoff
     const result = await db
       .delete(playerActivity)

@@ -34,8 +34,8 @@ async function runPlayerSnapshots(): Promise<{
   success: number;
   errors: number;
 }> {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // FID-20260923-002: exact duration, not a host-local setDate walk.
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
 
   const activePlayers = await db
     .select({ username: players.username, level: players.level })

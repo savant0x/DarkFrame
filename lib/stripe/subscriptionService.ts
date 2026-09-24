@@ -86,8 +86,8 @@ export async function grantVIP(params: {
     
     // Calculate VIP expiration date
     const durationDays = getVIPDurationDays(params.tier);
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + durationDays);
+    // FID-20260923-002: exact duration, not a host-local setDate walk.
+    const expirationDate = new Date(Date.now() + durationDays * 86_400_000);
     
     // FID-20260917-009: keyed on username — mongo_id is NULL for every player
     // since the pg pivot (nothing writes it), and checkout metadata embeds
@@ -219,8 +219,7 @@ export async function extendVIP(params: {
     const baseDate = currentExpiration > new Date() ? currentExpiration : new Date();
     
     const durationDays = getVIPDurationDays(params.tier);
-    const newExpiration = new Date(baseDate);
-    newExpiration.setDate(newExpiration.getDate() + durationDays);
+    const newExpiration = new Date(baseDate.getTime() + durationDays * 86_400_000);
     
     const result = await db.update(players)
       .set({
