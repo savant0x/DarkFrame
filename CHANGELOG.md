@@ -5,6 +5,22 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.34] — 2026-09-24 session
+
+### Fixed — the lint baseline: six eslint errors were live on `main`, and the chain that reported “the gates pass” never ran a single verification command (FID-20260924-003, closed on `d3ad827`)
+
+- **The six errors were the symptom; the omission was the defect.** `protocol.config.yaml` declares three Law-3 verification commands (`npx tsc --noEmit`, `npm run lint`, `npm run test:ci`) and the pre-push chain ran **none** of them — seven gates, all censuses or greps. So a green chain meant “the gates that exist pass”, and the CHANGELOG's `eslint clean` (18 occurrences at `dc0e04b`) and `eslint 0` (16) read as tree-wide verification nobody performed. Recorded as unverifiable rather than as a false claim: whether any single entry was true when written cannot be established now, because nothing ever ran lint.
+- **All six are leftovers from real refactors, not typos** — five inside the very release cycle whose entries claim `eslint clean`, proven with `git log -S`: `HarvestRecord` (`c9c3189`, 09-19, lib batch off the shim), `countFlags` (`fb5b702`, 09-18, anti-cheat rewritten on drizzle/pg), `type CatalogEntry` (`ba16ab4`, 09-19, market/chat catalog links), the apostrophe (`08410d6`, 09-19, tradeable listings), `sql` in `spawnBots` (`30f694e`, 09-19, spawnBots off the shim), `sql` in the notification driver (`746b920`, 09-20).
+- **Cleared by removing the dead thing or escaping it — never by `eslint-disable`:** two unused import specifiers, two unused `sql` bindings, one `&apos;` escape matching house style. **The one that is a finding:** `scripts/e2eSlice1AntiCheatLive.ts` defined an anti-cheat `countFlags` helper that nothing called — its equivalent assertions are inline (step 8 counts the flag rows, step 10 the residue). Deleted, not wired into a new assertion: inventing a probe check as a side effect of a lint fix would widen a live driver's scope under cover of a tidy-up. Six files, +5/−13, no behaviour change; `lib/movementService.ts` keeps its CRLF endings.
+- Gates at `ef163af`: **`npm run lint` exit 0 with no output at all** (0 problems, so not even a summary line — the tree is lint-clean repo-wide for the first time in the recorded ledger) · `npx tsc --noEmit` 0 · suite **1313/1313** (136 files) · chain exit 0 with 8 green gates.
+
+### Added — pre-push Gate 8: `npm run lint`, repo-wide, so a dirty baseline can't be recorded as clean again (FID-20260924-003, `ef163af`)
+
+- **The project's own command, not a substitute** — the gate invokes `npm run lint` exactly as `protocol.config.yaml` names it, so it follows `package.json` if that script changes, and it runs **repo-wide on purpose**: a changed-files-only variant was rejected because the drift it must catch is precisely the error already in the tree, untouched by the commit being pushed. That is how six errors survived a release cycle.
+- **Warnings are refused as well as errors** (`eslint .` exits 0 with warnings; the protocol's contract is 0 errors / 0 warnings), and if `npm` is not on PATH the gate refuses with exit 2 rather than printing a green line for a check it never ran — the realistic case being a hook invoked from a GUI client with a minimal PATH.
+- **Verified by drill, not by assertion:** a throwaway file with one unused binding made the real hook refuse at Gate 8 (`HOOK EXIT=1`, `'unusedByDesign' is assigned a value but never used`); removing it left the chain green at 8 gates. Cost ~18s on this host.
+- **Still open, recorded and NOT implied fixed:** the chain runs lint **only** of the three Law-3 commands. `npx tsc --noEmit` (~10s) and `npm run test:ci` (~25s) are still unwired, so no ledger entry may read as if “the gates pass” covers typecheck and tests until that decision is taken.
+
 ## [0.0.33] — 2026-09-24 session
 
 ### Added — FID-20260924-002: the ledger-integrity census gate — the record of truth is now checked against its own rules (closed, commit `e28731b`; pre-push Gate 7)
