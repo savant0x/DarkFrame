@@ -1,0 +1,107 @@
+# Gate Chain — CI enforcement of .githooks/pre-push
+#
+# Same philosophy as attribution-guard.yml: **local hooks protect this clone;
+# CI protects EVERY clone.** The local hook is fast feedback a developer sees
+# before the push leaves, and it is bypassable (`--no-verify`, an unarmed clone
+# with no `core.hooksPath`). This job is the unbypassable backstop — and, since
+# FID-20260924-004 wired all three Law-3 verification commands
+# (npx tsc --noEmit · npm run lint · npm run test:ci) into the chain, it is also
+# the only place where "the gates pass" is verified by something the author
+# cannot skip.
+#
+# SINGLE DEFINITION, TWO CALLERS: this workflow does not re-list the gates — it
+# executes `.githooks/pre-push` itself with a synthesized ref line, so the chain
+# cannot drift between what runs locally and what runs here. The stdin contract
+# (`<local ref> <local sha> <remote ref> <remote sha>`, one line per ref) is
+# therefore an interface; the hook's header says so. Add a gate there and CI runs
+# it; delete one there and CI stops checking it too — the deliberate cost of one
+# definition rather than two that disagree.
+#
+# WHY THIS CAN RUN DB-LESS: vitest.setup.ts stubs `DATABASE_URL` itself
+# (`process.env.DATABASE_URL ??= …`) and every db-touching test mocks
+# `@/lib/db` — `__tests__/lib/battleStatsService.test.ts` says it outright:
+# "CI is DB-less: db.execute is scripted per case." No database, no secrets.
+#
+# KNOWN DIVERGENCE (recorded, not hidden): `node-version: lts/*` tracks the
+# current LTS while the development host this was verified on runs Node 25.2.1.
+# Pinning CI to an odd-numbered non-LTS release was rejected as inventing a floor
+# the project never declared (package.json has no `engines`, and there is no
+# .nvmrc); a version mismatch here fails loudly on the first run rather than
+# silently, which is the acceptable direction for a gap that cannot be probed
+# from the developer machine.
+
+name: gate-chain
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the chain's git-range gate needs the pushed commits
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: npm
+
+      # `npm ci` runs the postinstall hook-arming script; in a CI checkout that
+      # just sets core.hooksPath and prints a line. The lockfile is the install
+      # contract, so `ci` (never `install`) is what keeps this reproducible.
+      - name: Install (npm ci)
+        run: npm ci
+
+      - name: Determine the range this push introduced
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          ZERO=0000000000000000000000000000000000000000
+          case "$EVENT_NAME" in
+            pull_request)
+              echo "base=${PR_BASE}" >> "$GITHUB_OUTPUT"
+              echo "head=${PR_HEAD}" >> "$GITHUB_OUTPUT"
+              ;;
+            push)
+              if [ -z "$BEFORE" ] || [ "$BEFORE" = "$ZERO" ]; then
+                # New branch: everything not already on the default branch.
+                echo "base=$(git merge-base origin/main "$AFTER" 2>/dev/null || echo "$AFTER")" >> "$GITHUB_OUTPUT"
+              else
+                echo "base=${BEFORE}" >> "$GITHUB_OUTPUT"
+              fi
+              echo "head=${AFTER}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              # workflow_dispatch (and any future event): audit the checked-out tip
+              # against its own parent, so the git-range gate stays meaningful
+              # without inventing a range.
+              echo "base=$(git rev-parse "${AFTER:-HEAD}^" 2>/dev/null || echo "${AFTER:-HEAD}")" >> "$GITHUB_OUTPUT"
+              echo "head=${AFTER:-HEAD}" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Run the pre-push gate chain (single definition)
+        env:
+          BASE: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -eu
+          echo "🔍 gate-chain: running .githooks/pre-push over ${BASE}..${HEAD_SHA}"
+          # The hook ignores its argv and the ref names; it reads the two SHAs.
+          # Feeding it this line is exactly what git does on a local push.
+          printf 'refs/heads/ci %s refs/heads/ci %s\n' "$HEAD_SHA" "$BASE" \
+            | bash .githooks/pre-push origin "$REPO_URL"

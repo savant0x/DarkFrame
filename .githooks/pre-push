@@ -12,6 +12,14 @@
 # the watermark scan is pure git + grep, so it stays fail-closed without
 # requiring a runtime dependency. (Secret/credential scanning per-push can be
 # layered on later; the attribution guard is the ported contract.)
+#
+# THIS FILE IS THE SINGLE DEFINITION OF THE CHAIN, and it runs in two places:
+#   - locally, invoked by git on push (fast feedback, bypassable with --no-verify)
+#   - in CI, invoked by .github/workflows/gate-chain.yml with a synthesized ref
+#     line (unbypassable, and the only thing that protects an unarmed clone)
+# The stdin contract below — `<local ref> <local sha> <remote ref> <remote sha>`,
+# one line per ref — is therefore an INTERFACE, not an implementation detail: CI
+# pipes exactly that shape in. Change it and the workflow breaks loudly (FID-20260924-004).
 
 set -uo pipefail
 
@@ -192,6 +200,54 @@ if printf '%s' "$lint_out" | grep -qE '[1-9][0-9]* warnings?'; then
   exit 1
 fi
 echo "✅ pre-push: eslint clean (0 errors, 0 warnings)"
+
+# ---- Gate 9: typecheck (Law 3) ----
+
+# The second of the three Law-3 verification commands (FID-20260924-004). Gate 8
+# installed `npm run lint` but left typecheck and the suite unwired, which made the
+# chain's own coverage a half-truth in the other direction: green still meant
+# "the gates that exist pass". `npx tsc --noEmit` is `protocol.config.yaml`'s
+# declared typecheck, run unchanged — not a substitute. Missing toolchain refuses
+# (exit 2) for the same reason Gate 8 does: a green line for a check that never ran
+# is worse than a red one.
+if ! command -v npx >/dev/null 2>&1; then
+  echo "❌ pre-push: npx is not on PATH — cannot run the Law-3 typecheck (refusing" >&2
+  echo "   rather than reporting a green chain it never checked)." >&2
+  exit 2
+fi
+echo "🔍 pre-push: typecheck (Law 3 gate — npx tsc --noEmit, zero errors)..."
+tsc_out="$(npx tsc --noEmit 2>&1)"
+tsc_status=$?
+if [ "$tsc_status" -ne 0 ]; then
+  printf '%s\n' "$tsc_out" | tail -n 30 >&2
+  echo "❌ pre-push: typecheck refused the push (exit ${tsc_status}) — fix the errors above" >&2
+  echo "   (npx tsc --noEmit)." >&2
+  exit 1
+fi
+echo "✅ pre-push: typecheck clean (0 errors)"
+
+# ---- Gate 10: the test suite (Law 3) ----
+
+# The last of the three Law-3 commands and the slowest by far (~25s here for 1300+
+# tests across 136 files). It is DB-LESS by design, which is what makes the CI
+# mirror able to run this identical chain with no database and no secrets:
+# vitest.setup.ts stubs DATABASE_URL itself (`process.env.DATABASE_URL ??= …`) and
+# every db-touching test mocks `@/lib/db` (see __tests__/lib/battleStatsService.test.ts,
+# whose own header says "CI is DB-less: db.execute is scripted per case").
+# Placed last on purpose: the cheap gates fail first, so a typo does not cost a
+# full suite run before anyone sees it.
+echo "🔍 pre-push: test suite (Law 3 gate — npm run test:ci)..."
+test_out="$(npm run test:ci 2>&1)"
+test_status=$?
+if [ "$test_status" -ne 0 ]; then
+  printf '%s\n' "$test_out" | tail -n 40 >&2
+  echo "❌ pre-push: the test suite refused the push (exit ${test_status}) — fix the" >&2
+  echo "   failures above (npm run test:ci)." >&2
+  exit 1
+fi
+test_summary="$(printf '%s' "$test_out" | sed 's/\x1b\[[0-9;]*[A-Za-z]//g' | grep -oE "[0-9]+ passed \([0-9]+\)" | tail -n 1)"
+[ -n "$test_summary" ] || test_summary="all suites passed"
+echo "✅ pre-push: test suite clean (${test_summary})"
 
 # ---- Gate 2: agent-attribution watermark scan (ported contract) ----
 
