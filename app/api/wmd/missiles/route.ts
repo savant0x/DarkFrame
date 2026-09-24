@@ -25,6 +25,7 @@ import {
   dismantleMissile,
 } from '@/lib/wmd/missileService';
 import { flagExcessiveLaunches } from '@/lib/wmd/suspiciousActivityService';
+import { getPlayerWmdStatus } from '@/lib/wmd/clanConsequencesService';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { missiles } from '@/lib/db/schema/wmd';
@@ -102,10 +103,16 @@ export async function GET(req: NextRequest) {
     
     // Get all player missiles (renamed to avoid shadowing the drizzle `missiles` table)
     const playerMissiles = await getPlayerMissiles(auth.playerId);
-    
+
+    // FID-20260923-001 §5.6: surface the consequences the launch gate enforces —
+    // the clan WMD cooldown and any live retaliation right (target + expiry) —
+    // so the mechanic has an affordance, not only an effect.
+    const clanWmdStatus = await getPlayerWmdStatus(auth.playerId);
+
     return NextResponse.json({
       success: true,
       missiles: playerMissiles,
+      clanWmdStatus,
     });
   } catch (error) {
     console.error('Error fetching missiles:', error);

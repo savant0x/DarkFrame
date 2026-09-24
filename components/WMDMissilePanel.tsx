@@ -37,8 +37,17 @@ interface Missile {
   createdAt: Date;
 }
 
+/** FID-20260923-001: the consequences the launch gate enforces, read-side. */
+interface ClanWmdStatus {
+  onCooldown: boolean;
+  cooldownUntil: string | null;
+  remainingTime: number;
+  retaliationRights: Array<{ targetClanId: string; targetClanName: string | null; expiresAt: string }>;
+}
+
 export default function WMDMissilePanel() {
   const [missiles, setMissiles] = useState<Missile[]>([]);
+  const [clanWmdStatus, setClanWmdStatus] = useState<ClanWmdStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMissile, setSelectedMissile] = useState<string | null>(null);
   const [targetId, setTargetId] = useState('');
@@ -87,6 +96,7 @@ export default function WMDMissilePanel() {
       const data = await res.json();
       if (data.success) {
         setMissiles(data.missiles);
+        setClanWmdStatus(data.clanWmdStatus ?? null);
       }
     } catch (error) {
       console.error('Failed to fetch missiles:', error);
@@ -197,6 +207,13 @@ export default function WMDMissilePanel() {
     return `${completed}/5`;
   };
 
+  const formatRemaining = (ms: number) => {
+    if (ms <= 0) return '0m';
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.round((ms % 3_600_000) / 60_000);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
   const getStatusChip = (status: string) => {
     switch (status) {
       case 'ASSEMBLING': return 'nn-chip nn-chip--amber';
@@ -231,6 +248,30 @@ export default function WMDMissilePanel() {
           {creatingMissile ? 'Creating…' : '+ New Missile'}
         </button>
       </div>
+
+      {/* FID-20260923-001: the launch gate enforces the clan WMD cooldown and
+          retaliation rights; this surfaces both so the mechanic has an affordance,
+          not only an effect. */}
+      {(clanWmdStatus?.onCooldown || (clanWmdStatus?.retaliationRights.length ?? 0) > 0) && (
+        <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>
+          <div className="nn-panel__header">
+            <span className="nn-panel__title">Clan WMD Status</span>
+          </div>
+          <div className="nn-panel__body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {clanWmdStatus?.onCooldown && (
+              <p className="nn-lab">
+                ⛔ Your clan is on WMD cooldown for another {formatRemaining(clanWmdStatus.remainingTime)} — no clan member can launch.
+              </p>
+            )}
+            {clanWmdStatus?.retaliationRights.map((r) => (
+              <p key={r.targetClanId} className="nn-lab">
+                ⚔ Retaliation right vs {r.targetClanName ?? r.targetClanId} — expires in{' '}
+                {formatRemaining(new Date(r.expiresAt).getTime() - Date.now())}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Warhead Selection — text-rule tabs */}
       <div className="nn-panel" style={{ '--nn-accent': 'var(--nn-amber)' } as React.CSSProperties}>

@@ -89,7 +89,14 @@ const CONSEQUENCE_CONFIGS: Record<string, ConsequenceConfig> = {
   },
 };
 
-const RETALIATION_WINDOW = 30 * 24 * HOUR;
+/**
+ * How long a clan may retaliate against an attacker without the WMD cooldown
+ * applying. Operator-signed 2026-09-23 (FID-20260923-001 §5): 7 days,
+ * proportionate to the 24-72h post-attack cooldowns the right bypasses — long
+ * enough to be usable, short enough that a grudge cannot be held indefinitely.
+ * The prior 30-day value was an unreviewed placeholder.
+ */
+const RETALIATION_WINDOW = 7 * 24 * HOUR;
 
 /**
  * Apply the post-attack consequences of a WMD detonation.
@@ -374,6 +381,62 @@ export async function hasRetaliationRights(
   } catch (error) {
     console.error('[ClanConsequences] Error checking retaliation rights:', error);
     return { hasRights: false, expiresAt: null };
+  }
+}
+
+/**
+ * FID-20260923-001: the read-side surface for the mechanic. The launch gate
+ * honours the clan WMD cooldown and retaliation rights, but until now nothing
+ * showed a player either — the effect existed without an affordance. This
+ * returns the caller's live cooldown, plus every unexpired, unused retaliation
+ * right with the target clan's name, for the WMD panel to render.
+ */
+export async function getPlayerWmdStatus(playerId: string): Promise<{
+  onCooldown: boolean;
+  cooldownUntil: Date | null;
+  remainingTime: number;
+  retaliationRights: Array<{ targetClanId: string; targetClanName: string | null; expiresAt: Date }>;
+}> {
+  try {
+    const [playerRow] = await db
+      .select({ clanId: players.clanId })
+      .from(players)
+      .where(eq(players.username, playerId))
+      .limit(1);
+
+    const cooldown = playerRow?.clanId
+      ? await isClanOnWMDCooldown(playerRow.clanId)
+      : { onCooldown: false, cooldownUntil: null as Date | null, remainingTime: 0 };
+
+    const rights = await db
+      .select({
+        targetClanId: wmdRetaliationRights.canRetaliateAgainstClan,
+        expiresAt: wmdRetaliationRights.expiresAt,
+        targetClanName: clans.name,
+      })
+      .from(wmdRetaliationRights)
+      .leftJoin(clans, eq(clans.id, wmdRetaliationRights.canRetaliateAgainstClan))
+      .where(
+        and(
+          eq(wmdRetaliationRights.playerId, playerId),
+          eq(wmdRetaliationRights.used, 0),
+          gt(wmdRetaliationRights.expiresAt, new Date()),
+        ),
+      );
+
+    return {
+      onCooldown: cooldown.onCooldown,
+      cooldownUntil: cooldown.cooldownUntil ?? null,
+      remainingTime: cooldown.remainingTime,
+      retaliationRights: rights.map((r) => ({
+        targetClanId: r.targetClanId,
+        targetClanName: r.targetClanName ?? null,
+        expiresAt: r.expiresAt,
+      })),
+    };
+  } catch (error) {
+    console.error('[ClanConsequences] Error reading player WMD status:', error);
+    return { onCooldown: false, cooldownUntil: null, remainingTime: 0, retaliationRights: [] };
   }
 }
 
