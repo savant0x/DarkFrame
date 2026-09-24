@@ -3,7 +3,7 @@
 **Filename:** `FID-20260924-001-fid-status-vocabulary-implemented-and-no-action.md`
 **ID:** FID-20260924-001
 **Severity:** MEDIUM
-**Status:** implemented (2026-09-24) — gates green; G2 commit pending
+**Status:** closed (2026-09-24, commit `43ab259`)
 **Created:** 2026-09-24
 **Trigger:** operator decision, 2026-09-24, on a blocking presentation (two options offered,
 one chosen; recorded in §5).
@@ -161,18 +161,48 @@ surface for the full status set and paste the three outputs side by side.
   `templates/FID-TEMPLATE.md` (status list + archival rule in the usage comment),
   `dev/fids/FID-20260917-005-…md` (status → `no-action`, archived), `SCOPE.md` (row 78
   annotation + row 118), `CHANGELOG.md` (0.0.32 protocol subsection).
-- **Verification evidence:** see §8 (pasted at closure, in the closure commit).
+- **Verification evidence:** pasted in §8 (tsc 0 · suite 1301/1301 · four censuses exit 0 · YAML re-parsed · the three vocabulary surfaces printed side by side).
 - **No code, no migrations, no gates added or removed** — the four pre-push censuses are
   untouched by this change.
 
 ## 8. Closure
 
-- **Commit hash (G2):** `_pending commit A_` — recorded in the closure commit's §8 update.
-- **Archive:** `dev/fids/archive/FID-20260924-001-fid-status-vocabulary-implemented-and-no-action.md`.
+- **Commit hash (G2):** `43ab259` — *docs(protocol): FID status vocabulary gains implemented
+  + no-action, archival moves to terminal statuses (FID-20260924-001)*, 4 files changed
+  (+251/−17): `dev/echo-v0.1.2-single-agent.md`, `protocol.config.yaml`,
+  `templates/FID-TEMPLATE.md`, this file.
+- **Verification (run 2026-09-24 at `43ab259`).** This is a documentation + configuration
+  change, so the code gates below are **regression checks, not evidence for the claims** —
+  the claims are proven by the vocabulary-consistency and YAML output that follows them:
+  - `npx tsc --noEmit` → **exit 0**
+  - `npm run test:ci` → **1301 passed / 1301** (135 files)
+  - four pre-push censuses → **exit 0** each (inverted-route, schema-consumer,
+    timestamp-convention, host-timezone) — none of them touched by this change
+  - **the config still loads, and the keys read back as intended** (parsed with the
+    project's own YAML reader rather than checked by eye):
+    ```
+    allowed_statuses: ["created","analyzed","fixed","verified","loop-complete","implemented","no-action","closed"]
+    terminal_statuses: ["closed","no-action"]
+    legacy_synonyms: {"converged":"loop-complete","implemented":"closed","COMPLETED":"closed","complete":"closed"}
+    ```
+  - **the three vocabulary surfaces read identically:**
+    ```
+    protocol.config.yaml:78:      allowed_statuses: [created, analyzed, fixed, verified, loop-complete, implemented, no-action, closed]
+    dev/echo-v0.1.2-single-agent.md:339:Allowed status values: `created | analyzed | fixed | verified | loop-complete | implemented | no-action | closed`.
+    templates/FID-TEMPLATE.md:12:  - Allowed statuses: created | analyzed | fixed | verified | loop-complete |
+    templates/FID-TEMPLATE.md:13:    implemented | no-action | closed
+    ```
+    (the template's list wraps across two lines; the set is identical)
+  - the archival rule reads "terminal status (`closed` or `no-action`)" in the spec
+    (`:360`), in its auto-archive section (`:381`) and in the template (`:34`).
+- **Archive:** `dev/fids/archive/FID-20260924-001-fid-status-vocabulary-implemented-and-no-action.md`
+  (moved with the closure records; `SCOPE.md` row 118).
 
 ---
 
-**Final status:** `implemented` — the vocabulary amendment is written into the spec, the
-config and the template, and `FID-20260917-005` is retired under the new disposition; what
-remains is the G2 commit. This FID is deliberately the first document to use the status it
-creates, rather than parking on `verified` again.
+**Final status:** `closed` (2026-09-24, commit `43ab259`). This FID was deliberately the
+first document to use the status it creates — filed and audited as `implemented` rather than
+parked on `verified`, which is precisely the misfit it exists to remove — and it then took
+`closed` the ordinary way, on its hash. `FID-20260917-005` was retired under the new
+`no-action` disposition in the same closure pass. Both new statuses therefore have a live
+instance on the day they were added.

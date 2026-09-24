@@ -1,6 +1,7 @@
 # FID-20260917-005 — Shrine-extend survey item: premise dissolved (finding record, no wiring FID)
 
-**Status:** `analyzed (premise dissolved)` — finding record, zero code delta
+**Status:** `no-action` (2026-09-24) — terminal finding record, zero code delta, no code to
+commit. Prior value preserved: `analyzed (premise dissolved)`, set 2026-09-17.
 **Session:** 2026-09-17 (040)
 **Origin:** Operator directive: "file and run the loop for the shrine-extend FID — the
 remaining real P2 gap from the survey." Grounding dissolved the premise before any
@@ -62,3 +63,20 @@ modified; no build state was disturbed.
 record documents that no design is needed because the requested feature already
 exists under a different route and the candidate route is operator-deleted. There is
 no design to converge and nothing to implement; §3 disposition is terminal.
+
+## 7. Archival (2026-09-24)
+
+Retired as the protocol's first **`no-action`** FID, under the terminal-status amendment
+filed and closed as FID-20260924-001. The status set previously had no lawful value for a
+terminal record with zero code delta: archival was permitted only at `closed`, and `closed`
+requires a commit hash that a finding like this will never have. `analyzed (premise
+dissolved)` was accurate but non-terminal, so this file sat in `dev/fids/` for a week and,
+by the time FID-20260923-001 and -002 closed on 2026-09-24, was the **only** entry there —
+meaning the directory that is supposed to list work in flight listed none while a real,
+retired finding was still counted as one.
+
+- **Disposition:** no-action — premise dissolved, zero code delta, §6 records that no loop
+  is warranted (there is no design to converge and nothing to implement).
+- **Backing record:** SCOPE row 78 (*Closed — no-action finding, evidence-complete*).
+- **Archived to:** `dev/fids/archive/FID-20260917-005-shrine-extend-premise-dissolved.md`.
+- **Prior status value preserved:** `analyzed (premise dissolved)` (2026-09-17).
