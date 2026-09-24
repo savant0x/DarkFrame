@@ -9,6 +9,15 @@
 > completed and the plan is final, **pending implementation**. The old name wrongly implied
 > code had converged; implementation is a completely separate step with its own approval.
 > Archival happens only at `closed`. See Vocabulary and FID Lifecycle below.
+>
+> **Amendment 2026-09-24 (operator):** the FID status set gains **`implemented`** — the
+> implementation exists in the codebase and gates pass, with the G2 commit still
+> outstanding (previously the only lawful value for this state was `verified`, whose meaning
+> is *partially-executed work*, so finished work could only be recorded as half-done, while
+> the accurate word was reserved as a legacy synonym for `closed`) — and **`no-action`** — a
+> terminal finding or disposition with zero code delta, which `closed` cannot describe
+> because it requires a commit hash. Archival now happens at the **terminal** statuses
+> (`closed`, `no-action`). Filed as FID-20260924-001.
 
 ---
 
@@ -315,6 +324,10 @@ Created → Analyzed → LOOP-COMPLETE → Implemented → Closed → Archived
 
   loop-complete = the Perfection Loop has fully completed on the FID DOCUMENT;
   the plan is final and pending implementation. No code written yet.
+  implemented   = the implementation EXISTS and gates pass; the G2 commit is still
+  outstanding. Not archival-eligible.
+  no-action     = terminal finding/disposition with zero code delta; a FID leaves the
+  loop into `no-action` instead of `closed` when there is no code to commit.
   (`fixed` / `verified` are intermediate statuses for partially-executed work.)
 ```
 
@@ -323,22 +336,38 @@ Created → Analyzed → LOOP-COMPLETE → Implemented → Closed → Archived
 Use `templates/FID-TEMPLATE.md` as the exact template. Required metadata fields: **Filename**, **ID**, **Severity**,
 **Status**, **Created**, **Author**.
 
-Allowed status values: `created | analyzed | fixed | verified | loop-complete | closed`.
+Allowed status values: `created | analyzed | fixed | verified | loop-complete | implemented | no-action | closed`.
 
 - `loop-complete` — The Perfection Loop has fully completed **on this FID document**:
   the plan is final and **pending implementation**. No code has been written;
   implementation (and its approval) is a completely separate step. This is a stop
   point, not a completion claim.
+- `implemented` — The implementation exists in the codebase **and** gates pass; the
+  G2 commit is still **outstanding**. Not archival-eligible: archival waits for
+  `closed`. This is the status for *finished, verified, awaiting its commit* — do not
+  park such work on `verified`, which means partially-executed work. The word is
+  deliberately identical to the step status in `scope.step_statuses` ("Code exists,
+  gates pass"): same meaning at a different scope — a step inside a FID's plan vs a
+  FID inside the ledger.
+- `no-action` — **Terminal.** A documented finding or disposition with **zero code
+  delta** (premise dissolved, dead-end, no-op finding). Requires a recorded
+  disposition with evidence and a SCOPE row. It is NOT a route around implementing
+  approved work: work that did not happen is `blocked` (needs operator input) or
+  `deferred` (operator-approved), never silently `no-action`.
 - `closed` — Implementation exists in the codebase **and** gates pass.
   Requires implementation evidence (commit SHA or file:line ranges + grep
   match). A `closed` FID with no code violates the Ground-Truth rule.
-  Archival (`dev/fids/archive/`) happens ONLY at `closed` — never at
-  `loop-complete`.
+  Archival (`dev/fids/archive/`) happens ONLY at a **terminal status** — `closed`
+  or `no-action` — never at `loop-complete` or `implemented`.
 
-**Legacy status strings (renamed 2026-09-16):** archived FIDs may carry the retired
-label `converged` (= today's `loop-complete`: plan final, pending implementation) or
-stray `implemented` / `IMPLEMENTED` / `COMPLETED` / `complete` (= today's `closed`,
-when backed by a G2 commit hash). Historical synonyms — do not re-open archived
+**Legacy status strings (renamed 2026-09-16; synonym map scoped 2026-09-24):** archived
+FIDs may carry the retired label `converged` (= today's `loop-complete`: plan final,
+pending implementation) or stray `implemented` / `IMPLEMENTED` / `COMPLETED` /
+`complete` (= today's `closed`, when backed by a G2 commit hash). Note the collision
+introduced by the 2026-09-24 amendment: `implemented` is now a **first-class live
+status**, so its old meaning as a synonym for `closed` applies **only to files archived
+before 2026-09-24** — a live FID reading `implemented` is stating that its commit is
+outstanding, not that it is closed. Historical synonyms — do not re-open archived
 files to rewrite them.
 
 FIDs are Markdown files that live ONLY in `dev/fids/`. NEVER create top-level directories such as `fids/`, `archive/`,
@@ -349,7 +378,7 @@ Filename format: `FID-YYYY-MMDD-NNN-{kebab-case-title}.md`. Scan the existing FI
 
 ### FID Auto-Archive
 
-When a FID status is updated to **Closed**, you MUST:
+When a FID status is updated to a **terminal status** (`closed` or `no-action`), you MUST:
 
 1. Move the FID file from `dev/fids/` to `dev/fids/archive/`
 2. Append an entry to `CHANGELOG.md` with the FID ID, severity, description, and resolution summary

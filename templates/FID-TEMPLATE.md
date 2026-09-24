@@ -9,19 +9,30 @@
     The protocol text's YYYY-MMDD sketch never matched any filed FID.)
     Scan dev/fids/ AND dev/fids/archive/ to allocate the next available NNN on the
     date; never reuse a number on the same date.
-  - Allowed statuses: created | analyzed | fixed | verified | loop-complete | closed
+  - Allowed statuses: created | analyzed | fixed | verified | loop-complete |
+    implemented | no-action | closed
     * loop-complete = the Perfection Loop has fully completed ON THIS FID DOCUMENT:
       the plan is final and pending implementation. No code has been written;
       implementation (and its approval) is a completely separate step. This is a
       stop point, not a completion claim. (Renamed 2026-09-16 from the retired
       `converged`, which wrongly implied code had converged. Archived FIDs keep
       their historical labels — do not rewrite them.)
+    * implemented = the implementation exists in the codebase AND gates pass, but the
+      G2 commit is still outstanding. Not archival-eligible. Use this for "finished,
+      verified, awaiting its commit" rather than `verified`, which means
+      partially-executed work. (Added 2026-09-24, FID-20260924-001. Same word as the
+      step status in scope.step_statuses — same meaning, different scope.)
+    * no-action = TERMINAL finding/disposition with zero code delta (premise dissolved,
+      dead-end, no-op finding). Needs a recorded disposition + evidence + a SCOPE row.
+      It is not a route around implementing approved work. (Added 2026-09-24,
+      FID-20260924-001.)
     * closed = implementation exists in the codebase AND gates pass. Requires
       implementation evidence (commit hash or file:line ranges + grep match).
       A `closed` FID with no code violates the Ground-Truth rule.
   - On close: move to dev/fids/archive/, append a CHANGELOG.md entry, log the
     archival in the session summary. Closed FIDs must not remain in dev/fids/.
-    Archival happens ONLY at `closed` — never at `loop-complete`.
+    Archival happens ONLY at a terminal status (`closed` or `no-action`) — never at
+    `loop-complete` or `implemented`.
   - Law 16: before writing `closed` (or any ledger closure — SCOPE rows included),
     run a FRESH artifact-verification probe and paste its output: the artifact must
     exist AND do what the closure claims. Never close from memory, from another
@@ -35,7 +46,8 @@
     fields; the attribution rule is non-negotiable and wins. This template
     therefore omits the field.)
   - G2: a FID cannot be closed without a committed hash; the agent does not
-    execute git — it prepares the path-scoped staging plan for the operator.
+    execute git — it prepares the path-scoped staging plan for the operator. (A
+    no-code finding reaches `no-action` instead, and needs no hash.)
 -->
 
 **Filename:** `FID-YYYYMMDD-NNN-{kebab-case-title}.md`

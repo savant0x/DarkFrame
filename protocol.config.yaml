@@ -75,16 +75,31 @@ single_agent:
     # -----------------------------------------------------------------
     fid:
       filename_format: "FID-YYYYMMDD-NNN-{kebab-case-title}.md"
-      allowed_statuses: [created, analyzed, fixed, verified, loop-complete, closed]
+      allowed_statuses: [created, analyzed, fixed, verified, loop-complete, implemented, no-action, closed]
       # loop-complete (renamed 2026-09-16 from the retired `converged`): the Perfection
       # Loop has fully completed on the FID DOCUMENT — plan final, pending
       # implementation; no code written, implementation is a separate approval step.
-      # Archival happens only at `closed`. Legacy synonyms in archived files:
-      # `converged` -> loop-complete; `implemented`/`COMPLETED`/`complete` -> closed
-      # (when backed by a G2 commit hash).
+      # implemented (added 2026-09-24, FID-20260924-001): the implementation EXISTS in
+      # the codebase and gates pass; the G2 commit is outstanding. NOT
+      # archival-eligible, and `closed` still requires the hash. Deliberately the same
+      # word as the step status in scope.step_statuses — same meaning, different scope
+      # (a step inside a FID's plan vs a FID inside the ledger); kept identical on
+      # purpose rather than renamed.
+      # no-action (added 2026-09-24, FID-20260924-001): TERMINAL finding or disposition
+      # with ZERO code delta (premise dissolved, dead-end, no-op finding). Requires a
+      # recorded disposition with evidence plus a SCOPE row. It is NOT a route around
+      # implementing approved work — work that did not happen is `blocked` (needs
+      # operator input) or `deferred` (operator-approved).
+      # Archival happens at the TERMINAL statuses (`closed`, `no-action`) — never at
+      # loop-complete or implemented.
+      terminal_statuses: [closed, no-action]
+      # Legacy synonyms apply to ARCHIVED HISTORY ONLY (files archived before the date
+      # noted): `converged` -> loop-complete; `implemented`/`COMPLETED`/`complete` ->
+      # closed when backed by a G2 commit hash. Since 2026-09-24 `implemented` is a
+      # first-class LIVE status, so its synonym is scoped to pre-2026-09-24 archives.
       status_legacy_synonyms:
         converged: loop-complete
-        implemented: closed
+        implemented: closed            # pre-2026-09-24 archived files only
         COMPLETED: closed
         complete: closed
       live_location: dev/fids             # FIDs live ONLY here while active
