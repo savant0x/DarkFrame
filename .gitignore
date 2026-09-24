@@ -68,5 +68,8 @@ next-env.d.ts
 # Freebuff thread runtime (server logs, parity baselines — never ship operator secrets)
 .freebuff/
 
+# E2E driver scratch state (FID-20260923-001 timestamp pre-migration snapshot — local evidence, never committed)
+dev/tmp/
+
 # scraped third-party docs dumps (HeroUI llms-*.txt research material, ~10.5MB — kept local, never committed)
 docs/**/llms-*.txt

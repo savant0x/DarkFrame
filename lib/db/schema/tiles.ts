@@ -12,8 +12,8 @@ export const tiles = pgTable('tiles', {
 	bankType: varchar('bank_type', { length: 20 }),
 	hasFlagBearer: smallint('has_flag_bearer'),
 	hasTrail: smallint('has_trail'),
-	trailTimestamp: timestamp('trail_timestamp'),
-	trailExpiresAt: timestamp('trail_expires_at'),
+	trailTimestamp: timestamp('trail_timestamp', { withTimezone: true }),
+	trailExpiresAt: timestamp('trail_expires_at', { withTimezone: true }),
 }, (table) => [
 	primaryKey({ columns: [table.x, table.y], name: 'tiles_pk' }),
 ]);

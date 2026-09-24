@@ -14,10 +14,10 @@ export const factories = pgTable('factories', {
 	investedMetal: integer('invested_metal').notNull().default(0),
 	investedEnergy: integer('invested_energy').notNull().default(0),
 	productionRate: numeric('production_rate', { precision: 5, scale: 2 }).notNull().default('0'),
-	lastSlotRegen: timestamp('last_slot_regen').notNull(),
-	lastResourceGeneration: timestamp('last_resource_generation'),
+	lastSlotRegen: timestamp('last_slot_regen', { withTimezone: true }).notNull(),
+	lastResourceGeneration: timestamp('last_resource_generation', { withTimezone: true }),
 	lastAttackedBy: varchar('last_attacked_by', { length: 20 }),
-	lastAttackTime: timestamp('last_attack_time'),
+	lastAttackTime: timestamp('last_attack_time', { withTimezone: true }),
 }, (table) => [
 	primaryKey({ columns: [table.x, table.y], name: 'factories_pk' }),
 	index('factories_owner_idx').on(table.owner),

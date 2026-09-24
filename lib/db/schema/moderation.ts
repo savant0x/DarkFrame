@@ -5,8 +5,8 @@ export const mutes = pgTable('mutes', {
 	playerId: varchar('player_id', { length: 20 }).notNull(),
 	moderatorId: varchar('moderator_id', { length: 20 }).notNull(),
 	reason: varchar('reason', { length: 500 }).notNull(),
-	expiresAt: timestamp('expires_at'),
-	createdAt: timestamp('created_at').notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('mutes_player_id_idx').on(table.playerId),
 ]);
@@ -16,14 +16,14 @@ export const bans = pgTable('bans', {
 	playerId: varchar('player_id', { length: 20 }).notNull(),
 	moderatorId: varchar('moderator_id', { length: 20 }).notNull(),
 	reason: text('reason').notNull(),
-	expiresAt: timestamp('expires_at'),
-	createdAt: timestamp('created_at').notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 	// Account-ban domain columns (admin ban flow). The table is SHARED with channel bans
 	// (lib/moderationService: playerId + moderatorId = channelId); account rows carry
 	// bannedBy and are distinguished from channel rows by that column being set.
 	username: varchar('username', { length: 20 }),
 	bannedBy: varchar('banned_by', { length: 20 }),
-	bannedAt: timestamp('banned_at'),
+	bannedAt: timestamp('banned_at', { withTimezone: true }),
 	isPermanent: smallint('is_permanent').default(0),
 	active: smallint('active').default(0),
 }, (table) => [
@@ -38,7 +38,7 @@ export const modLog = pgTable('mod_log', {
 	targetId: varchar('target_id', { length: 24 }).notNull(),
 	reason: text('reason'),
 	details: text('details'),
-	createdAt: timestamp('created_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('mod_log_moderator_created_idx').on(table.moderatorId, table.createdAt),
 	index('mod_log_target_id_idx').on(table.targetId),
@@ -50,7 +50,7 @@ export const warnings = pgTable('warnings', {
 	moderatorId: varchar('moderator_id', { length: 20 }).notNull(),
 	reason: varchar('reason', { length: 500 }).notNull(),
 	expired: smallint('expired').notNull().default(0),
-	createdAt: timestamp('created_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('warnings_player_id_idx').on(table.playerId),
 ]);
@@ -67,8 +67,8 @@ export const chatReports = pgTable('chat_reports', {
 	reason: varchar('reason', { length: 40 }).notNull(),
 	details: text('details'),
 	status: varchar('status', { length: 12 }).notNull().default('open'),
-	createdAt: timestamp('created_at').notNull(),
-	resolvedAt: timestamp('resolved_at'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+	resolvedAt: timestamp('resolved_at', { withTimezone: true }),
 	resolvedBy: varchar('resolved_by', { length: 20 }),
 }, (table) => [
 	index('chat_reports_status_idx').on(table.status, table.createdAt),
@@ -82,7 +82,7 @@ export const blockedUsers = pgTable('blocked_users', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	blockerId: varchar('blocker_id', { length: 20 }).notNull(),
 	blockedId: varchar('blocked_id', { length: 20 }).notNull(),
-	createdAt: timestamp('created_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	uniqueIndex('blocked_pair_unique').on(table.blockerId, table.blockedId),
 	index('blocked_users_blocker_idx').on(table.blockerId),

@@ -6,7 +6,7 @@ import type { WarfareConfig } from '@/lib/warfareConfigService';
 
 export const migrations = pgTable('migrations', {
 	id: varchar('id', { length: 100 }).primaryKey(),
-	appliedAt: timestamp('applied_at').notNull(),
+	appliedAt: timestamp('applied_at', { withTimezone: true }).notNull(),
 	details: jsonb('details').$type<Record<string, unknown>>(),
 });
 
@@ -32,7 +32,7 @@ export const botConfig = pgTable('bot_config', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	spawnRate: integer('spawn_rate').notNull(),
 	totalBots: integer('total_bots').notNull(),
-	lastSpawn: timestamp('last_spawn'),
+	lastSpawn: timestamp('last_spawn', { withTimezone: true }),
 	// Global bot-system settings (FID-20260906-003 S1): the admin panel's five
 	// knobs persist here under the 'global' row. spawnRate ≡ dailySpawnCount,
 	// totalBots ≡ totalBotCap; the two columns below add migration % + regen rates.
@@ -79,8 +79,8 @@ export const flagTrail = pgTable('flag_trail', {
 	holderUsername: varchar('holder_username', { length: 20 }).notNull(),
 	x: integer('x').notNull(),
 	y: integer('y').notNull(),
-	createdAt: timestamp('created_at').notNull(),
-	expiresAt: timestamp('expires_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('flag_trail_expires_idx').on(table.expiresAt),
 	index('flag_trail_holder_idx').on(table.holderUsername, table.expiresAt),
@@ -90,9 +90,9 @@ export const shrineBlessings = pgTable('shrine_blessings', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	playerId: varchar('player_id', { length: 20 }).notNull(),
 	tier: varchar('tier', { length: 20 }).notNull(),
-	expiresAt: timestamp('expires_at').notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 	yieldBonus: integer('yield_bonus').notNull().default(0),
-	createdAt: timestamp('created_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('shrine_blessings_player_id_idx').on(table.playerId),
 	index('shrine_blessings_expires_at_idx').on(table.expiresAt),
@@ -109,9 +109,9 @@ export const auctions = pgTable('auctions', {
 	currentBid: integer('current_bid'),
 	currentBidder: varchar('current_bidder', { length: 20 }),
 	buyoutPrice: integer('buyout_price'),
-	expiresAt: timestamp('expires_at').notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 	status: varchar('status', { length: 20 }).notNull().default('active'),
-	createdAt: timestamp('created_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 	// Domain bridge (migration 0008): `doc` jsonb holds the full AuctionListing document
 	// (item, bids[], fees, timestamps); the plain columns below mirror the doc fields the
 	// service filters/sorts/looks up on, so SQL indexes stay usable. They are NOT generated
@@ -129,7 +129,7 @@ export const auctions = pgTable('auctions', {
 	settled: smallint('settled').notNull().default(0),
 	finalPrice: integer('final_price'),
 	durationHours: integer('duration_hours'),
-	closedAt: timestamp('closed_at'),
+	closedAt: timestamp('closed_at', { withTimezone: true }),
 }, (table) => [
 	uniqueIndex('auctions_auction_id_uniq').on(table.auctionId).where(sql`auction_id IS NOT NULL`),
 	index('auctions_seller_username_idx').on(table.sellerUsername),
@@ -148,7 +148,7 @@ export const tradeHistory = pgTable('trade_history', {
 	saleFee: integer('sale_fee').notNull(),
 	sellerReceived: integer('seller_received').notNull(),
 	tradeType: varchar('trade_type', { length: 10 }).notNull().default('buyout'),
-	completedAt: timestamp('completed_at').notNull(),
+	completedAt: timestamp('completed_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('trade_history_trade_id_idx').on(table.tradeId),
 	index('trade_history_auction_id_idx').on(table.auctionId),
@@ -160,13 +160,13 @@ export const playerSessions = pgTable('player_sessions', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	userId: varchar('user_id', { length: 20 }).notNull(),
 	token: varchar('token', { length: 255 }).notNull(),
-	expiresAt: timestamp('expires_at').notNull(),
-	createdAt: timestamp('created_at').notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 	// Session-analytics fields (Mongo-parity; consumed by lib/sessionTracker).
 	// Nullable so legacy auth-token rows remain valid.
 	sessionId: varchar('session_id', { length: 64 }),
-	startTime: timestamp('start_time'),
-	endTime: timestamp('end_time'),
+	startTime: timestamp('start_time', { withTimezone: true }),
+	endTime: timestamp('end_time', { withTimezone: true }),
 	duration: integer('duration'),
 	actionsCount: integer('actions_count').default(0),
 	resourcesGainedMetal: integer('resources_gained_metal').default(0),
@@ -182,7 +182,7 @@ export const playerActivity = pgTable('player_activity', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	playerId: varchar('player_id', { length: 20 }).notNull(),
 	action: varchar('action', { length: 50 }).notNull(),
-	timestamp: timestamp('timestamp').notNull(),
+	timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
 	details: jsonb('details').$type<Record<string, unknown>>(),
 	// Mongo-parity analytics fields (lib/activityLogger); nullable for legacy rows.
 	sessionId: varchar('session_id', { length: 64 }),
@@ -198,7 +198,7 @@ export const playerFlags = pgTable('player_flags', {
 	playerId: varchar('player_id', { length: 20 }),
 	flag: varchar('flag', { length: 50 }),
 	details: jsonb('details').$type<Record<string, unknown>>(),
-	createdAt: timestamp('created_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 	// Anti-cheat domain shape (lib/antiCheatDetector + admin flag endpoints).
 	// Nullable where legacy rows may lack the value.
 	username: varchar('username', { length: 20 }),
@@ -218,7 +218,7 @@ export const typingIndicators = pgTable('typing_indicators', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	channelId: varchar('channel_id', { length: 30 }).notNull(),
 	userId: varchar('user_id', { length: 20 }).notNull(),
-	expiresAt: timestamp('expires_at').notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('typing_indicators_channel_user_idx').on(table.channelId, table.userId),
 	index('typing_indicators_expires_at_idx').on(table.expiresAt),
@@ -227,8 +227,8 @@ export const typingIndicators = pgTable('typing_indicators', {
 export const userPresence = pgTable('user_presence', {
 	id: varchar('id', { length: 24 }).primaryKey(),
 	userId: varchar('user_id', { length: 20 }).notNull(),
-	lastSeen: timestamp('last_seen').notNull(),
-	expiresAt: timestamp('expires_at').notNull(),
+	lastSeen: timestamp('last_seen', { withTimezone: true }).notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	uniqueIndex('user_presence_user_id_unique').on(table.userId),
 	index('user_presence_expires_at_idx').on(table.expiresAt),
@@ -240,9 +240,9 @@ export const botMagnetBeacons = pgTable('bot_magnet_beacons', {
 	playerName: varchar('player_name', { length: 50 }).notNull(),
 	x: integer('x').notNull(),
 	y: integer('y').notNull(),
-	deployedAt: timestamp('deployed_at').notNull(),
-	expiresAt: timestamp('expires_at').notNull(),
-	cooldownUntil: timestamp('cooldown_until').notNull(),
+	deployedAt: timestamp('deployed_at', { withTimezone: true }).notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	cooldownUntil: timestamp('cooldown_until', { withTimezone: true }).notNull(),
 	attractionRadius: integer('attraction_radius').notNull().default(100),
 	attractionChance: integer('attraction_chance').notNull().default(30),
 	botsAttracted: integer('bots_attracted').notNull().default(0),
@@ -256,7 +256,7 @@ export const botMagnetBeacons = pgTable('bot_magnet_beacons', {
 
 export const beerBaseSpawnEvents = pgTable('beer_base_spawn_events', {
 	id: varchar('id', { length: 24 }).primaryKey(),
-	t: timestamp('t').notNull(),
+	t: timestamp('t', { withTimezone: true }).notNull(),
 	tier: integer('tier').notNull(),
 	x: integer('x').notNull(),
 	y: integer('y').notNull(),
@@ -268,7 +268,7 @@ export const beerBaseSpawnEvents = pgTable('beer_base_spawn_events', {
 
 export const beerBaseDefeatEvents = pgTable('beer_base_defeat_events', {
 	id: varchar('id', { length: 24 }).primaryKey(),
-	t: timestamp('t').notNull(),
+	t: timestamp('t', { withTimezone: true }).notNull(),
 	tier: integer('tier').notNull(),
 	by: varchar('by', { length: 50 }).notNull(),
 	rewardsMetal: integer('rewards_metal').notNull().default(0),

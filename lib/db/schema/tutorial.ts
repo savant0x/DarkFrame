@@ -12,11 +12,11 @@ export const tutorialProgress = pgTable('tutorial_progress', {
 	tutorialSkipped: smallint('tutorial_skipped').notNull().default(0),
 	tutorialDeclined: smallint('tutorial_declined'),
 	tutorialComplete: smallint('tutorial_complete').notNull().default(0),
-	startedAt: timestamp('started_at').notNull(),
-	currentStepStartedAt: timestamp('current_step_started_at'),
-	completedAt: timestamp('completed_at'),
-	declinedAt: timestamp('declined_at'),
-	lastUpdated: timestamp('last_updated').notNull(),
+	startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+	currentStepStartedAt: timestamp('current_step_started_at', { withTimezone: true }),
+	completedAt: timestamp('completed_at', { withTimezone: true }),
+	declinedAt: timestamp('declined_at', { withTimezone: true }),
+	lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull(),
 	totalStepsCompleted: integer('total_steps_completed').notNull().default(0),
 	totalTimeSpent: integer('total_time_spent').notNull().default(0),
 }, (table) => [
@@ -34,7 +34,7 @@ export const tutorialActionTracking = pgTable('tutorial_action_tracking', {
 	// (FID-20260908-001, migration 0018)
 	actionType: varchar('action_type', { length: 160 }).notNull(),
 	completed: smallint('completed').notNull().default(0),
-	lastUpdated: timestamp('last_updated').notNull(),
+	lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull(),
 }, (table) => [
 	uniqueIndex('tutorial_action_player_step_unique').on(table.playerId, table.stepId),
 	index('tutorial_action_last_updated_idx').on(table.lastUpdated),

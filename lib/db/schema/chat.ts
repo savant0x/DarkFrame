@@ -12,10 +12,10 @@ export const chatMessages = pgTable('chat_messages', {
 	message: varchar('message', { length: 1000 }).notNull(),
 	itemLinks: jsonb('item_links').notNull().$type<string[]>().default([]),
 	mentions: jsonb('mentions').notNull().$type<string[]>().default([]),
-	timestamp: timestamp('timestamp').notNull(),
+	timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
 	monthCategory: varchar('month_category', { length: 7 }).notNull(),
 	edited: smallint('edited').notNull().default(0),
-	editedAt: timestamp('edited_at'),
+	editedAt: timestamp('edited_at', { withTimezone: true }),
 	deleted: smallint('deleted').notNull().default(0),
 	deletedBy: varchar('deleted_by', { length: 20 }),
 	deletionReason: varchar('deletion_reason', { length: 255 }),
@@ -31,7 +31,7 @@ export const chatReadStatus = pgTable('chat_read_status', {
 	channelId: varchar('channel_id', { length: 30 }).notNull(),
 	userId: varchar('user_id', { length: 20 }).notNull(),
 	lastReadMessageId: varchar('last_read_message_id', { length: 24 }),
-	lastReadAt: timestamp('last_read_at').notNull(),
+	lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull(),
 }, (table) => [
 	index('chat_read_status_user_channel_idx').on(table.userId, table.channelId),
 ]);

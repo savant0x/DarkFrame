@@ -17,8 +17,8 @@ export const clans = pgTable('clans', {
 	levelXpToNextLevel: integer('level_xp_to_next_level').notNull().default(0),
 	levelFeaturesUnlocked: jsonb('level_features_unlocked').notNull().$type<string[]>().default([]),
 	levelMilestonesCompleted: jsonb('level_milestones_completed').notNull().$type<ClanLevel['milestonesCompleted']>().default([]),
-	levelLastLevelUp: timestamp('level_last_level_up'),
-	createdAt: timestamp('created_at').notNull(),
+	levelLastLevelUp: timestamp('level_last_level_up', { withTimezone: true }),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
 	settingsMessageOfTheDay: varchar('settings_message_of_the_day', { length: 500 }).notNull().default(''),
 	settingsIsRecruiting: smallint('settings_is_recruiting').notNull().default(1),
 	settingsMinLevelToJoin: integer('settings_min_level_to_join').notNull().default(1),
@@ -53,7 +53,7 @@ export const clans = pgTable('clans', {
 	// skewed by the process UTC offset (migration 0039).
 	wmdCooldownUntil: timestamp('wmd_cooldown_until', { withTimezone: true }),
 	lastWMDLaunch: timestamp('last_wmd_launch', { withTimezone: true }),
-	lastTerritoryIncomeCollection: timestamp('last_territory_income_collection'),
+	lastTerritoryIncomeCollection: timestamp('last_territory_income_collection', { withTimezone: true }),
 }, (table) => [
 	uniqueIndex('clans_name_unique').on(table.name),
 	uniqueIndex('clans_tag_unique').on(table.tag),
@@ -75,9 +75,9 @@ export const clanWars = pgTable('clan_wars', {
 	defenderName: varchar('defender_name', { length: 30 }).notNull().default(''),
 	defenderTag: varchar('defender_tag', { length: 6 }).notNull().default(''),
 	status: varchar('status', { length: 16 }).notNull().default('ACTIVE'), // ACTIVE | ENDED | TRUCE
-	declaredAt: timestamp('declared_at').notNull().defaultNow(),
+	declaredAt: timestamp('declared_at', { withTimezone: true }).notNull().defaultNow(),
 	declaredBy: varchar('declared_by', { length: 20 }).notNull().default(''),
-	endedAt: timestamp('ended_at'),
+	endedAt: timestamp('ended_at', { withTimezone: true }),
 	endedReason: varchar('ended_reason', { length: 32 }),
 	outcome: varchar('outcome', { length: 16 }), // ATTACKER_WIN | DEFENDER_WIN | TRUCE
 	declarationCost: jsonb('declaration_cost').$type<{ metal: number; energy: number }>().notNull().default({ metal: 0, energy: 0 }),
@@ -91,8 +91,8 @@ export const clanWars = pgTable('clan_wars', {
 	attackerTruceProposed: integer('attacker_truce_proposed').notNull().default(0), // pg boolean via smallint
 	defenderTruceProposed: integer('defender_truce_proposed').notNull().default(0),
 	spoils: jsonb('spoils').$type<{ metal: number; energy: number; rp: number } | null>(),
-	createdAt: timestamp('created_at').notNull().defaultNow(),
-	updatedAt: timestamp('updated_at').notNull().defaultNow(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
 	index('clan_wars_attacker_idx').on(table.attackerClanId, table.status),
 	index('clan_wars_defender_idx').on(table.defenderClanId, table.status),
@@ -110,7 +110,7 @@ export const clanRelations = pgTable('clan_relations', {
 	clanId2: varchar('clan_id2', { length: 24 }).notNull(),
 	relation: varchar('relation', { length: 20 }).notNull(),
 	reason: varchar('reason', { length: 500 }).notNull(),
-	lastUpdated: timestamp('last_updated').notNull(),
+	lastUpdated: timestamp('last_updated', { withTimezone: true }).notNull(),
 }, (table) => [
 	uniqueIndex('clan_relations_pair_unique').on(table.clanId1, table.clanId2),
 	index('clan_relations_clan1_idx').on(table.clanId1),

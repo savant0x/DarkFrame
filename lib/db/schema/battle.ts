@@ -4,7 +4,7 @@ import type { Unit, CombatRound } from '@/types/game.types';
 export const battleLogs = pgTable('battle_logs', {
 	battleId: varchar('battle_id', { length: 50 }).primaryKey(),
 	battleType: varchar('battle_type', { length: 20 }).notNull(),
-	timestamp: timestamp('timestamp').notNull(),
+	timestamp: timestamp('timestamp', { withTimezone: true }).notNull(),
 	attackerUsername: varchar('attacker_username', { length: 20 }).notNull(),
 	attackerUnits: jsonb('attacker_units').notNull().$type<Unit[]>(),
 	attackerTotalSTR: integer('attacker_total_str').notNull(),

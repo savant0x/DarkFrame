@@ -6,8 +6,8 @@ export const friends = pgTable('friends', {
 	friendId: varchar('friend_id', { length: 20 }).notNull(),
 	status: varchar('status', { length: 20 }).notNull(),
 	initiatedBy: varchar('initiated_by', { length: 20 }).notNull(),
-	createdAt: timestamp('created_at').notNull(),
-	updatedAt: timestamp('updated_at').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
 	isBlocked: smallint('is_blocked'),
 	blockedBy: varchar('blocked_by', { length: 20 }),
 }, (table) => [
@@ -22,9 +22,9 @@ export const friendRequests = pgTable('friend_requests', {
 	to: varchar('to_user', { length: 20 }).notNull(),
 	status: varchar('status', { length: 20 }).notNull().default('pending'),
 	message: varchar('message', { length: 200 }),
-	createdAt: timestamp('created_at').notNull(),
-	respondedAt: timestamp('responded_at'),
-	expiresAt: timestamp('expires_at'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+	respondedAt: timestamp('responded_at', { withTimezone: true }),
+	expiresAt: timestamp('expires_at', { withTimezone: true }),
 }, (table) => [
 	uniqueIndex('friend_requests_from_to_status_unique').on(table.from, table.to, table.status),
 	index('friend_requests_to_status_created_idx').on(table.to, table.status, table.createdAt),

@@ -17,7 +17,7 @@ export const playerLevelHistory = pgTable(
 		/** players.username — stable, joinable, human-auditable (the Mongo-era _id died with the pivot). */
 		username: varchar('username', { length: 20 }).notNull(),
 		level: integer('level').notNull(),
-		capturedAt: timestamp('captured_at').notNull().defaultNow(),
+		capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
 	},
 	(table) => [
 		primaryKey({ columns: [table.username, table.capturedAt], name: 'player_level_history_pk' }),
