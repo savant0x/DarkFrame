@@ -1,6 +1,6 @@
 # FID-20260919-016 — Consolidate the WMD alert tables onto `wmd_alerts` (retire `wmd_admin_alerts`)
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (2026-09-19, commit 21b2d34)`
 **Session:** 2026-09-19 (operator directive: "give the table a real writer path and close the last sharp ticketed table")
 **Origin:** FID-20260919-014's Law-17 census (`wmdAlerts` — no-consumer) plus the
 operator's choice of **consolidate** when grounding overturned the premise of the
@@ -105,3 +105,17 @@ payload, and re-applying the migration as a safe no-op. Gates: suite **1262/1262
 **Corrected record:** FID-20260919-011's removal migration (0035) claimed `wmd_alerts`
 had a live reader — the admin health endpoint. It did not; it read `wmd_admin_alerts`.
 That false premise is what left the orphan in place; this FID is its correction.
+
+*Bookkeeping correction (2026-09-23):* this FID was already closed and archived on
+2026-09-19 (`c761988`), but its status field still read `loop-complete (filed +
+implemented same session, on operator directive)` — re-importing the exact
+"converged means done" ambiguity the 2026-09-16 amendment removed — and a stale
+byte-identical duplicate of the file sat in the active `dev/fids/` directory.
+On 2026-09-23 the status was corrected to `closed` carrying the implementation
+hash, and the active duplicate was removed (the archived original was
+byte-identical apart from that status line, so no content was lost).
+Re-probed 2026-09-23 before flipping (Law 16): the `wmdAdminAlerts` export is gone
+from `lib/db/schema/wmd.ts` and `lib/db/schema/index.ts` (the single remaining
+`lib/db/schema/wmd.ts` hit is the retirement comment at :168-171), migration
+`0037_consolidate_alert_tables.sql` is present, and the commit `21b2d34` resolves
+in history.

@@ -1,6 +1,6 @@
 # FID-20260919-012 — TODO/placeholder census: doc-truth batch + two real defects
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (2026-09-19, commit 1ca470a)`
 **Session:** 2026-09-19 (census directive)
 **Origin:** Operator directive after FID-011: "Run a fresh TODO/placeholder census across live
 code to confirm no false-advertising surface remains after the doc-truth sweep."
@@ -101,3 +101,18 @@ and `message:deleted` socket fan-out remain out of scope — recorded in §5.)
 Implemented same session on operator standing directive. Implementation commit: `1ca470a`.
 Closed on `1ca470a`. Gates: suite 1224/1224 (9 new pins), tsc 0, eslint clean.
 Live probe: clan-table fix verified against dev DB (`clan_chat_messages` exists, `clan_chat` does not).
+
+*Bookkeeping correction (2026-09-23):* this FID was already closed and archived on
+2026-09-19 (`e51dcf5`), but its status field still read `loop-complete (filed +
+implemented same session, on operator directive)` — re-importing the exact
+"converged means done" ambiguity the 2026-09-16 amendment removed — and a stale
+byte-identical duplicate of the file sat in the active `dev/fids/` directory.
+On 2026-09-23 the status was corrected to `closed` carrying the implementation
+hash, and the active duplicate was removed (the archived original was
+byte-identical apart from that status line, so no content was lost).
+Re-probed 2026-09-23 before flipping (Law 16): `deleteGlobalChatMessage` is called
+from the moderator handler at `app/api/chat/route.ts:572` behind the `isAdmin`
+gate at :564, `disbandClan` deletes from the real `clan_chat_messages` table
+(`lib/clanService.ts:1013`), `app/admin/vip/page.tsx` is gone, the
+`game:request_tile_info` stub is gone (`server.ts` 0 hits), and the game page
+carries no "Coming Soon" views.

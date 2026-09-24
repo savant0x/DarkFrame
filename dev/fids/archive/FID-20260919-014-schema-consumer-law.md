@@ -1,6 +1,6 @@
 # FID-20260919-014 — Standing law: every schema block carries a live-consumer pointer or a removal ticket
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (2026-09-19, commit 3ec3752)`
 **Session:** 2026-09-19
 **Origin:** Operator directive: "Add a standing ledger law: every schema block in lib/db
 must carry a live-consumer pointer or a removal ticket, so unwritten-adjacent stacks
@@ -89,4 +89,16 @@ Gate evidence: census run on the current tree reports 63 tables — 50 live, 13 
 synthetic ghost table (`zzCensusGhostTable`) was refused with exit 1 and removed.
 Enforcement wiring: pre-push Gate 4, beside the inverted-route census (Gate 1) and the
 Mongo eradication census (Gate 3).
+
+*Bookkeeping correction (2026-09-23):* this FID was already closed and archived on
+2026-09-19 (`9e5303c`), but its status field still read `loop-complete (filed +
+implemented same session, on operator directive)` — re-importing the exact
+"converged means done" ambiguity the 2026-09-16 amendment removed — and a stale
+byte-identical duplicate of the file sat in the active `dev/fids/` directory.
+On 2026-09-23 the status was corrected to `closed` carrying the implementation
+hash, and the active duplicate was removed (the archived original was
+byte-identical apart from that status line, so no content was lost).
+Re-probed 2026-09-23 before flipping (Law 16): `scripts/schemaConsumerCensus.cjs`
+exists, Law 17 is present in `dev/echo-v0.1.2-single-agent.md`, Gate 4 is wired in
+`.githooks/pre-push`, and the census still exits 0 on the current tree.
 

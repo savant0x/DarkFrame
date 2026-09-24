@@ -1,6 +1,6 @@
 # FID-20260919-013 — Real player-notification delivery: one seam, every event pushed
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (2026-09-19, commit 746b920)`
 **Session:** 2026-09-19 (design directive)
 **Origin:** Operator directive: "Design the real player-notification system the dead stack
 pretended to be — wire WMD events and auction outcomes to a live surface."
@@ -78,3 +78,14 @@ seller's live connection; direct seam re-delivery with the same dedupeKey was dr
 Producer note recorded honestly: the interception/impact rewire initially lost the
 recordAdminAlert call lines to a regex backreference bug; caught by tsc within the
 same batch and restored with original indentation.
+
+*Bookkeeping correction (2026-09-23):* this FID was already closed and archived on
+2026-09-19 (`e05044a`), but its status field still read `loop-complete (filed +
+implemented same session, on operator directive)` — re-importing the exact
+"converged means done" ambiguity the 2026-09-16 amendment removed — and a stale
+byte-identical duplicate of the file sat in the active `dev/fids/` directory.
+On 2026-09-23 the status was corrected to `closed` carrying the implementation
+hash, and the active duplicate was removed (the archived original was
+byte-identical apart from that status line, so no content was lost).
+Re-probed 2026-09-23 before flipping (Law 16): `lib/playerNotification.ts`
+exports `notifyPlayer`, and the commit `746b920` resolves in history.

@@ -1,6 +1,6 @@
 # FID-20260919-015 — SCOPE row 112: wire all four ticketed tables (chatReadStatus, shrineBlessings, wmdConfig, wmdSuspiciousActivity)
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (2026-09-19, commit 32c6f85)`
 **Session:** 2026-09-19 (operator directive: "on the 112, wire everything")
 **Origin:** FID-20260919-014's Law-17 census caught four ghost tables and ticketed them
 (SCOPE row 112). Operator chose **wire** for all four — no removals.
@@ -106,3 +106,17 @@ percent boundary, config gate flipping an insert off, and a 10-launch
 
 **Carried forward (§3 non-goals):** `COOLDOWN_BYPASS_ATTEMPT` stays unwired (no cooldown
 seam exists to bypass); `RAPID_VOTING` / `UNUSUAL_PATTERN` remain enum-only.
+
+*Bookkeeping correction (2026-09-23):* this FID was already closed and archived on
+2026-09-19 (`3736184`), but its status field still read `loop-complete (filed +
+implemented same session, on operator directive)` — re-importing the exact
+"converged means done" ambiguity the 2026-09-16 amendment removed — and a stale
+byte-identical duplicate of the file sat in the active `dev/fids/` directory.
+On 2026-09-23 the status was corrected to `closed` carrying the implementation
+hash, and the active duplicate was removed (the archived original was
+byte-identical apart from that status line, so no content was lost).
+Re-probed 2026-09-23 before flipping (Law 16): all four services exist
+(`lib/chatReadStatusService.ts`, `lib/shrineBlessingService.ts`,
+`lib/wmd/admin/alertConfigService.ts`, `lib/wmd/suspiciousActivityService.ts`),
+migration `0036_chat_read_status_unique.sql` is present, and the commit
+`32c6f85` resolves in history.

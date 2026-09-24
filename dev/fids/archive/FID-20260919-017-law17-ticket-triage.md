@@ -1,6 +1,6 @@
 # FID-20260919-017 — Law-17 ticket triage: 5 removes, 3 wires (clears the queue)
 
-**Status:** `loop-complete (filed + implemented same session, on operator directive)`
+**Status:** `closed (2026-09-19, commit da29f5b)`
 **Session:** 2026-09-19 (operator directive: "Triage the 8 remaining Law-17 ticketed tables into wire-vs-remove with evidence, and present the disposition set for approval" → approved as recommended)
 **Origin:** FID-20260919-014's Law-17 census. Full triage: `dev/LAW17-TICKET-TRIAGE-2026-09-19.md`.
 
@@ -92,3 +92,19 @@ Gates: suite **1274/1274** (131 files), tsc 0, eslint clean; census 57 tables �
 module is unwired — its entry `applyClanWMDConsequences` and its exported readers
 have no callers. `wmdRetaliationRights` is classed live only because that dead
 module holds both a writer and a reader. A separate disposition is warranted.
+
+*Bookkeeping correction (2026-09-23):* this FID was already closed and archived on
+2026-09-19 (`199ad3f`), but its status field still read `loop-complete (filed +
+implemented same session, on operator directive)` — re-importing the exact
+"converged means done" ambiguity the 2026-09-16 amendment removed — and a stale
+byte-identical duplicate of the file sat in the active `dev/fids/` directory.
+On 2026-09-23 the status was corrected to `closed` carrying the implementation
+hash, and the active duplicate was removed (the archived original was
+byte-identical apart from that status line, so no content was lost).
+Re-probed 2026-09-23 before flipping (Law 16): migration
+`0038_law17_ticket_removals.sql` is present, `generateId()` is in use across the
+three repaired writers (`lib/wmd/jobs/missileTracker.ts`, `lib/wmd/spyService.ts`,
+`lib/wmd/defenseService.ts`), the census reports the queue still clear, and the
+commit `da29f5b` resolves in history. The adjacent `clanConsequencesService`
+finding recorded above was subsequently dispositioned and implemented under
+FID-20260919-018 (`6ee7e79`).
