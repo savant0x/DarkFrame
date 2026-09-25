@@ -363,6 +363,7 @@ let archivedFiles = 0;
 let archivedNonTerminal = 0;
 const noSessionRecord = []; // fatal: closed on/after RECORD_FROM, uncited
 const undatedClosure = []; // fatal: filed on/after RECORD_FROM, terminal, no date
+const closureBeforeFiling = []; // fatal: a closure dated before the FID was filed
 let recordChecked = 0;
 let recordHistory = 0;
 if (fs.existsSync(ARCHIVE_DIR)) {
@@ -393,6 +394,13 @@ if (fs.existsSync(ARCHIVE_DIR)) {
       else recordHistory += 1;
       continue;
     }
+    // A closure cannot predate the filing — the one cheap sanity check that keeps
+    // the date from being written to dodge the cutover (probed 2026-09-25: 0 of 36
+    // dated closures in the real archive violate it).
+    if (filedDate && date < filedDate) {
+      closureBeforeFiling.push({ file: rel, value, date, filedDate });
+      continue;
+    }
     if (date < RECORD_FROM) {
       recordHistory += 1;
       continue;
@@ -414,7 +422,12 @@ process.stdout.write(
 );
 
 const violations =
-  unknownStatus.length + liveTerminal.length + deadHashes.length + noSessionRecord.length + undatedClosure.length;
+  unknownStatus.length +
+  liveTerminal.length +
+  deadHashes.length +
+  noSessionRecord.length +
+  undatedClosure.length +
+  closureBeforeFiling.length;
 
 if (violations === 0) {
   if (deadHashesWaived.length > 0) {
@@ -480,6 +493,14 @@ if (undatedClosure.length > 0) {
   for (const v of undatedClosure) {
     process.stdout.write(
       `  ${v.file}  status \`${v.value}\` — write \`<status> (YYYY-MM-DD, commit <hash>)\`, or check D cannot judge it\n`,
+    );
+  }
+}
+if (closureBeforeFiling.length > 0) {
+  process.stdout.write(`CLOSURES DATED BEFORE THE FID WAS FILED (${closureBeforeFiling.length}):\n`);
+  for (const v of closureBeforeFiling) {
+    process.stdout.write(
+      `  ${v.file}  filed ${v.filedDate}  status \`${v.value}\` — a closure cannot precede the filing\n`,
     );
   }
 }

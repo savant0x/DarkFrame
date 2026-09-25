@@ -238,6 +238,18 @@ describe('ledger-integrity census', () => {
     expect(out).toContain('session record — 0 terminal FID(s) closed on/after 2026-09-24');
   });
 
+  it('fails a closure dated before the FID was filed (the cutover cannot be dodged by writing a date)', () => {
+    const root = fixture(
+      {},
+      DEFAULT_SCOPE,
+      { archive: { 'FID-20990101-001-fixture.md': archived('closed (2026-01-01, commit abc1234)') } },
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code).toBe(1);
+    expect(out).toContain('CLOSURES DATED BEFORE THE FID WAS FILED');
+    expect(out).toContain('a closure cannot precede the filing');
+  });
+
   it('refuses rather than passing when the session-summaries directory is absent', () => {
     const root = fixture({ 'FID-20990101-001-fixture.md': fid('created') }, DEFAULT_SCOPE, { summaries: null });
     const { code, out } = runLedgerCensus(root);
