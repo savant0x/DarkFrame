@@ -28,14 +28,32 @@
  *      silently "repaired" into a different hash. So destruction-by-design is
  *      waived explicitly and by reason, while a NEW dead hash fails the gate.
  *
- * Both advisory lines (archived non-terminal statuses; hashes that resolve but
- * are not reachable from HEAD) are REPORTED, never fatal: archives keep their
- * historical labels by rule, and pre-rewrite objects may legitimately live only
- * on a backup ref. Only A, B and C fail.
+ *   D. A FID closed on/after RECORD_FROM that no session summary cites — plus a
+ *      post-cutover terminal FID with no dated closure, which would make the
+ *      check unfalsifiable. Found 2026-09-25 by probing rather than trusting the
+ *      ledger's account of itself: four FID closures and nine commits shipped on
+ *      2026-09-24 (releases 0.0.33-0.0.35 — the ledger census, the lint gate, the
+ *      typecheck and suite gates, and CI running the same chain) with no session
+ *      summary at all, and `grep -n session-summaries` over `.githooks/*`,
+ *      `.github/workflows/*.yml` and `scripts/*.cjs` exited 1 — NOTHING read the
+ *      directory, so a green chain and a missing record coexisted. The directory
+ *      is where Law 8 lives (`dev/session-summaries/README.md`) and where the FID
+ *      auto-archive rule says to log the archival (`dev/echo-v0.1.2-single-agent.md`
+ *      "Log the archival in the session summary").
+ *
+ * The advisory lines (archived non-terminal statuses; hashes that resolve but are
+ * not reachable from HEAD; terminal closures that PREDATE the session-record
+ * cutover) are REPORTED, never fatal: archives keep their historical labels by
+ * rule, pre-rewrite objects may legitimately live only on a backup ref, and the
+ * pre-cutover record cannot be retroactively demanded by a gate — the 2026-09-19 …
+ * 09-22 span (71 commits, releases 0.0.13-0.0.31) is an OPEN operator decision
+ * (SCOPE.md row 124), not something this check may silently declare a violation.
+ * Only A, B, C and D fail.
  *
  * SCOPE: `dev/fids/*.md` (top level — `archive/` is deliberately unchecked for
- * statuses) and `SCOPE.md` ledger lines (table rows and bullets; fenced code
- * blocks are skipped, since a pasted transcript is not a citation).
+ * statuses, but IS checked for session records), `dev/session-summaries/*.md`, and
+ * `SCOPE.md` ledger lines (table rows and bullets; fenced code blocks are skipped,
+ * since a pasted transcript is not a citation).
  *
  * Fail-closed: a missing `dev/fids/`, a missing SCOPE.md, an unreadable config,
  * a malformed/empty vocabulary, an unusable git or a partial hash-probe read all
@@ -79,6 +97,22 @@ const CONFIG = path.join(REPO_ROOT, 'protocol.config.yaml');
 const LIVE_DIR = path.join(ROOT, 'dev', 'fids');
 const ARCHIVE_DIR = path.join(LIVE_DIR, 'archive');
 const SCOPE_FILE = path.join(ROOT, 'SCOPE.md');
+const SUMMARY_DIR = path.join(ROOT, 'dev', 'session-summaries');
+
+/**
+ * The date from which a terminal FID must be cited by a session summary.
+ *
+ * 2026-09-24 is the first day for which the record is demonstrably complete: the
+ * timestamp batch (`SESSION-2026-09-24-001`) and the gate campaign
+ * (`SESSION-2026-09-24-002`) both have summaries, and every FID closed that day is
+ * cited by one (probed 2026-09-25: 8/8). Choosing a later date would exempt
+ * closures that ARE recorded and weaken the check for nothing; choosing an earlier
+ * one would fail history the gate has no business rewriting — FIDs closed
+ * 2026-09-19 … 09-22 have no summary because the session-record step was skipped
+ * for six days, and "retro-file that span or start clean" is an operator decision
+ * (SCOPE.md row 124), not a gate verdict.
+ */
+const RECORD_FROM = '2026-09-24';
 
 /**
  * Hashes that are cited in SCOPE.md, that no longer resolve, and that must stay
@@ -200,10 +234,20 @@ function parseStatus(file) {
     const m = /^\s*Status\s*:?\s*(.+)$/i.exec(plain);
     if (!m) continue;
     const value = m[1].trim();
+    // `closed (2026-09-24, commit `43ab259`)` → the closure date, when the
+    // record states one. The convention is `<status> (YYYY-MM-DD, …)`; an absent
+    // date is not guessed from git history, because the point of check D is that
+    // the record must SAY when it closed.
+    const dated = /\b(\d{4}-\d{2}-\d{2})\b/.exec(value);
     // Keep the raw-ish value for the report (markdown stripped already).
-    return { token: value.split(/[\s(,]+/)[0].toLowerCase(), value, line: i + 1 };
+    return {
+      token: value.split(/[\s(,]+/)[0].toLowerCase(),
+      value,
+      date: dated ? dated[1] : '',
+      line: i + 1,
+    };
   }
-  return { token: '', value: '', line: 0 };
+  return { token: '', value: '', date: '', line: 0 };
 }
 
 const unknownStatus = [];
@@ -287,9 +331,40 @@ for (const [hash, at] of citations) {
   }
 }
 
+// ---- D: the session record --------------------------------------------------
+// Fail-closed on the INPUT, not on the verdict: a missing or empty
+// dev/session-summaries/ would make check D vacuously true, which is the class
+// this project hardened out of its hooks (an absent tool is not a pass).
+if (!fs.existsSync(SUMMARY_DIR)) {
+  refuse(`no ${SUMMARY_DIR} (the session record the auto-archive rule writes to) — check D would be vacuous`);
+}
+let summaryNames;
+try {
+  summaryNames = fs.readdirSync(SUMMARY_DIR, { withFileTypes: true })
+    .filter((e) => e.isFile() && e.name.endsWith('.md') && e.name !== 'README.md')
+    .map((e) => e.name)
+    .sort();
+} catch (e) {
+  refuse(`cannot read ${SUMMARY_DIR}: ${e.message}`);
+}
+if (summaryNames.length === 0) {
+  refuse(`no session summary in ${SUMMARY_DIR} — a closure with no session record is the defect check D exists for`);
+}
+const summaryTexts = summaryNames.map((name) => {
+  try {
+    return { name, text: fs.readFileSync(path.join(SUMMARY_DIR, name), 'utf8') };
+  } catch (e) {
+    refuse(`cannot read ${path.join(SUMMARY_DIR, name)}: ${e.message}`);
+  }
+});
+
 // ---- advisory: archived labels ----------------------------------------------
 let archivedFiles = 0;
 let archivedNonTerminal = 0;
+const noSessionRecord = []; // fatal: closed on/after RECORD_FROM, uncited
+const undatedClosure = []; // fatal: filed on/after RECORD_FROM, terminal, no date
+let recordChecked = 0;
+let recordHistory = 0;
 if (fs.existsSync(ARCHIVE_DIR)) {
   let entries = [];
   try {
@@ -299,11 +374,32 @@ if (fs.existsSync(ARCHIVE_DIR)) {
   }
   archivedFiles = entries.length;
   for (const e of entries) {
-    const { token } = parseStatus(path.join(ARCHIVE_DIR, e.name));
+    const { token, value, date } = parseStatus(path.join(ARCHIVE_DIR, e.name));
     // Legacy synonyms (converged / COMPLETED / …) are permitted in archives by
     // rule, so this is a shape check, not a verdict: archives are NOT checked
     // against allowed_statuses.
-    if (!terminal.includes(token)) archivedNonTerminal += 1;
+    if (!terminal.includes(token)) {
+      archivedNonTerminal += 1;
+      continue;
+    }
+    const rel = `dev/fids/archive/${e.name}`;
+    const idMatch = /^(FID-\d{4})(\d{2})(\d{2})-(\d{3})/.exec(e.name);
+    const filedDate = idMatch ? `${idMatch[1].slice(4)}-${idMatch[2]}-${idMatch[3]}` : '';
+    const fidId = idMatch ? `${idMatch[1]}${idMatch[2]}${idMatch[3]}-${idMatch[4]}` : '';
+    if (!date) {
+      // A post-cutover closure with no date cannot be judged at all, and leaving
+      // it unjudged is how a check becomes decorative — so it fails instead.
+      if (filedDate && filedDate >= RECORD_FROM) undatedClosure.push({ file: rel, value });
+      else recordHistory += 1;
+      continue;
+    }
+    if (date < RECORD_FROM) {
+      recordHistory += 1;
+      continue;
+    }
+    const cited = fidId ? summaryTexts.some((s) => s.text.includes(fidId)) : false;
+    if (!cited) noSessionRecord.push({ file: rel, id: fidId || e.name, value, date });
+    else recordChecked += 1;
   }
 }
 
@@ -317,7 +413,8 @@ process.stdout.write(
     `terminalStatuses=[${terminal.join(', ')}]\n`,
 );
 
-const violations = unknownStatus.length + liveTerminal.length + deadHashes.length;
+const violations =
+  unknownStatus.length + liveTerminal.length + deadHashes.length + noSessionRecord.length + undatedClosure.length;
 
 if (violations === 0) {
   if (deadHashesWaived.length > 0) {
@@ -330,13 +427,26 @@ if (violations === 0) {
     `ledger census advisory: ${archivedNonTerminal}/${archivedFiles} archived FID(s) carry a non-terminal ` +
       `label (historical labels are preserved by rule)\n`,
   );
+  process.stdout.write(
+    `ledger census: session record — ${recordChecked} terminal FID(s) closed on/after ${RECORD_FROM} cited by ` +
+      `${summaryNames.length} session summary file(s)\n`,
+  );
+  if (recordHistory > 0) {
+    process.stdout.write(
+      `ledger census advisory: ${recordHistory} terminal archived FID(s) predate ${RECORD_FROM} or carry no ` +
+        `closure date (history, not demanded retroactively — the 2026-09-19..09-22 span is an open decision, SCOPE row 124)\n`,
+    );
+  }
   if (unreachableHashes.length > 0) {
     process.stdout.write(
       `ledger census advisory: ${unreachableHashes.length} cited hash(es) exist but are not reachable from HEAD: ` +
         `${unreachableHashes.map((u) => u.hash).join(', ')}\n`,
     );
   }
-  process.stdout.write('ledger census clean: live statuses lawful, no terminal FID parked, every SCOPE hash resolves\n');
+  process.stdout.write(
+    'ledger census clean: live statuses lawful, no terminal FID parked, every SCOPE hash resolves, ' +
+      `every closure from ${RECORD_FROM} carries a session record\n`,
+  );
   process.exit(0);
 }
 
@@ -357,11 +467,29 @@ if (deadHashes.length > 0) {
     process.stdout.write(`  SCOPE.md:${v.at.join(',')}  \`${v.hash}\` — not a commit in this repo\n`);
   }
 }
+if (noSessionRecord.length > 0) {
+  process.stdout.write(`FIDs CLOSED ON/AFTER ${RECORD_FROM} WITH NO SESSION RECORD (${noSessionRecord.length}):\n`);
+  for (const v of noSessionRecord) {
+    process.stdout.write(
+      `  ${v.file}  ${v.date}  \`${v.id}\` — no dev/session-summaries/*.md cites it (Law 8 / the auto-archive rule)\n`,
+    );
+  }
+}
+if (undatedClosure.length > 0) {
+  process.stdout.write(`TERMINAL FIDs FILED ON/AFTER ${RECORD_FROM} WITH NO DATED CLOSURE (${undatedClosure.length}):\n`);
+  for (const v of undatedClosure) {
+    process.stdout.write(
+      `  ${v.file}  status \`${v.value}\` — write \`<status> (YYYY-MM-DD, commit <hash>)\`, or check D cannot judge it\n`,
+    );
+  }
+}
 process.stdout.write(
   '\nA ledger claim is only as good as its checkability: a status must be one the\n' +
     'protocol defines (protocol.config.yaml `allowed_statuses`), a terminal FID\n' +
-    'belongs in dev/fids/archive/ (`archive_on_close: true`), and a cited commit\n' +
-    'hash must resolve (`git cat-file -e <hash>^{commit}`). A hash that was\n' +
+    'belongs in dev/fids/archive/ (`archive_on_close: true`), a cited commit\n' +
+    'hash must resolve (`git cat-file -e <hash>^{commit}`), and a closure from\n' +
+    `${RECORD_FROM} forward must be a record someone wrote down: a session summary\n` +
+    'in dev/session-summaries/ that cites the FID. A hash that was\n' +
     'destroyed on purpose is waived by REASON in scripts/ledgerIntegrityCensus.cjs\n' +
     '— never silently replaced by a hash that happens to resolve.\n',
 );

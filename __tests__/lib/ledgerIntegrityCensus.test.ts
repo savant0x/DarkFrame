@@ -1,10 +1,13 @@
 /**
  * @file __tests__/lib/ledgerIntegrityCensus.test.ts
  * @created 2026-09-24
+ * @last_updated 2026-09-25 — check D (the session record) added
  * @overview Pins that the ledger-integrity census gate holds on the real tree,
- *            and drills each of its three failure modes against fixtures — the
+ *            and drills each of its four failure modes against fixtures — the
  *            live directory is legitimately empty today, so a green run alone
- *            would prove nothing about checks A and B.
+ *            would prove nothing about checks A and B, and every FID closed
+ *            on/after the cutover is already recorded, so a green run would prove
+ *            nothing about check D either.
  *
  * Fixtures live under `dev/tmp/` (gitignored) but INSIDE this repository, so the
  * census can still resolve cited hashes through the enclosing git repo.
@@ -30,14 +33,36 @@ function runLedgerCensus(root?: string): { code: number; out: string } {
   }
 }
 
-/** Materialize a `dev/fids` + `SCOPE.md` tree to audit. */
-function fixture(fids: Record<string, string>, scope = '# SCOPE\n\n| # | Note |\n| --- | --- |\n'): string {
+const DEFAULT_SCOPE = '# SCOPE\n\n| # | Note |\n| --- | --- |\n';
+const STUB_SUMMARY = '# SESSION-2099-01-01-001 — stub\n\nNo ledger FID is cited by this fixture stub.\n';
+
+/**
+ * Materialize a `dev/fids` + `SCOPE.md` tree to audit. `summaries` is created by
+ * default (a stub that cites nothing) because check D refuses when the session
+ * record is missing or empty; pass `null` to omit the directory, or a map to
+ * control what the summaries say.
+ */
+function fixture(
+  fids: Record<string, string>,
+  scope = DEFAULT_SCOPE,
+  opts: { archive?: Record<string, string>; summaries?: Record<string, string> | null } = {},
+): string {
   mkdirSync(join(ROOT, 'dev', 'tmp'), { recursive: true });
   const root = mkdtempSync(join(ROOT, 'dev', 'tmp', 'ledger-census-'));
   created.push(root);
-  mkdirSync(join(root, 'dev', 'fids'), { recursive: true });
+  mkdirSync(join(root, 'dev', 'fids', 'archive'), { recursive: true });
   for (const [name, body] of Object.entries(fids)) {
     writeFileSync(join(root, 'dev', 'fids', name), body);
+  }
+  for (const [name, body] of Object.entries(opts.archive ?? {})) {
+    writeFileSync(join(root, 'dev', 'fids', 'archive', name), body);
+  }
+  if (opts.summaries !== null) {
+    const summaries = opts.summaries ?? { 'SESSION-2099-01-01-001.md': STUB_SUMMARY };
+    mkdirSync(join(root, 'dev', 'session-summaries'), { recursive: true });
+    for (const [name, body] of Object.entries(summaries)) {
+      writeFileSync(join(root, 'dev', 'session-summaries', name), body);
+    }
   }
   writeFileSync(join(root, 'SCOPE.md'), scope);
   return root;
@@ -45,6 +70,11 @@ function fixture(fids: Record<string, string>, scope = '# SCOPE\n\n| # | Note |\
 
 function fid(status: string): string {
   return `# FID-20990101-001 — fixture\n\n**ID:** FID-20990101-001\n**Status:** ${status}\n**Created:** 2099-01-01\n`;
+}
+
+/** An archived (closed) FID body — check D reads these, not the live ones. */
+function archived(status: string): string {
+  return `# FID-20990101-001 — fixture\n\n**ID:** FID-20990101-001\n**Status:** ${status}\n`;
 }
 
 afterEach(() => {
@@ -148,5 +178,78 @@ describe('ledger-integrity census', () => {
     expect(code).toBe(2);
     expect(out).toContain('LEDGER CENSUS REFUSED');
     expect(out).toContain('vacuous');
+  });
+
+  // ---- D: the session record (added 2026-09-25) -----------------------------
+
+  it('fails a FID closed after the cutover that no session summary cites', () => {
+    const root = fixture(
+      {},
+      DEFAULT_SCOPE,
+      { archive: { 'FID-20990101-001-fixture.md': archived('closed (2099-01-01, commit abc1234)') } },
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code).toBe(1);
+    expect(out).toContain('FIDs CLOSED ON/AFTER 2026-09-24 WITH NO SESSION RECORD');
+    expect(out).toContain('FID-20990101-001');
+  });
+
+  it('passes when a session summary cites the closure', () => {
+    const root = fixture(
+      {},
+      DEFAULT_SCOPE,
+      {
+        archive: { 'FID-20990101-001-fixture.md': archived('closed (2099-01-01, commit abc1234)') },
+        summaries: { 'SESSION-2099-01-01-001.md': '# SESSION-2099-01-01-001 — cites FID-20990101-001\n' },
+      },
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('session record — 1 terminal FID(s) closed on/after 2026-09-24');
+  });
+
+  it('fails a post-cutover terminal closure with no date (check D would be unfalsifiable)', () => {
+    const root = fixture(
+      {},
+      DEFAULT_SCOPE,
+      { archive: { 'FID-20990101-001-fixture.md': archived('closed') } },
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code).toBe(1);
+    expect(out).toContain('TERMINAL FIDs FILED ON/AFTER 2026-09-24 WITH NO DATED CLOSURE');
+  });
+
+  it('reports pre-cutover closures as advisory history, never as violations', () => {
+    const root = fixture(
+      {},
+      DEFAULT_SCOPE,
+      {
+        archive: {
+          // Undated terminal closure, filed before the cutover: history.
+          'FID-20260101-001-old.md': archived('closed'),
+          // Dated closure before the cutover: also history.
+          'FID-20260101-002-older.md': archived('closed (2026-01-01, commit abc1234)'),
+        },
+      },
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('predate 2026-09-24 or carry no closure date');
+    expect(out).toContain('session record — 0 terminal FID(s) closed on/after 2026-09-24');
+  });
+
+  it('refuses rather than passing when the session-summaries directory is absent', () => {
+    const root = fixture({ 'FID-20990101-001-fixture.md': fid('created') }, DEFAULT_SCOPE, { summaries: null });
+    const { code, out } = runLedgerCensus(root);
+    expect(code).toBe(2);
+    expect(out).toContain('LEDGER CENSUS REFUSED');
+    expect(out).toContain('vacuous');
+  });
+
+  it('refuses when the summary directory holds no summary at all', () => {
+    const root = fixture({ 'FID-20990101-001-fixture.md': fid('created') }, DEFAULT_SCOPE, { summaries: {} });
+    const { code, out } = runLedgerCensus(root);
+    expect(code).toBe(2);
+    expect(out).toContain('the defect check D exists for');
   });
 });
