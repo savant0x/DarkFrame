@@ -7,13 +7,32 @@
  * gathering bonuses, diminishing returns, and harvest tracking.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getCurrentResetPeriod,
   getTimeUntilReset,
   calculateHarvestAmount,
   generateBaseHarvestAmount,
+  canHarvestTile,
 } from '@/lib/harvestService';
+import { TerrainType, type Tile } from '@/types';
+
+// FID-20260925-003: canHarvestTile reads the tile's harvest log (drizzle) AFTER
+// its terrain gate. This mock exposes only the one chain shape it uses —
+// db.select().from().where().limit() — and the tests drive it through dbState.
+const dbState = vi.hoisted(() => ({ tileRows: [] as unknown[] }));
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve(dbState.tileRows),
+        }),
+      }),
+    }),
+  },
+}));
 
 describe('harvestService', () => {
   describe('Reset Period Logic', () => {
@@ -331,5 +350,65 @@ describe('harvestService', () => {
       expect(amount).toBe(1250);
       expect(Number.isInteger(amount)).toBe(true);
     });
+  });
+});
+
+/**
+ * FID-20260925-003 — the regression this file was missing.
+ *
+ * `/api/harvest` can dispatch four terrains (Metal/Energy -> harvestResourceTile,
+ * Cave/Forest -> lib/caveItemService) and the viewport marks the same four
+ * farmable, but canHarvestTile's eligibility list named only Metal, Energy and
+ * Cave. Forest harvest was therefore impossible for every player through every
+ * path, and the refusal was surfaced as a cooldown the tile had never earned.
+ * The first test below fails against that list and passes against the fix.
+ */
+describe('canHarvestTile — terrain eligibility (FID-20260925-003)', () => {
+  const tileAt = (terrain: TerrainType, x = 10): Tile =>
+    ({ x, y: 20, terrain }) as unknown as Tile;
+
+  beforeEach(() => {
+    dbState.tileRows = [];
+  });
+
+  it('accepts EVERY terrain the game advertises as farmable — Forest included', async () => {
+    const advertised = [
+      TerrainType.Metal,
+      TerrainType.Energy,
+      TerrainType.Cave,
+      TerrainType.Forest,
+    ];
+
+    for (const terrain of advertised) {
+      await expect(canHarvestTile('alice', tileAt(terrain))).resolves.toBe(true);
+    }
+  });
+
+  it('still refuses a terrain no harvest path can pay out (Factory)', async () => {
+    await expect(canHarvestTile('alice', tileAt(TerrainType.Factory))).resolves.toBe(false);
+  });
+
+  it('refuses a tile this player already harvested in the current reset period', async () => {
+    dbState.tileRows = [
+      { lastHarvestedBy: [{ playerId: 'alice', resetPeriod: getCurrentResetPeriod(10) }] },
+    ];
+
+    await expect(canHarvestTile('alice', tileAt(TerrainType.Forest))).resolves.toBe(false);
+  });
+
+  it('allows the same tile again once the reset period has rolled over', async () => {
+    dbState.tileRows = [
+      { lastHarvestedBy: [{ playerId: 'alice', resetPeriod: '1999-01-01-AM' }] },
+    ];
+
+    await expect(canHarvestTile('alice', tileAt(TerrainType.Forest))).resolves.toBe(true);
+  });
+
+  it("ignores another player's harvest of the same tile", async () => {
+    dbState.tileRows = [
+      { lastHarvestedBy: [{ playerId: 'bob', resetPeriod: getCurrentResetPeriod(10) }] },
+    ];
+
+    await expect(canHarvestTile('alice', tileAt(TerrainType.Forest))).resolves.toBe(true);
   });
 });

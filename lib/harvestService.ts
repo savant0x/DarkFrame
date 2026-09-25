@@ -108,7 +108,20 @@ export function getTimeUntilReset(x: number): number {
  * 
  * Verifies:
  * - Player hasn't harvested this tile in current reset period
- * - Tile is harvestable type (Metal, Energy, or Cave)
+ * - Tile is harvestable type (Metal, Energy, Cave, or Forest)
+ * 
+ * FID-20260925-003: Forest was missing from the eligibility list below and had
+ * been since Forest gained a harvest path. `/api/harvest` dispatches Forest to
+ * `harvestForestTile`, which gates on THIS function (`lib/caveItemService.ts`),
+ * so every forest tile was refused eligibility by a list that was never updated
+ * for it — reported to the player as "You have already explored this forest", a
+ * cooldown the tile had never earned. Because the refusal returned before any
+ * harvest record was written, the viewport chip (`components/TileRenderer.tsx`)
+ * could never flip off `ready` either: ~2% of the map (the generator's own
+ * Forest weight) read permanently farmable and yielded nothing, for every
+ * player, through every harvest path. The list must name every terrain that
+ * `/api/harvest` can dispatch; Metal/Energy payout via `harvestResourceTile`,
+ * Cave/Forest via `lib/caveItemService`.
  * 
  * @param playerId - Player's username
  * @param tile - Tile to check
@@ -120,7 +133,7 @@ export async function canHarvestTile(
 ): Promise<boolean> {
   try {
     // Check if tile is harvestable type
-    if (![TerrainType.Metal, TerrainType.Energy, TerrainType.Cave].includes(tile.terrain)) {
+    if (![TerrainType.Metal, TerrainType.Energy, TerrainType.Cave, TerrainType.Forest].includes(tile.terrain)) {
       return false;
     }
     
