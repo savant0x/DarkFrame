@@ -53,7 +53,7 @@ import { TerrainType, Discovery, Achievement, type FlagBearer, type FlagDetailPa
 import { AutoFarmEngine } from '@/utils/autoFarmEngine';
 import { foundItems } from '@/lib/inventoryUtils';
 import { AutoFarmStatus, AutoFarmSessionStats, AutoFarmAllTimeStats, AutoFarmEvent, DEFAULT_SESSION_STATS, DEFAULT_ALL_TIME_STATS } from '@/types/autoFarm.types';
-import { loadAllTimeStats } from '@/lib/autoFarmPersistence';
+import { loadAllTimeStats, mergeSessionIntoAllTime } from '@/lib/autoFarmPersistence';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 import { showSuccess } from '@/lib/toastService';
 
@@ -177,8 +177,11 @@ export default function GamePage() {
   const [autoFarmPosition, setAutoFarmPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [autoFarmTilesCompleted, setAutoFarmTilesCompleted] = useState<number>(0);
   const [autoFarmLastAction, setAutoFarmLastAction] = useState<string>('Ready');
-  const [, setAutoFarmSessionStats] = useState<AutoFarmSessionStats>(DEFAULT_SESSION_STATS);
-  const [, setAutoFarmAllTimeStats] = useState<AutoFarmAllTimeStats>(DEFAULT_ALL_TIME_STATS);
+  // FID-20260925-005: these were discarded setters (`const [, set…]`) — the
+  // engine's stats landed in state nothing could read, and no surface rendered
+  // them. Both shapes are now real state, passed to AutoFarmPanel below.
+  const [autoFarmSessionStats, setAutoFarmSessionStats] = useState<AutoFarmSessionStats>(DEFAULT_SESSION_STATS);
+  const [autoFarmAllTimeStats, setAutoFarmAllTimeStats] = useState<AutoFarmAllTimeStats>(DEFAULT_ALL_TIME_STATS);
 
   // ============================================
   // FLAG TRACKER STATE
@@ -272,6 +275,18 @@ export default function GamePage() {
           setPanelMessage('🎉 Auto-Farm: Map completed!');
           setAutoFarmLastAction('✅ Map Complete!');
           setTimeout(() => setPanelMessage(''), 5000);
+          // FID-20260925-005: only stop() emits `complete` WITH the final
+          // session stats (its contract: "Don't reset stats yet — caller
+          // should save them first"); the map-completion event carries no
+          // data and must not double-merge. Save into the all-time record,
+          // then reset the session counters.
+          if (event.data) {
+            const engine = autoFarmEngineRef.current;
+            if (engine) {
+              setAutoFarmAllTimeStats(mergeSessionIntoAllTime(engine.getStats()));
+              engine.resetStats();
+            }
+          }
         } else if (event.type === 'move') {
           // Update last action
           setAutoFarmLastAction(`→ Moved to (${event.position.x}, ${event.position.y})`);
@@ -279,12 +294,20 @@ export default function GamePage() {
           // Update tile visual using lightweight update (doesn't destroy engine)
           updateTileOnly(event.position.x, event.position.y);
         } else if (event.type === 'harvest') {
-          // Keypress simulation triggers existing harvest UI - just update last action
+          // FID-20260925-005: render the authoritative gains — or the item that
+          // dropped. The old label read data.key, which the direct-API path
+          // never set, so live feedback always said "pressed '?'" while the
+          // real gains sat unused in the same object.
           const data = event.data;
           const terrain = data?.terrain || 'Resource';
-          const key = data?.key || '?';
-          setAutoFarmLastAction(`⛏️ Harvesting ${terrain} (pressed '${key}')`);
-          // Actual harvest result will be displayed by the game's existing harvest handlers
+          const item = data?.itemFound;
+          const metal = data?.metalGained ?? 0;
+          const energy = data?.energyGained ?? 0;
+          setAutoFarmLastAction(
+            item
+              ? `⛏️ ${terrain}: found ${item}`
+              : `⛏️ ${terrain}: +${metal} Metal · +${energy} Energy`
+          );
         } else if (event.type === 'combat') {
           // Display combat results just like manual attacks
           const data = event.data;
@@ -1428,6 +1451,8 @@ export default function GamePage() {
                 tilesCompleted={autoFarmTilesCompleted}
                 lastAction={autoFarmLastAction}
                 isVIP={player?.vip || false}
+                sessionStats={autoFarmSessionStats}
+                allTimeStats={autoFarmAllTimeStats}
                 onStart={handleAutoFarmStart}
                 onPause={handleAutoFarmPause}
                 onResume={handleAutoFarmResume}

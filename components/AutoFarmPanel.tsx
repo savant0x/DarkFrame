@@ -3,10 +3,14 @@
  * Created: 2025-10-19
  * Updated: 2026-09-06 — FID-20260906-012 Phase 2-R1: rebuilt to approved
  *   sample §04 Auto-Farm markup (violet module) with parity.
+ * Updated: 2026-09-25 — FID-20260925-005: "Collected" block added (session
+ *   collection counters + all-time summary). Before this, no surface rendered
+ *   what auto-farm collects, which is why a total harvest failure could only
+ *   be felt as an impression (SCOPE.md row 130).
  *
  * OVERVIEW:
  * Sidebar control panel for auto-farm system. Start/Pause/Stop controls,
- * live status, position, progress. All logic/handlers unchanged.
+ * live status, position, progress, collected resources. All logic/handlers unchanged.
  */
 
 'use client';
@@ -14,7 +18,8 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { Play, Pause, Square, Bot, Zap, Settings2 } from 'lucide-react';
-import { AutoFarmStatus } from '@/types/autoFarm.types';
+import { AutoFarmStatus, AutoFarmSessionStats, AutoFarmAllTimeStats } from '@/types/autoFarm.types';
+import { getStatsSummary } from '@/lib/autoFarmPersistence';
 
 interface AutoFarmPanelProps {
   status: AutoFarmStatus;
@@ -22,6 +27,10 @@ interface AutoFarmPanelProps {
   tilesCompleted: number;
   lastAction?: string;
   isVIP?: boolean;
+  /** Session collection counters (FID-20260925-005). */
+  sessionStats: AutoFarmSessionStats;
+  /** Persisted all-time totals — rendered via getStatsSummary. */
+  allTimeStats: AutoFarmAllTimeStats;
   onStart: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -40,6 +49,8 @@ export default function AutoFarmPanel({
   tilesCompleted,
   lastAction = 'Ready',
   isVIP = false,
+  sessionStats,
+  allTimeStats,
   onStart,
   onPause,
   onResume,
@@ -116,6 +127,34 @@ export default function AutoFarmPanel({
           <div className="nn-meter">
             <div className="nn-meter__seg nn-meter__seg--vio" style={{ width: `${progressPct}%` }} />
           </div>
+        </div>
+
+        {/* Collected block (FID-20260925-005) — the counters the engine records
+            from each authoritative harvest response, plus the persisted
+            all-time summary. Zero renders as 0, never as blank. */}
+        <div className="nn-row">
+          <span className="nn-row__label">Collected</span>
+          <b className="nn-num" style={{ fontSize: 10, color: 'var(--nn-text-tertiary)' }}>SESSION</b>
+        </div>
+        <div className="nn-row">
+          <span className="nn-row__label">Metal</span>
+          <b className="nn-num" style={{ fontSize: 11 }}>{sessionStats.metalCollected.toLocaleString()}</b>
+        </div>
+        <div className="nn-row">
+          <span className="nn-row__label">Energy</span>
+          <b className="nn-num" style={{ fontSize: 11 }}>{sessionStats.energyCollected.toLocaleString()}</b>
+        </div>
+        <div className="nn-row">
+          <span className="nn-row__label">Cave items</span>
+          <b className="nn-num" style={{ fontSize: 11 }}>{sessionStats.caveItemsFound}</b>
+        </div>
+        <div className="nn-row">
+          <span className="nn-row__label">Forest items</span>
+          <b className="nn-num" style={{ fontSize: 11 }}>{sessionStats.forestItemsFound}</b>
+        </div>
+        <div className="nn-row">
+          <span className="nn-row__label">All-time</span>
+          <b style={{ fontSize: 10, color: 'var(--nn-text-tertiary)' }}>{getStatsSummary(allTimeStats)}</b>
         </div>
 
         {/* Live action row (hidden when stopped) */}
