@@ -20,13 +20,16 @@
  *      only by opening files, which is how `dev/fids/` held a single retired
  *      file for days without anyone noticing.
  *
- *   C. A SCOPE.md row citing a commit hash that does not exist in this repo.
- *      A citation is evidence; a hash that does not resolve is an unverifiable
- *      claim wearing the clothes of a verified one. Four real dead citations
- *      exist today (see KNOWN_DEAD) — all of them deliberate destruction or
- *      superseded history, all of them audit-trail records that must NOT be
- *      silently "repaired" into a different hash. So destruction-by-design is
- *      waived explicitly and by reason, while a NEW dead hash fails the gate.
+ *   C. A SCOPE.md row citing a commit hash that does not exist in this repo —
+ *      or that exists only as a loose object in THIS clone's store. A citation
+ *      is evidence; a hash that a fresh clone (and CI) cannot resolve is an
+ *      unverifiable claim wearing the clothes of a verified one. FID-20260927-002
+ *      (CI run 36334419960): seven pre-rewrite citations passed this gate on the
+ *      host — present-but-unreachable objects, printed as an advisory — and
+ *      refused on ubuntu-latest, where they are simply missing; the verdict was a
+ *      function of local gc state, not the ledger. A citation is therefore judged
+ *      by the COMMIT GRAPH (reachability from HEAD), identical on every platform:
+ *      unreachable-or-missing fails unless waived by reason (see KNOWN_DEAD).
  *
  *   D. A FID closed on/after RECORD_FROM that no session summary cites — plus a
  *      post-cutover terminal FID with no dated closure, which would make the
@@ -41,14 +44,15 @@
  *      auto-archive rule says to log the archival (`dev/echo-v0.1.2-single-agent.md`
  *      "Log the archival in the session summary").
  *
- * The advisory lines (archived non-terminal statuses; hashes that resolve but are
- * not reachable from HEAD; terminal closures that PREDATE the session-record
- * cutover) are REPORTED, never fatal: archives keep their historical labels by
- * rule, pre-rewrite objects may legitimately live only on a backup ref, and the
- * pre-cutover record cannot be retroactively demanded by a gate — the 2026-09-19 …
- * 09-22 span (71 commits, releases 0.0.13-0.0.31) is an OPEN operator decision
- * (SCOPE.md row 124), not something this check may silently declare a violation.
- * Only A, B, C and D fail.
+ * The advisory lines (archived non-terminal statuses; terminal closures that
+ * PREDATE the session-record cutover) are REPORTED, never fatal: archives keep
+ * their historical labels by rule, and the pre-cutover record cannot be
+ * retroactively demanded by a gate — the 2026-09-19 … 09-22 span (71 commits,
+ * releases 0.0.13-0.0.31) is an OPEN operator decision (SCOPE.md row 124), not
+ * something this check may silently declare a violation. Citations that resolve
+ * only through loose objects this clone happens to hold are NOT advisory — they
+ * are exactly how a green local gate hides a red CI gate (FID-20260927-002) —
+ * so they fail, unless waived by reason in KNOWN_DEAD. Only A, B, C and D fail.
  *
  * SCOPE: `dev/fids/*.md` (top level — `archive/` is deliberately unchecked for
  * statuses, but IS checked for session records), `dev/session-summaries/*.md`, and
@@ -127,6 +131,21 @@ const KNOWN_DEAD = {
   '23cdc63': 'the pre-checkpoint tip af1e61e was reset from; removed by the same decision',
   '53c1531': 'remote main tip after the 2026-09-03 filter-branch force-push; the later history import superseded it',
   '49b5991': 'base commit of the retained May-era stash@{0}; the stash was dropped and the object gc-pruned (git stash list empty, 2026-09-24)',
+  // FID-20260927-002 — 2026-09-03 history-import debris that survived the first
+  // waiver sweep because the host still resolved them as present-but-unreachable
+  // loose objects. Probed ABSENT in a fresh clone by CI run 36334419960
+  // (ubuntu-latest, 2026-09-27: "not a commit in this repo", Gate 7 refused the
+  // push) and probed locally present-but-unreachable from HEAD (git cat-file -e
+  // OK, git rev-list HEAD misses) — the host-side state that let this gate pass
+  // where CI refused. Cited in good faith from the pre-rewrite ledger (rows
+  // 39-42, row 30, the 2026-09-07 session log): audit-trail records.
+  '2426cf4': 'pre-rewrite canonical hash of rows 39-40 (PR #45) — destroyed by the 2026-09-03 filter-branch/history import that destroyed 53c1531; probed missing on CI run 36334419960',
+  'f7f0921': 'pre-rewrite canonical hash cited at rows 40-41 (PR #45) — same history import; probed missing on CI run 36334419960',
+  '049459b': 'pre-rewrite canonical hash cited at row 42 (PR #47) — same history import; probed missing on CI run 36334419960',
+  '4674b73': 'pre-rewrite hash cited at row 30 (the 2026-09-07 gate-baseline divergence record) — same history import; probed missing on CI run 36334419960',
+  '0e82eb5': 'pre-rewrite hash cited at row 30 and the 2026-09-07 session log — same history import; probed missing on CI run 36334419960',
+  '8be0bde': 'pre-rewrite hash cited at row 30 and the 2026-09-07 session log — same history import; probed missing on CI run 36334419960',
+  'de914fa': 'pre-rewrite hash cited at row 30 and the 2026-09-07 session log — same history import; probed missing on CI run 36334419960',
 };
 
 // ---- vocabulary (protocol.config.yaml is the one place the statuses live) ----
@@ -316,18 +335,26 @@ let inFence = false;
 
 const deadHashes = [];
 const deadHashesWaived = [];
-const unreachableHashes = [];
 
 const cited = [...citations.keys()];
 const missingHashes = probeMissing(cited);
-const reachable = missingHashes.size === cited.length ? [] : headReachable();
+// Computed unconditionally: a citation that resolves ONLY because this clone
+// holds a loose object must take the same branch it would in a fresh clone
+// (FID-20260927-002 — the host/CI verdict split).
+const reachable = headReachable();
 
 for (const [hash, at] of citations) {
   if (missingHashes.has(hash)) {
+    // Absent from the object store entirely.
     if (KNOWN_DEAD[hash]) deadHashesWaived.push({ hash, at });
-    else deadHashes.push({ hash, at });
+    else deadHashes.push({ hash, at, locallyPresent: false });
   } else if (!reachable.some((full) => full.startsWith(hash))) {
-    unreachableHashes.push({ hash, at });
+    // Present in this clone's store but unreachable from HEAD — a fresh clone
+    // (and CI) sees it as missing, so the verdict must be identical: fatal,
+    // unless waived by reason. The old advisory here is exactly how a green
+    // local gate hid a red CI gate.
+    if (KNOWN_DEAD[hash]) deadHashesWaived.push({ hash, at });
+    else deadHashes.push({ hash, at, locallyPresent: true });
   }
 }
 
@@ -450,12 +477,6 @@ if (violations === 0) {
         `closure date (history, not demanded retroactively — the 2026-09-19..09-22 span is an open decision, SCOPE row 124)\n`,
     );
   }
-  if (unreachableHashes.length > 0) {
-    process.stdout.write(
-      `ledger census advisory: ${unreachableHashes.length} cited hash(es) exist but are not reachable from HEAD: ` +
-        `${unreachableHashes.map((u) => u.hash).join(', ')}\n`,
-    );
-  }
   process.stdout.write(
     'ledger census clean: live statuses lawful, no terminal FID parked, every SCOPE hash resolves, ' +
       `every closure from ${RECORD_FROM} carries a session record\n`,
@@ -477,7 +498,11 @@ if (liveTerminal.length > 0) {
 if (deadHashes.length > 0) {
   process.stdout.write(`SCOPE.md HASH CITATIONS THAT DO NOT RESOLVE (${deadHashes.length}):\n`);
   for (const v of deadHashes) {
-    process.stdout.write(`  SCOPE.md:${v.at.join(',')}  \`${v.hash}\` — not a commit in this repo\n`);
+    process.stdout.write(
+      v.locallyPresent
+        ? `  SCOPE.md:${v.at.join(',')}  \`${v.hash}\` — EXISTS LOCALLY BUT IS NOT REACHABLE FROM HEAD: a fresh clone (and CI) sees it as missing — waive by reason in KNOWN_DEAD or re-point the citation\n`
+        : `  SCOPE.md:${v.at.join(',')}  \`${v.hash}\` — not a commit in this repo\n`,
+    );
   }
 }
 if (noSessionRecord.length > 0) {

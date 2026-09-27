@@ -89,9 +89,44 @@ describe('ledger-integrity census', () => {
     const { code, out } = runLedgerCensus();
     expect(code, out).toBe(0);
     expect(out).toContain('ledger census clean');
-    // The four dead citations are waived by reason, not by silence.
+    // The dead citations are waived by reason, not by silence. FID-20260927-002:
+    // the full list is pinned so silent waiver-list rot fails the suite — these
+    // are the 2026-09-03 rewrite-debris hashes CI (a fresh clone) probed absent.
     expect(out).toContain('destroyed-by-design hash(es) waived by reason');
-    expect(out).toContain('af1e61e');
+    for (const h of [
+      'af1e61e', '23cdc63', '53c1531', '49b5991',
+      '2426cf4', 'f7f0921', '049459b', '4674b73', '0e82eb5', '8be0bde', 'de914fa',
+    ]) {
+      expect(out).toContain(h);
+    }
+    // The old advisory branch is gone: a present-but-unreachable citation is now
+    // fatal (waived entries land in the waived line instead), so a clean run can
+    // no longer print the advisory wording at all.
+    expect(out).not.toContain('exist but are not reachable from HEAD');
+  });
+
+  it('fails a citation that exists in the object store but is unreachable from HEAD (a fresh clone sees it as missing)', () => {
+    // FID-20260927-002: CI run 36334419960 refused seven SCOPE citations the
+    // host resolved as present-but-unreachable objects — the census verdict
+    // depended on local gc state. This pin creates exactly that shape: an orphan
+    // commit (an object with no ref) cited from a fixture SCOPE.
+    const env = {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'fixture',
+      GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+      GIT_COMMITTER_NAME: 'fixture',
+      GIT_COMMITTER_EMAIL: 'fixture@example.invalid',
+    };
+    const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { encoding: 'utf8', cwd: ROOT }).trim();
+    const orphan = execFileSync('git', ['commit-tree', tree, '-m', 'orphan fixture commit (FID-20260927-002)'], {
+      encoding: 'utf8', cwd: ROOT, env,
+    }).trim();
+    const root = fixture({}, `# SCOPE\n\n| # | Note |\n| --- | --- |\n| 1 | Fixed in \`${orphan.slice(0, 7)}\` |\n`);
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(1);
+    expect(out).toContain('EXISTS LOCALLY BUT IS NOT REACHABLE FROM HEAD');
+    expect(out).toContain('a fresh clone (and CI) sees it as missing');
+    expect(out).toContain(orphan.slice(0, 7));
   });
 
   it('reads the status vocabulary from protocol.config.yaml, not a private copy', () => {
