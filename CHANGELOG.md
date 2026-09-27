@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.40] — 2026-09-27 session
+
+### Fixed — SCOPE row 133: a manual auto-farm stop no longer announces "Map completed!" — the stop announcements state their own cause (no FID: simple-task flow)
+
+- **The dishonesty.** The game page's `complete` handler printed `🎉 Auto-Farm: Map completed!` for **every** `complete` event, including a manual Stop — found while wiring FID-20260925-005's merge contract and filed as `[OPEN-OUT-OF-SCOPE]` row 133 rather than silently absorbed.
+- **The literal fix is not the whole fix.** The engine emits `complete` **twice** on a natural map completion — the announcement ("Entire map completed!", no data), then the stats-carrying bookkeeping `stop()`. A page-only fix would have made that second event overwrite the honest completion label with "stopped" — the mirror image of the defect, and a fail for Five Questions #1. The cause is stated at derivation instead (the row-131 lesson): `stop(reason: 'manual' | 'map-complete' = 'manual')` selects `'Auto-farm stopped'` vs the shared `MAP_COMPLETE_MESSAGE` constant, `processNextTile` passes `'map-complete'`, `destroy()` keeps the manual default, and the page renders the event's own message verbatim (`event.message ?? 'Run complete'`). The FID-005 merge contract (merge only when `event.data` is present) is untouched, and the `dev/architecture.md` example that taught the hardcoded string is corrected.
+- **Drilled and pinned.** `__tests__/utils/autoFarmStop.test.ts` (3 assertions: manual stop, post-completion bookkeeping stop, destroy path) ran **red against the pre-fix engine (1 failed: `'Auto-farm stopped'` vs required `'Entire map completed!'`) then green (3/3)**. Gates: tsc 0 · lint 0 · suite **1339/1339** (two consecutive full runs) · full 10-gate chain exit 0. One unreproduced single-test failure from an earlier run of the same suite is recorded as row 134, not papered over.
+
 ## [0.0.39] — 2026-09-26 session
 
 ### Fixed — FID-20260925-004: Gate 1 is a platform-independent verdict again — the route census's waiver matched only on Windows, which is why CI had never executed gates 3–10 (closed on `61bda4c`)
