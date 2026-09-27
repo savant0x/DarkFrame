@@ -40,6 +40,12 @@ import {
 } from '@/types/autoFarm.types';
 
 /**
+ * SCOPE row 133: the map-completion wording, shared by the announcement event
+ * and the bookkeeping stop's message so the two cannot drift apart again.
+ */
+const MAP_COMPLETE_MESSAGE = 'Entire map completed!';
+
+/**
  * Callback function types for engine events
  */
 type EventCallback = (event: AutoFarmEvent) => void;
@@ -512,9 +518,16 @@ export class AutoFarmEngine {
   }
 
   /**
-   * Stop auto-farming and reset to initial state
+   * Stop auto-farming and reset to initial state.
+   *
+   * SCOPE row 133: the caller names the cause and the completion event
+   * announces it — a manual stop says "Auto-farm stopped", while the
+   * bookkeeping stop that follows a natural map completion keeps the
+   * completion wording. The game page renders this message verbatim, so a
+   * fixed string here relabels a finished run as stopped (or a stopped run
+   * as completed); the reason is the message's source of truth.
    */
-  stop(): void {
+  stop(reason: 'manual' | 'map-complete' = 'manual'): void {
     // Clear all timers
     if (this.timerId) {
       clearTimeout(this.timerId);
@@ -540,7 +553,7 @@ export class AutoFarmEngine {
       type: 'complete',
       timestamp: Date.now(),
       position: this.state.currentPosition,
-      message: 'Auto-farm stopped',
+      message: reason === 'map-complete' ? MAP_COMPLETE_MESSAGE : 'Auto-farm stopped',
       data: { ...finalStats }
     });
 
@@ -605,9 +618,9 @@ export class AutoFarmEngine {
         type: 'complete',
         timestamp: Date.now(),
         position: this.state.currentPosition,
-        message: 'Entire map completed!'
+        message: MAP_COMPLETE_MESSAGE
       });
-      this.stop();
+      this.stop('map-complete');
       return;
     }
 

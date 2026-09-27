@@ -272,8 +272,12 @@ export default function GamePage() {
           setAutoFarmLastAction(`❌ Error: ${event.message}`);
           setTimeout(() => setPanelMessage(''), 4000);
         } else if (event.type === 'complete') {
-          setPanelMessage('🎉 Auto-Farm: Map completed!');
-          setAutoFarmLastAction('✅ Map Complete!');
+          // SCOPE row 133: render the event's own message — stop() states its
+          // cause ('Auto-farm stopped' vs 'Entire map completed!') and a fixed
+          // string here announced the opposite of what actually happened.
+          const completionLabel = event.message ?? 'Run complete';
+          setPanelMessage(`🎉 Auto-Farm: ${completionLabel}`);
+          setAutoFarmLastAction(`✅ ${completionLabel}`);
           setTimeout(() => setPanelMessage(''), 5000);
           // FID-20260925-005: only stop() emits `complete` WITH the final
           // session stats (its contract: "Don't reset stats yet — caller

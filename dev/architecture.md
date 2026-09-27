@@ -2022,7 +2022,9 @@ AutoFarmEvent {
 ```typescript
 engine.onEvent((event) => {
   if (event.type === 'error') showToast(event.message);
-  if (event.type === 'complete') showToast('Map completed!');
+  // SCOPE row 133: render the event's own message — `complete` fires for both
+  // a manual stop and a natural map completion, and the engine states which.
+  if (event.type === 'complete') showToast(event.message ?? 'Run complete');
 });
 
 engine.onStats((stats) => {
