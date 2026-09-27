@@ -5,6 +5,13 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.42] — 2026-09-27 session
+
+### Fixed — FID-20260927-003: `@types/pg` declared — Gate 9 compiled against types that lived outside the repository (closed on `fe245aa`)
+
+- **The strangest phantom yet.** CI run `36335490958` passed Gates 1–8 (Gate 7 clean on a fresh clone — FID-20260927-002 proven) and refused at Gate 9: `TS7016` for `pg` in five files. `pg` ships no types; `@types/pg` is declared nowhere in the repo; the host passed anyway because `C:/Users/spenc/node_modules/@types/pg` — in the user's **home directory**, two levels above the repo — satisfies TypeScript's ancestor `@types` walk. The verdict was a function of the developer's home folder.
+- **The fix is one declared dependency.** `@types/pg` as a devDependency (8.23.1 — matching the runtime `pg@8.23.0` the home-dir 8.11.0 had silently lagged); verified the CI-equivalent way: pristine `npm ci` from the new lockfile, then `npx tsc --noEmit` → **0 errors** with no ancestor reliance. Third host-dependence instance found in one day — Gate 1 (FID-20260925-004), Gate 7 (FID-20260927-002), Gate 9 (this) — each caught by a CI run that reached one gate further than the last.
+
 ## [0.0.41] — 2026-09-27 session
 
 ### Fixed — FID-20260927-002: the ledger census judges citations by the commit graph, not the local object store — Gate 7 stops passing on the host and refusing in CI (closed on `9708a38`)

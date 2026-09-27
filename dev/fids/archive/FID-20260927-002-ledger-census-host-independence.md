@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-002-ledger-census-host-independence.md`
 **ID:** FID-20260927-002
 **Severity:** HIGH
-**Status:** implemented
+**Status:** closed
 **Created:** 2026-09-27
 
 ---
@@ -88,4 +88,4 @@ Gate 7 (ledger-integrity census) judged seven SCOPE.md hash citations **green on
 
 ---
 
-**Final status:** loop-complete
+**Final status:** closed (2026-09-27, commit `9708a38`. CI proof: gate-chain run `36335490958` on ubuntu-latest — a fresh clone — printed `✅ pre-push: ledger census clean` at Gate 7, the exact check that refused run `36334419960`; the run later failed at Gate 9 on the unrelated FID-20260927-003 defect, fixed on `fe245aa`.)
