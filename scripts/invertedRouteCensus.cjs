@@ -25,6 +25,10 @@
  *   called-but-never-built endpoint; UNPARSED is an unverified call site —
  *   both refuse the merge. False positives are retired via documented WAIVERS
  *   in this file, never by weakening the exit contract.
+ *
+ * Path invariant (FID-20260925-004): every reported file path is POSIX on every
+ * platform (derived via relPath()), so local and CI transcripts are comparable
+ * line-for-line.
  */
 const fs = require('fs');
 const path = require('path');
@@ -32,6 +36,17 @@ const path = require('path');
 const ROOT = process.cwd();
 const API_DIR = path.join(ROOT, 'app', 'api');
 const SKIP_DIRS = new Set(['node_modules', '.next', 'api', 'archives']);
+
+// FID-20260925-004: normalise AT DERIVATION, once. path.relative() returns
+// backslashes on Windows and forward slashes on Linux, so a raw result makes
+// every downstream comparison platform-dependent — the defect this gate
+// shipped with: a Windows-shaped waiver key matched on Windows only, so Gate 1
+// refused every push on ubuntu-latest and the fail-fast chain never executed
+// gates 3-10 on CI. One helper, one convention; the in-tree precedent is
+// scripts/ledgerIntegrityCensus.cjs:258.
+function relPath(abs) {
+  return path.relative(ROOT, abs).split(path.sep).join('/');
+}
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -95,7 +110,7 @@ for (const file of walk(path.join(ROOT, 'components'))
       // park in UNPARSED, never match. (Drill-hardened: an earlier draft put
       // this check inside the startsWith('`') branch, where it was unreachable
       // — tagged forms fell to the quoted-string branch and garbled MISSING.)
-      unparsed.push({ file: path.relative(ROOT, file), line, raw: raw.slice(0, 90) });
+      unparsed.push({ file: relPath(file), line, raw: raw.slice(0, 90) });
       continue;
     }
     if (backtickIdx === 0) {
@@ -109,10 +124,10 @@ for (const file of walk(path.join(ROOT, 'components'))
         .split('/')
         .filter((s) => s !== '')
         .map((s) => (s === '\x01' ? '*' : s));
-      calls.push({ file: path.relative(ROOT, file), line, raw: inner.trim(), parts: segs });
+      calls.push({ file: relPath(file), line, raw: inner.trim(), parts: segs });
     } else {
       const u = raw.slice(1, -1).replace(/^https?:\/\/[^/]+/, '').split('?')[0];
-      calls.push({ file: path.relative(ROOT, file), line, raw: u, parts: u.split('/').filter(Boolean) });
+      calls.push({ file: relPath(file), line, raw: u, parts: u.split('/').filter(Boolean) });
     }
   }
 }
@@ -139,18 +154,37 @@ const ok = [];
 // Waivers: documented false positives (do not remove — re-verify on upgrade).
 const WAIVERS = [
   {
-    file: 'components\\admin\\PlayerDetailModal.tsx',
+    // Keys are repo-relative POSIX paths (the relPath invariant) — a backslash
+    // in a key refuses the run (the authoring-time self-check below).
+    file: 'components/admin/PlayerDetailModal.tsx',
     rawPrefix: '/api/admin/vip/${action}',
     reason: 'action domain is {grant, revoke}; literal child routes app/api/admin/vip/grant and /revoke exist and Next resolves them at runtime',
   },
 ];
+// Authoring-time wall (FID-20260925-004): a waiver key in the Windows separator
+// convention is unlandable — the exact mistake that made this gate Windows-only.
+// Exit 2 (distinct from the gate's exit 1) so a malformed waiver is
+// distinguishable from a real missing route.
+for (const w of WAIVERS) {
+  if (w.file.includes('\\')) {
+    console.error(
+      `WAIVER KEY IN WINDOWS SEPARATOR CONVENTION: ${JSON.stringify(w.file)} — ` +
+        'author waiver keys as repo-relative POSIX paths (see the relPath invariant)',
+    );
+    process.exit(2);
+  }
+}
 const waived = [];
 for (const c of calls) {
   if (!c.parts.includes('api')) continue; // only API calls are census-relevant
   const route = matches(c.parts);
   if (route) ok.push({ ...c, route });
   else {
-    const w = WAIVERS.find((x) => c.file.endsWith(x.file.replace(/\\/g, '\\')) && c.raw.startsWith(x.rawPrefix));
+    // Exact repo-relative match (FID-20260925-004): the old endsWith suffix
+    // test let ANY file whose path merely ENDED with the waiver key inherit its
+    // immunity. Repo-relative paths are unique; equality is the strictest and
+    // simplest correct test.
+    const w = WAIVERS.find((x) => c.file === x.file && c.raw.startsWith(x.rawPrefix));
     if (w) waived.push({ ...c, reason: w.reason });
     else missing.push(c);
   }
