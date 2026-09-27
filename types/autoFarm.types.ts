@@ -114,25 +114,46 @@ export interface AutoFarmStats {
 }
 
 /**
- * Event-specific payloads. `complete` carries the final AutoFarmSessionStats,
- * `harvest` the terrain/gain summary, `combat` the battle outcome, `error`/`move`
- * usually nothing. Kept open-ended because the engine evolves payloads per type.
+ * Event-specific payloads. `complete` carries the final AutoFarmSessionStats
+ * verbatim (stop() emits `data: { ...finalStats }`), `harvest` the terrain/gain
+ * summary, `combat` the battle outcome, `error`/`move` usually nothing.
+ *
+ * FID-20260925-005: the former `[key: string]: unknown` index signature is
+ * REMOVED — it accepted any field name on any payload, which is exactly how the
+ * engine read `itemFound` (a field /api/harvest never returns) past `tsc` for
+ * months. Every field below is emitted by a real `emitEvent` call site; the
+ * next undeclared payload field is now a compile error, not a silent
+ * `undefined`. (The phantom `key` field is retired with it: the keypress-
+ * simulation path it belonged to is gone, and nothing emits it.)
  */
 export interface AutoFarmEventData {
+  // harvest payload (attemptHarvest success branch)
   terrain?: string;
-  key?: string;
+  method?: 'direct_api' | 'keypress_simulation';
   verified?: boolean;
   metalGained?: number;
   energyGained?: number;
+  itemFound?: string;
+  // combat payload (attackBase success branch)
+  success?: boolean;
+  message?: string;
   victory?: boolean;
   defenderName?: string;
   metalStolen?: number;
   energyStolen?: number;
   xpGained?: number;
   unitsLost?: number;
-  success?: boolean;
-  message?: string;
-  [key: string]: unknown;
+  // `complete` payload (stop() spreads the final AutoFarmSessionStats)
+  timeElapsed?: number;
+  metalCollected?: number;
+  energyCollected?: number;
+  tilesVisited?: number;
+  caveItemsFound?: number;
+  forestItemsFound?: number;
+  attacksLaunched?: number;
+  attacksWon?: number;
+  attacksLost?: number;
+  errorsEncountered?: number;
 }
 
 /**

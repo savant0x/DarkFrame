@@ -22,7 +22,7 @@
  * - Error handling and tile skipping
  */
 
-import { GAME_CONSTANTS } from '@/types/game.types';
+import { GAME_CONSTANTS, TerrainType } from '@/types/game.types';
 import type { Tile, SanitizedPlayer } from '@/types/game.types';
 import {
   AutoFarmConfig,
@@ -83,6 +83,45 @@ export function extractMovePosition(payload: unknown): { x: number; y: number } 
     return { x: fx, y: fy };
   }
   return null;
+}
+
+/**
+ * FID-20260925-005: map a server-granted harvest onto the session's four
+ * collection counters. Pure (no I/O, no engine state) so the accounting rule is
+ * unit-testable without driving the sweep loop.
+ *
+ * Counters move ONLY from the authoritative response amounts — never from a
+ * local intention — and only when this is called from the success branch (a
+ * refused harvest never reaches this function, so a rejection cannot be
+ * counted as a collection).
+ *
+ * This helper deliberately knows NOTHING about which terrains are FARMABLE
+ * (SCOPE.md row 129 — that list already lives in four disagreeing copies) and
+ * must not grow that knowledge: it maps GAINS onto counters for whatever
+ * terrain the caller actually reached. Keep the eligibility list out of here.
+ */
+export function applyHarvestGains(
+  stats: AutoFarmSessionStats,
+  gains: { terrain: TerrainType; metalGained: number; energyGained: number; itemName?: string }
+): AutoFarmSessionStats {
+  const next = { ...stats };
+  switch (gains.terrain) {
+    case TerrainType.Metal:
+    case TerrainType.Energy:
+      // Resource terrains accumulate the granted resource amounts.
+      next.metalCollected += gains.metalGained;
+      next.energyCollected += gains.energyGained;
+      break;
+    case TerrainType.Cave:
+      if (gains.itemName) next.caveItemsFound += 1;
+      break;
+    case TerrainType.Forest:
+      if (gains.itemName) next.forestItemsFound += 1;
+      break;
+    default:
+      break; // unlisted terrain: nothing a counter tracks was granted
+  }
+  return next;
 }
 
 /**
@@ -1020,7 +1059,25 @@ export class AutoFarmEngine {
       // Success — the response carries the authoritative gains.
       const metalGained = Number(data.metalGained ?? 0);
       const energyGained = Number(data.energyGained ?? 0);
-      console.log(`[AutoFarm] Harvest ok: Metal=${metalGained}, Energy=${energyGained}${data.itemFound ? `, item=${data.itemFound}` : ''}`);
+      // FID-20260925-005: the response returns the item as `item` (the full
+      // object, route.ts:240). `itemFound` exists only in the route's internal
+      // log summary (route.ts:229) and is always undefined on the wire — the
+      // mismatch this FID is named for.
+      const itemName = typeof data.item?.name === 'string' ? data.item.name : undefined;
+      console.log(`[AutoFarm] Harvest ok: Metal=${metalGained}, Energy=${energyGained}${itemName ? `, item=${itemName}` : ''}`);
+      
+      // FID-20260925-005: record the collection counters from the SAME
+      // authoritative numbers, on the object the 1s stats tick already
+      // publishes — one pure mapping helper, called only here (success
+      // branch), so every harvest entry point is covered by construction.
+      this.updateStats(
+        applyHarvestGains(this.stats, {
+          terrain: tileInfo.terrain,
+          metalGained,
+          energyGained,
+          itemName,
+        })
+      );
       
       this.emitEvent({
         type: 'harvest',
@@ -1032,7 +1089,7 @@ export class AutoFarmEngine {
           verified: true,
           metalGained,
           energyGained,
-          itemFound: data.itemFound
+          itemFound: itemName
         },
         message: `Harvested ${tileInfo.terrain}: +${metalGained} Metal, +${energyGained} Energy`
       });
