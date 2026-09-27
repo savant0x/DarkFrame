@@ -7,6 +7,8 @@ Older sessions predate versioning adoption and are kept as dated history.
 
 ## [0.0.42] — 2026-09-27 session
 
+> **The milestone:** the 2026-09-27 closing run (`36336484395`) is the first execution in the project's history where all ten gates — the four censuses, lint, typecheck, the full 1340-test suite, and the attribution scan — passed on ubuntu-latest. Verified two-platform: local (Windows, Node 24.21.0) and CI (Linux, `lts/*`). The three host-dependence gates that stood between "green locally" and "green anywhere" were all found and fixed this day (FID-20260925-004 landed previously; FID-20260927-002 and -003 landed with this release), each caught by a CI run that reached one gate further than the last.
+
 ### Fixed — FID-20260927-003: `@types/pg` declared — Gate 9 compiled against types that lived outside the repository (closed on `fe245aa`)
 
 - **The strangest phantom yet.** CI run `36335490958` passed Gates 1–8 (Gate 7 clean on a fresh clone — FID-20260927-002 proven) and refused at Gate 9: `TS7016` for `pg` in five files. `pg` ships no types; `@types/pg` is declared nowhere in the repo; the host passed anyway because `C:/Users/spenc/node_modules/@types/pg` — in the user's **home directory**, two levels above the repo — satisfies TypeScript's ancestor `@types` walk. The verdict was a function of the developer's home folder.
