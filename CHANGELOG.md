@@ -5,6 +5,14 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.41] — 2026-09-27 session
+
+### Fixed — FID-20260927-002: the ledger census judges citations by the commit graph, not the local object store — Gate 7 stops passing on the host and refusing in CI (closed on `9708a38`)
+
+- **The first real Linux verdict surfaced a host-shaped gate.** CI run `36334419960` — the first genuine ubuntu-latest execution of the chain — ran gates 1–6 green and then refused at Gate 7: seven SCOPE hash citations are pre-2026-09-03-rewrite debris that survive on this host as present-but-unreachable loose objects (printed as an advisory, exit 0) but do not exist in a fresh clone (`not a commit in this repo`). The census's verdict was a function of local gc state; FID-20260925-004 removed exactly this class at Gate 1, and Gate 7 still had it one layer deeper.
+- **The fix makes the verdict platform-invariant by construction.** A citation is judged by reachability from HEAD — identical on every machine: present-but-unreachable is now **fatal** (the advisory was precisely how a green local gate hid a red CI gate), unless waived by reason in `KNOWN_DEAD`; all seven debris hashes were added with written reasons and the CI-run probe, per the waiver list's own procedure (now eleven entries total). The failure message distinguishes "absent" from "exists locally but is not reachable from HEAD — a fresh clone (and CI) sees it as missing".
+- **Drilled and pinned.** The census test now asserts all eleven waived hashes (list-rot fails the suite) and drills the class with an orphan-commit fixture (cited by short hash, no ref): **2/2 red against the pre-fix census (advisory + exit 0 where refusal was required), then 20/20 green**. Gates: tsc 0 · lint 0/0 · suite 1340/1340 · census exit 0 with the eleven-hash waiver line and no advisory residue.
+
 ## [0.0.40] — 2026-09-27 session
 
 ### Fixed — SCOPE row 133: a manual auto-farm stop no longer announces "Map completed!" — the stop announcements state their own cause (no FID: simple-task flow)
