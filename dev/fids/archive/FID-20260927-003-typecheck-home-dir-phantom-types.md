@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-003-typecheck-home-dir-phantom-types.md`
 **ID:** FID-20260927-003
 **Severity:** HIGH
-**Status:** implemented
+**Status:** closed (2026-09-27, commit `fe245aa`; CI proof: gate-chain run `36336484395` — all ten gates green on ubuntu-latest, 2m55s)
 **Created:** 2026-09-27
 
 ---
@@ -65,4 +65,4 @@ ALL cases — yes: types become a function of the lockfile, identical everywhere
 
 ---
 
-**Final status:** implemented
+**Final status:** closed (2026-09-27, commit `fe245aa`. CI proof: run `36336484395` — Gate 9 printed `typecheck clean (0 errors)` on a fresh clone and the full chain passed on ubuntu-latest for the first time in the project's history.)
