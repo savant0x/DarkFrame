@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-002-ledger-census-host-independence.md`
 **ID:** FID-20260927-002
 **Severity:** HIGH
-**Status:** closed
+**Status:** closed (2026-09-27, commit `9708a38`; CI proof: run `36335490958` — Gate 7 clean on a fresh clone)
 **Created:** 2026-09-27
 
 ---
