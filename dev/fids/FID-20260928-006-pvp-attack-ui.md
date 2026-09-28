@@ -1,0 +1,108 @@
+# FID-20260928-006: Manual PvP attack UI — the infantry combat path is auto-farm-only
+
+**Filename:** `FID-20260928-006-pvp-attack-ui.md`
+**ID:** FID-20260928-006
+**Severity:** MEDIUM
+**Status:** created
+**Created:** 2026-09-28
+
+---
+
+## 1. Summary
+
+Row 69's P2 list carries four unstarted items: battle/attack UI, territory capture UI, shrine sacrifice/extend, tutorial/complete. Re-probed 2026-09-28, two of the four are already dead (the survey's own errata say so: the shrine line was superseded by FID-20260917-002 — the live panel extends via `/activate` and the operator deleted `/sacrifice`+`/extend` as a dead second economy; `tutorial/complete` is a "likely-redundant legacy path — deletion candidate", not a feature), and a third is stale in row 69 itself: **the territory capture UI already exists and ships** — `ClanTerritoryPanel` is mounted in two places (`ClanManagementView.tsx:795`, `ClanPanel.tsx:420`) and POSTs `/api/clan/warfare/capture` (`:378`). That leaves **battle/attack UI** as the only live P2 item — and re-probing it overturns the survey's target: the genuine PvP resolution path is **`POST /api/combat/infantry`** (presence-guarded, new-player-protection-parity, flag-bearer-restricted, server-derived armies), not the survey's named `POST /api/battle/attack`, whose contract is unsound and which has zero UI callers. The infantry path's **only caller is the auto-farm engine** — no human can start a PvP fight through the UI. This FID scopes the missing piece: a **PvP attack modal on player-held base tiles** (unit selection → confirm → `/api/combat/infantry` → `BattleResultModal`), which un-orphans the fully-built, 25-test `BattleResultModal` and forces a recorded disposition of the stale `/api/battle/attack`.
+
+## 2. Evidence (RED)
+
+All probes executed 2026-09-28 (session 013 follow-up to the coverage session; commands re-runnable as pasted).
+
+| # | Finding | Location | Evidence (command + output excerpt) |
+| - | ------- | -------- | ----------------------------------- |
+| 1 | Row 69's open remainder names the P2 set; its 09-27 narrowing predates the territory discovery | `SCOPE.md` row 69 | "open remainder is only the unstarted P2/P3 items (battle/attack UI, territory-capture UI, shrine sacrifice/extend, tutorial/complete; specialization mastery)" |
+| 2 | **Territory capture UI already ships** — panel exists, is mounted twice, and calls the capture route | `components/clan/ClanTerritoryPanel.tsx:143,378`, `ClanManagementView.tsx:795`, `ClanPanel.tsx:420` | `fetch('/api/clan/warfare/capture/targets')` … `fetch('/api/clan/warfare/capture', {…})`; both mounts render `<ClanTerritoryPanel` |
+| 3 | **Zero UI callers of `/api/battle/attack`** (the survey's named target) | repo grep, `--include=*.tsx,*.ts` over app/components/context/hooks/lib/utils | only hit: `lib/battleTrackingService.ts:6` — a docblock mention |
+| 4 | **`/api/battle/attack`'s contract is unsound**: Zod validates `{targetUsername, units}` but resolution consumes route-level `attackerUnits`/`defenderUnits` — **the client supplies the defender's army** — and `validated.targetUsername` is used only for logging while `body.defender` decides the fight | `app/api/battle/attack/route.ts:15-38` | `const validated = BattleAttackSchema.parse(body); … const { attacker, defender, factoryLocation, attackerUnits, defenderUnits } = body;` then `resolveBattle(attackerUnits, defenderUnits, …)` |
+| 5 | **The real PvP path is `/api/combat/infantry`**, contract `{targetUsername, unitIds}`, armies resolved server-side | `app/api/combat/infantry/route.ts:7-26` | "POST endpoint for initiating Infantry battles (direct player vs player combat). Attacker selects units to bring, defender uses ALL units to defend." |
+| 6 | The infantry route carries the full server-side protection stack | `app/api/combat/infantry/route.ts:75-79, 82-97, 107-118, 120-123` | self-attack block · flag-bearer attack block ("You hold the Flag — attacking other players is disabled…") · FID-20260916-002 protection parity (`protectionActive(defenderRow.protectionUntil)` → `PROTECTION_REFUSAL_REASON`) · `verifyPresence` (positions from DB — "the client cannot claim a location") |
+| 7 | **Its only caller is auto-farm** — no manual UI reaches it | repo grep `combat/infantry` over components/app/utils | only hit: `utils/autoFarmEngine.ts:1268` `fetch('/api/combat/infantry', …)` |
+| 8 | **The map's ATTACK button never attacks a player**: bot-base tiles → PvE route; everything else → the legacy factory flow | `app/game/page.tsx:716-723, 863-865, 787+` | `handleBaseAttack` POSTs `/api/combat/attack` with `{defender: currentTile.baseOwner}`; `handleTileAttack = isCurrentTileEnemyBase ? handleBaseAttack : () => handleAttack()`; `handleAttack` POSTs `/api/factory/attack` |
+| 9 | **`BattleResultModal` is a fully-built orphan**: 25-test suite, zero renderers | renderer census: `grep -rln "BattleResultModal" app components context` | only `components/BattleResultModal.test.tsx` (25 `it(` blocks); props `{isOpen, result: BattleResult, onClose}` (`BattleResultModal.tsx:34-38`) |
+| 10 | **The tile seam ships owner intel but not `isBot`** — the UI cannot tell a player-held base from a bot base, which is exactly the branch the attack button needs | `lib/movementService.ts:71-90` | enrichment selects `{level, isSpecialBase, protectionUntil}` from the owner's `players` row — no `isBot` — and stamps `baseLevel`/`isBeerBase`/protection onto the `Tile` |
+| 11 | The attacker's army is fetchable client-side (the same source auto-farm uses); the game context deliberately carries no units blob | `utils/autoFarmEngine.ts:1209-1228`, `context/GameContext.tsx:280-282` | `fetch(\`/api/player?username=…\`)` → `attacker.units` → `selectUnitsForCombat` → `unitIds`; context comment: "the 30 KB units blob was shipping every tile under … only the slim scalars refresh" |
+| 12 | The survey's own errata kill the other P2 candidates | `dev/audits/FEATURE-SURVEY-2026-09-16.md` (errata 2026-09-16 + 2026-09-17) | shrine: "the operator deleted `/extend` as a dead second economy alongside `/sacrifice` … This closes the survey's shrine line"; tutorial: "`POST /api/tutorial/complete` (0 UI callers) is a likely-redundant legacy path — deletion candidate pending a writer census, not a feature to build" |
+
+**Call-graph notes (Law 4).** Today a player standing on an enemy-held tile presses ATTACK and one of two things happens: a bot base → `POST /api/combat/attack` (PvE raid, live), or anything else → `POST /api/factory/attack` (legacy factory capture flow). If the tile is held by another *human*, the UI still routes to the factory flow — there is no path from any component to `/api/combat/infantry` except the auto-farm engine's own loop. Post-fix: a player-held tile (`isBot === false`) opens the PvP modal → `POST /api/combat/infantry {targetUsername: baseOwner, unitIds}` → response `{success, message, battleLog}` mapped into `BattleResult` → `BattleResultModal`. The route's existing guards (presence, protection, flag, self-attack) are the authority; the modal only greys out using tile-shipped intel and surfaces refusals verbatim.
+
+## 3. Impact Analysis
+
+- **Who/what is affected:** every player holding units — PvP resolution, level-gap protection, XP/RP, `battlesWon` tracking and the notification feed all exist server-side and sit dormant for manual play; the infantry loop is currently exclusive to VIP auto-farm sessions, so manual players can neither start PvP nor defend-against-anything-but-automation. `BattleResultModal`'s 25-test suite stops testing dead code.
+- **Failure modes if unfixed:** the row-69 P2 line stays open forever with its target mis-aimed at the wrong route; `/api/battle/attack` keeps an attacker-supplied `defenderUnits` contract one refactor away from someone "wiring it up" as-is; the orphaned modal rots.
+- **Blast radius of the fix:** one enrichment field (`Tile.isBot`, best-effort block — failure must degrade to "bot" so the PvE branch wins, never a new crash path), one new component, one branch in the page's attack dispatch, one dead-route deletion (operator option), doc-pointer updates. No combat math touched — `resolveBattle`/`executeInfantryAttack` are consumed, not modified (the FID-20260916-008 seam rule is respected: this route is already wired to the live resolver).
+
+## 4. Five Questions
+
+| Question | Answer |
+| -------- | ------ |
+| Works for ALL cases, not just the common case? | **Yes.** Every degraded path degrades to existing behavior: `isBot` enrichment failure → tile treated as bot base → PvE branch (today's behavior); protection/refusal responses surface verbatim (FID-20260911-041 pattern); an empty army or zero selected units blocks submission client-side and the route's own guards remain the authority. Loss path renders the same modal with the defender-won numbers (FID-20260914-006 precedent: resolved battles carry real damage stats either way). |
+| Scales (design tolerates growth; harness reference is 1000 agents)? | **Yes.** One `unitIds` POST per manual attack — strictly lower request pressure than auto-farm's per-tile polling. The tile enrichment adds one boolean read inside an existing best-effort block on an already-joined row; no new query. The infantry route is the same one 1000-agent harnesses already exercise. |
+| Survives a hostile attacker, not just an honest user? | **Yes.** The security posture is *unchanged from the server's side* — presence, protection, flag-bearer and self-attack all live in the route and cannot be talked past by the new UI; armies are derived server-side from the players row (the client sends only which of its own units to bring). The tile's `isBot` is cosmetic routing: lying about it via a crafted client only routes you to a route that will refuse (presence/priority guards), never grants an unfair fight. |
+| Maintainable in 2 years? | **Yes.** One modal component with one job; the branch predicate is a named boolean (`isCurrentTilePlayerBase`), not an inline expression; the stale `/api/battle/attack` deletion removes a standing trap (two similarly-named combat routes, one of them unsound); `BattleResultModal` gains its intended consumer. |
+| Sets the standard for the industry? | **Yes.** Same data-honesty line as the session's prior work: the UI greys out from *server-shipped* intel (`protectionUntil` rides the tile seam since FID-20260916-002) and surfaces *server-stated* refusals verbatim, instead of the client predicting rules it does not own. And scoping itself re-probed row 69 rather than trusting a nine-day-old survey — the territory line was already shipped and nobody noticed. |
+
+## 5. Proposed Fix (GREEN)
+
+- **Approach:** make player-held tiles visually and functionally distinct, then give them the attack modal the infantry route was built for.
+- **Alternatives considered:**
+  1. *Build the UI on `/api/battle/attack` as the survey named* — rejected: the route consumes a client-supplied `defenderUnits` (an integrity hazard by construction) and a Zod contract it then ignores; repairing it means rebuilding exactly what `/api/combat/infantry` already is, minus its hardening.
+  2. *One-click attack without unit selection* — rejected: the infantry contract is `unitIds`-by-design; "select your army" is the gameplay, and the auto-farm's `selectUnitsForCombat` strategy has no manual equivalent.
+  3. *Delete only the stale artifacts and defer the feature* — rejected under the current directive (scope one P2 feature), but the disposition of `/api/battle/attack` rides along either way.
+  4. *Extend the `/api/factory/attack` flow to humans* — rejected: it is the legacy path, not the hardened one; compounding it would deepen the three-route combat confusion.
+- **Operator decision required before implementation (recorded per house pattern):** the disposition of **`app/api/battle/attack/route.ts`**. Recommendation: **delete outright** — zero UI callers, unsound contract shape, superseded by the infantry route — following the FID-20260917-002 dead-economy precedent (operator deleted `/sacrifice`+`/extend`); `lib/battleTrackingService.ts`'s docblock pointer updates with it. The alternative (repair its contract to server-derived armies) duplicates infantry and is not recommended. No GREEN work starts before this pick.
+- **Changes:**
+
+| File | Action | Description |
+| ---- | ------ | ----------- |
+| `lib/movementService.ts` | modify | owner-intel enrichment selects `isBot` alongside `level`/`isSpecialBase`/`protectionUntil` and stamps `(tile as { baseIsBot?: boolean }).baseIsBot = owner.isBot === 1;` inside the existing best-effort block (failure degrades to absent → treated as bot → PvE branch, today's behavior). |
+| `types/game.types.ts` | modify | `Tile` gains `baseIsBot?: boolean` (optional, enrichment-shipped — same pattern as `baseLevel`/`isBeerBase`). |
+| `components/PvpAttackModal.tsx` | create | Opens on player-held base tiles. On open: fetch own army via `GET /api/player?username=` (auto-farm precedent, evidence 11). Unit multi-select with per-type counts + total STR/DEF readout; CTA greyed while `protectionUntil` is active (server still refuses — the modal only greys); refusals surfaced verbatim. Confirm → `POST /api/combat/infantry {targetUsername: baseOwner, unitIds}`. |
+| `app/game/page.tsx` | modify | Third branch in the attack dispatch: `isCurrentTilePlayerBase = occupiedByBase && baseOwner && baseOwner !== player.username && !isBeerBase && baseIsBot === false` → open the modal; result mapped `{...battleLog, success, message, battleLog}` into `BattleResult` → render `BattleResultModal`. Bot/other branches unchanged. |
+| `components/BattleResultModal.tsx` | modify (at most) | Only if the mapping needs a tiny adapter prop; otherwise untouched — its 25 pins must stay green unmodified. |
+| `app/api/battle/attack/route.ts` | delete (recommended) | Per the operator pick above; delete its `__tests__` coverage of the dead contract if any exists (none found — evidence 3). |
+| `lib/battleTrackingService.ts` | modify | Docblock route pointer follows the deletion (the service itself is shared with `/api/stats/battles` — untouched). |
+| `__tests__/components/pvpAttackModal.test.tsx` | create | Pins below. |
+| tile-enrichment pin | modify | Add to the existing tile/movement test file: a `players` row with `isBot` propagates `baseIsBot` through `getTileAt`; an enrichment failure leaves it absent. |
+
+- **The pins (`__tests__/components/pvpAttackModal.test.tsx`):**
+  1. Renders on player-held tiles; unit selection sums per-type quantities into `unitIds` (capped to actual inventory); zero-selection disables confirm.
+  2. Protection window → CTA greyed *and* a forced submit still surfaces the server's `PROTECTION_REFUSAL_REASON` verbatim (client-greying is convenience, server is authority).
+  3. Route refusal (presence/flag/self-attack) renders the server message, not a generic failure (FID-20260911-041 pattern).
+  4. Response mapping: `{success, message, battleLog}` → `BattleResultModal` shows victory/defeat with the battle's own numbers; loss path renders defender-won stats (FID-20260914-006 mirror).
+  5. `handleTileAttack` dispatch truth: bot base → `/api/combat/attack` (unchanged), player base → modal, neither → factory flow (the branch predicate is total: no tile falls through to more than one path).
+- **Verification plan:** `npx tsc --noEmit` → 0; `npx eslint . --max-warnings 0` → 0/0; `npx vitest run` full suite green (including the unmodified 25 BattleResultModal pins); ledger census exit 0; manual smoke on a player-held tile against the smoke-test loop used for FID-20260906-006a.
+- **Call-graph reachability plan (Law 4):** post-fix greps — `grep -rn "combat/infantry" components app/utils` shows the modal as a second caller; `grep -rln "BattleResultModal" app components` shows a non-test renderer; `grep -rn "battle/attack" app lib components` shows the deleted route gone and the docblock repointed; `grep -n "baseIsBot" lib/movementService.ts types/game.types.ts components/PvpAttackModal.tsx app/game/page.tsx` shows emit→type→consume chain.
+
+## 6. Audit Record
+
+| Method | What was checked | Evidence | Result |
+| ------ | ---------------- | -------- | ------ |
+| Method 1: command re-execution | Every §2 grep re-run this session with output pasted above; the two renderer censuses (ClanTerritoryPanel mounts, BattleResultModal renderers) each run with their own exclusion filter so the component under test cannot self-match | §2 as pasted | pass |
+| Method 2: manual re-read | `/api/battle/attack` route read end-to-end (contract divergence is in the destructure, not an import artifact); infantry route's guard stack read at each cited line; `movementService` enrichment block read to confirm `isBot` absence and the best-effort failure contract; survey errata re-read for the shrine/tutorial dispositions; Five Questions re-checked against the actual blast radius | this document §2/§4/§5 | pass |
+
+- **Honest limitations recorded:** (1) this FID scopes; it implements nothing — gates below are the plan, not results, and the operator pick on `/api/battle/attack` is a precondition of GREEN. (2) The 2026-09-16 survey's "190 routes" census was not re-run in full; only the combat/territory/shrine/tutorial lines it fed were re-probed. (3) `isBot` arrives as `0/1` from drizzle smallint — the enrichment stamps a boolean and the degradation rule (absent ⇒ bot) must be pinned, not assumed. (4) The modal's own-army fetch reuses `/api/player?username=` per the auto-farm precedent; a dedicated units endpoint was considered and skipped as scope creep — the 30 KB-blob concern (GameContext:280) applies to *tile payloads*, not one on-demand modal-open fetch. (5) row 69's ledger annotation (territory line stale; this FID scopes the battle line) is the closure session's paperwork, pre-declared here so the next sweep finds it.
+- **Audit outcome: pass at `created`** — scoping audit only; the implementation loop re-audits at `loop-complete` per protocol.
+
+## 7. Implementation Record
+
+- **Status:** not started — awaiting operator pick on §5's recorded decision, then the standard loop.
+
+## 8. Closure
+
+- **Gates:** [ ] typecheck · [ ] lint · [ ] suite · [ ] census — pending implementation.
+- **Commit hash (G2):** pending.
+- **Staging plan (path-scoped, G3/G4):** commit 1 (code): `git add lib/movementService.ts types/game.types.ts components/PvpAttackModal.tsx app/game/page.tsx __tests__/components/pvpAttackModal.test.tsx` (+ deletion per operator pick); commit 2 (ledger): `git add SCOPE.md CHANGELOG.md VERSION dev/fids/ dev/session-summaries/` — never `git add -A`.
+- **Commit message (G8):** `feat(pvp): manual PvP attack UI on player-held base tiles — unit-select modal on the infantry route, BattleResultModal un-orphaned (FID-20260928-006)`
+- **Archive:** move to `dev/fids/archive/` at `closed` only; CHANGELOG entry; row-69 annotation at closure.
+
+---
+
+**Final status:** created
