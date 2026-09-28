@@ -27,6 +27,7 @@ import FactoryInspectorModal from '@/components/admin/FactoryInspectorModal';
 import BattleLogsModal from '@/components/admin/BattleLogsModal';
 import AchievementStatsModal from '@/components/admin/AchievementStatsModal';
 import TutorialDiagnosticModal from '@/components/admin/TutorialDiagnosticModal';
+import RaidTelemetryPanel from '@/components/admin/RaidTelemetryPanel';
 
 // FID-20260909-035: scheduler-health panel, lazy-loaded (opened on demand)
 const JobsStatusModal = lazy(() => import('@/components/admin/JobsStatusModal'));
@@ -1737,6 +1738,11 @@ By Specialization:
                     loading={!botStats}
                     error={null}
                   />
+                </div>
+
+                {/* Raid Telemetry (FID-20260928-009): the PVP_BASE_RAID_DESIGN.md tuning loop */}
+                <div className="col-span-2">
+                  <RaidTelemetryPanel />
                 </div>
               </div>
             </div>
