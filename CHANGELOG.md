@@ -37,6 +37,19 @@ Older sessions predate versioning adoption and are kept as dated history.
 - **Two findings recorded, not absorbed** (Law 2). `dev/lessons-learned.md` carries a merged duplicate H1 and a U+FFFD — cosmetic, now listed as outstanding debt rather than fixed inside a doc refresh. And **SCOPE row 13 contradicts the code about messaging**: the row says messaging moved Socket.io → Ably, but socket.io is live under `lib/websocket/` and the repository contains **0** `ably` imports. One of the two records is wrong; deciding which is a product question, not a documentation one, so it is recorded in both files and left for the operator.
 - **Test coverage left marked *unverifiable*** rather than replaced with a fresh guess. Restating an unreproducible number would have traded one false claim for another.
 
+### Closed and archived (G2 satisfied)
+
+Four FIDs reached `closed` on their committed hashes and moved to `dev/fids/archive/`:
+
+| FID | Severity | Resolution | Closed on |
+| - | - | - | - |
+| FID-20260927-001 | HIGH | One farmable-terrain definition replaces seven copies across six files; the interim pin had been testing its own hardcoded list and so could not detect drift by construction. The red drill found an eighth copy the FID's own census had missed. | `4a5fdf3` |
+| FID-20260927-004 | MEDIUM | SCOPE row 134's twice-observed "unreproduced" suite flake identified: six `node` subprocess spawns in one `it()` against a 5,000 ms default. Split to `it.each`; the test now names itself when it fails. | `ce42814` |
+| FID-20260927-005 | MEDIUM | Eight findings in the evidence layer — a mis-indented gate script whose repair plan targeted a line that had *moved*, a ledger row asserting a fixed defect, two probes that reported findings which did not exist, a document asserting a vocabulary the repository does not define, and a contract pointing at a file that never existed. Plus census check F, which found four live mis-shaped rows on landing. | `668f500` + `d8b6b3a` |
+| FID-20260927-006 | MEDIUM | 15 of 18 load-bearing claims in `dev/progress.md` and `dev/issues.md` were false: both reported a build broken with 2,039–2,043 TypeScript errors against a clean `tsc`. Every false claim was a completion recorded as an obstacle. Superseded claims preserved as dated history. | `ee9c204` |
+
+`dev/fids/` is now empty — every live FID reached a terminal status.
+
 ### Retracted during implementation
 
 - **F2 — retracted; full evidence in F9 of the FID.** Originally recorded as: *"`SCOPE.md` is 265,271 characters against the tool's 100,000-char read ceiling, so the primary edit tool cannot reach the register's late rows."* That ceiling is unsourced — it appears nowhere in the repository but in the claim itself — and the tooling's documented whole-file cut is **2,000 lines**, against which `SCOPE.md` is **1,313**. Three `str_replace` edits to lines *past* F2's alleged cut succeeded during implementation (lines 9, 1049, 1300); the register spans 1049–1313. The likely real cause of the original refusals is anchor transcription, the same class as F1. **No ledger restructure is required, because there was no ceiling to fix** — and the obvious split would not have helped anyway: register 182,864 bytes, prose 87,891 bytes, neither half clearing 100,000. Retraction recorded rather than deleted, per Lesson 45. This release had already repeated the false claim in two places before it was caught.

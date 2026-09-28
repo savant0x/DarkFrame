@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-001-farmable-terrain-single-source.md`
 **ID:** FID-20260927-001
 **Severity:** HIGH
-**Status:** implemented
+**Status:** closed (2026-09-27, commit `4a5fdf3`)
 **Created:** 2026-09-27
 
 ---
@@ -96,7 +96,7 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 
 ## 7. Implementation Record (only after status reaches `loop-complete`, with operator go-ahead)
 
-- **Status:** implemented 2026-09-27 (G2 commit outstanding — the agent does not execute git). Operator approval to implement: session directive "approve all pending work … Proceed".
+- **Status:** closed 2026-09-27 on commit `4a5fdf3` (G2 satisfied; the agent ran git under explicit operator approval). Operator approval to implement: session directive "approve all pending work … Proceed".
 
 **Implemented exactly as §5 specified.** `FARMABLE_TERRAINS` (`readonly TerrainType[]`) and `isFarmableTerrain(t)` added below the enum in `types/game.types.ts`; all eight use sites re-pointed — `lib/harvestService.ts:145` guard, `app/api/harvest/route.ts:106` dispatch guard, `utils/autoFarmEngine.ts:1043` (string array deleted), `components/TileRenderer.tsx:168` predicate + `:1053` button guard, `components/TileHarvestStatus.tsx:46` + `:93` (both arrays deleted), `lib/harvestService.test.ts:379` (`advertised` list deleted), `app/help/page.tsx` prose derived from the constant via the label map.
 

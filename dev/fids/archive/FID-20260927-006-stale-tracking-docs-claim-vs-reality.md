@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-006-stale-tracking-docs-claim-vs-reality.md`
 **ID:** FID-20260927-006
 **Severity:** MEDIUM
-**Status:** implemented
+**Status:** closed (2026-09-27, commit `ee9c204`)
 **Created:** 2026-09-27
 
 ---
@@ -108,7 +108,8 @@ The census reads `dev/fids/`, so this FID's own status must be lawful for Gate 7
 
 ## 8. Resolution
 
-- **Closed Date:** *(pending commit — this record is `implemented`, not `closed`; G2 requires a committed hash)*
+- **Closed Date:** 2026-09-27, on commit `ee9c204` (G2 satisfied; the agent ran git under
+  explicit operator approval).
 - **Fix Description:** §5, applied to `dev/progress.md` and `dev/issues.md`. Both files rewritten
   against the §3 measurements; every superseded claim preserved as dated history in the same shape the
   2026-09-02 refresh used, so the files keep their own convention instead of reversing it.
@@ -144,11 +145,16 @@ The census reads `dev/fids/`, so this FID's own status must be lawful for Gate 7
 - **Not fixed here:** test coverage remains unmeasured. The previous "~15%" figure is not
   reproducible — no coverage tooling is configured — so it was relabelled unverifiable instead of
   being restated or silently replaced with a guess.
-- **Archived:** *(pending)*
+- **Archived:** 2026-09-27 — moved to `dev/fids/archive/` on commit `ee9c204`; CHANGELOG 0.0.44
 
 ---
 
-## 9. Staging Plan (G3/G4 — the agent prepares; the operator executes)
+## 9. Staging Plan (G3/G4) — EXECUTED 2026-09-27
+
+> This FID's commit was the cleanest split in the set: it touched only the two
+> documentation files, sharing no path with any other FID's work, so no hunk surgery
+> was needed. It landed as **`ee9c204`** inside the six-commit plan of
+> FID-20260927-005 §8. The plan as written:
 
 This FID touches only two documentation files plus the record, and shares no file with any other
 FID's commit — unlike FID-20260927-005, which shares `scripts/ledgerIntegrityCensus.cjs` with

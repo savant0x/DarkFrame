@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-005-probe-integrity-and-ledger-editing-gaps.md`
 **ID:** FID-20260927-005
 **Severity:** MEDIUM
-**Status:** implemented
+**Status:** closed (2026-09-27, commits `668f500` + `d8b6b3a`)
 **Created:** 2026-09-27 15:47
 
 ---
@@ -640,8 +640,9 @@ wrong fix**, and re-measuring surfaced two findings the original pass missed.
 
 ## Resolution
 
-- **Closed Date:** *(pending commit — this record is `implemented`, not `closed`;
-  G2 requires a committed hash)*
+- **Closed Date:** 2026-09-27, on commits `668f500` (census check F + the gate-script
+  indent repair + the lessons corpus) and `d8b6b3a` (the F8 contract repoint). G2 satisfied;
+  the agent ran git under explicit operator approval.
 - **Fix Description:** Eight findings, seven fixable in-repository (F1, F3, F4, F5,
   F7, F8, plus the F2 documentation), one external and recorded as blocked (F6).
   F7 and F8 were found by the Loop-4 re-measurement, not by the original pass.
@@ -742,7 +743,7 @@ reading while format is checked by counting. The check counted.
   logged, all on a file whose every gate was green at the time of each block.
   No repository fix exists; the harness's own state is outside the project
   boundary (`protocol.config.yaml:149` → `agent_executes_git: false`).
-- **Archived:** *(pending)*
+- **Archived:** 2026-09-27 — moved to `dev/fids/archive/` on the G2 commits; CHANGELOG 0.0.44
 
 ---
 
@@ -819,7 +820,23 @@ performed to solve a constraint that was never there.
 
 ---
 
-## 8. Staging Plan (G3/G4 — the agent prepares; the operator executes)
+## 8. Staging Plan (G3/G4) — EXECUTED 2026-09-27
+
+> **Outcome.** The operator granted the G1 override and this plan was executed on
+> 2026-09-27, as **six commits** ending `4a5fdf3` · `ce42814` · `668f500` · `d8b6b3a` ·
+> `ee9c204` · `dd658dc`. The boundary this section predicted had moved by the time it
+> ran — FID-20260927-006 was filed after it was written (its two docs and its own FID
+> became a seventh concern, folded into the record commit), and check F had added
+> hunks to both `scripts/ledgerIntegrityCensus.cjs` and its test, so the note below
+> describing that script as carrying "only the two indent restorations" was stale. The
+> census script went into the FID-005 commit carrying check E, F1 **and** check F, all
+> three credited in this document. The one file that needed surgery —
+> `__tests__/lib/ledgerIntegrityCensus.test.ts`, which spans three FIDs — was split
+> non-interactively with a hunk-filtered `git apply --cached`, so the `it.each` change
+> committed alone under FID-20260927-004. `pre-commit`'s ladder-truth gate fired on the
+> terrain commit (`types/game.types.ts` is a trigger path) and passed. Nothing was pushed.
+>
+> The plan as originally written, retained below for the record:
 
 The working tree carries **two** sessions' work, and the commit boundary must not
 blur them: session 005's two implemented FIDs are already staged-for-commit in the

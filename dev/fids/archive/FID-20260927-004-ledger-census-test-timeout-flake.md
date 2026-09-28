@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-004-ledger-census-test-timeout-flake.md`
 **ID:** FID-20260927-004
 **Severity:** MEDIUM
-**Status:** implemented
+**Status:** closed (2026-09-27, commit `ce42814`)
 **Created:** 2026-09-27
 
 ---
@@ -56,7 +56,7 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 
 ## 7. Implementation Record
 
-- **Status:** implemented (G2 commit outstanding — the agent does not execute git).
+- **Status:** closed (2026-09-27) on commit `ce42814` (G2 satisfied; the agent ran git under explicit operator approval).
 
 Implemented as specified: the loop became `it.each` over the same six statuses with an unchanged body. Full suite green at 1354/1354 across 141 files with zero failures; typecheck 0; lint 0/0; ledger census exit 0.
 
