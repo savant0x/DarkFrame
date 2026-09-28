@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getTileAt } from '@/lib/movementService';
+import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { ApiResponse } from '@/types';
 import {
   withRequestLogging,
@@ -62,8 +63,18 @@ export const GET = withRequestLogging(rateLimiter(async (request: NextRequest) =
       return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Coordinates must be numbers between 1 and 150');
     }
     
-    // Get tile
-    const tile = await getTileAt(x, y);
+    // Get tile — FID-20260927-007: identify the viewer from the session when
+    // one exists, so the tile carries the server's harvest verdict for THEM.
+    // Optional read: an anonymous caller is never rejected by this.
+    let viewerUsername: string | undefined;
+    try {
+      const authUser = await getAuthenticatedUser();
+      viewerUsername = authUser?.username;
+    } catch {
+      viewerUsername = undefined;
+    }
+    
+    const tile = await getTileAt(x, y, viewerUsername);
     
     if (!tile) {
       return createErrorResponse(ErrorCode.RESOURCE_NOT_FOUND, 'Tile not found');

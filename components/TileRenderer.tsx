@@ -167,40 +167,19 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const isTileFarmable = (terrain: TerrainType): boolean => {
     return isFarmableTerrain(terrain);
   };
-  
-  const isPlayerOnCooldown = (): boolean => {
-    if (!player || !tile.lastHarvestedBy) return false;
-    return tile.lastHarvestedBy.some(record => record.playerId === player.username);
-  };
-  
-  const getCooldownTimeRemaining = (): string => {
-    if (!isPlayerOnCooldown()) return '';
-    
-    // Calculate time until reset based on tile X coordinate
-    // Tiles 1-75 reset at midnight, 76-150 reset at noon
-    const now = new Date();
-    const nextReset = new Date(now);
-    
-    if (tile.x >= 1 && tile.x <= 75) {
-      // Reset at midnight
-      nextReset.setHours(24, 0, 0, 0);
-    } else {
-      // Reset at noon
-      nextReset.setHours(12, 0, 0, 0);
-      if (nextReset <= now) {
-        nextReset.setDate(nextReset.getDate() + 1);
-      }
-    }
-    
-    const msRemaining = nextReset.getTime() - now.getTime();
-    const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-    const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m until reset`;
-    } else {
-      return `${minutes}m until reset`;
-    }
+
+  // FID-20260927-007: the chip renders the SERVER's verdict — tile.harvestStatus
+  // (canHarvest / timeUntilReset), attached at the getTileAt seam. The old
+  // isPlayerOnCooldown/getCooldownTimeRemaining pair decided readiness here by
+  // matching lastHarvestedBy on playerId alone (dropping the resetPeriod rule)
+  // and counted down to a host-local setHours boundary (noon/midnight) — two
+  // private rules, neither the server's. Unknown verdict ≠ ready (see below).
+  const harvestVerdict = tile.harvestStatus;
+  const onServerCooldown = harvestVerdict != null && !harvestVerdict.canHarvest;
+  const formatCooldown = (ms: number): string => {
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    return hours > 0 ? `${hours}h ${minutes}m until reset` : `${minutes}m until reset`;
   };
   
   // Calculate distance to flag bearer for proximity effects
@@ -389,12 +368,21 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   }, [tile.terrain, factoryData?.level, factoryImagesChecked]);
 
   // NEON NOIR status strip state chip (§5.1): farmability = green ready / magenta cooldown.
+  // FID-20260927-007: ready/cooldown comes from the server verdict. When the
+  // verdict is absent (anonymous caller, enrichment failure, non-farmable) the
+  // chip renders its neutral state — an unknown answer must never read as
+  // permission to harvest.
   const isFarmable = isTileFarmable(tile.terrain);
-  const onCooldown = isFarmable && isPlayerOnCooldown();
   const stateChip = isFarmable ? (
-    <span className={`nn-chip nn-viewport__chip ${onCooldown ? 'nn-chip--magenta' : 'nn-chip--green'}`}>
-      {onCooldown ? getCooldownTimeRemaining() : 'ready'}
-    </span>
+    harvestVerdict == null ? (
+      <span className="nn-chip nn-viewport__chip nn-chip--cyan">farmable</span>
+    ) : onServerCooldown ? (
+      <span className="nn-chip nn-viewport__chip nn-chip--magenta">
+        {formatCooldown(harvestVerdict.timeUntilReset)}
+      </span>
+    ) : (
+      <span className="nn-chip nn-viewport__chip nn-chip--green">ready</span>
+    )
   ) : tile.terrain === TerrainType.Factory && factoryData ? (
     // FID-072: factories carry their level as the viewport chip — the map's
     // industrial gradient is now readable at a glance, not just via deck art.

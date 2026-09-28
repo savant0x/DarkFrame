@@ -13,7 +13,9 @@ import { players, tiles } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { getPlayer, getPlayerSlim, type SanitizedPlayer } from './playerService';
 import { calculateNewPosition } from '@/utils/coordinates';
-import { protectionActive } from './playerProtection'; // FID-20260916-009 D1: canonical predicate (was hand-rolled)
+import { protectionActive } from './playerProtection'; // FID-20260916-009: canonical predicate (was hand-rolled)
+import { getHarvestStatus } from './harvestService'; // FID-20260927-007: server verdict rides on the tile
+import { isFarmableTerrain } from '@/types';
 import { Tile, MovementDirection } from '@/types';
 
 /**
@@ -25,9 +27,18 @@ import { Tile, MovementDirection } from '@/types';
  *
  * @param x - X coordinate (1-150)
  * @param y - Y coordinate (1-150)
+ * @param viewerUsername - Optional: identify whose harvest verdict to attach.
+ * FID-20260927-007: when supplied and the tile is farmable, the server's own
+ * `harvestStatus` (canHarvest / timeUntilReset / resetPeriod) rides on the
+ * returned tile — the cooldown chips render the server's answer instead of
+ * computing their own. Backward compatible: every existing caller is unchanged.
  * @returns Promise that resolves to tile data or null if not found
  */
-export async function getTileAt(x: number, y: number): Promise<Tile | null> {
+export async function getTileAt(
+  x: number,
+  y: number,
+  viewerUsername?: string
+): Promise<Tile | null> {
   try {
     const [row] = await db
       .select()
@@ -91,6 +102,19 @@ export async function getTileAt(x: number, y: number): Promise<Tile | null> {
         terrain: tile.terrain,
         occupiedByBase: tile.occupiedByBase
       });
+    }
+
+    // FID-20260927-007: the server's harvest verdict rides on the tile for an
+    // identified viewer. Same contract as the base-intel enrichment above:
+    // best-effort — an enrichment failure must never fail the tile read, and
+    // an absent verdict renders as UNKNOWN downstream, never as permission.
+    if (viewerUsername && isFarmableTerrain(tile.terrain)) {
+      try {
+        const harvestStatus = await getHarvestStatus(viewerUsername, tile);
+        (tile as { harvestStatus?: typeof harvestStatus }).harvestStatus = harvestStatus;
+      } catch {
+        // non-critical: tile still returns without the verdict
+      }
     }
 
     return tile;
@@ -159,8 +183,9 @@ export async function movePlayer(
       currentPositionY: positionUpdate[0].y,
     };
     
-    // Get tile at new position
-    const tile = await getTileAt(newPosition.x, newPosition.y);
+    // Get tile at new position — viewer attached so the returned tile carries
+    // the mover's harvest verdict (FID-20260927-007).
+    const tile = await getTileAt(newPosition.x, newPosition.y, username);
     if (!tile) {
       throw new Error(`Tile not found at (${newPosition.x}, ${newPosition.y})`);
     }

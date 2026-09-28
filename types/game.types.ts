@@ -117,6 +117,14 @@ export interface Tile {
   /** Protection window expiry of the tile's base owner (display only). */
   baseProtectionUntil?: Date | string | null;
   lastHarvestedBy?: HarvestRecord[];
+  /** FID-20260927-007: the server's own harvest verdict for an identified
+   *  viewer, attached at the getTileAt seam. INVARIANT: populated only for an
+   *  identified player, and only for farmable terrain; never infer harvest
+   *  eligibility from `lastHarvestedBy` on the client — the record list lacks
+   *  the resetPeriod rule and has produced two invented cooldowns already
+   *  (TileRenderer's host-local setHours chip, TileHarvestStatus's flat
+   *  5-minute timer). Absent = unknown, which must not render as permission. */
+  harvestStatus?: HarvestStatus;
   bankType?: BankType;
   hasFlagBearer?: boolean;
   hasTrail?: boolean;

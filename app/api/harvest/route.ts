@@ -87,7 +87,10 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
     
     // Get tile at player's current position (getTileAt returns the domain-mapped tile)
-    const tile = await getTileAt(player.currentPosition.x, player.currentPosition.y);
+    // FID-20260927-007: viewer attached so the tile carries the server's
+    // harvest verdict; the response's `harvestStatus` field is computed
+    // separately below and remains the documented contract.
+    const tile = await getTileAt(player.currentPosition.x, player.currentPosition.y, username);
     
     if (!tile) {
       log.warn('Tile not found', { position: { x: player.currentPosition.x, y: player.currentPosition.y } });

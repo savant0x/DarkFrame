@@ -24,13 +24,17 @@ interface TileHarvestStatusProps {
       timestamp: Date;
       resetPeriod: string;
     }>;
+    /** FID-20260927-007: the server's verdict, riding on the tile. */
+    harvestStatus?: {
+      canHarvest: boolean;
+      timeUntilReset: number;
+      resetPeriod: string;
+    };
   } | null;
   playerUsername: string;
 }
 
-const HARVEST_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-
-export default function TileHarvestStatus({ currentTile, playerUsername }: TileHarvestStatusProps) {
+export default function TileHarvestStatus({ currentTile }: TileHarvestStatusProps) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isReady, setIsReady] = useState<boolean>(true);
 
@@ -49,29 +53,30 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
       return;
     }
 
+    // FID-20260927-007: the countdown is the SERVER's number
+    // (harvestStatus.timeUntilReset), ticked down locally each second — the
+    // interval makes it live, it no longer invents the deadline. The old code
+    // subtracted elapsed time from a flat 5-minute constant that exists
+    // nowhere in the server (the real rule is a half-day AM/PM period), so it
+    // invited players into guaranteed rejections after ~5 minutes. Absent
+    // verdict renders as ready-neutral, never as a fabricated countdown.
+    const verdict = currentTile.harvestStatus;
+    if (!verdict) {
+      setTimeLeft(null);
+      setIsReady(true);
+      return;
+    }
+
+    const deadline = Date.now() + verdict.timeUntilReset;
+
     const updateStatus = () => {
-      if (!currentTile.lastHarvestedBy) {
+      if (verdict.canHarvest) {
         setTimeLeft(null);
         setIsReady(true);
         return;
       }
 
-      // Find this player's last harvest
-      const playerHarvest = currentTile.lastHarvestedBy.find(
-        (h) => h.playerId === playerUsername
-      );
-
-      if (!playerHarvest) {
-        setTimeLeft(null);
-        setIsReady(true);
-        return;
-      }
-
-      const lastHarvestTime = new Date(playerHarvest.timestamp).getTime();
-      const now = Date.now();
-      const elapsed = now - lastHarvestTime;
-      const remaining = HARVEST_COOLDOWN_MS - elapsed;
-
+      const remaining = deadline - Date.now();
       if (remaining <= 0) {
         setTimeLeft(null);
         setIsReady(true);
@@ -85,7 +90,7 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
     const interval = setInterval(updateStatus, 1000);
 
     return () => clearInterval(interval);
-  }, [currentTile, playerUsername]);
+  }, [currentTile]);
 
   // Don't render if no current tile or not farmable (FID-20260927-001: second copy)
   if (!currentTile) return null;
@@ -134,9 +139,8 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
 // ============================================================
 // - Fixed position in top-right corner (z-40 above most UI)
 // - Only displays for harvestable terrains (Metal, Energy, Cave, Forest)
-// - Checks player's last harvest from tile.lastHarvestedBy array
+// - Checks the SERVER's verdict (harvestStatus) attached to the tile (FID-20260927-007)
 // - Updates every second with smooth countdown
-// - 5-minute cooldown period (HARVEST_COOLDOWN_MS)
 // - Green "Ready" state vs Amber "Cooldown" state
 // - Animated pulse on clock icon during cooldown
 // - Fade-in animation on mount
