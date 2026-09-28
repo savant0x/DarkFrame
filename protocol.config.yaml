@@ -67,7 +67,7 @@ single_agent:
       scope_file: SCOPE.md
       changelog: CHANGELOG.md             # not yet present in repo — create on first FID closure
       version_file: VERSION               # not yet present in repo
-      learnings: dev/LEARNINGS.md         # not yet present in repo
+      learnings: dev/lessons-learned.md   # the repository's lessons corpus (FID-20260927-005 F8)
       coding_standards: coding-standards  # not yet present in repo
 
     # -----------------------------------------------------------------

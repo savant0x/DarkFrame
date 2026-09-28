@@ -520,7 +520,7 @@ A plan with silent deferrals is a broken plan — the operator approved work tha
 | FIDs               | `dev/fids/`                                   |
 | FID archive        | `dev/fids/archive/`                           |
 | Session summaries  | `dev/session-summaries/`                      |
-| Lessons learned    | `dev/LEARNINGS.md`                            |
+| Lessons learned    | `dev/lessons-learned.md`                      |
 | Version            | `VERSION`                                     |
 | Changelog          | `CHANGELOG.md`                                |
 
