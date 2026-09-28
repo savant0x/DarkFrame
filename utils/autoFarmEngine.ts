@@ -156,9 +156,9 @@ export class AutoFarmEngine {
   private readonly STATS_UPDATE_INTERVAL = 1000; // Update stats every second
   
   // VIP-Tiered Timing (calculated in constructor based on config.isVIP)
+  // FID-20260928-003: the former MOVEMENT_WAIT/HARVEST_WAIT constants are
+  // deleted — declared and assigned in both tiers but read nowhere.
   private readonly MOVEMENT_DELAY: number; // Delay between tiles
-  private readonly MOVEMENT_WAIT: number; // Wait for movement to process
-  private readonly HARVEST_WAIT: number; // Wait for harvest to process
   private readonly HARVEST_DELAY_EXTRA: number; // Extra delay after harvest (for cooldown)
 
   constructor(config: AutoFarmConfig, startPosition: { x: number; y: number }) {
@@ -170,8 +170,6 @@ export class AutoFarmEngine {
       // VIP TIER: Fast speed (~5.6 hours to complete map)
       // Movement: 200ms | Harvest: 800ms | Delay: 300ms
       // Non-harvestable: 500ms | Harvestable: 1300ms | Avg: 900ms/tile
-      this.MOVEMENT_WAIT = 200;
-      this.HARVEST_WAIT = 800;
       this.MOVEMENT_DELAY = 300;
       this.HARVEST_DELAY_EXTRA = 0; // No extra delay (server handles cooldown)
       console.log('[AutoFarm] VIP mode enabled - Fast speed (5.6 hour completion)');
@@ -179,8 +177,6 @@ export class AutoFarmEngine {
       // BASIC TIER: Guaranteed cooldown respect (~11.6 hours to complete map)
       // Movement: 200ms | Harvest: 800ms | Delay: 500ms (non-harvest) / 2000ms (harvest)
       // Non-harvestable: 700ms | Harvestable: 3000ms
-      this.MOVEMENT_WAIT = 200;
-      this.HARVEST_WAIT = 800;
       this.MOVEMENT_DELAY = 500;
       this.HARVEST_DELAY_EXTRA = 2000; // 2s extra after harvest (3s total = cooldown respected)
       console.log('[AutoFarm] Basic mode - Guaranteed cooldown (11.6 hour completion)');
@@ -729,7 +725,7 @@ export class AutoFarmEngine {
           success: false,
           position,
           action: 'skipped',
-          error: 'Failed to move to position after retries'
+          error: 'Failed to move to position'
         };
       }
 
@@ -868,6 +864,24 @@ export class AutoFarmEngine {
       
       if (!response.ok) {
         console.error(`[AutoFarm] Move API returned ${response.status}`);
+        // FID-20260928-003 (row 130 sub-item 2): a 429 is a THROTTLE, not a
+        // gameplay failure — the limiter's per-IP counter is shared across
+        // every route, so the cause may be another endpoint or another tab.
+        // Honor Retry-After (seconds; fallback 60), report the cause on the
+        // event surface, and only then mark the tile failed. The engine used
+        // to swallow this silently and retry at full pace — each retry itself
+        // consuming budget.
+        if (response.status === 429) {
+          const retryAfterSec = Number(response.headers.get('Retry-After')) || 60;
+          console.warn(`[AutoFarm] Movement throttled (429) — waiting ${retryAfterSec}s before next tile`);
+          this.emitEvent({
+            type: 'error',
+            timestamp: Date.now(),
+            position,
+            message: `Movement throttled (429) — backing off ${retryAfterSec}s`
+          });
+          await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000));
+        }
         return false;
       }
       
@@ -1061,6 +1075,23 @@ export class AutoFarmEngine {
       const data = await response.json().catch(() => null);
       
       if (!response.ok || !data || data.success === false) {
+        // FID-20260928-003: distinguish a THROTTLE (429 — shared per-IP budget,
+        // may be caused by any endpoint or another tab) from a gameplay
+        // rejection (cooldown/depleted — an expected cycle). A throttle must
+        // never read as "nothing to collect": honor Retry-After, report it on
+        // the event surface, and skip the harvest-cycle extra delay.
+        if (response.status === 429) {
+          const retryAfterSec = Number(response.headers.get('Retry-After')) || 60;
+          console.warn(`[AutoFarm] Harvest throttled (429) — waiting ${retryAfterSec}s`);
+          this.emitEvent({
+            type: 'error',
+            timestamp: Date.now(),
+            position,
+            message: `Harvest throttled (429) — backing off ${retryAfterSec}s`
+          });
+          await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000));
+          return { success: false, reason: 'Throttled (429)' };
+        }
         // Not an error — cooldown/depleted rejections are expected cycles.
         const reason = (data?.message || data?.error?.message || `HTTP ${response.status}`) as string;
         console.warn(`[AutoFarm] Harvest rejected: ${reason}`);
