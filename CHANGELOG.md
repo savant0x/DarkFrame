@@ -5,6 +5,30 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.50] — 2026-09-28 session 012
+
+> **The milestone:** four operator-decision rows closed in one sweep, each on a fresh probe. The
+protocol no longer contradicts its own attribution rule; the live docs' mojibake is repaired; the
+session-summary convention is formally adopted with the pre-cutover gap stated rather than papered
+over; and the `[DEFERRED]/[OUT-OF-SCOPE]` section carried its first entries — which is what its
+companion row required to close.
+
+### Closed — rows 5, 29, 124, 125 (operator-approved via `dev/row-decisions-2026-09-28.md`)
+
+- **Row 5 (`4586268`):** the protocol's FID-Format clause dropped `Author` from the required metadata
+  list, ending the conflict with the attribution rule; the template's existing omission-note stands.
+- **Row 29 (`8652d41`):** the three live files' U+FFFD headings repaired by codepoint-level replacement
+  guided by sibling-heading patterns (`architecture.md` ×2, `lessons-learned.md` ×1); the three archive
+  files keep their damage as history; the issues-debt line updated.
+- **Row 124:** option (d) adopted as the formal convention (one summary per session, enforced
+  closure-side by census check D); options (b) and (c) declined with reasons — the span 2026-09-19..09-22
+  (71 commits, zero summaries) is an accepted, stated gap.
+- **Row 125:** the register-table split declined (the census already answers "what's open"
+  mechanically) and the `[DEFERRED]/[OUT-OF-SCOPE]` section seeded with the row-124 declines — its
+  first entries, proving the section live and closing its own row.
+- **Declined items land in `[DEFERRED]/[OUT-OF-SCOPE]` with reasons** — the section's first use, per
+  its own charter. Rows 6 and 69 remain open (provider-side rotation; roadmap index).
+
 ## [0.0.49] — 2026-09-28 session 011
 
 > **The milestone:** auto-farm fetched the same tile three times per move. `POST /api/move` builds and
