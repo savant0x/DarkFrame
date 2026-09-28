@@ -3705,3 +3705,51 @@ work rests on.
 checkable, and check F makes an unescaped `|` inside a description fatal. The
 lesson in the corpus is the backup; the gate is the mechanism.
 
+---
+
+##  LEDGER INTEGRITY LESSONS (Added 2026-09-28)
+
+> Filed by FID-20260928-001. The defect below sat in the ledger for 25 days and
+> survived two evidence-layer audits because it was formatted like evidence.
+
+###  48. A CLAIM WRITTEN INSIDE A BULK CHECKPOINT IS NOT A MEASUREMENT
+**Context:** SCOPE row 13 (dated 2026-09-01, entered by commit `ad14f790`), resolved 2026-09-28
+**Severity:** HIGH (a false "Completed" row rewrites the next decision's baseline)
+
+**The Problem:**
+
+An 851-file relocation checkpoint (*"WMD schema completion + lint burn-down +
+repo relocation to NTFS"*) carried a one-line claim into SCOPE row 13:
+*"messaging moved from Socket.io to Ably."* No migration commit exists. No Ably
+package was ever declared in any manifest at any commit. The word `ably` appears
+in zero imports and zero `process.env` reads across the entire tree. The
+transport stayed Socket.io — 20 files importing `socket.io`/`socket.io-client`
+directly, mounted by the production server entry point.
+
+The claim survived 25 days because it was **shaped like evidence**: specific
+credential names (`ABLY_API_KEY`, `ABLY_SUBSCRIBE_KEY`), a plausible rationale
+(*"consistent with the Postgres pivot"*), a cross-reference to a real doc. The
+credentials existing in `.env.local` made the claim feel sourced — yet zero code
+ever read them. Presence of credentials signals *intent*, never *accomplishment*.
+
+**The Rule:**
+
+1. **A migration claim must name the commit that performed it.** A ledger row
+   that says "X moved to Y" without a hash is a memory wearing a record's
+   clothes — the same class as Lesson 47, pointed at the ledger instead of a
+   tool limit.
+2. **Bulk checkpoints are the highest-risk carriers.** An 851-file commit is
+   reviewed as a relocation, not audited clause-by-clause; prose smuggled inside
+   it inherits the commit's momentum and is never re-probed.
+3. **Kill transport claims at the artifact layer.** Three greps — the manifest,
+   the imports, the env readers — would have ended this claim on day one. The
+   artifact layer cannot remember a migration that did not happen.
+4. **Plausible specificity is not evidence.** The more concrete a false claim
+   sounds, the longer it survives, because it reads like the output of a probe.
+
+**Where it now lives mechanically:** row 13's corrected cell carries its probes
+inline — packages at `package.json:55-56`, 20 direct import sites, the
+`server.ts:34` mount, zero `ably` imports, zero `ABLY_*` readers — so the next
+audit re-runs three greps instead of re-deriving the history. The lesson is the
+backup; the row's citations are the mechanism.
+

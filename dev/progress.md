@@ -40,9 +40,9 @@ The database migration that defined this project's last quarter is **finished an
   all three run in the pre-push chain and in CI: typecheck (Gate 9), lint (Gate 8), suite (Gate 10),
   plus four censuses and the attribution scan.
 
-**Messaging is the one subsystem still on its original transport:** `socket.io` (`lib/websocket/`,
-≥5 importers). No `ably` import exists anywhere in the tree, despite SCOPE row 13 recording that
-messaging had moved to Ably. Recorded here as an observation, not a decision — see FID-20260927-006 §3.
+**Messaging remains on its original transport:** `socket.io` (`lib/websocket/`, 20 direct-import
+files, mounted at `server.ts:34`). RESOLVED 2026-09-28 (FID-20260928-001): SCOPE row 13's "moved
+to Ably" clause was false and is corrected in place — no Ably migration ever happened.
 
 ---
 

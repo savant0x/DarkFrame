@@ -102,9 +102,9 @@ it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exac
 - **Test coverage is not measured.** This file previously claimed "~15% (target 60% per Jan 2026
   baseline docs)". No coverage tooling is configured, so the figure cannot be reproduced — it is
   marked unverifiable rather than restated as fact. Closing it is a real decision, not a doc fix.
-- **Messaging is still on `socket.io`.** Live via `lib/websocket/` (≥5 importers); **0** `ably`
-  imports exist, though SCOPE row 13 records that messaging moved to Ably. One of the two records is
-  wrong; resolving which is a separate question from this refresh. Logged as an observation.
+- **~~Messaging is still on `socket.io`~~ → RESOLVED 2026-09-28 (FID-20260928-001).** Socket.io IS
+  the live transport (20 direct-import files, mounted at `server.ts:34`); SCOPE row 13's Ably
+  clause was false and is corrected in place. There was never a migration to reconcile.
 - `dev/completed.md`, `dev/roadmap.md` and `dev/metrics.md` are historical records and are
   intentionally not rewritten — they describe what was true when they were written.
 
@@ -116,7 +116,7 @@ it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exac
 
 - Provider-side credential rotation (B4 above) — operator action, no repo work available.
 - Establish or retire a test-coverage measurement; the current state is *unknown*, not *good*.
-- Resolve the socket.io-vs-Ably record conflict noted above.
+- Operator decision (FID-20260928-001): the `ABLY_API_KEY`/`ABLY_SUBSCRIBE_KEY` vars in `.env.local` have zero code readers — remove or rotate them (untracked file; no repo action available).
 - `dev/lessons-learned.md` carries a merged duplicate H1 (`# 📚 Lessons Learned - Severity-Ranked
   Reference# DarkFrame - Lessons Learned`) and a U+FFFD in a section heading — cosmetic, never fixed.
 
