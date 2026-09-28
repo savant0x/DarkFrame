@@ -44,7 +44,7 @@
 
 **Row's claim:** ~14 docs/archive files carry mangled decorative emoji (U+FFFD).
 
-**Re-probed 2026-09-28:** `git grep -c` for U+FFFD over tracked `*.md`, excluding `dev/archives` → **6 non-archive files**, 15 occurrences total: `SCOPE.md` (1 — row 29's own citation text), `dev/architecture.md` (2 — section headings `## � Input Handling…`, `## �🎯 Design Patterns`), `dev/lessons-learned.md` (1 — `### �🔴 1. USE THE DATABASE'S OWN TOOLS…`), plus 3 `dev/archive/` files (12 occurrences). The same file pair also carries the duplicate H1 and U+FFFD debt already recorded in `dev/issues.md`.
+**Re-probed 2026-09-28:** `git grep -c` for U+FFFD over tracked `*.md`, excluding `dev/archives` → **6 non-archive files**, 15 occurrences total: `SCOPE.md` (1 — row 29's own citation text), `dev/architecture.md` (2 — section headings (since repaired: `## 🎮 Input Handling…`, `## 🧭🎯 Design Patterns`)), `dev/lessons-learned.md` (1 — since repaired: `### 🔴 1. USE THE DATABASE'S OWN TOOLS…`), plus 3 `dev/archive/` files (12 occurrences). The same file pair also carries the duplicate H1 and U+FFFD debt already recorded in `dev/issues.md`.
 
 **Assessment:** purely cosmetic, but the live-file hits are in *navigable headings*, so they show up in TOCs and anchor links. A mechanical sweep (replace U+FFFD with the intended emoji or strip it) is ~30 minutes and touches only headings/prose; archive files can keep their damage as history or be included for completeness.
 
