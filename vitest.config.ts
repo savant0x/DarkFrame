@@ -25,7 +25,12 @@ export default defineConfig({
     exclude: ['node_modules', 'dist', '.next', 'out', 'dev/tmp/**'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'json-summary', 'html'],
+      // FID-20260928-005: measure the production surface only — lib/ (services),
+      // app/api/ (routes), utils/ (engine + helpers). Test files, config files,
+      // type declarations and page/layout components are excluded by default
+      // include-scoping; this list is the instrumented surface.
+      include: ['lib/**', 'app/api/**', 'utils/**'],
       exclude: [
         'node_modules/',
         'vitest.config.ts',
@@ -35,6 +40,9 @@ export default defineConfig({
         '**/*.config.ts',
         '**/dist/**',
         '**/.next/**',
+        '**/*.test.*',
+        '**/*.spec.*',
+        '**/__tests__/**',
       ],
     },
   },

@@ -168,7 +168,8 @@ describe('terrainTruth: the farmable-terrain contract', () => {
         offenders,
         `Hand-rolled farmability lists found. Re-point these at FARMABLE_TERRAINS / isFarmableTerrain:\n  ${offenders.join('\n  ')}`
       ).toEqual([]);
-    });
+    }, 30_000); // O(n²) statement census; 5s default is too tight when the worker
+    // runs under v8 coverage instrumentation (FID-20260928-005).
   });
 
   describe('3. payout direction', () => {

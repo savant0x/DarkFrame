@@ -103,7 +103,10 @@ const config = [
     // area — a tooling surface that disagrees with `git status` breaks gates
     // invisibly. Kept out of eslint here, out of tsc via tsconfig exclude,
     // out of vitest discovery via its own exclude.
-    ignores: ['node_modules/**', '.next/**', 'out/**', 'dev/archives/**', 'dev/tmp/**'],
+    // coverage/** joined with FID-20260928-005: the v8 HTML report ships
+    // generated .js files that would otherwise trip the warning budget on
+    // every post-coverage lint run.
+    ignores: ['node_modules/**', '.next/**', 'out/**', 'coverage/**', 'dev/archives/**', 'dev/tmp/**'],
   },
   ...nextVitals,
   ...nextTs,
