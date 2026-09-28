@@ -3,7 +3,7 @@
 **Filename:** `FID-20260928-001-messaging-transport-row13-resolution.md`
 **ID:** FID-20260928-001
 **Severity:** HIGH
-**Status:** created
+**Status:** closed (2026-09-28, commit `42834a4`)
 **Created:** 2026-09-28
 
 ---
@@ -91,7 +91,7 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 
 ## 7. Implementation Record
 
-- **Status:** not-started
+- **Status:** done (implemented 2026-09-28 under the session's standing operator approval; content landed on commit `42834a4`)
 - **Files changed:**
 
 | File | Lines | Notes |
@@ -103,18 +103,18 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 | `dev/session-summaries/SESSION-2026-09-28-001.md` | new | Session record (census check D citation for this closure). |
 | This FID | §7 | Status → done; evidence below. |
 
-- **Verification evidence:** _(pending — this section is filled only after the edits exist and the gates have actually run; no output may be written here in advance)_.
-- **Call-graph reachability evidence:** _(pending)_
+- **Verification evidence (executed 2026-09-28, output pasted in the session summary):** `npx tsc --noEmit` → exit 0 · `npx eslint . --max-warnings 0` → exit 0 (0/0) · `npx vitest run` → **141 files / 1363 tests passed** · `node scripts/ledgerIntegrityCensus.cjs` → exit 0 (`ledger census clean`; the rewritten row verified at 5 raw pipes with splitRow semantics and a parseable `Closed` status carrying a date).
+- **Call-graph reachability evidence:** §2 findings 6-8 stand as the proof of the corrected row's central claim (`server.ts:34` mount, `WebSocketContext.tsx:32/147` client, 20 direct-import files); no code changed.
 - **Call-graph reachability evidence:** §2 findings 6-8 stand as the proof of the corrected row's central claim; no code changed.
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck 0 errors · [ ] lint 0 errors/0 warnings · [ ] tests pass · [ ] call-graph proven (documentation-only change; the row's live-transport claim is citation-backed)
-- **Commit hash (G2 — required for `closed`):** recorded in SCOPE row 13's closure cell and the session summary at close
+- **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass (141/1363) · [x] call-graph proven (documentation-only change; the row's live-transport claim is citation-backed)
+- **Commit hash (G2 — required for `closed`):** `42834a4` — *docs(ledger): resolve row 13 — messaging transport is Socket.io; the Ably migration never happened (FID-20260928-001)*; the ledger-closure commit (SCOPE row 13's hash citation, CHANGELOG 0.0.45, VERSION, this archive move) follows as this session's second commit, per the row-133 precedent that a closure cell cites the commit carrying the work.
 - **Staging plan (path-scoped, G3/G4):** commit 1 (resolution content): `git add dev/fids/FID-20260928-001-messaging-transport-row13-resolution.md dev/progress.md dev/issues.md dev/lessons-learned.md dev/session-summaries/`; commit 2 (ledger closure): `git add SCOPE.md CHANGELOG.md VERSION dev/fids/` — never `git add -A`.
 - **Commit message (G8):** `docs(ledger): resolve row 13 — messaging transport is Socket.io; the Ably migration never happened (FID-20260928-001)`
 - **Archive:** move to `dev/fids/archive/` at `closed`; CHANGELOG entry; archival logged in the session summary. Never at `loop-complete`.
 
 ---
 
-**Final status:** loop-complete
+**Final status:** closed

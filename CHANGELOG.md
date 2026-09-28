@@ -5,6 +5,31 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.45] — 2026-09-28 session 007
+
+> **The milestone:** the ledger carried a migration that never happened. Row 13 (2026-09-01) recorded
+messaging as moved Socket.io → Ably; every measurable layer says otherwise — `socket.io@^4.8.1` declared,
+20 files importing the SDKs, the server mounting it, the client connecting — and no Ably package, import,
+or env reader has ever existed at any commit. The claim rode in inside an 851-file relocation checkpoint
+and survived 25 days because it was shaped like evidence.
+
+### Resolved — FID-20260928-001: SCOPE row 13 vs the code
+
+- **Row 13's Ably clause corrected as FALSE, in place.** The original 2026-09-01 wording is kept verbatim as
+  dated history; the status cell now carries the full probe chain: packages (`package.json:55-56`), 20 direct
+  import sites across 9 directories, the `server.ts:34` mount, zero `ably` imports tree-wide, zero `ABLY_*`
+  consumers, and the `git log --all -S` proof that no manifest ever carried Ably. The Mongo clause stands
+  (Gate 3); `REDIS_URL` stands (`lib/redis.ts`); the mapping-doc cross-reference is marked dangling.
+- **The claim's origin is identified, not guessed.** `git log -S` traces the sentence to `ad14f790` —
+  *"checkpoint: WMD schema completion + lint burn-down + repo relocation to NTFS"* (851 files, 2026-09-03).
+  No implementation commit backs the migration because there is none.
+- **Lesson 48 filed:** a claim written inside a bulk checkpoint is not a measurement — and presence of
+  credentials (`ABLY_API_KEY`/`ABLY_SUBSCRIBE_KEY` in `.env.local`) signals intent, never accomplishment.
+- **Recorded, not absorbed (Law 2):** removing or rotating the orphaned `ABLY_*` keys is an operator decision
+  (the file is untracked); carried in `dev/issues.md`'s outstanding list.
+- **Also this session:** FID-20260927-007's red drill executed against the pre-fix tree (7 failed / 2 passed —
+  the exact pinned defects); artifact parked inert in `dev/tmp/` pending that implementation turn.
+
 ## [0.0.44] — 2026-09-27 session 006
 
 > **The milestone:** eight findings, none of them a production bug, all of them the ledger or the contract *stating something untrue* — and the correction that mattered most was catching the FID's own repair plan targeting a line that had already moved. Session 005 filed the work; the operator directed it fixed, and the first act was to re-measure the plan instead of executing it. That re-measurement found the plan would have shipped the wrong fix, plus two findings the original pass had missed entirely.
