@@ -2144,7 +2144,7 @@ SETUP.md ✅
 
 **Done:** Executed archive snapshot FID-20251019-004 and moved older entries to `dev/completed_archive_2025-10-19.md` on 2025-10-19.
 
-### �🔴 1. USE THE DATABASE'S OWN TOOLS INSTEAD OF WRITING CODE
+### 🔴 1. USE THE DATABASE'S OWN TOOLS INSTEAD OF WRITING CODE
 > ⚠️ **SUPERSEDED (2026-09-19):** the tooling is now **PostgreSQL via Drizzle** — the
 > MongoDB stack and shim are deleted (SCOPE row 97). All `mcp_mongodb_*` guidance
 > below is obsolete. The transferable lesson stands: prefer direct DB tooling/probes

@@ -1209,7 +1209,7 @@ User performs class-related activity (e.g., Miner harvests)
 
 ---
 
-## � Input Handling & User Controls
+## 🎮 Input Handling & User Controls
 
 ### Movement Controls (Three Schemes)
 **Keyboard Mappings:** Three complete control schemes for maximum accessibility
@@ -1247,7 +1247,7 @@ User performs class-related activity (e.g., Miner harvests)
 
 ---
 
-## �🎯 Design Patterns
+## 🧭🎯 Design Patterns
 
 ### Singleton Pattern
 **Used in:** MongoDB connection (`lib/mongodb.ts`)  

@@ -118,8 +118,10 @@ it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exac
 - Establish or retire a test-coverage measurement; the current state is *unknown*, not *good*.
 - Operator decision (FID-20260928-001): the `ABLY_API_KEY`/`ABLY_SUBSCRIBE_KEY` vars in `.env.local` have zero code readers — remove or rotate them (untracked file; no repo action available).
 - Limiter keying is architecture-wide (FID-20260928-003): one shared per-IP bucket across all routes (`getUserId` always returns null, so `trackByUser` is decorative). Revisit per-endpoint keys / real user tracking only with production 429 telemetry. Auto-farm's duplicate tile fetch (move response carries `currentTile`; engine and page each re-fetch) is a separate future performance item.
-- `dev/lessons-learned.md` carries a merged duplicate H1 (`# 📚 Lessons Learned - Severity-Ranked
-  Reference# DarkFrame - Lessons Learned`) and a U+FFFD in a section heading — cosmetic, never fixed.
+- ~~`dev/lessons-learned.md` carries a merged duplicate H1 and a U+FFFD in a section heading~~ → the
+  U+FFFD was fixed 2026-09-28 (row 29 sweep; the heading now matches the corpus's severity-emoji
+  pattern); the merged duplicate H1 remains — historical text deliberately preserved on the row-29
+  precedent that archives/records keep their damage.
 
 **Retired (superseded claims kept for the record):**
 
