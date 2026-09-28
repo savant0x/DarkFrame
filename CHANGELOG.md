@@ -5,6 +5,17 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.54] — 2026-09-28 session 014 (follow-through 2)
+
+- **Raid telemetry (FID-20260928-008, `74c91e4`):** the `PVP_BASE_RAID_DESIGN.md` balancing
+  constants get a data feed — outcome/loot/casualty aggregates over `battle_logs` `BASE_RAID`
+  rows (**zero new outcome writes** — the persistent record is the source), a hostility-refusal
+  stream (`player_activity` rows `action='raid_refusal'`, written by the gate **before** the
+  refusal response), and the admin-gated `GET /api/admin/raid-telemetry` with per-pair refusal
+  counts and knob→metric `tuningTargets`. Design doc §4.6 wires every §4 constant to its metric;
+  tuning stays doc-first (constant edited in doc + `lib/hostileBase.ts` together). 10 pins;
+  suite 146 files green.
+
 ## [0.0.53] — 2026-09-28 session 014 (follow-through)
 
 - **SCOPE row 69 CLOSED — the 2026-09-16 feature survey is fully dispositioned.** The last open
