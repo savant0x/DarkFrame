@@ -5,6 +5,25 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.49] — 2026-09-28 session 011
+
+> **The milestone:** auto-farm fetched the same tile three times per move. `POST /api/move` builds and
+returns `data.data.currentTile` — the engine discarded it, re-fetched the tile it was standing on, and
+the page fetched it a third time. At VIP pacing that was ~200 wasted requests/min on the shared per-IP
+budget FID-20260928-003 had measured.
+
+### Fixed — FID-20260928-004: one tile build per move
+
+- **The envelope tile is now the source of truth.** `moveToPosition` captures `data.data.currentTile`
+  (type-guarded), uses it as `tileInfo` directly, and relays it on the `move` event; the page applies
+  `event.data.tile` via `setCurrentTile` instead of re-fetching. `getTileInfo` and `updateTileOnly`
+  survive as the degraded-envelope fallbacks — no dead code.
+- **The envelope tile is the better copy:** since FID-20260927-007 it carries the viewer's
+  `harvestStatus`, which the old anonymous re-fetch did not.
+- **Pinned by 4 assertions**, including the regression pin: on the happy path the engine must issue
+  NO `/api/tile` request at all.
+- Executed the item FID-20260928-003 recorded, not absorbed (Law 2).
+
 ## [0.0.48] — 2026-09-28 session 010
 
 > **The milestone:** row 130's last open sub-item was decided by measurement. The literal worry — "a 429
