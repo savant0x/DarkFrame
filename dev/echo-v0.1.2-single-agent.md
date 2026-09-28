@@ -334,7 +334,9 @@ Created → Analyzed → LOOP-COMPLETE → Implemented → Closed → Archived
 ### FID Format
 
 Use `templates/FID-TEMPLATE.md` as the exact template. Required metadata fields: **Filename**, **ID**, **Severity**,
-**Status**, **Created**, **Author**.
+**Status**, **Created**. (SCOPE row 5, resolved 2026-09-28: `Author` was removed from this list —
+it conflicted with the Document Signing & Attribution rule above, which wins; the template
+already omitted the field and noted the omission.)
 
 Allowed status values: `created | analyzed | fixed | verified | loop-complete | implemented | no-action | closed`.
 
