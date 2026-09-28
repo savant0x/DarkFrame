@@ -5,6 +5,17 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.53] — 2026-09-28 session 014 (follow-through)
+
+- **SCOPE row 69 CLOSED — the 2026-09-16 feature survey is fully dispositioned.** The last open
+  item (P3 specialization mastery) resolved as **no-action** on fresh probes: the doctrine/mastery
+  system is wired and live (choose flow mounted → `/api/specialization/choose`; doctrine STR/cost
+  multipliers consumed in `resolveBattle` and the factory; server-side mastery XP from battle wins
+  and matching builds; amplification loop closed by construction) — FID-20260928-007. The 09-14
+  "built but inert" audit verdict has been false since `4237f51` (Phases 1–3, live-verified
+  2026-09-15), and today's PvP gate opening gave base raids the same doctrine stack. No code
+  changed; nothing was dormant to route.
+
 ## [0.0.52] — 2026-09-28 session 014
 
 > **The milestone:** the last unstarted P2 item from the 2026-09-16 feature survey resolved —
