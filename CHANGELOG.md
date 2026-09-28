@@ -5,6 +5,36 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.47] — 2026-09-28 session 009
+
+> **The milestone:** both live cooldown chips invented their own rules and the server's real answer was
+computed, returned, and thrown away. The viewport chip matched the harvest record list on playerId alone
+(a tile harvested in a *previous* period showed a countdown forever) and counted down to a host-local
+noon/midnight boundary; the stats chip ran a flat 5-minute timer that exists nowhere in the server.
+
+### Fixed — FID-20260927-007: the chips read the server's verdict
+
+- **The server's answer rides on the tile payload.** `getTileAt` gained an optional `viewerUsername`;
+  when supplied (and the tile is farmable) it attaches `harvestStatus` — the same `getHarvestStatus`
+  result `POST /api/harvest` already returned and the client discarded. `/api/tile` resolves the session
+  (optional, never rejects anonymous), `/api/move` and `/api/harvest` pass their authenticated username.
+  Best-effort by contract: an enrichment failure never fails the tile read, and an absent verdict
+  renders as neutral — an unknown answer must never read as permission.
+- **Zero new requests in the auto-farm hot path.** The polling alternative (reviving the dead
+  `GET /api/harvest/status`) was measured and rejected: the rate limiter's per-IP counter is shared
+  across ALL routes (`generateKey` has no endpoint component; `trackByUser` falls back to the same
+  `ip:` key because `getUserId` always returns null) — drilled: 301 calls to a 300/min route 429'd a
+  different 10/min route's first call. That dead route also stays dead: it was an unauthenticated
+  `?username=` lookup oracle.
+- **Both chips re-pointed; both invented rules deleted.** `TileRenderer`'s chip renders the verdict
+  (green ready / magenta server countdown / neutral `farmable` when unknown); `TileHarvestStatus` ticks
+  the server's `timeUntilReset` down locally instead of subtracting from a fabricated constant.
+- **Pinned by 9 assertions**, drilled red 7/2 against the unre-pointed chips before the fix existed,
+  then 9/9. The drift census even rejected a fix-time comment that contained the banned `setHours(12/24)`
+  text — the pin does not distinguish comment from code, which is the correct strictness.
+- **Row 130 sub-item 1 closed** on `dbb2d8b`; sub-item 2 (VIP pacing vs the shared per-IP budget) stays
+  open with a sharper edge.
+
 ## [0.0.46] — 2026-09-28 session 008
 
 > **The milestone:** a gitignored directory could still break every gate. `dev/tmp/` is the scratch
