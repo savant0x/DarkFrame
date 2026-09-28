@@ -5,6 +5,30 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.46] — 2026-09-28 session 008
+
+> **The milestone:** a gitignored directory could still break every gate. `dev/tmp/` is the scratch
+area by intent — invisible to `git status` — but tsconfig, eslint and vitest all scanned it, so a
+scratch artifact failed the gates with no visible cause. SCOPE row 128 recorded the class after it
+cost two gate cycles on 2026-09-25; it recurred 2026-09-28 before the fix landed.
+
+### Fixed — FID-20260928-002: the scratch area can no longer break a gate invisibly
+
+- **Reproduced before fixing (Law 16).** The drill replanted row 128's two historical incident shapes
+  plus a scratch test, with `git status --porcelain` captured clean in the same window: tsc **exit 2**
+  (`TS2307`), eslint **exit 1** (`no-require-imports` on a `.cjs` shim — the same rule as the original),
+  vitest **exit 1** (a scratch `expect(1).toBe(2)` discovered and failed).
+- **Excluded at all three surfaces**: `dev/tmp` in `tsconfig.json`'s `exclude`; `dev/tmp/**` in
+  `eslint.config.mjs`'s global ignores and `vitest.config.ts`'s `test.exclude` — each with a comment
+  naming the contract. Green re-drill with the artifacts still planted: tsc 0 · eslint 0 · vitest
+  discovers nothing in the directory.
+- **Pinned so it cannot regress**: `__tests__/config/devTmpExcluded.test.ts` (4 assertions) drilled
+  red 3/1 against the pre-fix configs, then 4/4. The pin's first draft parsed tsconfig as JSONC with
+  hand-rolled comment stripping and corrupted the file (the `/*` in `"paths": {"@/*": …}`); corrected
+  to targeted array extraction — recorded as a self-correct.
+- **Safety before ignoring:** nothing outside `dev/tmp/` references it (grep → 0), so the exclusion
+  cannot orphan a live import.
+
 ## [0.0.45] — 2026-09-28 session 007
 
 > **The milestone:** the ledger carried a migration that never happened. Row 13 (2026-09-01) recorded
