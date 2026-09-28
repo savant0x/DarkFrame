@@ -5,6 +5,45 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.52] — 2026-09-28 session 014
+
+> **The milestone:** the last unstarted P2 item from the 2026-09-16 feature survey resolved —
+> not by building a feature, but by discovering the feature already existed behind one wrongly
+> scoped gate. The operator's design (walk to a base, press ATTACK, automated resolution, battle
+> log as the review surface) was live for every bot base and refused for every human one; the
+> gate is now the operator's recorded hostility rule.
+
+### Added
+
+- **PvP base raiding (FID-20260928-006, `e7375c4`)** per the ratified `docs/design/PVP_BASE_RAID_DESIGN.md`:
+  player-held bases are raid targets through the SAME unified attack button. Hostility rule (§2):
+  every base hostile EXCEPT self / same clan / allied clan — all four alliance types block
+  (`areAllies`), alliance-lookup failure fails safe. Human defenders field their real army
+  (no weight-class floor). Defender casualties persist through a **25% pre-battle-pool floor**
+  (`battleService.capDefenderCasualties` — the harassment brake; the log is amended to what
+  actually persisted). Loot capped at **5,000 × attacker level** per declared resource, 1×
+  (the 3× premium stays Beer-specific). The FID-20260912-093 one-raid-per-period lock now covers
+  human defenders. 21 pins (`__tests__/lib/pvpBaseRaid.test.ts`); global coverage baseline
+  23.64% → 23.89% statements (`lib/hostileBase.ts` 100%).
+- **Design corpus:** `docs/design/PVP_BASE_RAID_DESIGN.md` (`c1c4cb6`) — hostility rule, reuse
+  map, five pre-decided balancing picks, blast-radius census (Appendix A: one gate site, one
+  harvest, tutorial/tile/tests already safe by construction).
+
+### Removed
+
+- **`/api/battle/attack` deleted** — zero UI callers, unsound contract (client supplied the
+  defender's army; Zod validated a schema the route then ignored). Its protection parity was
+  already in `lib/playerProtection` (the §3 "harvest" dissolved into direct lib calls);
+  `battleTrackingService` docblock and the -008 e2e driver's retired probes annotated.
+
+### Corrected
+
+- **SCOPE row 69 annotated with operator-corrected statuses:** territory capture UI shipped
+  (the "unstarted" verdict was stale); shrine sacrifice never removed ("dead economy" title was
+  a misnomer for a route consolidation); tutorial not dead (action-tracking completion is by
+  design). The corrections are recorded in the closed FID, not by rewriting the 2026-09-16
+  survey or its errata (historical records keep their text).
+
 ## [0.0.51] — 2026-09-28 session 013
 
 > **The milestone:** coverage stopped being folklore. The "~15%" figure that could not be

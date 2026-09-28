@@ -3,7 +3,7 @@
 **Filename:** `FID-20260928-006-pvp-attack-ui.md`
 **ID:** FID-20260928-006
 **Severity:** MEDIUM
-**Status:** created
+**Status:** closed (2026-09-28, commit `e7375c4`)
 **Created:** 2026-09-28
 
 ---
@@ -95,16 +95,16 @@ All probes executed 2026-09-28 (session 013 follow-up to the coverage session; c
 
 ## 7. Implementation Record
 
-- **Status:** not started — awaiting operator pick on §5's recorded decision, then the standard loop.
+- **Status:** done (2026-09-28). **The FID was rescoped twice before implementation — both by operator design rulings, both recorded:** (1) the §1 manual-PvP-modal premise was RETIRED ("PvP is automated; the battle log is the review surface; for a player to attack a player, they go to their base and attack them"); (2) the real defect was located — `combat/attack`'s `isBot` refusal (FID-20260906-006a edge, never a design decision) was the ONLY thing blocking the operator's stated flow. Implementation executed against the ratified `docs/design/PVP_BASE_RAID_DESIGN.md` (hostility rule §2, five pre-decided balancing picks §4, blast-radius census Appendix A): `lib/hostileBase.ts` created (truth table + `pvpLootCap` = 5,000 × attacker level, `DEFENDER_LOSS_FLOOR` = 0.25); `combat/attack` gate replaced (self/same-clan/`areAllies` — all four alliance types block, lookup failure fails safe as allied); human defender = real army (no weight-class floor); defender casualties persist through `battleService.capDefenderCasualties`/`applyDefenderCasualtiesWithFloor` (kill-cap = 75% of pre-battle pool, log amended to what persisted); bot path byte-unchanged; stale `/api/battle/attack` DELETED (its protection parity was already in `lib/playerProtection` — the §3 harvest dissolved into direct lib calls); docblock pointers updated.
 
 ## 8. Closure
 
-- **Gates:** [ ] typecheck · [ ] lint · [ ] suite · [ ] census — pending implementation.
-- **Commit hash (G2):** pending.
+- **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] suite 145 files / 1380+21 pins passed · [x] census exit 0 · [x] inverted-route census MISSING 0 / UNPARSED 0 · [x] coverage suite 145/145 (global baseline 23.64% → 23.89% stmts; `lib/hostileBase.ts` 100%).
+- **Commit hash (G2):** `e7375c4` — *feat(pvp): player-held bases become raid targets — hostility rule (self/clan/alliance), 25% defender casualty floor, attacker-level loot cap; stale /api/battle/attack deleted (FID-20260928-006)*; the ledger-closure commit follows. Design doc + census: `c1c4cb6`, `fb5fbf1`.
 - **Staging plan (path-scoped, G3/G4):** commit 1 (code): `git add lib/movementService.ts types/game.types.ts components/PvpAttackModal.tsx app/game/page.tsx __tests__/components/pvpAttackModal.test.tsx` (+ deletion per operator pick); commit 2 (ledger): `git add SCOPE.md CHANGELOG.md VERSION dev/fids/ dev/session-summaries/` — never `git add -A`.
 - **Commit message (G8):** `feat(pvp): manual PvP attack UI on player-held base tiles — unit-select modal on the infantry route, BattleResultModal un-orphaned (FID-20260928-006)`
 - **Archive:** move to `dev/fids/archive/` at `closed` only; CHANGELOG entry; row-69 annotation at closure.
 
 ---
 
-**Final status:** created
+**Final status:** closed
