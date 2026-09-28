@@ -99,9 +99,13 @@ it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exac
   identical 10-gate chain on every push, and `attribution-guard.yml` scans the same range for agent
   attribution. Both green. This limitation was written on 2026-09-02, the same day Gate 1 was
   discovered to be Windows-only and CI failed on its first ever run.
-- **Test coverage is not measured.** This file previously claimed "~15% (target 60% per Jan 2026
-  baseline docs)". No coverage tooling is configured, so the figure cannot be reproduced — it is
-  marked unverifiable rather than restated as fact. Closing it is a real decision, not a doc fix.
+- **~~Test coverage is not measured~~ → it is, as of 2026-09-28 (FID-20260928-005).** This file
+  previously claimed "~15% (target 60% per Jan 2026 baseline docs)". No coverage tooling was
+  configured, so the figure could not be reproduced — the item was marked unverifiable rather than
+  restated as fact. Coverage is now measured (`npx vitest run --coverage`, v8 provider over
+  `lib/` + `app/api/` + `utils/`): the real baseline is **23.64% statements / 19.01% branches /
+  27.39% functions / 23.78% lines** across 478 files (lib 25.59 / app/api 20.27 / utils 25.93
+  statements). The old ~15% claim was never validated; the number above is reproducible.
 - **~~Messaging is still on `socket.io`~~ → RESOLVED 2026-09-28 (FID-20260928-001).** Socket.io IS
   the live transport (20 direct-import files, mounted at `server.ts:34`); SCOPE row 13's Ably
   clause was false and is corrected in place. There was never a migration to reconcile.
@@ -115,7 +119,13 @@ it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exac
 **Outstanding:**
 
 - Provider-side credential rotation (B4 above) — operator action, no repo work available.
-- Establish or retire a test-coverage measurement; the current state is *unknown*, not *good*.
+- ~~Establish or retire a test-coverage measurement; the current state is *unknown*, not *good*.~~ →
+  **Established 2026-09-28 (FID-20260928-005).** Baseline: 23.64% statements / 23.78% lines on
+  lib/ + app/api/ + utils/ (478 files). Measurement now exists; *good* remains a separate question.
+- **Coverage baselines drift silently.** The v8 instrumentation roughly doubles some census tests'
+  runtime (the terrainTruth file-scan census needed a 30s timeout to survive `--coverage` runs);
+  if a future scan-style test times out only under coverage, suspect instrumentation cost before
+  suspecting a real regression.
 - Operator decision (FID-20260928-001): the `ABLY_API_KEY`/`ABLY_SUBSCRIBE_KEY` vars in `.env.local` have zero code readers — remove or rotate them (untracked file; no repo action available).
 - Limiter keying is architecture-wide (FID-20260928-003): one shared per-IP bucket across all routes (`getUserId` always returns null, so `trackByUser` is decorative). Revisit per-endpoint keys / real user tracking only with production 429 telemetry. Auto-farm's duplicate tile fetch (move response carries `currentTile`; engine and page each re-fetch) is a separate future performance item.
 - ~~`dev/lessons-learned.md` carries a merged duplicate H1 and a U+FFFD in a section heading~~ → the

@@ -5,6 +5,30 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.51] — 2026-09-28 session 013
+
+> **The milestone:** coverage stopped being folklore. The "~15%" figure that could not be
+> reproduced is replaced by a measured, reproducible baseline — 23.64% statements / 23.78% lines
+> over lib/ + app/api/ + utils/ — and the debt item that demanded a real decision ("establish or
+> retire") is retired by establishing.
+
+### Added
+
+- **Coverage measurement (FID-20260928-005):** `npx vitest run --coverage` via
+  `@vitest/coverage-v8@4.1.11` (exact-pinned to the vitest 4.1.11 major). Surface scoped to the
+  production tree (`lib/**`, `app/api/**`, `utils/**`); reporters text/json/json-summary/html.
+  **Baseline: 23.64% stmts / 19.01% branches / 27.39% funcs / 23.78% lines, 478 files**
+  (lib 25.59 · app/api 20.27 · utils 25.93 statements).
+- **Session-summary gotcha recorded:** v8 instrumentation roughly doubles scan-style tests' runtime
+  (the terrainTruth census needed an explicit 30s timeout to survive coverage runs).
+
+### Fixed
+
+- **Wrong-major provider removed:** `@vitest/coverage-v8@5.0.2` (admitted by `--legacy-peer-deps`
+  around npm's arborist crash) peered on vitest 5.0.2 against installed 4.1.11 and broke coverage
+  takeover in every worker — 144 × `coverageFilesDirectory is required` unhandled errors. The
+  matched 4.1.11 provider resolves the class; the exact pin documents the major-match rule.
+
 ## [0.0.50] — 2026-09-28 session 012
 
 > **The milestone:** four operator-decision rows closed in one sweep, each on a fresh probe. The
