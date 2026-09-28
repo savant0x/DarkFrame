@@ -305,7 +305,55 @@ const LEDGER_LINE = /^\s*(\||[-*]\s)/;
  *  a letter — so `20260923` and `deadbeef` are not mistaken for citations. */
 const HASH_TOKEN = /\b([0-9a-f]{7,40})\b/g;
 
+/**
+ * Split a markdown table row into cells on UNESCAPED pipes only.
+ *
+ * A `\|` inside a cell is CONTENT, not a delimiter. Splitting naively on `|`
+ * shifts every later cell by one, and the shift is silent — the row still parses,
+ * it just parses into the wrong fields. That is not hypothetical: SCOPE row 134's
+ * description carries the literal text `1 failed \| 1338 passed (1339)`, and an
+ * audit that read a fixed cell index off such a row read the DATE column as the
+ * row's status and reported a defect that did not exist. The census judged SCOPE
+ * by hash citation only, so it was blind to the whole class; this primitive is
+ * the correction, and every cell read below goes through it.
+ */
+function splitRow(line) {
+  const cells = [];
+  let cur = '';
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '\\' && line[i + 1] === '|') {
+      cur += '\\|';
+      i += 1;
+      continue;
+    }
+    if (ch === '|') {
+      cells.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  cells.push(cur);
+  return cells;
+}
+
+/**
+ * The register row number a table row declares in its FIRST cell, or null.
+ *
+ * Only a pure integer counts. That is what separates the item register (1..N)
+ * from the two other tables the file carries without naming either: the session
+ * ledger's rows open with `Session 2026-09-06: …`, and the Operator Decisions
+ * table opens with an ISO date, which is not `^\d+$`.
+ */
+function rowNumber(line) {
+  if (!/^\s*\|/.test(line)) return null;
+  const first = (splitRow(line)[1] || '').trim();
+  return /^\d+$/.test(first) ? Number(first) : null;
+}
+
 const citations = new Map(); // hash -> [line, …]
+const registerRows = []; // { num, line } in document order
 let ledgerLines = 0;
 let inFence = false;
 
@@ -319,6 +367,8 @@ let inFence = false;
     if (inFence) return;
     if (!LEDGER_LINE.test(raw)) return;
     ledgerLines += 1;
+    const num = rowNumber(raw);
+    if (num !== null) registerRows.push({ num, line: i + 1, text: raw });
     const seen = new Set();
     let m;
     HASH_TOKEN.lastIndex = 0;
@@ -331,6 +381,52 @@ let inFence = false;
       citations.get(h).push(i + 1);
     }
   });
+}
+
+// ---- E: register row identity and order -------------------------------------
+// A number used by two rows makes every "row N" citation ambiguous. SCOPE.md
+// carried a duplicate row 66 for years — a 2026-09-16 spy-sabotage finding and
+// an unrelated 2026-09-25 CI finding — and three session records cite "row 66"
+// meaning the older one, so a reader could not tell which was meant. Nothing
+// checked it: this census judged SCOPE by hash citation only. That is a
+// CHECKABILITY defect, not cosmetics, so it fails.
+//
+// Order is not checkability: row 58 printed above row 57 still resolves when
+// cited by number, and the live register carries one such inversion. It is
+// REPORTED and never fatal, so this gate does not demand a fix it has no
+// mandate to make (the same reasoning as the advisory lines above).
+const firstSeen = new Map(); // num -> the first line that declared it
+const duplicateRows = [];
+for (const { num, line } of registerRows) {
+  if (firstSeen.has(num)) duplicateRows.push({ num, at: [firstSeen.get(num), line] });
+  else firstSeen.set(num, line);
+}
+const outOfOrderRows = [];
+for (let i = 1; i < registerRows.length; i += 1) {
+  if (registerRows[i].num <= registerRows[i - 1].num) {
+    outOfOrderRows.push({ prev: registerRows[i - 1], cur: registerRows[i] });
+  }
+}
+
+// ---- F: register row shape ------------------------------------------------
+// A row whose description contains an UNESCAPED `|` is not a four-column row —
+// it is a row with a phantom column, and every reader that indexes cells by
+// position reads the wrong one. The census counts hash citations, not table
+// shape, so it printed "clean" over row 138 on the day that row shipped with
+// seven structural pipes instead of five (FID-20260927-005).
+//
+// Two shapes are lawful, because the register has always used both:
+//   `| n | text |`                 -> 3 structural pipes (rows 52-54: the
+//                                     disposition is the description's last
+//                                     sentence, not a column of its own)
+//   `| n | text | date | status |`  -> 5 structural pipes (every other row)
+// Anything between or beyond those is mis-shaped. `splitRow` already treats
+// `\|` as content, so an author who escapes a pipe is never penalised.
+const ROW_SHAPES = new Set([3, 5]);
+const malformedRows = [];
+for (const r of registerRows) {
+  const pipes = splitRow(r.text).length - 1;
+  if (!ROW_SHAPES.has(pipes)) malformedRows.push({ num: r.num, at: r.line, pipes });
 }
 
 const deadHashes = [];
@@ -441,7 +537,9 @@ if (fs.existsSync(ARCHIVE_DIR)) {
 // ---- report -----------------------------------------------------------------
 process.stdout.write(
   `ledger census: ${liveFiles.length} live FID(s), ${archivedFiles} archived; ` +
-    `${ledgerLines} ledger line(s) in SCOPE.md carrying ${citations.size} cited hash(es)\n`,
+    `${ledgerLines} ledger line(s) in SCOPE.md carrying ${citations.size} cited hash(es); ` +
+    `${registerRows.length} numbered row(s), ${duplicateRows.length} duplicate number(s), ` +
+    `${malformedRows.length} malformed row(s)\n`,
 );
 process.stdout.write(
   `ledger census: vocabulary from protocol.config.yaml — allowedStatuses=[${allowed.join(', ')}] ` +
@@ -454,7 +552,9 @@ const violations =
   deadHashes.length +
   noSessionRecord.length +
   undatedClosure.length +
-  closureBeforeFiling.length;
+  closureBeforeFiling.length +
+  duplicateRows.length +
+  malformedRows.length;
 
 if (violations === 0) {
   if (deadHashesWaived.length > 0) {
@@ -475,11 +575,21 @@ if (violations === 0) {
     process.stdout.write(
       `ledger census advisory: ${recordHistory} terminal archived FID(s) predate ${RECORD_FROM} or carry no ` +
         `closure date (history, not demanded retroactively — the 2026-09-19..09-22 span is an open decision, SCOPE row 124)\n`,
+);
+  }
+  if (outOfOrderRows.length > 0) {
+    process.stdout.write(
+      `ledger census advisory: ${outOfOrderRows.length} out-of-order SCOPE row number(s) — reported, never fatal (a row still resolves by number):\n`,
     );
+    for (const v of outOfOrderRows) {
+      process.stdout.write(
+        `  row ${v.cur.num} (SCOPE.md:${v.cur.line}) is printed after row ${v.prev.num} (SCOPE.md:${v.prev.line})\n`,
+      );
+    }
   }
   process.stdout.write(
     'ledger census clean: live statuses lawful, no terminal FID parked, every SCOPE hash resolves, ' +
-      `every closure from ${RECORD_FROM} carries a session record\n`,
+      `no duplicate or mis-shaped row, every closure from ${RECORD_FROM} carries a session record\n`,
   );
   process.exit(0);
 }
@@ -526,6 +636,22 @@ if (closureBeforeFiling.length > 0) {
   for (const v of closureBeforeFiling) {
     process.stdout.write(
       `  ${v.file}  filed ${v.filedDate}  status \`${v.value}\` — a closure cannot precede the filing\n`,
+    );
+  }
+}
+if (duplicateRows.length > 0) {
+  process.stdout.write(`SCOPE.md DUPLICATE ROW NUMBERS (${duplicateRows.length}):\n`);
+  for (const v of duplicateRows) {
+    process.stdout.write(
+      `  row ${v.num} is declared twice (SCOPE.md:${v.at.join(' and ')}) — every "row ${v.num}" citation is ambiguous; renumber one of them\n`,
+    );
+  }
+}
+if (malformedRows.length > 0) {
+  process.stdout.write(`SCOPE.md MALFORMED REGISTER ROWS (${malformedRows.length}):\n`);
+  for (const v of malformedRows) {
+    process.stdout.write(
+      `  row ${v.num} (SCOPE.md:${v.at}) has ${v.pipes} structural pipe(s); a register row has 3 (\`| n | text |\`) or 5 (\`| n | text | date | status |\`) — an unescaped \`|\` inside the description shifts every later column for anything that reads the row by position\n`,
     );
   }
 }

@@ -101,8 +101,14 @@ describe('ledger-integrity census', () => {
     }
     // The old advisory branch is gone: a present-but-unreachable citation is now
     // fatal (waived entries land in the waived line instead), so a clean run can
-    // no longer print the advisory wording at all.
+// no longer print the advisory wording at all.
     expect(out).not.toContain('exist but are not reachable from HEAD');
+    // Check E must have actually run over the real register, not vacuously:
+    // the live SCOPE.md carries 137 numbered rows and no duplicate number.
+    const rowLine = /(\d+) numbered row\(s\), (\d+) duplicate number\(s\)/.exec(out);
+    expect(rowLine, out).not.toBeNull();
+    expect(Number(rowLine?.[1])).toBeGreaterThan(100);
+    expect(rowLine?.[2]).toBe('0');
   });
 
   it('fails a citation that exists in the object store but is unreachable from HEAD (a fresh clone sees it as missing)', () => {
@@ -306,5 +312,154 @@ describe('ledger-integrity census', () => {
     const { code, out } = runLedgerCensus(root);
     expect(code).toBe(2);
     expect(out).toContain('the defect check D exists for');
+  });
+
+  // ---- E: register row identity and order (added 2026-09-27) ----------------
+  //
+  // SCOPE.md carried a duplicate row 66 for years — a 2026-09-16 spy-sabotage
+  // finding and an unrelated 2026-09-25 CI finding — while three session records
+  // cited "row 66" meaning the older one. The census judged SCOPE by hash
+  // citation only, so nothing ever noticed.
+
+  it('fails a register that declares the same row number twice (a citation is ambiguous)', () => {
+    const root = fixture(
+      {},
+      '# SCOPE\n\n| # | Item | Date | Status |\n| - | ---- | ---- | ------ |\n' +
+        '| 1 | First finding | 2026-09-25 | Closed |\n' +
+        '| 1 | An unrelated finding | 2026-09-26 | Closed |\n',
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(1);
+    expect(out).toContain('SCOPE.md DUPLICATE ROW NUMBERS');
+    expect(out).toContain('row 1 is declared twice');
+    // Both lines must be named, so the operator can see WHICH two rows collide.
+    expect(out).toMatch(/SCOPE\.md:5 and 6/);
+  });
+
+  it('reports an out-of-order row number as advisory, never fatal (a row still resolves by number)', () => {
+    // Deliberately inverted, and the live register still carries one such pair
+    // (58 above 57) — so this case must NOT red the gate before it is fixed.
+    const root = fixture(
+      {},
+      '# SCOPE\n\n| # | Item | Date | Status |\n| - | ---- | ---- | ------ |\n' +
+        '| 2 | Second | 2026-09-25 | Closed |\n' +
+        '| 1 | First | 2026-09-26 | Closed |\n',
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('out-of-order SCOPE row number(s)');
+    expect(out).toContain('row 1 (SCOPE.md:6) is printed after row 2 (SCOPE.md:5)');
+    expect(out).toContain('ledger census clean');
+  });
+
+  it('counts a row whose cell contains an escaped pipe once, at the right number', () => {
+    // The row-134 shape: a description cell carrying the literal text
+    // `1 failed \| 1338 passed (1339)`. A naive split on `|` shifts every later
+    // cell, and an audit reading a fixed column index off such a row read the
+    // DATE column as the row's status and reported a defect that did not exist.
+    // Here the row must count ONCE, as row 1, with no phantom duplicate and no
+    // phantom inversion — the escaped pipe must not be read as a delimiter.
+    const root = fixture(
+      {},
+      '# SCOPE\n\n| # | Item | Date | Status |\n| - | ---- | ---- | ------ |\n' +
+        '| 1 | Reported `1 failed \\| 1338 passed (1339)` | 2026-09-27 | Open |\n' +
+        '| 2 | A second row | 2026-09-27 | Open |\n',
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('2 numbered row(s), 0 duplicate number(s)');
+    expect(out).not.toContain('out-of-order');
+  });
+
+  it('ignores the session-ledger and Operator-Decisions tables when counting register rows', () => {
+    // SCOPE.md carries three tables. Only the item register is numbered; the
+    // decisions table opens with an ISO date (not `^\\d+$`) and the session ledger
+    // opens with prose, so neither may be counted as a row.
+    const root = fixture(
+      {},
+      [
+        '# SCOPE',
+        '',
+        '| # | Item | Date | Status |',
+        '| - | ---- | ---- | ------ |',
+        '| 1 | The only register row | 2026-09-25 | Closed |',
+        '',
+        '## Operator Decisions',
+        '',
+        '| Date | Decision | Disposition |',
+        '| ---- | -------- | ----------- |',
+        '| 2026-09-01 | A decision was taken | Executed |',
+        '',
+        '| Session 2026-09-06: a session log line, not a register row. |',
+        '',
+      ].join('\n'),
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('1 numbered row(s), 0 duplicate number(s)');
+  });
+
+  // ---- F: register row shape (added 2026-09-27) ----------------------------
+  //
+  // A description cell carrying an UNESCAPED `|` makes the row a row with a
+  // phantom column: every later cell shifts, and any reader that indexes by
+  // position reads the wrong one. The census counts hash citations, not table
+  // shape, so it printed `ledger census clean` over SCOPE row 138 on the day
+  // that row shipped with seven structural pipes instead of five. Check F makes
+  // the shape fatal, and it found four more such rows the moment it landed.
+  const HEADER4 = ['# SCOPE', '', '| # | Item | Date | Status |', '| - | ---- | ---- | ------ |'].join('\n');
+
+  it('fails a register row whose description contains an unescaped pipe', () => {
+    // `string|null` — the real shape of SCOPE row 104. A reader indexing cells
+    // by position reads the DATE column as the row's status.
+    const root = fixture({}, `${HEADER4}\n| 1 | Owner is Factory.owner: string|null | 2026-09-27 | Open |\n`);
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(1);
+    expect(out).toContain('MALFORMED REGISTER ROWS');
+    expect(out).toContain('row 1');
+    expect(out).toContain('6 structural pipe(s)');
+  });
+
+  it('fails a register row truncated below every lawful shape', () => {
+    // Two structural pipes is neither `| n | text |` nor `| n | text | date | status |`.
+    const root = fixture({}, `${HEADER4}\n| 1 |\n`);
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(1);
+    expect(out).toContain('MALFORMED REGISTER ROWS');
+    expect(out).toContain('2 structural pipe(s)');
+  });
+
+  it('accepts the two-column register shape the ledger has always used', () => {
+    // SCOPE rows 52-54: the disposition is the description's last sentence, not
+    // a column of its own. Three structural pipes, and lawful — a blanket
+    // "must be 5" rule would have failed three valid historical rows.
+    const root = fixture(
+      {},
+      `${HEADER4}\n| 1 | Shaped like rows 52-54; the disposition is the last sentence. Status: Closed |\n`,
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('1 numbered row(s), 0 duplicate number(s), 0 malformed row(s)');
+  });
+
+  it('does not count an escaped pipe as a delimiter when judging shape', () => {
+    const root = fixture(
+      {},
+      `${HEADER4}\n| 1 | Reported \`1 failed \\| 1338 passed\`, and that pipe is content | 2026-09-27 | Open |\n`,
+    );
+    const { code, out } = runLedgerCensus(root);
+    expect(code, out).toBe(0);
+    expect(out).toContain('0 malformed row(s)');
+  });
+
+  it('reports the live register as well-shaped, with a non-vacuous row count', () => {
+    // Guard against a vacuous pass: the shape check must actually have run over
+    // the real register, which carries 138 rows and no mis-shaped one.
+    const { code, out } = runLedgerCensus();
+    expect(code, out).toBe(0);
+    const m = /(\d+) numbered row\(s\), (\d+) duplicate number\(s\), (\d+) malformed row\(s\)/.exec(out);
+    expect(m, out).not.toBeNull();
+    expect(Number(m?.[1])).toBeGreaterThan(100);
+    expect(m?.[3]).toBe('0');
   });
 });

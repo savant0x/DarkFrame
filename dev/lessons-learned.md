@@ -3536,3 +3536,172 @@ AFTER todo list creation, BEFORE any coding:
 
 **Application:** EVERY sprint > 1 hour MUST complete Phase 1.75 after todo list, before coding. NO EXCEPTIONS.
 
+---
+
+##  PROBE INTEGRITY LESSONS (Added 2026-09-27)
+
+> Filed by FID-20260927-005. Both lessons below cost a **retraction** — a finding
+> that was reported, believed, and then withdrawn. A retraction is more expensive
+> than a missed finding, because the first reader has already spent trust on it.
+
+###  45. A PROBE THAT MIS-INDEXES DOES NOT ANNOUNCE ITSELF
+**Context:** FID-20260927-005 findings F5a and F5b, 2026-09-27
+**Severity:** CRITICAL (evidence layer — a false assertion is believed, a silence is not)
+
+**The Problem:**
+
+A text-extraction probe applied to a table returns *text*. When the probe is
+wrong, the text is still text — it is just the wrong column. Nothing errors, no
+exit code moves, and the output reads exactly like a real finding.
+
+Two distinct traps, both hit in a single session, both producing plausible output:
+
+**(a) In a BRE, `\|` is alternation — not an escaped pipe.**
+
+```bash
+sed 's/\\|/@@PIPE@@/g'      # WRONG: matches the empty string at every position
+```
+
+The substitution replaced *every character*. The output was a wall of `@@PIPE@@`
+tokens. It was discarded rather than reasoned from — which is the correct response
+and the reason the trap is survivable at all. The reliable form needs no
+substitution: scan backwards for the last literal `|`.
+
+**(b) `awk -F'|'` on a row containing an escaped pipe shifts every later column.**
+
+`SCOPE.md` row 134's own description embeds the literal text
+`1 failed \| 1338 passed (1339)`. A well-formed 4-column register row has **5**
+pipes. Row 134 has **6** — the extra one lives *inside a cell*. So a fixed column
+index reads the **date** column where the **status** column should be:
+
+```text
+$ awk '{n=$0; sub(/\|[ \t]*$/,"",n); if (n ~ /^\| *134 *\|/) {c=gsub(/\|/,"|"); split(n,a,"|"); \
+      printf "pipes=%d a[4]=[%.22s] a[5]=[%.22s]\n", c, a[4], a[5]}}' SCOPE.md
+pipes=6 a[4]=[ 1338 passed (1339)`; ] a[5]=[ 2026-09-27 ]
+```
+
+Four rows were reported as having "a bare date in the status column". **None of
+them did.** All four were retractions.
+
+**The Rule:**
+
+1. **Count the delimiters before you index.** If the delimiter count is not what
+   the schema predicts, the row is not the shape you think it is — split on
+   *unescaped* delimiters only, and treat the escaped ones as content.
+2. **Verify a probe against a known-correct case before trusting its verdict on an
+   unknown one.** Both of today's retractions would have been caught in seconds by
+   running the probe against a row whose answer was already known.
+3. **A retraction is worth writing down.** "I claimed X, it was false, here is the
+   reason" preserves more value than a silent correction, because the next session
+   can tell a known trap from an unknown one.
+
+**Recurrence:** this exact shape had already produced a false finding earlier the
+same day (rows 134/135 reported as carrying each other's dispositions — also an
+`awk` column-index error). **Twice in one day, from the same mistake.** That is
+what makes it a lesson rather than an anecdote.
+
+**Where it now lives mechanically:** `splitRow()` in
+`scripts/ledgerIntegrityCensus.cjs` splits on unescaped pipes only, and
+`rowNumber()` reads the register's first cell through it. The census's check E
+reports duplicate and out-of-order row numbers mechanically, so the ordering
+variant of this defect can no longer recur silently.
+
+---
+
+###  46. LINE-ANCHORED EVIDENCE ROTTS — RE-MEASURE BEFORE YOU ACT ON IT
+**Context:** FID-20260927-005 finding F1 and Loop 4, 2026-09-27
+**Severity:** HIGH (a plan that targets a stale fact ships the wrong fix)
+
+**The Problem:**
+
+F1's fix plan read: *"indent `scripts/ledgerIntegrityCensus.cjs:365` to 6
+spaces."* That plan was written against a real measurement. By the time the fix was
+authorised, the file had changed — and the damage had **moved**:
+
+```text
+# first measurement (the plan)      # re-measurement (the truth)
+  inFence = !inFence;               inFence = !inFence;      <- line 364, col 0
+return;                             return;                 <- line 365, correct
+```
+
+A repair attempt between the two measurements had stripped the indent from the
+*wrong* line — which is the exact failure the finding's own root-cause paragraph
+warned about, performed a second time and not noticed. A second, entirely
+unrecorded site also existed at `:527-528`.
+
+Executing the plan as written would have indented a correct line, left the real
+one broken, and left the undiscovered one broken too. **All three outcomes look
+like success**, because the script parses, lints, and behaves identically either
+way.
+
+**The Rule:**
+
+1. **Re-measure immediately before implementing a plan that names a location.**
+   A `file:line` reference is a *timestamped observation*, not an address.
+2. **When a line-number anchor may have moved, re-derive it by content**, not by
+   number — `grep` the symbol, then confirm the line.
+3. **Record the re-measurement in the document, not over it.** The superseded
+   evidence stays as a dated record; the live measurement sits beside it. Silently
+   overwriting the old block destroys the fact that it went stale, which is the
+   most transferable part of the lesson.
+4. **A repair that cannot change behaviour should be verifiable by inspection.**
+   If a fix's success is indistinguishable from its absence in every gate, the
+   evidence has to be a byte-level read, not an exit code.
+
+**General form:** *the same discipline as Lesson 45, pointed at evidence rather
+than at parsing.* A measurement is trustworthy when it was taken close enough to
+the decision it informs. FID-20260927-005 is, in the end, a document about this:
+its own evidence blocks were re-measured three times across four loops, and two of
+them had already gone stale by the time the plan was authorised.
+
+---
+
+###  47. AN UNSOURCED NUMBER IN A FINDING IS A CLAIM WEARING A MEASUREMENT'S CLOTHES
+**Context:** FID-20260927-005 finding F2, retracted as F9, 2026-09-27
+**Severity:** HIGH (a false *cause* sends the next session to fix the wrong thing)
+
+**The Problem:**
+
+A finding reported that the edit tool could not reach part of a large file
+because the file exceeded *"the tool's 100,000-character read ceiling."* The file
+was 265,271 characters, so the arithmetic looked impeccable and the conclusion
+followed. The number was **not sourced anywhere.** A repo-wide grep for it returned
+hits only in the finding's own text and, later, in a changelog entry that had
+copied it.
+
+The tooling's actual documented whole-file cut is **2,000 lines**, and the file was
+**1,312**. The premise was false on the day it was recorded. Three edits to lines
+*past* the alleged unreachable region then succeeded without incident.
+
+The likely real cause was mundane: the anchors fed to the edit tool were short
+fragments lifted from `grep` output, and did not match the file byte-for-byte —
+a transcription miss, the same class as Lesson 46.
+
+**Three rules, each earned:**
+
+1. **A limit is a measurement, not an assumption.** Before writing "X exceeds the
+   tool's limit", find where the limit is stated. If the only source is your own
+   sentence, it is not a limit; it is an invention with a number in it.
+2. **Copy anchors from live output; never reconstruct them.** A fragment that
+   came from `grep` is a *report of* the file, not the file. Reconstructing it
+   from memory is how a leading space goes missing and a refusal gets diagnosed
+   as a wall. This session's successful edits all used strings copied verbatim
+   from current output — every one, without exception.
+3. **Suspect the anchor before you suspect the file.** When an edit tool refuses
+   text that demonstrably exists, the cheapest hypothesis is that your
+   `oldString` is wrong. Reaching for a structural explanation first is how a
+   one-character mistake becomes a multi-session refactor.
+
+**The expensive version of this mistake:** a large restructure of the project's
+record of truth was about to be performed to fix a ceiling that did not exist —
+and would not have fixed it even if it had, since splitting the file left two
+halves of 183 KB and 88 KB, neither under the cited 100 KB. **The refactor was
+stopped by a Law-16 probe on the finding's own premise.** When a finding proposes
+expensive work, the cheapest and most valuable thing to verify is the claim the
+work rests on.
+
+**Where it now lives mechanically:** the census prints its own row-shape counts
+(`N numbered row(s), N duplicate number(s), N malformed row(s)`) so the claim is
+checkable, and check F makes an unescaped `|` inside a description fatal. The
+lesson in the corpus is the backup; the gate is the mechanism.
+
