@@ -19,7 +19,10 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
     include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['node_modules', 'dist', '.next', 'out'],
+    // FID-20260928-002 (SCOPE row 128): dev/tmp/ is the gitignored scratch
+    // area — never test discovery surface. (tsconfig + eslint carry the
+    // matching exclusions.)
+    exclude: ['node_modules', 'dist', '.next', 'out', 'dev/tmp/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

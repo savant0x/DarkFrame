@@ -99,7 +99,11 @@ const restrictedPatterns = [
  */
 const config = [
   {
-    ignores: ['node_modules/**', '.next/**', 'out/**', 'dev/archives/**'],
+    // FID-20260928-002 (SCOPE row 128): dev/tmp/ is the gitignored scratch
+    // area — a tooling surface that disagrees with `git status` breaks gates
+    // invisibly. Kept out of eslint here, out of tsc via tsconfig exclude,
+    // out of vitest discovery via its own exclude.
+    ignores: ['node_modules/**', '.next/**', 'out/**', 'dev/archives/**', 'dev/tmp/**'],
   },
   ...nextVitals,
   ...nextTs,
