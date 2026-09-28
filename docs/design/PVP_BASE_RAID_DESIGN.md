@@ -112,3 +112,45 @@ Verification per the house chain: tsc 0 · eslint 0/0 · full suite green · cen
 
 - [ ] **Operator ratifies this document** (or amends §2/§4 picks — the doc absorbs edits before code).
 - On ratification: FID-20260928-006 rescoped (status → `analyzed`, GREEN = §7), and implementation proceeds under the standard loop. No code moves before the box is checked.
+
+---
+
+## Appendix A — Blast-radius census (executed 2026-09-28, pre-ratification)
+
+Method: `grep -rc isBot` across lib/app/components/utils/types/__tests__ with every consumer bucketed; hostile-refusal surface grep across `app/api`; tutorial-hook read; TileRenderer read; engine target-selection read; test-pin greps. Every claim below is a pasted-probe finding, not an inference.
+
+### A1. The one direct change site
+
+`app/api/combat/attack/route.ts:243-245` is the **only** hostile-base admission gate in the tree — every other `isBot` hit under `app/api` is an exclusion query (`ne(players.isBot, 1)` class: leaderboards, referrals). §3's hostility-check replacement touches exactly one gate.
+
+### A2. Harvest-then-delete
+
+`app/api/battle/attack/route.ts` (protection parity, FID-20260916-008) per §3 — zero UI callers confirmed again by this census.
+
+### A3. Exclusion-domain consumers — MUST NOT change (verified out of the file list)
+
+| Area | Sites | Domain |
+| ---- | ----- | ------ |
+| `lib/rankingService.ts` (5), `app/api/referral/leaderboard/route.ts` (5) | leaderboard/referral exclusion of bots | untouched |
+| `lib/flagBotService.ts` (8), `app/api/cron/flag-bot-movement/route.ts` (4), `__tests__/lib/flagHolderSurvival.test.ts` (4) | flag-bearer bot system | untouched |
+| `lib/playerService.ts` (4), profile route + page (2+3) | profile/queries excluding bots | untouched |
+| Admin surface: `AdminView.tsx` (5), `PlayerDetailModal.tsx` (2), `bot-config` (3), `tutorial-diagnostic` (7) | admin diagnostics/counting | untouched |
+| Bot machinery: `botService` (2), `botCombatService` (4), `botSummoningService` (3), `botGrowthEngine` (2), `botFactoryEconomy` (2), `beerBaseService` (7), migrations (3+2) | Full Permanence, growth, resync | untouched |
+| `lib/factoryService.ts` (2) + `__tests__/lib/factoryCaptureVoid.test.ts` (5) | factory-capture semantics — adjacent domain, different routes | untouched |
+| `types/game.types.ts` (2) | type declarations | untouched |
+
+### A4. Verified already-safe by construction (no change needed)
+
+- **Tutorial:** `recordTutorialBaseAttack` gates at the *service* on `step.validationData?.targetType !== 'beer_base'` (`lib/tutorialService.ts:1066`) — even with the route hook firing on a human raid, the step cannot complete. The census closes the design doc's earlier caution: tutorial combat quests are bot-targeted by construction, not by route convention.
+- **Tile rendering:** `TileRenderer` is bot-agnostic — the garrison label derives from `baseLevel` (`:98-108,316-342`), the Beer image keys on `isBeerBase`, never `isBot`. A human-held base already renders exactly like any enemy base.
+- **Client dispatch:** `page.tsx:863-865` already routes *every* enemy-held tile to `/api/combat/attack` — zero client changes, and the client stays a non-authority on hostility (§2).
+- **Test pins:** `defeatBookkeeping.test.ts` pins pure bot-bookkeeping functions (declared-resource zeroing, vault caps) — no pin exists on the `'Target is not a hostile base'` refusal text, so the gate replacement breaks no existing test; the new pins are additive (§7).
+
+### A5. Orthogonal (verified, no interaction)
+
+- **Auto-farm:** its `attackPlayers` combat path (`utils/autoFarmEngine.ts:748` → `attackBase` at `:1196-1268`) fights through `/api/combat/infantry` (rank-filtered, 10-unit cap) — it never calls `/api/combat/attack`. Opening the unified gate does not alter engine behavior at all; the engine's PvP path is the infantry route and stays as-is.
+- **BeerBasePanel:** remains bot-targeted (reads beer-base config rows); the manual tile button is the only human-defender entry point.
+
+### A6. Net blast radius
+
+**One gate replacement + one harvest + additive pins.** No rendering, tutorial, leaderboard, profile, admin, migration, or engine changes. The narrowness is the census's headline: the `isBot` web is wide, but almost all of it is exclusion logic on the other side of the wall this change does not touch.
