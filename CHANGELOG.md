@@ -5,6 +5,15 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.55] — 2026-09-28 session 014 (follow-through 3)
+
+- **Admin raid telemetry panel (FID-20260928-009, `00bd340`):** the tuning loop's visible face —
+  self-fetching card in the admin Charts section rendering win rate, loot vs the §4.1
+  attacker-level ceiling, avg defender losses (the §4.2 floor's observable bite), and top
+  hostility-refusal pairs with verbatim reasons, over a selectable window (24h/7d/30d/90d).
+  Loading/error/degraded states are rendered rows — telemetry cannot crash the dashboard.
+  7 component pins; suite 147 files green.
+
 ## [0.0.54] — 2026-09-28 session 014 (follow-through 2)
 
 - **Raid telemetry (FID-20260928-008, `74c91e4`):** the `PVP_BASE_RAID_DESIGN.md` balancing
