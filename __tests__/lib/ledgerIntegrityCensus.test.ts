@@ -165,16 +165,24 @@ describe('ledger-integrity census', () => {
     expect(out).toContain('TERMINAL FIDs STILL IN dev/fids/');
   });
 
-  it('passes a lawful live status', () => {
-    for (const status of ['created', 'analyzed', 'fixed', 'verified', 'loop-complete', 'implemented']) {
+  // FID-20260927-004 (SCOPE row 134): this was one `it()` looping six statuses,
+  // and each iteration spawns the census as a real node subprocess (~1s). Six
+  // sequential spawns need ~6s against vitest's 5s default, so the test passed in
+  // isolation and failed under full-suite parallel load — the exact
+  // "1 failed | N passed" signature row 134 recorded without ever identifying.
+  // Each status is now its own case, so each gets its own timeout budget and a
+  // failure names the status that broke instead of the whole loop.
+  it.each(['created', 'analyzed', 'fixed', 'verified', 'loop-complete', 'implemented'])(
+    'passes a lawful live status: %s',
+    (status) => {
       const root = fixture({ 'FID-20990101-001-fixture.md': fid(status) });
       const { code, out } = runLedgerCensus(root);
       expect(code, `${status}: ${out}`).toBe(0);
       // Guard against a vacuous pass: the fixture FID must actually be the file
       // under audit, or checks A/B would be passing on an empty directory.
       expect(out, `${status}: ${out}`).toContain('1 live FID(s)');
-    }
-  });
+    },
+  );
 
   it('fails a SCOPE row citing a hash that does not resolve', () => {
     const root = fixture({}, '# SCOPE\n\n| # | Note |\n| --- | --- |\n| 1 | Fixed in `abc1234` |\n');
