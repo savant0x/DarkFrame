@@ -3,7 +3,7 @@
  * @created 2025-10-19
  * @author ECHO v5.1
  *
- * OVERVIEW: Provides functions to record battles, fetch player stats, and get recent battles. Used by /api/battle/attack and /api/stats/battles endpoints.
+ * OVERVIEW: Provides functions to record battles, fetch player stats, and get recent battles. Read by /api/stats/battles; recordBattle lost its last route caller when the stale /api/battle/attack was deleted (FID-20260928-006) — the live raid path persists full logs via battleService.persistBattleLog.
  */
 import { db } from '@/lib/db';
 import { battleLogs } from '@/lib/db/schema';

@@ -110,7 +110,7 @@ Verification per the house chain: tsc 0 · eslint 0/0 · full suite green · cen
 
 ## 8. Ratification
 
-- [ ] **Operator ratifies this document** (or amends §2/§4 picks — the doc absorbs edits before code).
+- [x] **Operator ratifies this document** (2026-09-28: "Ratify PVP_BASE_RAID_DESIGN.md — check the §8 box, rescope FID-20260928-006 onto it, and start the staged implementation through the full gate chain.")
 - On ratification: FID-20260928-006 rescoped (status → `analyzed`, GREEN = §7), and implementation proceeds under the standard loop. No code moves before the box is checked.
 
 ---

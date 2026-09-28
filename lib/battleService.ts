@@ -55,6 +55,7 @@ import { awardXP, XPAction } from './xpService';
 import { trackBattleWon } from './statTrackingService';
 import { calculateBalanceEffects, type BalanceEffects } from './balanceService';
 import { voidProtectionOnAggression } from './playerProtection'; // FID-20260916-002
+import { DEFENDER_LOSS_FLOOR } from './hostileBase'; // FID-20260928-006
 
 /**
  * Convert PlayerUnit (inventory) to Unit (combat)
@@ -1083,6 +1084,95 @@ export async function applyAttackerCasualties(battleLog: BattleLog): Promise<voi
       totalDefense: newStats.totalDEF,
     })
     .where(eq(players.username, battleLog.attacker.username));
+}
+
+/**
+ * FID-20260928-006 (PVP_BASE_RAID_DESIGN.md §4.2, ratified 2026-09-28): the
+ * PURE core of the defender-casualty floor. Drains the requested casualties
+ * (tally-driven, falling back to the total counter — the legacy-log order)
+ * but never removes more pool than the DEFENDER_LOSS_FLOOR budget allows, so
+ * a raid hurts while a streak cannot strip an army below 25% of its
+ * pre-battle pool. Units of one entry share STR+DEF, so the per-unit pool is
+ * exact. Returns the surviving army and the CAPPED tallies — what the caller
+ * stamps onto the battleLog so the report states what actually persisted.
+ */
+export function capDefenderCasualties(
+  units: PlayerUnit[],
+  requestedByType: Partial<Record<UnitType, number>> | undefined,
+  requestedTotal: number,
+  preBattlePool: number
+): { finalUnits: PlayerUnit[]; unitsLost: number; casualtiesByType: Partial<Record<UnitType, number>> } {
+  const minPool = Math.floor(Math.max(0, preBattlePool) * DEFENDER_LOSS_FLOOR);
+  const maxKillablePool = Math.max(0, preBattlePool - minPool);
+
+  const byType = requestedByType;
+  const remainingByType: Partial<Record<UnitType, number>> = { ...(byType ?? {}) };
+  let remaining = requestedTotal;
+  let removedPool = 0;
+  let removedUnits = 0;
+  const cappedByType: Partial<Record<UnitType, number>> = {};
+
+  const finalUnits: PlayerUnit[] = units.flatMap((pu: PlayerUnit) => {
+    const qty = pu.quantity || 0;
+    if (qty <= 0) return [pu];
+    let take: number;
+    if (byType && Object.keys(byType).length > 0) {
+      const remainingOfType = remainingByType[pu.unitType] ?? 0;
+      take = Math.min(qty, remainingOfType);
+      remainingByType[pu.unitType] = remainingOfType - take;
+    } else {
+      take = Math.min(qty, remaining);
+      remaining -= take;
+    }
+    const unitPool = (pu.strength || 0) + (pu.defense || 0);
+    if (unitPool > 0) {
+      const poolBudget = Math.max(0, maxKillablePool - removedPool);
+      take = Math.min(take, Math.floor(poolBudget / unitPool));
+    }
+    if (take <= 0) return [pu];
+    removedPool += take * unitPool;
+    removedUnits += take;
+    if (byType && Object.keys(byType).length > 0) {
+      cappedByType[pu.unitType] = (cappedByType[pu.unitType] ?? 0) + take;
+    }
+    return [{ ...pu, quantity: qty - take }];
+  }).filter((pu: PlayerUnit) => pu.quantity > 0) as PlayerUnit[];
+
+  return { finalUnits, unitsLost: removedUnits, casualtiesByType: cappedByType };
+}
+
+/**
+ * DB wrapper: persist a HUMAN defender's raid casualties through the floor
+ * (capDefenderCasualties), recompute aggregate stats, update the row. The
+ * caller re-stamps the returned tallies onto the battleLog BEFORE persist.
+ */
+export async function applyDefenderCasualtiesWithFloor(
+  battleLog: BattleLog,
+  preBattlePool: number
+): Promise<{ unitsLost: number; casualtiesByType: Partial<Record<UnitType, number>> }> {
+  const [defenderResult] = await db.select().from(players).where(eq(players.username, battleLog.defender.username)).limit(1);
+  if (!defenderResult) {
+    throw new Error('Defender not found during casualty application');
+  }
+  const defenderRow = defenderResult as unknown as { units?: PlayerUnit[] | null };
+
+  const capped = capDefenderCasualties(
+    (defenderRow.units ?? []) as PlayerUnit[],
+    battleLog.defender.casualtiesByType,
+    battleLog.defender.unitsLost,
+    preBattlePool
+  );
+
+  const newStats = calculatePlayerUnitStats(capped.finalUnits);
+  await db.update(players)
+    .set({
+      units: capped.finalUnits,
+      totalStrength: newStats.totalSTR,
+      totalDefense: newStats.totalDEF,
+    })
+    .where(eq(players.username, battleLog.defender.username));
+
+  return { unitsLost: capped.unitsLost, casualtiesByType: capped.casualtiesByType };
 }
 
 async function applyBattleResults(battleLog: BattleLog): Promise<void> {

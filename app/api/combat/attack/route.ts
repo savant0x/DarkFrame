@@ -31,7 +31,9 @@ import { getRaidPeriodStart } from '@/lib/raidPeriod';
 import { verifyPresence } from '@/lib/presenceCheck';
 import { resolveBaseTilePosition } from '@/lib/baseTilePosition';
 import { logAttack } from '@/lib/activityLogger';
-import { resolveBattle, persistBattleLog, applyAttackerCasualties } from '@/lib/battleService';
+import { resolveBattle, persistBattleLog, applyAttackerCasualties, applyDefenderCasualtiesWithFloor } from '@/lib/battleService';
+import { evaluateHostility, pvpLootCap } from '@/lib/hostileBase'; // FID-20260928-006
+import { areAllies } from '@/lib/clanAllianceService'; // FID-20260928-006 §2
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { getBeerBaseConfig, removeBeerBase } from '@/lib/beerBaseService';
 import { updateReputation } from '@/lib/botCombatService';
@@ -239,11 +241,13 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     const [base] = await db.select().from(players).where(eq(players.username, defender)).limit(1);
     if (!base) {
       return NextResponse.json({ success: false, victory: false, message: 'Base not found' }, { status: 404 });
-    }
-    if (!base.isBot) {
-      return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: 'Target is not a hostile base' });
-    }
-
+    }    // FID-20260928-006 (PVP_BASE_RAID_DESIGN.md §2, ratified 2026-09-28): the
+    // FID-20260906-006a-era `isBot` refusal was a bot-repair edge, never a
+    // recorded design decision. Hostility is now the operator's rule — every
+    // base hostile EXCEPT self / same clan / allied clan (evaluated below,
+    // once both player rows are in hand). Bots remain hostile unconditionally.
+    const isBotDefender = Number(base.isBot) === 1;
+    
     // FID-090: the base's location is its TILE (tiles.base_owner) — the thing
     // the player sees on the map and walks to. The players row's currentPosition
     // is bot-agent state that drifts; verifying against it 403s attacks from the
@@ -287,6 +291,35 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     if (!attackerPlayer) {
       return NextResponse.json({ success: false, victory: false, message: 'Attacker not found' }, { status: 404 });
     }
+
+    // FID-20260928-006 §2: the hostility gate — evaluated with both rows in
+    // hand, before any army work. Exemptions: self (also guarded upstream),
+    // same clan/tribe, active alliance of ANY type (NAP/TRADE/MILITARY/
+    // FEDERATION all block — the alliance lookup failing must never enable
+    // aggression, so a lookup error fails safe as allied).
+    if (!isBotDefender) {
+      const attackerClanId = (attackerPlayer as unknown as { clanId?: string | null }).clanId ?? null;
+      const defenderClanId = (base as unknown as { clanId?: string | null }).clanId ?? null;
+      let allied = false;
+      if (attackerClanId && defenderClanId) {
+        try {
+          allied = await areAllies(attackerClanId, defenderClanId);
+        } catch {
+          allied = true; // fail-safe: a broken alliance lookup refuses the raid
+        }
+      }
+      const verdict = evaluateHostility({
+        attackerUsername: auth.username,
+        defenderUsername: defender,
+        attackerClanId,
+        defenderClanId,
+        allied,
+      });
+      if (!verdict.hostile) {
+        log.debug('Base raid refused by hostility rule', { attacker: auth.username, defender, reason: verdict.reason });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: verdict.reason });
+      }
+    }
     const attackerUnits = ((attackerPlayer.units ?? []) as PlayerUnit[]).filter((u) => (u.quantity || 0) > 0);
     if (attackerUnits.length === 0) {
       return NextResponse.json({
@@ -298,11 +331,26 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 
     // FID-20260914-002: the garrison is built AFTER the attacker's army is
     // known — the weight-class floor needs the attacker's total STR.
-    const attackerSTR = attackerUnits.reduce(
-      (sum, u) => sum + (u.strength || 0) * (u.quantity || 0),
-      0
-    );
-    const garrisonUnits = synthesizeGarrison(base, baseUnits, attackerSTR);
+    let defenderUnits: Unit[];
+    let defenderPreBattlePool = 0;
+    if (isBotDefender) {
+      // Bot path unchanged (BASE_RAID_BALANCE.md): synthesized/real garrison
+      // with the weight-class floor keyed to the attacker's STR.
+      const attackerSTR = attackerUnits.reduce(
+        (sum, u) => sum + (u.strength || 0) * (u.quantity || 0),
+        0
+      );
+      defenderUnits = synthesizeGarrison(base, baseUnits, attackerSTR);
+    } else {
+      // FID-20260928-006 §3: a human defender fields their REAL army — one
+      // unit per copy, no weight-class floor (an army is what it is). The
+      // pre-battle pool (STR+DEF × quantity) feeds the §4.2 casualty floor.
+      defenderUnits = baseUnits.flatMap((pu) => playerUnitToUnits(pu, defender));
+      defenderPreBattlePool = baseUnits.reduce(
+        (sum, pu) => sum + ((pu.strength || 0) + (pu.defense || 0)) * (pu.quantity || 0),
+        0
+      );
+    }
 
     // FID-20260912-093: real battle, honestly labeled. Was BattleType.Factory
     // — every notification/feed/headline called base raids FACTORY. Levels
@@ -310,7 +358,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // dead garrison OUT of the attacker's army (loot is the reward).
     const battleLog = await resolveBattle(
       attackerUnits.flatMap((pu) => playerUnitToUnits(pu, auth.username)),
-      garrisonUnits,
+      defenderUnits,
       auth.username,
       defender,
       BattleType.BaseRaid,
@@ -330,6 +378,20 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         await applyAttackerCasualties(battleLog);
       } catch (casualtyError) {
         log.warn('Attacker casualty application failed (battle still resolved)', casualtyError as Error);
+      }
+    }
+
+    // FID-20260928-006 §4.2: human defender casualties PERSIST, floored at
+    // 25% of the pre-battle pool (the harassment brake). The capped tallies
+    // are re-stamped onto the log BEFORE persist so the report states what
+    // the army actually lost. Bot defenders keep their own bookkeeping.
+    if (!isBotDefender && battleLog.defender.unitsLost > 0) {
+      try {
+        const capped = await applyDefenderCasualtiesWithFloor(battleLog, defenderPreBattlePool);
+        battleLog.defender.unitsLost = capped.unitsLost;
+        battleLog.defender.casualtiesByType = capped.casualtiesByType;
+      } catch (defenderCasualtyError) {
+        log.warn('Defender casualty application failed (battle still resolved)', defenderCasualtyError as Error);
       }
     }
 
@@ -368,8 +430,11 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       // ceiling × the beer multiplier so the multiplier stays but the vault
       // scale can't. Ceiling shared with the growth-engine vault cap (2×
       // spawner max) — an at-cap vault pays exactly its cap × multiplier.
-      let vaultCap = Number.POSITIVE_INFINITY;
-      try {
+      // FID-20260928-006 §4.1: HUMAN defenders have no spawner vault — the cap
+      // moves to the ATTACKER: 5,000 × attacker level per resource, 1× (the 3×
+      // premium stays Beer-specific).
+      let vaultCap = isBotDefender ? Number.POSITIVE_INFINITY : pvpLootCap(attackerPlayer.level ?? 1);
+      if (isBotDefender) try {
         const { getVaultCap } = await import('@/lib/botService');
         vaultCap = getVaultCap(
           ((base.botConfig as Record<string, unknown> | null)?.specialization as Parameters<typeof getVaultCap>[0]) ?? 'Balanced',
@@ -433,7 +498,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           : `${lootMetal.toLocaleString()} Metal and ${lootEnergy.toLocaleString()} Energy`;
       message = isBeerBase
         ? `You defeated Beer Base ${defender} and looted ${lootPhrase}! (+${xpAwarded} XP, +${raidRP} RP)`
-        : `You defeated ${defender}'s base and looted ${lootPhrase}! The garrison was routed — the base will regather resources. (+${xpAwarded} XP, +${raidRP} RP)`;
+        : !isBotDefender
+          ? `You defeated ${defender}'s base and looted ${lootPhrase}! (+${xpAwarded} XP, +${raidRP} RP)`
+          : `You defeated ${defender}'s base and looted ${lootPhrase}! The garrison was routed — the base will regather resources. (+${xpAwarded} XP, +${raidRP} RP)`;
       battleLog.message = message;
     }
 
@@ -461,15 +528,17 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       //    claim released — FID-20260909-030). Regular bots are Full
       //    Permanence: only the stockpiles the raid actually took are zeroed
       //    (FID-20260915-005 — mirrors the loot rule above: declared resource
-      //    or both when undeclared), defeat/reputation bookkeeping, and the
-      //    regen timer reset so the growth cycle rebuilds them.
+      //    or both when undeclared). Human defenders (FID-20260928-006 §4.4):
+      //    the loot transfer + casualties above IS the defeat — no stockpile
+      //    zeroing, no base removal, no post-defeat shield (the period lock
+      //    is the grace window).
       if (isBeerBase) {
         try {
           await removeBeerBase(defender);
         } catch (removeError) {
           log.warn('Beer Base removal after victory failed (loot already credited)', removeError as Error);
         }
-      } else {
+      } else if (isBotDefender) {
         try {
           const bot = (base.botConfig ?? {}) as unknown as { defeatedCount?: number } & Record<string, unknown>;
           const defeatedCount = (bot.defeatedCount ?? 0) + 1;
@@ -540,6 +609,8 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     }
 
     // Loss: doc-faithful BASE_ATTACK_LOSS = 60 XP; no base mutation.
+    // FID-20260928-006: message now defender-agnostic (bots AND players both
+    // garrison their base — the count reads the resolved defender army).
     try {
       await awardXP(auth.username, XPAction.BASE_ATTACK_LOSS);
     } catch {
@@ -555,7 +626,7 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     return NextResponse.json({
       success: true,
       victory: false,
-      message: `Your attack on ${defender} was repelled! Base garrison: ${garrisonUnits.length} units.`,
+      message: `Your attack on ${defender} was repelled! Base garrison: ${defenderUnits.length} units.`,
       battle: battleLog,
     });
   } catch (error) {

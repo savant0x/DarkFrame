@@ -2,6 +2,11 @@
  * FID-20260916-008 — LIVE verification driver: factory-capture void + latent
  * battle-route protection. Runs against the real dev DB and dev server.
  *
+ * FID-20260928-006: probes 4/5 targeted /api/battle/attack, which is deleted
+ * (its protection parity now lives in /api/combat/attack via lib/playerProtection);
+ * those probes return 404 until repointed. Probes 1-3 (factory, service-direct)
+ * remain valid.
+ *
  * Design (v3): each probe gets its own dedicated protected attacker so no
  * void from an earlier probe can poison a later "window intact" assertion.
  * Factory probes are service-direct; the roll may land either way — the
@@ -12,8 +17,8 @@
  *   1. factory: PROTECTED owner → -002 refusal message, attacker-2 window intact
  *   2. factory: player-owned UNPROTECTED owner → attacker-1 void fired
  *   3. factory: wild factory, attacker-PvE still protected → window untouched
- *   4. battle route: protected defender → refusal, battle-attacker window intact
- *   5. battle route: unprotected defender → battle-attacker void fired
+ *   4. battle route: protected defender → refusal, battle-attacker window intact  (retired — route deleted 2026-09-28)
+ *   5. battle route: unprotected defender → battle-attacker void fired  (retired — route deleted 2026-09-28)
  *   6. cleanup: 0 residual
  */
 import { config as loadEnv } from 'dotenv';
