@@ -34,6 +34,7 @@ import { logAttack } from '@/lib/activityLogger';
 import { resolveBattle, persistBattleLog, applyAttackerCasualties, applyDefenderCasualtiesWithFloor } from '@/lib/battleService';
 import { evaluateHostility, pvpLootCap } from '@/lib/hostileBase'; // FID-20260928-006
 import { areAllies } from '@/lib/clanAllianceService'; // FID-20260928-006 §2
+import { logRaidRefusal } from '@/lib/activityLogger'; // FID-20260928-008 telemetry
 import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { getBeerBaseConfig, removeBeerBase } from '@/lib/beerBaseService';
 import { updateReputation } from '@/lib/botCombatService';
@@ -317,6 +318,16 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       });
       if (!verdict.hostile) {
         log.debug('Base raid refused by hostility rule', { attacker: auth.username, defender, reason: verdict.reason });
+        // FID-20260928-008: telemetry write — per-pair refusal counts feed the
+        // design doc's tuning loop (PVP_BASE_RAID_DESIGN.md). Non-throwing.
+        await logRaidRefusal({
+          attacker: auth.username,
+          defender,
+          reason: verdict.reason ?? 'unknown',
+          attackerClanId,
+          defenderClanId,
+          allied,
+        });
         return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: verdict.reason });
       }
     }

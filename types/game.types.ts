@@ -2330,6 +2330,7 @@ export type InventorySortOption = 'rarity' | 'type' | 'date' | 'bonus';
 export type PlayerActionType = 
   | 'harvest'           // Resource gathering from tiles
   | 'attack'            // Combat against other players
+  | 'raid_refusal'      // FID-20260928-008: raid refused by the hostility gate (telemetry)
   | 'build_factory'     // Factory construction
   | 'upgrade_factory'   // Factory level upgrades
   | 'trade'             // Auction house transactions
@@ -2370,6 +2371,14 @@ export interface PlayerActivity {
     itemsGained?: string[];       // For caves/trades
     techUnlocked?: string;        // For tech unlocks
     factoryLevel?: number;        // For factory actions
+    // FID-20260928-008: raid-hostility refusals (action 'raid_refusal') —
+    // pair + verdict reason for the admin raid-telemetry aggregation.
+    attacker?: string;            // the refused raider (mirrors playerId)
+    defender?: string;            // the base that refused them
+    reason?: string;              // hostility verdict reason, verbatim
+    attackerClanId?: string | null;
+    defenderClanId?: string | null;
+    allied?: boolean;
   };
 }
 

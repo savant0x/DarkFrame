@@ -81,6 +81,19 @@ Each pick: the decision, the why, and the tuning knob — constants ship **in th
 
 **Riding along (existing guards, confirmed, not new decisions):** presence-at-tile · new-player protection parity (§3 harvest) · flag-bearer cannot initiate (§5.5 restricted list) · self-attack block · declared-resource semantics.
 
+### 4.6 Telemetry — the tuning loop (FID-20260928-008, shipped 2026-09-28)
+
+Every knob above is observable from day one. `app/api/admin/raid-telemetry` (admin-gated) aggregates over a configurable window:
+
+| Constant | Data source | Metric |
+| -------- | ----------- | ------ |
+| `PVP_LOOT_CAP_PER_LEVEL` (§4.1) | battle_logs `BASE_RAID` loot sums | loot totals vs the 5,000×level ceiling — near-ceiling payouts justify raising it; near-zero payouts justify lowering |
+| `DEFENDER_LOSS_FLOOR` (§4.2) | battle_logs defender loss sums | `avgDefenderLosses` — the 25% floor's real-world bite; repeated floor-hits mean raids are too weak or too frequent |
+| period lock (§4.3) | distinct attacker/defender counts | raid pacing per pair-window |
+| hostility rule (§2) | `player_activity` rows `action='raid_refusal'` (`logRaidRefusal`, written before the refusal response) | refusal counts per attacker→defender pair — a spammy pair signals harassment; a hostile pair with zero refusals signals an unreachable economy loop |
+
+Aggregation is read-only over the persistent record (no new outcome store); the refusal telemetry is the only new write, and it is non-throwing. Tuning changes stay doc-first: edit the constant here AND in `lib/hostileBase.ts` together, then close the loop with the next sweep.
+
 ## 5. Explicit non-goals (v1)
 
 - **No new UI.** The existing tile ATTACK button is the interface; the battle log is the review surface (operator design, §1).

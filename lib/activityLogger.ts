@@ -99,6 +99,42 @@ export async function logAttack(
 }
 
 /**
+ * FID-20260928-008: log a raid refusal from the hostility gate
+ * (docs/design/PVP_BASE_RAID_DESIGN.md §2). The refusal itself has already
+ * been served — this is telemetry only (per-pair counts feed the admin raid
+ * panel and the design doc's tuning loop). Best-effort like every logger:
+ * a telemetry failure must never break the refusal response.
+ */
+export async function logRaidRefusal(params: {
+  attacker: string;
+  defender: string;
+  reason: string;
+  attackerClanId?: string | null;
+  defenderClanId?: string | null;
+  allied: boolean;
+}): Promise<void> {
+  try {
+    await logActivity({
+      userId: params.attacker,
+      action: 'raid_refusal',
+      sessionId: 'raid-hostility',
+      metadata: {
+        attacker: params.attacker,
+        defender: params.defender,
+        reason: params.reason,
+        attackerClanId: params.attackerClanId ?? null,
+        defenderClanId: params.defenderClanId ?? null,
+        allied: params.allied,
+      },
+    });
+  } catch (error) {
+    // Double-guarded: logActivity already swallows, but the contract here is
+    // explicit — telemetry never throws into the route.
+    console.error('⚠️ Raid refusal telemetry failed:', error);
+  }
+}
+
+/**
  * Log factory build or upgrade.
  */
 export async function logFactory(
