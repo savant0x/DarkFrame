@@ -719,8 +719,8 @@ export class AutoFarmEngine {
   private async processTile(position: { x: number; y: number }): Promise<TileProcessResult> {
     try {
       // Step 1: Move to position
-      const moveSuccess = await this.moveToPosition(position);
-      if (!moveSuccess) {
+      const moveResult = await this.moveToPosition(position);
+      if (!moveResult.ok) {
         return {
           success: false,
           position,
@@ -729,8 +729,11 @@ export class AutoFarmEngine {
         };
       }
 
-      // Step 2: Get tile information
-      const tileInfo = await this.getTileInfo(position);
+      // Step 2: Tile information — FID-20260928-004: the move response's own
+      // `currentTile` is authoritative for the tile we just landed on, so the
+      // engine no longer re-fetches it. getTileInfo remains the fallback for
+      // degraded envelopes (no tile in the response).
+      const tileInfo = moveResult.tile ?? await this.getTileInfo(position);
       if (!tileInfo) {
         return {
           success: true,
@@ -799,7 +802,7 @@ export class AutoFarmEngine {
    * Move to specified position with direct API call verification
    * Calls /api/game/move directly and verifies response
    */
-  private async moveToPosition(position: { x: number; y: number }): Promise<boolean> {
+  private async moveToPosition(position: { x: number; y: number }): Promise<{ ok: boolean; tile: Tile | null }> {
     try {
       const current = this.state.currentPosition;
       
@@ -835,8 +838,9 @@ export class AutoFarmEngine {
         movementKey = 'q';
         direction = 'NW';
       } else {
-        // Already at target position
-        return true;
+        // Already at target position — no tile comes with this path; the
+        // engine state's tile knowledge is unchanged, so null is honest.
+        return { ok: true, tile: null };
       }
       
       console.log(`[AutoFarm] Moving ${movementKey} (${direction}) from (${current.x}, ${current.y}) to (${position.x}, ${position.y})`);
@@ -845,7 +849,7 @@ export class AutoFarmEngine {
       const username = localStorage.getItem('darkframe_username');
       if (!username) {
         console.error('[AutoFarm] No username found for movement');
-        return false;
+        return { ok: false, tile: null };
       }
       
       const requestBody = { 
@@ -882,7 +886,7 @@ export class AutoFarmEngine {
           });
           await new Promise(resolve => setTimeout(resolve, retryAfterSec * 1000));
         }
-        return false;
+        return { ok: false, tile: null };
       }
       
       const data = await response.json();
@@ -896,8 +900,16 @@ export class AutoFarmEngine {
       
       if (!data.success) {
         console.error(`[AutoFarm] Move failed: ${data.error || 'Unknown error'}`);
-        return false;
+        return { ok: false, tile: null };
       }
+      
+      // FID-20260928-004: the move envelope carries the freshly-built tile
+      // (data.data.currentTile) — capture it once so processTile and the page
+      // never need a second GET /api/tile for the tile we just moved onto.
+      const envelopeTile =
+        data.data && typeof data.data === 'object' && data.data.currentTile && typeof data.data.currentTile === 'object'
+          ? data.data.currentTile as Tile
+          : null;
       
       // Verify we moved to the expected position
       // FID-20260906-010 R2: the move API's documented contract is
@@ -916,9 +928,10 @@ export class AutoFarmEngine {
           type: 'move',
           timestamp: Date.now(),
           position: position,
-          message: `Moved to (${position.x}, ${position.y}) via API call`
+          message: `Moved to (${position.x}, ${position.y}) via API call`,
+          data: envelopeTile ? { tile: envelopeTile } : undefined
         });
-        return true;
+        return { ok: true, tile: envelopeTile };
       } else {
         // FID-20260912-075: on verification mismatch, ADOPT the server's
         // position. The old behavior only accepted the move when the server
@@ -953,9 +966,10 @@ export class AutoFarmEngine {
               type: 'move',
               timestamp: Date.now(),
               position: position,
-              message: `Moved to (${position.x}, ${position.y}) (re-synced)`
+              message: `Moved to (${position.x}, ${position.y}) (re-synced)`,
+              data: envelopeTile ? { tile: envelopeTile } : undefined
             });
-            return true;
+            return { ok: true, tile: envelopeTile };
           }
           if (diverged) {
             console.warn(
@@ -964,7 +978,7 @@ export class AutoFarmEngine {
           }
         }
         console.error(`[AutoFarm] Position mismatch: Expected (${position.x}, ${position.y}), got`, newPos);
-        return false;
+        return { ok: false, tile: envelopeTile };
       }
       
     } catch (error) {
@@ -975,7 +989,7 @@ export class AutoFarmEngine {
         position: this.state.currentPosition,
         message: `Movement error: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
-      return false;
+      return { ok: false, tile: null };
     }
   }
 

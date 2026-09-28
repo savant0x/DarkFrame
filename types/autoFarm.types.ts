@@ -8,6 +8,8 @@
  * for automated map traversal and resource collection.
  */
 
+import type { Tile } from './game.types';
+
 /**
  * Rank filter options for combat targeting
  */
@@ -154,6 +156,9 @@ export interface AutoFarmEventData {
   attacksWon?: number;
   attacksLost?: number;
   errorsEncountered?: number;
+  // move payload (FID-20260928-004): the move response's own `currentTile`,
+  // relayed so the page can render it without a second GET /api/tile.
+  tile?: Tile;
 }
 
 /**

@@ -103,7 +103,7 @@ function getTerrainBackgroundImage(terrain: TerrainType, x: number, y: number): 
 }
 
 export default function GamePage() {
-  const { player, currentTile, isLoading, refreshGameState, updateTileOnly, setPlayer } = useGameContext();
+  const { player, currentTile, isLoading, refreshGameState, updateTileOnly, setPlayer, setCurrentTile } = useGameContext();
   const router = useRouter();
   const [harvestResult, setHarvestResult] = useState<HarvestResult | null>(null);
   const [isHarvesting, setIsHarvesting] = useState(false);
@@ -295,8 +295,15 @@ export default function GamePage() {
           // Update last action
           setAutoFarmLastAction(`→ Moved to (${event.position.x}, ${event.position.y})`);
           
-          // Update tile visual using lightweight update (doesn't destroy engine)
-          updateTileOnly(event.position.x, event.position.y);
+          // FID-20260928-004: the engine relays the move response's own
+          // currentTile — apply it directly instead of re-fetching the tile.
+          // updateTileOnly stays as the fallback for degraded envelopes.
+          const movedTile = event.data?.tile;
+          if (movedTile) {
+            setCurrentTile(movedTile);
+          } else {
+            updateTileOnly(event.position.x, event.position.y);
+          }
         } else if (event.type === 'harvest') {
           // FID-20260925-005: render the authoritative gains — or the item that
           // dropped. The old label read data.key, which the direct-API path
@@ -403,7 +410,7 @@ export default function GamePage() {
         autoFarmEngineRef.current = null;
       }
     };
-  }, [player?.username, player, setPlayer, updateTileOnly]); // Only re-run if username changes (i.e., different player logged in)
+  }, [player?.username, player, setPlayer, updateTileOnly, setCurrentTile]); // Only re-run if username changes (i.e., different player logged in)
 
   // ============================================
   // FLAG TRACKER DATA FETCHING
