@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { harvestResourceTile, getHarvestStatus } from '@/lib/harvestService';
 import { harvestCaveTile, harvestForestTile } from '@/lib/caveItemService';
-import { TerrainType } from '@/types';
+import { TerrainType, isFarmableTerrain } from '@/types';
 import { getTileAt } from '@/lib/movementService';
 import { getPlayerSlim } from '@/lib/playerService';
 import { awardXP, XPAction } from '@/lib/xpService';
@@ -97,18 +97,26 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // Check tile type and harvest accordingly
     let result;
     
+    // FID-20260927-001: farmability is decided once, in `FARMABLE_TERRAINS`.
+    // The branches below stay explicit because they select payout PATHS
+    // (Metal/Energy share one, Cave and Forest have their own) — path selection
+    // is a different concern from eligibility, and collapsing them would hide
+    // which function pays which terrain. `terrainTruth.test.ts` pins that every
+    // member of FARMABLE_TERRAINS is dispatched here.
+    if (!isFarmableTerrain(tile.terrain)) {
+      log.warn('Cannot harvest tile', { terrain: tile.terrain, position: { x: tile.x, y: tile.y } });
+      return createErrorResponse(ErrorCode.HARVEST_INVALID_TILE, { terrain: tile.terrain });
+    }
+
     if (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy) {
       // Harvest resource tile
       result = await harvestResourceTile(username, tile);
     } else if (tile.terrain === TerrainType.Cave) {
       // Harvest cave tile
       result = await harvestCaveTile(username, tile);
-    } else if (tile.terrain === TerrainType.Forest) {
+    } else {
       // Harvest forest tile (BETTER loot than caves!)
       result = await harvestForestTile(username, tile);
-    } else {
-      log.warn('Cannot harvest tile', { terrain: tile.terrain, position: { x: tile.x, y: tile.y } });
-      return createErrorResponse(ErrorCode.HARVEST_INVALID_TILE, { terrain: tile.terrain });
     }
     
     // Get updated harvest status

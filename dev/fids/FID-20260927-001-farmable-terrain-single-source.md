@@ -3,7 +3,7 @@
 **Filename:** `FID-20260927-001-farmable-terrain-single-source.md`
 **ID:** FID-20260927-001
 **Severity:** HIGH
-**Status:** loop-complete
+**Status:** implemented
 **Created:** 2026-09-27
 
 ---
@@ -96,9 +96,27 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 
 ## 7. Implementation Record (only after status reaches `loop-complete`, with operator go-ahead)
 
-- **Status:** not-started
+- **Status:** implemented 2026-09-27 (G2 commit outstanding — the agent does not execute git). Operator approval to implement: session directive "approve all pending work … Proceed".
 
-Code is written ONLY after the operator approves. §5's verification plan, red-drill obligation, and reachability checks carry into implementation unchanged.
+**Implemented exactly as §5 specified.** `FARMABLE_TERRAINS` (`readonly TerrainType[]`) and `isFarmableTerrain(t)` added below the enum in `types/game.types.ts`; all eight use sites re-pointed — `lib/harvestService.ts:145` guard, `app/api/harvest/route.ts:106` dispatch guard, `utils/autoFarmEngine.ts:1043` (string array deleted), `components/TileRenderer.tsx:168` predicate + `:1053` button guard, `components/TileHarvestStatus.tsx:46` + `:93` (both arrays deleted), `lib/harvestService.test.ts:379` (`advertised` list deleted), `app/help/page.tsx` prose derived from the constant via the label map.
+
+**Red drill (the FID's own obligation), executed before the fix:** the pin was written first and run against the unre-pointed tree. It failed, naming the copies. Three passes were needed to make the census honest, and each pass was driven by a real file:
+
+1. First version flagged 4 sites — a same-line check. Too weak: it missed `TileRenderer`'s 4-line OR-chain and reported only the *first* `harvestableTerrains` array per file. Rejected.
+2. Second version was statement-scoped and found 9, including two **false positives**: `mapService.ts:441` (a weight table spanning Metal→Wasteland) and `terrainCodec.ts:32` (a 9-member wire codec). A farmable set is a *subset* of both, so neither is a farmability list. Fixed by excluding statements that also name a non-farmable terrain.
+3. Third version found a **genuine eighth copy the FID's own §2 census had missed**: `components/HarvestModal.tsx:44`, `PRE_HARVEST_MESSAGES`. It is a `Record` keyed by exactly the four farmable terrains — a lookup table, not a membership list, so it was excluded from the census by brace-matched `Record<…> = {…}` span detection. But it is coupled to the farmable set and degrades *silently* (an unmapped terrain falls through `|| []` to `'Ready to harvest?'`), so a fifth farmable terrain would have shipped a wrong message unnoticed. A new assertion (§5 group 5) now pins that every farmable terrain has a message.
+
+Final red drill: `1 failed | 7 passed` naming 8 offender sites across 5 files, with zero false positives. Post-fix: the census is clean.
+
+**Verification, this session, all pasted from tool output:**
+- `npx vitest run __tests__/terrainTruth.test.ts lib/harvestService.test.ts` → `Test Files 2 passed (2)`, `Tests 47 passed (47)`
+- `npx tsc --noEmit` → exit 0 — after tsc caught a real break mid-implementation: removing `TerrainType` from `TileHarvestStatus.tsx`'s import orphaned its use at `:21` (`TS2304`), restored
+- `npx eslint .` → exit 0
+- `npx vitest run` (full) → **`Test Files 141 passed (141)`, `Tests 1354 passed (1354)`**, `Failed Tests` marker count 0
+- `node scripts/ledgerIntegrityCensus.cjs` → exit 0, `ledger census clean`; `schemaConsumerCensus` → 57/57 live, 0 violations; `hostTimezoneCensus` → exit 0
+- **Call-graph reachability (Law 4):** `isFarmableTerrain|FARMABLE_TERRAINS` resolves to the definition (`types/game.types.ts:54,62,68,69`) plus 7 production use sites (`route.ts:12,100,105,106`; `help/page.tsx:30,35,46`; `TileHarvestStatus.tsx:15,46,93`; `TileRenderer.tsx:20,168,1053`; `harvestService.ts:21,112,126,130,145`; `autoFarmEngine.ts:25,1043`) plus 2 test files. **Zero orphaned old forms:** `harvestableTerrains` across `utils/` + `components/` → **0 matches**.
+
+**Deviation from §5, recorded:** the plan said the route's dispatch would become `if (isFarmableTerrain(tile.terrain))` wrapping the existing branches. Implemented as an early-return guard instead, with the same semantics and the same `HARVEST_INVALID_TILE` response — a guard reads better beside a `log.warn` than a positive condition wrapping a four-branch chain, and it keeps the payout-path branches visually unchanged for the next reader.
 
 ## 8. Closure
 

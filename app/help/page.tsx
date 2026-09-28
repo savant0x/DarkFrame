@@ -27,6 +27,23 @@
 
 import React from 'react';
 import BackButton from '@/components/BackButton';
+import { TerrainType, FARMABLE_TERRAINS } from '@/types/game.types';
+
+/**
+ * Display labels for farmable terrains, where the plural reads better in prose
+ * than the enum's singular name. DISPLAY ONLY — membership of the farmable set
+ * comes from `FARMABLE_TERRAINS`, never from this map. A terrain with no entry
+ * renders as its enum name, so a future member reads sensibly by default.
+ *
+ * (The first draft of this derived labels as `t.toLowerCase() + 's'`, which
+ * rendered "Energys". Caught by the FID's own re-read pass.)
+ */
+const FARMABLE_TERRAIN_LABELS: Partial<Record<TerrainType, string>> = {
+  [TerrainType.Cave]: 'Caves',
+  [TerrainType.Forest]: 'Forests',
+};
+
+const FARMABLE_TERRAIN_PROSE = FARMABLE_TERRAINS.map((t) => FARMABLE_TERRAIN_LABELS[t] ?? t).join(', ');
 
 /** Verified keycap row: action label + key glyph(s). */
 const KEY_ROWS: Record<string, Array<[string, string]>> = {
@@ -176,7 +193,7 @@ export default function HelpPage() {
                 <ul className="list-disc list-inside space-y-1 text-sm text-[color:var(--nn-text-primary)] ml-4">
                   <li><strong>Snake Pattern:</strong> Moves left-to-right on odd rows, right-to-left on even rows</li>
                   <li><strong>Complete Coverage:</strong> Visits all 22,500 tiles on the map systematically</li>
-                  <li><strong>Auto-Harvest:</strong> Automatically harvests Metal, Energy, Caves, and Forests</li>
+                  <li><strong>Auto-Harvest:</strong> Automatically harvests {FARMABLE_TERRAIN_PROSE}</li>
                   <li><strong>Statistics Tracking:</strong> Session and all-time stats with detailed metrics</li>
                   <li><strong>Human-Like Speed:</strong> ~900ms between movements</li>
                 </ul>

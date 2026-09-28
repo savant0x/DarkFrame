@@ -17,7 +17,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Home, Skull, Flag, ShieldOff } from 'lucide-react';
 import { formatProtectionRemaining } from '@/lib/protectionDisplay';
-import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, type FlagBearer } from '@/types';
+import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, isFarmableTerrain, type FlagBearer } from '@/types';
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage, levelToBaseTier } from '@/lib/imageService';
 import { logger } from '@/lib/logger';
@@ -160,11 +160,12 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
   const trailOpacity = isInTrail ? Math.max(0.4, 1 - trailAge * 0.6) : 0;
   
   // Farmability helpers
+  // FID-20260927-001: both the predicate below and the harvest-button guard used
+  // to re-list the farmable terrains independently — the second copy was the
+  // reason this file's census entry was "counted once" when it held two. Both
+  // now read the single definition.
   const isTileFarmable = (terrain: TerrainType): boolean => {
-    return terrain === TerrainType.Metal || 
-           terrain === TerrainType.Energy || 
-           terrain === TerrainType.Cave || 
-           terrain === TerrainType.Forest;
+    return isFarmableTerrain(terrain);
   };
   
   const isPlayerOnCooldown = (): boolean => {
@@ -1049,7 +1050,7 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
           )}
 
           {/* Harvest Button - Shows on harvestable tiles */}
-          {onHarvestClick && (tile.terrain === TerrainType.Metal || tile.terrain === TerrainType.Energy || tile.terrain === TerrainType.Cave || tile.terrain === TerrainType.Forest) && (
+          {onHarvestClick && isFarmableTerrain(tile.terrain) && (
             <button
               onClick={onHarvestClick}
               disabled={isHarvesting}

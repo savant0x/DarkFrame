@@ -22,7 +22,7 @@
  * - Error handling and tile skipping
  */
 
-import { GAME_CONSTANTS, TerrainType } from '@/types/game.types';
+import { GAME_CONSTANTS, TerrainType, isFarmableTerrain } from '@/types/game.types';
 import type { Tile, SanitizedPlayer } from '@/types/game.types';
 import {
   AutoFarmConfig,
@@ -1035,9 +1035,12 @@ export class AutoFarmEngine {
    */
   private async attemptHarvest(position: { x: number; y: number }, tileInfo: Tile): Promise<HarvestAttemptResult> {
     try {
-      // Check if tile has harvestable resources
-      const harvestableTerrains = ['Metal', 'Energy', 'Cave', 'Forest'];
-      if (!tileInfo || !harvestableTerrains.includes(tileInfo.terrain)) {
+      // FID-20260927-001: this used to be a local string array
+      // `['Metal','Energy','Cave','Forest']`, invisible to the compiler — a typo
+      // here shipped clean. It now reads the shared definition, so the engine
+      // cannot advertise a terrain the server refuses, and a rename of any
+      // TerrainType member is a type error rather than a silent behavior change.
+      if (!tileInfo || !isFarmableTerrain(tileInfo.terrain)) {
         return { success: false, reason: 'No harvestable resources' };
       }
       

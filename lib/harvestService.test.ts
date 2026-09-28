@@ -15,7 +15,7 @@ import {
   generateBaseHarvestAmount,
   canHarvestTile,
 } from '@/lib/harvestService';
-import { TerrainType, type Tile } from '@/types';
+import { TerrainType, FARMABLE_TERRAINS, type Tile } from '@/types';
 
 // FID-20260925-003: canHarvestTile reads the tile's harvest log (drizzle) AFTER
 // its terrain gate. This mock exposes only the one chain shape it uses —
@@ -372,14 +372,11 @@ describe('canHarvestTile — terrain eligibility (FID-20260925-003)', () => {
   });
 
   it('accepts EVERY terrain the game advertises as farmable — Forest included', async () => {
-    const advertised = [
-      TerrainType.Metal,
-      TerrainType.Energy,
-      TerrainType.Cave,
-      TerrainType.Forest,
-    ];
-
-    for (const terrain of advertised) {
+    // FID-20260927-001: this used to declare its own copy of the advertised set,
+    // which made the test structurally incapable of detecting drift — a future
+    // edit to either the guard or this list survived it. It now iterates the one
+    // definition, so guard-vs-definition drift is caught here at unit level too.
+    for (const terrain of FARMABLE_TERRAINS) {
       await expect(canHarvestTile('alice', tileAt(terrain))).resolves.toBe(true);
     }
   });

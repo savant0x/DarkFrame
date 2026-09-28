@@ -38,6 +38,38 @@ export enum TerrainType {
 }
 
 /**
+ * The one definition of which terrains are farmable.
+ *
+ * This constant is the single source of truth: the server eligibility guard
+ * (`lib/harvestService.ts`), the route's dispatch (`app/api/harvest/route.ts`),
+ * the auto-farm engine, the viewport chip, the harvest button, the cooldown
+ * indicator, and the help page's prose all resolve through it. Adding or
+ * removing a farmable terrain is a one-line edit here — never a hand-sync into
+ * seven call sites.
+ *
+ * Pinned by `__tests__/terrainTruth.test.ts` against the terrain inventory
+ * above, the route's dispatch coverage, and the absence of any hand-rolled
+ * farmability list elsewhere in the tree.
+ */
+export const FARMABLE_TERRAINS: readonly TerrainType[] = [
+  TerrainType.Metal,
+  TerrainType.Energy,
+  TerrainType.Cave,
+  TerrainType.Forest,
+] as const;
+
+/**
+ * Whether a terrain is farmable — the predicate form of {@link FARMABLE_TERRAINS}.
+ *
+ * Use this instead of re-listing farmable terrains. It is total over `TerrainType`,
+ * so it accepts the enum's non-farmable members (Factory, Wasteland, Bank, Shrine,
+ * AuctionHouse) and answers `false` for them.
+ */
+export function isFarmableTerrain(terrain: TerrainType): boolean {
+  return FARMABLE_TERRAINS.includes(terrain);
+}
+
+/**
  * Position coordinates on the game map
  * 
  * @property x - Horizontal coordinate (1-150)

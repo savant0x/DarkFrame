@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Clock, CheckCircle } from 'lucide-react';
-import { TerrainType } from '@/types/game.types';
+import { TerrainType, isFarmableTerrain } from '@/types/game.types';
 
 interface TileHarvestStatusProps {
   currentTile: {
@@ -41,15 +41,9 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
       return;
     }
 
-    // Only show for harvestable terrains
-    const harvestableTerrains = [
-      TerrainType.Metal,
-      TerrainType.Energy,
-      TerrainType.Cave,
-      TerrainType.Forest,
-    ];
-
-    if (!harvestableTerrains.includes(currentTile.terrain)) {
+    // Only show for farmable terrains (FID-20260927-001: this array was a second,
+    // independent copy of the farmable set — the file held two)
+    if (!isFarmableTerrain(currentTile.terrain)) {
       setTimeLeft(null);
       setIsReady(true);
       return;
@@ -93,17 +87,10 @@ export default function TileHarvestStatus({ currentTile, playerUsername }: TileH
     return () => clearInterval(interval);
   }, [currentTile, playerUsername]);
 
-  // Don't render if no current tile or not harvestable
+  // Don't render if no current tile or not farmable (FID-20260927-001: second copy)
   if (!currentTile) return null;
 
-  const harvestableTerrains = [
-    TerrainType.Metal,
-    TerrainType.Energy,
-    TerrainType.Cave,
-    TerrainType.Forest,
-  ];
-
-  if (!harvestableTerrains.includes(currentTile.terrain)) return null;
+  if (!isFarmableTerrain(currentTile.terrain)) return null;
 
   const formatTime = (ms: number): string => {
     const totalSeconds = Math.floor(ms / 1000);

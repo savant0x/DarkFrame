@@ -17,7 +17,8 @@ import {
   Tile, 
   TerrainType, 
   GAME_CONSTANTS,
-  HarvestRecord 
+  HarvestRecord,
+  isFarmableTerrain
 } from '@/types';
 import { getHarvestSuccessMessage } from './harvestMessages';
 import { gameDateKey, atGameTime, addGameDays } from './gameTime';
@@ -108,21 +109,29 @@ export function getTimeUntilReset(x: number): number {
  * 
  * Verifies:
  * - Player hasn't harvested this tile in current reset period
- * - Tile is harvestable type (Metal, Energy, Cave, or Forest)
+ * - Tile is a farmable terrain (see `FARMABLE_TERRAINS` in `types/game.types.ts`)
  * 
- * FID-20260925-003: Forest was missing from the eligibility list below and had
- * been since Forest gained a harvest path. `/api/harvest` dispatches Forest to
- * `harvestForestTile`, which gates on THIS function (`lib/caveItemService.ts`),
- * so every forest tile was refused eligibility by a list that was never updated
- * for it — reported to the player as "You have already explored this forest", a
- * cooldown the tile had never earned. Because the refusal returned before any
- * harvest record was written, the viewport chip (`components/TileRenderer.tsx`)
- * could never flip off `ready` either: ~2% of the map (the generator's own
- * Forest weight) read permanently farmable and yielded nothing, for every
- * player, through every harvest path. The list must name every terrain that
- * `/api/harvest` can dispatch; Metal/Energy payout via `harvestResourceTile`,
- * Cave/Forest via `lib/caveItemService`.
- * 
+ * FID-20260925-003: Forest was missing from the eligibility list that used to
+ * live here and had been since Forest gained a harvest path. `/api/harvest`
+ * dispatches Forest to `harvestForestTile`, which gates on THIS function
+ * (`lib/caveItemService.ts`), so every forest tile was refused eligibility by a
+ * list that was never updated for it — reported to the player as "You have
+ * already explored this forest", a cooldown the tile had never earned. Because
+ * the refusal returned before any harvest record was written, the viewport chip
+ * (`components/TileRenderer.tsx`) could never flip off `ready` either: ~2% of
+ * the map (the generator's own Forest weight) read permanently farmable and
+ * yielded nothing, for every player, through every harvest path.
+ *
+ * FID-20260927-001: that list is no longer duplicated here. This guard reads
+ * `isFarmableTerrain` — the single definition, shared with the route's
+ * dispatch, the auto-farm engine, the viewport chip, the harvest button, the
+ * cooldown indicator, and the help page. The invariant the old comment was
+ * really asserting still holds and is now mechanical: every terrain listed in
+ * `FARMABLE_TERRAINS` must have a server payout path reachable from
+ * `/api/harvest`, and every terrain a payout path can pay must be listed.
+ * `__tests__/terrainTruth.test.ts` enforces both directions, so this guard
+ * cannot drift from the dispatch again.
+ *
  * @param playerId - Player's username
  * @param tile - Tile to check
  * @returns True if player can harvest, false otherwise
@@ -132,8 +141,8 @@ export async function canHarvestTile(
   tile: Tile
 ): Promise<boolean> {
   try {
-    // Check if tile is harvestable type
-    if (![TerrainType.Metal, TerrainType.Energy, TerrainType.Cave, TerrainType.Forest].includes(tile.terrain)) {
+    // Check if tile is a farmable terrain (single source of truth)
+    if (!isFarmableTerrain(tile.terrain)) {
       return false;
     }
     
