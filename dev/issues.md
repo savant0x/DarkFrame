@@ -1,59 +1,71 @@
 # DarkFrame — Issues & Technical Debt
 
-**Last Updated:** 2026-09-02 (audited reality refresh — see `dev/session-summaries/SESSION-2026-09-02-002.md`)
-**Open blockers:** 2 + 1 open security half (B2 lint resolved 2026-09-02)
-**Status:** ❌ BLOCKED — build not passing; decision queue in `SCOPE.md`
+**Last Updated:** 2026-09-27 (session 006 — see `dev/session-summaries/SESSION-2026-09-27-006.md`)
+**Open blockers:** **0** blocking. 1 open operator-side action (credential rotation).
+**Status:** ✅ **BUILDING AND GREEN** — `tsc` exit 0 · `eslint` 0/0 · `test:ci` 1363/1363 · all 10 pre-push gates green on `ubuntu-latest` (CI run `36336484395`)
 
+> Correction notice (2026-09-27): this file previously carried **"B1. 🔴 Build broken — 2,043
+> TypeScript errors"** as its top blocker and described the project as *BLOCKED — build not passing*.
+> `npx tsc --noEmit` exits 0. The 2,043 → 0 transition happened across the Postgres/Supabase pivot
+> (2026-09-02 → 2026-09-25) and was never written back here. The 2026-09-02 claims are **preserved
+> below as dated history** rather than deleted, matching the correction notices this file already
+> carries. Per-claim measurements: FID-20260927-006 §3.
+>
 > Correction notice (2026-09-02): this file previously stated "Active Issues: 0 / NO KNOWN ISSUES"
-> (last updated 2025-10-26). That was stale. The audited list is below.
+> (last updated 2025-10-26). That was stale. The audited list from that session follows, struck where
+> later work resolved it.
 
 ---
 
-## 🐛 Active blockers
+## ✅ Resolved blockers
 
-### B1. 🔴 Build broken — 2,043 TypeScript errors
-**Discovered:** 2026-09-01 (SESSION-2026-09-01-002) **Severity:** Critical
-`npx tsc --noEmit` exits 1 with 2,043 errors. Root cause: DB migration mid-pivot —
-`lib/db/connection.ts` uses the Postgres driver (`drizzle-orm/node-postgres` + `pg`) while all 14 files in
-`lib/db/schema/` are MySQL dialect (`drizzle-orm/mysql-core`), so services type-check MySQL columns
-against `PgTable` types. Signature error: `MySqlTableWithColumns` not assignable to `PgTable`.
-Top concentrations: friendService 119, wmdAnalyticsService 117, moderationService 80.
-**Resolution path:** operator decides — finish the Postgres/Supabase pivot (convert the 14 schema files)
-or revert to MariaDB. (SCOPE item #7)
+### ~~B1. 🔴 Build broken — 2,043 TypeScript errors~~ → ✅ **RESOLVED 2026-09-25**
+**Discovered:** 2026-09-01 (SESSION-2026-09-01-002) **Severity:** Critical (historical)
 
-### ~~B2. Lint script broken~~ → ✅ RESOLVED 2026-09-02 (see Resolved issues)
+**Was:** `npx tsc --noEmit` exited 1 with 2,043 errors. The database migration was mid-pivot —
+`lib/db/connection.ts` used the Postgres driver while all 14 files in `lib/db/schema/` were MySQL
+dialect, so services type-checked MySQL columns against `PgTable`. Signature error:
+`MySqlTableWithColumns` not assignable to `PgTable`. Top concentrations: friendService 119,
+wmdAnalyticsService 117, moderationService 80.
+
+**Resolution path taken:** the operator chose **Option A — finish the Postgres/Supabase pivot** on
+2026-09-02. Executed across sessions 2026-09-02 onward: 15 schema files converted to pg-core, 17
+raw-MySQL SQL fragments translated, `drizzle.config.ts` repointed to `dialect: 'pg'` +
+`DATABASE_URL`, and the phantom WMD table imports retired.
+
+**Now:** `npx tsc --noEmit` **exit 0**. Zero MySQL-dialect schema files remain; 57 tables are live
+with 0 Law-17 violations. SCOPE row 7 closed. Related commits: `9708a38` (ledger host-independence),
+`fe245aa` (`@types/pg` declared, which was the last thing keeping the typecheck honest on a clean
+checkout), CI run `36336484395` — **all ten gates green on `ubuntu-latest` for the first time**.
+
+### ~~B2. Lint script broken~~ → ✅ **RESOLVED 2026-09-02** (gate since cleared 2026-09-27)
 **Discovered:** 2026-09-01 **Severity:** High
-**Resolution:** `npm run lint` migrated from the removed `next lint` to `eslint .`; `.eslintrc.json` gained
-`next/typescript` (restores the TS checking `next lint` auto-injected); `.eslintignore` added. Gate verified
-two ways: fresh run (exit 1, 2,010 findings — a red gate that *runs*) + negative test (controlled probe
-exited 1 naming the rule). Evidence: `dev/session-summaries/SESSION-2026-09-02-003.md`.
+**Resolution:** `npm run lint` migrated from the removed `next lint` to `eslint .`; `.eslintrc.json`
+gained `next/typescript`; `.eslintignore` added. Wired into the pre-push chain as Gate 8.
+**Now:** the burn-down this file tracked for 25 days is complete — `npx eslint . --max-warnings 0`
+**exit 0, 0 errors, 0 warnings**, gated at Gate 8 and re-verified in CI.
 
-### B3. ✅ [RESOLVED 2026-09-02] Test suite does not complete
+### ~~B3. Test suite does not complete~~ → ✅ **RESOLVED 2026-09-02**
 **Discovered:** 2026-09-01 **Severity:** High
-**Was:** full run hung past 300s (per-test 5s timeouts) and died in a JS heap OOM; friends suites failing.
-**Root causes (SESSION-2026-09-02-006):** test-environment, not network — `IS_REACT_ACT_ENVIRONMENT`
-never set under vitest; RTL `waitFor` freezes under vitest fake timers (jest-only detection, fixed via
-minimal `jest` timer shim in `vitest.setup.ts`); dead per-worker in-memory Mongo (OOM kindling, now
-gated behind `TEST_MONGO_MEMORY=1`); missing fake-timer/user-event bridging in the friends suites; plus
-two real component bugs fixed en route (FriendsList interval churn on every status update;
-AddFriendModal stale state on prop-driven close).
-**Now:** full `vitest run` = 336 passed + 1 skipped (live-DB suite behind `RUN_LIVE_DB_TESTS=1`), 33.6s.
-`test:ci` is a meaningful gate again.
-
-### ⚠️ B4 (half-open). Credential rotation
-**Remediation done (2026-09-02):** plaintext creds moved from `drizzle.config.ts` to git-ignored
-`.env.local` (`DB_*` vars); config is now env-based and fail-fast; repo-wide sweep found 0 plaintext
-literals outside `.env.local`.
-**Still open:** rotate the SkySQL password at the provider — the old one is still valid and lived in
-plaintext/logs. Operator action. (SCOPE item #6)
+**Was:** full run hung past 300s and died in a JS heap OOM; friends suites failing.
+**Root causes (SESSION-2026-09-02-006):** test-environment, not network — `IS_REACT_ACT_ENV_ENVIRONMENT`
+never set under vitest; RTL `waitFor` freezing under vitest fake timers; dead per-worker in-memory
+Mongo; missing fake-timer/user-event bridging; plus two real component bugs fixed en route.
+**Now:** `npm run test:ci` = **141 files / 1363 tests, 0 failed**, wired as Gate 10 and green in CI.
 
 ---
 
-## 🧾 Uncommitted work (risk, not a bug)
+## ⚠️ Open — operator-side
 
-~5 months of work sits uncommitted on `main`: 284 files, +17,553/−30,761 (318 porcelain entries). The
-working tree is the only copy of the migration work. Commit strategy awaits operator decision (SCOPE item
-#14); per the version-control laws the agent prepares path-scoped staging plans and the operator executes.
+### B4. Credential rotation (repo half complete; provider half cannot be done in-repo)
+**Discovered:** 2026-09-01 **Severity:** High (was Critical)
+
+**Remediation done (2026-09-02):** plaintext credentials removed from `drizzle.config.ts`; the file
+now reads a single `DATABASE_URL` and fails fast if it is absent. Repo-wide sweep: **0 plaintext
+literals** outside the git-ignored `.env.local`.
+
+**Still open:** rotating the SkySQL password **at the provider**. No repository change can do this —
+it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exactly this.
 
 ---
 
@@ -68,42 +80,56 @@ working tree is the only copy of the migration work. Commit strategy awaits oper
 
 ### [RESOLVED 2026-09-02] Plaintext DB credentials in `drizzle.config.ts`
 **Severity:** Critical (public repo, untracked file one `git add .` from exposure)
-- Creds moved to git-ignored `.env.local` as `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`/`DB_SSL_REJECT_UNAUTHORIZED`;
-  `drizzle.config.ts` rewritten to fail-fast env resolution via `@next/env` with `DB_PORT` range validation.
-- Evidence: tsc delta 2,043→2,043 with 0 attributable; runtime config load verified via `tsx`; repo-wide
-  secret sweep 0/0/0. Full record: `dev/session-summaries/SESSION-2026-09-02-001.md`.
+- Creds moved to git-ignored `.env.local`; `drizzle.config.ts` rewritten to fail-fast env resolution.
+- Evidence: repo-wide secret sweep 0/0/0. Full record: `dev/session-summaries/SESSION-2026-09-02-001.md`.
 - **Follow-up:** provider-side rotation still pending (see B4).
+
+### [RESOLVED 2026-09-19] MongoDB shim deleted
+`lib/mongodb.ts` — a 1,554-line Mongo-over-pg emulation layer — was deleted outright along with the
+`mongodb` and `mongodb-memory-server` packages and its regression harnesses. SCOPE row 97.
 
 ---
 
-## ⚠️ Known limitations (audited 2026-09-02)
+## ⚠️ Known limitations (re-measured 2026-09-27)
 
-- `@ts-nocheck` on exactly 10 admin routes (field-name mismatches from the schema change) — admitted
-  migration debt, still present
-- No CI/CD pipeline configured
-- Tracking docs other than the four refreshed this session may contain pre-pivot claims
-  (`dev/completed.md`, `dev/roadmap.md` are historical records, intentionally not rewritten)
-- Test coverage ~15% (target 60% per Jan 2026 baseline docs)
-- Legacy debt noted Jan 2026: barrel-export usage incomplete (ECHO compliance 85%, 18/26)
+- **~~`@ts-nocheck` on 10 admin routes~~ → 0.** `grep -rl @ts-nocheck app/ lib/` returns nothing.
+  The escape hatches are gone; the field-name mismatches they papered over were fixed against route
+  ground truth during the 2026-09-07 component/lib batch.
+- **~~No CI/CD pipeline configured~~ → there is one.** `.github/workflows/gate-chain.yml` runs the
+  identical 10-gate chain on every push, and `attribution-guard.yml` scans the same range for agent
+  attribution. Both green. This limitation was written on 2026-09-02, the same day Gate 1 was
+  discovered to be Windows-only and CI failed on its first ever run.
+- **Test coverage is not measured.** This file previously claimed "~15% (target 60% per Jan 2026
+  baseline docs)". No coverage tooling is configured, so the figure cannot be reproduced — it is
+  marked unverifiable rather than restated as fact. Closing it is a real decision, not a doc fix.
+- **Messaging is still on `socket.io`.** Live via `lib/websocket/` (≥5 importers); **0** `ably`
+  imports exist, though SCOPE row 13 records that messaging moved to Ably. One of the two records is
+  wrong; resolving which is a separate question from this refresh. Logged as an observation.
+- `dev/completed.md`, `dev/roadmap.md` and `dev/metrics.md` are historical records and are
+  intentionally not rewritten — they describe what was true when they were written.
 
 ---
 
 ## 🔧 Technical debt
 
-- Convert or revert the 14 MySQL-dialect schema files (depends on B1 decision)
-- Burn down the lint baseline: 1,836 findings (1,833 errors / 3 warnings) — 2,010 → 1,961 (session-004:
-  auto-fixes + clanWarfareService) → 1,905 (session-007: admin/page.tsx cleaned, 3 field-name display bugs
-  fixed against route ground truth) → 1,869 (session-008: ClanInspectorModal cleaned, dead date-range
-  scaffolding removed) → 1,836 (session-009: territoryService cleaned — honest row types replaced the
-  $type<any[]> casts, and 4 runtime-dead QueryResult errors resolved → tsc 2,043 → 2,039); next density
-  targets: queryOptimization 29, HarvestButton.test 28, ChatPanel 28,
-  ~~mongodb.ts 83 (blocked on DB-direction decision — compat-layer seam)~~ **Moot 2026-09-19:** the shim was deleted outright (SCOPE row 97) — target removed with it
-- ~~Stabilize/mocked test environment; re-enable `test:ci` as a meaningful gate (B3)~~ **Done 2026-09-02** (session-006: full run green; 333 passed + 1 skip / ~34s, re-verified session-010)
-- 10 `@ts-nocheck` admin routes to be typed properly once the schema direction settles
-- Commit the working tree in logical chunks (SCOPE item #14)
-- Housekeeping (SCOPE item #15): 8 stray migration artifacts in root
-  (`fix_alliance.js`, `fix_wmd_files.js`, `_temp_write.py`, `_write_research.py`, `convert-schemas.ps1`,
-  `DdevDarkFramefix_sub.ps1`, `nul`, `lib/clanAllianceService.ts.bak`) — removal is destructive, awaiting operator call
+**Outstanding:**
+
+- Provider-side credential rotation (B4 above) — operator action, no repo work available.
+- Establish or retire a test-coverage measurement; the current state is *unknown*, not *good*.
+- Resolve the socket.io-vs-Ably record conflict noted above.
+- `dev/lessons-learned.md` carries a merged duplicate H1 (`# 📚 Lessons Learned - Severity-Ranked
+  Reference# DarkFrame - Lessons Learned`) and a U+FFFD in a section heading — cosmetic, never fixed.
+
+**Retired (superseded claims kept for the record):**
+
+- ~~Convert or revert the 14 MySQL-dialect schema files~~ **Done** — 14 pg-core files, 57 live tables.
+- ~~Burn down the lint baseline: 1,836 findings~~ **Done** — 0 errors, 0 warnings, gated at Gate 8.
+- ~~10 `@ts-nocheck` admin routes~~ **Done** — 0 files.
+- ~~Commit the working tree in logical chunks~~ **Done** — `main` carries 455 commits (SCOPE row 14).
+- ~~Housekeeping: 8 stray migration artifacts in root~~ **Done** — `fix_alliance.js`, `nul`,
+  `convert-schemas.ps1`, `lib/clanAllianceService.ts.bak` and the rest are all gone (SCOPE row 15).
+- ~~Stabilize the test environment~~ **Done 2026-09-02** (session-006).
+- ~~`mongodb.ts` lint target~~ **Moot 2026-09-19** — the shim was deleted outright (SCOPE row 97).
 
 ---
 
