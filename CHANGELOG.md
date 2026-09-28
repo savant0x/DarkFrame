@@ -5,6 +5,29 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.48] — 2026-09-28 session 010
+
+> **The milestone:** row 130's last open sub-item was decided by measurement. The literal worry — "a 429
+is indistinguishable from 'nothing to collect'" — was already false (FID-20260925-005 fixed the
+conflation), and the real hazard was the engine's silence: a 429 was swallowed, retried at full pace
+(each retry itself consuming the shared budget), and never reported.
+
+### Decided — FID-20260928-003: VIP pacing stays; the engine learned what a 429 is
+
+- **Measured:** VIP auto-farm ≈ 66-120 movement-class requests/min against the 120/min nominal limit;
+  `trackByUser` is decorative (`getUserId` always returns null), so every route shares one `ip:` bucket
+  — re-probed fresh: 121 tile-style requests made a movement-shaped route's FIRST call 429 with
+  `Retry-After: 60`.
+- **Disposition: pacing kept.** Slowing VIP would punish honest players for a client-robustness gap.
+- **Engine hardened:** both fetch paths now distinguish throttle from gameplay rejection, honor
+  `Retry-After`, emit a distinct throttling event to the panel, and never log a 429 as "nothing to
+  collect".
+- **Dead code deleted:** `MOVEMENT_WAIT`/`HARVEST_WAIT` (declared, assigned, never read — they implied
+  sleeps that do not exist) and the stale "after retries" comment.
+- **Recorded, not absorbed:** per-endpoint limiter keys and a real `trackByUser` are architecture-wide
+  decisions, logged in `dev/issues.md` to revisit only with production 429 telemetry; the engine's
+  duplicate tile fetch is a separate future performance FID.
+
 ## [0.0.47] — 2026-09-28 session 009
 
 > **The milestone:** both live cooldown chips invented their own rules and the server's real answer was

@@ -117,6 +117,7 @@ it is an action on the hosting account. SCOPE row 6, narrowed 2026-09-27 to exac
 - Provider-side credential rotation (B4 above) — operator action, no repo work available.
 - Establish or retire a test-coverage measurement; the current state is *unknown*, not *good*.
 - Operator decision (FID-20260928-001): the `ABLY_API_KEY`/`ABLY_SUBSCRIBE_KEY` vars in `.env.local` have zero code readers — remove or rotate them (untracked file; no repo action available).
+- Limiter keying is architecture-wide (FID-20260928-003): one shared per-IP bucket across all routes (`getUserId` always returns null, so `trackByUser` is decorative). Revisit per-endpoint keys / real user tracking only with production 429 telemetry. Auto-farm's duplicate tile fetch (move response carries `currentTile`; engine and page each re-fetch) is a separate future performance item.
 - `dev/lessons-learned.md` carries a merged duplicate H1 (`# 📚 Lessons Learned - Severity-Ranked
   Reference# DarkFrame - Lessons Learned`) and a U+FFFD in a section heading — cosmetic, never fixed.
 
