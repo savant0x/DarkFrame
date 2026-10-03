@@ -4,6 +4,13 @@
  * @overview Unit type definitions for the unit factory system
  */
 
+// FID-20261002-004 §5.1: TYPE-ONLY import — erased at runtime, so no circular
+// runtime dependency exists (game.types runtime-imports UNIT_BLUEPRINTS from
+// this file). It exists solely to tighten UNIT_ID_TO_UNIT_TYPE's value type:
+// every mapping value must be a UnitType ENUM KEY (e.g. 'T5_Titan'), not a
+// persisted enum value ('T5_TITAN') — the R4 class of identity confusion.
+import type { UnitType } from './game.types';
+
 /**
  * Unit rarity/tier levels
  */
@@ -612,8 +619,14 @@ export const UNIT_TIER_ORDER: Record<string, number> = {
  * Blueprint id → UnitType enum key (FID-20260909-033). UNIT_CONFIGS is DERIVED
  * from UNIT_BLUEPRINTS through this map: one roster, one set of stats. The enum
  * keys stay the integration vocabulary (combat modal, saves, bot pools).
+ *
+ * FID-20261002-004 §5.1: values are now compile-checked to be UnitType ENUM
+ * KEYS ('T5_Titan') — never persisted enum values ('T5_TITAN'). Resolving to
+ * the persisted enum value happens ONLY through the typed key guard in
+ * game.types (`resolveCanonicalUnitType`); callers must never cast these
+ * strings to UnitType directly (the R4 defect).
  */
-export const UNIT_ID_TO_UNIT_TYPE: Record<string, string> = {
+export const UNIT_ID_TO_UNIT_TYPE: Record<string, keyof typeof UnitType> = {
   infantry: 'T1_Infantry',
   scout: 'T1_Scout',
   militia: 'T1_Militia',

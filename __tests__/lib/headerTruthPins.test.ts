@@ -20,35 +20,80 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const selectRows: { rows: Array<Record<string, unknown>> } = { rows: [] };
-const inserted: { values: Array<Record<string, unknown>> } = { values: [] };
-
-vi.mock('@/lib/db', () => ({
-  db: {
-    select: vi.fn(() => ({
-      from: () => ({ where: () => ({ limit: async () => selectRows.rows }) }),
-    })),
-    insert: vi.fn(() => ({
+const mockState = vi.hoisted(() => {
+  const selectRows: { rows: Array<Record<string, unknown>> } = { rows: [] };
+  const inserted: { values: Array<Record<string, unknown>> } = { values: [] };
+  // Rows that are awaitable directly (getSummoningStatus's `limit(1)`) AND
+  // expose `.for('update')` (summonBots's locked in-transaction select).
+  const awaitableRows = (rows: Array<Record<string, unknown>>) => {
+    const p = Promise.resolve(rows) as Promise<Array<Record<string, unknown>>> & {
+      for: () => Promise<Array<Record<string, unknown>>>;
+    };
+    p.for = () => Promise.resolve(rows);
+    return p;
+  };
+  const makeSelect = () => ({
+    from: () => ({
+      where: () => ({
+        limit: () => awaitableRows(selectRows.rows),
+      }),
+    }),
+  });
+  const makeTx = () => ({
+    select: makeSelect,
+    insert: () => ({
       values: async (v: Array<Record<string, unknown>>) => {
         inserted.values = v;
       },
-    })),
-    update: vi.fn(() => ({ set: () => ({ where: async () => undefined }) })),
+    }),
+    update: () => ({ set: () => ({ where: async () => undefined }) }),
+  });
+  return { selectRows, inserted, makeSelect, makeTx };
+});
+const { selectRows, inserted } = mockState;
+
+vi.mock('@/lib/db', () => ({
+  db: {
+    select: vi.fn(mockState.makeSelect),
+    transaction: vi.fn(async (
+      fn: (tx: ReturnType<typeof mockState.makeTx>) => Promise<unknown>
+    ) => fn(mockState.makeTx())),
   },
 }));
+
 vi.mock('@/lib/db/schema', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/db/schema')>();
   return { ...actual };
 });
+let botNameCounter = 0;
 vi.mock('@/lib/botService', () => ({
-  createBotPlayer: vi.fn(async () => ({
-    username: 'summoned',
-    resources: { metal: 1000, energy: 2000, food: 0 },
-    botConfig: {},
-    base: { x: 0, y: 0 },
-    currentPosition: { x: 0, y: 0 },
-    units: [],
-  })),
+  generateBotName: vi.fn(() => `Summoned_Bot_${++botNameCounter}`),
+  claimBotTilesInRadius: vi.fn(async (opts: {
+    center: { x: number; y: number };
+    ownerUsernames: string[];
+  }) =>
+    opts.ownerUsernames.map((_, i) => ({
+      x: opts.center.x + i,
+      y: opts.center.y,
+      terrain: 'Wasteland',
+    }))),
+  createBotPlayer: vi.fn(async (
+    _zone: number | null,
+    _spec: string | null,
+    _special: boolean,
+    _tier: number | null,
+    opts: { claimedTile?: { x: number; y: number } } = {}
+  ) => {
+    const tile = opts.claimedTile ?? { x: 0, y: 0 };
+    return {
+      username: `Summoned_Bot_${++botNameCounter}`,
+      resources: { metal: 1000, energy: 2000, food: 0 },
+      botConfig: {},
+      base: { x: tile.x, y: tile.y },
+      currentPosition: { x: tile.x, y: tile.y },
+      units: [],
+    };
+  }),
 }));
 vi.mock('@/lib/playerService', () => ({
   mapDomainPlayerToRow: (d: unknown) => d,
@@ -69,6 +114,7 @@ const HOUR = 3600_000;
 beforeEach(() => {
   selectRows.rows = [];
   inserted.values = [];
+  botNameCounter = 0;
 });
 
 describe('row-51 #4a — summoning config equals the header promises', () => {
@@ -82,8 +128,15 @@ describe('row-51 #4a — summoning config equals the header promises', () => {
 
 describe('row-51 #4b — summoning behavior (multiplier applied, cooldown gates)', () => {
   it('applies the 1.5× resource multiplier to every summoned bot', async () => {
-    selectRows.rows = [{ username: 'caller', unlockedTechs: ['bot-summoning-circle'] }];
-    const res = await summonBots('caller', { x: 75, y: 75 }, BotSpecialization.Hoarder);
+    selectRows.rows = [{
+      username: 'caller',
+      unlockedTechs: ['bot-summoning-circle'],
+      currentPositionX: 75,
+      currentPositionY: 75,
+      baseX: 75,
+      baseY: 75,
+    }];
+    const res = await summonBots('caller', BotSpecialization.Hoarder);
     expect(res.success).toBe(true);
     expect(inserted.values).toHaveLength(5);
     for (const row of inserted.values) {

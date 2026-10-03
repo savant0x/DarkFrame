@@ -447,9 +447,17 @@ export default function UnitFactoryPage() {
                   <div className="nn-unit__owned"><Package className="inline h-3 w-3" style={{ marginRight: 4 }} />Owned ▸ {unit.playerOwned}</div>
                 )}
 
-                {/* Lock Status */}
-                {!unit.isUnlocked && unit.unlockRequirement && (
-                  <div className="nn-unit__lock"><Lock className="inline h-3 w-3" style={{ marginRight: 4 }} />Requires {unit.unlockRequirement.researchPoints} RP{unit.unlockRequirement.level && ` · LVL ${unit.unlockRequirement.level}`}</div>
+                {/* Lock Status — FID-20261002-004 §5.6: the server's tier-based
+                    lock reason (permanent unlockTiers contract), not the stale
+                    blueprint purchase price. */}
+                {!unit.isUnlocked && (
+                  <div className="nn-unit__lock">
+                    <Lock className="inline h-3 w-3" style={{ marginRight: 4 }} />
+                    {('lockReason' in unit && typeof unit.lockReason === 'string' && unit.lockReason)
+                      || (unit.unlockRequirement
+                        ? `Requires ${unit.unlockRequirement.researchPoints} RP${unit.unlockRequirement.level ? ` · LVL ${unit.unlockRequirement.level}` : ''}`
+                        : 'Locked')}
+                  </div>
                 )}
 
                 {/* Description */}
