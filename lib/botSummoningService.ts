@@ -30,8 +30,9 @@ import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq, isNotNull, desc, sql } from 'drizzle-orm';
 import { type Player, BotSpecialization } from '@/types/game.types';
-import { createBotPlayer } from '@/lib/botService';
+import { createBotPlayer, claimBotTilesInRadius, generateBotName, InsufficientLegalTilesError } from '@/lib/botService';
 import { mapDomainPlayerToRow } from '@/lib/playerService';
+import { withTransactionRetry } from '@/lib/db/treasuryLock'; // FID-20261002-009 §5.4
 
 /**
  * Summoning configuration — exported for the row-51 contract test
@@ -46,110 +47,158 @@ export const SUMMONING_CONFIG = {
 } as const;
 
 /**
- * Summon bots at player location
+ * Summon bots around the summoner's LOCKED position (FID-20261002-009).
+ *
+ * R18 (RED): createBotPlayer claimed a Wasteland tile, then this service
+ * substituted unchecked client-derived offsets — the claimed tile stayed at
+ * the old location while the rows/response said otherwise (positions could
+ * collide or leave the map entirely).
+ *
+ * §5.1 the summoner's position is read from the AUTHENTICATED locked player
+ * row (client coordinates are advisory and no longer accepted at all); tech
+ * and cooldown are validated IN-LOCK. §5.4 the whole operation — five distinct
+ * legal tile claims, five bot inserts, the 168h cooldown — commits in ONE
+ * transaction: fewer than five legal positions refuses and rolls back every
+ * claim/insert rather than returning a misleading five-bot success. §5.2/§5.3
+ * the claimed tiles are the ONE source for base/current position, inserted
+ * rows and the response — post-claim relocation no longer exists, and the
+ * zone derives from each ACTUAL tile via the repository's convention.
  */
 export async function summonBots(
   playerId: string,
-  playerPosition: { x: number; y: number },
   specialization: BotSpecialization
 ): Promise<{
   success: boolean;
   message: string;
   bots?: Array<{ username: string; position: { x: number; y: number } }>;
 }> {
-  const playerRows = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
-  const player = playerRows[0];
-
-  if (!player) {
-    return {
-      success: false,
-      message: 'Player not found',
-    };
-  }
-
-  // Check tech requirement
-  const unlockedTechs = (player.unlockedTechs as string[]) || [];
-  if (!unlockedTechs.includes('bot-summoning-circle')) {
-    return {
-      success: false,
-      message: 'Requires Bot Summoning Circle technology',
-    };
-  }
-
-  const lastSummon = player.lastBotSummon as Date | undefined;
-  if (lastSummon) {
+  try {
     const now = new Date();
-    const cooldownMs = SUMMONING_CONFIG.COOLDOWN_HOURS * 60 * 60 * 1000;
-    const nextSummonTime = new Date(new Date(lastSummon).getTime() + cooldownMs);
+    const botInfo = await withTransactionRetry('bots:summon', () =>
+      db.transaction(async (tx) => {
+        // §5.1: the authoritative summoner identity + position, under lock.
+        const [player] = await tx
+          .select()
+          .from(players)
+          .where(eq(players.username, playerId))
+          .limit(1)
+          .for('update');
 
-    if (now < nextSummonTime) {
-      const hoursRemaining = Math.ceil(
-        (nextSummonTime.getTime() - now.getTime()) / (1000 * 60 * 60)
-      );
-      return {
-        success: false,
-        message: `Summoning on cooldown. ${hoursRemaining} hours remaining.`,
-      };
+        if (!player) {
+          throw new SummonRefusal('Player not found');
+        }
+
+        // §5.1: tech + cooldown re-validated IN-LOCK (no check-then-act gap).
+        const unlockedTechs = (player.unlockedTechs as string[]) || [];
+        if (!unlockedTechs.includes('bot-summoning-circle')) {
+          throw new SummonRefusal('Requires Bot Summoning Circle technology');
+        }
+
+        const lastSummon = player.lastBotSummon as Date | undefined;
+        if (lastSummon) {
+          const cooldownMs = SUMMONING_CONFIG.COOLDOWN_HOURS * 60 * 60 * 1000;
+          const nextSummonTime = new Date(new Date(lastSummon).getTime() + cooldownMs);
+          if (now < nextSummonTime) {
+            const hoursRemaining = Math.ceil(
+              (nextSummonTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+            );
+            throw new SummonRefusal(`Summoning on cooldown. ${hoursRemaining} hours remaining.`);
+          }
+        }
+
+        // §5.1: the LOCKED row's position is the truth (current position, then
+        // base — the same precedence the route used to pass through).
+        const center = {
+          x: player.currentPositionX || player.baseX,
+          y: player.currentPositionY || player.baseY,
+        };
+        if (!center.x || !center.y) {
+          throw new SummonRefusal('Player position not found');
+        }
+
+        // §5.5: identities BEFORE claims, so every claim is attributed to its
+        // actual bot from the first write.
+        const ownerUsernames = Array.from({ length: SUMMONING_CONFIG.BOT_COUNT }, () => generateBotName());
+
+        // §5.5: the FULL five-tile candidate set is sorted, locked and claimed
+        // before any insert; fewer than five legal tiles throws and rolls the
+        // whole batch back.
+        const claimedTiles = await claimBotTilesInRadius({
+          tx,
+          center,
+          radius: SUMMONING_CONFIG.SPAWN_RADIUS,
+          ownerUsernames,
+          specialization,
+        });
+
+        // §5.3: the claimed tile is the ONE source — createBotPlayer pins the
+        // bot to it (identity, stats, 1.5× resources applied below) with zero
+        // post-claim relocation.
+        const botsToInsert: Array<Partial<Player> & { username: string }> = [];
+        const botInfo: Array<{ username: string; position: { x: number; y: number } }> = [];
+        for (let i = 0; i < claimedTiles.length; i++) {
+          const tile = claimedTiles[i];
+          // §5.3: the pre-generated identity rides with its tile — the claim
+          // owner and the inserted bot row are the SAME username.
+          const bot = await createBotPlayer(null, specialization, false, null, {
+            claimedTile: tile,
+            username: ownerUsernames[i],
+          });
+
+          if (bot.resources) {
+            bot.resources.metal = Math.floor(bot.resources.metal * SUMMONING_CONFIG.RESOURCE_MULTIPLIER);
+            bot.resources.energy = Math.floor(bot.resources.energy * SUMMONING_CONFIG.RESOURCE_MULTIPLIER);
+          }
+
+          if (bot.botConfig) {
+            const config = bot.botConfig as { summonedBy?: string; summonedAt?: Date };
+            config.summonedBy = playerId;
+            config.summonedAt = now;
+          }
+
+          botsToInsert.push({ ...bot, username: bot.username || ownerUsernames[i] });
+          botInfo.push({ username: bot.username || ownerUsernames[i], position: { x: tile.x, y: tile.y } });
+        }
+
+        // Domain→row mapping — raw domain objects (boolean isBot, nested
+        // base/resources) crash or silently drop on direct drizzle inserts.
+        await tx.insert(players).values(botsToInsert.map(mapDomainPlayerToRow));
+
+        // §5.4: the cooldown consumes in the SAME transaction.
+        await tx
+          .update(players)
+          .set({ lastBotSummon: now })
+          .where(eq(players.username, playerId));
+
+        return botInfo;
+      })
+    );
+
+    return {
+      success: true,
+      message: `Summoned ${SUMMONING_CONFIG.BOT_COUNT} ${specialization} bots`,
+      bots: botInfo,
+    };
+  } catch (error) {
+    if (error instanceof SummonRefusal) {
+      return { success: false, message: error.message };
     }
-  }
-
-  // Generate spawn positions
-  const spawnPositions: Array<{ x: number; y: number }> = [];
-  for (let i = 0; i < SUMMONING_CONFIG.BOT_COUNT; i++) {
-    const angle = Math.random() * 2 * Math.PI;
-    const distance = Math.random() * SUMMONING_CONFIG.SPAWN_RADIUS;
-    const offsetX = Math.round(Math.cos(angle) * distance);
-    const offsetY = Math.round(Math.sin(angle) * distance);
-
-    spawnPositions.push({
-      x: playerPosition.x + offsetX,
-      y: playerPosition.y + offsetY,
-    });
-  }
-
-  // Create bots
-  const botsToInsert: Array<Partial<Player> & { username: string }> = [];
-  const botInfo: Array<{ username: string; position: { x: number; y: number } }> = [];
-
-  for (const position of spawnPositions) {
-    const zone = Math.floor(position.x / 50) * 3 + Math.floor(position.y / 50);
-    
-    const bot = await createBotPlayer(zone, specialization, false);
-
-    if (bot.resources) {
-      bot.resources.metal = Math.floor(bot.resources.metal * SUMMONING_CONFIG.RESOURCE_MULTIPLIER);
-      bot.resources.energy = Math.floor(bot.resources.energy * SUMMONING_CONFIG.RESOURCE_MULTIPLIER);
+    if (error instanceof InsufficientLegalTilesError) {
+      // §5.4: a truthful refusal — the player sees WHY (fewer legal positions
+      // than bots), and the rolled-back batch consumed nothing.
+      return { success: false, message: error.message };
     }
-
-    bot.base = position;
-    bot.currentPosition = position;
-
-    if (bot.botConfig) {
-      const config = bot.botConfig as { summonedBy?: string; summonedAt?: Date };
-      config.summonedBy = playerId;
-      config.summonedAt = new Date();
-    }
-
-    botsToInsert.push({ ...bot, username: bot.username || `Bot_${Date.now().toString(36)}_${botsToInsert.length}` });
-    botInfo.push({
-      username: bot.username || 'Unknown',
-      position,
-    });
+    console.error('[botSummoning] Summon failed (transaction rolled back):', error);
+    return { success: false, message: 'Summoning failed — no bots, claims or cooldown were consumed' };
   }
+}
 
-  if (botsToInsert.length > 0) {
-    // Domain→row mapping — raw domain objects (boolean isBot, nested base/resources)
-    // crash or silently drop on direct drizzle inserts
-    await db.insert(players).values(botsToInsert.map(mapDomainPlayerToRow));
+/** §5.1/§5.4: an in-lock admission refusal — rolls the whole batch back. */
+export class SummonRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SummonRefusal';
   }
-
-  await db.update(players).set({ lastBotSummon: new Date() }).where(eq(players.username, playerId));
-
-  return {
-    success: true,
-    message: `Summoned ${SUMMONING_CONFIG.BOT_COUNT} ${specialization} bots`,
-    bots: botInfo,
-  };
 }
 
 /**

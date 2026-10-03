@@ -58,8 +58,9 @@
  */
 
 import { BotSpecialization, BotReputation, type Player, type BotConfig, type Position, GAME_CONSTANTS } from '@/types/game.types';
-import { and, eq, gte, lte, isNull, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, isNull, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/lib/db';
+import type { TreasuryTx } from '@/lib/db/treasuryLock'; // FID-20261002-009 §5.2/§5.4
 import { tiles } from '@/lib/db/schema';
 import { gameDayOfWeek, gameHour } from '@/lib/gameTime';
 
@@ -551,7 +552,15 @@ export async function claimBotBaseTile(options: {
   isBeerBase?: boolean;
   /** FID-093: specialization picks the warband chatter pool. */
   specialization?: string;
+  /** FID-20261002-009 §5.2: bounded placement constraint — only unoccupied
+   * Wasteland within Euclidean `radius` of `center` is eligible. */
+  center?: { x: number; y: number };
+  radius?: number;
+  /** FID-20261002-009 §5.2: run on the caller's transaction so claims commit
+   * (or roll back) with the batch that requested them. */
+  tx?: TreasuryTx;
 }): Promise<ClaimedBaseTile> {
+  const dbOrTx = options.tx ?? db;
   const maxAttempts = 5;
   let lastError = 'no legal tile found';
 
@@ -563,7 +572,7 @@ export async function claimBotBaseTile(options: {
       maxY: GAME_CONSTANTS.MAP_HEIGHT,
     };
 
-    const candidates = await db
+    const candidates = await dbOrTx
       .select({ x: tiles.x, y: tiles.y, terrain: tiles.terrain })
       .from(tiles)
       .where(
@@ -573,7 +582,8 @@ export async function claimBotBaseTile(options: {
           gte(tiles.x, bounds.minX),
           lte(tiles.x, bounds.maxX),
           gte(tiles.y, bounds.minY),
-          lte(tiles.y, bounds.maxY)
+          lte(tiles.y, bounds.maxY),
+          ...radiusFilter(options.center, options.radius)
         )
       )
       .orderBy(sql`random()`)
@@ -583,25 +593,14 @@ export async function claimBotBaseTile(options: {
     if (!candidate) {
       lastError = options.zone !== null
         ? `no unoccupied Wasteland tile in zone ${options.zone}`
-        : 'no unoccupied Wasteland tile on the map';
+        : options.center
+          ? `no unoccupied Wasteland tile within radius ${options.radius ?? SUMMON_RADIUS} of (${options.center.x}, ${options.center.y})`
+          : 'no unoccupied Wasteland tile on the map';
       continue;
     }
 
-    // Race-safe claim: lands only while the tile is still unclaimed.
-    // FID-20260912-093: every claimed base tile gets a randomized greeting
-    // (beer-base voice for specials, specialist warband chatter otherwise).
-    const { generateBaseGreeting } = await import('./baseGreetings');
-    const greeting = generateBaseGreeting({
-      isBeerBase: options.isBeerBase ?? false,
-      specialization: options.specialization ?? null,
-    });
-    const claimed = await db
-      .update(tiles)
-      .set({ occupiedByBase: 1, baseOwner: options.ownerUsername, baseGreeting: greeting })
-      .where(and(eq(tiles.x, candidate.x), eq(tiles.y, candidate.y), isNull(tiles.occupiedByBase)))
-      .returning({ x: tiles.x });
-
-    if (claimed.length > 0) {
+    const claimed = await claimTileRow(dbOrTx, candidate, options.ownerUsername, options.isBeerBase ?? false, options.specialization ?? null);
+    if (claimed) {
       return candidate;
     }
     lastError = `tile (${candidate.x}, ${candidate.y}) claimed concurrently`;
@@ -610,6 +609,124 @@ export async function claimBotBaseTile(options: {
   throw new Error(
     `Bot base placement failed for ${options.ownerUsername} after ${maxAttempts} attempts: ${lastError}`
   );
+}
+
+/** FID-20261002-009: the summoning radius — shared with the batch claim. */
+const SUMMON_RADIUS = 20;
+
+/**
+ * FID-20261002-009 §5.4: fewer legal tiles than requested owners — the caller
+ * refuses TRUTHFULLY (this message reaches the player) and rolls back the
+ * whole batch. Distinct from a generic engine failure so summonBots can
+ * surface the actual reason instead of a blanket rollback notice.
+ */
+export class InsufficientLegalTilesError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InsufficientLegalTilesError';
+  }
+}
+
+/** §5.2: Euclidean-radius constraint fragments (empty when unconstrained). */
+function radiusFilter(
+  center: { x: number; y: number } | undefined,
+  radius: number | undefined
+): SQL[] {
+  if (!center) return [];
+  const r = radius ?? SUMMON_RADIUS;
+  return [
+    gte(tiles.x, center.x - r),
+    lte(tiles.x, center.x + r),
+    gte(tiles.y, center.y - r),
+    lte(tiles.y, center.y + r),
+    sql`((${tiles.x} - ${center.x}) ^ 2 + (${tiles.y} - ${center.y}) ^ 2) <= ${r * r}`,
+  ];
+}
+
+/**
+ * §5.2/§5.5: the ONE conditional claim write — lands only while the tile is
+ * still unclaimed. FID-20260912-093: every claimed base tile gets a randomized
+ * greeting (beer-base voice for specials, specialist warband chatter else).
+ */
+async function claimTileRow(
+  dbOrTx: typeof db | TreasuryTx,
+  candidate: { x: number; y: number; terrain: string },
+  ownerUsername: string,
+  isBeerBase: boolean,
+  specialization: string | null
+): Promise<boolean> {
+  const { generateBaseGreeting } = await import('./baseGreetings');
+  const greeting = generateBaseGreeting({ isBeerBase, specialization });
+  const claimed = await dbOrTx
+    .update(tiles)
+    .set({ occupiedByBase: 1, baseOwner: ownerUsername, baseGreeting: greeting })
+    .where(and(eq(tiles.x, candidate.x), eq(tiles.y, candidate.y), isNull(tiles.occupiedByBase)))
+    .returning({ x: tiles.x });
+  return claimed.length > 0;
+}
+
+/**
+ * FID-20261002-009 §5.4/§5.5 — the SUMMON BATCH claim. Sorts and locks the
+ * FULL candidate set (unoccupied Wasteland within Euclidean radius of the
+ * summoner, ordered by coordinates for a deterministic lock order) before any
+ * conditional claim, so competing summons cannot interleave a partial batch.
+ * Throws when fewer legal tiles exist than requested owners — the caller's
+ * transaction rolls back all claims (never a misleading partial success).
+ *
+ * Production caller: summonBots (lib/botSummoningService.ts).
+ */
+export async function claimBotTilesInRadius(options: {
+  tx: TreasuryTx;
+  center: { x: number; y: number };
+  radius: number;
+  ownerUsernames: string[];
+  isBeerBase?: boolean;
+  specialization?: string;
+}): Promise<ClaimedBaseTile[]> {
+  const { tx, center, radius } = options;
+  const candidates = await tx
+    .select({ x: tiles.x, y: tiles.y, terrain: tiles.terrain })
+    .from(tiles)
+    .where(
+      and(
+        eq(tiles.terrain, 'Wasteland'),
+        isNull(tiles.occupiedByBase),
+        ...radiusFilter(center, radius)
+      )
+    )
+    .orderBy(tiles.x, tiles.y) // §5.5: coordinate-ordered lock acquisition
+    .limit(options.ownerUsernames.length)
+    .for('update');
+
+  if (candidates.length < options.ownerUsernames.length) {
+    throw new InsufficientLegalTilesError(
+      `Only ${candidates.length} legal summon position(s) within radius ${radius} of (${center.x}, ${center.y}) — ${options.ownerUsernames.length} required`
+    );
+  }
+
+  const claimedTiles: ClaimedBaseTile[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    const owner = options.ownerUsernames[i];
+    const ok = await claimTileRow(tx, candidates[i], owner, options.isBeerBase ?? false, options.specialization ?? null);
+    if (!ok) {
+      // Under the batch lock this cannot legitimately happen; a lost claim
+      // invalidates the set — throw so the whole batch retries/rolls back.
+      throw new Error(`Summon tile (${candidates[i].x}, ${candidates[i].y}) claimed concurrently — batch invalidated`);
+    }
+    claimedTiles.push(candidates[i]);
+  }
+  return claimedTiles;
+}
+
+/**
+ * FID-20261002-009 §5.2: derive the zone from the ACTUAL chosen tile using the
+ * repository's x/y convention (zoneBounds: sector = 50, minX = zoneX*50+1),
+ * replacing the summon path's transposed offset formula. Clamped to 0..8.
+ */
+export function zoneForTile(x: number, y: number): number {
+  const zoneX = Math.min(2, Math.max(0, Math.floor((x - 1) / 50)));
+  const zoneY = Math.min(2, Math.max(0, Math.floor((y - 1) / 50)));
+  return zoneX * 3 + zoneY;
 }
 
 /**
@@ -637,32 +754,49 @@ export async function releaseBotBaseTile(x: number, y: number, ownerUsername: st
  * @param specialization Override specialization (or null for random)
  * @param isSpecial Create as Beer Base (3x resources)
  * @param tier Override tier (1-7, or null for random within appropriate range)
+ * @param options FID-20261002-009: `claimedTile` pins the bot to an ALREADY
+ *        claimed tile (the summon batch claims the full candidate set before
+ *        identity generation — the claimed position is the ONE source for the
+ *        bot's base/current position, never relocated afterwards); `username`
+ *        supplies the PRE-generated identity that the tile was already claimed
+ *        under (the summon batch), so `base_owner` matches the inserted bot
+ *        row from the first write; `tx` runs the claim on the caller's
+ *        transaction. Ordinary spawns omit all of these and keep the original
+ *        defaults.
  * @returns Bot player object ready for database insert
  */
 export async function createBotPlayer(
   zone: number | null = null,
   specialization: BotSpecialization | null = null,
   isSpecial: boolean = false,
-  tier: number | null = null
+  tier: number | null = null,
+  options: { claimedTile?: ClaimedBaseTile; username?: string; tx?: TreasuryTx } = {}
 ): Promise<Partial<Player>> {  const botSpec = specialization || getRandomSpecialization();
-  const targetZone = zone ?? Math.floor(Math.random() * 9);
-  
-  // Expanded tier system: 1-7 (matching player level brackets)
-  // If tier not specified, randomly select from 1-7 with weighted distribution
-  const botTier = tier ?? getBotTierForZone(targetZone);
+
+  // FID-20261002-009 §5.3: the bot identity is generated BEFORE its tile is
+  // claimed, so the claim is attributed to the actual bot from the first write.
+  // A caller-provided username (the summon batch's pre-generated identity) is
+  // authoritative — the tile was already claimed under it.
+  const botName = options.username ?? generateBotName();
 
   // FID-20260909-030: placement goes through the shared claim helper —
-  // Wasteland ∧ unoccupied ∧ zone sector ∧ tile claim. The username must be
-  // generated first so the tile is attributed to the actual bot.
-  const botName = generateBotName();
-  // FID-093: pass the beer flag + specialization through so the tile greeting
-  // gets the right voice at claim time.
-  const claimed = await claimBotBaseTile({
-    zone: targetZone,
-    ownerUsername: botName,
-    isBeerBase: isSpecial,
-    specialization: botSpec,
-  });
+  // Wasteland ∧ unoccupied ∧ zone sector ∧ tile claim. When the caller already
+  // claimed a tile (the summon batch), that claimed position is the ONE source
+  // for the bot's base/current position — no post-claim relocation exists.
+  const claimed = options.claimedTile
+    ? options.claimedTile
+    : await claimBotBaseTile({
+        zone: zone ?? Math.floor(Math.random() * 9),
+        ownerUsername: botName,
+        isBeerBase: isSpecial,
+        specialization: botSpec,
+        tx: options.tx,
+      });
+  // §5.2: the zone derives from the ACTUAL chosen tile via the repository's
+  // x/y convention — never from a caller-substituted offset formula.
+  const targetZone = zoneForTile(claimed.x, claimed.y);
+  const botTier = tier ?? getBotTierForZone(targetZone);
+
   const position: Position = { x: claimed.x, y: claimed.y };
   const resourceRange = getResourceRange(botSpec, botTier);
   const baseResources = Math.floor(Math.random() * (resourceRange.max - resourceRange.min + 1)) + resourceRange.min;

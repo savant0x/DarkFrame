@@ -109,17 +109,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       return createErrorResponse(ErrorCode.VALIDATION_INVALID_FORMAT, 'Invalid specialization. Must be: Hoarder, Fortress, Raider, Balanced, or Ghost');
     }
 
-    // Get player position
-    const playerPosition = { x: player.currentPositionX || player.baseX, y: player.currentPositionY || player.baseY };
-
-    if (!playerPosition.x || !playerPosition.y) {
-      return createErrorResponse(ErrorCode.VALIDATION_MISSING_FIELD, 'Player position not found');
-    }
-
-    // Summon bots
+    // Summon bots (position is read from the locked player row in the service layer)
     const result = await summonBots(
       player.username,
-      playerPosition,
       specialization
     );
 
@@ -150,9 +142,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
 /**
  * IMPLEMENTATION NOTES:
  * - GET: Returns cooldown status (canSummon, hoursRemaining, lastSummon, nextSummonTime)
- * - POST: Validates specialization, player position, tech unlock, cooldown
+ * - POST: Validates specialization, tech unlock, cooldown
  * - Specializations: Hoarder, Fortress, Raider, Balanced, Ghost
- * - Uses player.currentPosition or player.base as spawn center
+ * - Service reads the summoner's position from the locked player row
  * - Returns array of spawned bot info (username, position)
  * - All validation and business logic in botSummoningService.ts
  * - Tech requirement checked in service layer
