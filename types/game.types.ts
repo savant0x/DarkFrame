@@ -1987,6 +1987,93 @@ export function isTierUnlocked(tier: UnitTier, playerLevel: number, unlockedTier
   return playerLevel >= requirements.level && unlockedTiers.includes(tier);
 }
 
+// ============================================================================
+// FID-20261002-004 §5.1 — canonical blueprint ↔ UnitType resolution.
+//
+// UNIT_ID_TO_UNIT_TYPE's values are UnitType ENUM KEYS ('T5_Titan'), not the
+// persisted enum VALUES ('T5_TITAN'). Casting a mapped string straight to
+// UnitType (or uppercasing a blueprint label) silently mints a bogus identity —
+// the R4 defect where 'titan' missed UNIT_CONFIGS and fell back to one slot.
+// ALL identity resolution funnels through the typed key guard below.
+//
+// The runtime import is one-directional: units.types imports this module ONLY
+// as types (erased), so no runtime cycle exists.
+// ============================================================================
+import { UNIT_ID_TO_UNIT_TYPE } from './units.types';
+
+/** UnitType enum key set — the guard's compile-checked vocabulary. */
+const UNIT_TYPE_KEYS = new Set<string>(Object.keys(UnitType));
+
+/**
+ * UnitType → blueprint id (derived once from the canonical mapping; core-roster
+ * membership test). SPEC/PRESTIGE units have no blueprint by design and are
+ * absent — their doctrine/achievement gates are separate from the tier rule.
+ */
+export const UNIT_TYPE_TO_BLUEPRINT: Partial<Record<UnitType, string>> = Object.freeze(
+  Object.fromEntries(
+    Object.entries(UNIT_ID_TO_UNIT_TYPE)
+      .filter(([, key]) => UNIT_TYPE_KEYS.has(key))
+      .map(([blueprintId, key]) => [UnitType[key as keyof typeof UnitType], blueprintId]),
+  ),
+) as Partial<Record<UnitType, string>>;
+
+/**
+ * Resolve ANY live unit identifier to its canonical UnitType, or null:
+ * accepted inputs are blueprint ids ('titan'), UnitType enum keys ('T5_Titan')
+ * and persisted enum values ('T5_TITAN'). Returns null for unknown
+ * identifiers — callers refuse, never guess.
+ */
+export function resolveCanonicalUnitType(identifier: string): UnitType | null {
+  if (typeof identifier !== 'string' || identifier.length === 0) return null;
+  // Already a persisted enum value.
+  if (Object.values(UnitType).includes(identifier as UnitType)) return identifier as UnitType;
+  // Blueprint id → mapped enum key → persisted value (typed key guard).
+  const mappedKey = UNIT_ID_TO_UNIT_TYPE[identifier];
+  if (mappedKey && UNIT_TYPE_KEYS.has(mappedKey)) {
+    return UnitType[mappedKey as keyof typeof UnitType];
+  }
+  // A bare enum key ('T5_Titan') → persisted value.
+  if (UNIT_TYPE_KEYS.has(identifier)) {
+    return UnitType[identifier as keyof typeof UnitType];
+  }
+  return null;
+}
+
+/**
+ * The UnitConfig for any live unit identifier (blueprint id, enum key or
+ * persisted value), or null when the identifier is unknown.
+ */
+export function unitConfigForIdentifier(identifier: string): UnitConfig | null {
+  const unitType = resolveCanonicalUnitType(identifier);
+  return unitType ? UNIT_CONFIGS[unitType] ?? null : null;
+}
+
+/**
+ * Whether this unit has a blueprint mapping (FID-20261002-004 §5.2).
+ * Such builds are admitted through the PERMANENT tier system
+ * (isTierUnlocked — the recorded unlock, never current RP balance).
+ * SPEC/PRESTIGE units keep their doctrine/achievement gates and are exempt.
+ */
+export function isCoreRosterUnit(unitType: UnitType): boolean {
+  return UNIT_TYPE_TO_BLUEPRINT[unitType] !== undefined;
+}
+
+/**
+ * §5.2 tier admission for ONE build request: core-roster units require the
+ * permanent tier unlock AND its level; non-core (SPEC/PRESTIGE) units are
+ * exempt from the tier rule. Pure and browser-safe — the server routes and
+ * the client panel read the same rule.
+ */
+export function isTierAdmissible(
+  unitType: UnitType,
+  playerLevel: number,
+  unlockedTiers: UnitTier[],
+): boolean {
+  if (!isCoreRosterUnit(unitType)) return true;
+  const config = UNIT_CONFIGS[unitType];
+  return isTierUnlocked(config.tier, playerLevel, unlockedTiers);
+}
+
 /**
  * Helper function: Get units available for a specific tier
  */
@@ -2082,6 +2169,12 @@ export interface AttackResult {
   defenderUnitsLost?: number;
   lootMetal?: number;
   lootEnergy?: number;
+  /**
+   * FID-20261003-002: the full battle log the raid route already ships
+   * (`battle: committedLog`) — the attrition-truth source for live readouts
+   * (survivorCount, per-round losses, the saved-army floor note).
+   */
+  battle?: BattleLog;
 }
 
 /**
@@ -2150,6 +2243,12 @@ export interface BattleParticipant {
   finalHP: number;       // HP after battle
   unitsLost: number;     // Count of units killed
   unitsCaptured: number; // Count of enemy units captured
+  /**
+   * FID-20261002-013 §5.4: conservation exposure — initial copies =
+   * survivors + casualties (per-round loss sums equal unitsLost).
+   * Optional: historical rows lack it.
+   */
+  survivorCount?: number;
   
   // Aliases for convenience (match component expectations)
   startingHP: number;    // Alias for initialHP
@@ -2176,6 +2275,10 @@ export interface CombatRound {
   defenderHP: number;    // HP after this round
   attackerUnitsLost: number;
   defenderUnitsLost: number;
+  /** FID-20261002-012 §5.4: tactical-warfare critical provenance (optional —
+   *  absent on pre-tech rounds; drawn once per actual strike). */
+  attackerCritical?: boolean;
+  defenderCritical?: boolean;
 }
 
 /**

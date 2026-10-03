@@ -10,7 +10,8 @@ matching constants.
 
 - Damage/round: `max(5, floor(attackerSTR − defenderDEF/2))` (defender
   symmetric), level-gap protection above 20 levels (−5%/level, floor 25%).
-- Unit HP (**FID-20260915-001 Phase 3, power-proportional**):
+- Unit HP (**FID-20260915-001 Phase 3, power-proportional**;
+  **FID-20261002-013 per-copy attrition**):
   `strength + defense` per unit (zero-power units floor at 10). Previously
   flat 10/15 by category — a scale on which army pools (hundreds) evaporated
   against per-round damage (hundreds–thousands), so every battle resolved in
@@ -19,8 +20,20 @@ matching constants.
   projection: mirror matches fight ~2 rounds at any tier, tanky garrisons
   fight multi-round, overreached raids die fast. Casualties stay proportional
   to the HP actually deducted; sequential resolution (Phase 1) means dead
-  defenders never counter-attack; the 100-round cap is a Draw safety net
-  (structurally unreachable under this scale).
+  defenders never counter-attack.
+  **FID-20261002-013:** HP is PER COPY and persists across rounds — strike
+  damage is absorbed front-to-back through ONE seeded battle-order
+  permutation per side (compressed ordered stack segments; only the damaged
+  frontier copy splits), a copy dies only when its OWN HP reaches zero, and
+  partial damage carries into the next strike. Each side's STR/DEF are
+  RECOMPUTED FROM LIVING COPIES before every strike (firepower declines as
+  copies die; wounds reduce HP, not stats), while the army-balance band is
+  FROZEN from the initial raw composition for the whole encounter (no band
+  oscillation). A terminal zero-HP ON the 100-round cap resolves before the
+  surviving-both repel — only a live-live standoff is the repelled raid;
+  Draw survives only as the degenerate-input guard. Deaths are recorded in
+  the round that dealt the killing damage (per-round loss sums = participant
+  totals; initial copies = survivors + casualties).
 - The raid path's type-tally write-back drains casualties ACROSS a type's
   entries (per-entry subtraction annihilated multi-entry armies — caught by
   live verification, same fix in the PvP decrementer).
@@ -88,14 +101,50 @@ distributes across any unit count.
   defender's `damageTakenMultiplier` (CRITICAL 0.8/1.3, IMBALANCED 0.9/1.15,
   BALANCED 1.0/1.0, OPTIMAL 1.05/0.95). Mono-axis armies are punished on BOTH
   sides — pure-offense raiders strike softer and absorb harder. The StatsPanel
-  ×0.50 threat is finally real. `powerMultiplier` remains display/leaderboard-
-  only by design; `slotRegenMultiplier` still has no consumer (dead knob,
-  recorded).
+  ×0.50 threat is finally real. **FID-20261002-013:** `powerMultiplier` no
+  longer display-only in HUMAN encounters — the resolver's trusted
+  server-derived human-combat context (infantry service and the human branch
+  of the raid route, never client JSON) applies the frozen power multiplier
+  to effective STR/DEF ONCE per human side; bot raids (PvE) omit the context
+  and keep it display/leaderboard-only. `slotRegenMultiplier` still has no
+  consumer (dead knob, recorded).
 - **Economy caps**: bot vaults clamp at 2× their specialization/tier spawner
   maximum (`getResourceRange` — one source of truth for growth and loot); raid
   loot is capped at the same ceiling × beer multiplier; a one-time resync
   (`scripts/resyncBotVaults.ts`) drained 8.8B from 45 bloated vaults. Player
   balances were never touched.
+
+## FID-20261002-013 addendum: per-copy attrition, living stats, terminal outcomes
+
+The attrition model above changes shared combat mechanics; the PvE pacing
+effect was quantified (`scripts/simulateCombatTiers.ts`, old vs new engine,
+21 fixtures) and accepted for this FID's implementation review:
+
+- **Outcomes stable:** 21/21 attacker/defender results identical; round
+  counts identical except one parity matchup where the defender holds one
+  extra round (attrition favors the defense at parity — by design).
+- **Fresh synthesized garrisons: raider friction dropped to zero** in the
+  sweep fixtures (attacker loss 15–38% → 0%): the weight-class counter now
+  fires from LIVING DEF only, and the R1 strike kills enough of the
+  strikers' targets that the surviving counter falls below the
+  `attackerSTR/2` threshold and floors at 5.
+- **Mature band armies:** outcomes unchanged; two edge shifts — T1 raider
+  vs WEAK band 75% → 3% loss (same living-DEF cause), T5 vs ELITE band
+  38% → 27% (defender-favoring).
+- **Tuning lever (ratification required, NOT code):** raise the
+  `GARRISON_STR_RATIO` ladder (0.2 → ≈0.3+) or the tier multipliers so
+  synthesized garrisons keep multi-round resistance, or give synthesized
+  garrisons per-copy HP via the garrison STR pad. Any PvE-specific retuning
+  goes through a further document loop; bot reinforcement/loot/cadence
+  policies are untouched by 013.
+- **Human encounters:** the power band (CRITICAL ×0.5 … OPTIMAL ×1.1) now
+  executes on effective STR/DEF once per human side. In the role-dominance
+  sweep (`scripts/simulateCombatRoles.ts`, seeded, equal-budget, stat
+  shares 0/49/50/53/55/60/100%) pure-STR falls from 100% to ~54% wins
+  against sampled defenders and no longer dominates both win rate and
+  expected casualty cost — 49–50% STR compositions win every sampled
+  defender at ≈⅓ the expected loss. PvP infantry keeps its `/3` suppression
+  knee; DEF retains its defensive role (walls annihilate STR-poor raiders).
 
 ## Out of scope
 

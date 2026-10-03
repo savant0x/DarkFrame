@@ -31,7 +31,7 @@ export type BalanceStatus = 'CRITICAL' | 'IMBALANCED' | 'BALANCED' | 'OPTIMAL';
 export interface BalanceEffects {
   ratio: number;
   status: BalanceStatus;
-  powerMultiplier: number;          // Applied to total power (0.5 to 1.1)
+  powerMultiplier: number;          // Applied to total power (0.5 to 1.1). FID-20261002-013: no longer display-only — joins effective STR/DEF ONCE in HUMAN encounters via resolveBattle's server-derived humanCombat context; PvE/bot raids keep it display/leaderboard-only.
   damageTakenMultiplier: number;    // Multiplier for incoming damage (0.95 to 1.3)
   damageDealtMultiplier: number;    // Multiplier for outgoing damage (0.8 to 1.05)
   gatheringMultiplier: number;      // Applied to resource gathering (0.75 to 1.1)

@@ -5,6 +5,14 @@
 **Relationship to `docs/design/BASE_RAID_BALANCE.md`:** that doc remains the mechanics source of truth for raid combat math and bot garrisons; this doc **extends the same pipeline to human defenders**. `lib/battleService` stays read-only in both.
 **Origin:** operator directives of 2026-09-28 — *"players should be able to attack other players; they go to their base and attack them; the only time the base is 'not hostile' is when they are in an alliance or in the same clan/tribe"* and *"attacking is a MASSIVE system with tons of balancing — look for a design doc first."* This is that design doc.
 
+**FID-20261002-013 amendment (2026-10-02):** the raid pipeline now consumes
+the shared resolver's per-copy-HP attrition with living-stats recomputation
+and terminal-outcome precedence (mechanics documented in
+`BASE_RAID_BALANCE.md`'s 013 sections). The bot path keeps its documented
+garrison knobs; its pacing shift is quantified there and ratification of any
+PvE retuning is a separate doc loop. §4.1.5 below records the human-role
+decision that ships with FID-013.
+
 ---
 
 ## 1. Design intent
@@ -54,7 +62,26 @@ The raid pipeline in `app/api/combat/attack/route.ts` is kept; the table is the 
 
 Each pick: the decision, the why, and the tuning knob — constants ship **in this doc and the route together**, edited as one (the `BASE_RAID_BALANCE.md` pattern).
 
-### 4.1 Loot caps — cap by the attacker, not the defender
+### 4.1.5 (FID-20261002-013) The human-role power band executes in PvP
+
+**Pick:** the balance band's `powerMultiplier` applies to effective
+STR/DEF ONCE per human side in human encounters — human infantry and the
+human branch of the raid route derive the trusted server-side context after
+the hostility/protection/bearer gates (never from client JSON). The pre-013
+count-based casualty projection could not track per-copy partial HP, so
+applying the power band faithfully required FID-013's attrition model
+first; it now rides the same declared pipeline as the dealt/taken bands.
+
+**Why:** the ×0.5–×1.1 advertised power band was display-only; in the
+role-dominance sweep (`scripts/simulateCombatRoles.ts`, recorded in
+BASE_RAID_BALANCE.md's 013 addendum) the human-context arm is where pure-STR
+stops dominating equal-budget compositions (100% → ~54% wins) while
+DEF-only compositions gain their named defensive role. PvE/bot raids NEVER
+supply the context, so the raid economy, garrison synthesis, and the §4
+picks above are untouched by it.
+
+**Tuning knob:** the balance band constants in `lib/balanceService.ts` +
+`BASE_RAID_BALANCE.md` (edited as one, doc-first). PvE pays none of it.
 
 **Pick:** PvP loot per raid = `min(defender stockpile, ATTACKER_LOOT_CAP × attacker level)` per declared resource, base multiplier **1×** (the 3× Beer premium stays bot-specific). Default `ATTACKER_LOOT_CAP = 5,000` per resource per level — explicitly tunable.
 **Why:** bot loot is capped by the bot's own vault ceiling, but players have no spawner-defined vault, so a defender-side cap is meaningless — and uncapped player-stockpile raiding is the 452M-single-raid incident class (FID-20260915-004 Fix C). An attacker-scaled ceiling keeps raiding profitable against peers, unprofitable against alts, and bounded at every level.
