@@ -34,9 +34,10 @@
 
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { triggerAchievementCheck } from '@/lib/statTrackingService';
-import type { ResearchPointHistory } from '@/types/game.types';
+import { withTransactionRetry, lockPlayerRow } from '@/lib/db/treasuryLock';
+import type { TreasuryTx } from '@/lib/db/treasuryLock';
 
 /**
  * XP action types for logging and tracking
@@ -255,12 +256,25 @@ export function getXPProgress(totalXP: number): {
 
 /**
  * Award XP to a player and handle level-ups
- * 
+ *
+ * FID-20261002-002 §5.4: the previous implementation updated the XP/level row
+ * and then awarded level-up RP through a SEPARATE awardRP transaction (with a
+ * silent 1-RP-per-level fallback on failure), so a transport retry or a
+ * mid-operation failure could duplicate or strand the level reward. The whole
+ * operation now runs in ONE transaction: the player row is locked FOR UPDATE,
+ * XP/level are recomputed against the locked row and written with relative
+ * SQL, and level-up RP is granted through the transaction-aware awardRP
+ * writer against the SAME transaction — an error anywhere rolls everything
+ * back and the operation can retry as a unit. Level thresholds, action
+ * tables, flag-bearer doubling and ordinary repeated-reward eligibility are
+ * unchanged.
+ *
  * @param playerId - Player ID or username
  * @param action - XP action type
  * @param multiplier - XP multiplier (default 1, for quantity-based awards)
+ * @param tx - Optional caller-supplied transaction (composed operations)
  * @returns Updated player XP stats and level-up info
- * 
+ *
  * @example
  * await awardXP('player123', XPAction.HARVEST_RESOURCE);
  * await awardXP('player123', XPAction.UNIT_BUILD, 10); // 10 units = 50 XP
@@ -268,7 +282,8 @@ export function getXPProgress(totalXP: number): {
 export async function awardXP(
   playerId: string,
   action: XPAction,
-  multiplier: number = 1
+  multiplier: number = 1,
+  tx?: TreasuryTx
 ): Promise<{
   xpAwarded: number;
   totalXP: number;
@@ -277,130 +292,130 @@ export async function awardXP(
   levelUp: boolean;
   levelUpResult?: LevelUpResult;
 }> {
-  // Calculate XP to award
-  const baseXP = XP_REWARDS[action] || 0;
-  let xpAwarded = baseXP * multiplier;
+  const run = async (txHandle: TreasuryTx): Promise<{
+    xpAwarded: number;
+    totalXP: number;
+    oldLevel: number;
+    newLevel: number;
+    levelUp: boolean;
+    levelUpResult?: LevelUpResult;
+  }> => {
+    // Calculate XP to award
+    const baseXP = XP_REWARDS[action] || 0;
+    let xpAwarded = baseXP * multiplier;
 
-  // FID-20260906-001 §5.4: Flag bearer earns +100% XP (doc bonus stack).
-  // Admin source is excluded — operators grant exact amounts.
-  if (action !== XPAction.ADMIN && playerId) {
-    try {
-      const { isFlagBearer } = await import('@/lib/flagBonusService');
-      if (await isFlagBearer(playerId)) xpAwarded *= 2;
-    } catch {
-      // Never fail the XP award because of the flag check.
+    // FID-20260906-001 §5.4: Flag bearer earns +100% XP (doc bonus stack).
+    // Admin source is excluded — operators grant exact amounts.
+    if (action !== XPAction.ADMIN && playerId) {
+      try {
+        const { isFlagBearer } = await import('@/lib/flagBonusService');
+        if (await isFlagBearer(playerId)) xpAwarded *= 2;
+      } catch {
+        // Never fail the XP award because of the flag check.
+      }
     }
-  }
-  
-  // Find player using username directly
-  // FID-20260911-046: slim projection — awardXP runs on EVERY harvest and the
-  // full 39 KB row (mostly the units blob) was re-shipped for 4 scalar fields.
-  const playerResult = await db
-    .select({
-      username: players.username,
-      xp: players.xp,
-      level: players.level,
-      researchPoints: players.researchPoints,
-    })
-    .from(players)
-    .where(eq(players.username, playerId))
-    .limit(1);
-  const player = playerResult[0] ?? null;
-  
-  if (!player) {
-    throw new Error(`Player not found: ${playerId}`);
-  }
 
-  // FID-20260906-006 P3: harvest XP scales with level (+2 XP per level) so the
-  // XP curve's midgame stays reachable as unit/factory costs scale. Applied after
-  // the flag-bearer multiplier so bearers double the scaled value.
-  if (action === XPAction.HARVEST_RESOURCE) {
-    xpAwarded += Math.max(0, (player.level || 1) - 1) * 2;
-  }
-  
-  // Get current stats
-  const currentXP = player.xp || 0;
-  const currentLevel = player.level || 1;
-  
-  // Calculate new stats
-  const newTotalXP = currentXP + xpAwarded;
-  const newLevel = calculateLevel(newTotalXP);
-  const levelUp = newLevel > currentLevel;
-  
-  // Prepare update — typed against the players table's set() payload (columns used
-  // here: xp, level, lastXPAward, and optionally researchPoints/lastLevelUp on level-up)
-  const updateData: Partial<typeof players.$inferInsert> = {
-    xp: newTotalXP,
-    level: newLevel,
-    lastXPAward: new Date()
-  };
-  
-  let levelUpResult: LevelUpResult | undefined;
-  
-  // Handle level-up rewards
-  if (levelUp) {
-    const levelsGained = newLevel - currentLevel;
-    
-    // Award scaled RP via researchPointService (level × 5, max 500 per level)
-    const username = player.username;
-    
-    let totalRPAwarded = 0;
-    try {
+    // Lock the player row: XP, level and balance decisions all re-validate
+    // against the LOCKED row (FID-20261002-002 §5.1).
+    const player = await lockPlayerRow(txHandle, playerId);
+
+    // FID-20260906-006 P3: harvest XP scales with level (+2 XP per level) so the
+    // XP curve's midgame stays reachable as unit/factory costs scale. Applied after
+    // the flag-bearer multiplier so bearers double the scaled value.
+    if (action === XPAction.HARVEST_RESOURCE) {
+      xpAwarded += Math.max(0, (player.level || 1) - 1) * 2;
+    }
+
+    // Get current stats from the locked row
+    const currentXP = player.xp || 0;
+    const currentLevel = player.level || 1;
+
+    // Calculate new stats
+    const newTotalXP = currentXP + xpAwarded;
+    const newLevel = calculateLevel(newTotalXP);
+    const levelUp = newLevel > currentLevel;
+
+    // Relative XP/level write on the locked row.
+    await txHandle
+      .update(players)
+      .set({
+        xp: sql`${players.xp} + ${xpAwarded}`,
+        level: newLevel,
+        lastXPAward: new Date(),
+      })
+      .where(eq(players.username, playerId));
+
+    let levelUpResult: LevelUpResult | undefined;
+
+    // Handle level-up rewards INSIDE the same transaction (FID-20261002-002
+    // §5.4): transaction-aware awardRP commits level RP with the XP movement.
+    // No fallback path exists: an RP failure rolls back the whole operation,
+    // so a retry never double-awards the level (the level write rolls back
+    // with it).
+    if (levelUp) {
+      const levelsGained = newLevel - currentLevel;
+
       const { awardRP } = await import('./researchPointService');
-      
+
+      let totalRPAwarded = 0;
       for (let i = 0; i < levelsGained; i++) {
         const level = currentLevel + i + 1;
         const rpForLevel = Math.min(level * 5, 500); // Scale: level × 5, cap at 500
-        
+
         const result = await awardRP(
-          username,
+          playerId,
           rpForLevel,
           'level_up',
           `Reached Level ${level}`,
-          { level }
+          { level },
+          txHandle
         );
-        
-        if (result.success) {
-          totalRPAwarded += result.rpAwarded;
-          console.log(`🎉 Level up! ${username} reached Level ${level} and earned ${result.rpAwarded} RP`);
+
+        if (!result.success) {
+          // Fail the whole operation (rollback includes the XP/level write):
+          // a level-up whose RP could not be committed did not happen.
+          throw new Error(`Level-up RP award failed for ${playerId}: ${result.message}`);
         }
+        totalRPAwarded += result.rpAwarded;
+        console.log(`🎉 Level up! ${playerId} reached Level ${level} and earned ${result.rpAwarded} RP`);
       }
-    } catch (error) {
-      console.error('❌ Error awarding RP for level up:', error);
-      // Fallback to old system if RP service fails (1 RP per level)
-      const rpAwarded = levelsGained;
-      const currentRP = player.researchPoints || 0;
-      updateData.researchPoints = currentRP + rpAwarded;
-      totalRPAwarded = rpAwarded;
+
+      await txHandle
+        .update(players)
+        .set({ lastLevelUp: new Date() })
+        .where(eq(players.username, playerId));
+
+      levelUpResult = {
+        levelsGained,
+        newLevel,
+        rpAwarded: totalRPAwarded,
+        totalRP: (player.researchPoints || 0) + totalRPAwarded
+      };
     }
-    
-    updateData.lastLevelUp = new Date();
-    
-    levelUpResult = {
-      levelsGained,
+
+    return {
+      xpAwarded,
+      totalXP: newTotalXP,
+      oldLevel: currentLevel,
       newLevel,
-      rpAwarded: totalRPAwarded,
-      totalRP: (player.researchPoints || 0) + totalRPAwarded
+      levelUp,
+      levelUpResult
     };
-  }
-  
-  // Update player
-  await db.update(players).set(updateData).where(eq(players.username, playerId));
-  
-  // Check achievements if player leveled up
-  if (levelUp) {
-    const username = player.username;
-    await triggerAchievementCheck(username);
-  }
-  
-  return {
-    xpAwarded,
-    totalXP: newTotalXP,
-    oldLevel: currentLevel,
-    newLevel,
-    levelUp,
-    levelUpResult
   };
+
+  // No caller transaction: open one, with bounded whole-operation retries.
+  if (tx) return await run(tx);
+  return await withTransactionRetry(`awardXP(${playerId})`, async () =>
+    db.transaction(async (standaloneTx) => run(standaloneTx as TreasuryTx))
+  ).then(async (result) => {
+    // Check achievements if player leveled up — strictly AFTER commit
+    // (FID-20261002-002 §5.6: post-commit side effects cannot convert a
+    // committed success into a retryable failure).
+    if (result.levelUp) {
+      await triggerAchievementCheck(playerId);
+    }
+    return result;
+  });
 }
 
 /**
@@ -483,65 +498,40 @@ export async function getTopPlayersByXP(limit: number = 100): Promise<Array<{
 
 /**
  * Spend research points to unlock features
- * 
+ *
+ * FID-20261002-002 §5 (source-audit correction): this is now a transaction-
+ * aware adapter to the SAME audited RP writer as spendRP (researchPointService)
+ * — one writer, one truth. The previous local copy read a snapshot balance,
+ * computed the new balance in JS and wrote it absolutely, so two concurrent
+ * spends could both succeed against the same starting balance. Pass `tx` to
+ * compose the debit into a larger operation (tech-unlock + debit in one
+ * transaction); without `tx` the writer opens its own.
+ *
  * @param playerId - Player ID or username
  * @param amount - RP to spend
  * @param reason - What the RP was spent on
+ * @param tx - Optional caller-supplied transaction
  * @returns Updated RP balance
- * 
+ *
  * @example
  * await spendResearchPoints('player123', 5, 'Unlock Tier 2 Units');
  */
 export async function spendResearchPoints(
   playerId: string,
   amount: number,
-  reason: string
+  reason: string,
+  tx?: TreasuryTx
 ): Promise<{
   success: boolean;
   newBalance: number;
   message: string;
 }> {
-  const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
-  const player = playerResult[0] ?? null;
-  
-  if (!player) {
-    return {
-      success: false,
-      newBalance: 0,
-      message: 'Player not found'
-    };
-  }
-  
-  const currentRP = player.researchPoints || 0;
-  
-  if (currentRP < amount) {
-    return {
-      success: false,
-      newBalance: currentRP,
-      message: `Insufficient research points. Need ${amount}, have ${currentRP}`
-    };
-  }
-  
-  const newBalance = currentRP - amount;
-  
-  // Read current rpHistory JSON array, push new entry, stringify, then update
-  const rpHistory: ResearchPointHistory[] = player.rpHistory ?? [];
-  rpHistory.push({
-    amount: -amount,
-    reason,
-    timestamp: new Date(),
-    balance: newBalance
-  });
-  
-  await db.update(players).set({
-    researchPoints: newBalance,
-    rpHistory
-  }).where(eq(players.username, playerId));
-  
+  const { spendRP } = await import('./researchPointService');
+  const result = await spendRP(playerId, amount, reason, 'tech_unlock', tx);
   return {
-    success: true,
-    newBalance,
-    message: `Spent ${amount} RP on ${reason}`
+    success: result.success,
+    newBalance: result.newBalance,
+    message: result.message,
   };
 }
 

@@ -26,6 +26,8 @@
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { eq, and, gte,  sql } from 'drizzle-orm';
+import { withTransactionRetry, lockPlayerRow, assertValidAmount } from '@/lib/db/treasuryLock';
+import type { TreasuryTx } from '@/lib/db/treasuryLock';
 import type {  ResearchPointHistory } from '@/types/game.types';
 
 // ============================================================================
@@ -194,14 +196,19 @@ export function saturatingBattleRP(defenderLevel: number): number {
  * Resolve today's battle payout for a victory: full formula inside the
  * envelope, throttled beyond it. Fail-open (ledger outage → full amount),
  * mirroring the B3 backstop philosophy — pacing must never break rewards.
+ *
+ * FID-20261002-002 §5.3: when `tx` is supplied the envelope count is read
+ * inside the caller's transaction so pacing decisions see the same snapshot
+ * as the award they gate.
  */
 export async function applyBattleEnvelope(
   playerUsername: string,
-  baseAmount: number
+  baseAmount: number,
+  tx?: TreasuryTx
 ): Promise<{ base: number; throttled: boolean }> {
   try {
     const midnight = getRPDayKey() + 'T00:00:00.000Z';
-    const rows = await db.execute(sql`
+    const rows = await (tx ?? db).execute(sql`
       SELECT COUNT(*) AS battlewins FROM rptransactions
       WHERE playerusername = ${playerUsername} AND source = 'battle' AND timestamp >= ${midnight}
     `);
@@ -236,28 +243,39 @@ export function getRPDayKey(now: Date = new Date()): string {
  * Award Research Points to a player from any source
  * Automatically applies VIP +50% bonus if applicable
  * Logs transaction in both Player.rpHistory and RPTransaction collection
- * 
+ *
+ * FID-20261002-002 §5.3: the writer is transaction-aware and lock-based.
+ * The player row is locked FOR UPDATE, the balance moves with relative SQL
+ * (`researchPoints = researchPoints + granted`), and the balance update,
+ * embedded rpHistory append, rpTransactions ledger row and rp_daily_totals
+ * cap-ledger upsert commit together. Pass `tx` to compose into a larger
+ * operation (level-up XP grants, raid rewards); without `tx` this opens and
+ * commits its own transaction. VIP/flag/battle-envelope/cap modifiers are
+ * computed once against the locked row and authoritative time.
+ *
  * @param playerUsername - Player's unique username
  * @param amount - Base RP amount to award (before VIP bonus)
  * @param source - Source type for categorization
  * @param description - Human-readable description of the award
  * @param metadata - Optional extra data for analytics
+ * @param tx - Optional caller-supplied transaction
  * @returns Promise resolving to transaction details
- * 
+ *
  * @example
  * // Award RP for level up
  * await awardRP('player123', 250, 'level_up', 'Reached Level 50', { level: 50 });
- * 
+ *
  * @example
- * // Award RP for achievement (VIP gets 150 instead of 100)
- * await awardRP('vipPlayer', 100, 'achievement', 'Unlocked Epic Achievement: Cave Master');
+ * // Award RP inside an existing raid transaction
+ * await awardRP('vipPlayer', 100, 'achievement', 'Unlocked Epic Achievement: Cave Master', undefined, tx);
  */
 export async function awardRP(
   playerUsername: string,
   amount: number,
   source: RPSource,
   description: string,
-  metadata?: Record<string, unknown>
+  metadata?: Record<string, unknown>,
+  tx?: TreasuryTx
 ): Promise<{
   success: boolean;
   message: string;
@@ -283,170 +301,164 @@ export async function awardRP(
     // normal B3/VIP/flag flow below.
     let requestBase = amount;
     if (source === 'battle') {
-      requestBase = (await applyBattleEnvelope(playerUsername, amount)).base;
+      requestBase = (await applyBattleEnvelope(playerUsername, amount, tx)).base;
     }
 
-    // Fetch player to check VIP status
-    const playerRows = await db.select({
-      researchPoints: players.researchPoints,
-      vip: players.vip,
-      vipExpiration: players.vipExpiration,
-      rpHistory: players.rpHistory,
-    }).from(players).where(eq(players.username, playerUsername)).limit(1);
+    const run = async (txHandle: TreasuryTx): Promise<{
+      success: boolean;
+      message: string;
+      rpAwarded: number;
+      vipBonusApplied: boolean;
+      newBalance: number;
+      dailyCapRemaining?: number;
+    }> => {
+      // Lock the player row: every decision below (VIP state, current
+      // balance) re-validates against the LOCKED row, and the final write is
+      // relative SQL so concurrent writers compose (FID-20261002-002 §5.1).
+      const player = await lockPlayerRow(txHandle, playerUsername);
 
-    const player = playerRows[0];
+      // Calculate VIP bonus (read from the locked row — authoritative state)
+      const isVIP = !!(player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date());
 
-    if (!player) {
-      return {
-        success: false,
-        message: `Player not found: ${playerUsername}`,
-        rpAwarded: 0,
-        vipBonusApplied: false,
-        newBalance: 0
-      };
-    }
+      // FID-20260912-062 B3: global daily cap on BASE earnings. The clamp is
+      // applied BEFORE the VIP/flag multiplier stack, so multipliers apply to
+      // the granted amount as normal. 'admin' bypasses entirely (operators
+      // grant exact amounts).
+      let dailyCapRemaining: number | undefined;
+      let grantedBase = requestBase;
+      if (source !== 'admin') {
+        try {
+          const dayKey = getRPDayKey();
+          const usedRows = await txHandle.execute(sql`
+            SELECT baserpedtoday FROM rp_daily_totals
+            WHERE playerusername = ${playerUsername} AND daykey = ${dayKey}
+            LIMIT 1
+          `);
+          const baseUsed = Number(usedRows.rows[0]?.baserpedtoday || 0);
+          dailyCapRemaining = Math.max(0, DAILY_RP_CAP - baseUsed);
 
-    // Calculate VIP bonus (read first — the at-cap return reports it)
-    const isVIP = !!(player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date());
+          if (dailyCapRemaining <= 0) {
+            return {
+              success: false,
+              message: `Daily RP cap reached (${DAILY_RP_CAP}/day). Resets 00:00 UTC.`,
+              rpAwarded: 0,
+              vipBonusApplied: isVIP,
+              newBalance: Number(player.researchPoints || 0),
+              dailyCapRemaining: 0,
+            };
+          }
 
-    // FID-20260912-062 B3: global daily cap on BASE earnings. The clamp is
-    // applied BEFORE the VIP/flag multiplier stack, so multipliers apply to
-    // the granted amount as normal. 'admin' bypasses entirely (operators
-    // grant exact amounts).
-    let dailyCapRemaining: number | undefined;
-    let grantedBase = requestBase;
-    if (source !== 'admin') {
-      try {
-        const dayKey = getRPDayKey();
-        const usedRows = await db.execute(sql`
-          SELECT baserpedtoday FROM rp_daily_totals
-          WHERE playerusername = ${playerUsername} AND daykey = ${dayKey}
-          LIMIT 1
-        `);
-        const baseUsed = Number(usedRows.rows[0]?.baserpedtoday || 0);
-        dailyCapRemaining = Math.max(0, DAILY_RP_CAP - baseUsed);
-
-        if (dailyCapRemaining <= 0) {
-          return {
-            success: false,
-            message: `Daily RP cap reached (${DAILY_RP_CAP}/day). Resets 00:00 UTC.`,
-            rpAwarded: 0,
-            vipBonusApplied: isVIP,
-            newBalance: Number(player.researchPoints || 0),
-            dailyCapRemaining: 0,
-          };
+          if (requestBase > dailyCapRemaining) {
+            console.warn(
+              `[researchPointService] Daily RP cap clamp: ${playerUsername} requested ${requestBase}, granted ${dailyCapRemaining} (${source})`
+            );
+            grantedBase = dailyCapRemaining;
+          }
+        } catch (capError) {
+          // Fail-open: a ledger outage must never block gameplay rewards.
+          console.error('[researchPointService] Daily RP cap check failed (failing open):', capError);
+          dailyCapRemaining = undefined;
         }
 
-        if (requestBase > dailyCapRemaining) {
-          console.warn(
-            `[researchPointService] Daily RP cap clamp: ${playerUsername} requested ${requestBase}, granted ${dailyCapRemaining} (${source})`
-          );
-          grantedBase = dailyCapRemaining;
+        // Report the envelope AFTER this award consumed its share.
+        if (typeof dailyCapRemaining === 'number') {
+          dailyCapRemaining = Math.max(0, dailyCapRemaining - grantedBase);
         }
-      } catch (capError) {
-        // Fail-open: a ledger outage must never block gameplay rewards.
-        console.error('[researchPointService] Daily RP cap check failed (failing open):', capError);
-        dailyCapRemaining = undefined;
       }
 
-      // Report the envelope AFTER this award consumed its share.
-      if (typeof dailyCapRemaining === 'number') {
-        dailyCapRemaining = Math.max(0, dailyCapRemaining - grantedBase);
+      // Multiplier stack applies to the (possibly clamped) granted base.
+      let finalAmount = isVIP ? Math.floor(grantedBase * VIP_RP_MULTIPLIER) : grantedBase;
+
+      // FID-20260906-001 §5.4: Flag bearer earns +100% RP (doc bonus stack).
+      // Admin source is excluded — operators grant exact amounts.
+      if (source !== 'admin') {
+        try {
+          const { isFlagBearer } = await import('@/lib/flagBonusService');
+          if (await isFlagBearer(playerUsername)) finalAmount *= 2;
+        } catch {
+          // Never fail the RP award because of the flag check.
+        }
       }
-    }
 
-    // Multiplier stack applies to the (possibly clamped) granted base.
-    let finalAmount = isVIP ? Math.floor(grantedBase * VIP_RP_MULTIPLIER) : grantedBase;
-
-    // FID-20260906-001 §5.4: Flag bearer earns +100% RP (doc bonus stack).
-    // Admin source is excluded — operators grant exact amounts.
-    if (source !== 'admin') {
-      try {
-        const { isFlagBearer } = await import('@/lib/flagBonusService');
-        if (await isFlagBearer(playerUsername)) finalAmount *= 2;
-      } catch {
-        // Never fail the RP award because of the flag check.
+      // Relative credit on the locked row: `researchPoints = researchPoints +
+      // granted` — concurrent award/spend interleave correctly by
+      // construction, and the returned balance is the post-write truth.
+      const creditedRows = await txHandle
+        .update(players)
+        .set({
+          researchPoints: sql`${players.researchPoints} + ${finalAmount}`,
+        })
+        .where(eq(players.username, playerUsername))
+        .returning({ researchPoints: players.researchPoints });
+      const newBalance = creditedRows[0]?.researchPoints;
+      if (typeof newBalance !== 'number') {
+        return {
+          success: false,
+          message: 'Failed to update player RP balance',
+          rpAwarded: 0,
+          vipBonusApplied: isVIP,
+          newBalance: Number(player.researchPoints || 0)
+        };
       }
-    }
 
-    // Calculate new balance
-    const currentRP = player.researchPoints || 0;
-    const newBalance = currentRP + finalAmount;
-
-    // Create transaction record — FID-20260911-044: carry `source` in the
-    // embedded history too (the rpTransactions audit table always had it, but
-    // the per-player rpHistory never did, so admin per-source analytics from
-    // rpHistory showed every transaction as null-source).
-    const transaction: ResearchPointHistory & { source: RPSource } = {
-      amount: finalAmount,
-      source,
-      reason: description,
-      timestamp: new Date(),
-      balance: newBalance
-    };
-
-    // Get existing rpHistory and append new transaction
-    const existingHistory = (player.rpHistory as ResearchPointHistory[] | null) || [];
-    const updatedHistory = [...existingHistory, transaction];
-
-    // Update player RP balance and history
-    const updateResult = await db.update(players)
-      .set({
-        researchPoints: newBalance,
-        rpHistory: updatedHistory,
-      })
-      .where(eq(players.username, playerUsername));
-
-    // Check if update succeeded (Drizzle doesn't return modifiedCount, so we verify)
-    if (!updateResult) {
-      return {
-        success: false,
-        message: 'Failed to update player RP balance',
-        rpAwarded: 0,
-        vipBonusApplied: isVIP,
-        newBalance: currentRP
+      // Append the embedded history entry relative to the row's CURRENT
+      // rpHistory (read inside the lock) — never from a pre-lock snapshot.
+      const transaction: ResearchPointHistory & { source: RPSource } = {
+        amount: finalAmount,
+        source,
+        reason: description,
+        timestamp: new Date(),
+        balance: newBalance
       };
-    }
+      const existingHistory = (player.rpHistory as ResearchPointHistory[] | null) || [];
+      await txHandle
+        .update(players)
+        .set({ rpHistory: [...existingHistory, transaction] })
+        .where(eq(players.username, playerUsername));
 
-    // Log detailed transaction in RPTransaction table using raw SQL
-    const transactionId = crypto.randomUUID().slice(0, 24);
-    const timestamp = new Date().toISOString();
-    const metadataJson = metadata ? JSON.stringify(metadata) : 'NULL';
+      // Log detailed transaction in RPTransaction table using raw SQL —
+      // inside the same transaction as the balance movement.
+      const transactionId = crypto.randomUUID().slice(0, 24);
+      const timestamp = new Date().toISOString();
+      const metadataJson = metadata ? JSON.stringify(metadata) : 'NULL';
 
-    await db.execute(sql`
-      INSERT INTO rpTransactions (
-        id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter, metadata, bypassedDailyCap
-      ) VALUES (
-        ${transactionId}, ${playerUsername}, ${finalAmount}, ${source}, ${description},
-        ${timestamp}, ${isVIP ? 1 : 0}, ${newBalance}, ${metadataJson}, ${source === 'admin' ? 1 : 0}
-      )
-    `);
+      await txHandle.execute(sql`
+        INSERT INTO rpTransactions (
+          id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter, metadata, bypassedDailyCap
+        ) VALUES (
+          ${transactionId}, ${playerUsername}, ${finalAmount}, ${source}, ${description},
+          ${timestamp}, ${isVIP ? 1 : 0}, ${newBalance}, ${metadataJson}, ${source === 'admin' ? 1 : 0}
+        )
+      `);
 
-    // FID-20260912-062 B3: record BASE earnings in the daily cap ledger.
-    // Idempotent upsert; lastWrite wins under the theoretical concurrent-award
-    // race (B3 is a backstop, not an accounting system of record).
-    if (source !== 'admin') {
-      try {
-        await db.execute(sql`
+      // FID-20260912-062 B3: record BASE earnings in the daily cap ledger.
+      // Idempotent upsert — now part of the same committed transaction, so a
+      // ledger failure rolls the award back instead of drifting from it.
+      if (source !== 'admin') {
+        await txHandle.execute(sql`
           INSERT INTO rp_daily_totals (playerusername, daykey, baserpedtoday, updatedat)
           VALUES (${playerUsername}, ${getRPDayKey()}, ${grantedBase}, NOW())
           ON CONFLICT (playerusername, daykey)
           DO UPDATE SET baserpedtoday = rp_daily_totals.baserpedtoday + ${grantedBase}, updatedat = NOW()
         `);
-      } catch (ledgerError) {
-        // The award already succeeded; a ledger write failure must not fail it.
-        console.error('[researchPointService] Daily RP ledger write failed (award stands):', ledgerError);
       }
-    }
 
-    return {
-      success: true,
-      message: `Awarded ${finalAmount} RP${isVIP ? ' (VIP bonus applied)' : ''} to ${playerUsername}`,
-      rpAwarded: finalAmount,
-      vipBonusApplied: isVIP,
-      newBalance,
-      dailyCapRemaining,
+      return {
+        success: true,
+        message: `Awarded ${finalAmount} RP${isVIP ? ' (VIP bonus applied)' : ''} to ${playerUsername}`,
+        rpAwarded: finalAmount,
+        vipBonusApplied: isVIP,
+        newBalance,
+        dailyCapRemaining,
+      };
     };
+
+    // No caller transaction: open one, with bounded whole-operation retries
+    // for deadlock/serialization failures (FID-20261002-002 §5.2).
+    if (tx) return await run(tx);
+    return await withTransactionRetry(`awardRP(${playerUsername})`, async () =>
+      db.transaction(async (standaloneTx) => run(standaloneTx as TreasuryTx))
+    );
   } catch (error) {
     console.error('[researchPointService] Error awarding RP:', error);
     return {
@@ -855,16 +867,30 @@ export async function getAvailableRP(playerUsername: string): Promise<number> {
 /**
  * Spend Research Points for unlocks/purchases
  * Validates balance, deducts RP atomically, logs transaction
- * 
- * Note: This is a wrapper around xpService.spendResearchPoints() for consistency
- * All RP spending should eventually use this service for centralized tracking
- * 
+ *
+ * FID-20261002-002 §5.3: the previous implementation read a snapshot balance,
+ * computed `newBalance` in JS, discarded the UPDATE's affected-rows result and
+ * then "verified" by re-fetching and comparing against the SAME computed
+ * value — so two concurrent 60-RP spends from 100 both succeeded (R15). The
+ * writer now locks the player row FOR UPDATE, re-validates the balance against
+ * the LOCKED row, and moves the balance with a conditional relative debit
+ * (`researchPoints = researchPoints - amount` WHERE researchPoints >= amount):
+ * zero affected rows is a business refusal, never a silent success. The
+ * balance movement, rpHistory append and rpTransactions ledger row commit
+ * together. Pass `tx` to compose into a larger operation (unlock + debit in
+ * one transaction).
+ *
+ * Note: This is a wrapper around the same writer family as
+ * xpService.spendResearchPoints() — all RP spending uses this service for
+ * centralized tracking.
+ *
  * @param playerUsername - Player's unique username
  * @param amount - RP amount to spend
  * @param reason - What the RP is being spent on
  * @param source - Source type for categorization (default: 'research')
+ * @param tx - Optional caller-supplied transaction
  * @returns Promise resolving to spending result
- * 
+ *
  * @example
  * // Spend RP for Flag Tier 2 research
  * const result = await spendRP('player123', 1500, 'Flag Tier 2: Zone Tracking', 'research');
@@ -873,7 +899,8 @@ export async function spendRP(
   playerUsername: string,
   amount: number,
   reason: string,
-  source: RPSource = 'research'
+  source: RPSource = 'research',
+  tx?: TreasuryTx
 ): Promise<{
   success: boolean;
   message: string;
@@ -888,89 +915,88 @@ export async function spendRP(
   }
 
   try {
-    // Fetch player to check balance
-    const playerRows = await db.select({
-      researchPoints: players.researchPoints,
-      rpHistory: players.rpHistory,
-    }).from(players).where(eq(players.username, playerUsername)).limit(1);
+    assertValidAmount(amount, 'RP spend amount');
 
-    const player = playerRows[0];
+    const run = async (txHandle: TreasuryTx): Promise<{
+      success: boolean;
+      message: string;
+      newBalance: number;
+    }> => {
+      // Lock the player row; re-validate sufficiency against the LOCKED row.
+      const player = await lockPlayerRow(txHandle, playerUsername);
+      const currentRP = Number(player.researchPoints || 0);
 
-    if (!player) {
-      return {
-        success: false,
-        message: `Player not found: ${playerUsername}`,
-        newBalance: 0
+      if (currentRP < amount) {
+        return {
+          success: false,
+          message: `Insufficient RP. Required: ${amount}, Available: ${currentRP}`,
+          newBalance: currentRP
+        };
+      }
+
+      // Conditional relative debit on the locked row: one statement moves the
+      // balance and proves sufficiency. Zero rows = concurrent writer won the
+      // race — a business refusal, never a success.
+      const debitedRows = await txHandle
+        .update(players)
+        .set({
+          researchPoints: sql`${players.researchPoints} - ${amount}`,
+        })
+        .where(and(
+          eq(players.username, playerUsername),
+          gte(players.researchPoints, amount)
+        ))
+        .returning({ researchPoints: players.researchPoints });
+
+      if (debitedRows.length === 0) {
+        return {
+          success: false,
+          message: 'Failed to deduct RP (insufficient balance or concurrent modification)',
+          newBalance: currentRP
+        };
+      }
+      const newBalance = debitedRows[0].researchPoints;
+
+      // Append the embedded history entry relative to the row's CURRENT
+      // rpHistory (read inside the lock).
+      const transaction: ResearchPointHistory = {
+        amount: -amount, // Negative for spending
+        reason,
+        timestamp: new Date(),
+        balance: newBalance
       };
-    }
+      const existingHistory = (player.rpHistory as ResearchPointHistory[] | null) || [];
+      await txHandle
+        .update(players)
+        .set({ rpHistory: [...existingHistory, transaction] })
+        .where(eq(players.username, playerUsername));
 
-    const currentRP = player.researchPoints || 0;
+      // Log detailed transaction in RPTransaction table using raw SQL —
+      // inside the same transaction as the balance movement.
+      const transactionId = crypto.randomUUID().slice(0, 24);
+      const timestamp = new Date().toISOString();
 
-    if (currentRP < amount) {
+      await txHandle.execute(sql`
+        INSERT INTO rpTransactions (
+          id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter
+        ) VALUES (
+          ${transactionId}, ${playerUsername}, ${-amount}, ${source}, ${reason},
+          ${timestamp}, 0, ${newBalance}
+        )
+      `);
+
       return {
-        success: false,
-        message: `Insufficient RP. Required: ${amount}, Available: ${currentRP}`,
-        newBalance: currentRP
+        success: true,
+        message: `Spent ${amount} RP on ${reason}`,
+        newBalance
       };
-    }
-
-    // Calculate new balance
-    const newBalance = currentRP - amount;
-
-    // Create transaction record
-    const transaction: ResearchPointHistory = {
-      amount: -amount, // Negative for spending
-      reason,
-      timestamp: new Date(),
-      balance: newBalance
     };
 
-    // Get existing rpHistory and append new transaction
-    const existingHistory = (player.rpHistory as ResearchPointHistory[] | null) || [];
-    const updatedHistory = [...existingHistory, transaction];
-
-    // Update player RP balance and history with optimistic locking
-    const _updateResult = await db.update(players)
-      .set({
-        researchPoints: newBalance,
-        rpHistory: updatedHistory,
-      })
-      .where(and(
-        eq(players.username, playerUsername),
-        gte(players.researchPoints, amount)
-      ));
-
-    // Verify the update succeeded by re-fetching
-    const verifyRows = await db.select({
-      researchPoints: players.researchPoints,
-    }).from(players).where(eq(players.username, playerUsername)).limit(1);
-
-    if (!verifyRows[0] || verifyRows[0].researchPoints !== newBalance) {
-      return {
-        success: false,
-        message: 'Failed to deduct RP (insufficient balance or concurrent modification)',
-        newBalance: currentRP
-      };
-    }
-
-    // Log detailed transaction in RPTransaction table using raw SQL
-    const transactionId = crypto.randomUUID().slice(0, 24);
-    const timestamp = new Date().toISOString();
-
-    await db.execute(sql`
-      INSERT INTO rpTransactions (
-        id, playerUsername, amount, source, description, timestamp, vipBonus, balanceAfter
-      ) VALUES (
-        ${transactionId}, ${playerUsername}, ${-amount}, ${source}, ${reason},
-        ${timestamp}, 0, ${newBalance}
-      )
-    `);
-
-    return {
-      success: true,
-      message: `Spent ${amount} RP on ${reason}`,
-      newBalance
-    };
+    // No caller transaction: open one, with bounded whole-operation retries.
+    if (tx) return await run(tx);
+    return await withTransactionRetry(`spendRP(${playerUsername})`, async () =>
+      db.transaction(async (standaloneTx) => run(standaloneTx as TreasuryTx))
+    );
   } catch (error) {
     console.error('[researchPointService] Error spending RP:', error);
     return {

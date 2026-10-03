@@ -47,6 +47,22 @@ vi.mock('@/lib/db', () => ({
         },
       }),
     }),
+    // FID-20261002-002: the route now runs the debit + unlock in ONE
+    // db.transaction. The mock routes tx statements through the same capture
+    // handlers; the guarded unlock update reports its RETURNING row.
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) =>
+      cb({
+        update: () => ({
+          set: (set: Record<string, unknown>) => ({
+            where: (expr: unknown) => ({
+              returning: async () => {
+                capture.updates.push({ set, whereUsername: String(expr) });
+                return [{ unlockedTechs: (set.unlockedTechs as string[] | undefined) ?? [] }];
+              },
+            }),
+          }),
+        }),
+      }),
   },
 }));
 
@@ -103,7 +119,9 @@ describe('POST /api/research — RP-based unlock (FID-029)', () => {
   beforeEach(() => {
     capture.updates.length = 0;
     capture.spendCalls.length = 0;
-    capture.playerRow = { unlockedTechs: null, researchPoints: 0 };
+    // FID-20261002-002: the unlockedTechs write is now guarded with
+    // .returning — the mock reads the persisted list from this fixture.
+    capture.playerRow = { unlockedTechs: [], researchPoints: 0 };
   });
 
   it('spends RP and persists the unlock on unlockedTechs', async () => {

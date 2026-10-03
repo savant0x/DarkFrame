@@ -60,6 +60,22 @@ vi.mock('@/lib/db', () => ({
         },
       }),
     }),
+    // FID-20261002-002: the route now runs the debit + unlock in ONE
+    // db.transaction. The mock routes tx statements through the same capture
+    // handlers; the guarded unlock update reports its RETURNING row.
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) =>
+      cb({
+        update: () => ({
+          set: (set: Record<string, unknown>) => ({
+            where: () => ({
+              returning: async () => {
+                capture.updates.push({ set });
+                return [{ unlockedTechs: (set.unlockedTechs as string[] | undefined) ?? [] }];
+              },
+            }),
+          }),
+        }),
+      }),
   },
 }));
 
@@ -115,7 +131,9 @@ describe('T1 contract — GET advertises exactly what POST sells', () => {
   beforeEach(() => {
     capture.updates.length = 0;
     capture.spendCalls.length = 0;
-    capture.playerRow = { unlockedTechs: null, researchPoints: 0 };
+    // FID-20261002-002: the unlockedTechs write is now guarded with
+    // .returning — the mock reads the persisted list from this fixture.
+    capture.playerRow = { unlockedTechs: [], researchPoints: 0 };
   });
 
   it('GET exposes the shared catalog with a consistent total', async () => {
@@ -156,7 +174,7 @@ describe('T1 contract — GET advertises exactly what POST sells', () => {
   it('refuses a catalog tech whose prerequisites are unmet (chain is enforced)', async () => {
     const chained = TECH_CATALOG.find((t) => t.prerequisites.length > 0);
     expect(chained).toBeDefined();
-    capture.playerRow = { unlockedTechs: null, researchPoints: 1_000_000 };
+    capture.playerRow = { unlockedTechs: [], researchPoints: 1_000_000 };
 
     const res = await POST(post({ technologyId: chained!.id }));
     const data = await res.json();
@@ -165,7 +183,7 @@ describe('T1 contract — GET advertises exactly what POST sells', () => {
   });
 
   it('refuses an id that is NOT in the catalog (no dead content returns)', async () => {
-    capture.playerRow = { unlockedTechs: null, researchPoints: 1_000_000 };
+    capture.playerRow = { unlockedTechs: [], researchPoints: 1_000_000 };
     const res = await POST(post({ technologyId: 'factory-automation' }));
     const data = await res.json();
     expect(data.success).toBe(false);

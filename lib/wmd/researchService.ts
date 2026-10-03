@@ -9,6 +9,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { playerResearch } from '@/lib/db/schema/wmd';
 import { players } from '@/lib/db/schema/players';
+import { withTransactionRetry } from '@/lib/db/treasuryLock';
+import type { TreasuryTx } from '@/lib/db/treasuryLock';
 import {
   ResearchTech,
   PlayerResearch,
@@ -202,76 +204,115 @@ export async function spendRPOnResearch(
   amount: number
 ): Promise<{ success: boolean; message: string; completed?: boolean }> {
   try {
-    const pr = await getPlayerResearchRow(playerId);
-    if (!pr) {
-      return { success: false, message: 'Player research not found' };
+    // FID-20261002-002 §5: the RP debit, the research-contribution update and
+    // (on completion) the completion effects commit in ONE transaction. The
+    // previous flow debited the player and then updated player_research in
+    // separate autocommit writes, so a failure between them lost the
+    // contribution, and applyTechEffects/recalculate kept their own global-db
+    // writes outside the debit's atomicity. Notifications are staged strictly
+    // AFTER commit so a bell/format failure cannot convert a committed
+    // completion into a retryable error that would re-debit the player.
+    const result = await withTransactionRetry(`spendRPOnResearch(${playerId})`, () =>
+      db.transaction(async (tx): Promise<{ success: boolean; message: string; completed?: boolean; notification?: { playerId: string; tech: ResearchTech } }> => {
+        const prRows = await tx.select().from(playerResearch).where(eq(playerResearch.playerId, playerId)).limit(1).for('update');
+        const pr = prRows[0];
+        if (!pr) {
+          return { success: false, message: 'Player research not found' };
+        }
+
+        if (!pr.currentResearchTechId || pr.completedTechs === null || pr.totalRPSpent === null) {
+          return { success: false, message: 'No active research' };
+        }
+
+        // Slim projection (FID-20260911-046 precedent): only the balance is
+        // needed here, never the full row.
+        const playerResult = await tx
+          .select({ researchPoints: players.researchPoints })
+          .from(players)
+          .where(eq(players.username, playerId))
+          .limit(1);
+        const player = playerResult[0];
+        const playerRP = player?.researchPoints || 0;
+
+        if (playerRP < amount) {
+          return { success: false, message: `Insufficient RP. Have ${playerRP}, need ${amount}` };
+        }
+
+        // Transaction-aware debit through the same audited writer.
+        const spendResult = await spendResearchPoints(playerId, amount, 'WMD Research', tx as TreasuryTx);
+        if (!spendResult.success) {
+          return { success: false, message: spendResult.message };
+        }
+
+        const currentRpSpent = pr.currentResearchRpSpent ?? 0;
+        const newRPSpent = currentRpSpent + amount;
+        const rpRequired = pr.currentResearchRpRequired ?? 0;
+        const activeTechId = pr.currentResearchTechId;
+        const isCompleted = newRPSpent >= rpRequired;
+
+        if (isCompleted) {
+          const completedTech = ALL_RESEARCH_TECHS.find(t => t.techId === activeTechId);
+          if (!completedTech) {
+            throw new Error('Active research tech no longer exists');
+          }
+
+          const updatedTechs = [...(pr.completedTechs ?? []), completedTech.techId];
+
+          await tx.update(playerResearch).set({
+            currentResearchTechId: null,
+            currentResearchStartedAt: null,
+            currentResearchRpSpent: null,
+            currentResearchRpRequired: null,
+            totalRPSpent: (pr.totalRPSpent ?? 0) + amount,
+            completedTechs: updatedTechs,
+            totalTechsUnlocked: (pr.totalTechsUnlocked ?? 0) + 1,
+            updatedAt: new Date(),
+          }).where(eq(playerResearch.playerId, playerId));
+
+          // FID-20261002-002 (source-audit correction): completion effects run
+          // against the CALLER's transaction — their previous global-db writes
+          // would self-deadlock against this transaction's FOR UPDATE lock on
+          // the same player_research row and escape the debit's atomicity.
+          await applyTechEffects(playerId, completedTech, tx as TreasuryTx);
+          await recalculateAvailableTechs(playerId, tx as TreasuryTx);
+
+          // Staged for AFTER commit: the notification rides the transaction's
+          // return so the post-commit send cannot re-debit or roll back the
+          // completion.
+          return {
+            success: true,
+            message: `Research completed! ${completedTech.name} unlocked.`,
+            completed: true,
+            notification: { playerId, tech: completedTech },
+          } as { success: boolean; message: string; completed?: boolean; notification?: { playerId: string; tech: ResearchTech } };
+        }
+
+        await tx.update(playerResearch).set({
+          currentResearchRpSpent: newRPSpent,
+          totalRPSpent: (pr.totalRPSpent ?? 0) + amount,
+          updatedAt: new Date(),
+        }).where(eq(playerResearch.playerId, playerId));
+
+        const progress = rpRequired > 0 ? Math.floor((newRPSpent / rpRequired) * 100) : 0;
+        return {
+          success: true,
+          message: `Research progress: ${progress}% (${newRPSpent}/${rpRequired} RP)`,
+          completed: false
+        };
+      })
+    );
+
+    // Strictly AFTER commit (FID-20261002-002 §5.6): a notification failure
+    // cannot convert a committed completion into a retryable error that
+    // re-debits the player.
+    if (result.notification) {
+      await sendResearchCompletedNotification(result.notification.playerId, result.notification.tech)
+        .catch((notifyError: unknown) => {
+          console.error('Research notification failed (completion stands):', notifyError);
+        });
     }
-    
-    if (!pr.currentResearchTechId || pr.completedTechs === null || pr.totalRPSpent === null) {
-      return { success: false, message: 'No active research' };
-    }
-    
-    const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
-    const player = playerResult[0];
-    const playerRP = player?.researchPoints || 0;
-    
-    if (playerRP < amount) {
-      return { success: false, message: `Insufficient RP. Have ${playerRP}, need ${amount}` };
-    }
-    
-    const spendResult = await spendResearchPoints(playerId, amount, 'WMD Research');
-    if (!spendResult.success) {
-      return { success: false, message: spendResult.message };
-    }
-    
-    const currentRpSpent = pr.currentResearchRpSpent ?? 0;
-    const newRPSpent = currentRpSpent + amount;
-    const rpRequired = pr.currentResearchRpRequired ?? 0;
-    const activeTechId = pr.currentResearchTechId;
-    const isCompleted = newRPSpent >= rpRequired;
-    
-    if (isCompleted) {
-      const completedTech = ALL_RESEARCH_TECHS.find(t => t.techId === activeTechId);
-      if (!completedTech) {
-        return { success: false, message: 'Active research tech no longer exists' };
-      }
-      
-      const updatedTechs = [...pr.completedTechs, completedTech.techId];
-      
-      await db.update(playerResearch).set({
-        currentResearchTechId: null,
-        currentResearchStartedAt: null,
-        currentResearchRpSpent: null,
-        currentResearchRpRequired: null,
-        totalRPSpent: pr.totalRPSpent + amount,
-        completedTechs: updatedTechs,
-        totalTechsUnlocked: pr.totalTechsUnlocked === null ? 1 : pr.totalTechsUnlocked + 1,
-        updatedAt: new Date(),
-      }).where(eq(playerResearch.playerId, playerId));
-      
-      await applyTechEffects(playerId, completedTech);
-      await recalculateAvailableTechs(playerId);
-      await sendResearchCompletedNotification(playerId, completedTech);
-      
-      return { 
-        success: true, 
-        message: `Research completed! ${completedTech.name} unlocked.`, 
-        completed: true 
-      };
-    } else {
-      await db.update(playerResearch).set({
-        currentResearchRpSpent: newRPSpent,
-        totalRPSpent: pr.totalRPSpent + amount,
-        updatedAt: new Date(),
-      }).where(eq(playerResearch.playerId, playerId));
-      
-      const progress = rpRequired > 0 ? Math.floor((newRPSpent / rpRequired) * 100) : 0;
-      return { 
-        success: true, 
-        message: `Research progress: ${progress}% (${newRPSpent}/${rpRequired} RP)`,
-        completed: false
-      };
-    }
+
+    return { success: result.success, message: result.message, completed: result.completed };
   } catch (error) {
     console.error('Error spending RP on research:', error);
     return { success: false, message: 'Internal server error' };
@@ -305,16 +346,20 @@ export async function cancelResearch(
 }
 
 export async function recalculateAvailableTechs(
-  playerId: string
+  playerId: string,
+  tx?: TreasuryTx
 ): Promise<void> {
   try {
-    const pr = await getPlayerResearch(playerId);
-    if (!pr) return;
+    const handle = tx ?? db;
+    const prRows = await handle.select().from(playerResearch).where(eq(playerResearch.playerId, playerId)).limit(1);
+    const prRow = prRows[0];
+    if (!prRow) return;
+    const pr = rowToPlayerResearch(prRow);
 
     // FID-20260912-058 W1: level gates are real now (L40+2t on every tier) —
     // a tech whose level gate is unmet belongs in lockedTechs, not available,
     // or the panel offers buttons the POST handler must refuse.
-    const levelRows = await db
+    const levelRows = await handle
       .select({ level: players.level })
       .from(players)
       .where(eq(players.username, playerId))
@@ -341,13 +386,14 @@ export async function recalculateAvailableTechs(
       }
     }
     
-    await db.update(playerResearch).set({
+    await handle.update(playerResearch).set({
       availableTechs,
       lockedTechs,
       updatedAt: new Date(),
     }).where(eq(playerResearch.playerId, playerId));
   } catch (error) {
     console.error('Error recalculating available techs:', error);
+    if (tx) throw error; // composed transaction: the caller must see the failure
   }
 }
 
@@ -384,10 +430,13 @@ export async function getAvailableTechs(
  */
 async function applyTechEffects(
   playerId: string,
-  tech: ResearchTech
+  tech: ResearchTech,
+  tx?: TreasuryTx
 ): Promise<void> {
   try {
-    const pr = await getPlayerResearchRow(playerId);
+    const handle = tx ?? db;
+    const prRows = await handle.select().from(playerResearch).where(eq(playerResearch.playerId, playerId)).limit(1);
+    const pr = prRows[0];
     if (!pr) return;
 
     const completed = [...(pr.completedTechs ?? []), tech.techId];
@@ -396,7 +445,7 @@ async function applyTechEffects(
         .filter((t) => t.category === category && completed.includes(t.techId))
         .reduce((max, t) => Math.max(max, t.tier), 0);
 
-    await db.update(playerResearch).set({
+    await handle.update(playerResearch).set({
       missileTier: domainTier(ResearchCategory.MISSILE),
       defenseTier: domainTier(ResearchCategory.DEFENSE),
       intelligenceTier: domainTier(ResearchCategory.INTELLIGENCE),
@@ -404,6 +453,7 @@ async function applyTechEffects(
     }).where(eq(playerResearch.playerId, playerId));
   } catch (error) {
     console.error('Error applying tech effects:', error);
+    if (tx) throw error; // composed transaction: the caller must see the failure
   }
 }
 

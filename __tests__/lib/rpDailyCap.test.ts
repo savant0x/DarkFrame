@@ -85,6 +85,54 @@ vi.mock('@/lib/db', () => ({
       capture.executed.push({ key, params });
       return { rows: [] };
     },
+    // FID-20261002-002: awardRP now runs inside db.transaction with a locked
+    // row and a relative-SQL balance write. The mock routes tx statements
+    // through the same capture handlers; the FOR UPDATE select yields the
+    // fixture row and the relative update reports its RETURNING row.
+    transaction: async (cb: (tx: unknown) => Promise<unknown>) =>
+      cb({
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: () => ({
+                for: async () => [capture.playerRow],
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          set: (set: Record<string, unknown>) => ({
+            where: () => ({
+              returning: async () => {
+                capture.executed.push({
+                  key: 'PLAYERS_UPDATE',
+                  params: [set.researchPoints !== undefined ? 'relative_sql' : 'rpHistory'],
+                });
+                return [{ researchPoints: 100 }];
+              },
+            }),
+          }),
+        }),
+        execute: async (query: unknown) => {
+          const { key, params } = renderSql(query);
+          if (key.includes('INSERT INTO rpTransactions')) {
+            capture.executed.push({ key: 'RPTRANSACTIONS_INSERT', params });
+            return {};
+          }
+          if (key.includes('rp_daily_totals') && key.includes('INSERT INTO')) {
+            capture.ledger += Number(params[2]);
+            capture.executed.push({ key: 'LEDGER_UPSERT', params });
+            return {};
+          }
+          if (key.includes('rp_daily_totals')) {
+            if (capture.failLedgerRead) throw new Error('ledger unreachable');
+            capture.executed.push({ key: 'LEDGER_SELECT', params });
+            return { rows: [{ baserpedtoday: capture.ledger }] };
+          }
+          capture.executed.push({ key, params });
+          return { rows: [] };
+        },
+      }),
   },
 }));
 

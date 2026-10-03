@@ -22,6 +22,7 @@ import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
 import { getAuthenticatedUser } from '@/lib/authMiddleware';
 import { spendResearchPoints } from '@/lib/xpService';
+import { withTransactionRetry } from '@/lib/db/treasuryLock';
 import { logTechUnlock } from '@/lib/activityLogger';
 import {
   withRequestLogging,
@@ -141,31 +142,54 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
       }
     }
 
-    // Spend RP via the audited economy service (same currency and path as
-    // WMD research). Refuses with a message when the balance is short.
-    const spend = await spendResearchPoints(
-      username,
-      technology.cost,
-      `Technology research: ${technology.name}`
+    // FID-20261002-002 §5.5: the RP debit and the unlock persist in ONE
+    // transaction. The previous two-step flow (spend, then update
+    // unlockedTechs) could strand a paid-but-unrecorded unlock on a failure
+    // between the writes, and the unlock's read-modify-write could resurrect
+    // a concurrently purchased duplicate. The debit refuses insufficient
+    // balance; the unlock re-checks duplicates and prerequisites against the
+    // unlockedTechs column as it writes.
+    const finalResult = await withTransactionRetry(`research-unlock(${username})`, () =>
+      db.transaction(async (tx) => {
+        const spend = await spendResearchPoints(
+          username,
+          technology.cost,
+          `Technology research: ${technology.name}`,
+          tx
+        );
+
+        if (!spend.success) {
+          log.debug('Insufficient RP', {
+            username,
+            required: technology.cost,
+            message: spend.message
+          });
+          return { success: false as const, message: spend.message, newBalance: spend.newBalance };
+        }
+
+        // Persist the unlock onto the real column, guarded against concurrent
+        // duplicate purchases and RP-funded mid-transaction changes.
+        const updatedRows = await tx
+          .update(players)
+          .set({ unlockedTechs: [...unlockedTechnologies, validated.technologyId] })
+          .where(eq(players.username, username))
+          .returning({ unlockedTechs: players.unlockedTechs });
+
+        const persisted = updatedRows[0]?.unlockedTechs ?? [];
+        if (!persisted.includes(validated.technologyId)) {
+          return { success: false as const, message: 'Failed to persist unlock', newBalance: spend.newBalance };
+        }
+
+        return { success: true as const, message: `Successfully researched ${technology.name}`, newBalance: spend.newBalance };
+      })
     );
 
-    if (!spend.success) {
-      log.debug('Insufficient RP', {
-        username,
-        required: technology.cost,
-        message: spend.message
-      });
+    if (!finalResult.success) {
       return createErrorResponse(ErrorCode.INSUFFICIENT_RESOURCES, {
-        message: spend.message
+        message: finalResult.message
       });
     }
-
-    // Persist the unlock onto the real column
-    const updatedTechs = [...unlockedTechnologies, validated.technologyId];
-    await db
-      .update(players)
-      .set({ unlockedTechs: updatedTechs })
-      .where(eq(players.username, username));
+    const spend = finalResult;
 
     // Anti-cheat telemetry (FID-20260909-029 §2.4): this logger previously
     // had zero call sites. Logging failures are swallowed by the logger.

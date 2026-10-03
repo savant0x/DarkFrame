@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { clans, players } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, gte, inArray, sql } from 'drizzle-orm';
+import { withTransactionRetry, lockClanRow, lockPlayerRow, assertValidAmount } from '@/lib/db/treasuryLock';
 
 export interface ResearchNode {
   id: string;
@@ -97,58 +98,66 @@ export async function contributeRP(
   playerId: string,
   amount: number
 ): Promise<{ success: boolean; newTotal: number; contributed: number }> {
-  if (amount <= 0) {
-    throw new Error('Contribution amount must be positive');
-  }
+  assertValidAmount(amount, 'Contribution amount');
 
-  const clanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
-  const clan = clanResult[0];
-  if (!clan) {
-    throw new Error('Clan not found');
-  }
+  return withTransactionRetry(`contributeRP(${clanId})`, () =>
+    db.transaction(async (tx): Promise<{ success: boolean; newTotal: number; contributed: number }> => {
+      // FID-20261002-002 §5.5: the member debit and the clan pool credit are
+      // one transaction. Both rows are locked in the global lock order (clan
+      // rows before player rows), membership/eligibility revalidated in-lock,
+      // and both balances move with relative SQL — a failure after the debit
+      // rolls the whole contribution back.
+      const clan = await lockClanRow(tx, clanId);
 
-  const isMember = clan.members.some((m) => m.playerId === playerId);
-  if (!isMember) {
-    throw new Error('Player is not a member of this clan');
-  }
+      const isMember = (clan.members as Array<{ playerId: string }> | null)?.some(
+        (m) => m.playerId === playerId
+      );
+      if (!isMember) {
+        throw new Error('Player is not a member of this clan');
+      }
 
-  const playerResult = await db.select().from(players).where(eq(players.username, playerId)).limit(1);
-  const player = playerResult[0];
-  if (!player) {
-    throw new Error('Player not found');
-  }
+      const player = await lockPlayerRow(tx, playerId);
 
-  if ((player.researchPoints || 0) < amount) {
-    throw new Error('Insufficient research points');
-  }
+      if ((player.researchPoints || 0) < amount) {
+        throw new Error('Insufficient research points');
+      }
 
-  await db.update(players)
-    .set({ researchPoints: (player.researchPoints || 0) - amount })
-    .where(eq(players.username, playerId));
+      // Relative member debit, sufficiency-proven in the same statement.
+      const debited = await tx
+        .update(players)
+        .set({ researchPoints: sql`${players.researchPoints} - ${amount}` })
+        .where(eq(players.username, playerId))
+        .returning({ researchPoints: players.researchPoints });
+      if (debited.length === 0) {
+        throw new Error('Insufficient research points');
+      }
 
-  const currentRP = clan.researchResearchPoints || 0;
-  await db.update(clans)
-    .set({ researchResearchPoints: currentRP + amount })
-    .where(eq(clans.id, clanId));
+      // Relative clan pool credit.
+      await tx
+        .update(clans)
+        .set({ researchResearchPoints: sql`${clans.researchResearchPoints} + ${amount}` })
+        .where(eq(clans.id, clanId));
 
-  const { modLog } = await import('@/lib/db/schema');
-  await db.insert(modLog).values({
-    moderatorId: playerId,
-    action: 'RP_CONTRIBUTED',
-    targetId: clanId,
-    reason: `Contributed ${amount} RP`,
-    details: JSON.stringify({ amount, playerName: playerId }),
-    createdAt: new Date(),
-  });
+      const { modLog } = await import('@/lib/db/schema');
+      await tx.insert(modLog).values({
+        moderatorId: playerId,
+        action: 'RP_CONTRIBUTED',
+        targetId: clanId,
+        reason: `Contributed ${amount} RP`,
+        details: JSON.stringify({ amount, playerName: playerId }),
+        createdAt: new Date(),
+      });
 
-  const updatedClanResult = await db.select().from(clans).where(eq(clans.id, clanId)).limit(1);
-  const updatedClan = updatedClanResult[0];
+      const updatedClanResult = await tx.select().from(clans).where(eq(clans.id, clanId)).limit(1);
+      const updatedClan = updatedClanResult[0];
 
-  return {
-    success: true,
-    newTotal: updatedClan?.researchResearchPoints || 0,
-    contributed: amount,
-  };
+      return {
+        success: true,
+        newTotal: updatedClan?.researchResearchPoints || 0,
+        contributed: amount,
+      };
+    })
+  );
 }
 
 export async function unlockResearch(
@@ -209,10 +218,13 @@ export async function unlockResearch(
   const newUnlocked = [...unlockedResearch, researchId];
   await db.update(clans)
     .set({
-      researchResearchPoints: currentRP - researchNode.cost,
+      researchResearchPoints: sql`${clans.researchResearchPoints} - ${researchNode.cost}`,
       researchUnlockedTechs: newUnlocked,
     })
-    .where(eq(clans.id, clanId));
+    .where(and(
+      eq(clans.id, clanId),
+      gte(clans.researchResearchPoints, researchNode.cost)
+    ));
 
   const { modLog } = await import('@/lib/db/schema');
   await db.insert(modLog).values({
@@ -307,6 +319,35 @@ export async function getClanBonuses(clanId: string): Promise<Record<string, num
   }
 
   return bonuses;
+}
+
+/**
+ * FID-20261002-012 §5.7: batch clan military bonuses for the combat seam —
+ * resolveBattle resolves both sides' clans with ONE query (unclanned/missing
+ * players simply have no entry; a missing clan row resolves neutral zeros
+ * instead of throwing, so an encounter never fails on a bonus read).
+ */
+export async function getClanBonusesForClans(
+  clanIds: Array<string | null | undefined>
+): Promise<Record<string, Record<string, number>>> {
+  const ids = Array.from(new Set(clanIds.filter((id): id is string => typeof id === 'string' && id.length > 0)));
+  const out: Record<string, Record<string, number>> = {};
+  if (ids.length === 0) return out;
+
+  const rows = await db.select().from(clans).where(inArray(clans.id, ids));
+  for (const clan of rows) {
+    const bonuses: Record<string, number> = {};
+    for (const researchId of (clan.researchUnlockedTechs as string[]) || []) {
+      const node = RESEARCH_TREE.find((r) => r.id === researchId);
+      if (node) {
+        for (const bonus of node.bonuses) {
+          bonuses[bonus.type] = (bonuses[bonus.type] || 0) + bonus.value;
+        }
+      }
+    }
+    out[clan.id] = bonuses;
+  }
+  return out;
 }
 
 export async function getRecommendedResearch(clanId: string): Promise<
