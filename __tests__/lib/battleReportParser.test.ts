@@ -60,6 +60,29 @@ const VICTORY_DRAW_REPORT = `⚔️ BATTLE REPORT — BASE at (10, 20) — DRAW
 💀 CASUALTIES & RESULTS
   • Attacker lost 1 unit · dealt 3 total damage`;
 
+// FID-20261003-002: the attrition lines the formatter appends (survivors
+// bullet + the saved-army floor note as an ℹ️ line) must land in results —
+// the card renders that section verbatim.
+const ATTRITION_REPORT = `⚔️ BATTLE REPORT — BASE RAID at (9, 9) — VICTORY
+🗓 10/3/2026, 12:00:00 PM · Battle ID BATTLE-202 · 3 rounds
+
+📋 FORCES COMMITTED
+🎯 Attacker: raider
+  • Total STR 80 · DEF 20 · HP 100 → 90
+🛡 Defender: holder
+  • Total STR 25 · DEF 75 · HP 100 → 0
+
+🎲 ROUND-BY-ROUND
+  R1: A dealt 42 / D dealt 5 — HP 95 vs 58 — losses A 0 / D 2
+  R2: A dealt 57 / D dealt 5 — HP 90 vs 16 — losses A 0 / D 2
+  R3: A dealt 72 / D dealt 0 — HP 90 vs 0 — losses A 0 / D 1
+
+💀 CASUALTIES & RESULTS
+  • Attacker lost 0 units · dealt 171 total damage
+  • Defender lost 5 units · dealt 10 total damage
+  • Survivors — attacker 4 of 4 · defender 0 of 5
+  ℹ️ Saved-army floor: 2 battle casualties capped to 1 persisted (25% pool floor)`;
+
 describe('parseBattleReport', () => {
   it('parses the live defeat report completely', () => {
     const r = parseBattleReport(DEFEAT_REPORT);
@@ -122,6 +145,17 @@ describe('parseBattleReport', () => {
     expect(r.forces[0].totalStr).toBe(100);
     expect(r.forces[0].hpEnd).toBe(5);
     expect(r.rounds).toHaveLength(1);
+  });
+
+  it('surfaces the attrition survivors bullet and the saved-army floor note as results (FID-20261003-002)', () => {
+    const r = parseBattleReport(ATTRITION_REPORT);
+
+    expect(r.parsed).toBe(true);
+    expect(r.rounds.map(x => x.defenderLost)).toEqual([2, 2, 1]);
+    // The survivors bullet flows through the existing • rule (bullet stripped).
+    expect(r.results.map(l => l.text)).toContain('Survivors — attacker 4 of 4 · defender 0 of 5');
+    // The ℹ️ floor note keeps its prefix (only • is stripped).
+    expect(r.results.map(l => l.text)).toContain('ℹ️ Saved-army floor: 2 battle casualties capped to 1 persisted (25% pool floor)');
   });
 
   it('marks arbitrary chat text as not-parsed (fallback contract)', () => {

@@ -17,6 +17,7 @@ import { db } from '@/lib/db';
 import { conversations, messages } from '@/lib/db/schema';
 import { eq, sql } from 'drizzle-orm';
 import type { BattleLog } from '@/types/game.types';
+import { survivorCountOf } from '@/lib/battleReportParser';
 
 /** Sender id for system-generated messages (never a real players row). */
 export const SYSTEM_SENDER = 'SYSTEM';
@@ -100,6 +101,10 @@ export function formatBattleResultMessage(battleLog: BattleLog, viewerIsAttacker
   lines.push('💀 CASUALTIES & RESULTS');
   lines.push(`  • Attacker lost ${a.unitsLost.toLocaleString()} unit${a.unitsLost === 1 ? '' : 's'} · dealt ${a.damageDealt.toLocaleString()} total damage`);
   lines.push(`  • Defender lost ${d.unitsLost.toLocaleString()} unit${d.unitsLost === 1 ? '' : 's'} · dealt ${d.damageDealt.toLocaleString()} total damage`);
+  // FID-20261003-002: attrition truth (FID-20261002-013) — survivors per
+  // side; the shared helper carries the historical-row fallback.
+  const survivorsOf = survivorCountOf;
+  lines.push(`  • Survivors — attacker ${survivorsOf(a).toLocaleString()} of ${a.units.length.toLocaleString()} · defender ${survivorsOf(d).toLocaleString()} of ${d.units.length.toLocaleString()}`);
   if (battleLog.unitsCaptured && (battleLog.unitsCaptured.attackerCaptured.length > 0 || battleLog.unitsCaptured.defenderCaptured.length > 0)) {
     lines.push(`  • Units captured — attacker took ${battleLog.unitsCaptured.attackerCaptured.length}, defender took ${battleLog.unitsCaptured.defenderCaptured.length}`);
   }
@@ -111,6 +116,9 @@ export function formatBattleResultMessage(battleLog: BattleLog, viewerIsAttacker
     lines.push(`  • XP — attacker +${battleLog.attackerXP.toLocaleString()} · defender +${battleLog.defenderXP.toLocaleString()}`);
   }
   if (battleLog.message) lines.push(`  ℹ️ ${battleLog.message}`);
+  // FID-20261003-002: the saved-army floor note (and any future log note)
+  // reaches the inbox card through the parser's existing ℹ️-note rule.
+  if (battleLog.notes) lines.push(`  ℹ️ ${battleLog.notes}`);
 
   return lines.join('\n').slice(0, 3800);
 }

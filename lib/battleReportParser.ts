@@ -69,6 +69,24 @@ function toInt(raw: string | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * FID-20261003-002: attrition display helpers (client-safe — this module
+ * stays import-free so both the server formatter and client components can
+ * share them). `survivorCount` is optional on pre-FID-20261002-013 logs; the
+ * fallback IS the conservation identity itself (brought − lost).
+ */
+export function survivorCountOf(p: { units: unknown[]; unitsLost: number; survivorCount?: number }): number {
+  return p.survivorCount ?? p.units.length - p.unitsLost;
+}
+
+/** Compact per-round loss summary for one side: "0·0·0". */
+export function roundLossSummary(
+  rounds: Array<{ attackerUnitsLost: number; defenderUnitsLost: number }>,
+  side: 'a' | 'd'
+): string {
+  return rounds.map((r) => (side === 'a' ? r.attackerUnitsLost : r.defenderUnitsLost)).join('·');
+}
+
 /** Split on section headers while keeping the header with its body. */
 function splitSections(content: string): { header: string | null; body: string[] }[] {
   const sections: { header: string | null; body: string[] }[] = [];

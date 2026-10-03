@@ -739,6 +739,7 @@ export default function GamePage() {
           playerPower: data.battle?.attacker?.damageDealt ?? 0,
           factoryDefense: data.battle?.defender?.damageDealt ?? 0,
           captured: false,
+          battle: data.battle ?? undefined,
         });
         setTimeout(() => setAttackResult(null), 6000);
         return;
@@ -761,6 +762,7 @@ export default function GamePage() {
         defenderUnitsLost: data.battle?.defender?.unitsLost ?? 0,
         lootMetal: data.rewards?.metal,
         lootEnergy: data.rewards?.energy,
+        battle: data.battle ?? undefined,
       });
 
       if (data.victory) {

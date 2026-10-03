@@ -21,6 +21,7 @@ import { Tile, TerrainType, HarvestResult, Factory, AttackResult, Discovery, isF
 import { useGameContext } from '@/context/GameContext';
 import { getTerrainImage, getBankImage, getBaseImage, levelToBaseTier } from '@/lib/imageService';
 import { logger } from '@/lib/logger';
+import { survivorCountOf, roundLossSummary } from '@/lib/battleReportParser';
 import { getConsistentTileMessage } from '@/lib/tileMessages';
 import { SafeHtmlRenderer } from '@/components/SafeHtmlRenderer';
 
@@ -961,6 +962,24 @@ export default function TileRenderer({ tile, harvestResult, factoryData, attackR
               </div>
               {attackResult?.damageDealt && (
                 <div className="nn-attack__dmg nn-pulse">-{attackResult.damageDealt}</div>
+              )}
+              {/* FID-20261003-002: attrition truth from the server log —
+                  survivors (with the historical-row fallback), per-round loss
+                  summary, and the saved-army floor note when the floor bit. */}
+              {attackResult?.battle && (
+                <div className="mt-2 text-center text-xs leading-5 whitespace-nowrap [text-shadow:0_1px_3px_var(--nn-void)]">
+                  <div className="text-[color:var(--nn-text-primary)]">
+                    🙂 {survivorCountOf(attackResult.battle.attacker)}/{attackResult.battle.attacker.units.length}
+                    {' · '}
+                    🛡 {survivorCountOf(attackResult.battle.defender)}/{attackResult.battle.defender.units.length}
+                  </div>
+                  <div className="text-[color:var(--nn-text-secondary)]">
+                    💀 A {roundLossSummary(attackResult.battle.rounds, 'a')} / D {roundLossSummary(attackResult.battle.rounds, 'd')}
+                  </div>
+                  {attackResult.battle.notes && (
+                    <div className="text-[color:var(--nn-amber)]">{attackResult.battle.notes}</div>
+                  )}
+                </div>
               )}
             </div>
           </>

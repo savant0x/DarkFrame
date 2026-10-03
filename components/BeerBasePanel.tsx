@@ -18,6 +18,8 @@ import { useGameContext } from '@/context/GameContext';
 import { formatNumberAbbreviated } from '@/utils/formatting';
 import { isTypingInInput } from '@/hooks/useKeyboardShortcut';
 import { extractApiError } from '@/lib/apiClient';
+import { survivorCountOf, roundLossSummary } from '@/lib/battleReportParser';
+import type { BattleLog } from '@/types/game.types';
 
 /** Full intel — served only when the player is standing on the base tile. */
 interface BeerBaseScanned {
@@ -59,6 +61,8 @@ interface AttackResult {
     energy: number;
     experience: number;
   };
+  /** FID-20261003-002: the raid route's full battle log (attrition truth). */
+  battle?: BattleLog;
 }
 
 export default function BeerBasePanel() {
@@ -384,6 +388,20 @@ export default function BeerBasePanel() {
                 {attackResult.victory ? '🎉 VICTORY!' : '💀 DEFEAT!'}
               </h3>
               <p className="text-[color:var(--nn-text-primary)] mb-4">{attackResult.message}</p>
+              {/* FID-20261003-002: attrition truth from the server log. */}
+              {attackResult.battle && (
+                <div className="mb-4 text-sm space-y-1">
+                  <p className="text-[color:var(--nn-text-primary)]">
+                    Survivors — you {survivorCountOf(attackResult.battle.attacker)}/{attackResult.battle.attacker.units.length} · garrison {survivorCountOf(attackResult.battle.defender)}/{attackResult.battle.defender.units.length}
+                  </p>
+                  <p className="text-[color:var(--nn-text-secondary)]">
+                    Losses by round — A {roundLossSummary(attackResult.battle.rounds, 'a')} / D {roundLossSummary(attackResult.battle.rounds, 'd')}
+                  </p>
+                  {attackResult.battle.notes && (
+                    <p className="text-[color:var(--nn-amber)]">{attackResult.battle.notes}</p>
+                  )}
+                </div>
+              )}
               {attackResult.rewards && (
                 <div className="bg-[color-mix(in_oklab,var(--nn-void)_65%,transparent)] p-4 rounded-none border border-[color-mix(in_oklab,var(--nn-cyan)_16%,transparent)]">
                   <p className="text-sm text-[color:var(--nn-text-secondary)] mb-2">Rewards:</p>

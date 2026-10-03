@@ -292,6 +292,14 @@ describe('base-raid labeling', () => {
     const msg = realFormat(log, true);
     expect(msg).toContain('BATTLE REPORT — BASE RAID at (9, 9)');
     expect(msg).not.toContain('FACTORY');
+    // FID-20261003-002: attrition truth — the survivors line uses the real
+    // survivorCount resolveBattle stamps; the floor note (route-set on the
+    // log) emits as an ℹ️ line the inbox card parses.
+    expect(msg).toMatch(/• Survivors — attacker \d+ of 20 · defender \d+ of 2/);
+    log.notes = 'Saved-army floor: 2 battle casualties capped to 1 persisted (25% pool floor)';
+    expect(realFormat(log, true)).toContain(
+      'ℹ️ Saved-army floor: 2 battle casualties capped to 1 persisted (25% pool floor)'
+    );
   });
 });
 
