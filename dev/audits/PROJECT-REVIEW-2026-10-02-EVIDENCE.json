@@ -1,0 +1,1589 @@
+{
+  "date": "2026-10-02",
+  "method": "Isolated imports of production code; database and external side effects mocked; no live data",
+  "baseline": {
+    "typecheck": "exit 0",
+    "testFiles": 147,
+    "testsExit": 0,
+    "tests": 1419,
+    "lint": "exit 0"
+  },
+  "focused": {
+    "exit": 0,
+    "testFiles": 4,
+    "tests": 16
+  },
+  "compositionMatrix": [
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 1,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 6,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 13,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 17,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 0.5,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 22,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 0.49,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 24,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 1,
+      "d": 0,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 69,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 40,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 58,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 0.53,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 87
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 78
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 78
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.6,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 20
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 38,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 54,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 96,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 75
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 75
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.55,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 10
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 34,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 48,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 87,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 78
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 78
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.53,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 6
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 34,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 72,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 84,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 100,
+      "defenderLossPct": 96
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 72
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.5,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 34,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 72,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 87,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 69
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 69
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0.49,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 1,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 100,
+      "attackerLossPct": 0,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 0.6,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 0.55,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 0.53,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "INFANTRY",
+      "a": 0,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 1,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 1,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 0.5,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 0.49,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 1,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 1,
+      "d": 0,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 52,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 20,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 34,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 66,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 0.5,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 81,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 0.49,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 84,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.6,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 20
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 22,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 36,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 66,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 0.5,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 81,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 0.49,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 84,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.55,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 10
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 20,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 32,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 60,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 0.5,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 72,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 0.49,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 75,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.53,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 6
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 22,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 51,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 60,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 0.5,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 5,
+      "attackerLossPct": 96,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 100,
+      "defenderLossPct": 96
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.5,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 1,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 0,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 0.6,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 22,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 0.55,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 51,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 0.53,
+      "outcome": "ATTACKER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 63,
+      "defenderLossPct": 100
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 100,
+      "defenderLossPct": 92
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 4,
+      "attackerLossPct": 100,
+      "defenderLossPct": 92
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0.49,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 1,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 100,
+      "attackerLossPct": 0,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 0.6,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 3,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 0.55,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 0.53,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 0.5,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 0.49,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 2,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    },
+    {
+      "mode": "BASE_RAID",
+      "a": 0,
+      "d": 0,
+      "outcome": "DEFENDER_WIN",
+      "rounds": 1,
+      "attackerLossPct": 100,
+      "defenderLossPct": 0
+    }
+  ],
+  "unitEfficiency": [
+    {
+      "id": "infantry",
+      "tier": 1,
+      "category": "strength",
+      "power": 100,
+      "metal": 200,
+      "energy": 200,
+      "slots": 1,
+      "powerPerResource": 0.25,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "scout",
+      "tier": 1,
+      "category": "strength",
+      "power": 80,
+      "metal": 150,
+      "energy": 250,
+      "slots": 1,
+      "powerPerResource": 0.2,
+      "powerPerSlot": 80
+    },
+    {
+      "id": "militia",
+      "tier": 1,
+      "category": "strength",
+      "power": 90,
+      "metal": 180,
+      "energy": 180,
+      "slots": 1,
+      "powerPerResource": 0.25,
+      "powerPerSlot": 90
+    },
+    {
+      "id": "rifleman",
+      "tier": 1,
+      "category": "strength",
+      "power": 95,
+      "metal": 190,
+      "energy": 210,
+      "slots": 1,
+      "powerPerResource": 0.2375,
+      "powerPerSlot": 95
+    },
+    {
+      "id": "marksman",
+      "tier": 2,
+      "category": "strength",
+      "power": 250,
+      "metal": 510,
+      "energy": 400,
+      "slots": 3,
+      "powerPerResource": 0.27472527472527475,
+      "powerPerSlot": 83.33333333333333
+    },
+    {
+      "id": "cavalry",
+      "tier": 2,
+      "category": "strength",
+      "power": 280,
+      "metal": 560,
+      "energy": 460,
+      "slots": 3,
+      "powerPerResource": 0.27450980392156865,
+      "powerPerSlot": 93.33333333333333
+    },
+    {
+      "id": "grenadier",
+      "tier": 2,
+      "category": "strength",
+      "power": 300,
+      "metal": 545,
+      "energy": 545,
+      "slots": 3,
+      "powerPerResource": 0.27522935779816515,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "saboteur",
+      "tier": 2,
+      "category": "strength",
+      "power": 260,
+      "metal": 460,
+      "energy": 490,
+      "slots": 3,
+      "powerPerResource": 0.2736842105263158,
+      "powerPerSlot": 86.66666666666667
+    },
+    {
+      "id": "sniper",
+      "tier": 3,
+      "category": "strength",
+      "power": 600,
+      "metal": 1070,
+      "energy": 900,
+      "slots": 7,
+      "powerPerResource": 0.30456852791878175,
+      "powerPerSlot": 85.71428571428571
+    },
+    {
+      "id": "commando",
+      "tier": 3,
+      "category": "strength",
+      "power": 700,
+      "metal": 1280,
+      "energy": 1020,
+      "slots": 7,
+      "powerPerResource": 0.30434782608695654,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "artillery",
+      "tier": 3,
+      "category": "strength",
+      "power": 800,
+      "metal": 1430,
+      "energy": 1190,
+      "slots": 7,
+      "powerPerResource": 0.3053435114503817,
+      "powerPerSlot": 114.28571428571429
+    },
+    {
+      "id": "bombardier",
+      "tier": 3,
+      "category": "strength",
+      "power": 650,
+      "metal": 1030,
+      "energy": 1100,
+      "slots": 7,
+      "powerPerResource": 0.3051643192488263,
+      "powerPerSlot": 92.85714285714286
+    },
+    {
+      "id": "tank",
+      "tier": 4,
+      "category": "strength",
+      "power": 1500,
+      "metal": 2370,
+      "energy": 2040,
+      "slots": 15,
+      "powerPerResource": 0.3401360544217687,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "bomber",
+      "tier": 4,
+      "category": "strength",
+      "power": 1800,
+      "metal": 2820,
+      "energy": 2470,
+      "slots": 15,
+      "powerPerResource": 0.34026465028355385,
+      "powerPerSlot": 120
+    },
+    {
+      "id": "juggernaut",
+      "tier": 4,
+      "category": "strength",
+      "power": 1600,
+      "metal": 2530,
+      "energy": 2180,
+      "slots": 15,
+      "powerPerResource": 0.33970276008492567,
+      "powerPerSlot": 106.66666666666667
+    },
+    {
+      "id": "gunship",
+      "tier": 4,
+      "category": "strength",
+      "power": 1700,
+      "metal": 2710,
+      "energy": 2290,
+      "slots": 15,
+      "powerPerResource": 0.34,
+      "powerPerSlot": 113.33333333333333
+    },
+    {
+      "id": "titan",
+      "tier": 5,
+      "category": "strength",
+      "power": 5000,
+      "metal": 7410,
+      "energy": 5920,
+      "slots": 30,
+      "powerPerResource": 0.37509377344336087,
+      "powerPerSlot": 166.66666666666666
+    },
+    {
+      "id": "warlord",
+      "tier": 5,
+      "category": "strength",
+      "power": 4500,
+      "metal": 6710,
+      "energy": 5290,
+      "slots": 30,
+      "powerPerResource": 0.375,
+      "powerPerSlot": 150
+    },
+    {
+      "id": "dreadnought",
+      "tier": 5,
+      "category": "strength",
+      "power": 5500,
+      "metal": 8070,
+      "energy": 6600,
+      "slots": 30,
+      "powerPerResource": 0.37491479209270623,
+      "powerPerSlot": 183.33333333333334
+    },
+    {
+      "id": "annihilator",
+      "tier": 5,
+      "category": "strength",
+      "power": 4800,
+      "metal": 7130,
+      "energy": 5670,
+      "slots": 30,
+      "powerPerResource": 0.375,
+      "powerPerSlot": 160
+    },
+    {
+      "id": "barricade",
+      "tier": 1,
+      "category": "defense",
+      "power": 100,
+      "metal": 200,
+      "energy": 200,
+      "slots": 1,
+      "powerPerResource": 0.25,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "watchman",
+      "tier": 1,
+      "category": "defense",
+      "power": 90,
+      "metal": 180,
+      "energy": 220,
+      "slots": 1,
+      "powerPerResource": 0.225,
+      "powerPerSlot": 90
+    },
+    {
+      "id": "palisade",
+      "tier": 1,
+      "category": "defense",
+      "power": 110,
+      "metal": 220,
+      "energy": 180,
+      "slots": 1,
+      "powerPerResource": 0.275,
+      "powerPerSlot": 110
+    },
+    {
+      "id": "trench",
+      "tier": 1,
+      "category": "defense",
+      "power": 95,
+      "metal": 190,
+      "energy": 210,
+      "slots": 1,
+      "powerPerResource": 0.2375,
+      "powerPerSlot": 95
+    },
+    {
+      "id": "wall",
+      "tier": 2,
+      "category": "defense",
+      "power": 250,
+      "metal": 510,
+      "energy": 400,
+      "slots": 3,
+      "powerPerResource": 0.27472527472527475,
+      "powerPerSlot": 83.33333333333333
+    },
+    {
+      "id": "guardian",
+      "tier": 2,
+      "category": "defense",
+      "power": 280,
+      "metal": 530,
+      "energy": 490,
+      "slots": 3,
+      "powerPerResource": 0.27450980392156865,
+      "powerPerSlot": 93.33333333333333
+    },
+    {
+      "id": "turret",
+      "tier": 2,
+      "category": "defense",
+      "power": 300,
+      "metal": 570,
+      "energy": 520,
+      "slots": 3,
+      "powerPerResource": 0.27522935779816515,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "rampart",
+      "tier": 2,
+      "category": "defense",
+      "power": 260,
+      "metal": 460,
+      "energy": 490,
+      "slots": 3,
+      "powerPerResource": 0.2736842105263158,
+      "powerPerSlot": 86.66666666666667
+    },
+    {
+      "id": "bunker",
+      "tier": 3,
+      "category": "defense",
+      "power": 700,
+      "metal": 1280,
+      "energy": 1020,
+      "slots": 7,
+      "powerPerResource": 0.30434782608695654,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "fortress",
+      "tier": 3,
+      "category": "defense",
+      "power": 800,
+      "metal": 1430,
+      "energy": 1190,
+      "slots": 7,
+      "powerPerResource": 0.3053435114503817,
+      "powerPerSlot": 114.28571428571429
+    },
+    {
+      "id": "sentinel",
+      "tier": 3,
+      "category": "defense",
+      "power": 650,
+      "metal": 1030,
+      "energy": 1100,
+      "slots": 7,
+      "powerPerResource": 0.3051643192488263,
+      "powerPerSlot": 92.85714285714286
+    },
+    {
+      "id": "pillbox",
+      "tier": 3,
+      "category": "defense",
+      "power": 600,
+      "metal": 1070,
+      "energy": 900,
+      "slots": 7,
+      "powerPerResource": 0.30456852791878175,
+      "powerPerSlot": 85.71428571428571
+    },
+    {
+      "id": "citadel",
+      "tier": 4,
+      "category": "defense",
+      "power": 1800,
+      "metal": 2820,
+      "energy": 2470,
+      "slots": 15,
+      "powerPerResource": 0.34026465028355385,
+      "powerPerSlot": 120
+    },
+    {
+      "id": "aegis",
+      "tier": 4,
+      "category": "defense",
+      "power": 1600,
+      "metal": 2560,
+      "energy": 2150,
+      "slots": 15,
+      "powerPerResource": 0.33970276008492567,
+      "powerPerSlot": 106.66666666666667
+    },
+    {
+      "id": "stronghold",
+      "tier": 4,
+      "category": "defense",
+      "power": 1700,
+      "metal": 2710,
+      "energy": 2290,
+      "slots": 15,
+      "powerPerResource": 0.34,
+      "powerPerSlot": 113.33333333333333
+    },
+    {
+      "id": "guardian_array",
+      "tier": 4,
+      "category": "defense",
+      "power": 1500,
+      "metal": 2370,
+      "energy": 2040,
+      "slots": 15,
+      "powerPerResource": 0.3401360544217687,
+      "powerPerSlot": 100
+    },
+    {
+      "id": "bastion",
+      "tier": 5,
+      "category": "defense",
+      "power": 5000,
+      "metal": 7410,
+      "energy": 5920,
+      "slots": 30,
+      "powerPerResource": 0.37509377344336087,
+      "powerPerSlot": 166.66666666666666
+    },
+    {
+      "id": "colossus",
+      "tier": 5,
+      "category": "defense",
+      "power": 4500,
+      "metal": 6710,
+      "energy": 5290,
+      "slots": 30,
+      "powerPerResource": 0.375,
+      "powerPerSlot": 150
+    },
+    {
+      "id": "sentinel_prime",
+      "tier": 5,
+      "category": "defense",
+      "power": 5500,
+      "metal": 8070,
+      "energy": 6600,
+      "slots": 30,
+      "powerPerResource": 0.37491479209270623,
+      "powerPerSlot": 183.33333333333334
+    },
+    {
+      "id": "invincible",
+      "tier": 5,
+      "category": "defense",
+      "power": 4800,
+      "metal": 7130,
+      "energy": 5670,
+      "slots": 30,
+      "powerPerResource": 0.375,
+      "powerPerSlot": 160
+    }
+  ],
+  "probes": [
+    {
+      "label": "auction-units",
+      "removed": 3,
+      "escrowed": 1,
+      "aggregatesUpdated": false
+    },
+    {
+      "label": "beacon-id",
+      "generatedLength": 30,
+      "columnType": "varchar(24)"
+    },
+    {
+      "label": "harvest",
+      "actual": 800,
+      "intended": 600,
+      "projection": [
+        "username",
+        "resourcesMetal",
+        "resourcesEnergy",
+        "gatheringBonusMetalBonus",
+        "gatheringBonusEnergyBonus",
+        "activeBoostsGatheringBoost",
+        "activeBoostsExpiresAt",
+        "shrineBoosts",
+        "vip",
+        "vipExpiration"
+      ]
+    },
+    {
+      "label": "player-build",
+      "status": 200,
+      "unit": {
+        "id": "reviewer-1790923444751-g6upoos",
+        "unitId": "titan",
+        "unitType": "titan",
+        "name": "Titan Mech",
+        "category": "strength",
+        "rarity": 5,
+        "strength": 5000,
+        "defense": 0,
+        "producedAt": {
+          "x": 10,
+          "y": 10
+        },
+        "createdAt": "2026-10-02T06:44:04.751Z"
+      },
+      "factoryUsedSlots": [
+        400
+      ]
+    },
+    {
+      "label": "raid",
+      "success": true,
+      "resourceWrites": [
+        {
+          "resourcesMetal": 51000,
+          "resourcesEnergy": 1000
+        }
+      ],
+      "protectionForfeits": 0
+    },
+    {
+      "label": "tier-bypass",
+      "success": true,
+      "unitsBuilt": {
+        "type": "T5_TITAN",
+        "name": "Titan Mech",
+        "quantity": 1,
+        "strGained": 5000,
+        "defGained": 0
+      }
+    },
+    {
+      "label": "casualties",
+      "rounds": [
+        {
+          "roundNumber": 1,
+          "attackerDamage": 500,
+          "defenderDamage": 5,
+          "attackerHP": 10495,
+          "defenderHP": 700,
+          "attackerUnitsLost": 0,
+          "defenderUnitsLost": 0
+        },
+        {
+          "roundNumber": 2,
+          "attackerDamage": 500,
+          "defenderDamage": 5,
+          "attackerHP": 10490,
+          "defenderHP": 200,
+          "attackerUnitsLost": 0,
+          "defenderUnitsLost": 0
+        },
+        {
+          "roundNumber": 3,
+          "attackerDamage": 500,
+          "defenderDamage": 0,
+          "attackerHP": 10490,
+          "defenderHP": 0,
+          "attackerUnitsLost": 0,
+          "defenderUnitsLost": 0
+        }
+      ]
+    },
+    {
+      "label": "firepower",
+      "rounds": [
+        {
+          "roundNumber": 1,
+          "attackerDamage": 520,
+          "defenderDamage": 520,
+          "attackerHP": 480,
+          "defenderHP": 480,
+          "attackerUnitsLost": 5,
+          "defenderUnitsLost": 5
+        },
+        {
+          "roundNumber": 2,
+          "attackerDamage": 520,
+          "defenderDamage": 0,
+          "attackerHP": 480,
+          "defenderHP": 0,
+          "attackerUnitsLost": 0,
+          "defenderUnitsLost": 4
+        }
+      ]
+    },
+    {
+      "label": "round-limit",
+      "outcome": "DEFENDER_WIN",
+      "rounds": 100,
+      "attackerHP": 511,
+      "defenderHP": 0
+    },
+    {
+      "label": "battery-cooldown",
+      "payload": {
+        "status": "COOLDOWN",
+        "updatedAt": "2026-10-02T06:44:04.502Z"
+      },
+      "recoveryScheduled": false
+    },
+    {
+      "label": "sabotage",
+      "kind": "DEFENSE_BATTERY",
+      "success": true,
+      "targetWrites": 0
+    },
+    {
+      "label": "sabotage",
+      "kind": "RESEARCH",
+      "success": true,
+      "targetWrites": 0
+    },
+    {
+      "label": "slot-job",
+      "jobRecovered": 19,
+      "sharedRecovered": 120
+    },
+    {
+      "label": "wmd-stacks",
+      "singletonDeaths": 0,
+      "foldedDeaths": 17,
+      "aggregatesUpdated": false
+    },
+    {
+      "admittedSpends": 2,
+      "eachCost": 60,
+      "initialRP": 100,
+      "finalRP": 40
+    }
+  ],
+  "sourceHashes": [
+    {
+      "sha256": "34EA18B672661E486E1C6FDA2AD6574C92C47DD551F02B72228CB8E607586910",
+      "path": "app/api/combat/attack/route.ts"
+    },
+    {
+      "sha256": "B392E00F9EBB140C45BD62B709703BA23F7780592767E55FD70852CCDFD6D32D",
+      "path": "app/api/combat/infantry/route.ts"
+    },
+    {
+      "sha256": "DD43690133A972F37A42757750D905F488B5914CC2DE1E7032FC099B7C25FEEA",
+      "path": "app/api/factory/build-unit/route.ts"
+    },
+    {
+      "sha256": "C6E3F1DE132E77D6FDD982585D9D56415B362B751453FC9376BE7AA47A8DE58C",
+      "path": "app/api/player/build-unit/route.ts"
+    },
+    {
+      "sha256": "75CE028C17F0FEA2762531A551A2DCA527B438BD71FA4E47CF6A3111C091A6B8",
+      "path": "lib/battleService.ts"
+    },
+    {
+      "sha256": "54807C0EF62432501697D0AFB64AFF63880EDF8F7C86242333B870A32DE8B575",
+      "path": "lib/harvestService.ts"
+    },
+    {
+      "sha256": "5A757B75D29AD1FBEF700B1FC79FF307EE63D38C9B6867F42C9C469191C661F2",
+      "path": "lib/jobs/factorySlotRegeneration.ts"
+    },
+    {
+      "sha256": "86C95626BEEC3E876376C59FA9FA356CCFF46FE80A5A4815A4BC9A1F8256317D",
+      "path": "lib/research/techCatalog.ts"
+    },
+    {
+      "sha256": "EB6947F40DA0721C9B6DA3DD85568D1D445EEC15F1F2AA9E474B4707E5E14231",
+      "path": "lib/researchPointService.ts"
+    },
+    {
+      "sha256": "163FAF4403492709F523C34B2725FE6F1B92AD7E082254A55730579DC18A1816",
+      "path": "lib/auctionService.ts"
+    },
+    {
+      "sha256": "2ADE0AAA34265AB8770925DB71BEA2A73240976157B9B8DC2B282784DF73422D",
+      "path": "lib/wmd/jobs/missileTracker.ts"
+    },
+    {
+      "sha256": "CFE5C65F0DDA6308C7F65E1064990F0B91C7C890072B35145A9A59DADA148A0E",
+      "path": "lib/wmd/spyService.ts"
+    },
+    {
+      "sha256": "5B4D7626014C619AA29DE510EED02CCECA5D42A490F5B86DAD3169CDE425F353",
+      "path": "lib/wmd/jobs/defenseRepairCompleter.ts"
+    },
+    {
+      "sha256": "D8AF51264D09E2459A357A65FDD2A78CF3F700A9D092A5DA6310A9E9817848D3",
+      "path": "lib/botMagnetService.ts"
+    },
+    {
+      "sha256": "BE84BEEA77223B10639CB346F09C706CD4DB35C617D68B2F01BE7E321D4CE862",
+      "path": "lib/botSummoningService.ts"
+    },
+    {
+      "sha256": "3A62A2C9F9B8505D084D447BEAB6FB3C88510C16828FE8B35EEB0B9DB6C89142",
+      "path": "types/units.types.ts"
+    },
+    {
+      "sha256": "847DD7CC955DE7612505ACDA214A0C741D8285B8775C1A644031C9EE117CAE5A",
+      "path": "types/game.types.ts"
+    },
+    {
+      "sha256": "9064A2187C7D673F2DF5E662DF1726AC27353CD78975C0CB7338DB0145AA01AC",
+      "path": "lib/db/schema/config.ts"
+    }
+  ]
+}
