@@ -3,7 +3,7 @@
 **Filename:** `FID-20261002-007-defense-battery-cooldown-lifecycle.md`
 **ID:** FID-20261002-007
 **Severity:** HIGH
-**Status:** implemented
+**Status:** closed (2026-10-03, commit 3c5b824)
 **Created:** 2026-10-02
 
 ---
@@ -142,3 +142,7 @@ Prepare a logical-atomic, path-scoped staging plan after implementation using th
 ---
 
 **Final status:** implemented (2026-10-02; G2 commit outstanding — disposable-PG acceptance probes 5/5 green on real database contention, see §7; migration 0041 ready, apply to live data is an operator action)
+
+---
+
+**Closure (2026-10-03, G2):** closed on commit `3c5b824` — the staging-plan group commit carries this FID's full change inventory (ownership map: `dev/STAGING-PLAN-20261002-REMEDIATION.md`). Gates at close: tsc 0 · lint 0/0 · suite 152 files / 1479 passed + 79 skipped, exit 0 · ledger census clean. Agent-run commits and push under the operator's explicit 2026-10-03 directive. This closure supersedes any "G2 commit outstanding" wording above.

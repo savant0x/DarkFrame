@@ -3,7 +3,7 @@
 **Filename:** `FID-20261003-001-factory-capture-void-dead-mocks.md`
 **ID:** FID-20261003-001
 **Severity:** MEDIUM
-**Status:** loop-complete
+**Status:** closed (2026-10-03, commit 815c0d1)
 **Created:** 2026-10-03
 
 ---
@@ -132,11 +132,11 @@ Double audit — two independent methods, evidence pasted, no self-reporting.
 ## 8. Closure
 
 - **Gates:** [x] typecheck 0 errors · [x] lint 0 errors/0 warnings · [x] tests pass · [x] call-graph proven
-- **Commit hash (G2 — required for `closed`):** `<hash>` *(prepared by agent; committed by operator — the agent does not execute git)*
+- **Commit hash (G2 — required for `closed`):** `815c0d1` (agent-run under the operator's explicit 2026-10-03 push directive)
 - **Staging plan (path-scoped, G3/G4):** `git add __tests__/lib/factoryCaptureVoid.test.ts dev/fids/FID-20261003-001-factory-capture-void-dead-mocks.md` — one concern: the flake's root-cause fix + its FID.
 - **Commit message (G8):** `test(factory): re-point dead relative vi.mocks — real xpService ran on capture-roll success (FID-20261003-001)`
 - **Archive:** moved to `dev/fids/archive/` on close; CHANGELOG entry appended; archival logged in session summary. Closed FIDs must not remain in `dev/fids/`.
 
 ---
 
-**Final status:** implemented
+**Final status:** closed (2026-10-03, G2 commit `815c0d1`)

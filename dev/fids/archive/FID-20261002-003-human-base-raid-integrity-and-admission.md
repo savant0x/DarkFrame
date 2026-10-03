@@ -3,7 +3,7 @@
 **Filename:** `FID-20261002-003-human-base-raid-integrity-and-admission.md`
 **ID:** FID-20261002-003
 **Severity:** HIGH
-**Status:** implemented
+**Status:** closed (2026-10-03, commit 52eb0e1)
 **Created:** 2026-10-02
 
 ---
@@ -140,3 +140,7 @@ Prepare a logical-atomic, path-scoped staging plan after implementation using th
 ---
 
 **Final status:** implemented (2026-10-02; G2 commit outstanding — disposable-PG acceptance probes green, see §7)
+
+---
+
+**Closure (2026-10-03, G2):** closed on commit `52eb0e1` — the staging-plan group commit carries this FID's full change inventory (ownership map: `dev/STAGING-PLAN-20261002-REMEDIATION.md`). Gates at close: tsc 0 · lint 0/0 · suite 152 files / 1479 passed + 79 skipped, exit 0 · ledger census clean. Agent-run commits and push under the operator's explicit 2026-10-03 directive. This closure supersedes any "G2 commit outstanding" wording above.

@@ -5,6 +5,37 @@ DarkFrame uses Savant Versioning — see `docs/SAVANT-VERSIONING.md`
 shipped on `main` — there is no Unreleased section; merged means released.
 Older sessions predate versioning adoption and are kept as dated history.
 
+## [0.0.56] — 2026-10-03 session 001
+
+- **The 2026-10-02/03 remediation estate shipped: 14 FIDs closed on their G2 hashes and archived.**
+  Twelve remediation batches (FID-20261002-002..013, rows 140–152) + the 2026-10-03 pair
+  (FID-20261003-001, -002), landed as 15 logical-atomic commits per the staged plan
+  (`dev/STAGING-PLAN-20261002-REMEDIATION.md`), agent-run under the operator's explicit push
+  directive. Gates at close: tsc 0 · lint 0/0 · suite 152 files / 1479 passed + 79 skipped,
+  exit 0 · ledger census clean; per-batch disposable-PG acceptance green (embedded-postgres
+  harnesses, ports 55436–55444).
+  - **FID-20261002-002 (`b86da5a`)** — atomic economy: treasury lock/retry primitives, one-transaction
+    RP/XP/income writers. **-003 (`52eb0e1`)** — human raid integrity: conservation, protection/bearer
+    admission, period claim. **-004 (`ed27434`)** — canonical unit procurement + tier enforcement,
+    army identity resync. **-005 (`ad63c69`)** — auction instance escrow + clan authorization.
+    **-006/-007 (`3c5b824`)** — WMD representation-independent army losses; battery cooldown lifecycle
+    (migration 0041). **-008 (`ecdadf3`)** — truthful sabotage effects (defaults ratified 2026-10-02).
+    **-009 (`9e869b3`)** — summoned bot placement + tile ownership. **-010 (`9f5e131`)** — bot magnet
+    bounded beacon ids. **-011 (`18219c6`)** — harvest balance + factory regeneration parity.
+    **-012 (`66d94dc`)** — research/combat effects consumer parity (migration 0042, the composition seam).
+    **-013 (`4f84b6b`)** — combat attrition, terminal outcomes, army roles (the human power band executes).
+  - **FID-20261003-001 (`815c0d1`)** — the factoryCaptureVoid flake root-caused: three dead relative
+    `vi.mock('./…')` paths let the real xpService run on capture-roll success (~11% of runs — the
+    "disposable-PG flake" record was a misdiagnosis); mocks re-pointed to `@/lib/wmd`-style ids,
+    10/10 deterministic; the second instance (spySabotageProtection) fixed on the operator's go-ahead.
+  - **FID-20261003-002 (`5c8eb6d`)** — attrition truth surfaced in the live battle UIs (survivors,
+    per-round losses, saved-army floor note in the tile badge, Beer-base modal and inbox reports).
+  - **PvE pacing lever ratified as-is** (SCOPE row 153): the living-stats garrison-friction drop
+    (15–38% → 0%) accepted; retune declined. The prior session's post-acceptance work (attrition
+    suite + staging plan) was verified, extended to 6/6 and merged (duplicate draft deleted).
+  - **Open:** SCOPE row 159 (one unreproduced full-run failure, name not captured — tolerated pending
+    disposition); `executeBaseAttack` remains a documented dead seam.
+
 ## [0.0.55] — 2026-09-28 session 014 (follow-through 3)
 
 - **Admin raid telemetry panel (FID-20260928-009, `00bd340`):** the tuning loop's visible face —

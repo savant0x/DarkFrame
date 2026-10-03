@@ -3,7 +3,7 @@
 **Filename:** `FID-20261003-002-ui-attrition-surfacing.md`
 **ID:** FID-20261003-002
 **Severity:** LOW
-**Status:** loop-complete
+**Status:** closed (2026-10-03, commit 5c8eb6d)
 **Created:** 2026-10-03
 
 ---
@@ -118,11 +118,11 @@ attack badge; (c) the Beer-base raid modal — same route → `BeerBasePanel`
 ## 8. Closure
 
 - **Gates:** [ ] typecheck 0 · [ ] lint 0/0 · [ ] tests pass · [ ] call-graph proven
-- **Commit hash (G2):** `<hash>` *(committed by operator)*
+- **Commit hash (G2):** `5c8eb6d` (agent-run under the operator's explicit 2026-10-03 push directive)
 - **Staging plan (path-scoped, G3/G4):** `git add types/game.types.ts app/game/page.tsx components/TileRenderer.tsx components/BeerBasePanel.tsx lib/battleNotification.ts __tests__/lib/battleReportParser.test.ts __tests__/components/TileRenderer.attrition.test.tsx dev/fids/FID-20261003-002-ui-attrition-surfacing.md`
 - **Commit message (G8):** `feat(combat): surface attrition truth in live battle UIs (FID-20261003-002)`
 - **Archive:** on close → `dev/fids/archive/` + CHANGELOG entry.
 
 ---
 
-**Final status:** implemented
+**Final status:** closed (2026-10-03, G2 commit `5c8eb6d`)
