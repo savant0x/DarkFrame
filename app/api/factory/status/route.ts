@@ -2,6 +2,8 @@
  * @file app/api/factory/status/route.ts
  * @created 2025-10-17
  * @rewritten 2026-09-19 (FID-20260917-017 slice 5: Mongo shim → direct drizzle/pg)
+ * @updated 2026-10-02 (FID-20261002-011 §5.3/§5.5: owner-balance regeneration at
+ *            the shared effective rate, persisted under a row lock)
  * @overview Get factory information for a specific tile
  *
  * UPDATES:
@@ -11,11 +13,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getFactoryData, collectAllFactoryIncome } from '@/lib/factoryService';
-import { applySlotRegeneration, getAvailableSlots, getTimeUntilNextSlot, getFactoryCapacity } from '@/lib/slotRegenService';
+import { applySlotRegeneration, getAvailableSlots, getTimeUntilNextSlot, getFactoryCapacity, getSlotRegenBalanceMultiplier } from '@/lib/slotRegenService';
 import { db } from '@/lib/db';
-import { factories } from '@/lib/db/schema';
+import { factories, players } from '@/lib/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { authenticateRequest } from '@/lib/authMiddleware';
+import { withTransactionRetry } from '@/lib/db/treasuryLock';
+import { Factory } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,19 +43,56 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Apply slot regeneration (new model: reduces usedSlots)
-    const originalUsed = factory.usedSlots;
-    factory = applySlotRegeneration(factory);
+    // FID-20261002-011 §5.3: the regen multiplier comes from the FACTORY
+    // OWNER's army (current owner effects apply to each accrual calculation);
+    // ownerless factories use the neutral multiplier. The same effective rate
+    // then drives both the recovery and the countdown below.
+    let balanceMultiplier = 1;
+    if (factory.owner) {
+      const [ownerRow] = await db
+        .select({ totalStrength: players.totalStrength, totalDefense: players.totalDefense })
+        .from(players)
+        .where(eq(players.username, factory.owner))
+        .limit(1);
+      if (ownerRow) {
+        balanceMultiplier = getSlotRegenBalanceMultiplier(ownerRow.totalStrength, ownerRow.totalDefense);
+      }
+    }
 
-    // If usedSlots decreased, persist lastSlotRegen and usedSlots
-    if (factory.usedSlots !== originalUsed) {
-      await db
-        .update(factories)
-        .set({
-          usedSlots: factory.usedSlots,
-          lastSlotRegen: factory.lastSlotRegen,
-        })
-        .where(and(eq(factories.x, x), eq(factories.y, y)));
+    const regenAt = new Date();
+
+    // Apply regeneration against the LOCKED row and persist inside the same
+    // FID-20261002-002 transaction — a concurrent build's reservation can
+    // never be overwritten by this display-path snapshot (FID-20261002-011 §5.5).
+    const regenerated = await withTransactionRetry('factoryStatusSlotRegen', () =>
+      db.transaction(async (tx): Promise<Factory | null> => {
+        const [lockedRow] = await tx
+          .select()
+          .from(factories)
+          .where(and(eq(factories.x, x), eq(factories.y, y)))
+          .limit(1)
+          .for('update');
+        if (!lockedRow) return factory;
+
+        const regen = applySlotRegeneration(lockedRow as unknown as Factory, {
+          now: regenAt,
+          balanceMultiplier,
+        });
+
+        if (regen.usedSlots !== lockedRow.usedSlots) {
+          await tx
+            .update(factories)
+            .set({
+              usedSlots: regen.usedSlots,
+              lastSlotRegen: regen.lastSlotRegen,
+            })
+            .where(and(eq(factories.x, x), eq(factories.y, y)));
+        }
+        return regen;
+      })
+    );
+    if (regenerated) {
+      factory = regenerated;
     }
 
     // FID-072 — Phase 5 income revival: viewing an owned factory pays its
@@ -72,9 +113,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Calculate additional info
+    // Calculate additional info — countdown at the SAME effective rate
+    // (FID-20261002-011 §5.3)
     const availableSlots = getAvailableSlots(factory);
-    const timeUntilNext = getTimeUntilNextSlot(factory);
+    const timeUntilNext = getTimeUntilNextSlot(factory, { balanceMultiplier });
 
     return NextResponse.json({
       success: true,

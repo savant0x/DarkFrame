@@ -16,12 +16,14 @@
 import { db } from '@/lib/db';
 import { factories, players } from '@/lib/db/schema';
 import { eq, and, sql, isNull, gte, lte } from 'drizzle-orm';
-import { Factory, AttackResult, Unit, UnitType, InventoryItem, TutorialInventoryItem } from '@/types';
-import { randomUUID } from 'node:crypto';
+import { Factory, AttackResult, Unit, UnitType, UNIT_CONFIGS, InventoryItem, TutorialInventoryItem } from '@/types';
 import { awardXP, XPAction } from './xpService';
 import { FACTORY_UPGRADE, getMaxSlots, getFactoryDefense } from './factoryUpgradeService';
 import { getPlayerDoctrineBonuses } from './specializationService';
 import { protectionActive, PROTECTION_REFUSAL_REASON, voidProtectionOnAggression } from './playerProtection'; // FID-20260916-002 / -008
+import { withTransactionRetry } from './db/treasuryLock'; // FID-20261002-002: atomic income collection
+import { applySlotRegeneration, getSlotRegenBalanceMultiplier } from './slotRegenService'; // FID-20261002-011
+import { canonicalPlayerUnitFromConfig } from './armyService'; // FID-20261002-004
 
 const ATTACK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between attacks
 const UNIT_COST_METAL = 100;
@@ -140,66 +142,106 @@ export async function collectAllFactoryIncome(username: string): Promise<{
     hoursElapsed: number;
   }>;
 }> {
-  // Get all factories owned by player
-  const factoriesList = await db.select().from(factories).where(eq(factories.owner, username));
+  // FID-20261002-002 §5.5: the claimed factory accrual checkpoints and the
+  // relative player credit commit in ONE transaction. The previous
+  // implementation advanced each factory's checkpoint in its own autocommit
+  // statement and then credited the player with snapshot BigInt arithmetic —
+  // a crash or concurrent writer between the two could strand the accrued
+  // income or double-credit it. A repeated concurrent collection now pays
+  // exactly once: the second run re-reads the advanced checkpoints inside the
+  // lock and accrues from the new timestamps.
+  return withTransactionRetry(`collectAllFactoryIncome(${username})`, () =>
+    db.transaction(async (tx): Promise<{
+      totalMetal: number;
+      totalEnergy: number;
+      factoriesCollected: number;
+      factories: Array<{
+        position: { x: number; y: number };
+        level: number;
+        metal: number;
+        energy: number;
+        hoursElapsed: number;
+      }>;
+    }> => {
+      const factoriesList = await tx
+        .select()
+        .from(factories)
+        .where(eq(factories.owner, username))
+        .for('update');
 
-  if (factoriesList.length === 0) {
-    return {
-      totalMetal: 0,
-      totalEnergy: 0,
-      factoriesCollected: 0,
-      factories: []
-    };
-  }
+      if (factoriesList.length === 0) {
+        return {
+          totalMetal: 0,
+          totalEnergy: 0,
+          factoriesCollected: 0,
+          factories: []
+        };
+      }
 
-  let totalMetal = 0;
-  let totalEnergy = 0;
-  const factoryDetails = [];
+      let totalMetal = 0;
+      let totalEnergy = 0;
+      const factoryDetails: Array<{
+        position: { x: number; y: number };
+        level: number;
+        metal: number;
+        energy: number;
+        hoursElapsed: number;
+      }> = [];
 
-  // Calculate income for each factory
-  for (const factory of factoriesList) {
-    const income = calculateFactoryIncome(factory as unknown as Factory);
-    
-    if (income.metal > 0 || income.energy > 0) {
-      totalMetal += income.metal;
-      totalEnergy += income.energy;
+      const collectedAt = new Date();
 
-      factoryDetails.push({
-        position: { x: factory.x, y: factory.y },
-        level: factory.level,
-        metal: income.metal,
-        energy: income.energy,
-        hoursElapsed: income.hoursElapsed
-      });
+      // Calculate income from the LOCKED rows and advance each checkpoint.
+      for (const factory of factoriesList) {
+        const income = calculateFactoryIncome(factory as unknown as Factory);
 
-      // Update factory's lastResourceGeneration timestamp
-      await db.update(factories)
-        .set({ lastResourceGeneration: new Date() })
-        .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
-    }
-  }
+        if (income.metal > 0 || income.energy > 0) {
+          totalMetal += income.metal;
+          totalEnergy += income.energy;
 
-  // Award resources to player
-  if (totalMetal > 0 || totalEnergy > 0) {
-    const player = await db.select().from(players).where(eq(players.username, username)).limit(1);
-    if (player.length > 0) {
-      const newMetal = BigInt(player[0].resourcesMetal || 0) + BigInt(totalMetal);
-      const newEnergy = BigInt(player[0].resourcesEnergy || 0) + BigInt(totalEnergy);
+          factoryDetails.push({
+            position: { x: factory.x, y: factory.y },
+            level: factory.level,
+            metal: income.metal,
+            energy: income.energy,
+            hoursElapsed: income.hoursElapsed
+          });
 
-      await db.update(players)
-        .set({ resourcesMetal: Number(newMetal), resourcesEnergy: Number(newEnergy) })
-        .where(eq(players.username, username));
+          // Advance the accrual checkpoint inside the same transaction.
+          await tx
+            .update(factories)
+            .set({ lastResourceGeneration: collectedAt })
+            .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
+        }
+      }
 
-      console.log(`💰 ${username} collected passive income: ${totalMetal.toLocaleString()} Metal, ${totalEnergy.toLocaleString()} Energy from ${factoryDetails.length} factories`);
-    }
-  }
+      // Award resources to player with relative SQL against the locked row.
+      if (totalMetal > 0 || totalEnergy > 0) {
+        const credited = await tx
+          .update(players)
+          .set({
+            resourcesMetal: sql`${players.resourcesMetal} + ${totalMetal}`,
+            resourcesEnergy: sql`${players.resourcesEnergy} + ${totalEnergy}`,
+          })
+          .where(eq(players.username, username))
+          .returning({ username: players.username });
 
-  return {
-    totalMetal,
-    totalEnergy,
-    factoriesCollected: factoryDetails.length,
-    factories: factoryDetails
-  };
+        if (credited.length === 0) {
+          // Unknown player: nothing was credited; roll back checkpoint
+          // advancement so no accrual is stranded.
+          throw new Error(`Player not found: ${username}`);
+        }
+
+        console.log(`💰 ${username} collected passive income: ${totalMetal.toLocaleString()} Metal, ${totalEnergy.toLocaleString()} Energy from ${factoryDetails.length} factories`);
+      }
+
+      return {
+        totalMetal,
+        totalEnergy,
+        factoriesCollected: factoryDetails.length,
+        factories: factoryDetails
+      };
+    })
+  );
 }
 
 /**
@@ -456,6 +498,11 @@ export async function attackFactory(
         lastAttackTime: new Date(),
         owner: username,
         usedSlots: 0,
+        // FID-20261002-011 §5.5: ownership transfer flushes the old owner's
+        // accrual and rebases the checkpoint — the new owner cannot inherit
+        // unlimited stale banked time (usedSlots resets AND lastSlotRegen
+        // rebases so the first regen window starts from capture time).
+        lastSlotRegen: new Date(),
         lastResourceGeneration: new Date() // NEW: Initialize passive income on capture
       })
       .where(and(eq(factories.x, x), eq(factories.y, y)));
@@ -518,99 +565,148 @@ export async function attackFactory(
 }
 
 /**
- * Produce units at a controlled factory
- * Costs resources and adds unit to player inventory
+ * Produce a unit at a controlled factory
+ *
+ * FID-20261002-004 §5.4 + source-audit: the LEGACY production seam. The whole
+ * operation now runs in ONE transaction under the 002 lock order (player row,
+ * then the factory asset): 011 regeneration at the owner's balance multiplier,
+ * capacity re-verified on the locked row, relative resource debit, and the
+ * unit minted through the CANONICAL army contract (canonicalPlayerUnitFrom-
+ * Config) into players.units — the canonical owned army — instead of the legacy
+ * inventoryItems blob. The legacy cost contract (100 Metal + 50 Energy ×
+ * doctrine, one slot) is preserved until separately ratified. Historical
+ * inventoryItems units are moved into `units` exactly once by
+ * lib/migrations/armyIdentityResync (canonical-army recount must not erase
+ * their power).
  */
 export async function produceUnit(
   username: string,
   x: number,
   y: number
 ): Promise<{ success: boolean; message: string; unit?: Unit }> {
-  // Get factory
-  const factory = await getFactoryData(x, y);
-  if (!factory) {
-    return { success: false, message: 'Factory not found' };
-  }
-  
-  // Check ownership
-  if (factory.owner !== username) {
-    return { success: false, message: 'You do not control this factory' };
-  }
-  
-  // Check slots
-  if (factory.usedSlots >= factory.slots) {
-    return { success: false, message: 'Factory is at maximum capacity' };
-  }
-  
-  // Get player
-  const playerResult = await db.select().from(players).where(eq(players.username, username)).limit(1);
-  if (playerResult.length === 0) {
-    return { success: false, message: 'Player not found' };
-  }
-  
-  const player = playerResult[0];
-  
-  // FID-20260914-008 Phase 1: doctrine cost discounts apply here too — produceUnit
-  // is one of the three cost seams named by the converged plan.
-  const doctrine = await getPlayerDoctrineBonuses(username);
-  const metalCost = Math.max(1, Math.ceil(UNIT_COST_METAL * doctrine.metalCostMul));
-  const energyCost = Math.max(1, Math.ceil(UNIT_COST_ENERGY * doctrine.energyCostMul));
-  
-  // Check resources
-  if ((player.resourcesMetal || 0) < metalCost || (player.resourcesEnergy || 0) < energyCost) {
-    return {
-      success: false,
-      message: `Insufficient resources. Need ${metalCost} Metal and ${energyCost} Energy`
-    };
-  }
-  
-  // Create unit
-  const unit: Unit = {
-    id: randomUUID(),
-    type: UnitType.T1_Rifleman, // Default Tier 1 unit
-    strength: 5, // T1_Rifleman STR
-    defense: 0,  // T1_Rifleman is STR unit, no DEF
-    producedAt: { x, y },
-    producedDate: new Date(),
-    owner: username
-  };
-  
-  // Update player: deduct resources, add unit to inventory
-  const inventory = parseInventory(player.inventoryItems);
-  inventory.push(unit);
+  try {
+    return await withTransactionRetry(`produceUnit(${username})`, () =>
+      db.transaction(async (tx): Promise<{ success: boolean; message: string; unit?: Unit }> => {
+        // Lock the player row first (lock order: players before assets).
+        const [player] = await tx
+          .select({
+            resourcesMetal: players.resourcesMetal,
+            resourcesEnergy: players.resourcesEnergy,
+            totalStrength: players.totalStrength,
+            totalDefense: players.totalDefense,
+          })
+          .from(players)
+          .where(eq(players.username, username))
+          .limit(1)
+          .for('update');
 
-  const newMetal = BigInt(player.resourcesMetal || 0) - BigInt(metalCost);
-  const newEnergy = BigInt(player.resourcesEnergy || 0) - BigInt(energyCost);
+        if (!player) {
+          return { success: false, message: 'Player not found' };
+        }
 
-  await db.update(players)
-    .set({
-      resourcesMetal: Number(newMetal),
-      resourcesEnergy: Number(newEnergy),
-      inventoryItems: inventory,
-      // Maintain the aggregate combat totals (FID-20260908-003 addendum):
-      // factory-produced units are part of the army and must raise
-      // totalStrength/totalDefense like build-unit does, or Military Power
-      // never reflects them.
-      totalStrength: (player.totalStrength || 0) + unit.strength,
-      totalDefense: (player.totalDefense || 0) + unit.defense,
-    })
-    .where(eq(players.username, username));
-  
-  // Update factory: increment used slots (read current, then set new value)
-  const factoryRow = await db.select().from(factories).where(and(eq(factories.x, x), eq(factories.y, y))).limit(1);
-  const currentUsedSlots = factoryRow.length > 0 ? factoryRow[0].usedSlots : 0;
+        const [factoryRow] = await tx
+          .select()
+          .from(factories)
+          .where(and(eq(factories.x, x), eq(factories.y, y)))
+          .limit(1)
+          .for('update');
 
-  await db.update(factories)
-    .set({ usedSlots: currentUsedSlots + 1 })
-    .where(and(eq(factories.x, x), eq(factories.y, y)));
-  
-  console.log(`🏭 ${username} produced unit at factory (${x}, ${y})`);
-  
-  return {
-    success: true,
-    message: `Unit produced successfully!\n\nCost: ${metalCost} Metal + ${energyCost} Energy\nSlots used: ${currentUsedSlots + 1}/${factory.slots}`,
-    unit
-  };
+        if (!factoryRow) {
+          return { success: false, message: 'Factory not found' };
+        }
+
+        // Check ownership
+        if (factoryRow.owner !== username) {
+          return { success: false, message: 'You do not control this factory' };
+        }
+
+        // FID-20261002-011 §5.5: regeneration against the LOCKED row at the
+        // owner's balance multiplier, with an explicit clock; capacity derived.
+        const now = new Date();
+        const balanceMultiplier = getSlotRegenBalanceMultiplier(player.totalStrength, player.totalDefense);
+        const regenerated = applySlotRegeneration(factoryRow as unknown as Factory, {
+          now,
+          balanceMultiplier,
+        });
+        const capacity = getMaxSlots(regenerated.level || 1);
+
+        // Check slots (one slot per produced unit)
+        if (regenerated.usedSlots + 1 > capacity) {
+          return { success: false, message: 'Factory is at maximum capacity' };
+        }
+
+        // FID-20260914-008 Phase 1: doctrine cost discounts apply here too —
+        // produceUnit is one of the three cost seams named by the converged
+        // plan. The legacy cost contract (100 Metal + 50 Energy × doctrine) is
+        // preserved until separately ratified (FID-20261002-004).
+        const doctrine = await getPlayerDoctrineBonuses(username);
+        const metalCost = Math.max(1, Math.ceil(UNIT_COST_METAL * doctrine.metalCostMul));
+        const energyCost = Math.max(1, Math.ceil(UNIT_COST_ENERGY * doctrine.energyCostMul));
+
+        // Check resources against the LOCKED row
+        if ((player.resourcesMetal || 0) < metalCost || (player.resourcesEnergy || 0) < energyCost) {
+          return {
+            success: false,
+            message: `Insufficient resources. Need ${metalCost} Metal and ${energyCost} Energy`
+          };
+        }
+
+        // Canonical minting: the T1_Rifleman config from the DERIVED catalog —
+        // blueprint id + canonical unitType stored separately, distinct
+        // instance id (FID-20261002-004 §5.5).
+        const riflemanConfig = UNIT_CONFIGS[UnitType.T1_Rifleman];
+        const produced = canonicalPlayerUnitFromConfig(riflemanConfig, 1, username, { x, y });
+
+        // Relative player write: debit, canonical army append, aggregate totals.
+        await tx
+          .update(players)
+          .set({
+            resourcesMetal: sql`${players.resourcesMetal} - ${metalCost}`,
+            resourcesEnergy: sql`${players.resourcesEnergy} - ${energyCost}`,
+            units: sql`${players.units} || ${JSON.stringify([produced])}::jsonb`,
+            // Maintain the aggregate combat totals (FID-20260908-003 addendum):
+            // factory-produced units are part of the army and must raise
+            // totalStrength/totalDefense like build-unit does.
+            totalStrength: sql`${players.totalStrength} + ${produced.strength * produced.quantity}`,
+            totalDefense: sql`${players.totalDefense} + ${produced.defense * produced.quantity}`,
+          })
+          .where(eq(players.username, username));
+
+        // Factory: consume one slot + advance the regen checkpoint on the
+        // LOCKED row, in the same transaction.
+        await tx
+          .update(factories)
+          .set({
+            usedSlots: regenerated.usedSlots + 1,
+            lastSlotRegen: regenerated.lastSlotRegen,
+          })
+          .where(and(eq(factories.x, x), eq(factories.y, y)));
+
+        console.log(`🏭 ${username} produced unit at factory (${x}, ${y})`);
+
+        // Legacy Unit shape for the route contract (the stored entry is the
+        // canonical PlayerUnit above).
+        const unit: Unit = {
+          id: produced.id,
+          type: UnitType.T1_Rifleman,
+          strength: produced.strength,
+          defense: produced.defense,
+          producedAt: { x, y },
+          producedDate: now,
+          owner: username,
+        };
+
+        return {
+          success: true,
+          message: `Unit produced successfully!\n\nCost: ${metalCost} Metal + ${energyCost} Energy\nSlots used: ${regenerated.usedSlots + 1}/${capacity}`,
+          unit,
+        };
+      })
+    );
+  } catch (error) {
+    console.error(`❌ produceUnit failed for ${username} at (${x}, ${y}):`, error);
+    return { success: false, message: 'Unit production failed' };
+  }
 }
 
 /**

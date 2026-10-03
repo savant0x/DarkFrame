@@ -2,72 +2,164 @@
  * @file lib/slotRegenService.ts
  * @created 2025-10-17
  * @updated 2025-11-04 - Aligned with new capacity model (usedSlots regen, large caps)
+ * @updated 2026-10-02 - FID-20261002-011: one regeneration curve for every consumer
+ *
  * @overview Factory slot regeneration helpers (on-demand calculations)
- * 
+ *
  * OVERVIEW:
- * New model: factory.slots is the MAX CAPACITY (derived from level).
- * Regeneration reduces usedSlots over time. Capacity is large (e.g., 5,000 at L1)
- * and regen rates ensure a 12-hour full recovery curve across levels.
- * 
- * This file provides lightweight, on-demand helpers used by API endpoints to
- * compute regeneration without waiting for the background job tick. These helpers
- * mirror the logic in the background job for consistency.
+ * Factory.slots is the MAX CAPACITY (derived from level). Regeneration reduces
+ * usedSlots over time. FID-20261002-011 makes the on-demand helper, the hourly
+ * background job, and every read path use the SAME accounting:
+ *
+ *   effectiveRate = getRegenRate(level) × balance.slotRegenMultiplier
+ *   recovered     = floor(elapsed × effectiveRate / HOUR)
+ *   checkpoint   += recovered × HOUR / effectiveRate   (fractional time kept)
+ *
+ * The multiplier is applied to the RATE BEFORE flooring (the old helper
+ * floored the base recovery first and then multiplied, and advanced the
+ * checkpoint by the unmodified rate — a 0.85 critical-balance factory both
+ * under-recovered and drifted its clock). Empty factories discard surplus
+ * recovery and rebase the checkpoint to now, so idle time cannot bank slots
+ * for future purchases. Corrupt or future timestamps fail safe: no negative
+ * usedSlots, no fabricated recovery.
  */
 
 import { Factory } from '@/types';
 import { getMaxSlots, getRegenRate } from '@/lib/factoryUpgradeService';
+import { calculateBalanceEffects } from '@/lib/balanceService';
 
 /** Milliseconds in one hour */
 const HOUR_IN_MS = 60 * 60 * 1000;
 
+/** Options accepted by the regeneration helpers. */
+export interface SlotRegenOptions {
+  /**
+   * Explicit clock so the background job, request paths and tests share one
+   * `now` instead of racing separate Date.now() calls (FID-20261002-011 §5.2).
+   */
+  now?: Date;
+  /**
+   * Balance multiplier for the owner's army (calculateBalanceEffects
+   * .slotRegenMultiplier, 0.85–1.0). Invalid values fail safe to 1 (neutral);
+   * ownerless factories use the neutral multiplier.
+   */
+  balanceMultiplier?: number;
+}
+
+/** Neutral, sanitized multiplier: non-finite or non-positive input → 1. */
+function sanitizeMultiplier(multiplier: number | undefined): number {
+  if (typeof multiplier !== 'number' || !Number.isFinite(multiplier) || multiplier <= 0) {
+    return 1;
+  }
+  return multiplier;
+}
+
+/** Accept the legacy positional-number form and the new options object. */
+function resolveOptions(
+  options: number | SlotRegenOptions | undefined,
+): { now: Date; balanceMultiplier: number } {
+  if (typeof options === 'number') {
+    return { now: new Date(), balanceMultiplier: sanitizeMultiplier(options) };
+  }
+  const opts = options ?? {};
+  return { now: opts.now ?? new Date(), balanceMultiplier: sanitizeMultiplier(opts.balanceMultiplier) };
+}
+
 /**
- * Calculate how many used slots should be recovered based on time elapsed
- * 
- * @param lastRegenTime - Timestamp of last regeneration
- * @param regenRatePerHour - Slots recovered per hour (depends on factory level)
- * @returns Whole slots to recover
+ * The army-balance regen multiplier for one owner's raw totals
+ * (players.totalStrength / totalDefense). Ownerless callers (owner NULL)
+ * pass nothing and get the neutral multiplier.
  */
-function calculateRecoveredSlots(lastRegenTime: Date, regenRatePerHour: number): number {
-  const now = new Date();
-  const timeDiff = now.getTime() - new Date(lastRegenTime).getTime();
-  const hoursElapsed = timeDiff / HOUR_IN_MS;
-  return Math.floor(hoursElapsed * regenRatePerHour);
+export function getSlotRegenBalanceMultiplier(
+  totalStrength?: number | null,
+  totalDefense?: number | null,
+): number {
+  return calculateBalanceEffects(Number(totalStrength) || 0, Number(totalDefense) || 0)
+    .slotRegenMultiplier;
+}
+
+/** Internal result of one regeneration pass. */
+interface RegenOutcome {
+  newUsedSlots: number;
+  newCheckpoint: Date;
+}
+
+/**
+ * Compute one regeneration pass against an explicit clock.
+ * Returns null when nothing observable changes (checkpoint untouched).
+ */
+function computeRegenOutcome(
+  factory: Factory,
+  now: Date,
+  effectiveRate: number,
+): RegenOutcome | null {
+  const nowMs = now.getTime();
+  // Fail safe: a negative stored count is clamped, never propagated.
+  const usedSlots = Math.max(0, Number(factory.usedSlots) || 0);
+
+  const lastRegenMs = new Date(factory.lastSlotRegen as unknown as string).getTime();
+  if (!Number.isFinite(lastRegenMs) || lastRegenMs > nowMs) {
+    // Corrupt or future-dated checkpoint: no fabricated recovery; rebase to
+    // now so the next elapsed window is measured from a sane clock.
+    return { newUsedSlots: usedSlots, newCheckpoint: now };
+  }
+
+  if (usedSlots === 0) {
+    // Empty-idle discard (FID-20261002-011 §5.4): an empty factory cannot bank
+    // unbounded recovery for future purchases — surplus is dropped and the
+    // checkpoint rebases to now.
+    return { newUsedSlots: 0, newCheckpoint: now };
+  }
+
+  const elapsedMs = nowMs - lastRegenMs;
+  const recovered = Math.floor((elapsedMs * effectiveRate) / HOUR_IN_MS);
+  if (recovered <= 0) {
+    return null; // not enough time for a whole slot — checkpoint untouched
+  }
+
+  const applied = Math.min(recovered, usedSlots);
+  const newUsedSlots = usedSlots - applied;
+
+  // Preserve fractional time: advance the checkpoint by exactly the consumed
+  // slot intervals at the EFFECTIVE rate. When the factory drains to empty
+  // this tick, the surplus recovery is discarded and the checkpoint rebases.
+  const newCheckpoint =
+    newUsedSlots === 0
+      ? now
+      : new Date(lastRegenMs + (applied * HOUR_IN_MS) / effectiveRate);
+
+  return { newUsedSlots, newCheckpoint };
 }
 
 /**
  * Apply on-demand regeneration to a factory object (in-memory only)
  * - Decreases usedSlots by the recovered amount (min 0)
- * - Advances lastSlotRegen by the exact whole-slot intervals consumed
+ * - Advances lastSlotRegen by the exact whole-slot intervals consumed at the
+ *   effective rate, preserving fractional time
+ * - Discards surplus and rebases the checkpoint when the factory is/becomes empty
  * - Does NOT change factory.slots (capacity)
- * 
+ *
  * @param factory - Factory data to update
- * @param balanceMultiplier - Optional multiplier (0.85-1.0) to nerf regen if needed
+ * @param options - Balance multiplier (number, legacy) or { now, balanceMultiplier }
  * @returns Updated factory with potentially reduced usedSlots
+ *
+ * @example
+ * applySlotRegeneration(factory, { now, balanceMultiplier: 0.85 });
  */
-export function applySlotRegeneration(factory: Factory, balanceMultiplier: number = 1.0): Factory {
+export function applySlotRegeneration(
+  factory: Factory,
+  options: number | SlotRegenOptions = 1.0,
+): Factory {
+  const { now, balanceMultiplier } = resolveOptions(options);
   const level = factory.level || 1;
-  const regenRate = getRegenRate(level);
-  let recovered = calculateRecoveredSlots(factory.lastSlotRegen, regenRate);
-
-  if (recovered <= 0) {
-    return factory;
-  }
-
-  if (balanceMultiplier < 1.0) {
-    recovered = Math.floor(recovered * balanceMultiplier);
-  }
-
-  const newUsedSlots = Math.max(0, (factory.usedSlots || 0) - recovered);
-
-  // Advance lastSlotRegen by the number of full slots worth of time
-  const msPerSlot = HOUR_IN_MS / regenRate;
-  const lastRegenTime = new Date(factory.lastSlotRegen);
-  const newLastRegen = new Date(lastRegenTime.getTime() + recovered * msPerSlot);
+  const effectiveRate = getRegenRate(level) * balanceMultiplier;
+  const outcome = computeRegenOutcome(factory, now, effectiveRate);
+  if (!outcome) return factory;
 
   return {
     ...factory,
-    usedSlots: newUsedSlots,
-    lastSlotRegen: newLastRegen,
+    usedSlots: outcome.newUsedSlots,
+    lastSlotRegen: outcome.newCheckpoint,
   };
 }
 
@@ -103,21 +195,29 @@ export function consumeSlots(factory: Factory, slotsToConsume: number): Factory 
 }
 
 /**
- * Time until the next recovered slot (based on level regen rate)
+ * Time until the next recovered slot — computed at the SAME effective rate
+ * the recovery itself uses (FID-20261002-011 §5.3), so the UI countdown
+ * cannot promise a slot the job would deliver at a different pace.
  */
-export function getTimeUntilNextSlot(factory: Factory): {
+export function getTimeUntilNextSlot(
+  factory: Factory,
+  options?: SlotRegenOptions,
+): {
   hours: number;
   minutes: number;
   seconds: number;
   totalMs: number;
 } {
-  const regenRate = getRegenRate(factory.level || 1);
-  const msPerSlot = HOUR_IN_MS / regenRate;
-  const now = new Date();
-  const lastRegen = new Date(factory.lastSlotRegen);
-  const nextRegen = new Date(lastRegen.getTime() + msPerSlot);
+  const { now, balanceMultiplier } = resolveOptions(options);
+  const effectiveRate = getRegenRate(factory.level || 1) * balanceMultiplier;
+  const msPerSlot = HOUR_IN_MS / effectiveRate;
 
-  const timeLeft = nextRegen.getTime() - now.getTime();
+  const lastRegenMs = new Date(factory.lastSlotRegen as unknown as string).getTime();
+  // Fail safe: corrupt/future checkpoints count from now (full period).
+  const safeLastRegen =
+    Number.isFinite(lastRegenMs) && lastRegenMs <= now.getTime() ? lastRegenMs : now.getTime();
+
+  const timeLeft = safeLastRegen + msPerSlot - now.getTime();
   if (timeLeft <= 0) {
     return { hours: 0, minutes: 0, seconds: 0, totalMs: 0 };
   }
@@ -139,13 +239,13 @@ export function getFactoryCapacity(factory: Factory): number {
 // IMPLEMENTATION NOTES
 // ============================================================
 /**
- * SLOT REGENERATION LOGIC (NEW):
+ * SLOT REGENERATION LOGIC (FID-20261002-011):
  * - Capacity is derived from level: getMaxSlots(level)
- * - usedSlots decreases over time based on getRegenRate(level)
- * - Background job performs periodic DB updates
- * - These helpers provide immediate, in-memory calculations for endpoints
+ * - usedSlots decreases at effectiveRate = getRegenRate(level) × balance
+ * - The hourly job (lib/jobs/factorySlotRegeneration.ts) and every request
+ *   path share THIS module — one curve, one clock contract, one multiplier
+ * - Background job performs periodic DB updates inside the FID-002 tx boundary
  */
-
 // ============================================================
 // END OF FILE
 // ============================================================

@@ -76,8 +76,12 @@ vi.mock('@/lib/db/connection', async () => {
         chain._where = w;
         return chain;
       }),
-      limit: vi.fn(() => Promise.resolve(drizzleState.selectResult)),
+      // Returns the (thenable) chain so post-limit chaining (`.for('update')`,
+      // FID-20261002-011) composes.
+      limit: vi.fn(() => chain),
       orderBy: vi.fn(() => chain),
+      // FID-20261002-011: locked-row reads — `.for('update')` is a no-op here.
+      for: vi.fn(() => chain),
       then: (res: (v: Rec[]) => void) => Promise.resolve(drizzleState.selectResult).then(res),
     };
     return chain;
@@ -139,6 +143,8 @@ vi.mock('@/lib/db/connection', async () => {
     insert: vi.fn((t: unknown) => insertChain(t)),
     transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
+        // FID-20261002-011 §5.5: the tx locks player + factory rows via select.
+        select: vi.fn(() => selectChain()),
         update: vi.fn((t: unknown) => {
           const rec: { table: string; set?: unknown; where?: unknown } = { table: nameOf(t) };
           drizzleState.updateCalls.push(rec);
@@ -418,13 +424,18 @@ describe('build-unit (pg)', () => {
   it('GET reads factories from pg and returns the established wire shape', async () => {
     mockedGetAuthUser.mockResolvedValue({ username: 'fame', playerId: 'fame' } as never);
     mockedGetPlayer.mockResolvedValue({ ...FAME } as never);
-    drizzleState.selectResult = [{ x: 2, y: 3, slots: 20, usedSlots: 5 }];
+    // FID-20261002-011: the SAME slot accounting as the factory seam — capacity
+    // is DERIVED from level (getMaxSlots) and regeneration runs before counting;
+    // the stale stored `slots` column no longer feeds availability.
+    drizzleState.selectResult = [
+      { x: 2, y: 3, level: 10, usedSlots: 5, lastSlotRegen: new Date(), resourcesMetal: 10000, resourcesEnergy: 10000, totalStrength: 5, totalDefense: 0 },
+    ];
 
     const res = await buildUnitGetH(req('http://localhost/api/player/build-unit', { method: 'GET' }));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.playerStats.factoryBuildSlots).toBe(15); // 20 − 5, real pg values
+    expect(body.playerStats.factoryBuildSlots).toBe(1745); // getMaxSlots(10) − 5
     expect(body.playerStats.availableSlots).toBe(150);   // 100 + 1×50
     expect(Array.isArray(body.units)).toBe(true);
     expect(drizzleState.selectCalls.some((c) => c.table === 'factories')).toBe(true);
@@ -433,7 +444,11 @@ describe('build-unit (pg)', () => {
   it('POST charges resources via SQL deltas on the flat columns, appends units as jsonb, and lands invested deltas (D3)', async () => {
     mockedGetAuthUser.mockResolvedValue({ username: 'fame', playerId: 'fame' } as never);
     mockedGetPlayer.mockResolvedValue({ ...FAME } as never);
-    drizzleState.selectResult = [{ x: 2, y: 3, slots: 20, usedSlots: 5 }];
+    // Shared select fixture: the tx reads the factory asset AND locks the
+    // player row (FID-20261002-011 lock order) from the same result set.
+    drizzleState.selectResult = [
+      { x: 2, y: 3, level: 10, usedSlots: 5, lastSlotRegen: new Date(), resourcesMetal: 10000, resourcesEnergy: 10000, totalStrength: 5, totalDefense: 0 },
+    ];
     drizzleState.updateReturning = [{ username: 'fame' }];
 
     const res = await buildUnitPostH(req('http://localhost/api/player/build-unit', {
@@ -454,13 +469,17 @@ describe('build-unit (pg)', () => {
     expect((s.resourcesMetal as Rec).op).toBe('sql');
     expect((s.resourcesEnergy as Rec).op).toBe('sql');
     expect((s.units as Rec).op).toBe('sql'); // jsonb append
-    expect(s.totalStrength).toBe(195);
+    // FID-20261002-011: totals ride relative SQL deltas too (no lost update)
+    expect((s.totalStrength as Rec).op).toBe('sql');
+    expect((s.totalDefense as Rec).op).toBe('sql');
 
-    // D3: factory slot write carries investedMetal/investedEnergy deltas
+    // D3: factory slot write carries investedMetal/investedEnergy deltas and
+    // the advanced regen checkpoint (FID-20261002-011)
     const factoryUpdates = drizzleState.updateCalls.filter((c) => c.table === 'factories');
     expect(factoryUpdates.length).toBeGreaterThan(0);
     const fset = factoryUpdates[0].set as Rec;
     expect(fset).toHaveProperty('usedSlots');
+    expect(fset.lastSlotRegen).toBeInstanceOf(Date);
     expect((fset.investedMetal as Rec).op).toBe('sql');
     expect((fset.investedEnergy as Rec).op).toBe('sql');
   });

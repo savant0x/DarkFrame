@@ -45,6 +45,9 @@ vi.mock('@/lib/db/connection', () => {
       where: (c: unknown) => { spec.where = c; return terminal; },
       limit: (n: number) => { spec.limit = n; return terminal; },
       offset: (n: number) => { spec.offset = n; return terminal; },
+      orderBy: () => terminal,
+      // FID-20261002-011: locked-row reads — `.for('update')` is a no-op on the mock.
+      for: () => terminal,
       values: (v: unknown) => { spec.values = v; return terminal; },
       set: (v: unknown) => { spec.set = v; return terminal; },
       returning: () => { spec.returning = true; return terminal; },
@@ -53,13 +56,19 @@ vi.mock('@/lib/db/connection', () => {
     };
     return terminal;
   };
+  // FID-20261002-011 §5.5: the route runs inside db.transaction — the mock's
+  // transaction passes a tx handle with the SAME builder shape.
+  const txOps = {
+    insert: (t: unknown) => mk({ op: 'insert', table: t }),
+    update: (t: unknown) => mk({ op: 'update', table: t }),
+    delete: (t: unknown) => mk({ op: 'delete', table: t }),
+    select: (...fields: unknown[]) => mk({ op: 'select', fields }),
+    execute: async () => ({ rows: [] }),
+  };
   return {
     db: {
-      insert: (t: unknown) => mk({ op: 'insert', table: t }),
-      update: (t: unknown) => mk({ op: 'update', table: t }),
-      delete: (t: unknown) => mk({ op: 'delete', table: t }),
-      select: (...fields: unknown[]) => mk({ op: 'select', fields }),
-      execute: async () => ({ rows: [] }),
+      ...txOps,
+      transaction: async <T,>(fn: (tx: typeof txOps) => Promise<T>): Promise<T> => fn(txOps),
     },
   };
 });

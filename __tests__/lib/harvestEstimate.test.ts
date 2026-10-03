@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { estimateHarvest, estimateHarvestExpected } from '@/lib/harvestEstimate';
+import { calculateBalanceEffects } from '@/lib/balanceService';
 import { GAME_CONSTANTS } from '@/types';
 
 const { MIN_AMOUNT, MAX_AMOUNT } = GAME_CONSTANTS.HARVEST;
@@ -120,5 +121,42 @@ describe('harvestEstimate (FID-20260910-040 shared pipeline)', () => {
   it('expected-value helper uses the roll mean (1150)', () => {
     const e = estimateHarvestExpected({ gatheringBonusPct: 0 });
     expect(e.base).toBe((MIN_AMOUNT + MAX_AMOUNT) / 2);
+  });
+
+  // FID-20261002-011 (R5): the ACTUAL harvest path previously fed
+  // totalStrength/totalDefense as zeros, so a mono-STR army's roll of 800 paid
+  // 800 instead of the advertised 600. These pins state the corrected payout
+  // the service must produce with REAL totals wired in.
+  it('FID-20261002-011: mono-STR roll 800 → 600 (gathering nerf actually applied)', () => {
+    const monoStr = estimateHarvest({ gatheringBonusPct: 0, totalStrength: 800, totalDefense: 0, base: 800 });
+    expect(monoStr.terms.balanceStatus).toBe('CRITICAL');
+    expect(monoStr.terms.balanceMultiplier).toBe(0.75);
+    expect(monoStr.final).toBe(600);
+  });
+
+  it('FID-20261002-011: OPTIMAL army gains the intended +10% on the real roll', () => {
+    const opt = estimateHarvest({
+      gatheringBonusPct: 0,
+      totalStrength: 5000,
+      totalDefense: 5000,
+      base: 800,
+    });
+    expect(opt.final).toBe(880); // 800 × 1.10
+  });
+
+  it('FID-20261002-011: identical inputs yield an identical UI/service estimate (parity pin)', () => {
+    const input = {
+      gatheringBonusPct: 25,
+      vip: true,
+      vipExpiration: '2999-01-01' as string | Date,
+      totalStrength: 1200,
+      totalDefense: 1000,
+      base: 1200,
+    };
+    const a = estimateHarvest(input);
+    const b = estimateHarvest(input);
+    expect(b.final).toBe(a.final);
+    // and the multiplier used is the same object the balance service exposes
+    expect(a.terms.balanceMultiplier).toBe(calculateBalanceEffects(1200, 1000).gatheringMultiplier);
   });
 });

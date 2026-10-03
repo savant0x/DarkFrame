@@ -7,6 +7,13 @@
  * Handles metal/energy/cave tile harvesting with per-player tracking and 12-hour
  * split reset cycles. Implements diminishing returns for digger items and
  * applies gathering bonuses to final harvest amounts.
+ * 
+ * FID-20261002-011: the payout projection now carries the player's real
+ * totalStrength/totalDefense (the shared balance multiplier was silently
+ * computed from zeros — an 800 roll paid 800 instead of 600 for a mono-STR
+ * army), and the (player, period) reset claim plus the relative resource
+ * credit commit in ONE transaction (FID-20261002-002 boundary), so repeated
+ * concurrent harvests can never pay twice.
  */
 
 import { db } from '@/lib/db';
@@ -26,6 +33,9 @@ import { gameDateKey, atGameTime, addGameDays } from './gameTime';
 // its own base roll + DB reads, then multiplies through the shared terms so UI
 // calculators (which import the same module) can never drift from the payout.
 import { estimateHarvest } from './harvestEstimate';
+import { getResourceHarvestDelayMs } from './research/techEffects'; // FID-20261002-012 §5.3
+// FID-20261002-011 §5.6: claim + credit share one retried transaction.
+import { withTransactionRetry } from './db/treasuryLock';
 
 /**
  * Harvest result interface
@@ -37,12 +47,21 @@ export interface HarvestResult {
   energyGained?: number;
   itemFound?: { name: string; rarity?: string }; // Cave drop as surfaced by CaveItemService
   updatedPlayer?: Player;
+  /** FID-20261002-012 §5.3: the authoritative next resource-harvest action
+   *  deadline written by THIS payout (undefined for item tiles/refusals). */
+  nextResourceHarvestAt?: Date;
+  /** FID-20261002-012 §5.3: present when a resource harvest was refused on
+   *  the action deadline — when the client may retry (ms epoch). */
+  retryAt?: number;
 }
 
 /**
  * Map a flat database row to a Player object with nested structure
+ *
+ * FID-20261002-011: the projection carries totalStrength/totalDefense so the
+ * balance multiplier inside estimateHarvest sees the real army, not zeros.
  */
-function mapRowToPlayer(row: Pick<typeof players.$inferSelect, 'username' | 'resourcesMetal' | 'resourcesEnergy' | 'gatheringBonusMetalBonus' | 'gatheringBonusEnergyBonus' | 'activeBoostsGatheringBoost' | 'activeBoostsExpiresAt' | 'shrineBoosts' | 'vip' | 'vipExpiration'>): Player {
+function mapRowToPlayer(row: Pick<typeof players.$inferSelect, 'username' | 'resourcesMetal' | 'resourcesEnergy' | 'gatheringBonusMetalBonus' | 'gatheringBonusEnergyBonus' | 'activeBoostsGatheringBoost' | 'activeBoostsExpiresAt' | 'shrineBoosts' | 'vip' | 'vipExpiration' | 'totalStrength' | 'totalDefense' | 'unlockedTechs' | 'nextResourceHarvestAt'>): Player {
   return {
     ...row,
     resources: {
@@ -60,6 +79,26 @@ function mapRowToPlayer(row: Pick<typeof players.$inferSelect, 'username' | 'res
     vip: row.vip === 1,
   } as unknown as Player;
 }
+
+/** Slim payout-projection column set shared by the transactional claim path. */
+const HARVEST_PLAYER_PROJECTION = {
+  username: players.username,
+  resourcesMetal: players.resourcesMetal,
+  resourcesEnergy: players.resourcesEnergy,
+  gatheringBonusMetalBonus: players.gatheringBonusMetalBonus,
+  gatheringBonusEnergyBonus: players.gatheringBonusEnergyBonus,
+  activeBoostsGatheringBoost: players.activeBoostsGatheringBoost,
+  activeBoostsExpiresAt: players.activeBoostsExpiresAt,
+  shrineBoosts: players.shrineBoosts,
+  vip: players.vip,
+  vipExpiration: players.vipExpiration,
+  totalStrength: players.totalStrength,
+  totalDefense: players.totalDefense,
+  // FID-20261002-012 §5.3: personal tech (advanced-mining yield) + the
+  // authoritative resource-harvest action deadline (admission + write).
+  unlockedTechs: players.unlockedTechs,
+  nextResourceHarvestAt: players.nextResourceHarvestAt,
+} as const;
 
 /**
  * Get current reset period identifier for a tile
@@ -131,6 +170,10 @@ export function getTimeUntilReset(x: number): number {
  * `/api/harvest`, and every terrain a payout path can pay must be listed.
  * `__tests__/terrainTruth.test.ts` enforces both directions, so this guard
  * cannot drift from the dispatch again.
+ *
+ * FID-20261002-011: this check is the fail-fast preview; the authoritative
+ * (player, period) check re-runs under the tile row lock inside the claim
+ * transaction in `harvestResourceTile`.
  *
  * @param playerId - Player's username
  * @param tile - Tile to check
@@ -213,6 +256,14 @@ export function generateBaseHarvestAmount(): number {
  * 
  * Adds resources to player's inventory and marks tile as harvested
  * 
+ * FID-20261002-011 §5.6: the (player, period) reset claim (tile row locked FOR
+ * UPDATE), the payout computation against the REAL army totals, and the
+ * relative resource credit commit in ONE transaction — two concurrent
+ * harvests of the same tile serialize on the claim, and exactly one pays.
+ * Session earnings and milestone rewards consume the committed claim identity
+ * strictly after commit: a reward failure can never become a duplicate payout
+ * retry.
+ * 
  * @param playerId - Player's username
  * @param tile - Tile to harvest
  * @returns Harvest result with amount gained
@@ -230,7 +281,7 @@ export async function harvestResourceTile(
       };
     }
     
-    // Check if can harvest
+    // Fail-fast eligibility preview (authoritative check re-runs under the lock)
     const canHarvest = await canHarvestTile(playerId, tile);
     if (!canHarvest) {
       return {
@@ -239,115 +290,209 @@ export async function harvestResourceTile(
       };
     }
     
-    // Get player data
-    // FID-20260911-046: slim projection for the gather math — only these six
-    // fields feed the yield calculation; the units blob (30+ KB) and the other
-    // ~70 columns were shipped per harvest for nothing.
-    const playerRows = await db
-      .select({
-        username: players.username,
-        resourcesMetal: players.resourcesMetal,
-        resourcesEnergy: players.resourcesEnergy,
-        gatheringBonusMetalBonus: players.gatheringBonusMetalBonus,
-        gatheringBonusEnergyBonus: players.gatheringBonusEnergyBonus,
-        activeBoostsGatheringBoost: players.activeBoostsGatheringBoost,
-        activeBoostsExpiresAt: players.activeBoostsExpiresAt,
-        shrineBoosts: players.shrineBoosts,
-        vip: players.vip,
-        vipExpiration: players.vipExpiration,
+    // ===== Transactional claim + payout (FID-20261002-011 §5.6) =====
+    const commit = await withTransactionRetry(`harvestResourceTile(${playerId})`, () =>
+      db.transaction(async (tx): Promise<
+        | { claimed: false; reason: 'already-harvested' | 'player-not-found' | 'action-deadline'; retryAt?: number }
+        | {
+            claimed: true;
+            finalAmount: number;
+            vipMultiplier: number;
+            flagBearerMultiplier: number;
+            isPlayerFlagBearer: boolean;
+            currentPeriod: string;
+            nextResourceHarvestAt: Date;
+          }
+      > => {
+        const currentPeriod = getCurrentResetPeriod(tile.x);
+        
+        // Lock the tile row: the (player, period) claim is the conservation
+        // seam — a second concurrent claimant blocks here and then sees the
+        // committed record and refuses, instead of paying a second time.
+        const tileRows = await tx
+          .select()
+          .from(tiles)
+          .where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)))
+          .limit(1)
+          .for('update');
+        const tileDoc = tileRows[0];
+        const existingRecords: HarvestRecord[] = tileDoc?.lastHarvestedBy || [];
+        
+        if (
+          existingRecords.some(
+            (record) => record.playerId === playerId && record.resetPeriod === currentPeriod,
+          )
+        ) {
+          return { claimed: false, reason: 'already-harvested' };
+        }
+        
+        // Get player data — slim projection for the gather math (FID-20260911-046),
+        // now carrying totalStrength/totalDefense for the balance multiplier
+        // (FID-20261002-011: the totals defaulted to zero and mono-STR armies
+        // were paid the full roll instead of the gathering nerf).
+        const playerRows = await tx
+          .select(HARVEST_PLAYER_PROJECTION)
+          .from(players)
+          .where(eq(players.username, playerId))
+          .limit(1);
+        const playerRow = playerRows[0];
+        
+        if (!playerRow) {
+          return { claimed: false, reason: 'player-not-found' };
+        }
+        
+        // FID-20261002-012 §5.3 (source-audit correction): the authoritative
+        // resource-harvest action deadline — admission IN-LOCK, after the
+        // claim check (a depleted tile refuses on the claim, not the clock).
+        // Item tiles (cave/forest) never reach this transaction.
+        const nowForDeadline = new Date();
+        if (playerRow.nextResourceHarvestAt && playerRow.nextResourceHarvestAt > nowForDeadline) {
+          return {
+            claimed: false,
+            reason: 'action-deadline',
+            retryAt: playerRow.nextResourceHarvestAt.getTime(),
+          };
+        }
+        
+        const player = mapRowToPlayer(playerRow);
+        
+        // FID-20260910-040: expire+persist stale shrine boosts (inside the same
+        // transaction), then hand the (now-clean) list to the shared estimate
+        // module, which sums live yields.
+        let shrineBoosts = player.shrineBoosts || [];
+        if (shrineBoosts.length > 0) {
+          const now = new Date();
+          const filtered = shrineBoosts.filter((boost) => new Date(boost.expiresAt) > now);
+          if (filtered.length < shrineBoosts.length) {
+            shrineBoosts = filtered;
+            await tx
+              .update(players)
+              .set({ shrineBoosts: filtered })
+              .where(eq(players.username, playerId));
+          }
+        }
+        
+        // Get permanent digger bonuses
+        const permanentBonus = tile.terrain === TerrainType.Metal
+          ? player.gatheringBonus.metalBonus
+          : player.gatheringBonus.energyBonus;
+        
+        // Get temporary boost (DEPRECATED - kept for backwards compatibility)
+        const temporaryBonus = player.activeBoosts.gatheringBoost || 0;
+        
+        // Check VIP status for 2x resource multiplier
+        let vipMultiplier = 1;
+        if (player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date()) {
+          vipMultiplier = 2; // VIP gets 2x resources
+        }
+        
+        // Check Flag Bearer status for +100% bonus (2x multiplier)
+        let flagBearerMultiplier = 1;
+        let isPlayerFlagBearer = false;
+        try {
+          const flagRows = await tx.select().from(flags).limit(1);
+          const flagRow = flagRows[0];
+          if (flagRow && flagRow.currentHolderUsername === playerId) {
+            flagBearerMultiplier = 2; // Flag bearer gets +100% = 2x resources
+            isPlayerFlagBearer = true;
+          }
+        } catch (error) {
+          console.error('❌ Error checking flag bearer status:', error);
+          // Don't fail harvest if flag check fails
+        }
+        
+        // FID-20260910-040: compute the payout through the shared estimate module
+        // (identical pipeline: additive % → floor → ×2 VIP → floor → ×2 bearer →
+        // floor → × balance gathering → floor → × advanced-mining yield) so UI
+        // calculators reading the same module can never drift from what this
+        // route actually credits. FID-20261002-012 §5.3: estimates and payouts
+        // use the SAME advanced-mining flag, read from the locked row.
+        const advancedMining = (playerRow.unlockedTechs ?? []).includes('advanced-mining');
+        const baseAmount = generateBaseHarvestAmount();
+        const estimate = estimateHarvest({
+          gatheringBonusPct: permanentBonus,
+          temporaryBonusPct: temporaryBonus,
+          shrineBoosts,
+          vip: player.vip === true,
+          vipExpiration: player.vipExpiration,
+          isFlagBearer: isPlayerFlagBearer,
+          totalStrength: player.totalStrength || 0,
+          totalDefense: player.totalDefense || 0,
+          base: baseAmount,
+          advancedMining,
+        });
+        const finalAmount = estimate.final;
+        
+        // FID-20261002-012 §5.3: the action deadline commits WITH the payout
+        // (same transaction) — 3000ms base, 2400ms for advanced-mining owners.
+        // Reset periods and claim eligibility are untouched (yield + cadence
+        // only). Item tiles and refusals never write a deadline.
+        const nextResourceHarvestAt = new Date(
+          nowForDeadline.getTime() + getResourceHarvestDelayMs(advancedMining)
+        );
+        
+        // Claim: append the harvest record on the LOCKED row.
+        const harvestRecords: HarvestRecord[] = [
+          ...existingRecords,
+          {
+            playerId,
+            timestamp: new Date(),
+            resetPeriod: currentPeriod,
+          },
+        ];
+        await tx
+          .update(tiles)
+          .set({ lastHarvestedBy: harvestRecords })
+          .where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
+        
+        // Relative resource credit — commutative SQL delta on the same row the
+        // claim locks, so claim and credit commit (or roll back) together.
+        // FID-20261002-012 §5.3: the action deadline commits in the SAME write.
+        if (tile.terrain === TerrainType.Metal) {
+          await tx
+            .update(players)
+            .set({ resourcesMetal: sql`${players.resourcesMetal} + ${finalAmount}`, nextResourceHarvestAt })
+            .where(eq(players.username, playerId));
+        } else {
+          await tx
+            .update(players)
+            .set({ resourcesEnergy: sql`${players.resourcesEnergy} + ${finalAmount}`, nextResourceHarvestAt })
+            .where(eq(players.username, playerId));
+        }
+        
+        return {
+          claimed: true,
+          finalAmount,
+          vipMultiplier,
+          flagBearerMultiplier,
+          isPlayerFlagBearer,
+          currentPeriod,
+          nextResourceHarvestAt,
+        };
       })
-      .from(players)
-      .where(eq(players.username, playerId))
-      .limit(1);
-    const playerRow = playerRows[0];
+    );
     
-    if (!playerRow) {
+    if (!commit.claimed) {
+      if (commit.reason === 'action-deadline') {
+        return {
+          success: false,
+          message: `Harvest actions are rate-limited. Try again shortly.`,
+          retryAt: commit.retryAt,
+        };
+      }
       return {
         success: false,
-        message: 'Player not found'
+        message:
+          commit.reason === 'player-not-found'
+            ? 'Player not found'
+            : 'You have already harvested this tile. It will reset later.',
       };
     }
     
-    const player = mapRowToPlayer(playerRow);
+    const { finalAmount, vipMultiplier, flagBearerMultiplier, isPlayerFlagBearer, currentPeriod, nextResourceHarvestAt } = commit;
     
-    // Generate base amount
-    const baseAmount = generateBaseHarvestAmount();
+    // ===== Post-commit rewards (consume the committed claim identity) =====
     
-    // Get permanent digger bonuses
-    const permanentBonus = tile.terrain === TerrainType.Metal 
-      ? player.gatheringBonus.metalBonus 
-      : player.gatheringBonus.energyBonus;
-    
-    // Get temporary boost (DEPRECATED - kept for backwards compatibility)
-    const temporaryBonus = player.activeBoosts.gatheringBoost || 0;
-    
-    // FID-20260910-040: expire+persist stale shrine boosts, then hand the
-    // (now-clean) list to the shared estimate module, which sums live yields.
-    if (player.shrineBoosts && player.shrineBoosts.length > 0) {
-      const now = new Date();
-      const originalLength = player.shrineBoosts.length;
-      player.shrineBoosts = player.shrineBoosts.filter(
-        boost => new Date(boost.expiresAt) > now
-      );
-      
-      // Update player to remove expired boosts if any were filtered
-      if (player.shrineBoosts.length < originalLength) {
-        await db.update(players).set({ shrineBoosts: player.shrineBoosts }).where(eq(players.username, playerId));
-      }
-    }
-    
-    // Check VIP status for 2x resource multiplier
-    let vipMultiplier = 1;
-    if (player.vip && player.vipExpiration && new Date(player.vipExpiration) > new Date()) {
-      vipMultiplier = 2; // VIP gets 2x resources
-    }
-    
-    // Check Flag Bearer status for +100% bonus (2x multiplier)
-    let flagBearerMultiplier = 1;
-    let isPlayerFlagBearer = false;
-    try {
-      const flagRows = await db.select().from(flags).limit(1);
-      const flagRow = flagRows[0];
-      if (flagRow && flagRow.currentHolderUsername === playerId) {
-        flagBearerMultiplier = 2; // Flag bearer gets +100% = 2x resources
-        isPlayerFlagBearer = true;
-      }
-    } catch (error) {
-      console.error('❌ Error checking flag bearer status:', error);
-      // Don't fail harvest if flag check fails
-    }
-    
-    // FID-20260910-040: compute the payout through the shared estimate module
-    // (identical pipeline: additive % → floor → ×2 VIP → floor → ×2 bearer →
-    // floor → × balance gathering → floor) so UI calculators reading the same
-    // module can never drift from what this route actually credits.
-    const estimate = estimateHarvest({
-      gatheringBonusPct: permanentBonus,
-      temporaryBonusPct: temporaryBonus,
-      shrineBoosts: player.shrineBoosts,
-      vip: player.vip === true,
-      vipExpiration: player.vipExpiration,
-      isFlagBearer: isPlayerFlagBearer,
-      totalStrength: player.totalStrength || 0,
-      totalDefense: player.totalDefense || 0,
-      base: baseAmount,
-    });
-    const finalAmount = estimate.final;
-    
-    // Update player resources — FID-20260909-026 §2.HIGH: server-side SQL
-    // delta (read-add-set lost two concurrent harvests' earnings; the mirror
-    // image of the bank double-spend). No guard needed: crediting is
-    // commutative, every concurrent writer's delta survives.
-    if (tile.terrain === TerrainType.Metal) {
-      await db.update(players)
-        .set({ resourcesMetal: sql`${players.resourcesMetal} + ${finalAmount}` })
-        .where(eq(players.username, playerId));
-    } else {
-      await db.update(players)
-        .set({ resourcesEnergy: sql`${players.resourcesEnergy} + ${finalAmount}` })
-        .where(eq(players.username, playerId));
-    }
-
     // FID-20260906-001 §5.4: GROSS session-earnings accrual while holding the
     // Flag (powers the escalating flee-cost economy). Doc: tracks ALL income
     // gained while holding; never decremented; resets on holder change.
@@ -364,22 +509,8 @@ export async function harvestResourceTile(
       console.error('⚠️ Session earnings accrual failed:', earnErr);
     }
     
-    // Mark tile as harvested and track daily milestone progress
-    const currentPeriod = getCurrentResetPeriod(tile.x);
-    
-    // Read current harvest records, push new one, update
-    const tileRows = await db.select().from(tiles).where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y))).limit(1);
-    const tileDoc = tileRows[0];
-    const harvestRecords = tileDoc?.lastHarvestedBy || [];
-    harvestRecords.push({
-      playerId,
-      timestamp: new Date(),
-      resetPeriod: currentPeriod
-    });
-    
-    await db.update(tiles).set({ lastHarvestedBy: harvestRecords }).where(and(eq(tiles.x, tile.x), eq(tiles.y, tile.y)));
-    
-    // Track daily harvest milestone progress and award RP
+    // Track daily harvest milestone progress and award RP — post-commit, so a
+    // milestone failure can never retry the payout (FID-20261002-011 §5.6).
     try {
       const { checkDailyHarvestMilestone } = await import('./researchPointService');
       const milestoneResult = await checkDailyHarvestMilestone(playerId, currentPeriod);
@@ -395,8 +526,8 @@ export async function harvestResourceTile(
     // FID-20260911-043: slim post-write read — the harvest route never ships
     // updatedPlayer (route contract: "DO NOT return player"), so reading the
     // full 39 KB row here was pure waste on the hottest loop in the game.
-    // Keep to the slim projection; the earlier full read (line ~250) still
-    // supplies the gather math with blobs.
+    // Keep to the slim projection; the claim transaction supplies the gather
+    // math inputs.
     const updatedPlayerRows = await db.select({
       username: players.username,
       xp: players.xp,
@@ -426,7 +557,10 @@ export async function harvestResourceTile(
     const result: HarvestResult = {
       success: true,
       message: successMessage,
-      updatedPlayer: updatedPlayer || undefined
+      updatedPlayer: updatedPlayer || undefined,
+      // FID-20261002-012 §5.3: the authoritative deadline this payout wrote —
+      // the route's timing DTO and auto-farm clients consume it.
+      nextResourceHarvestAt,
     };
     
     if (tile.terrain === TerrainType.Metal) {
@@ -488,6 +622,8 @@ export async function getHarvestStatus(
 // - Bonuses stack: permanent + temporary
 // - Cave tile harvesting handled by CaveItemService
 // - Reset scheduler will clean old harvest records periodically
+// - FID-20261002-011: claim + credit are one transaction; the tile row lock
+//   serializes concurrent harvests of the same tile in the same period
 // ============================================================
 // END OF FILE
 // ============================================================

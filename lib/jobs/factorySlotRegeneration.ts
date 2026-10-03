@@ -2,16 +2,31 @@
  * @file lib/jobs/factorySlotRegeneration.ts
  * @created 2025-11-04
  * @updated 2026-04-04 (Migrated to Drizzle ORM)
+ * @updated 2026-10-02 (FID-20261002-011: canonical regen curve + shared helper +
+ *            FID-20261002-002 transaction boundary + batched owner stats)
+ *
  * @overview Background job that regenerates factory production slots over time
+ *
+ * FID-20261002-011: the job no longer carries its own 10×level curve (which
+ * recovered 19 slots/hour on a Level 10 factory versus the canonical 120).
+ * It now delegates to lib/slotRegenService.applySlotRegeneration — the same
+ * helper the build/status/list request paths use — so background and on-demand
+ * regeneration are the same curve, the same clock contract and the same
+ * army-balance multiplier. All rows are locked FOR UPDATE inside ONE
+ * transaction (FID-20261002-002), so the job can never overwrite a slot
+ * snapshot a concurrent build just consumed, and owner stats are read in ONE
+ * batched query instead of once per factory.
  */
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { factories } from '@/lib/db/schema/factories';
+import { factories, players } from '@/lib/db/schema';
+import { Factory } from '@/types';
+import { applySlotRegeneration, getSlotRegenBalanceMultiplier } from '@/lib/slotRegenService';
+import { withTransactionRetry } from '@/lib/db/treasuryLock';
 
 const FACTORY_SLOT_REGEN_JOB_CONFIG = {
   interval: 3600000,
-  slotsPerHour: 10,
 } as const;
 
 interface JobStats {
@@ -48,51 +63,103 @@ const state: FactoryRegenJobState = (factoryRegenGlobals.__darkframeFactoryRegen
   },
 });
 
-function getRegenRate(level: number): number {
-  return FACTORY_SLOT_REGEN_JOB_CONFIG.slotsPerHour * (1 + (level - 1) * 0.1);
+/** Result of one regeneration cycle. */
+export interface FactoryRegenCycleResult {
+  factoriesProcessed: number;
+  totalSlotsRegenerated: number;
+}
+
+/**
+ * One regeneration cycle (exported for the interval callback and the
+ * integration suite): lock every factory row, batch-read owner army totals,
+ * apply the shared regeneration helper at one explicit `now`, and persist
+ * only rows whose usedSlots actually changed — all inside one retried
+ * transaction.
+ */
+export async function runFactorySlotRegenerationCycle(
+  now: Date = new Date(),
+): Promise<FactoryRegenCycleResult> {
+  return withTransactionRetry('factorySlotRegenerationJob', () =>
+    db.transaction(async (tx): Promise<FactoryRegenCycleResult> => {
+      const allFactories = await tx.select().from(factories).for('update');
+
+      // FID-20261002-011 §5.5: batch owner-stat reads — one query for every
+      // distinct owner instead of one per factory.
+      const ownerNames = Array.from(
+        new Set(allFactories.map((f) => f.owner).filter((o): o is string => Boolean(o))),
+      );
+      const ownerRows = ownerNames.length
+        ? await tx
+            .select({
+              username: players.username,
+              totalStrength: players.totalStrength,
+              totalDefense: players.totalDefense,
+            })
+            .from(players)
+            .where(inArray(players.username, ownerNames))
+        : [];
+      const statsByOwner = new Map(ownerRows.map((row) => [row.username, row]));
+
+      let factoriesProcessed = 0;
+      let totalSlotsRegenerated = 0;
+
+      for (const factory of allFactories) {
+        try {
+          // Ownerless factories use the neutral multiplier; a missing owner row
+          // degrades to neutral as well (fail safe, never a fabricated penalty).
+          const stats = factory.owner ? statsByOwner.get(factory.owner) : undefined;
+          const balanceMultiplier =
+            factory.owner && stats
+              ? getSlotRegenBalanceMultiplier(stats.totalStrength, stats.totalDefense)
+              : 1;
+
+          const regenerated = applySlotRegeneration(factory as unknown as Factory, {
+            now,
+            balanceMultiplier,
+          });
+
+          // Persist when the recovered count OR the checkpoint moved: the
+          // empty-idle rebase must be durable, or a later build would inherit
+          // the discarded idle time from the stale checkpoint (FID-20261002-011
+          // §5.4).
+          const checkpointMoved =
+            regenerated.lastSlotRegen.getTime() !==
+            new Date(factory.lastSlotRegen).getTime();
+          if (regenerated.usedSlots !== factory.usedSlots || checkpointMoved) {
+            await tx
+              .update(factories)
+              .set({
+                usedSlots: regenerated.usedSlots,
+                lastSlotRegen: regenerated.lastSlotRegen,
+              })
+              .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
+            factoriesProcessed += 1;
+            totalSlotsRegenerated += factory.usedSlots - regenerated.usedSlots;
+          }
+        } catch (factoryError) {
+          console.error('[Factory Slot Regen] Error processing factory:', factoryError);
+        }
+      }
+
+      return { factoriesProcessed, totalSlotsRegenerated };
+    }),
+  );
 }
 
 async function factorySlotRegenerationJob(): Promise<number> {
   const startTime = Date.now();
-  let factoriesProcessed = 0;
-  let totalSlotsRegenerated = 0;
 
   try {
     console.log('[Factory Slot Regen] Starting regeneration cycle...');
 
-    const allFactories = await db.select().from(factories);
-    const now = new Date();
-
-    for (const factory of allFactories) {
-      try {
-        const lastRegen = factory.lastSlotRegen ? new Date(factory.lastSlotRegen) : new Date(0);
-        const timeSinceLastRegen = now.getTime() - lastRegen.getTime();
-        const hoursElapsed = timeSinceLastRegen / (1000 * 60 * 60);
-        const regenRate = getRegenRate(factory.level || 1);
-        const slotsToRegen = Math.floor(hoursElapsed * regenRate);
-
-        if (slotsToRegen > 0) {
-          const currentUsedSlots = factory.usedSlots || 0;
-          const newUsedSlots = Math.max(0, currentUsedSlots - slotsToRegen);
-
-          if (newUsedSlots !== currentUsedSlots) {
-            await db.update(factories)
-              .set({ usedSlots: newUsedSlots, lastSlotRegen: now })
-              .where(and(eq(factories.x, factory.x), eq(factories.y, factory.y)));
-            factoriesProcessed++;
-            totalSlotsRegenerated += currentUsedSlots - newUsedSlots;
-          }
-        }
-      } catch (factoryError) {
-        console.error('[Factory Slot Regen] Error processing factory:', factoryError);
-      }
-    }
+    const { factoriesProcessed, totalSlotsRegenerated } =
+      await runFactorySlotRegenerationCycle();
 
     console.log(`[Factory Slot Regen] Regenerated ${totalSlotsRegenerated} slots across ${factoriesProcessed} factories`);
 
     const executionTime = Date.now() - startTime;
     state.jobStats.lastRun = new Date();
-    state.jobStats.executionCount++;
+    state.jobStats.executionCount += 1;
     state.jobStats.factoriesRegenerated += factoriesProcessed;
     state.jobStats.totalSlotsRegenerated += totalSlotsRegenerated;
     state.jobStats.averageExecutionTime =

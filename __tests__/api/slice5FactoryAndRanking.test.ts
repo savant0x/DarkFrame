@@ -149,6 +149,8 @@ vi.mock('@/lib/db/connection', () => {
       groupBy: (...c: unknown[]) => { spec.groupBy = c; return terminal; },
       limit: (n: number) => { spec.limit = n; return terminal; },
       offset: (n: number) => { spec.offset = n; return terminal; },
+      // FID-20261002-011: locked-row reads — `.for('update')` is a no-op here.
+      for: () => terminal,
       values: (v: unknown) => { spec.values = v; return terminal; },
       set: (v: unknown) => { spec.set = v; return terminal; },
       returning: () => { spec.returning = true; return terminal; },
@@ -157,13 +159,20 @@ vi.mock('@/lib/db/connection', () => {
     };
     return terminal;
   };
+  // FID-20261002-011 §5.5: build/status paths run inside db.transaction — the
+  // mock's transaction passes a tx handle with the SAME builder shape (specs
+  // recorded in order), so payload assertions are unchanged.
+  const txOps = {
+    insert: (t: unknown) => mk({ op: 'insert', table: t }),
+    update: (t: unknown) => mk({ op: 'update', table: t }),
+    delete: (t: unknown) => mk({ op: 'delete', table: t }),
+    select: (...fields: unknown[]) => mk({ op: 'select', fields }),
+    execute: async () => ({ rows: [] }),
+  };
   return {
     db: {
-      insert: (t: unknown) => mk({ op: 'insert', table: t }),
-      update: (t: unknown) => mk({ op: 'update', table: t }),
-      delete: (t: unknown) => mk({ op: 'delete', table: t }),
-      select: (...fields: unknown[]) => mk({ op: 'select', fields }),
-      execute: async () => ({ rows: [] }),
+      ...txOps,
+      transaction: async <T,>(fn: (tx: typeof txOps) => Promise<T>): Promise<T> => fn(txOps),
     },
   };
 });
@@ -208,6 +217,8 @@ vi.mock('@/lib/slotRegenService', () => ({
   getAvailableSlots: vi.fn(() => 5),
   getTimeUntilNextSlot: vi.fn(() => ({ hours: 0, minutes: 1, seconds: 0, totalMs: 60_000 })),
   getFactoryCapacity: vi.fn(() => 10),
+  // FID-20261002-011 §5.3: owner-balance multiplier (neutral in these mocks).
+  getSlotRegenBalanceMultiplier: vi.fn(() => 1),
 }));
 
 vi.mock('@/lib/flagBonusService', () => ({
@@ -417,6 +428,9 @@ describe('slice 5 — factory routes', () => {
   });
 
   it("build-unit: rejects another player's factory (403) without any write", async () => {
+    // FID-20261002-011 lock order: the player row is locked before the factory
+    // asset, so both fixtures are seeded.
+    respondWithSelect('players', [{ units: [], resourcesMetal: 10_000, resourcesEnergy: 10_000, totalStrength: 0, totalDefense: 0 }]);
     respondWithSelect('factories', [factoryRow({ owner: 'someone_else' })]);
 
     const res = await factoryBuild(req('/api/factory/build-unit', { method: 'POST', body: { factoryX: 1, factoryY: 1, unitType: 'INFANTRY', quantity: 1 } }), routeCtx) as NextResponse;

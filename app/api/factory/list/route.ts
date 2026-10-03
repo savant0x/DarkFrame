@@ -2,6 +2,8 @@
  * Factory List API Endpoint
  * Created: 2025-10-17 (Enhanced for upgrade system)
  * Rewritten: 2026-09-19 (FID-20260917-017 slice 5: Mongo shim → direct drizzle/pg)
+ * Updated: 2026-10-02 (FID-20261002-011 §5.3: owner-balance multiplier and one
+ *            shared clock for every factory's regeneration and countdown)
  *
  * OVERVIEW:
  * GET endpoint to retrieve all factories owned by the authenticated player.
@@ -33,7 +35,7 @@ import {
   getUpgradeProgress,
   FACTORY_UPGRADE
 } from '@/lib/factoryUpgradeService';
-import { applySlotRegeneration, getTimeUntilNextSlot, getAvailableSlots } from '@/lib/slotRegenService';
+import { applySlotRegeneration, getTimeUntilNextSlot, getAvailableSlots, getSlotRegenBalanceMultiplier } from '@/lib/slotRegenService';
 import { Factory, FactoryStats } from '@/types/game.types';
 
 /**
@@ -74,12 +76,15 @@ export async function GET(_request: NextRequest) {
 
     const username = authResult.username;
 
-    // Get player's current resources for upgrade affordability checks
-    // (direct pg read over the flat resource columns)
+    // Get player's current resources for upgrade affordability checks, plus the
+    // army totals that drive the shared slot-regen balance multiplier
+    // (FID-20261002-011 §5.3 — ONE owner read for ALL owned factories).
     const [player] = await db
       .select({
         resourcesMetal: players.resourcesMetal,
         resourcesEnergy: players.resourcesEnergy,
+        totalStrength: players.totalStrength,
+        totalDefense: players.totalDefense,
       })
       .from(players)
       .where(eq(players.username, username))
@@ -94,6 +99,10 @@ export async function GET(_request: NextRequest) {
 
     const playerMetal = player.resourcesMetal || 0;
     const playerEnergy = player.resourcesEnergy || 0;
+    const balanceMultiplier = getSlotRegenBalanceMultiplier(player.totalStrength, player.totalDefense);
+    // One explicit clock for every factory in the response (no racing Date.now
+    // calls between the recovery and the countdown).
+    const now = new Date();
 
     // Find all factories owned by player
     const factoryRows = await db.select().from(factories).where(eq(factories.owner, username));
@@ -108,11 +117,12 @@ export async function GET(_request: NextRequest) {
       const currentLevel = factory.level || 1;
       const stats = getFactoryStats(currentLevel);
 
-      // Apply slot regeneration before returning (use updated instance)
-      const regenFactory = applySlotRegeneration(factory);
+      // Apply slot regeneration before returning (use updated instance) —
+      // effective rate = getRegenRate(level) × balance multiplier, explicit now
+      const regenFactory = applySlotRegeneration(factory, { now, balanceMultiplier });
 
-      // Calculate time until next slot
-      const timeUntilNext = getTimeUntilNextSlot(regenFactory);
+      // Calculate time until next slot at the SAME effective rate
+      const timeUntilNext = getTimeUntilNextSlot(regenFactory, { balanceMultiplier });
 
       // Calculate upgrade info
       let upgradeCost = null;
@@ -202,10 +212,11 @@ export async function GET(_request: NextRequest) {
 /**
  * IMPLEMENTATION NOTES:
  *
- * 1. Slot Regeneration:
- *    - Applied to each factory before returning
+ * 1. Slot Regeneration (FID-20261002-011):
+ *    - Applied to each factory before returning, at the owner's balance
+ *      multiplier with one shared clock
  *    - Ensures accurate slot availability display
- *    - Time until next slot calculated for UI countdowns
+ *    - Time until next slot calculated for UI countdowns at the same rate
  *
  * 2. Upgrade Affordability:
  *    - Checked against player's current resources
