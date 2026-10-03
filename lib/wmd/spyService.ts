@@ -47,6 +47,7 @@ import {
 } from '@/lib/db/schema/wmd';
 import { players } from '@/lib/db/schema/players';
 import { clans } from '@/lib/db/schema/clans'; // FID-20260916-007: battery owner derivation (clan -> leader)
+import { withTransactionRetry, type TreasuryTx } from '@/lib/db/treasuryLock'; // FID-20261002-008 §5.4
 import { generateId } from '@/lib/utils'; // FID-20260919-017: 23-char PKs that fit varchar(24)
 import {
   MissionType,
@@ -62,7 +63,9 @@ import {
   NotificationScope,
   isValidMissionType,
   isValidWarheadType,
-  calculateSuccessChance
+  calculateSuccessChance,
+  MissileComponent,
+  COMPONENT_COSTS
 } from '@/types/wmd';
 import type { SpyAgent, SpySpecialization, SpyStatus } from '@/types/wmd';
 // FID-20260916-011: shared sabotage math (difficulty/detection tables) — delegate, never copy.
@@ -544,55 +547,109 @@ export async function executeSabotage(
     const detected = Math.random() < detectionRisk;
     
     let damage: SabotageDamage | undefined = undefined;
+    let effectMessage = '';
     
-    if (success) {
-      damage = await applySabotageDamage(targetType, targetId, spy.skills.sabotage);
-    }
-    
+    // FID-20261002-008 §5.4: the target mutation, the spy exposure and the
+    // operation damage record commit TOGETHER in ONE transaction — a
+    // persistence failure propagates and rolls everything back, so a
+    // success-with-no-write response is impossible. The rolls were decided
+    // OUTSIDE the retrying transaction: a retry replays the same outcome
+    // instead of rerolling. For a roll success with nothing to damage, the
+    // record carries the zero-delta damage + explicit noEffectReason —
+    // truthful, never fabricated.
     const sabotageId = `sabotage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    // FID-20260916-007: the record describes the VICTIM (derived from the
-    // asset), not the caller — the historical code wrote the caller-asserted
-    // id here.
-    const targetUsername = target.ownerUsername ?? 'Unknown';
-    
-    const sabotageRecord = {
-      // FID-20260916-007 disclosure: the historical base-10 id (wso_<13-digit
-      // epoch>_<9>) is 27 chars and overflows this table's varchar(24) id —
-      // never observed because the broken validator refused every operation
-      // before this insert was reachable. Base-36 epoch (22 chars) fixes it
-      // in-scope so the repaired pipeline can actually persist; recorded in
-      // the FID as a pre-existing defect exposed by the repair.
-      id: `wso_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`,
-      sabotageId,
-      spyId,
-      spyCodename: spy.codename,
-      operatorId: spy.ownerId,
-      operatorUsername: spy.ownerUsername,
-      targetType,
-      targetId,
-      targetPlayerId: target.ownerId ?? '',
-      targetUsername,
-      success: success ? 1 : 0,
-      detected: detected ? 1 : 0,
-      damageDealt: damage,
-      executedAt: new Date(),
-      createdAt: new Date(),
-    };
-    
-    await db.insert(wmdSabotageOperations).values(sabotageRecord);
-    
-    if (detected) {
-      await db.update(wmdSpies).set({
-        status: 'COMPROMISED',
-        updatedAt: new Date(),
-      }).where(eq(wmdSpies.spyId, spyId));
+    if (success) {
+      const now = new Date();
+      damage = await withTransactionRetry('wmd:sabotage', () =>
+        db.transaction(async (tx): Promise<SabotageDamage> => {
+          const effect = await applySabotageDamageTx(tx, targetType, targetId, spy.skills.sabotage, now);
+          effectMessage = effect.noEffectReason
+            ? ` — no effect: ${effect.noEffectReason}`
+            : '';
+          
+          // §5.4: the record and the spy exposure ride the SAME transaction
+          // as the target mutation — they commit together or not at all.
+          const sabotageRecord = buildSabotageRecord({
+            id: `wso_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`,
+            sabotageId,
+            spyId,
+            spy,
+            targetType,
+            targetId,
+            target,
+            success,
+            detected,
+            damage: effect,
+            executedAt: now,
+          });
+          await tx.insert(wmdSabotageOperations).values(sabotageRecord);
+          
+          if (detected) {
+            await tx.update(wmdSpies).set({
+              status: 'COMPROMISED',
+              updatedAt: now,
+            }).where(eq(wmdSpies.spyId, spyId));
+          }
+          
+          return effect;
+        })
+      );
+      
+      // §5.6: the notification seam runs strictly POST-commit (a notification
+      // failure cannot change the committed success or duplicate damage).
+      await sendSabotageNotifications(buildSabotageRecord({
+        id: '', // not persisted again — notification payload only
+        sabotageId,
+        spyId,
+        spy,
+        targetType,
+        targetId,
+        target,
+        success,
+        detected,
+        damage,
+        executedAt: damage.executedAt,
+      }));
+    } else {
+      // Roll failed: no target effect exists — the record + exposure still
+      // commit (execution is the committed action, mirroring the void rule).
+      const now = new Date();
+      const targetUsername = target.ownerUsername ?? 'Unknown';
+      const sabotageRecord = {
+        id: `wso_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`,
+        sabotageId,
+        spyId,
+        spyCodename: spy.codename,
+        operatorId: spy.ownerId,
+        operatorUsername: spy.ownerUsername,
+        targetType,
+        targetId,
+        targetPlayerId: target.ownerId ?? '',
+        targetUsername,
+        success: 0,
+        detected: detected ? 1 : 0,
+        damageDealt: undefined,
+        executedAt: now,
+        createdAt: now,
+      };
+      await withTransactionRetry('wmd:sabotage:failed', () =>
+        db.transaction(async (tx) => {
+          await tx.insert(wmdSabotageOperations).values(sabotageRecord);
+          if (detected) {
+            await tx.update(wmdSpies).set({
+              status: 'COMPROMISED',
+              updatedAt: now,
+            }).where(eq(wmdSpies.spyId, spyId));
+          }
+        })
+      );
+      await sendSabotageNotifications(sabotageRecord);
     }
-    
-    await sendSabotageNotifications(sabotageRecord);
     
     let message = 'Sabotage operation ';
     if (success) {
       message += detected ? 'successful but spy detected!' : 'successful and undetected.';
+      message += effectMessage;
     } else {
       message += detected ? 'failed and spy detected!' : 'failed but spy undetected.';
     }
@@ -1379,12 +1436,83 @@ async function resolveSabotageTarget(
   }
 }
 
-async function applySabotageDamage(
+/**
+ * FID-20261002-008: the operation record shape, shared by the success and
+ * failure paths so the persisted row always describes the VICTIM (the
+ * FID-20260916-007 owner-derived identity) and the COMMITTED effect.
+ */
+function buildSabotageRecord(args: {
+  id: string;
+  sabotageId: string;
+  spyId: string;
+  spy: { codename: string; ownerId: string; ownerUsername: string };
+  targetType: 'MISSILE' | 'DEFENSE_BATTERY' | 'RESEARCH';
+  targetId: string;
+  target: { ownerId: string | null; ownerUsername: string | null };
+  success: boolean;
+  detected: boolean;
+  damage: SabotageDamage | undefined;
+  executedAt: Date;
+}): typeof wmdSabotageOperations.$inferInsert {
+  return {
+    id: args.id,
+    sabotageId: args.sabotageId,
+    spyId: args.spyId,
+    spyCodename: args.spy.codename,
+    operatorId: args.spy.ownerId,
+    operatorUsername: args.spy.ownerUsername,
+    targetType: args.targetType,
+    targetId: args.targetId,
+    targetPlayerId: args.target.ownerId ?? '',
+    targetUsername: args.target.ownerUsername ?? 'Unknown',
+    success: args.success ? 1 : 0,
+    detected: args.detected ? 1 : 0,
+    damageDealt: args.damage,
+    executedAt: args.executedAt,
+    createdAt: args.executedAt,
+  };
+}
+
+/**
+ * FID-20261002-008 — the truthful target-effect engine. TRANSACTION-AWARE:
+ * every read runs on the caller's tx with the target row FOR UPDATE-locked
+ * (the same active row 002's research writer locks), every write commits (or
+ * rolls back) WITH the operation record and spy exposure.
+ *
+ * R12 (RED): the battery branch reported success with ZERO target writes —
+ * it only computed a hypothetical resource-waste figure — and research had no
+ * branch at all; the missile branch fabricated metal/energy losses.
+ *
+ * Effects use REAL schema state only:
+ *  - DEFENSE_BATTERY → the 007 lifecycle: cooldownUntil extended by
+ *    ceil(clamped skill/100 × cooldownDuration) (≥1 ms for positive skill)
+ *    from max(now, existing deadline); eligible IDLE/COOLDOWN batteries move
+ *    to COOLDOWN; DAMAGED/UPGRADING are unavailable. delayDuration records the
+ *    ACTUAL extension — no invented resource loss, no health write (the schema
+ *    has no health column).
+ *  - RESEARCH → currentResearchRpSpent reduced by
+ *    min(spent, floor(required × clamped skill/100 × 0.25));
+ *    currentResearchProgress rewritten from remaining/required as a validated
+ *    decimal string. Completed techs, domain tiers and lifetime RP spent are
+ *    NEVER revoked. No active research / zero destructible progress is a
+ *    truthful NO-EFFECT result, not a damaging success.
+ *  - MISSILE → preserved behavior with a truthful ACTUAL components delta;
+ *    resourcesWasted computed from the REAL COMPONENT_COSTS evidence for the
+ *    components actually destroyed (the invented progressLost×cost figures are
+ *    gone).
+ *
+ * A no-effect outcome carries zero applied deltas + an explicit reason; the
+ * caller records it as a successful roll with zero effect, never as damage.
+ */
+async function applySabotageDamageTx(
+  tx: TreasuryTx,
   targetType: string,
   targetId: string,
-  sabotageSkill: number
+  sabotageSkill: number,
+  now: Date
 ): Promise<SabotageDamage> {
   const sabotageId = `sabotage_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const clampedSkill = Math.min(Math.max(sabotageSkill, 0), 100);
   
   const damage: SabotageDamage = {
     sabotageId,
@@ -1400,37 +1528,142 @@ async function applySabotageDamage(
     progressLost: 0,
     resourcesWasted: { metal: 0, energy: 0 },
     detected: false,
-    executedAt: new Date(),
+    executedAt: now,
   };
   
   if (targetType === 'MISSILE') {
-    const progressLost = Math.floor((sabotageSkill / 100) * 25);
+    const progressLost = Math.floor((clampedSkill / 100) * 25);
     damage.progressLost = progressLost;
     
-    const missileResult = await db.select()
+    const [missile] = await tx
+      .select()
       .from(missiles)
       .where(eq(missiles.missileId, targetId))
-      .limit(1);
+      .limit(1)
+      .for('update');
     
-    if (missileResult[0]) {
-      const currentComponents = missileResult[0].componentsWarhead || 0;
-      const newComponents = Math.max(0, currentComponents - Math.floor(progressLost / 10));
-      
-      await db.update(missiles).set({
-        componentsWarhead: newComponents,
-        updatedAt: new Date(),
-      }).where(eq(missiles.missileId, targetId));
+    if (!missile) {
+      // §5.1: the locked truth is authoritative — a vanished target yields a
+      // truthful no-effect, never fabricated damage.
+      damage.noEffectReason = 'Target missile no longer exists';
+      return damage;
     }
     
-    damage.resourcesWasted = {
-      metal: progressLost * 10000,
-      energy: progressLost * 15000,
-    };
+    const currentComponents = missile.componentsWarhead || 0;
+    const newComponents = Math.max(0, currentComponents - Math.floor(progressLost / 10));
+    const actuallyDestroyed = currentComponents - newComponents;
+    
+    await tx.update(missiles).set({
+      componentsWarhead: newComponents,
+      updatedAt: now,
+    }).where(eq(missiles.missileId, targetId));
+    
+    if (actuallyDestroyed > 0) {
+      damage.componentsDestroyed = [MissileComponent.WARHEAD];
+      // §5.5: real spend evidence only — the catalog's base component cost;
+      // the tier-multiplier exponent semantics are undefined so the
+      // conservative base is used, never an invented figure.
+      damage.resourcesWasted = {
+        metal: actuallyDestroyed * COMPONENT_COSTS[MissileComponent.WARHEAD].baseCost.metal,
+        energy: actuallyDestroyed * COMPONENT_COSTS[MissileComponent.WARHEAD].baseCost.energy,
+      };
+    }
   } else if (targetType === 'DEFENSE_BATTERY') {
-    damage.resourcesWasted = {
-      metal: sabotageSkill * 500,
-      energy: sabotageSkill * 750,
-    };
+    const [battery] = await tx
+      .select()
+      .from(wmdDefenseBatteries)
+      .where(eq(wmdDefenseBatteries.batteryId, targetId))
+      .limit(1)
+      .for('update');
+    
+    if (!battery) {
+      damage.noEffectReason = 'Target battery no longer exists';
+      return damage;
+    }
+    if (battery.status === 'DAMAGED' || battery.status === 'UPGRADING') {
+      // §5.2: only IDLE/COOLDOWN batteries are eligible targets.
+      damage.noEffectReason = `Battery is unavailable (status ${battery.status})`;
+      return damage;
+    }
+    
+    // §5.2 the 007 lifecycle: extend the persisted shot deadline from
+    // max(now, existing deadline); the conditional transition reserves the
+    // battery into COOLDOWN (IDLE) or extends it in place (already COOLDOWN).
+    const existingDeadline = battery.cooldownUntil ?? null;
+    const base = existingDeadline && existingDeadline > now ? existingDeadline : now;
+    const durationMs = battery.cooldownDuration ?? 0;
+    // executeSabotage refuses spies below the sabotage floor (30), so the
+    // clamped skill is always positive here; the ≥1 ms bound is the spec's
+    // explicit floor for positive skill.
+    const extension = Math.max(1, Math.ceil((clampedSkill / 100) * durationMs));
+    const newDeadline = new Date(base.getTime() + extension);
+    
+    // Under the row lock the battery cannot change status; the conditional
+    // predicate is defense-in-depth against any non-tx writer.
+    const claim = await tx
+      .update(wmdDefenseBatteries)
+      .set({
+        status: 'COOLDOWN',
+        cooldownUntil: newDeadline,
+        updatedAt: now,
+      })
+      .where(and(
+        eq(wmdDefenseBatteries.id, battery.id),
+        inArray(wmdDefenseBatteries.status, ['IDLE', 'COOLDOWN'])
+      ))
+      .returning({ id: wmdDefenseBatteries.id });
+    if (claim.length === 0) {
+      // Lost the row to a concurrent writer — truthful no-effect.
+      damage.noEffectReason = 'Battery state changed during the operation';
+      return damage;
+    }
+    
+    damage.delayDuration = extension;
+    // Time is time: a cooldown extension is NOT metal/energy destruction.
+  } else if (targetType === 'RESEARCH') {
+    // §5.3: lock the SAME active research row the 002 writer locks.
+    const [research] = await tx
+      .select()
+      .from(playerResearch)
+      .where(eq(playerResearch.id, targetId))
+      .limit(1)
+      .for('update');
+    
+    if (!research) {
+      damage.noEffectReason = 'Target research record no longer exists';
+      return damage;
+    }
+    const techId = research.currentResearchTechId;
+    const spent = research.currentResearchRpSpent ?? 0;
+    const required = research.currentResearchRpRequired ?? 0;
+    if (!techId || spent <= 0 || required <= 0) {
+      damage.noEffectReason = !techId
+        ? 'Target has no active research in progress'
+        : 'Active research has no destructible RP progress';
+      return damage;
+    }
+    
+    const destroy = Math.min(spent, Math.floor(required * (clampedSkill / 100) * 0.25));
+    if (destroy <= 0) {
+      damage.noEffectReason = 'Sabotage strength destroys no RP at this research scale';
+      return damage;
+    }
+    const remaining = spent - destroy;
+    
+    await tx
+      .update(playerResearch)
+      .set({
+        currentResearchRpSpent: remaining,
+        // §5.3 source-audit correction: currentResearchProgress is a numeric
+        // column — write a validated decimal string derived from the LOCKED
+        // row's remaining/required.
+        currentResearchProgress: String(Math.min(100, Math.max(0, (remaining / required) * 100)).toFixed(2)),
+        updatedAt: now,
+      })
+      .where(eq(playerResearch.id, targetId));
+    
+    damage.progressLost = destroy; // ACTUAL RP destroyed
+    // RP is RP: research destruction is NOT metal/energy destruction.
   }
   
   return damage;

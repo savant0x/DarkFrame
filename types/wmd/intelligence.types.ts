@@ -260,14 +260,29 @@ export interface SabotageDamage {
   // Damage dealt
   componentsDestroyed: MissileComponent[];
   componentsDelayed: MissileComponent[];
-  delayDuration: number;           // Milliseconds
+  /** FID-20261002-008: the ACTUAL persisted cooldown extension for a
+   * battery sabotage (milliseconds, ≥1 for positive skill) — never an
+   * invented resource-loss figure. 0 for other target types. */
+  delayDuration: number;
   
   // Impact
-  progressLost: number;            // Percentage
+  /** FID-20261002-008: percentage of missile progress for MISSILE targets;
+   * the ACTUAL RP destroyed for RESEARCH targets (research is RP-contribution
+   * state — the schema has no timed-completion to fake). */
+  progressLost: number;
+  /** FID-20261002-008 §5.5: computed ONLY from destroyed contributions with
+   * real spend evidence (missile components × COMPONENT_COSTS). Battery
+   * cooldowns and research RP destruction report ZERO — they are time and RP,
+   * not metal/energy. */
   resourcesWasted: {
     metal: number;
     energy: number;
   };
+  /** FID-20261002-008 §5.4: set when the operation roll SUCCEEDED but the
+   * locked target state offered nothing to damage (no active research, zero
+   * destructible progress, unavailable battery, vanished target). Zero applied
+   * delta + explicit reason — never a fabricated success. */
+  noEffectReason?: string;
   
   // Detection
   detected: boolean;

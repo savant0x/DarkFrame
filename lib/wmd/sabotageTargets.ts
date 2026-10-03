@@ -42,6 +42,14 @@ export interface SabotageTargetOption {
   /** Difficulty / base detection from the shared math module — display only. */
   difficulty: number;
   detectionRisk: number;
+  /** FID-20261002-008 §5.6: whether the target can actually take effect right
+   * now (batteries: IDLE/COOLDOWN only — DAMAGED/UPGRADING are unavailable;
+   * research: an active tech with destructible RP; missiles: listed states are
+   * eligible). Display alignment ONLY — the fire path re-derives everything
+   * under lock. */
+  eligible: boolean;
+  /** Why a target is currently ineligible (display only). */
+  statusNote?: string;
 }
 
 export interface SabotageTargetsResult {
@@ -59,7 +67,9 @@ function toOption(
   victimKind: 'PLAYER' | 'CLAN',
   victimId: string,
   victimUsername: string | null,
-  protectionUntil: Date | string | null
+  protectionUntil: Date | string | null,
+  eligible = true,
+  statusNote?: string
 ): SabotageTargetOption {
   return {
     targetType,
@@ -71,6 +81,8 @@ function toOption(
     protected: protectionUntil !== null && protectionActive(protectionUntil),
     difficulty: getSabotageDifficulty(targetType),
     detectionRisk: getBaseDetectionRisk(targetType),
+    eligible,
+    ...(statusNote ? { statusNote } : {}),
   };
 }
 
@@ -123,11 +135,14 @@ export async function getSabotageTargets(spyId: string): Promise<SabotageTargets
       .where(inArray(missiles.status, ['READY', 'STORED']));
 
     // DEFENSE_BATTERY — battery -> clan -> leader (the fire path refuses on
-    // the leader's window, so the leader is the victim shown).
+    // the leader's window, so the leader is the victim shown). FID-20261002-008:
+    // the status rides the option so the panel can mark DAMAGED/UPGRADING
+    // batteries unavailable (the truthful engine refuses them under lock).
     const batteryRows = await db
       .select({
         batteryId: wmdDefenseBatteries.batteryId,
         clanId: wmdDefenseBatteries.clanId,
+        status: wmdDefenseBatteries.status,
         clanName: clans.name,
         username: players.username,
         protectionUntil: players.protectionUntil,
@@ -136,13 +151,16 @@ export async function getSabotageTargets(spyId: string): Promise<SabotageTargets
       .innerJoin(clans, eq(clans.id, wmdDefenseBatteries.clanId))
       .innerJoin(players, eq(players.username, clans.leaderId));
 
-    // RESEARCH — row id -> owner player (username-keyed).
+    // RESEARCH — row id -> owner player (username-keyed). FID-20261002-008:
+    // rows without an active tech (or without destructible RP) are listed but
+    // marked ineligible — sabotaging them is a truthful no-effect, not damage.
     const researchRows = await db
       .select({
         id: playerResearch.id,
         playerId: playerResearch.playerId,
         playerUsername: playerResearch.playerUsername,
         currentTech: playerResearch.currentResearchTechId,
+        rpSpent: playerResearch.currentResearchRpSpent,
         username: players.username,
         protectionUntil: players.protectionUntil,
       })
@@ -154,12 +172,34 @@ export async function getSabotageTargets(spyId: string): Promise<SabotageTargets
       missiles: missileRows.map((r) =>
         toOption('MISSILE', r.missileId, `${r.warheadType} warhead (${r.status.toLowerCase()})`, 'PLAYER', r.ownerId, r.username, r.protectionUntil)
       ),
-      batteries: batteryRows.map((r) =>
-        toOption('DEFENSE_BATTERY', r.batteryId, `${r.clanName} defense battery`, 'CLAN', r.clanId, r.username, r.protectionUntil)
-      ),
-      research: researchRows.map((r) =>
-        toOption('RESEARCH', r.id, `${r.playerUsername}'s research`, 'PLAYER', r.playerId, r.username, r.protectionUntil)
-      ),
+      batteries: batteryRows.map((r) => {
+        const eligible = r.status === 'IDLE' || r.status === 'COOLDOWN';
+        return toOption(
+          'DEFENSE_BATTERY',
+          r.batteryId,
+          `${r.clanName} defense battery`,
+          'CLAN',
+          r.clanId,
+          r.username,
+          r.protectionUntil,
+          eligible,
+          eligible ? undefined : `Battery is ${r.status.toLowerCase()} — unavailable`
+        );
+      }),
+      research: researchRows.map((r) => {
+        const eligible = !!r.currentTech && (r.rpSpent ?? 0) > 0;
+        return toOption(
+          'RESEARCH',
+          r.id,
+          `${r.playerUsername}'s research`,
+          'PLAYER',
+          r.playerId,
+          r.username,
+          r.protectionUntil,
+          eligible,
+          eligible ? undefined : !r.currentTech ? 'No active research in progress' : 'Active research has no RP progress yet'
+        );
+      }),
     };
   } catch (error) {
     console.error('Error enumerating sabotage targets:', error);

@@ -96,6 +96,7 @@ const TARGET = {
   protected: false,
   difficulty: 0.2,
   detectionRisk: 0.4,
+  eligible: true, // FID-20261002-008 §5.6: eligibility rides every option
 };
 
 beforeEach(() => {

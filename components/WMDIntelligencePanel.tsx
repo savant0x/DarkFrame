@@ -325,7 +325,10 @@ export default function WMDIntelligencePanel() {
       });
       const data = await res.json();
       if (data.success) {
-        showSuccess('Sabotage operation executed');
+        // FID-20261002-008: the service message carries the truthful outcome —
+        // applied deltas or the explicit no-effect reason — never a generic
+        // "executed" over a zero-delta result.
+        showSuccess(typeof data.message === 'string' ? data.message : 'Sabotage operation executed');
         setSabResult({ ok: true, message: data.message });
       } else {
         const message = typeof data.error === 'string' ? data.error : extractApiError(data, res.status);
