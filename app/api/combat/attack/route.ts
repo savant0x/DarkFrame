@@ -31,7 +31,7 @@ import { getRaidPeriodStart } from '@/lib/raidPeriod';
 import { verifyPresence } from '@/lib/presenceCheck';
 import { resolveBaseTilePosition } from '@/lib/baseTilePosition';
 import { logAttack } from '@/lib/activityLogger';
-import { resolveBattle, persistBattleLog, applyAttackerCasualties, applyDefenderCasualtiesWithFloor } from '@/lib/battleService';
+import { resolveBattle, persistBattleLog, applyAttackerCasualties } from '@/lib/battleService';
 import { evaluateHostility, pvpLootCap } from '@/lib/hostileBase'; // FID-20260928-006
 import { areAllies } from '@/lib/clanAllianceService'; // FID-20260928-006 §2
 import { logRaidRefusal } from '@/lib/activityLogger'; // FID-20260928-008 telemetry
@@ -39,13 +39,19 @@ import { recordDefeatEvent } from '@/lib/beerBaseAnalytics';
 import { getBeerBaseConfig, removeBeerBase } from '@/lib/beerBaseService';
 import { updateReputation } from '@/lib/botCombatService';
 import { awardXP, XPAction } from '@/lib/xpService';
+// FID-20261002-003: admission parity + committed conservation for HUMAN raids.
+import { protectionActive, PROTECTION_REFUSAL_REASON, voidProtectionOnAggressionTx } from '@/lib/playerProtection';
+import { isFlagBearer } from '@/lib/flagBonusService';
+import { applyDefenderCasualtiesWithFloorTx } from '@/lib/battleService';
+import { withTransactionRetry } from '@/lib/db/treasuryLock';
 import { recordTutorialBeerBaseFound, recordTutorialBaseAttack } from '@/lib/tutorialService';
 import { db } from '@/lib/db';
 import { players, battleLogs } from '@/lib/db/schema';
 import type { BotConfig } from '@/types/game.types';
 import { eq, and, gte } from 'drizzle-orm';
 import { BattleType, UnitType } from '@/types';
-import type { Player, PlayerUnit, Unit } from '@/types/game.types';
+import type { Player, PlayerUnit, Unit, BattleLog } from '@/types/game.types';
+import { sql } from 'drizzle-orm';
 
 
 const rateLimiter = createRateLimiter(ENDPOINT_RATE_LIMITS.battle);
@@ -198,6 +204,59 @@ function baseTierIndex(username: string): number {
 }
 
 /**
+ * FID-20261002-003 §5.5: the in-transaction battle-log insert shape. The
+ * transaction must write the SAME row persistBattleLog would (the period
+ * claim reads battle_logs), minus that helper's notification side effect —
+ * notifications stage strictly post-commit. Keep the field mapping identical
+ * to battleService.battleLogToDbInsert.
+ */
+function battleLogToDbInsertShim(battleLog: BattleLog) {
+  return {
+    battleId: battleLog.battleId,
+    battleType: battleLog.battleType,
+    timestamp: battleLog.timestamp,
+    attackerUsername: battleLog.attacker.username,
+    attackerUnits: battleLog.attacker.units,
+    attackerTotalSTR: battleLog.attacker.totalSTR,
+    attackerTotalDEF: battleLog.attacker.totalDEF,
+    attackerInitialHP: battleLog.attacker.initialHP,
+    attackerFinalHP: battleLog.attacker.finalHP,
+    attackerUnitsLost: battleLog.attacker.unitsLost,
+    attackerUnitsCaptured: battleLog.attacker.unitsCaptured,
+    attackerStartingHP: battleLog.attacker.startingHP,
+    attackerEndingHP: battleLog.attacker.endingHP,
+    attackerDamageDealt: battleLog.attacker.damageDealt,
+    attackerXpEarned: battleLog.attacker.xpEarned,
+    defenderUsername: battleLog.defender.username,
+    defenderUnits: battleLog.defender.units,
+    defenderTotalSTR: battleLog.defender.totalSTR,
+    defenderTotalDEF: battleLog.defender.totalDEF,
+    defenderInitialHP: battleLog.defender.initialHP,
+    defenderFinalHP: battleLog.defender.finalHP,
+    defenderUnitsLost: battleLog.defender.unitsLost,
+    defenderUnitsCaptured: battleLog.defender.unitsCaptured,
+    defenderStartingHP: battleLog.defender.startingHP,
+    defenderEndingHP: battleLog.defender.endingHP,
+    defenderDamageDealt: battleLog.defender.damageDealt,
+    defenderXpEarned: battleLog.defender.xpEarned,
+    outcome: battleLog.outcome,
+    rounds: battleLog.rounds,
+    totalRounds: battleLog.totalRounds,
+    attackerXP: battleLog.attackerXP,
+    defenderXP: battleLog.defenderXP,
+    resourcesStolen: battleLog.resourcesStolen,
+    message: battleLog.message,
+    location: battleLog.location,
+  };
+}
+
+/** Post-commit battle-won tracker with the import local to this route. */
+async function trackBattleWonSafe(username: string): Promise<void> {
+  const { trackBattleWon } = await import('@/lib/statTrackingService');
+  await trackBattleWon(username);
+}
+
+/**
  * FID-20260915-003: canonical bot tier — `bot_config.tier` is the spawner's
  * field (beerBaseService sets tier = rank, clamped 1..6; botTierResync maintains
  * it). The b[WMSEUL] username marker is the legacy encoding and matches NOTHING
@@ -298,6 +357,9 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
     // same clan/tribe, active alliance of ANY type (NAP/TRADE/MILITARY/
     // FEDERATION all block — the alliance lookup failing must never enable
     // aggression, so a lookup error fails safe as allied).
+    // FID-20261002-003 §5.1: this snapshot is the fail-fast preview; the
+    // authoritative hostility/protection/bearer checks re-run INSIDE the
+    // committed transaction below.
     if (!isBotDefender) {
       const attackerClanId = (attackerPlayer as unknown as { clanId?: string | null }).clanId ?? null;
       const defenderClanId = (base as unknown as { clanId?: string | null }).clanId ?? null;
@@ -329,6 +391,46 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
           allied,
         });
         return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: verdict.reason });
+      }
+
+      // FID-20261002-003 §5.1 (R1): protected human defenders REFUSE — the
+      // infantry path's parity rule (PVP_BASE_RAID_DESIGN.md §3 harvest).
+      const defenderProtection = (base as unknown as { protectionUntil?: Date | string | null }).protectionUntil;
+      if (protectionActive(defenderProtection)) {
+        log.debug('Base raid refused: defender under new-player protection', { attacker: auth.username, defender });
+        await logRaidRefusal({
+          attacker: auth.username,
+          defender,
+          reason: 'defender_protected',
+          attackerClanId,
+          defenderClanId,
+          allied,
+        });
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, { message: PROTECTION_REFUSAL_REASON });
+      }
+
+      // FID-20261002-003 §5.1 (R1): the initiating Flag Bearer cannot raid
+      // bases (HOLDER_RESTRICTIONS parity — PVP_BASE_RAID_DESIGN.md §4.5).
+      try {
+        if (await isFlagBearer(auth.username)) {
+          log.debug('Base raid refused: attacker is the Flag Bearer', { attacker: auth.username, defender });
+          await logRaidRefusal({
+            attacker: auth.username,
+            defender,
+            reason: 'bearer_restricted',
+            attackerClanId,
+            defenderClanId,
+            allied,
+          });
+          return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+            message: 'The Flag Bearer cannot initiate base raids while holding the Flag'
+          });
+        }
+      } catch {
+        // Flag lookup failure refuses fail-safe (admission must be provable).
+        return createErrorResponse(ErrorCode.VALIDATION_FAILED, {
+          message: 'Flag state unavailable — raid refused'
+        });
       }
     }
     const attackerUnits = ((attackerPlayer.units ?? []) as PlayerUnit[]).filter((u) => (u.quantity || 0) > 0);
@@ -378,31 +480,267 @@ export const POST = withRequestLogging(rateLimiter(async (request: NextRequest) 
         attackerLevel: attackerPlayer.level ?? 1,
         defenderLevel: base.level ?? 1,
         applyCasualties: false,
+        // FID-20261002-013 §5.5: trusted SERVER-derived human-combat context,
+        // supplied only after the hostility/protection/bearer gates above —
+        // human base raids apply the frozen balance powerMultiplier to BOTH
+        // human sides' effective STR/DEF once. Bot raids (PvE) omit the
+        // context entirely: bot reinforcement/loot/cadence and raid pacing
+        // stay untouched, and the client never supplies this field.
+        ...(isBotDefender
+          ? {}
+          : { humanCombat: { attackerIsHuman: true, defenderIsHuman: true } }),
       }
     );
 
-    // FID-20260912-093: real casualties — the attacker's losses come OFF
-    // their army (per unit type, totals recomputed). Previously raid
-    // casualties were cosmetic: the log said 1,013 dead, the army kept all.
+    // FID-20261002-003 §5.3/§5.5: the HUMAN raid commits atomically. Both
+    // player rows are locked in the 002 lock order (attacker, then defender —
+    // sorted usernames), the period claim is re-checked AFTER the locks (a
+    // concurrent same-pair raid commits first and this one refuses), and the
+    // casualties, truthful loot transfer (defender DEBIT + attacker CREDIT —
+    // R1's conservation repair), protection forfeiture, XP/RP rewards and the
+    // period-consuming battle log commit together or not at all. Retry
+    // identity is the committed attacker/defender/period claim. Bot raids
+    // keep their existing (non-transfer) path below.
+    if (!isBotDefender) {
+      const raidOutcome = await withTransactionRetry(`baseRaid(${auth.username}→${defender})`, () =>
+        db.transaction(async (tx): Promise<
+          | { committed: false; reason: 'period' }
+          | { committed: true; battleLog: typeof battleLog; lootMetal: number; lootEnergy: number; xpAwarded: number; raidRP: number; message: string }
+        > => {
+          // Lock order: player usernames sorted (002 contract) — attacker
+          // first when lexicographically smaller, else defender first.
+          const [first, second] = [auth.username, defender].sort();
+          const lockedRows = new Map<string, Record<string, unknown>>();
+          for (const username of [first, second]) {
+            const [row] = await tx
+              .select()
+              .from(players)
+              .where(eq(players.username, username))
+              .limit(1)
+              .for('update');
+            if (!row) throw new Error(`Raid participant not found: ${username}`);
+            lockedRows.set(username, row as Record<string, unknown>);
+          }
+          const lockedAttacker = lockedRows.get(auth.username)!;
+          const lockedDefender = lockedRows.get(defender)!;
+
+          // §5.3: the period claim re-check AFTER the locks — both wins and
+          // losses consume the period; concurrent same-pair attempts yield
+          // exactly one committed raid.
+          const [priorRaid] = await tx
+            .select({ battleId: battleLogs.battleId })
+            .from(battleLogs)
+            .where(
+              and(
+                eq(battleLogs.attackerUsername, auth.username),
+                eq(battleLogs.defenderUsername, defender),
+                gte(battleLogs.timestamp, periodStart)
+              )
+            )
+            .limit(1);
+          if (priorRaid) return { committed: false, reason: 'period' };
+
+          // §5.2: aggression forfeiture commits WITH the raid (fail closed).
+          await voidProtectionOnAggressionTx(auth.username, tx);
+
+          // §5.5: casualties inside the transaction. Attacker losses come off
+          // their locked army; defender losses persist through the 25% floor
+          // off the locked defender army. The frozen battleLog tallies drive
+          // both (whole-transaction retries replay the SAME draws).
+          let attackerLost = battleLog.attacker.unitsLost;
+          const attackerByType = battleLog.attacker.casualtiesByType;
+          const attackerArmy = ((lockedAttacker.units as PlayerUnit[]) ?? []).filter((u) => (u.quantity || 0) > 0);
+          const remainingByType: Partial<Record<UnitType, number>> = { ...(attackerByType ?? {}) };
+          let remainingTotal = attackerLost;
+          const attackerFinal = attackerArmy.flatMap((pu) => {
+            if (attackerByType && Object.keys(attackerByType).length > 0) {
+              const remainingOfType = remainingByType[pu.unitType] ?? 0;
+              if (remainingOfType <= 0) return [pu];
+              const take = Math.min(pu.quantity, remainingOfType);
+              remainingByType[pu.unitType] = remainingOfType - take;
+              return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [];
+            }
+            const take = Math.min(pu.quantity, remainingTotal);
+            remainingTotal -= take;
+            return take > 0 ? [{ ...pu, quantity: pu.quantity - take }] : [pu];
+          }).filter((pu) => pu.quantity > 0) as PlayerUnit[];
+          attackerLost -= remainingTotal;
+          const attackerStats = { str: 0, def: 0 };
+          for (const pu of attackerFinal) {
+            attackerStats.str += (pu.strength || 0) * (pu.quantity || 0);
+            attackerStats.def += (pu.defense || 0) * (pu.quantity || 0);
+          }
+
+          const defenderFloorResult = await applyDefenderCasualtiesWithFloorTx(battleLog, defenderPreBattlePool, tx);
+          // FID-20261002-013 §5.4: battle truth vs the SAVED-ARMY floor are
+          // distinct numbers. The log now carries the truthful battle
+          // casualties (§5.4 accounting); when the 25% floor capped what
+          // persisted, label the difference explicitly so the report never
+          // conflates battle attrition with the saved-army rule.
+          const defenderBattleLosses = battleLog.defender.unitsLost;
+          battleLog.defender.unitsLost = defenderFloorResult.unitsLost;
+          battleLog.defender.casualtiesByType = defenderFloorResult.casualtiesByType;
+          battleLog.attacker.unitsLost = attackerLost;
+          if (defenderFloorResult.unitsLost < defenderBattleLosses) {
+            battleLog.notes = `Saved-army floor: ${defenderBattleLosses} battle casualties capped to ${defenderFloorResult.unitsLost} persisted (25% pool floor)`;
+          }
+
+          // §5.4 (R1 core): truthful loot = min(locked defender stockpile,
+          // attacker-level cap) per declared resource, 1× — and the SAME
+          // amount is SUBTRACTED from the defender and ADDED to the attacker
+          // with relative SQL in this transaction. Empty stockpiles pay zero;
+          // bot premium multipliers never apply; unlooted resources stay.
+          let lootMetal = 0;
+          let lootEnergy = 0;
+          let xpAwarded = 0;
+          let raidRP = 0;
+          let raidMessage = '';
+          if (battleLog.outcome === 'ATTACKER_WIN') {
+            const cap = pvpLootCap(attackerPlayer.level ?? 1);
+            lootMetal = resource && resource !== 'metal' ? 0 : Math.min(Number(lockedDefender.resourcesMetal ?? 0), cap);
+            lootEnergy = resource && resource !== 'energy' ? 0 : Math.min(Number(lockedDefender.resourcesEnergy ?? 0), cap);
+            const stolen = lootMetal + lootEnergy;
+            if (stolen > 0) {
+              battleLog.resourcesStolen = {
+                resourceType: (lootMetal > 0 ? 'metal' : 'energy') as 'metal' | 'energy',
+                amount: stolen,
+              };
+            }
+
+            // XP committed with the raid (tx-aware writer; failures roll back
+            // the raid rather than paying an unstated reward).
+            const xpResult = await awardXP(auth.username, XPAction.BASE_ATTACK_WIN, 1, tx);
+            xpAwarded = xpResult.xpAwarded;
+            battleLog.attackerXP = xpAwarded;
+            battleLog.attacker = { ...battleLog.attacker, xpEarned: xpAwarded };
+
+            const { awardRP, saturatingBattleRP } = await import('@/lib/researchPointService');
+            const rpResult = await awardRP(
+              auth.username,
+              saturatingBattleRP(base.level ?? 1),
+              'battle',
+              `Victory against ${defender} (Base Raid)`,
+              { battleType: 'base', defenderLevel: base.level ?? 1, beerBase: false },
+              tx
+            );
+            if (!rpResult.success) {
+              throw new Error(`Raid RP award failed for ${auth.username}: ${rpResult.message}`);
+            }
+            raidRP = rpResult.rpAwarded;
+
+            const lootPhrase = resource === 'metal'
+              ? `${lootMetal.toLocaleString()} Metal`
+              : resource === 'energy'
+                ? `${lootEnergy.toLocaleString()} Energy`
+                : `${lootMetal.toLocaleString()} Metal and ${lootEnergy.toLocaleString()} Energy`;
+            raidMessage = `You defeated ${defender}'s base and looted ${lootPhrase}! (+${xpAwarded} XP, +${raidRP} RP)`;
+            battleLog.message = raidMessage;
+
+            // Conservation writes: relative SQL on the LOCKED rows.
+            await tx.update(players)
+              .set({
+                units: attackerFinal,
+                totalStrength: attackerStats.str,
+                totalDefense: attackerStats.def,
+                ...(lootMetal > 0 || lootEnergy > 0
+                  ? {
+                      resourcesMetal: lootMetal > 0 ? sql`${players.resourcesMetal} + ${lootMetal}` : undefined,
+                      resourcesEnergy: lootEnergy > 0 ? sql`${players.resourcesEnergy} + ${lootEnergy}` : undefined,
+                    }
+                  : {}),
+              })
+              .where(eq(players.username, auth.username));
+
+            await tx.update(players)
+              .set({
+                ...(lootMetal > 0 ? { resourcesMetal: sql`${players.resourcesMetal} - ${lootMetal}` } : {}),
+                ...(lootEnergy > 0 ? { resourcesEnergy: sql`${players.resourcesEnergy} - ${lootEnergy}` } : {}),
+              })
+              .where(eq(players.username, defender));
+          } else {
+            // Loss path: attacker casualties + loss XP commit with the log.
+            await tx.update(players)
+              .set({
+                units: attackerFinal,
+                totalStrength: attackerStats.str,
+                totalDefense: attackerStats.def,
+              })
+              .where(eq(players.username, auth.username));
+            await awardXP(auth.username, XPAction.BASE_ATTACK_LOSS, 1, tx);
+          }
+
+          // §5.5: the period-consuming battle log commits IN the transaction
+          // (persistence errors roll back assets and the reset claim).
+          await tx.insert(battleLogs).values(battleLogToDbInsertShim(battleLog));
+
+          return {
+            committed: true,
+            battleLog,
+            lootMetal,
+            lootEnergy,
+            xpAwarded,
+            raidRP,
+            message: raidMessage
+              || `Your attack on ${defender} was repelled! Base garrison: ${defenderUnits.length} units.`,
+          };
+        })
+      );
+
+      if (!raidOutcome.committed) {
+        return NextResponse.json(
+          { success: false, victory: false, message: `You already raided ${defender} this reset period. The garrison has locked the gates until the next reset.` },
+          { status: 429 }
+        );
+      }
+
+      const { battleLog: committedLog, lootMetal, lootEnergy, xpAwarded, raidRP, message } = raidOutcome;
+
+      // §5.5: notifications + telemetry strictly POST-commit (failure cannot
+      // roll back assets; retry sees the committed outcome, never re-pays).
+      try {
+        const { notifyBattleResult } = await import('@/lib/battleNotification');
+        await notifyBattleResult(committedLog);
+      } catch (notifyError) {
+        log.warn('Raid defender notification failed (post-commit, non-fatal)', notifyError as Error);
+      }
+
+      try {
+        await trackBattleWonSafe(auth.username);
+      } catch { /* non-fatal */ }
+
+      await logAttack(
+        auth.username,
+        request.cookies.get('sessionId')?.value || 'unknown',
+        defender,
+        committedLog.outcome === 'ATTACKER_WIN' ? 'success' : 'failure',
+        { metal: lootMetal, energy: lootEnergy }
+      );
+
+      if (committedLog.outcome === 'ATTACKER_WIN') {
+        return NextResponse.json({
+          success: true,
+          victory: true,
+          message,
+          rewards: { metal: lootMetal, energy: lootEnergy, experience: xpAwarded, rp: raidRP },
+          battle: committedLog,
+        });
+      }
+      return NextResponse.json({
+        success: true,
+        victory: false,
+        message,
+        battle: committedLog,
+      });
+    }
+
+    // ===== BOT PATH (unchanged semantics; 003 keeps bot rewards/regrowth/
+    // removal explicitly bot-scoped). Casualties apply outside a transfer
+    // transaction because bots keep their own bookkeeping below. =====
     if (battleLog.attacker.unitsLost > 0) {
       try {
         await applyAttackerCasualties(battleLog);
       } catch (casualtyError) {
         log.warn('Attacker casualty application failed (battle still resolved)', casualtyError as Error);
-      }
-    }
-
-    // FID-20260928-006 §4.2: human defender casualties PERSIST, floored at
-    // 25% of the pre-battle pool (the harassment brake). The capped tallies
-    // are re-stamped onto the log BEFORE persist so the report states what
-    // the army actually lost. Bot defenders keep their own bookkeeping.
-    if (!isBotDefender && battleLog.defender.unitsLost > 0) {
-      try {
-        const capped = await applyDefenderCasualtiesWithFloor(battleLog, defenderPreBattlePool);
-        battleLog.defender.unitsLost = capped.unitsLost;
-        battleLog.defender.casualtiesByType = capped.casualtiesByType;
-      } catch (defenderCasualtyError) {
-        log.warn('Defender casualty application failed (battle still resolved)', defenderCasualtyError as Error);
       }
     }
 

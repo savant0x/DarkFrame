@@ -24,6 +24,7 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { players } from '@/lib/db/schema';
+import type { TreasuryTx } from '@/lib/db/treasuryLock';
 
 /** Registration window length in hours. Operator-tunable knob (FID §5 default:
  *  72h — covers the tutorial + first base build). */
@@ -72,6 +73,25 @@ export async function voidProtectionOnAggression(username: string): Promise<void
     }
   } catch (error) {
     console.error(`Failed to void protection on aggression for ${username}:`, error);
+  }
+}
+
+/**
+ * FID-20261002-003 §5.2: the TRANSACTIONAL void used by the human base-raid
+ * path — the forfeiture is PART of the committed raid transaction (FID-002
+ * boundary), not a best-effort side write. Errors PROPAGATE: a forfeiture
+ * failure fails closed (the raid rolls back) instead of being swallowed and
+ * letting a protected player raid with the window intact. Bots are unaffected
+ * (they never hold the column in practice, and the write is a no-op then).
+ */
+export async function voidProtectionOnAggressionTx(username: string, tx: TreasuryTx): Promise<void> {
+  const result = await tx
+    .update(players)
+    .set({ protectionUntil: null })
+    .where(and(eq(players.username, username), isNotNull(players.protectionUntil)))
+    .returning({ username: players.username });
+  if (result.length > 0) {
+    console.log(`🛡️ Protection voided on aggression (committed with raid): ${username}`);
   }
 }
 
