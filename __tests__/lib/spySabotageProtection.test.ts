@@ -46,14 +46,22 @@ const h = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/lib/db', () => ({
-  db: {
+vi.mock('@/lib/db', () => {
+  // FID-20261002-008: executeSabotage now commits effects + record + spy
+  // exposure in ONE db.transaction — the mock passes a tx handle with the SAME
+  // builder shape, and the FOR UPDATE selects (select().from().where().limit()
+  // .for('update')) resolve through the same selectResults map.
+  const makeBuilders = () => ({
     select: vi.fn().mockImplementation(() => ({
       from: vi.fn().mockImplementation((table: unknown) => ({
         where: vi.fn().mockImplementation(() => ({
-          limit: vi.fn().mockImplementation(() =>
-            Promise.resolve(h.selectResults.get(table) ?? [])
-          ),
+          limit: vi.fn().mockImplementation(() => {
+            const rows = Promise.resolve(h.selectResults.get(table) ?? []);
+            // FOR UPDATE rides after .limit() in the locked target reads.
+            (rows as unknown as { for: () => Promise<unknown> }).for =
+              vi.fn().mockImplementation(() => Promise.resolve(h.selectResults.get(table) ?? []));
+            return rows;
+          }),
         })),
       })),
     })),
@@ -72,8 +80,13 @@ vi.mock('@/lib/db', () => ({
         return Promise.resolve();
       }),
     })),
-  },
-}));
+  });
+  const db = makeBuilders();
+  (db as unknown as { transaction: unknown }).transaction = vi.fn(
+    async (fn: (tx: unknown) => Promise<unknown>) => fn(makeBuilders())
+  );
+  return { db };
+});
 
 vi.mock('@/lib/db/schema', async (importOriginal) => ({
   // Spread the real barrel: transitive modules (statTrackingService etc.)
@@ -103,12 +116,17 @@ vi.mock('@/lib/db/schema/wmd', async (importOriginal) => ({
 }));
 
 vi.mock('@/lib/clanWarfareService', () => ({ getActiveWars: vi.fn() }));
-vi.mock('./clanTreasuryWMDService', () => ({
+// FID-20261003-001: these two mocks previously used './' paths, which vitest
+// resolves against THIS test file's directory (__tests__/lib/ — no such
+// modules), leaving them silently dead while the real lib/wmd modules ran.
+// They are re-pointed to the module ids spyService's imports actually
+// resolve to. getPlayerResearch pins the real module's no-row shape (null).
+vi.mock('@/lib/wmd/clanTreasuryWMDService', () => ({
   validateClanWMDFunds: vi.fn(),
   deductWMDCost: vi.fn(),
   WMDPurchaseType: {},
 }));
-vi.mock('./researchService', () => ({ getPlayerResearch: vi.fn() }));
+vi.mock('@/lib/wmd/researchService', () => ({ getPlayerResearch: vi.fn().mockResolvedValue(null) }));
 
 import { executeSabotage } from '@/lib/wmd/spyService';
 import { PROTECTION_REFUSAL_REASON } from '@/lib/playerProtection';

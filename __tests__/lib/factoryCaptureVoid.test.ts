@@ -15,6 +15,15 @@
  *
  * Idiom: chained-mock db with projection-aware select (mirrors the seam suite;
  * the projection path and the full-row path both take rows[0]).
+ *
+ * FID-20261003-001: the three service mocks below use '@/' aliases — the module
+ * ids production's imports actually resolve to. They previously used './'
+ * paths, which vitest resolves against THIS test file's directory
+ * (__tests__/lib/), where no such modules exist: the mocks were silently dead,
+ * the real xpService ran whenever the capture power roll succeeded, and its
+ * lockPlayerRow threw "Player not found: attacker" against the transaction
+ * mock's empty locked read (~11% of runs — misrecorded as a disposable-PG
+ * flake until this FID).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -71,6 +80,25 @@ vi.mock('@/lib/db', () => ({
     insert: vi.fn().mockImplementation(() => ({
       values: vi.fn().mockImplementation(() => Promise.resolve()),
     })),
+    // FID-20261002-002/004: awardXP (post-capture reward) runs its own
+    // transaction — the mock's transaction passes a handle whose select chain
+    // supports the locked-row idiom (limit().for('update')).
+    transaction: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        select: vi.fn(() => ({
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn(() => ({
+                for: vi.fn(() => Promise.resolve([])),
+              })),
+            })),
+          })),
+        })),
+        update: vi.fn(() => ({
+          set: vi.fn(() => ({ where: vi.fn(() => ({ returning: vi.fn(() => Promise.resolve([])) })) })),
+        })),
+      })
+    ),
   },
 }));
 
@@ -80,9 +108,12 @@ vi.mock('@/lib/db/schema', async (importOriginal) => ({
   players: h.playersTable,
 }));
 
-vi.mock('./xpService', () => ({ awardXP: vi.fn(), XPAction: { FACTORY_CAPTURE: 'FACTORY_CAPTURE' } }));
-vi.mock('./specializationService', () => ({ getPlayerDoctrineBonuses: vi.fn().mockResolvedValue({ strMul: 1 }) }));
-vi.mock('./factoryUpgradeService', () => ({
+vi.mock('@/lib/xpService', () => ({
+  awardXP: vi.fn(async () => ({ xpAwarded: 200, totalXP: 200, oldLevel: 1, newLevel: 1, levelUp: false })),
+  XPAction: { FACTORY_CAPTURE: 'FACTORY_CAPTURE' },
+}));
+vi.mock('@/lib/specializationService', () => ({ getPlayerDoctrineBonuses: vi.fn().mockResolvedValue({ strMul: 1 }) }));
+vi.mock('@/lib/factoryUpgradeService', () => ({
   FACTORY_UPGRADE: { MAX_FACTORIES_PER_PLAYER: 5 },
   getMaxSlots: vi.fn(() => 5),
   getFactoryDefense: vi.fn(() => 1000),
